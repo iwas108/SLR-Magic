@@ -6,12 +6,31 @@
 const SheetUtils = (function() {
 
   /**
+   * Helper to get the active spreadsheet or open by ID.
+   * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
+   */
+  function getSpreadsheet() {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    if (sheetId) {
+      return SpreadsheetApp.openById(sheetId);
+    }
+    // Fallback to active spreadsheet (works in container-bound scripts, but not triggers if standalone)
+    try {
+        return SpreadsheetApp.getActiveSpreadsheet();
+    } catch (e) {
+        throw new Error("Could not access spreadsheet. Please set 'SHEET_ID' in Script Properties.");
+    }
+  }
+
+  /**
    * Gets a sheet by name or throws an error if missing.
    * @param {string} sheetName
    * @returns {GoogleAppsScript.Spreadsheet.Sheet}
    */
   function getSheetByName(sheetName) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSpreadsheet();
+    if (!ss) throw new Error("No active spreadsheet found.");
+
     const sheet = ss.getSheetByName(sheetName);
     if (!sheet) {
       throw new Error(`Sheet "${sheetName}" not found. Please create it.`);
@@ -83,12 +102,6 @@ const SheetUtils = (function() {
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn();
 
-    // Create a 2D array matching the sheet columns
-    // We need to know the max column index from the headerMap
-    // But we should rely on sheet.getLastColumn() to define the width,
-    // or the max index in headerMap.
-    // Usually, we write to the width of the existing headers.
-
     const numRows = dataObjects.length;
     // Initialize empty 2D array
     const outputValues = [];
@@ -110,11 +123,96 @@ const SheetUtils = (function() {
     sheet.getRange(lastRow + 1, 1, numRows, lastCol).setValues(outputValues);
   }
 
+  /**
+   * Reads all data from the sheet and returns as an array of objects.
+   * Adds a special property `_rowIndex` (1-based) to each object.
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @returns {Array<Object>}
+   */
+  function getDataAsObjects(sheet) {
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+    if (values.length < 2) return []; // No data
+
+    const headers = values[0];
+    const data = [];
+
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const obj = { _rowIndex: i + 1 };
+
+      headers.forEach((header, colIndex) => {
+        if (header) {
+          obj[header.trim()] = row[colIndex];
+        }
+      });
+      data.push(obj);
+    }
+    return data;
+  }
+
+  /**
+   * Updates a single row in the sheet based on the dataObject and headerMap.
+   * Only updates columns present in the dataObject.
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @param {number} rowIndex 1-based row index
+   * @param {Object} dataObject Data to update
+   * @param {Object} headerMap Map of { "HeaderName": ColumnIndex }
+   */
+  function updateRow(sheet, rowIndex, dataObject, headerMap) {
+    const lastCol = sheet.getLastColumn();
+
+    const rowRange = sheet.getRange(rowIndex, 1, 1, lastCol);
+    const rowValues = rowRange.getValues()[0];
+
+    let changed = false;
+    for (const [key, value] of Object.entries(dataObject)) {
+      const colIdx = headerMap[key];
+      if (colIdx && colIdx <= lastCol) {
+        rowValues[colIdx - 1] = value;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      rowRange.setValues([rowValues]);
+    }
+  }
+
+  /**
+   * Safely attempts to show a toast message.
+   * Does nothing if UI is not available (e.g., time trigger).
+   */
+  function toast(msg, title, timeoutSeconds) {
+    try {
+        const ss = getSpreadsheet();
+        ss.toast(msg, title, timeoutSeconds);
+    } catch (e) {
+        console.log(`[TOAST] ${title}: ${msg}`);
+    }
+  }
+
+  /**
+   * Safely attempts to show an alert.
+   * Logs to console if UI is not available.
+   */
+  function alert(msg) {
+    try {
+        SpreadsheetApp.getUi().alert(msg);
+    } catch (e) {
+        console.log(`[ALERT] ${msg}`);
+    }
+  }
+
   return {
     getSheetByName,
     getConfigMap,
     getHeaderMap,
-    appendDataMapped
+    appendDataMapped,
+    getDataAsObjects,
+    updateRow,
+    toast,
+    alert
   };
 
 })();
