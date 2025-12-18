@@ -55,7 +55,8 @@ const ImportController = (function() {
           'Year': record['Year'],
           'Authors': record['Authors'],
           'DOI_Link': link,
-          'Source_DB': 'Scopus' // Hardcoded as per context
+          'Source_DB': 'Scopus', // Hardcoded as per context
+          'AI_Status': 'Pending'
         };
       });
 
