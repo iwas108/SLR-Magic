@@ -83,12 +83,6 @@ const SheetUtils = (function() {
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn();
 
-    // Create a 2D array matching the sheet columns
-    // We need to know the max column index from the headerMap
-    // But we should rely on sheet.getLastColumn() to define the width,
-    // or the max index in headerMap.
-    // Usually, we write to the width of the existing headers.
-
     const numRows = dataObjects.length;
     // Initialize empty 2D array
     const outputValues = [];
@@ -110,11 +104,77 @@ const SheetUtils = (function() {
     sheet.getRange(lastRow + 1, 1, numRows, lastCol).setValues(outputValues);
   }
 
+  /**
+   * Reads all data from the sheet and returns as an array of objects.
+   * Adds a special property `_rowIndex` (1-based) to each object.
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @returns {Array<Object>}
+   */
+  function getDataAsObjects(sheet) {
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+    if (values.length < 2) return []; // No data
+
+    const headers = values[0];
+    const data = [];
+
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const obj = { _rowIndex: i + 1 };
+
+      headers.forEach((header, colIndex) => {
+        if (header) {
+          obj[header.trim()] = row[colIndex];
+        }
+      });
+      data.push(obj);
+    }
+    return data;
+  }
+
+  /**
+   * Updates a single row in the sheet based on the dataObject and headerMap.
+   * Only updates columns present in the dataObject.
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @param {number} rowIndex 1-based row index
+   * @param {Object} dataObject Data to update
+   * @param {Object} headerMap Map of { "HeaderName": ColumnIndex }
+   */
+  function updateRow(sheet, rowIndex, dataObject, headerMap) {
+    const lastCol = sheet.getLastColumn();
+    // Optimization: Read the current row first to preserve other data?
+    // Actually, setValues for specific cells is better if we are updating sparse data.
+    // But here we likely update multiple columns.
+    // Let's assume we want to update only the keys present in dataObject.
+
+    // To do this efficiently without reading, we can iterate keys in dataObject.
+    // But making multiple set calls is slow.
+    // Better to read the row, update the array, write back.
+
+    const rowRange = sheet.getRange(rowIndex, 1, 1, lastCol);
+    const rowValues = rowRange.getValues()[0];
+
+    let changed = false;
+    for (const [key, value] of Object.entries(dataObject)) {
+      const colIdx = headerMap[key];
+      if (colIdx && colIdx <= lastCol) {
+        rowValues[colIdx - 1] = value;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      rowRange.setValues([rowValues]);
+    }
+  }
+
   return {
     getSheetByName,
     getConfigMap,
     getHeaderMap,
-    appendDataMapped
+    appendDataMapped,
+    getDataAsObjects,
+    updateRow
   };
 
 })();
