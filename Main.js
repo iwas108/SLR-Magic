@@ -10,6 +10,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('SLR Magic')
     .addItem('Import Raw CSV', 'runImportRawCSV')
+    .addItem('Start AI Title-Abstract Screening', 'runScreening')
     .addToUi();
 }
 
@@ -19,4 +20,8 @@ function onOpen() {
  */
 function runImportRawCSV() {
   ImportController.run();
+}
+
+function runScreening() {
+  ScreeningController.run();
 }
