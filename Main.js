@@ -3,11 +3,6 @@
  * * Orchestrates the flow between Config, Drive, and Sheet modules.
  */
 
-// --- Global Constants ---
-const CONSTANTS = {
-
-};
-
 /**
  * Creates the menu when the spreadsheet opens.
  */
@@ -19,8 +14,9 @@ function onOpen() {
 }
 
 /**
- * The main workflow controller.
+ * The main workflow controller wrapper.
+ * Needs to be a top-level function to be assigned to a menu item.
  */
 function runImportRawCSV() {
-  
+  ImportController.run();
 }
