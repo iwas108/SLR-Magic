@@ -6,8 +6,6 @@
 const ScreeningController = (function() {
 
   function run() {
-    const ui = SpreadsheetApp.getUi();
-
     try {
       // 1. Read Configuration
       const config = SheetUtils.getConfigMap("00_manifest");
@@ -34,13 +32,13 @@ const ScreeningController = (function() {
       const pendingRows = allData.filter(row => row["AI_Status"] === "Pending");
 
       if (pendingRows.length === 0) {
-        ui.alert("No pending rows found for screening.");
+        SheetUtils.alert("No pending rows found for screening.");
         return;
       }
 
       // 4. Process Batch
       const batch = pendingRows.slice(0, batchSize);
-      ui.alert(`Starting screening for ${batch.length} papers. This may take a while (${batch.length * 16} secs).`);
+      SheetUtils.toast(`Starting screening for ${batch.length} papers. This may take a while.`, "Processing", 5);
 
       let processedCount = 0;
       let errorCount = 0;
@@ -87,11 +85,11 @@ const ScreeningController = (function() {
 
       // 5. Final Feedback
       const msg = `Screening Complete.\nProcessed: ${processedCount}\nErrors: ${errorCount}`;
-      SpreadsheetApp.getActiveSpreadsheet().toast(msg, "Job Done", 10);
+      SheetUtils.toast(msg, "Job Done", 10);
 
     } catch (e) {
       console.error(e);
-      ui.alert(`An unexpected error occurred: ${e.message}`);
+      SheetUtils.alert(`An unexpected error occurred: ${e.message}`);
     }
   }
 
