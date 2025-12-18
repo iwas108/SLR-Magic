@@ -6,12 +6,31 @@
 const SheetUtils = (function() {
 
   /**
+   * Helper to get the active spreadsheet or open by ID.
+   * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
+   */
+  function getSpreadsheet() {
+    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    if (sheetId) {
+      return SpreadsheetApp.openById(sheetId);
+    }
+    // Fallback to active spreadsheet (works in container-bound scripts, but not triggers if standalone)
+    try {
+        return SpreadsheetApp.getActiveSpreadsheet();
+    } catch (e) {
+        throw new Error("Could not access spreadsheet. Please set 'SHEET_ID' in Script Properties.");
+    }
+  }
+
+  /**
    * Gets a sheet by name or throws an error if missing.
    * @param {string} sheetName
    * @returns {GoogleAppsScript.Spreadsheet.Sheet}
    */
   function getSheetByName(sheetName) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSpreadsheet();
+    if (!ss) throw new Error("No active spreadsheet found.");
+
     const sheet = ss.getSheetByName(sheetName);
     if (!sheet) {
       throw new Error(`Sheet "${sheetName}" not found. Please create it.`);
@@ -142,14 +161,6 @@ const SheetUtils = (function() {
    */
   function updateRow(sheet, rowIndex, dataObject, headerMap) {
     const lastCol = sheet.getLastColumn();
-    // Optimization: Read the current row first to preserve other data?
-    // Actually, setValues for specific cells is better if we are updating sparse data.
-    // But here we likely update multiple columns.
-    // Let's assume we want to update only the keys present in dataObject.
-
-    // To do this efficiently without reading, we can iterate keys in dataObject.
-    // But making multiple set calls is slow.
-    // Better to read the row, update the array, write back.
 
     const rowRange = sheet.getRange(rowIndex, 1, 1, lastCol);
     const rowValues = rowRange.getValues()[0];
@@ -168,13 +179,40 @@ const SheetUtils = (function() {
     }
   }
 
+  /**
+   * Safely attempts to show a toast message.
+   * Does nothing if UI is not available (e.g., time trigger).
+   */
+  function toast(msg, title, timeoutSeconds) {
+    try {
+        const ss = getSpreadsheet();
+        ss.toast(msg, title, timeoutSeconds);
+    } catch (e) {
+        console.log(`[TOAST] ${title}: ${msg}`);
+    }
+  }
+
+  /**
+   * Safely attempts to show an alert.
+   * Logs to console if UI is not available.
+   */
+  function alert(msg) {
+    try {
+        SpreadsheetApp.getUi().alert(msg);
+    } catch (e) {
+        console.log(`[ALERT] ${msg}`);
+    }
+  }
+
   return {
     getSheetByName,
     getConfigMap,
     getHeaderMap,
     appendDataMapped,
     getDataAsObjects,
-    updateRow
+    updateRow,
+    toast,
+    alert
   };
 
 })();
