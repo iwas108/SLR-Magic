@@ -6,6 +6,15 @@
 const ScreeningController = (function() {
 
   function run() {
+    // Acquire Lock to prevent race conditions (e.g., overlapping triggers)
+    const lock = LockService.getScriptLock();
+    // Try to acquire lock for 10 seconds. If failed, it means another instance is running.
+    if (!lock.tryLock(10000)) {
+        console.log("Could not acquire lock. Another instance of Screening is likely running.");
+        // We do not alert here because this is likely a background trigger overlap.
+        return;
+    }
+
     try {
       // 1. Read Configuration
       const config = SheetUtils.getConfigMap("00_manifest");
@@ -90,6 +99,9 @@ const ScreeningController = (function() {
     } catch (e) {
       console.error(e);
       SheetUtils.alert(`An unexpected error occurred: ${e.message}`);
+    } finally {
+        // Always release the lock
+        lock.releaseLock();
     }
   }
 
