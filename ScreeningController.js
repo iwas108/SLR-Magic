@@ -40,7 +40,7 @@ const ScreeningController = (function() {
 
       // 4. Process Batch
       const batch = pendingRows.slice(0, batchSize);
-      ui.alert(`Starting screening for ${batch.length} papers. This may take a while.`);
+      ui.alert(`Starting screening for ${batch.length} papers. This may take a while (${batch.length * 16} secs).`);
 
       let processedCount = 0;
       let errorCount = 0;
