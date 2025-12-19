@@ -41,8 +41,58 @@ const DriveUtils = (function() {
     }
   }
 
+  /**
+   * Gets a file blob.
+   * @param {string} urlOrId Google Drive URL or File ID
+   * @returns {GoogleAppsScript.Base.Blob}
+   */
+  function getFileBlob(urlOrId) {
+    let fileId = urlOrId;
+    if (urlOrId.indexOf('http') !== -1) {
+      fileId = getFileIdFromUrl(urlOrId);
+    }
+
+    try {
+      const file = DriveApp.getFileById(fileId);
+      return file.getBlob();
+    } catch (e) {
+      throw new Error(`Failed to get file blob (ID: ${fileId}): ${e.message}`);
+    }
+  }
+
+  /**
+   * Searches for a file in a specific folder by name.
+   * @param {string} folderUrlOrId
+   * @param {string} fileNamePartial Partial or full name to match.
+   * @returns {string} File URL or null if not found.
+   */
+  function searchFile(folderUrlOrId, fileNamePartial) {
+    let folderId = folderUrlOrId;
+    if (folderUrlOrId.indexOf('http') !== -1) {
+      folderId = getFileIdFromUrl(folderUrlOrId);
+    }
+
+    try {
+      const folder = DriveApp.getFolderById(folderId);
+      // We search for files containing the name
+      // Note: 'name contains' is case-insensitive usually.
+      const files = folder.searchFiles(`name contains '${fileNamePartial}' and trashed = false`);
+
+      if (files.hasNext()) {
+        return files.next().getUrl();
+      }
+      return null;
+    } catch (e) {
+      console.error(`Error searching file in folder ${folderId}: ${e.message}`);
+      return null;
+    }
+  }
+
   return {
-    getFileContent
+    getFileContent,
+    getFileBlob,
+    searchFile,
+    getFileIdFromUrl
   };
 
 })();
