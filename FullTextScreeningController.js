@@ -62,8 +62,17 @@ const FullTextScreeningController = (function() {
 
   /**
    * Imports PDF URLs into the Full-Text Screening sheet.
+   * Supports background processing with batch size.
    */
   function runImportPDFs() {
+    // Acquire Lock to prevent race conditions
+    const lock = LockService.getScriptLock();
+    // Try to acquire lock for 30 seconds
+    if (!lock.tryLock(30000)) {
+        console.log("Could not acquire lock. Another instance of PDF Import is likely running.");
+        return;
+    }
+
     try {
       const config = SheetUtils.getConfigMap("00_manifest");
       const pdfRepoUrl = config["PDF_REPO"];
@@ -73,6 +82,11 @@ const FullTextScreeningController = (function() {
         return;
       }
 
+      // Check for batch size property (from user input via background setup)
+      const batchSizeProp = PropertiesService.getScriptProperties().getProperty("PDF_IMPORT_BATCH_SIZE");
+      // Default to 50 if not set or invalid
+      const batchSize = batchSizeProp ? parseInt(batchSizeProp) : 50;
+
       const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
       const data = SheetUtils.getDataAsObjects(sheet);
@@ -80,33 +94,41 @@ const FullTextScreeningController = (function() {
       let foundCount = 0;
 
       // Determine which rows need PDF search
-      // We can search for all, or just those with empty PDF column.
-      // To be robust, let's search for those with empty PDF column.
       const rowsToUpdate = data.filter(row => !row["PDF"]);
 
       if (rowsToUpdate.length === 0) {
-        SheetUtils.alert("All papers already have PDF links or the sheet is empty.");
+        SheetUtils.toast("All papers already have PDF links or the sheet is empty.", "PDF Import", 3);
         return;
       }
 
-      SheetUtils.toast(`Searching PDFs for ${rowsToUpdate.length} papers...`, "Importing PDFs", -1);
+      // Slice to batch size
+      const batch = rowsToUpdate.slice(0, batchSize);
 
-      rowsToUpdate.forEach(row => {
+      SheetUtils.toast(`Searching PDFs for ${batch.length} papers...`, "Importing PDFs", -1);
+
+      batch.forEach(row => {
         const paperId = row["Paper_ID"];
         if (paperId) {
-          const pdfUrl = DriveUtils.searchFile(pdfRepoUrl, paperId);
-          if (pdfUrl) {
-            SheetUtils.updateRow(sheet, row._rowIndex, { "PDF": pdfUrl }, headerMap);
-            foundCount++;
+          try {
+            const pdfUrl = DriveUtils.searchFile(pdfRepoUrl, paperId);
+            if (pdfUrl) {
+              SheetUtils.updateRow(sheet, row._rowIndex, { "PDF": pdfUrl }, headerMap);
+              foundCount++;
+            }
+          } catch (err) {
+            console.error(`Error searching PDF for ${paperId}: ${err.message}`);
           }
         }
       });
 
-      SheetUtils.toast(`PDF Import Complete. Found: ${foundCount}/${rowsToUpdate.length}`, "Done", 5);
+      SheetUtils.toast(`PDF Import Batch Complete. Found: ${foundCount}/${batch.length}`, "Done", 5);
 
     } catch (e) {
       console.error(e);
+      // Avoid alerts in background if possible, but keeping safety check inside SheetUtils.alert/toast
       SheetUtils.alert(`Error importing PDFs: ${e.message}`);
+    } finally {
+      lock.releaseLock();
     }
   }
 
