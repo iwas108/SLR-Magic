@@ -90,7 +90,8 @@ const DriveUtils = (function() {
       // Backslashes must be escaped first.
       const safeName = trimmedName.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
-      query = `name contains '${safeName}' and trashed = false`;
+      // DriveApp still largely uses Drive API v2 conventions where 'title' is used instead of 'name'.
+      query = `title contains '${safeName}' and trashed = false`;
       console.log(`[DriveUtils] Query: ${query}`);
 
       const files = folder.searchFiles(query);
