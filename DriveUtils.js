@@ -76,7 +76,9 @@ const DriveUtils = (function() {
       const folder = DriveApp.getFolderById(folderId);
       // We search for files containing the name
       // Note: 'name contains' is case-insensitive usually.
-      const files = folder.searchFiles(`name contains '${fileNamePartial}' and trashed = false`);
+      // Escape single quotes to prevent "Invalid argument: q" errors.
+      const safeName = fileNamePartial.replace(/'/g, "\\'");
+      const files = folder.searchFiles(`name contains '${safeName}' and trashed = false`);
 
       if (files.hasNext()) {
         return files.next().getUrl();
