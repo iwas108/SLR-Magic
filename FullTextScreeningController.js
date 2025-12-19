@@ -190,9 +190,12 @@ const FullTextScreeningController = (function() {
           updateData["AI_Reasoning"] = result.reasoning;
           updateData["Exclusion_Reason"] = result.exclusion_code || "";
 
-          // extraction_preview is not mapped as there are no columns for it yet,
-          // but if needed we could put it in Notes.
-          // For now, adhere to columns requested.
+          if (result.extraction_preview) {
+            updateData["Specific_Crop"] = result.extraction_preview.specific_crop;
+            updateData["Hardware_Platform"] = result.extraction_preview.hardware_platform;
+            updateData["Algorithm_Used"] = result.extraction_preview.algorithm_used;
+            updateData["Is_Implemented"] = result.extraction_preview.is_implemented;
+          }
 
           processedCount++;
 
