@@ -72,21 +72,41 @@ const DriveUtils = (function() {
       folderId = getFileIdFromUrl(folderUrlOrId);
     }
 
+    // Log input to help debugging
+    console.log(`[DriveUtils] Searching in folder ${folderId} for: "${fileNamePartial}"`);
+
+    let query = "";
     try {
       const folder = DriveApp.getFolderById(folderId);
-      // We search for files containing the name
-      // Note: 'name contains' is case-insensitive usually.
+
+      // Sanitize input
+      const trimmedName = fileNamePartial ? fileNamePartial.toString().trim() : "";
+      if (!trimmedName) {
+        console.log(`[DriveUtils] Skipped search: Empty filename.`);
+        return null;
+      }
+
       // Escape backslashes and single quotes to prevent "Invalid argument: q" errors.
       // Backslashes must be escaped first.
-      const safeName = fileNamePartial.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-      const files = folder.searchFiles(`name contains '${safeName}' and trashed = false`);
+      const safeName = trimmedName.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+      query = `name contains '${safeName}' and trashed = false`;
+      console.log(`[DriveUtils] Query: ${query}`);
+
+      const files = folder.searchFiles(query);
 
       if (files.hasNext()) {
-        return files.next().getUrl();
+        const file = files.next();
+        const url = file.getUrl();
+        console.log(`[DriveUtils] Found: ${url}`);
+        return url;
       }
+
+      console.log(`[DriveUtils] No file found.`);
       return null;
     } catch (e) {
-      console.error(`Error searching file in folder ${folderId}: ${e.message}`);
+      // Log more verbose error info
+      console.error(`[DriveUtils] Error searching file. Folder: ${folderId}, Query: "${query}", Error: ${e.message}`);
       return null;
     }
   }
