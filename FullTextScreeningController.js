@@ -251,10 +251,82 @@ const FullTextScreeningController = (function() {
     }
   }
 
+  /**
+   * Transforms DOI Links to use a web proxy for manual download.
+   * Pattern: www.domain.com -> www-domain-com.proxy.url
+   */
+  function runTransformDOILinks() {
+    try {
+      // 1. Get Proxy Config
+      const config = SheetUtils.getConfigMap("00_manifest");
+      const proxyUrl = config["WEB_PROXY_URL"];
+
+      if (!proxyUrl) {
+        SheetUtils.alert("WEB_PROXY_URL is missing in 00_manifest.");
+        return;
+      }
+
+      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const headerMap = SheetUtils.getHeaderMap(sheet);
+      const data = SheetUtils.getDataAsObjects(sheet);
+
+      let updatedCount = 0;
+
+      // 2. Iterate and Transform
+      // Only process if PDF is missing
+      const rowsToProcess = data.filter(row => !row["PDF"] && row["DOI_Link"]);
+
+      if (rowsToProcess.length === 0) {
+        SheetUtils.alert("No rows with missing PDFs and valid DOI Links found.");
+        return;
+      }
+
+      rowsToProcess.forEach(row => {
+        const originalUrl = row["DOI_Link"];
+
+        try {
+          // Simple check to avoid double proxying
+          if (originalUrl.includes(proxyUrl)) {
+            return;
+          }
+
+          // Parse URL using standard URL object (V8 runtime)
+          // Note: If originalUrl is not a valid URL, new URL() throws error
+          const urlObj = new URL(originalUrl);
+          const hostname = urlObj.hostname; // e.g., www.scopus.com
+
+          // Transform hostname: replace . with -
+          const transformedHostname = hostname.replace(/\./g, '-');
+
+          // Construct new hostname
+          const newHostname = `${transformedHostname}.${proxyUrl}`;
+
+          // Reconstruct URL
+          urlObj.hostname = newHostname;
+          const newUrl = urlObj.toString();
+
+          // Update Sheet
+          SheetUtils.updateRow(sheet, row._rowIndex, { "DOI_Link": newUrl }, headerMap);
+          updatedCount++;
+
+        } catch (err) {
+            console.warn(`Could not transform URL for row ${row._rowIndex}: ${originalUrl}`, err);
+        }
+      });
+
+      SheetUtils.alert(`Transformed ${updatedCount} DOI Links.`);
+
+    } catch (e) {
+      console.error(e);
+      SheetUtils.alert(`Error transforming DOI links: ${e.message}`);
+    }
+  }
+
   return {
     runCopyScreenedPapers,
     runImportPDFs,
-    runScreening
+    runScreening,
+    runTransformDOILinks
   };
 
 })();
