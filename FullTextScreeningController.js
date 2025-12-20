@@ -310,20 +310,25 @@ const FullTextScreeningController = (function() {
             return;
           }
 
-          // Parse URL using standard URL object (V8 runtime)
-          // Note: If originalUrl is not a valid URL, new URL() throws error
-          const urlObj = new URL(originalUrl);
-          const hostname = urlObj.hostname; // e.g., www.scopus.com
+          // Parse URL using Regex to avoid ReferenceError: URL is not defined in some GAS environments
+          // Matches: protocol (http/s), hostname (stops at / or ?), and rest
+          const urlRegex = /^(https?:\/\/)([^/?#]+)(.*)$/;
+          const match = originalUrl.match(urlRegex);
+
+          if (!match) {
+             console.warn(`[DEBUG] Could not parse URL for row ${row._rowIndex}: ${originalUrl}`);
+             return;
+          }
+
+          const protocol = match[1]; // "https://"
+          const hostname = match[2]; // "www.scopus.com"
+          const rest = match[3];     // "/inward/record.uri?..."
 
           // Transform hostname: replace . with -
           const transformedHostname = hostname.replace(/\./g, '-');
 
-          // Construct new hostname
-          const newHostname = `${transformedHostname}.${proxyUrl}`;
-
-          // Reconstruct URL
-          urlObj.hostname = newHostname;
-          const newUrl = urlObj.toString();
+          // Construct new URL
+          const newUrl = `${protocol}${transformedHostname}.${proxyUrl}${rest}`;
 
           console.log(`[DEBUG] Row ${row._rowIndex}: ${originalUrl} -> ${newUrl}`);
 
