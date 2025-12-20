@@ -12,16 +12,30 @@ const GeminiAdapter = (function() {
    * @param {string} model The model name (e.g., "gemini-pro").
    * @param {number} temperature
    * @param {number} maxTokens
+   * @param {GoogleAppsScript.Base.Blob} [fileBlob] Optional file blob (PDF, image) to include.
    * @returns {Object} The JSON object parsed from the response.
    */
-  function callGemini(prompt, apiKey, model, temperature, maxTokens) {
+  function callGemini(prompt, apiKey, model, temperature, maxTokens, fileBlob) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const parts = [{
+      text: prompt
+    }];
+
+    if (fileBlob) {
+      const base64Data = Utilities.base64Encode(fileBlob.getBytes());
+      const mimeType = fileBlob.getContentType();
+      parts.push({
+        inline_data: {
+          mime_type: mimeType,
+          data: base64Data
+        }
+      });
+    }
 
     const payload = {
       contents: [{
-        parts: [{
-          text: prompt
-        }]
+        parts: parts
       }],
       generationConfig: {
         temperature: temperature,
