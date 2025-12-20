@@ -190,7 +190,7 @@ const FullTextScreeningController = (function() {
         if (!pdfUrl) {
           // No PDF found, mark as Exclude EC4_WrongDoc
           updateData["AI_Status"] = "Done";
-          updateData["AI_Recommendation"] = "EXCLUDE";
+          updateData["AI_Recommendation"] = "Exclude";
           updateData["Exclusion_Reason"] = "EC4_WrongDoc";
           updateData["AI_Reasoning"] = "No PDF file linked.";
 
@@ -213,10 +213,14 @@ const FullTextScreeningController = (function() {
           updateData["Exclusion_Reason"] = result.exclusion_code || "";
 
           if (result.extraction_preview) {
+            updateData["Growing_Setup"] = result.extraction_preview.growing_setup;
+            updateData["Growing_Process"] = result.extraction_preview.growing_process;
             updateData["Specific_Crop"] = result.extraction_preview.specific_crop;
             updateData["Hardware_Platform"] = result.extraction_preview.hardware_platform;
             updateData["Algorithm_Used"] = result.extraction_preview.algorithm_used;
+            updateData["Is_Opensource"] = result.extraction_preview.is_opensource;
             updateData["Is_Implemented"] = result.extraction_preview.is_implemented;
+            updateData["Is_True_Digitaltwin"] = result.extraction_preview.is_true_digitaltwin;
           }
 
           processedCount++;
