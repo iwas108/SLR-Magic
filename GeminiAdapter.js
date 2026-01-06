@@ -16,13 +16,23 @@ const GeminiAdapter = (function() {
    * @returns {Object} The JSON object parsed from the response.
    */
   function callGemini(prompt, apiKey, model, temperature, maxTokens, fileBlob) {
+    // --- FIX 1: Safety Default ---
+    // If model is undefined/null, default to Flash-Lite to prevent crash
+    if (!model) {
+       console.warn("Model was undefined! Defaulting to 'gemini-2.0-flash-lite'");
+       model = "gemini-2.0-flash-lite";
+    }
+    // Ensure it is a string for .indexOf()
+    var safeModel = String(model).toLowerCase();
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const parts = [{
       text: prompt
     }];
 
-    if (fileBlob) {
+    if(false) {
+    //if (fileBlob) {
       const base64Data = Utilities.base64Encode(fileBlob.getBytes());
       const mimeType = fileBlob.getContentType();
       parts.push({
@@ -33,6 +43,24 @@ const GeminiAdapter = (function() {
       });
     }
 
+    var myThinkingConfig = {
+      includeThoughts: false // Keeps the JSON response clean for both models
+    };
+
+    // 3. Dynamic Logic
+    if (safeModel.indexOf("flash") !== -1) {
+      // Flash models (2.5+) use 'thinkingBudget'. 0 = Disabled.
+      myThinkingConfig.thinkingBudget = 0; 
+      
+    } else if (safeModel.indexOf("gemini-3") !== -1 && safeModel.indexOf("pro") !== -1) {
+      // Gemini 3 Pro uses 'thinkingLevel'.
+      myThinkingConfig.thinkingLevel = "LOW";
+
+    } else if (safeModel.indexOf("gemini-2.5") !== -1 && safeModel.indexOf("pro") !== -1) {
+      // Gemini 2.5 Pro uses 'thinkingBudget' (Min 128).
+      myThinkingConfig.thinkingBudget = 128; 
+    }
+
     const payload = {
       contents: [{
         parts: parts
@@ -40,9 +68,13 @@ const GeminiAdapter = (function() {
       generationConfig: {
         temperature: temperature,
         maxOutputTokens: maxTokens,
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        thinkingConfig: myThinkingConfig
       }
     };
+    // Log payload for debugging (check View -> Execution Transcript)
+    console.log("Using Model:", model);
+    console.log("Thinking Config:", JSON.stringify(myThinkingConfig));
 
     const options = {
       method: 'post',
