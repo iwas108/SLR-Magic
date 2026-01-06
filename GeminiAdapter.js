@@ -31,8 +31,7 @@ const GeminiAdapter = (function() {
       text: prompt
     }];
 
-    if(false) {
-    //if (fileBlob) {
+    if (fileBlob) {
       const base64Data = Utilities.base64Encode(fileBlob.getBytes());
       const mimeType = fileBlob.getContentType();
       parts.push({
@@ -72,9 +71,6 @@ const GeminiAdapter = (function() {
         thinkingConfig: myThinkingConfig
       }
     };
-    // Log payload for debugging (check View -> Execution Transcript)
-    console.log("Using Model:", model);
-    console.log("Thinking Config:", JSON.stringify(myThinkingConfig));
 
     const options = {
       method: 'post',

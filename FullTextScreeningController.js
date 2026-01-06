@@ -212,7 +212,7 @@ const FullTextScreeningController = (function() {
       // 1. Read Configuration
       const config = SheetUtils.getConfigMap("00_manifest");
       const apiKey = config["API_KEY"];
-      const modelName = config["MODEL_NAME"] || "gemini-1.5-flash";
+      const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
       // Use FULLTEXT_SCREENING_PROMPT
@@ -251,15 +251,13 @@ const FullTextScreeningController = (function() {
       batch.forEach((row, index) => {
         const pdfUrl = row["PDF"];
         const updateData = {};
-
-        if (!pdfUrl) {
-          // No PDF found, mark as Exclude EC4_WrongDoc
-          updateData["Is_PDF_Ok"] = "FALSE";
-          updateData["PDF Notes"] = "No PDF file linked.";
-          /*updateData["AI_Status"] = "Done";
+        const PDFValidity = row["PDF_Validity"];
+      
+        if (!PDFValidity){
+          updateData["AI_Status"] = "Done";
           updateData["AI_Recommendation"] = "Exclude";
           updateData["Exclusion_Reason"] = "EC4_WrongDoc";
-          updateData["AI_Reasoning"] = "No PDF file linked.";*/
+          updateData["AI_Reasoning"] = "No PDF file linked.";
 
           SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
           processedCount++; // Counted as processed even if skipped
