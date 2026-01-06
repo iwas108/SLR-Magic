@@ -90,9 +90,26 @@ const GeminiAdapter = (function() {
 
       const jsonResponse = JSON.parse(responseText);
 
+      // Log the full response for debugging
+      console.log("Gemini Response:", JSON.stringify(jsonResponse));
+
       // Extract the text content
       if (jsonResponse.candidates && jsonResponse.candidates.length > 0) {
-        const contentText = jsonResponse.candidates[0].content.parts[0].text;
+        const candidate = jsonResponse.candidates[0];
+
+        // Check for content existence
+        if (!candidate.content) {
+            // Check if it was blocked or finished for another reason
+            const reason = candidate.finishReason || "Unknown";
+            throw new Error(`Gemini response missing 'content'. Finish Reason: ${reason}`);
+        }
+
+        // Check for parts existence
+        if (!candidate.content.parts || !candidate.content.parts[0]) {
+             throw new Error("Gemini response missing 'parts' in content.");
+        }
+
+        const contentText = candidate.content.parts[0].text;
 
         // Try to parse the contentText as JSON
         try {
