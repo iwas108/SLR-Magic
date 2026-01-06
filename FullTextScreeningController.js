@@ -214,7 +214,7 @@ const FullTextScreeningController = (function() {
       const apiKey = config["API_KEY"];
       const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
-      const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
+      const maxTokens = parseInt(config["MAX_TOKENS"] || "8192");
       // Use FULLTEXT_SCREENING_PROMPT
       const systemPrompt = config["FULLTEXT_SCREENING_PROMPT"];
       // Reuse BATCH_SIZE or define a new one? Assuming BATCH_SIZE is shared or small enough.
