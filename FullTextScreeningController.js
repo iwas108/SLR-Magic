@@ -189,10 +189,12 @@ const FullTextScreeningController = (function() {
 
         if (!pdfUrl) {
           // No PDF found, mark as Exclude EC4_WrongDoc
-          updateData["AI_Status"] = "Done";
+          updateData["Is_PDF_Ok"] = "FALSE";
+          updateData["PDF Notes"] = "No PDF file linked.";
+          /*updateData["AI_Status"] = "Done";
           updateData["AI_Recommendation"] = "Exclude";
           updateData["Exclusion_Reason"] = "EC4_WrongDoc";
-          updateData["AI_Reasoning"] = "No PDF file linked.";
+          updateData["AI_Reasoning"] = "No PDF file linked.";*/
 
           SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
           processedCount++; // Counted as processed even if skipped
@@ -204,7 +206,7 @@ const FullTextScreeningController = (function() {
 
           // Call Gemini
           const result = GeminiAdapter.callGemini(systemPrompt, apiKey, modelName, temperature, maxTokens, pdfBlob);
-
+          
           // Map result to sheet columns
           updateData["AI_Status"] = "Done";
           updateData["AI_Relevance_Score"] = result.confidence_score;
