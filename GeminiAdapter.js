@@ -98,15 +98,13 @@ const GeminiAdapter = (function() {
         const candidate = jsonResponse.candidates[0];
 
         // Check for content existence
-        if (!candidate.content) {
-            // Check if it was blocked or finished for another reason
-            const reason = candidate.finishReason || "Unknown";
-            throw new Error(`Gemini response missing 'content'. Finish Reason: ${reason}`);
-        }
-
-        // Check for parts existence
-        if (!candidate.content.parts || !candidate.content.parts[0]) {
-             throw new Error("Gemini response missing 'parts' in content.");
+        if (!candidate.content || !candidate.content.parts || !candidate.content.parts[0]) {
+             const reason = candidate.finishReason || "Unknown";
+             let msg = `Gemini response missing content/parts. Finish Reason: ${reason}.`;
+             if (reason === "MAX_TOKENS") {
+                 msg += " Try increasing MAX_TOKENS in 00_manifest.";
+             }
+             throw new Error(msg);
         }
 
         const contentText = candidate.content.parts[0].text;
