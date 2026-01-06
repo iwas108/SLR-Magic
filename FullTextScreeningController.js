@@ -279,14 +279,12 @@ const FullTextScreeningController = (function() {
           updateData["Exclusion_Reason"] = result.exclusion_code || "";
 
           if (result.extraction_preview) {
-            updateData["Growing_Setup"] = result.extraction_preview.growing_setup;
-            updateData["Growing_Process"] = result.extraction_preview.growing_process;
-            updateData["Specific_Crop"] = result.extraction_preview.specific_crop;
-            updateData["Hardware_Platform"] = result.extraction_preview.hardware_platform;
-            updateData["Algorithm_Used"] = result.extraction_preview.algorithm_used;
-            updateData["Is_Opensource"] = result.extraction_preview.is_opensource;
-            updateData["Is_Implemented"] = result.extraction_preview.is_implemented;
-            updateData["Is_True_Digitaltwin"] = result.extraction_preview.is_true_digitaltwin;
+            // Dynamically map all keys in extraction_preview to Sheet Columns
+            // Assumes Sheet Column Name == JSON Key Name (as per user instruction)
+            for (const [key, value] of Object.entries(result.extraction_preview)) {
+              SheetUtils.ensureColumn(sheet, key, headerMap);
+              updateData[key] = value;
+            }
           }
 
           processedCount++;
