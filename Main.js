@@ -17,6 +17,7 @@ function onOpen() {
     .addItem('Copy Screened Title-Abstract', 'runCopyScreenedPapers')
     .addItem('Import PDF Files', 'runImportPDFs')
     .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
+    .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks')
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
     .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
     .addToUi();
@@ -40,6 +41,10 @@ function runCopyScreenedPapers() {
 
 function runImportPDFs() {
   FullTextScreeningController.runImportPDFs();
+}
+
+function runTransformDOILinks() {
+  FullTextScreeningController.runTransformDOILinks();
 }
 
 function runFullTextScreening() {
