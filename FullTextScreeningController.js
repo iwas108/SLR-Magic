@@ -250,6 +250,7 @@ const FullTextScreeningController = (function() {
 
       batch.forEach((row, index) => {
         const pdfUrl = row["PDF"];
+        console.log(`Processing Row ${row._rowIndex}, PDF: ${pdfUrl}`);
         const updateData = {};
         const PDFValidity = row["PDF_Validity"];
       
