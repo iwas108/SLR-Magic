@@ -63,6 +63,7 @@ const FullTextScreeningController = (function() {
   /**
    * Imports PDF URLs into the Full-Text Screening sheet.
    * Supports background processing with batch size.
+   * improved to read 98_file_metadata for PDF validity and page count.
    */
   function runImportPDFs() {
     // Acquire Lock to prevent race conditions
@@ -87,41 +88,105 @@ const FullTextScreeningController = (function() {
       // Default to 50 if not set or invalid
       const batchSize = batchSizeProp ? parseInt(batchSizeProp) : 50;
 
+      // 1. Read Metadata Sheet (98_file_metadata)
+      const metadataMap = {};
+      try {
+        const metaSheet = SheetUtils.getSheetByName("98_file_metadata");
+        if (metaSheet) {
+          const metaData = SheetUtils.getDataAsObjects(metaSheet);
+          metaData.forEach(row => {
+            if (row["Paper_ID"]) {
+              metadataMap[row["Paper_ID"]] = row;
+            }
+          });
+        }
+      } catch (e) {
+        console.log("Metadata sheet '98_file_metadata' not found or accessible. Proceeding with basic import.");
+      }
+
       const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
       const data = SheetUtils.getDataAsObjects(sheet);
 
-      let foundCount = 0;
+      let updatedCount = 0;
 
-      // Determine which rows need PDF search
-      const rowsToUpdate = data.filter(row => !row["PDF"]);
+      // Determine which rows need update
+      // Logic: Row needs update if (PDF is missing) OR (PDF is present but metadata is missing in sheet AND present in metadataMap)
+      // Metadata columns: PDF_Validity, Page_Count, PDF_Status
+      const rowsToUpdate = data.filter(row => {
+        const pdfMissing = !row["PDF"] || row["PDF"].toString().trim() === "";
+
+        // Check if metadata columns are empty in the destination sheet
+        // We consider them "empty" if they are falsy (empty string, null, etc.)
+        const metadataMissing = (!row["PDF_Validity"] && row["PDF_Validity"] !== false) || !row["Page_Count"] || !row["PDF_Status"];
+
+        // If PDF is missing, we definitely want to process it (to try finding PDF)
+        if (pdfMissing) return true;
+
+        // If PDF exists, but metadata is missing AND we have metadata available for this Paper_ID
+        if (metadataMissing && metadataMap[row["Paper_ID"]]) {
+          return true;
+        }
+
+        return false;
+      });
 
       if (rowsToUpdate.length === 0) {
-        SheetUtils.toast("All papers already have PDF links or the sheet is empty.", "PDF Import", 3);
+        SheetUtils.toast("No papers found needing PDF import or metadata update.", "PDF Import", 3);
         return;
       }
 
       // Slice to batch size
       const batch = rowsToUpdate.slice(0, batchSize);
 
-      SheetUtils.toast(`Searching PDFs for ${batch.length} papers...`, "Importing PDFs", -1);
+      SheetUtils.toast(`Processing PDFs/Metadata for ${batch.length} papers...`, "Importing", -1);
 
       batch.forEach(row => {
         const paperId = row["Paper_ID"];
-        if (paperId) {
-          try {
-            const pdfUrl = DriveUtils.searchFile(pdfRepoUrl, paperId);
-            if (pdfUrl) {
-              SheetUtils.updateRow(sheet, row._rowIndex, { "PDF": pdfUrl }, headerMap);
-              foundCount++;
+        const updateData = {};
+
+        if (!paperId) return;
+
+        // 1. Apply Metadata if available
+        if (metadataMap[paperId]) {
+          const meta = metadataMap[paperId];
+          const verStatus = meta["Verification_Status"];
+
+          updateData["Page_Count"] = meta["Page_Count"];
+          // PDF_Validity: TRUE if Verification_Status is "Confirmed"
+          updateData["PDF_Validity"] = (verStatus === "Confirmed");
+          // PDF_Status: mapped from Verification_Status
+          updateData["PDF_Status"] = verStatus;
+        }
+
+        // 2. Search PDF if missing
+        if (!row["PDF"] || row["PDF"].toString().trim() === "") {
+            try {
+                const pdfUrl = DriveUtils.searchFile(pdfRepoUrl, paperId);
+                if (pdfUrl) {
+                    updateData["PDF"] = pdfUrl;
+
+                    // If we didn't get status from metadata, set a default?
+                    // The prompt doesn't specify default if metadata missing, but usually we want to know it's there.
+                    // Leaving it empty if no metadata is safer unless we want to invent a status.
+                }
+            } catch (err) {
+                console.error(`Error searching PDF for ${paperId}: ${err.message}`);
             }
+        }
+
+        // 3. Update Sheet if we have data to write
+        if (Object.keys(updateData).length > 0) {
+          try {
+            SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
+            updatedCount++;
           } catch (err) {
-            console.error(`Error searching PDF for ${paperId}: ${err.message}`);
+            console.error(`Error updating row ${row._rowIndex}: ${err.message}`);
           }
         }
       });
 
-      SheetUtils.toast(`PDF Import Batch Complete. Found: ${foundCount}/${batch.length}`, "Done", 5);
+      SheetUtils.toast(`PDF Import/Update Batch Complete. Updated: ${updatedCount}/${batch.length}`, "Done", 5);
 
     } catch (e) {
       console.error(e);
@@ -147,7 +212,7 @@ const FullTextScreeningController = (function() {
       // 1. Read Configuration
       const config = SheetUtils.getConfigMap("00_manifest");
       const apiKey = config["API_KEY"];
-      const modelName = config["MODEL_NAME"] || "gemini-1.5-flash";
+      const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
       // Use FULLTEXT_SCREENING_PROMPT
@@ -186,15 +251,13 @@ const FullTextScreeningController = (function() {
       batch.forEach((row, index) => {
         const pdfUrl = row["PDF"];
         const updateData = {};
-
-        if (!pdfUrl) {
-          // No PDF found, mark as Exclude EC4_WrongDoc
-          updateData["Is_PDF_Ok"] = "FALSE";
-          updateData["PDF Notes"] = "No PDF file linked.";
-          /*updateData["AI_Status"] = "Done";
+        const PDFValidity = row["PDF_Validity"];
+      
+        if (!PDFValidity){
+          updateData["AI_Status"] = "Done";
           updateData["AI_Recommendation"] = "Exclude";
           updateData["Exclusion_Reason"] = "EC4_WrongDoc";
-          updateData["AI_Reasoning"] = "No PDF file linked.";*/
+          updateData["AI_Reasoning"] = "No PDF file linked.";
 
           SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
           processedCount++; // Counted as processed even if skipped
