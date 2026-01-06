@@ -251,10 +251,109 @@ const FullTextScreeningController = (function() {
     }
   }
 
+  /**
+   * Transforms DOI Links to use a web proxy for manual download.
+   * Pattern: www.domain.com -> www-domain-com.proxy.url
+   */
+  function runTransformDOILinks() {
+    try {
+      console.log("[DEBUG] Starting runTransformDOILinks");
+      // 1. Get Proxy Config
+      const config = SheetUtils.getConfigMap("00_manifest");
+      const proxyUrl = config["WEB_PROXY_URL"];
+      console.log(`[DEBUG] Proxy URL: ${proxyUrl}`);
+
+      if (!proxyUrl) {
+        SheetUtils.alert("WEB_PROXY_URL is missing in 00_manifest.");
+        return;
+      }
+
+      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const headerMap = SheetUtils.getHeaderMap(sheet);
+      console.log(`[DEBUG] Header Map: ${JSON.stringify(headerMap)}`);
+
+      const data = SheetUtils.getDataAsObjects(sheet);
+      console.log(`[DEBUG] Total Rows fetched: ${data.length}`);
+
+      if (data.length > 0) {
+          console.log(`[DEBUG] First Row Sample: ${JSON.stringify(data[0])}`);
+      }
+
+      let updatedCount = 0;
+
+      // 2. Iterate and Transform
+      // Only process if PDF is missing
+      const rowsToProcess = data.filter(row => {
+          const pdf = row["PDF"];
+          const doi = row["DOI_Link"];
+          // Check for missing PDF (undefined, null, or empty string after trim)
+          const isPdfMissing = !pdf || pdf.toString().trim() === "";
+          // Check for present DOI
+          const isDoiPresent = doi && doi.toString().trim() !== "";
+          return isPdfMissing && isDoiPresent;
+      });
+
+      console.log(`[DEBUG] Rows to process (No PDF + Has DOI): ${rowsToProcess.length}`);
+
+      if (rowsToProcess.length === 0) {
+        SheetUtils.alert("No rows with missing PDFs and valid DOI Links found.");
+        return;
+      }
+
+      rowsToProcess.forEach(row => {
+        const originalUrl = row["DOI_Link"].toString().trim();
+
+        try {
+          // Simple check to avoid double proxying
+          if (originalUrl.includes(proxyUrl)) {
+            console.log(`[DEBUG] Skipping row ${row._rowIndex}, already proxied: ${originalUrl}`);
+            return;
+          }
+
+          // Parse URL using Regex to avoid ReferenceError: URL is not defined in some GAS environments
+          // Matches: protocol (http/s), hostname (stops at / or ?), and rest
+          const urlRegex = /^(https?:\/\/)([^/?#]+)(.*)$/;
+          const match = originalUrl.match(urlRegex);
+
+          if (!match) {
+             console.warn(`[DEBUG] Could not parse URL for row ${row._rowIndex}: ${originalUrl}`);
+             return;
+          }
+
+          const protocol = match[1]; // "https://"
+          const hostname = match[2]; // "www.scopus.com"
+          const rest = match[3];     // "/inward/record.uri?..."
+
+          // Transform hostname: replace . with -
+          const transformedHostname = hostname.replace(/\./g, '-');
+
+          // Construct new URL
+          const newUrl = `${protocol}${transformedHostname}.${proxyUrl}${rest}`;
+
+          console.log(`[DEBUG] Row ${row._rowIndex}: ${originalUrl} -> ${newUrl}`);
+
+          // Update Sheet
+          SheetUtils.updateRow(sheet, row._rowIndex, { "DOI_Link": newUrl }, headerMap);
+          updatedCount++;
+
+        } catch (err) {
+            console.warn(`Could not transform URL for row ${row._rowIndex}: ${originalUrl}`, err);
+        }
+      });
+
+      SheetUtils.alert(`Transformed ${updatedCount} DOI Links.`);
+
+    } catch (e) {
+      console.error(e);
+      SheetUtils.alert(`Error transforming DOI links: ${e.message}`);
+    }
+  }
+
   return {
     runCopyScreenedPapers,
     runImportPDFs,
-    runScreening
+    runScreening,
+    runTransformDOILinks
   };
 
 })();
