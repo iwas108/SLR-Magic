@@ -19,7 +19,7 @@ const ScreeningController = (function() {
       // 1. Read Configuration
       const config = SheetUtils.getConfigMap("00_manifest");
       const apiKey = config["API_KEY"];
-      const modelName = config["MODEL_NAME"] || "gemini-1.5-flash";
+      const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
       const batchSize = parseInt(config["BATCH_SIZE"] || "5");
