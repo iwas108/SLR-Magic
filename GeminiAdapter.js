@@ -113,7 +113,12 @@ const GeminiAdapter = (function() {
         try {
             // Remove any markdown code blocks if present (though responseMimeType should handle it)
             const cleanedText = contentText.replace(/```json/g, '').replace(/```/g, '').trim();
-            return JSON.parse(cleanedText);
+            const parsedContent = JSON.parse(cleanedText);
+
+            return {
+                content: parsedContent,
+                usageMetadata: jsonResponse.usageMetadata || {}
+            };
         } catch (e) {
             throw new Error(`Failed to parse JSON from Gemini response: ${contentText}`);
         }
