@@ -257,7 +257,7 @@ const FullTextScreeningController = (function() {
         if (!PDFValidity){
           updateData["AI_Status"] = "Done";
           updateData["AI_Recommendation"] = "Exclude";
-          updateData["Exclusion_Reason"] = "EC4_WrongDoc";
+          updateData["Exclusion_Reason"] = "EC5_WrongDoc";
           updateData["AI_Reasoning"] = "No PDF file linked.";
 
           SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);

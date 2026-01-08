@@ -53,7 +53,7 @@ const GeminiAdapter = (function() {
       
     } else if (safeModel.indexOf("gemini-3") !== -1 && safeModel.indexOf("pro") !== -1) {
       // Gemini 3 Pro uses 'thinkingLevel'.
-      myThinkingConfig.thinkingLevel = "LOW";
+      myThinkingConfig.thinkingLevel = "HIGH";
 
     } else if (safeModel.indexOf("gemini-2.5") !== -1 && safeModel.indexOf("pro") !== -1) {
       // Gemini 2.5 Pro uses 'thinkingBudget' (Min 128).
