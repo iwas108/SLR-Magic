@@ -214,7 +214,7 @@ const FullTextScreeningController = (function() {
       const apiKey = config["API_KEY"];
       const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
-      const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
+      const maxTokens = parseInt(config["MAX_TOKENS"] || "8192");
       // Use FULLTEXT_SCREENING_PROMPT
       const systemPrompt = config["FULLTEXT_SCREENING_PROMPT"];
       // Reuse BATCH_SIZE or define a new one? Assuming BATCH_SIZE is shared or small enough.
@@ -250,13 +250,14 @@ const FullTextScreeningController = (function() {
 
       batch.forEach((row, index) => {
         const pdfUrl = row["PDF"];
+        console.log(`Processing Row ${row._rowIndex}, PDF: ${pdfUrl}`);
         const updateData = {};
         const PDFValidity = row["PDF_Validity"];
       
         if (!PDFValidity){
           updateData["AI_Status"] = "Done";
           updateData["AI_Recommendation"] = "Exclude";
-          updateData["Exclusion_Reason"] = "EC4_WrongDoc";
+          updateData["Exclusion_Reason"] = "EC5_WrongDoc";
           updateData["AI_Reasoning"] = "No PDF file linked.";
 
           SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
@@ -278,14 +279,12 @@ const FullTextScreeningController = (function() {
           updateData["Exclusion_Reason"] = result.exclusion_code || "";
 
           if (result.extraction_preview) {
-            updateData["Growing_Setup"] = result.extraction_preview.growing_setup;
-            updateData["Growing_Process"] = result.extraction_preview.growing_process;
-            updateData["Specific_Crop"] = result.extraction_preview.specific_crop;
-            updateData["Hardware_Platform"] = result.extraction_preview.hardware_platform;
-            updateData["Algorithm_Used"] = result.extraction_preview.algorithm_used;
-            updateData["Is_Opensource"] = result.extraction_preview.is_opensource;
-            updateData["Is_Implemented"] = result.extraction_preview.is_implemented;
-            updateData["Is_True_Digitaltwin"] = result.extraction_preview.is_true_digitaltwin;
+            // Dynamically map all keys in extraction_preview to Sheet Columns
+            // Assumes Sheet Column Name == JSON Key Name (as per user instruction)
+            for (const [key, value] of Object.entries(result.extraction_preview)) {
+              SheetUtils.ensureColumn(sheet, key, headerMap);
+              updateData[key] = value;
+            }
           }
 
           processedCount++;

@@ -152,6 +152,29 @@ const SheetUtils = (function() {
   }
 
   /**
+   * Ensures a column exists for the given header name.
+   * If not, adds it to the sheet and updates the headerMap.
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @param {string} headerName
+   * @param {Object} headerMap
+   */
+  function ensureColumn(sheet, headerName, headerMap) {
+    if (!headerName) return;
+    const cleanHeader = headerName.trim();
+    if (headerMap.hasOwnProperty(cleanHeader)) {
+      return;
+    }
+
+    // Add new column
+    const newColIdx = sheet.getLastColumn() + 1;
+    sheet.getRange(1, newColIdx).setValue(cleanHeader);
+
+    // Update map
+    headerMap[cleanHeader] = newColIdx;
+    console.log(`[SheetUtils] Created column '${cleanHeader}' at index ${newColIdx}`);
+  }
+
+  /**
    * Updates a single row in the sheet based on the dataObject and headerMap.
    * Only updates columns present in the dataObject.
    * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
@@ -211,6 +234,7 @@ const SheetUtils = (function() {
     appendDataMapped,
     getDataAsObjects,
     updateRow,
+    ensureColumn,
     toast,
     alert
   };
