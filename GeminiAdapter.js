@@ -53,7 +53,7 @@ const GeminiAdapter = (function() {
       
     } else if (safeModel.indexOf("gemini-3") !== -1 && safeModel.indexOf("pro") !== -1) {
       // Gemini 3 Pro uses 'thinkingLevel'.
-      myThinkingConfig.thinkingLevel = "LOW";
+      myThinkingConfig.thinkingLevel = "HIGH";
 
     } else if (safeModel.indexOf("gemini-2.5") !== -1 && safeModel.indexOf("pro") !== -1) {
       // Gemini 2.5 Pro uses 'thinkingBudget' (Min 128).
@@ -90,9 +90,24 @@ const GeminiAdapter = (function() {
 
       const jsonResponse = JSON.parse(responseText);
 
+      // Log the full response for debugging
+      console.log("Gemini Response:", JSON.stringify(jsonResponse));
+
       // Extract the text content
       if (jsonResponse.candidates && jsonResponse.candidates.length > 0) {
-        const contentText = jsonResponse.candidates[0].content.parts[0].text;
+        const candidate = jsonResponse.candidates[0];
+
+        // Check for content existence
+        if (!candidate.content || !candidate.content.parts || !candidate.content.parts[0]) {
+             const reason = candidate.finishReason || "Unknown";
+             let msg = `Gemini response missing content/parts. Finish Reason: ${reason}.`;
+             if (reason === "MAX_TOKENS") {
+                 msg += " Try increasing MAX_TOKENS in 00_manifest.";
+             }
+             throw new Error(msg);
+        }
+
+        const contentText = candidate.content.parts[0].text;
 
         // Try to parse the contentText as JSON
         try {
