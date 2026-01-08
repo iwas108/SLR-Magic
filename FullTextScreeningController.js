@@ -283,13 +283,19 @@ const FullTextScreeningController = (function() {
           if (response.usageMetadata) {
             const thinkingTokens = response.usageMetadata.thoughtsTokenCount || 0;
             const candidateTokens = response.usageMetadata.candidatesTokenCount || 0;
+            const promptTokens = response.usageMetadata.promptTokenCount || 0;
+            const totalTokens = response.usageMetadata.totalTokenCount || 0;
 
             // Ensure columns exist
             SheetUtils.ensureColumn(sheet, "Thinking_Token", headerMap);
             SheetUtils.ensureColumn(sheet, "Candidate_Token", headerMap);
+            SheetUtils.ensureColumn(sheet, "Input_Token", headerMap);
+            SheetUtils.ensureColumn(sheet, "Total_Token", headerMap);
 
             updateData["Thinking_Token"] = thinkingTokens;
             updateData["Candidate_Token"] = candidateTokens;
+            updateData["Input_Token"] = promptTokens;
+            updateData["Total_Token"] = totalTokens;
           }
 
           if (result.extraction_preview) {
