@@ -269,7 +269,8 @@ const FullTextScreeningController = (function() {
           const pdfBlob = DriveUtils.getFileBlob(pdfUrl);
 
           // Call Gemini
-          const result = GeminiAdapter.callGemini(systemPrompt, apiKey, modelName, temperature, maxTokens, pdfBlob);
+          const response = GeminiAdapter.callGemini(systemPrompt, apiKey, modelName, temperature, maxTokens, pdfBlob);
+          const result = response.content;
           
           // Map result to sheet columns
           updateData["AI_Status"] = "Done";
@@ -277,6 +278,19 @@ const FullTextScreeningController = (function() {
           updateData["AI_Recommendation"] = result.decision;
           updateData["AI_Reasoning"] = result.reasoning;
           updateData["Exclusion_Reason"] = result.exclusion_code || "";
+
+          // Capture Token Usage
+          if (response.usageMetadata) {
+            const thinkingTokens = response.usageMetadata.thoughtsTokenCount || 0;
+            const candidateTokens = response.usageMetadata.candidatesTokenCount || 0;
+
+            // Ensure columns exist
+            SheetUtils.ensureColumn(sheet, "Thinking_Token", headerMap);
+            SheetUtils.ensureColumn(sheet, "Candidate_Token", headerMap);
+
+            updateData["Thinking_Token"] = thinkingTokens;
+            updateData["Candidate_Token"] = candidateTokens;
+          }
 
           if (result.extraction_preview) {
             // Dynamically map all keys in extraction_preview to Sheet Columns
