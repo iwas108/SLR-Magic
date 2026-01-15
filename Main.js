@@ -20,6 +20,8 @@ function onOpen() {
     .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks')
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
     .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
+    .addSeparator()
+    .addItem('Start Human Quality Check', 'runQualityCheck')
     .addToUi();
 }
 
@@ -49,6 +51,10 @@ function runTransformDOILinks() {
 
 function runFullTextScreening() {
   FullTextScreeningController.runScreening();
+}
+
+function runQualityCheck() {
+  QualityCheckController.runQualityCheck();
 }
 
 /**
