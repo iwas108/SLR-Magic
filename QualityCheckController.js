@@ -43,9 +43,9 @@ var QualityCheckController = (function() {
 
       console.log(`[QualityCheck] Found ${included.length} Includes and ${excluded.length} Excludes.`);
 
-      // 4. Sample 5%
-      const sampleSizeInclude = Math.ceil(included.length * 0.05);
-      const sampleSizeExclude = Math.ceil(excluded.length * 0.05);
+      // 4. Sample 10%
+      const sampleSizeInclude = Math.ceil(included.length * 0.10);
+      const sampleSizeExclude = Math.ceil(excluded.length * 0.10);
 
       console.log(`[QualityCheck] Sampling target: ${sampleSizeInclude} Include, ${sampleSizeExclude} Exclude.`);
 
@@ -122,7 +122,7 @@ var QualityCheckController = (function() {
       SheetUtils.alert(
         `Quality Check Preparation Complete.\n\n` +
         `Total Eligible: ${eligibleRows.length}\n` +
-        `Sampled (5%): ${finalSample.length} (${sampledInclude.length} Include, ${sampledExclude.length} Exclude)\n` +
+        `Sampled (10%): ${finalSample.length} (${sampledInclude.length} Include, ${sampledExclude.length} Exclude)\n` +
         `Added to Sheet: ${newRows.length}`
       );
 
