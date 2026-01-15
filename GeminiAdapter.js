@@ -47,13 +47,17 @@ const GeminiAdapter = (function() {
     };
 
     // 3. Dynamic Logic
-    if (safeModel.indexOf("flash") !== -1) {
+    if (safeModel.indexOf("gemini-3") !== -1 && safeModel.indexOf("flash") !== -1) {
+      // Gemini 3 Flash uses 'thinkingLevel'.
+      myThinkingConfig.thinkingLevel = "medium";
+
+    } else if (safeModel.indexOf("flash") !== -1) {
       // Flash models (2.5+) use 'thinkingBudget'. 0 = Disabled.
       myThinkingConfig.thinkingBudget = 0; 
       
     } else if (safeModel.indexOf("gemini-3") !== -1 && safeModel.indexOf("pro") !== -1) {
       // Gemini 3 Pro uses 'thinkingLevel'.
-      myThinkingConfig.thinkingLevel = "HIGH";
+      myThinkingConfig.thinkingLevel = "LOW";
 
     } else if (safeModel.indexOf("gemini-2.5") !== -1 && safeModel.indexOf("pro") !== -1) {
       // Gemini 2.5 Pro uses 'thinkingBudget' (Min 128).
