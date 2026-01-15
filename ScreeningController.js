@@ -64,7 +64,8 @@ const ScreeningController = (function() {
 
         try {
           // Call Gemini
-          const result = GeminiAdapter.callGemini(fullPrompt, apiKey, modelName, temperature, maxTokens);
+          const response = GeminiAdapter.callGemini(fullPrompt, apiKey, modelName, temperature, maxTokens);
+          const result = response.content;
 
           // Map result to sheet columns
           updateData["AI_Status"] = "Done";
