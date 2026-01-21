@@ -5,10 +5,8 @@
     <style>
       body { font-family: sans-serif; padding: 10px; }
       .container { display: flex; flex-direction: column; gap: 10px; }
-      .prompt { background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px; white-space: pre-wrap; font-family: monospace; border: 1px solid #ccc; }
-      .kv-list { max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
-      .kv-item { margin-bottom: 5px; }
-      .kv-key { font-weight: bold; }
+      .prompt-label-row { display: flex; justify-content: space-between; align-items: center; }
+      .prompt { background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px; white-space: pre-wrap; font-family: monospace; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; }
       .controls { border-top: 1px solid #eee; padding-top: 10px; }
       .control-group { margin-bottom: 10px; }
       .control-group label { display: inline-block; width: 200px; }
@@ -54,10 +52,11 @@
         const app = document.getElementById('app');
         app.innerHTML = `
           <div class="container">
-            <div><strong>Prompt for AI Assistant (Copy below):</strong></div>
+            <div class="prompt-label-row">
+              <strong>Prompt for AI Assistant (Copy below):</strong>
+              <span id="pdfLinkContainer"></span>
+            </div>
             <div id="promptDisplay" class="prompt"></div>
-
-            <div id="kvList" class="kv-list"></div>
 
             <div class="controls">
               <h3>Human Decision</h3>
@@ -104,19 +103,25 @@
         if (allRows.length === 0) return;
         const row = allRows[currentIndex];
 
-        // 1. Build Prompt & KV List
-        let kvHtml = '';
+        // 1. Build Prompt & Get PDF Link
         let promptText = "Please check whether the attached paper matches the provided details below:\n\n";
 
         for (const [key, value] of Object.entries(row)) {
           if (!SKIPPED_COLUMNS.includes(key) && value !== "") {
-            kvHtml += `<div class="kv-item"><span class="kv-key">${key}:</span> ${value}</div>`;
             promptText += `${key}: ${value}\n`;
           }
         }
 
-        document.getElementById('kvList').innerHTML = kvHtml;
         document.getElementById('promptDisplay').textContent = promptText;
+
+        // PDF Link
+        const pdfUrl = row["PDF"];
+        const pdfContainer = document.getElementById('pdfLinkContainer');
+        if (pdfUrl && pdfUrl.toString().trim() !== "") {
+          pdfContainer.innerHTML = `<a href="${pdfUrl}" target="_blank">Open PDF</a>`;
+        } else {
+          pdfContainer.innerHTML = "";
+        }
 
         // 2. Set Inputs
         // Convert string "TRUE"/"FALSE" to boolean for checkboxes if needed, or handle empty
