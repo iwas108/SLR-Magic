@@ -228,6 +228,7 @@ const SheetUtils = (function() {
   }
 
   return {
+    getSpreadsheet,
     getSheetByName,
     getConfigMap,
     getHeaderMap,
