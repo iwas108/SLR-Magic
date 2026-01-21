@@ -21,7 +21,8 @@ function onOpen() {
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
     .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
     .addSeparator()
-    .addItem('Start Human Quality Check', 'runQualityCheck')
+    .addItem('Generate Quality Check List', 'generateQualityCheck')
+    .addItem('Run Quality Check Assistant', 'runQualityCheck')
     .addToUi();
 }
 
@@ -53,8 +54,33 @@ function runFullTextScreening() {
   FullTextScreeningController.runScreening();
 }
 
+/**
+ * Generates the sample list for Quality Check.
+ * (Renamed from runQualityCheck)
+ */
+function generateQualityCheck() {
+  QualityCheckController.generateQualityCheck();
+}
+
+/**
+ * Opens the Assistant UI.
+ */
 function runQualityCheck() {
   QualityCheckController.runQualityCheck();
+}
+
+/**
+ * Server-side handler for getting data.
+ */
+function getQualityCheckData() {
+  return QualityCheckController.getQualityCheckData();
+}
+
+/**
+ * Server-side handler for saving data.
+ */
+function saveQualityCheckRow(paperId, data) {
+  return QualityCheckController.saveQualityCheckRow(paperId, data);
 }
 
 /**
