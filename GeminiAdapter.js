@@ -83,56 +83,96 @@ const GeminiAdapter = (function() {
       muteHttpExceptions: true
     };
 
-    try {
-      const response = UrlFetchApp.fetch(url, options);
-      const responseCode = response.getResponseCode();
-      const responseText = response.getContentText();
+    // Retry Configuration
+    const MAX_RETRIES = 5;
+    const BASE_DELAY_MS = 2000;
+    let attempt = 0;
 
-      if (responseCode !== 200) {
-        throw new Error(`Gemini API Error (${responseCode}): ${responseText}`);
-      }
+    while (attempt <= MAX_RETRIES) {
+      try {
+        console.log(`[GeminiAdapter] Attempt ${attempt + 1}/${MAX_RETRIES + 1}: Sending request to ${model}...`);
+        const startTime = new Date().getTime();
 
-      const jsonResponse = JSON.parse(responseText);
+        const response = UrlFetchApp.fetch(url, options);
 
-      // Log the full response for debugging
-      // console.log("Gemini Response:", JSON.stringify(jsonResponse));
+        const endTime = new Date().getTime();
+        const duration = endTime - startTime;
+        console.log(`[GeminiAdapter] Response received in ${duration}ms. Status: ${response.getResponseCode()}`);
 
-      // Extract the text content
-      if (jsonResponse.candidates && jsonResponse.candidates.length > 0) {
-        const candidate = jsonResponse.candidates[0];
+        const responseCode = response.getResponseCode();
+        const responseText = response.getContentText();
 
-        // Check for content existence
-        if (!candidate.content || !candidate.content.parts || !candidate.content.parts[0]) {
-             const reason = candidate.finishReason || "Unknown";
-             let msg = `Gemini response missing content/parts. Finish Reason: ${reason}.`;
-             if (reason === "MAX_TOKENS") {
-                 msg += " Try increasing MAX_TOKENS in 00_manifest.";
-             }
-             throw new Error(msg);
+        // Handle Rate Limit (429) and Server Errors (5xx)
+        if (responseCode === 429 || responseCode >= 500) {
+           if (attempt < MAX_RETRIES) {
+             const delay = (BASE_DELAY_MS * Math.pow(2, attempt)) + (Math.random() * 500); // Exponential backoff + jitter
+             const errorType = responseCode === 429 ? "Rate Limit (429)" : `Server Error (${responseCode})`;
+             console.warn(`[GeminiAdapter] ${errorType} hit. Waiting ${Math.round(delay)}ms before retry...`);
+
+             Utilities.sleep(delay);
+             attempt++;
+             continue;
+           } else {
+             throw new Error(`Gemini API Error (${responseCode}): Failed after ${MAX_RETRIES + 1} attempts. Response: ${responseText}`);
+           }
         }
 
-        const contentText = candidate.content.parts[0].text;
-
-        // Try to parse the contentText as JSON
-        try {
-            // Remove any markdown code blocks if present (though responseMimeType should handle it)
-            const cleanedText = contentText.replace(/```json/g, '').replace(/```/g, '').trim();
-            const parsedContent = JSON.parse(cleanedText);
-
-            return {
-                content: parsedContent,
-                usageMetadata: jsonResponse.usageMetadata || {}
-            };
-        } catch (e) {
-            throw new Error(`Failed to parse JSON from Gemini response: ${contentText}`);
+        if (responseCode !== 200) {
+          throw new Error(`Gemini API Error (${responseCode}): ${responseText}`);
         }
-      } else {
-        throw new Error("No candidates returned from Gemini API.");
-      }
 
-    } catch (e) {
-      console.error(e);
-      throw e;
+        const jsonResponse = JSON.parse(responseText);
+
+        // Extract the text content
+        if (jsonResponse.candidates && jsonResponse.candidates.length > 0) {
+          const candidate = jsonResponse.candidates[0];
+
+          // Check for content existence
+          if (!candidate.content || !candidate.content.parts || !candidate.content.parts[0]) {
+               const reason = candidate.finishReason || "Unknown";
+               let msg = `Gemini response missing content/parts. Finish Reason: ${reason}.`;
+               if (reason === "MAX_TOKENS") {
+                   msg += " Try increasing MAX_TOKENS in 00_manifest.";
+               }
+               throw new Error(msg);
+          }
+
+          const contentText = candidate.content.parts[0].text;
+
+          // Try to parse the contentText as JSON
+          try {
+              // Remove any markdown code blocks if present (though responseMimeType should handle it)
+              const cleanedText = contentText.replace(/```json/g, '').replace(/```/g, '').trim();
+              const parsedContent = JSON.parse(cleanedText);
+
+              return {
+                  content: parsedContent,
+                  usageMetadata: jsonResponse.usageMetadata || {}
+              };
+          } catch (e) {
+              throw new Error(`Failed to parse JSON from Gemini response: ${contentText}`);
+          }
+        } else {
+          throw new Error("No candidates returned from Gemini API.");
+        }
+
+      } catch (e) {
+        // If it's a "known" error from above (retries exhausted or non-retriable), rethrow
+        if (e.message.includes("Gemini API Error") || e.message.includes("Gemini response missing")) {
+            throw e;
+        }
+
+        // For unexpected errors (e.g. network timeout exception from UrlFetchApp), retry if quota allows
+        console.error(`[GeminiAdapter] Unexpected error: ${e.message}`);
+        if (attempt < MAX_RETRIES) {
+            const delay = (BASE_DELAY_MS * Math.pow(2, attempt));
+            console.warn(`[GeminiAdapter] Retrying after unexpected error in ${Math.round(delay)}ms...`);
+            Utilities.sleep(delay);
+            attempt++;
+        } else {
+            throw e;
+        }
+      }
     }
   }
 
