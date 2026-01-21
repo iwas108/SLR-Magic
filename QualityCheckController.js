@@ -177,12 +177,26 @@ var QualityCheckController = (function() {
 
   /**
    * Retrieves data from 03_quality_check for the UI.
+   * Also returns the FULLTEXT_SCREENING_PROMPT as context.
    */
   function getQualityCheckData() {
     try {
       const sheet = SheetUtils.getSheetByName("03_quality_check");
-      if (!sheet) return [];
-      return SheetUtils.getDataAsObjects(sheet);
+      const rows = sheet ? SheetUtils.getDataAsObjects(sheet) : [];
+
+      // Get Prompt Context
+      let promptContext = "";
+      try {
+        const config = SheetUtils.getConfigMap("00_manifest");
+        promptContext = config["FULLTEXT_SCREENING_PROMPT"] || "";
+      } catch (err) {
+        console.warn("[QualityCheck] Could not fetch manifest prompt:", err);
+      }
+
+      return {
+        rows: rows,
+        promptContext: promptContext
+      };
     } catch (e) {
       console.error(e);
       throw e;
