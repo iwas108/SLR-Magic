@@ -274,7 +274,6 @@ const FullTextScreeningController = (function() {
           
           // Map result to sheet columns
           updateData["AI_Status"] = "Done";
-          updateData["AI_Relevance_Score"] = result.confidence_score;
           updateData["AI_Recommendation"] = result.decision;
           updateData["AI_Reasoning"] = result.reasoning;
           updateData["Exclusion_Reason"] = result.exclusion_code || "";

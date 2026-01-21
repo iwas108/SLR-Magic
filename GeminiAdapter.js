@@ -95,7 +95,7 @@ const GeminiAdapter = (function() {
       const jsonResponse = JSON.parse(responseText);
 
       // Log the full response for debugging
-      console.log("Gemini Response:", JSON.stringify(jsonResponse));
+      // console.log("Gemini Response:", JSON.stringify(jsonResponse));
 
       // Extract the text content
       if (jsonResponse.candidates && jsonResponse.candidates.length > 0) {
