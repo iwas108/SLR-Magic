@@ -23,6 +23,7 @@
 
     <script>
       let allRows = [];
+      let promptContext = "";
       let currentIndex = 0;
 
       // skipped columns
@@ -37,8 +38,18 @@
         google.script.run.withSuccessHandler(onDataLoaded).getQualityCheckData();
       }
 
-      function onDataLoaded(data) {
-        allRows = data;
+      function onDataLoaded(response) {
+        // Handle new response structure { rows: [], promptContext: "" }
+        if (response && response.rows) {
+            allRows = response.rows;
+            promptContext = response.promptContext || "";
+        } else {
+            // Fallback for array response if server logic hasn't updated yet (safety)
+            if (Array.isArray(response)) {
+                allRows = response;
+            }
+        }
+
         if (allRows.length === 0) {
           document.getElementById('app').innerHTML = '<div class="loading">No rows found in 03_quality_check.</div>';
           return;
@@ -110,6 +121,11 @@
           if (!SKIPPED_COLUMNS.includes(key) && value !== "") {
             promptText += `${key}: ${value}\n`;
           }
+        }
+
+        // Add Context
+        if (promptContext) {
+            promptText += "\n\n--- Context: Original Extraction Prompt ---\n" + promptContext;
         }
 
         document.getElementById('promptDisplay').textContent = promptText;
