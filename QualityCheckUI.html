@@ -6,6 +6,7 @@
       body { font-family: sans-serif; padding: 10px; }
       .container { display: flex; flex-direction: column; gap: 10px; }
       .prompt-label-row { display: flex; justify-content: space-between; align-items: center; }
+      .prompt-controls { display: flex; gap: 10px; align-items: center; }
       .prompt { background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px; white-space: pre-wrap; font-family: monospace; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; }
       .controls { border-top: 1px solid #eee; padding-top: 10px; }
       .control-group { margin-bottom: 10px; }
@@ -14,6 +15,7 @@
       button { padding: 8px 16px; cursor: pointer; }
       .nav-buttons { display: flex; gap: 10px; }
       .loading { text-align: center; margin-top: 50px; }
+      .copy-btn { font-size: 0.8em; padding: 4px 8px; }
     </style>
   </head>
   <body>
@@ -28,8 +30,8 @@
 
       // skipped columns
       const SKIPPED_COLUMNS = [
-        "Paper_ID", "PDF", "DOI_Link", "Abstract", "Year", "Authors", "Source_DB",
-        "PDF_Validity", "Page_Count", "AI_Status", "Human_Decision", "AI_Relevance_Score",
+        "Paper_ID", "Exclusion_Reason", "PDF", "DOI_Link", "Abstract", "Year", "Authors", "Source_DB",
+        "PDF_Validity", "Page_Count", "AI_Status", "Human_Decision", "AI_Recommendation", "AI_Relevance_Score",
         "HUMAN_QC_Decision_Agree", "HUMAN_QC_Reason_Valid", "HUMAN_QC_Data_Extraction_Score", "HUMAN_QC_Critical_Correction",
         "_rowIndex" // internal field
       ];
@@ -64,7 +66,10 @@
         app.innerHTML = `
           <div class="container">
             <div class="prompt-label-row">
-              <strong>Prompt for AI Assistant (Copy below):</strong>
+              <div class="prompt-controls">
+                <strong>Prompt for AI Assistant:</strong>
+                <button onclick="copyPrompt()" class="copy-btn" id="btnCopy">Copy</button>
+              </div>
               <span id="pdfLinkContainer"></span>
             </div>
             <div id="promptDisplay" class="prompt"></div>
@@ -125,11 +130,14 @@
 
         // Add Context
         if (promptContext) {
-            promptText += "\n\n--- Context Start: Find any relevant data generation protocol/rules from this prompt if you are unsure about data above. Ignore the JSON output format in this context! ---\n" + promptContext + "\n\n --- Context End ---";
-            promptText += "\n\n OUTPUT FORMAT: Show the result in the form of matrix (Original Key, Original Value, Verification Status (Match/Partial/Unmatch), Verification Description)";
+            promptText += "\n\n--- Context: Original Extraction Prompt ---\n" + promptContext;
         }
 
         document.getElementById('promptDisplay').textContent = promptText;
+
+        // Reset Copy Button
+        const btn = document.getElementById('btnCopy');
+        if(btn) btn.textContent = "Copy";
 
         // PDF Link
         const pdfUrl = row["PDF"];
@@ -202,6 +210,44 @@
 
       function closeDialog() {
         google.script.host.close();
+      }
+
+      function copyPrompt() {
+        const text = document.getElementById('promptDisplay').textContent;
+        // Standard clipboard API
+        navigator.clipboard.writeText(text).then(function() {
+          const btn = document.getElementById('btnCopy');
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+        }, function(err) {
+          console.error('Could not copy text: ', err);
+          // Fallback for some environments
+          fallbackCopy(text);
+        });
+      }
+
+      function fallbackCopy(text) {
+          const textArea = document.createElement("textarea");
+          textArea.value = text;
+
+          // Ensure it's not visible but part of DOM
+          textArea.style.position = "fixed";
+          textArea.style.left = "-9999px";
+          document.body.appendChild(textArea);
+
+          textArea.focus();
+          textArea.select();
+
+          try {
+            document.execCommand('copy');
+            const btn = document.getElementById('btnCopy');
+            btn.textContent = "Copied!";
+            setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+          } catch (err) {
+            console.error('Fallback: Oops, unable to copy', err);
+          }
+
+          document.body.removeChild(textArea);
       }
 
       // Start
