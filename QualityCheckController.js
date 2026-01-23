@@ -1,14 +1,15 @@
 /**
  * QualityCheckController.js
- * Handles the logic for sampling data for Human Quality Check.
+ * Handles the logic for sampling data for Human Quality Check and the Assistant UI.
  */
 
 var QualityCheckController = (function() {
 
   /**
    * Main function to execute the Quality Check sampling process.
+   * Renamed from runQualityCheck to generateQualityCheck.
    */
-  function runQualityCheck() {
+  function generateQualityCheck() {
     console.log("[QualityCheck] Starting Human Quality Check sampling...");
 
     try {
@@ -151,8 +152,83 @@ var QualityCheckController = (function() {
     return shuffled.slice(0, count);
   }
 
+  /**
+   * Opens the Human Quality Check Assistant UI.
+   */
+  function runQualityCheck() {
+    try {
+      // Check if sheet exists first
+      const sheet = SheetUtils.getSheetByName("03_quality_check");
+      if (!sheet) {
+        SheetUtils.alert("Sheet '03_quality_check' not found. Please run 'Generate Quality Check List' first.");
+        return;
+      }
+
+      const html = HtmlService.createTemplateFromFile('QualityCheckUI')
+          .evaluate()
+          .setWidth(800)
+          .setHeight(800);
+      SpreadsheetApp.getUi().showModalDialog(html, 'Human Quality Check Assistant');
+    } catch (e) {
+      console.error(e);
+      SheetUtils.alert(`Error opening Assistant: ${e.message}`);
+    }
+  }
+
+  /**
+   * Retrieves data from 03_quality_check for the UI.
+   * Also returns the FULLTEXT_SCREENING_PROMPT as context.
+   */
+  function getQualityCheckData() {
+    try {
+      const sheet = SheetUtils.getSheetByName("03_quality_check");
+      const rows = sheet ? SheetUtils.getDataAsObjects(sheet) : [];
+
+      // Get Prompt Context
+      let promptContext = "";
+      try {
+        const config = SheetUtils.getConfigMap("00_manifest");
+        promptContext = config["FULLTEXT_SCREENING_PROMPT"] || "";
+      } catch (err) {
+        console.warn("[QualityCheck] Could not fetch manifest prompt:", err);
+      }
+
+      return {
+        rows: rows,
+        promptContext: promptContext
+      };
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  }
+
+  /**
+   * Updates a row in 03_quality_check with human inputs.
+   */
+  function saveQualityCheckRow(paperId, data) {
+    try {
+      const sheet = SheetUtils.getSheetByName("03_quality_check");
+      const allRows = SheetUtils.getDataAsObjects(sheet);
+      const rowObj = allRows.find(r => r["Paper_ID"] === paperId);
+
+      if (rowObj) {
+        const headerMap = SheetUtils.getHeaderMap(sheet);
+        SheetUtils.updateRow(sheet, rowObj._rowIndex, data, headerMap);
+      } else {
+        console.warn(`[QualityCheck] Paper_ID ${paperId} not found.`);
+      }
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  }
+
   return {
-    runQualityCheck
+    generateQualityCheck,
+    runQualityCheck,
+    getQualityCheckData,
+    saveQualityCheckRow
   };
 
 })();
