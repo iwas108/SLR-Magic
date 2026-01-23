@@ -30,8 +30,8 @@
 
       // skipped columns
       const SKIPPED_COLUMNS = [
-        "Paper_ID", "Exclusion_Reason", "PDF", "DOI_Link", "Abstract", "Year", "Authors", "Source_DB",
-        "PDF_Validity", "Page_Count", "AI_Status", "Human_Decision", "AI_Recommendation", "AI_Relevance_Score",
+        "Paper_ID", "PDF", "DOI_Link", "Abstract", "Year", "Authors", "Source_DB",
+        "PDF_Validity", "Page_Count", "AI_Status", "Human_Decision", "AI_Relevance_Score",
         "HUMAN_QC_Decision_Agree", "HUMAN_QC_Reason_Valid", "HUMAN_QC_Data_Extraction_Score", "HUMAN_QC_Critical_Correction",
         "_rowIndex" // internal field
       ];
@@ -130,7 +130,8 @@
 
         // Add Context
         if (promptContext) {
-            promptText += "\n\n--- Context: Original Extraction Prompt ---\n" + promptContext;
+            promptText += "\n\n--- Context Start: Find any relevant data generation protocol/rules from this prompt if you are unsure about data above. Ignore the JSON output format in this context! ---\n" + promptContext + "\n\n --- Context End ---";
+            promptText += "\n\n OUTPUT FORMAT: Show the result in the form of matrix (Original Key, Original Value, Verification Status (Match/Partial/Unmatch), Verification Description)";
         }
 
         document.getElementById('promptDisplay').textContent = promptText;
