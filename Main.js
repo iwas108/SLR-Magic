@@ -23,6 +23,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Generate Quality Check List', 'generateQualityCheck')
     .addItem('Run Quality Check Assistant', 'runQualityCheck')
+    .addItem('Calculate QC Score', 'calculateQCScore')
     .addToUi();
 }
 
@@ -67,6 +68,13 @@ function generateQualityCheck() {
  */
 function runQualityCheck() {
   QualityCheckController.runQualityCheck();
+}
+
+/**
+ * Calculates and summarizes the quality check score.
+ */
+function calculateQCScore() {
+  QualityCheckController.calculateQCScore();
 }
 
 /**
