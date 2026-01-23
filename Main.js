@@ -78,6 +78,13 @@ function calculateQCScore() {
 }
 
 /**
+ * Wrapper for syncing PDFs to Gold Mine.
+ */
+function syncGoldMine() {
+  return QualityCheckController.syncGoldMine();
+}
+
+/**
  * Server-side handler for getting data.
  */
 function getQualityCheckData() {
