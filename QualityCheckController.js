@@ -224,11 +224,91 @@ var QualityCheckController = (function() {
     }
   }
 
+  /**
+   * Calculates and displays the Quality Check Score Report.
+   */
+  function calculateQCScore() {
+    try {
+      const sheet = SheetUtils.getSheetByName("03_quality_check");
+      if (!sheet) {
+        SheetUtils.alert("Sheet '03_quality_check' not found.");
+        return;
+      }
+
+      const rows = SheetUtils.getDataAsObjects(sheet);
+
+      // Filter rows where QC decision has been made
+      const qcRows = rows.filter(r =>
+        r["HUMAN_QC_Decision_Agree"] &&
+        String(r["HUMAN_QC_Decision_Agree"]).trim() !== ""
+      );
+
+      if (qcRows.length === 0) {
+        SheetUtils.alert("No Quality Check data found (HUMAN_QC_Decision_Agree is empty).");
+        return;
+      }
+
+      const includeRows = qcRows.filter(r => String(r["AI_Recommendation"]).trim().toUpperCase() === "INCLUDE");
+      const excludeRows = qcRows.filter(r => String(r["AI_Recommendation"]).trim().toUpperCase() === "EXCLUDE");
+
+      const calculateStats = (dataRows) => {
+        if (dataRows.length === 0) {
+          return {
+            agreementRate: 0,
+            validityRate: 0,
+            extractionScore: 0,
+            count: 0
+          };
+        }
+
+        const agreeCount = dataRows.filter(r => {
+          const val = String(r["HUMAN_QC_Decision_Agree"]).trim().toUpperCase();
+          return val === "YES" || val === "TRUE" || val === "AGREE";
+        }).length;
+
+        const validCount = dataRows.filter(r => {
+          const val = String(r["HUMAN_QC_Reason_Valid"]).trim().toUpperCase();
+          return val === "YES" || val === "TRUE" || val === "VALID";
+        }).length;
+
+        const totalScore = dataRows.reduce((sum, r) => {
+          const val = parseFloat(r["HUMAN_QC_Data_Extraction_Score"]);
+          return sum + (isNaN(val) ? 0 : val);
+        }, 0);
+
+        return {
+          agreementRate: ((agreeCount / dataRows.length) * 100).toFixed(1),
+          validityRate: ((validCount / dataRows.length) * 100).toFixed(1),
+          extractionScore: (totalScore / dataRows.length).toFixed(2),
+          count: dataRows.length
+        };
+      };
+
+      const stats = {
+        include: calculateStats(includeRows),
+        exclude: calculateStats(excludeRows)
+      };
+
+      const template = HtmlService.createTemplateFromFile('QualityCheckScoreReport');
+      template.data = stats;
+      const html = template.evaluate()
+        .setWidth(600)
+        .setHeight(600);
+
+      SpreadsheetApp.getUi().showModalDialog(html, 'Quality Check Score Report');
+
+    } catch (e) {
+      console.error(e);
+      SheetUtils.alert(`Error calculating QC Score: ${e.message}`);
+    }
+  }
+
   return {
     generateQualityCheck,
     runQualityCheck,
     getQualityCheckData,
-    saveQualityCheckRow
+    saveQualityCheckRow,
+    calculateQCScore
   };
 
 })();
