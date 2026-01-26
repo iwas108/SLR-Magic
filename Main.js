@@ -24,6 +24,8 @@ function onOpen() {
     .addItem('Generate Quality Check List', 'generateQualityCheck')
     .addItem('Run Quality Check Assistant', 'runQualityCheck')
     .addItem('Calculate QC Score', 'calculateQCScore')
+    .addSeparator()
+    .addItem('Process Data Collection', 'runDataCollection')
     .addToUi();
 }
 
@@ -75,6 +77,13 @@ function runQualityCheck() {
  */
 function calculateQCScore() {
   QualityCheckController.calculateQCScore();
+}
+
+/**
+ * Processes data collection JSON in '04_data_collection'.
+ */
+function runDataCollection() {
+  DataCollectionController.run();
 }
 
 /**
