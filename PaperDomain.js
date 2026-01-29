@@ -38,6 +38,7 @@ const PaperDomain = (function() {
         // Format is typically "Last, First" or "Last First"
         if (firstAuthor.includes(',')) {
           // "Zhu, T." -> "Zhu"
+          // "Aranda Barrera, M.F." -> "Aranda Barrera"
           author = firstAuthor.split(',')[0].trim();
         } else {
           // "Zhu T." or "Zhu"
@@ -60,7 +61,8 @@ const PaperDomain = (function() {
     let shortTitle = title.replace(/[^a-zA-Z0-9]/g, "").substring(0, 15);
 
     // Add a random suffix to ensure uniqueness in case of collisions (same author, year, similar title start)
-    const randomSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    // User requested "random four digid number".
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000).toString();
 
     return `${author}_${year}_${shortTitle}_${randomSuffix}`;
   }
