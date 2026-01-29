@@ -18,7 +18,8 @@ const CsvParser = (function() {
     const data = Utilities.parseCsv(csvContent);
     if (data.length < 2) return []; // Only header or empty
 
-    const headers = data[0].map(h => h.trim());
+    // Clean headers: remove quotes and trim
+    const headers = data[0].map(h => h.replace(/['"]/g, '').trim());
     const result = [];
 
     for (let i = 1; i < data.length; i++) {
