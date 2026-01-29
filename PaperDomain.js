@@ -17,7 +17,8 @@ const PaperDomain = (function() {
     // We want the first author's last name.
 
     // 1. Find the authors field (handle variations)
-    const authorKeys = ['Authors', 'Author full names', 'Author(s)'];
+    // Updated to handle cleaned keys (spaces -> underscores)
+    const authorKeys = ['Authors', 'Author_full_names', 'Author(s)'];
     let authorsField = "";
     for (const key of authorKeys) {
       if (rawData[key]) {
