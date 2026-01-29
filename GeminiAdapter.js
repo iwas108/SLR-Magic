@@ -15,7 +15,7 @@ const GeminiAdapter = (function() {
    * @param {GoogleAppsScript.Base.Blob} [fileBlob] Optional file blob (PDF, image) to include.
    * @returns {Object} The JSON object parsed from the response.
    */
-  function callGemini(prompt, apiKey, model, temperature, maxTokens, fileBlob) {
+  function callGemini(prompt, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob) {
     // --- FIX 1: Safety Default ---
     // If model is undefined/null, default to Flash-Lite to prevent crash
     if (!model) {
@@ -46,22 +46,13 @@ const GeminiAdapter = (function() {
       includeThoughts: false // Keeps the JSON response clean for both models
     };
 
-    // 3. Dynamic Logic
-    if (safeModel.indexOf("gemini-3") !== -1 && safeModel.indexOf("flash") !== -1) {
-      // Gemini 3 Flash uses 'thinkingLevel'.
-      myThinkingConfig.thinkingLevel = "medium";
+    if (thinkingLevel) {
+        myThinkingConfig.thinkingLevel = thinkingLevel;
+    }
 
-    } else if (safeModel.indexOf("flash") !== -1) {
-      // Flash models (2.5+) use 'thinkingBudget'. 0 = Disabled.
-      myThinkingConfig.thinkingBudget = 0; 
-      
-    } else if (safeModel.indexOf("gemini-3") !== -1 && safeModel.indexOf("pro") !== -1) {
-      // Gemini 3 Pro uses 'thinkingLevel'.
-      myThinkingConfig.thinkingLevel = "LOW";
-
-    } else if (safeModel.indexOf("gemini-2.5") !== -1 && safeModel.indexOf("pro") !== -1) {
-      // Gemini 2.5 Pro uses 'thinkingBudget' (Min 128).
-      myThinkingConfig.thinkingBudget = 128; 
+    // Check strict null/undefined/empty string to allow 0 as a valid budget
+    if (thinkingBudget !== undefined && thinkingBudget !== null && String(thinkingBudget).trim() !== "") {
+        myThinkingConfig.thinkingBudget = parseInt(thinkingBudget);
     }
 
     const payload = {
