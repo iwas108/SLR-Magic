@@ -18,7 +18,15 @@ const CsvParser = (function() {
     const data = Utilities.parseCsv(csvContent);
     if (data.length < 2) return []; // Only header or empty
 
-    const headers = data[0].map(h => h.trim());
+    // Clean headers: remove quotes, trim, replace spaces with underscores, capitalize first char
+    const headers = data[0].map(h => {
+      let clean = h.replace(/['"]/g, '').trim();
+      clean = clean.replace(/\s+/g, '_');
+      if (clean.length > 0) {
+        clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+      }
+      return clean;
+    });
     const result = [];
 
     for (let i = 1; i < data.length; i++) {
