@@ -37,9 +37,34 @@ const ImportController = (function() {
       // 5. Map to Target Structure
       SpreadsheetApp.getActiveSpreadsheet().toast(`Processing ${rawRecords.length} records...`, "SLR Magic");
 
+      // 5a. Identify all unique keys from CSV to ensure columns exist
+      const allKeys = new Set();
+      rawRecords.forEach(r => Object.keys(r).forEach(k => allKeys.add(k)));
+
+      // Add internal keys that we generate
+      allKeys.add('Paper_ID');
+      allKeys.add('AI_Status');
+      allKeys.add('DOI_Link');
+      allKeys.add('Source_DB');
+
+      // 5b. Ensure columns exist in the target sheet
+      const targetSheetName = "01_abstract_screening";
+      const targetSheet = SheetUtils.getSheetByName(targetSheetName);
+      const headerMap = SheetUtils.getHeaderMap(targetSheet);
+
+      allKeys.forEach(key => {
+          SheetUtils.ensureColumn(targetSheet, key, headerMap);
+      });
+
+      // 5c. Map Records
       const mappedRecords = rawRecords.map(record => {
-        // Scopus Columns: Authors, Title, Year, Source title, Link, Abstract, etc.
-        // Target Columns: Paper_ID, Title, Abstract, Year, Authors, DOI_Link, Source_DB
+        // Start with all CSV data
+        const mapped = { ...record };
+
+        // Overwrite/Set Internal Fields
+        mapped['Paper_ID'] = PaperDomain.generatePaperId(record);
+        mapped['AI_Status'] = 'Pending';
+        mapped['Source_DB'] = 'Scopus';
 
         // Handle DOI_Link
         // Use Link if available, else DOI.
@@ -47,24 +72,12 @@ const ImportController = (function() {
         if (!link && record['DOI']) {
           link = "https://doi.org/" + record['DOI'];
         }
+        mapped['DOI_Link'] = link;
 
-        return {
-          'Paper_ID': PaperDomain.generatePaperId(record),
-          'Title': record['Title'],
-          'Abstract': record['Abstract'],
-          'Year': record['Year'],
-          'Authors': record['Authors'],
-          'DOI_Link': link,
-          'Source_DB': 'Scopus', // Hardcoded as per context
-          'AI_Status': 'Pending'
-        };
+        return mapped;
       });
 
       // 6. Write to Sheet
-      const targetSheetName = "01_abstract_screening";
-      const targetSheet = SheetUtils.getSheetByName(targetSheetName);
-      const headerMap = SheetUtils.getHeaderMap(targetSheet);
-
       SheetUtils.appendDataMapped(targetSheet, mappedRecords, headerMap);
 
       // 7. Success Message
