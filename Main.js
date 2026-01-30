@@ -15,7 +15,8 @@ function onOpen() {
     .addItem('Manage Background Screening (Abstract)', 'manageScreeningTrigger')
     .addSeparator()
     .addItem('Copy Screened Title-Abstract', 'runCopyScreenedPapers')
-    .addItem('Import PDF Files', 'runImportPDFs')
+    .addItem('Import PDF Files', 'presentPDFImportUI')
+    .addItem('Import PDF Metadata (CSV)', 'runImportFileMetadata')
     .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
     .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks')
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
@@ -47,6 +48,20 @@ function runCopyScreenedPapers() {
 
 function runImportPDFs() {
   FullTextScreeningController.runImportPDFs();
+}
+
+/**
+ * Shows the PDF Import UI.
+ */
+function presentPDFImportUI() {
+  FullTextScreeningController.showPDFImportDialog();
+}
+
+/**
+ * Runs the Metadata Import.
+ */
+function runImportFileMetadata() {
+  FullTextScreeningController.runImportFileMetadata();
 }
 
 function runTransformDOILinks() {
