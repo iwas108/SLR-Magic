@@ -47,14 +47,21 @@ const FullTextScreeningController = (function() {
 
   /**
    * Process the copy operation based on user selection.
+   * @param {string} columnName The column to filter by.
+   * @param {Array<string>} includedValues The values to include.
+   * @param {Array<string>} columnsToCopy The columns to copy from source to dest.
    */
-  function processCopyScreenedPapers(columnName, includedValues) {
+  function processCopyScreenedPapers(columnName, includedValues, columnsToCopy) {
     try {
       const sourceSheet = SheetUtils.getSheetByName("01_abstract_screening");
       const destSheet = SheetUtils.getSheetByName("02_fulltext_screening");
 
       const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
-      const destData = SheetUtils.getDataAsObjects(destSheet);
+      // Handle potential empty destination sheet
+      let destData = [];
+      if (destSheet.getLastRow() > 1) {
+          destData = SheetUtils.getDataAsObjects(destSheet);
+      }
 
       // Get existing Paper IDs in destination to avoid duplicates
       // "always use the 02_fulltext_screening as the source of truth"
@@ -77,16 +84,21 @@ const FullTextScreeningController = (function() {
 
       rowsToCopy.forEach(row => {
         if (!existingIds.has(row["Paper_ID"])) {
-          newRows.push({
-            "Paper_ID": row["Paper_ID"],
-            "Title": row["Title"],
-            "Abstract": row["Abstract"],
-            "Year": row["Year"],
-            "Authors": row["Authors"],
-            "DOI_Link": row["DOI_Link"],
-            "Source_DB": row["Source_DB"],
-            "AI_Status": "Pending" // Reset status for full text screening
-          });
+          const newRow = {
+            "Paper_ID": row["Paper_ID"], // Always copy Paper_ID
+            "AI_Status": "Pending"       // Reset status for full text screening
+          };
+
+          // Copy selected columns
+          if (columnsToCopy && Array.isArray(columnsToCopy)) {
+            columnsToCopy.forEach(col => {
+              if (row[col] !== undefined) {
+                newRow[col] = row[col];
+              }
+            });
+          }
+
+          newRows.push(newRow);
         } else {
           skippedCount++;
         }
@@ -94,16 +106,21 @@ const FullTextScreeningController = (function() {
 
       if (newRows.length > 0) {
         // Ensure columns exist in destination sheet (in case it's empty)
+        // We pass a potentially empty map if the sheet is empty
         const destHeaderMap = SheetUtils.getHeaderMap(destSheet);
 
         // Use keys from the first row to check/create columns
         // The object structure is uniform for all newRows
+        // We use all columnsToCopy to ensure structure, plus Paper_ID and AI_Status
         const sampleRow = newRows[0];
         Object.keys(sampleRow).forEach(key => {
-          SheetUtils.ensureColumn(destSheet, key, destHeaderMap);
+            SheetUtils.ensureColumn(destSheet, key, destHeaderMap);
         });
 
-        SheetUtils.appendDataMapped(destSheet, newRows, destHeaderMap);
+        // Re-fetch header map to ensure we have the correct indices for the newly created columns
+        const updatedHeaderMap = SheetUtils.getHeaderMap(destSheet);
+
+        SheetUtils.appendDataMapped(destSheet, newRows, updatedHeaderMap);
         return `Copied ${newRows.length} papers to Full-Text Screening.\n(Skipped ${skippedCount} existing papers)`;
       } else {
         return `All matching papers are already present in Full-Text Screening.\n(Skipped ${skippedCount} existing papers)`;

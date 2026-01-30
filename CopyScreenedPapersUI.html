@@ -8,7 +8,7 @@
     .form-group { margin-bottom: 15px; }
     label { font-weight: bold; display: block; margin-bottom: 5px; }
     select, input { width: 100%; box-sizing: border-box; }
-    #valuesContainer {
+    #valuesContainer, #columnsContainer {
       max-height: 200px;
       overflow-y: auto;
       border: 1px solid #ccc;
@@ -34,6 +34,13 @@
     </div>
   </div>
 
+  <div class="form-group">
+    <label>3. Select Columns to Copy</label>
+    <div id="columnsContainer">
+      <div style="color: #666; font-style: italic;">Loading columns...</div>
+    </div>
+  </div>
+
   <div class="buttons">
     <button class="share" onclick="google.script.host.close()">Cancel</button>
     <button class="action" id="copyBtn" onclick="runCopy()" disabled>Copy Papers</button>
@@ -49,16 +56,39 @@
     };
 
     function populateColumns(columns) {
+      // 1. Populate Filter Column Dropdown
       const select = document.getElementById('columnSelect');
       select.innerHTML = '<option value="" disabled selected>Select a column...</option>';
+
+      // 2. Populate Columns to Copy List
+      const columnsContainer = document.getElementById('columnsContainer');
+      columnsContainer.innerHTML = '';
+
+      // Default columns to check
+      const defaultChecked = ['Title', 'Abstract', 'Year', 'Authors', 'DOI_Link', 'Source_DB'];
+
       columns.forEach(col => {
+        // Dropdown
         const option = document.createElement('option');
         option.value = col;
         option.text = col;
-        // Pre-select 'Human_Decision' if it exists, as it's the common use case
         if (col === 'Human_Decision') option.selected = true;
         select.appendChild(option);
+
+        // Copy List
+        // Skip Paper_ID as it is mandatory
+        if (col !== 'Paper_ID') {
+          const div = document.createElement('div');
+          div.className = 'checkbox-item';
+          const isChecked = defaultChecked.includes(col) ? 'checked' : '';
+          const escapedVal = String(col).replace(/"/g, '&quot;');
+
+          div.innerHTML = `<input type="checkbox" name="copyColumn" value="${escapedVal}" ${isChecked}> <label style="display:inline; font-weight:normal"></label>`;
+          div.querySelector('label').textContent = col;
+          columnsContainer.appendChild(div);
+        }
       });
+
       select.disabled = false;
 
       // Trigger change if something is selected (like Human_Decision)
@@ -134,6 +164,7 @@
         return;
       }
 
+      // Collect selected filter values
       const checkboxes = document.getElementsByName('filterValue');
       const selectedValues = [];
       for (let i=0; i<checkboxes.length; i++) {
@@ -145,6 +176,15 @@
       if (selectedValues.length === 0) {
         alert("Please select at least one value to include.");
         return;
+      }
+
+      // Collect columns to copy
+      const copyCheckboxes = document.getElementsByName('copyColumn');
+      const columnsToCopy = [];
+      for (let i=0; i<copyCheckboxes.length; i++) {
+        if (copyCheckboxes[i].checked) {
+          columnsToCopy.push(copyCheckboxes[i].value);
+        }
       }
 
       const btn = document.getElementById('copyBtn');
@@ -161,7 +201,7 @@
            btn.disabled = false;
            btn.innerText = 'Copy Papers';
         })
-        .processCopyScreenedPapers(columnName, selectedValues);
+        .processCopyScreenedPapers(columnName, selectedValues, columnsToCopy);
     }
 
     function showError(e) {

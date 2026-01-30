@@ -291,6 +291,6 @@ function getUniqueValuesForAbstractColumn(columnName) {
 /**
  * Server-side handler for processing the copy operation.
  */
-function processCopyScreenedPapers(columnName, includedValues) {
-  return FullTextScreeningController.processCopyScreenedPapers(columnName, includedValues);
+function processCopyScreenedPapers(columnName, includedValues, columnsToCopy) {
+  return FullTextScreeningController.processCopyScreenedPapers(columnName, includedValues, columnsToCopy);
 }
