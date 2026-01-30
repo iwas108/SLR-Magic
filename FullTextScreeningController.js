@@ -6,57 +6,196 @@
 const FullTextScreeningController = (function() {
 
   /**
-   * Copies "Include" and "Maybe" papers from Abstract Screening to Full Text Screening.
+   * Shows the Copy Screened Papers dialog.
    */
-  function runCopyScreenedPapers() {
+  function showCopyScreenedPapersDialog() {
+    const html = HtmlService.createHtmlOutputFromFile('CopyScreenedPapersUI')
+      .setWidth(400)
+      .setHeight(500)
+      .setTitle('Copy Screened Papers');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Copy Screened Papers');
+  }
+
+  /**
+   * Helper: Get headers from Abstract Screening sheet.
+   */
+  function getAbstractScreeningColumns() {
+    const sheet = SheetUtils.getSheetByName("01_abstract_screening");
+    const lastCol = sheet.getLastColumn();
+    if (lastCol === 0) return [];
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    return headers.filter(h => h && h.toString().trim() !== "");
+  }
+
+  /**
+   * Helper: Get unique values for a specific column in Abstract Screening.
+   */
+  function getUniqueValuesForColumn(columnName) {
+    const sheet = SheetUtils.getSheetByName("01_abstract_screening");
+    const data = SheetUtils.getDataAsObjects(sheet);
+    const values = new Set();
+
+    data.forEach(row => {
+      const val = row[columnName];
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        values.add(String(val).trim());
+      }
+    });
+
+    return Array.from(values);
+  }
+
+  /**
+   * Process the copy operation based on user selection.
+   * @param {string} columnName The column to filter by.
+   * @param {Array<string>} includedValues The values to include.
+   * @param {Array<string>} columnsToCopy The columns to copy from source to dest.
+   */
+  function processCopyScreenedPapers(columnName, includedValues, columnsToCopy) {
     try {
       const sourceSheet = SheetUtils.getSheetByName("01_abstract_screening");
       const destSheet = SheetUtils.getSheetByName("02_fulltext_screening");
 
       const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
-      const destData = SheetUtils.getDataAsObjects(destSheet);
+      // Handle potential empty destination sheet
+      let destData = [];
+      if (destSheet.getLastRow() > 1) {
+          destData = SheetUtils.getDataAsObjects(destSheet);
+      }
 
       // Get existing Paper IDs in destination to avoid duplicates
+      // "always use the 02_fulltext_screening as the source of truth"
       const existingIds = new Set(destData.map(row => row["Paper_ID"]));
 
       // Filter rows to copy
       const rowsToCopy = sourceData.filter(row => {
-        const decision = (row["Human_Decision"] || "").trim();
-        return (decision === "Include" || decision === "Maybe");
+        const rowVal = String(row[columnName] || "").trim();
+        // Check if value is in the included list
+        // includedValues comes from client, ensure we compare correctly
+        return includedValues.includes(rowVal);
       });
 
       if (rowsToCopy.length === 0) {
-        SheetUtils.alert("No papers marked as 'Include' or 'Maybe' found in abstract screening.");
-        return;
+        return "No papers match the selected criteria.";
       }
 
       const newRows = [];
+      let skippedCount = 0;
+
       rowsToCopy.forEach(row => {
         if (!existingIds.has(row["Paper_ID"])) {
-          newRows.push({
-            "Paper_ID": row["Paper_ID"],
-            "Title": row["Title"],
-            "Abstract": row["Abstract"],
-            "Year": row["Year"],
-            "Authors": row["Authors"],
-            "DOI_Link": row["DOI_Link"],
-            "Source_DB": row["Source_DB"],
-            "AI_Status": "Pending" // Reset status for full text screening
-          });
+          const newRow = {
+            "Paper_ID": row["Paper_ID"], // Always copy Paper_ID
+            "AI_Status": "Pending"       // Reset status for full text screening
+          };
+
+          // Copy selected columns
+          if (columnsToCopy && Array.isArray(columnsToCopy)) {
+            columnsToCopy.forEach(col => {
+              // Exclude AI_Status to prevent overwriting "Pending"
+              if (row[col] !== undefined && col !== 'AI_Status') {
+                newRow[col] = row[col];
+              }
+            });
+          }
+
+          newRows.push(newRow);
+        } else {
+          skippedCount++;
         }
       });
 
       if (newRows.length > 0) {
+        // Ensure columns exist in destination sheet (in case it's empty)
+        // We pass a potentially empty map if the sheet is empty
         const destHeaderMap = SheetUtils.getHeaderMap(destSheet);
-        SheetUtils.appendDataMapped(destSheet, newRows, destHeaderMap);
-        SheetUtils.alert(`Copied ${newRows.length} papers to Full-Text Screening.`);
+
+        // Use keys from the first row to check/create columns
+        // The object structure is uniform for all newRows
+        // We use all columnsToCopy to ensure structure, plus Paper_ID and AI_Status
+        const sampleRow = newRows[0];
+        Object.keys(sampleRow).forEach(key => {
+            SheetUtils.ensureColumn(destSheet, key, destHeaderMap);
+        });
+
+        // Re-fetch header map to ensure we have the correct indices for the newly created columns
+        const updatedHeaderMap = SheetUtils.getHeaderMap(destSheet);
+
+        SheetUtils.appendDataMapped(destSheet, newRows, updatedHeaderMap);
+        return `Copied ${newRows.length} papers to Full-Text Screening.\n(Skipped ${skippedCount} existing papers)`;
       } else {
-        SheetUtils.alert("All relevant papers are already present in Full-Text Screening.");
+        return `All matching papers are already present in Full-Text Screening.\n(Skipped ${skippedCount} existing papers)`;
       }
 
     } catch (e) {
       console.error(e);
-      SheetUtils.alert(`Error copying papers: ${e.message}`);
+      throw new Error(e.message);
+    }
+  }
+
+  /**
+   * Wraps the dialog display for external calls.
+   * Keeps the name runCopyScreenedPapers for compatibility with existing menu.
+   */
+  function runCopyScreenedPapers() {
+      showCopyScreenedPapersDialog();
+  }
+
+  /**
+   * Shows the PDF Import dialog.
+   */
+  function showPDFImportDialog() {
+    const html = HtmlService.createHtmlOutputFromFile('PDFImportUI')
+      .setWidth(450)
+      .setHeight(400)
+      .setTitle('Import PDF Files');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Import PDF Files');
+  }
+
+  /**
+   * Imports metadata from CSV URL specified in 00_manifest.
+   */
+  function runImportFileMetadata() {
+    try {
+      const config = SheetUtils.getConfigMap("00_manifest");
+      const csvUrl = config["PDF_METADATA"];
+
+      if (!csvUrl) {
+        SheetUtils.alert("PDF_METADATA key is missing in 00_manifest. Please add the CSV URL.");
+        return;
+      }
+
+      // Fetch CSV
+      const response = UrlFetchApp.fetch(csvUrl);
+      const csvContent = response.getContentText();
+
+      if (!csvContent) {
+        SheetUtils.alert("Fetched CSV content is empty.");
+        return;
+      }
+
+      // Parse CSV
+      // We use Utilities.parseCsv to get raw 2D array for exact replication
+      const csvData = Utilities.parseCsv(csvContent);
+
+      if (!csvData || csvData.length === 0) {
+        SheetUtils.alert("Parsed CSV data is empty.");
+        return;
+      }
+
+      const sheet = SheetUtils.getSheetByName("98_file_metadata");
+
+      // Clear existing content
+      sheet.clear();
+
+      // Write new content
+      sheet.getRange(1, 1, csvData.length, csvData[0].length).setValues(csvData);
+
+      SheetUtils.alert(`Successfully imported ${csvData.length - 1} metadata rows into 98_file_metadata.`);
+
+    } catch (e) {
+      console.error(e);
+      SheetUtils.alert(`Error importing metadata: ${e.message}`);
     }
   }
 
@@ -75,6 +214,15 @@ const FullTextScreeningController = (function() {
     }
 
     try {
+      // 0. Ensure target columns exist in 02_fulltext_screening
+      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const headerMap = SheetUtils.getHeaderMap(sheet);
+
+      // Ensure columns required for import exist
+      ['PDF', 'Page_Count', 'PDF_Validity', 'PDF_Status'].forEach(col => {
+        SheetUtils.ensureColumn(sheet, col, headerMap);
+      });
+
       const config = SheetUtils.getConfigMap("00_manifest");
       const pdfRepoUrl = config["PDF_REPO"];
 
@@ -104,8 +252,9 @@ const FullTextScreeningController = (function() {
         console.log("Metadata sheet '98_file_metadata' not found or accessible. Proceeding with basic import.");
       }
 
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
-      const headerMap = SheetUtils.getHeaderMap(sheet);
+      // Re-fetch data objects after ensuring columns (though ensureColumn updates headerMap in place ideally,
+      // but let's just proceed with existing map or refresh if needed.
+      // SheetUtils.ensureColumn updates the passed map object, so headerMap is valid).
       const data = SheetUtils.getDataAsObjects(sheet);
 
       let updatedCount = 0;
@@ -448,7 +597,13 @@ const FullTextScreeningController = (function() {
     runCopyScreenedPapers,
     runImportPDFs,
     runScreening,
-    runTransformDOILinks
+    runTransformDOILinks,
+    showCopyScreenedPapersDialog,
+    getAbstractScreeningColumns,
+    getUniqueValuesForColumn,
+    processCopyScreenedPapers,
+    showPDFImportDialog,
+    runImportFileMetadata
   };
 
 })();
