@@ -203,6 +203,34 @@ const SheetUtils = (function() {
   }
 
   /**
+   * Updates notes for a single row in the sheet based on the notesObject and headerMap.
+   * Only updates notes for columns present in the notesObject.
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @param {number} rowIndex 1-based row index
+   * @param {Object} notesObject Data to update { "HeaderName": "Note Content" }
+   * @param {Object} headerMap Map of { "HeaderName": ColumnIndex }
+   */
+  function updateRowNotes(sheet, rowIndex, notesObject, headerMap) {
+    const lastCol = sheet.getLastColumn();
+
+    const rowRange = sheet.getRange(rowIndex, 1, 1, lastCol);
+    const rowNotes = rowRange.getNotes()[0];
+
+    let changed = false;
+    for (const [key, note] of Object.entries(notesObject)) {
+      const colIdx = headerMap[key];
+      if (colIdx && colIdx <= lastCol) {
+        rowNotes[colIdx - 1] = note;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      rowRange.setNotes([rowNotes]);
+    }
+  }
+
+  /**
    * Safely attempts to show a toast message.
    * Does nothing if UI is not available (e.g., time trigger).
    */
@@ -235,6 +263,7 @@ const SheetUtils = (function() {
     appendDataMapped,
     getDataAsObjects,
     updateRow,
+    updateRowNotes,
     ensureColumn,
     toast,
     alert
