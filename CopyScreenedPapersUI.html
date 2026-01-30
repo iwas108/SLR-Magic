@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <style>
+    body { padding: 10px; font-family: 'Google Sans', Roboto, Arial, sans-serif; }
+    .form-group { margin-bottom: 15px; }
+    label { font-weight: bold; display: block; margin-bottom: 5px; }
+    select, input { width: 100%; box-sizing: border-box; }
+    #valuesContainer, #columnsContainer {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      padding: 5px;
+      background-color: #fff;
+    }
+    .checkbox-item { display: block; margin-bottom: 5px; }
+    .buttons { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+  </style>
+</head>
+<body>
+  <div class="form-group">
+    <label for="columnSelect">1. Select Filter Column</label>
+    <select id="columnSelect" disabled>
+      <option value="" disabled selected>Loading columns...</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label>2. Select Values to Include</label>
+    <div id="valuesContainer">
+      <div style="color: #666; font-style: italic;">Select a column first...</div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>3. Select Columns to Copy</label>
+    <div id="columnsContainer">
+      <div style="color: #666; font-style: italic;">Loading columns...</div>
+    </div>
+  </div>
+
+  <div class="buttons">
+    <button class="share" onclick="google.script.host.close()">Cancel</button>
+    <button class="action" id="copyBtn" onclick="runCopy()" disabled>Copy Papers</button>
+  </div>
+
+  <script>
+    // Load columns on start
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(populateColumns)
+        .withFailureHandler(showError)
+        .getAbstractScreeningColumns();
+    };
+
+    function populateColumns(columns) {
+      // 1. Populate Filter Column Dropdown
+      const select = document.getElementById('columnSelect');
+      select.innerHTML = '<option value="" disabled selected>Select a column...</option>';
+
+      // 2. Populate Columns to Copy List
+      const columnsContainer = document.getElementById('columnsContainer');
+      columnsContainer.innerHTML = '';
+
+      // Default columns to check
+      const defaultChecked = ['Title', 'Abstract', 'Year', 'Authors', 'DOI_Link', 'Source_DB'];
+
+      columns.forEach(col => {
+        // Dropdown
+        const option = document.createElement('option');
+        option.value = col;
+        option.text = col;
+        if (col === 'Human_Decision') option.selected = true;
+        select.appendChild(option);
+
+        // Copy List
+        // Skip Paper_ID (mandatory) and AI_Status (reset to Pending)
+        if (col !== 'Paper_ID' && col !== 'AI_Status') {
+          const div = document.createElement('div');
+          div.className = 'checkbox-item';
+          const isChecked = defaultChecked.includes(col) ? 'checked' : '';
+          const escapedVal = String(col).replace(/"/g, '&quot;');
+
+          div.innerHTML = `<input type="checkbox" name="copyColumn" value="${escapedVal}" ${isChecked}> <label style="display:inline; font-weight:normal"></label>`;
+          div.querySelector('label').textContent = col;
+          columnsContainer.appendChild(div);
+        }
+      });
+
+      select.disabled = false;
+
+      // Trigger change if something is selected (like Human_Decision)
+      if (select.value) {
+        loadValues(select.value);
+      }
+
+      select.addEventListener('change', function() {
+        loadValues(this.value);
+      });
+    }
+
+    function loadValues(columnName) {
+      const container = document.getElementById('valuesContainer');
+      container.innerHTML = 'Loading values...';
+      document.getElementById('copyBtn').disabled = true;
+
+      google.script.run
+        .withSuccessHandler(populateValues)
+        .withFailureHandler(showError)
+        .getUniqueValuesForAbstractColumn(columnName);
+    }
+
+    function populateValues(values) {
+      const container = document.getElementById('valuesContainer');
+      container.innerHTML = '';
+
+      if (!values || values.length === 0) {
+        container.innerHTML = 'No values found.';
+        return;
+      }
+
+      // Add "Select All"
+      const selectAllDiv = document.createElement('div');
+      selectAllDiv.className = 'checkbox-item';
+      selectAllDiv.innerHTML = `<input type="checkbox" id="selectAll" onchange="toggleAll(this)"> <label for="selectAll" style="display:inline; font-weight:normal; cursor:pointer">Select All</label>`;
+      container.appendChild(selectAllDiv);
+      container.appendChild(document.createElement('hr'));
+
+      values.sort().forEach(val => {
+        const div = document.createElement('div');
+        div.className = 'checkbox-item';
+
+        // Check "Include" and "Maybe" by default if they exist
+        // Also handle trimming for comparison
+        const cleanVal = String(val).trim();
+        const isChecked = (cleanVal === 'Include' || cleanVal === 'Maybe') ? 'checked' : '';
+        // Escape value for HTML attribute
+        const escapedVal = String(val).replace(/"/g, '&quot;');
+
+        div.innerHTML = `<input type="checkbox" name="filterValue" value="${escapedVal}" ${isChecked}> <label style="display:inline; font-weight:normal"></label>`;
+        // Safely set text content
+        div.querySelector('label').textContent = val || '(Empty)';
+        container.appendChild(div);
+      });
+
+      document.getElementById('copyBtn').disabled = false;
+    }
+
+    function toggleAll(source) {
+      const checkboxes = document.getElementsByName('filterValue');
+      for(let i=0; i<checkboxes.length; i++) {
+        checkboxes[i].checked = source.checked;
+      }
+    }
+
+    function runCopy() {
+      const select = document.getElementById('columnSelect');
+      const columnName = select.value;
+
+      if (!columnName) {
+        alert("Please select a column.");
+        return;
+      }
+
+      // Collect selected filter values
+      const checkboxes = document.getElementsByName('filterValue');
+      const selectedValues = [];
+      for (let i=0; i<checkboxes.length; i++) {
+        if (checkboxes[i].checked) {
+          selectedValues.push(checkboxes[i].value);
+        }
+      }
+
+      if (selectedValues.length === 0) {
+        alert("Please select at least one value to include.");
+        return;
+      }
+
+      // Collect columns to copy
+      const copyCheckboxes = document.getElementsByName('copyColumn');
+      const columnsToCopy = [];
+      for (let i=0; i<copyCheckboxes.length; i++) {
+        if (copyCheckboxes[i].checked) {
+          columnsToCopy.push(copyCheckboxes[i].value);
+        }
+      }
+
+      const btn = document.getElementById('copyBtn');
+      btn.disabled = true;
+      btn.innerText = 'Copying...';
+
+      google.script.run
+        .withSuccessHandler(function(msg) {
+           alert(msg);
+           google.script.host.close();
+        })
+        .withFailureHandler(function(e) {
+           showError(e);
+           btn.disabled = false;
+           btn.innerText = 'Copy Papers';
+        })
+        .processCopyScreenedPapers(columnName, selectedValues, columnsToCopy);
+    }
+
+    function showError(e) {
+      alert('Error: ' + e.message);
+    }
+  </script>
+</body>
+</html>
