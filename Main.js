@@ -273,3 +273,24 @@ function manageTrigger(functionName, jobName) {
 
   ui.alert(`${jobName} ENABLED. Running every ${minutes} minutes.`);
 }
+
+/**
+ * Server-side handler for getting abstract screening columns.
+ */
+function getAbstractScreeningColumns() {
+  return FullTextScreeningController.getAbstractScreeningColumns();
+}
+
+/**
+ * Server-side handler for getting unique values for a column.
+ */
+function getUniqueValuesForAbstractColumn(columnName) {
+  return FullTextScreeningController.getUniqueValuesForColumn(columnName);
+}
+
+/**
+ * Server-side handler for processing the copy operation.
+ */
+function processCopyScreenedPapers(columnName, includedValues) {
+  return FullTextScreeningController.processCopyScreenedPapers(columnName, includedValues);
+}
