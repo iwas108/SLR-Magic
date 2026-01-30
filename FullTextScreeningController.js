@@ -92,7 +92,8 @@ const FullTextScreeningController = (function() {
           // Copy selected columns
           if (columnsToCopy && Array.isArray(columnsToCopy)) {
             columnsToCopy.forEach(col => {
-              if (row[col] !== undefined) {
+              // Exclude AI_Status to prevent overwriting "Pending"
+              if (row[col] !== undefined && col !== 'AI_Status') {
                 newRow[col] = row[col];
               }
             });
@@ -141,6 +142,64 @@ const FullTextScreeningController = (function() {
   }
 
   /**
+   * Shows the PDF Import dialog.
+   */
+  function showPDFImportDialog() {
+    const html = HtmlService.createHtmlOutputFromFile('PDFImportUI')
+      .setWidth(450)
+      .setHeight(400)
+      .setTitle('Import PDF Files');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Import PDF Files');
+  }
+
+  /**
+   * Imports metadata from CSV URL specified in 00_manifest.
+   */
+  function runImportFileMetadata() {
+    try {
+      const config = SheetUtils.getConfigMap("00_manifest");
+      const csvUrl = config["PDF_METADATA"];
+
+      if (!csvUrl) {
+        SheetUtils.alert("PDF_METADATA key is missing in 00_manifest. Please add the CSV URL.");
+        return;
+      }
+
+      // Fetch CSV
+      const response = UrlFetchApp.fetch(csvUrl);
+      const csvContent = response.getContentText();
+
+      if (!csvContent) {
+        SheetUtils.alert("Fetched CSV content is empty.");
+        return;
+      }
+
+      // Parse CSV
+      // We use Utilities.parseCsv to get raw 2D array for exact replication
+      const csvData = Utilities.parseCsv(csvContent);
+
+      if (!csvData || csvData.length === 0) {
+        SheetUtils.alert("Parsed CSV data is empty.");
+        return;
+      }
+
+      const sheet = SheetUtils.getSheetByName("98_file_metadata");
+
+      // Clear existing content
+      sheet.clear();
+
+      // Write new content
+      sheet.getRange(1, 1, csvData.length, csvData[0].length).setValues(csvData);
+
+      SheetUtils.alert(`Successfully imported ${csvData.length - 1} metadata rows into 98_file_metadata.`);
+
+    } catch (e) {
+      console.error(e);
+      SheetUtils.alert(`Error importing metadata: ${e.message}`);
+    }
+  }
+
+  /**
    * Imports PDF URLs into the Full-Text Screening sheet.
    * Supports background processing with batch size.
    * improved to read 98_file_metadata for PDF validity and page count.
@@ -155,6 +214,15 @@ const FullTextScreeningController = (function() {
     }
 
     try {
+      // 0. Ensure target columns exist in 02_fulltext_screening
+      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const headerMap = SheetUtils.getHeaderMap(sheet);
+
+      // Ensure columns required for import exist
+      ['PDF', 'Page_Count', 'PDF_Validity', 'PDF_Status'].forEach(col => {
+        SheetUtils.ensureColumn(sheet, col, headerMap);
+      });
+
       const config = SheetUtils.getConfigMap("00_manifest");
       const pdfRepoUrl = config["PDF_REPO"];
 
@@ -184,8 +252,9 @@ const FullTextScreeningController = (function() {
         console.log("Metadata sheet '98_file_metadata' not found or accessible. Proceeding with basic import.");
       }
 
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
-      const headerMap = SheetUtils.getHeaderMap(sheet);
+      // Re-fetch data objects after ensuring columns (though ensureColumn updates headerMap in place ideally,
+      // but let's just proceed with existing map or refresh if needed.
+      // SheetUtils.ensureColumn updates the passed map object, so headerMap is valid).
       const data = SheetUtils.getDataAsObjects(sheet);
 
       let updatedCount = 0;
@@ -532,7 +601,9 @@ const FullTextScreeningController = (function() {
     showCopyScreenedPapersDialog,
     getAbstractScreeningColumns,
     getUniqueValuesForColumn,
-    processCopyScreenedPapers
+    processCopyScreenedPapers,
+    showPDFImportDialog,
+    runImportFileMetadata
   };
 
 })();

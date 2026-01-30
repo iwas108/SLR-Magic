@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <style>
+    body { padding: 10px; font-family: 'Google Sans', Roboto, Arial, sans-serif; }
+    .step { margin-bottom: 15px; }
+    .step-title { font-weight: bold; margin-bottom: 5px; }
+    .step-desc { font-size: 0.9em; color: #333; }
+    code { background-color: #f1f1f1; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
+    .buttons { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+    .warning { color: #d93025; font-size: 0.9em; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h3>Import PDF Files</h3>
+
+  <div class="step">
+    <div class="step-title">1. Configure PDF Repository</div>
+    <div class="step-desc">
+      Ensure <code>00_manifest</code> has the <code>PDF_REPO</code> key set to your Google Drive Folder URL.
+      The system will search this folder for files containing the <code>Paper_ID</code>.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">2. Start PDF Search</div>
+    <div class="step-desc">
+      Click "Start Import" below to populate the <code>PDF</code> column in <code>02_fulltext_screening</code>.
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-title">3. Import Metadata (Optional)</div>
+    <div class="step-desc">
+      If you have external metadata (e.g., Page Count, Validity), add the CSV URL to the <code>PDF_METADATA</code> key in <code>00_manifest</code>.
+      Then, run <strong>"Import PDF Metadata (CSV)"</strong> from the menu.
+    </div>
+  </div>
+
+  <div class="warning">
+    <strong>Note:</strong> After importing metadata, please run this "Import PDF Files" tool again to sync the metadata (Page Count, Validity) to the screening sheet.
+  </div>
+
+  <div class="buttons">
+    <button class="share" onclick="google.script.host.close()">Cancel</button>
+    <button class="action" id="startBtn" onclick="runImport()">Start Import</button>
+  </div>
+
+  <script>
+    function runImport() {
+      const btn = document.getElementById('startBtn');
+      btn.disabled = true;
+      btn.innerText = 'Starting...';
+
+      // Call the existing background worker
+      google.script.run
+        .withSuccessHandler(function() {
+           google.script.host.close();
+        })
+        .withFailureHandler(function(e) {
+           alert('Error: ' + e.message);
+           btn.disabled = false;
+           btn.innerText = 'Start Import';
+        })
+        .runImportPDFs();
+    }
+  </script>
+</body>
+</html>

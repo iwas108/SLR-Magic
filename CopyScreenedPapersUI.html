@@ -76,8 +76,8 @@
         select.appendChild(option);
 
         // Copy List
-        // Skip Paper_ID as it is mandatory
-        if (col !== 'Paper_ID') {
+        // Skip Paper_ID (mandatory) and AI_Status (reset to Pending)
+        if (col !== 'Paper_ID' && col !== 'AI_Status') {
           const div = document.createElement('div');
           div.className = 'checkbox-item';
           const isChecked = defaultChecked.includes(col) ? 'checked' : '';
