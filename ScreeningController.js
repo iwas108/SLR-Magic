@@ -22,6 +22,18 @@ const ScreeningController = (function() {
       const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
+
+      // Determine Reasoning Limit Strategy
+      const reasoningLimit = config["REASONING_LIMIT"]; // Expect "THINKING_LEVEL" or "THINKING_BUDGET"
+      let thinkingLevel = undefined;
+      let thinkingBudget = undefined;
+
+      if (reasoningLimit === "THINKING_LEVEL") {
+        thinkingLevel = config["THINKING_LEVEL"];
+      } else if (reasoningLimit === "THINKING_BUDGET") {
+        thinkingBudget = config["THINKING_BUDGET"];
+      }
+
       const batchSize = parseInt(config["BATCH_SIZE"] || "5");
       const systemPrompt = config["ABSTRACT_SCREENING_PROMPT"];
 
@@ -64,22 +76,48 @@ const ScreeningController = (function() {
 
         try {
           // Call Gemini
-          const response = GeminiAdapter.callGemini(fullPrompt, apiKey, modelName, temperature, maxTokens);
+          const response = GeminiAdapter.callGemini(fullPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget);
           const result = response.content;
 
           // Map result to sheet columns
           updateData["AI_Status"] = "Done";
-          updateData["AI_Relevance_Score"] = result.relevance_score;
-          updateData["AI_Recommendation"] = result.recommendation;
-          updateData["AI_Reasoning"] = result.reasoning;
-          updateData["Exclusion_Reason"] = result.exclusion_reason || "";
+
+          // Auto create columns based on returned json key
+          for (const [key, value] of Object.entries(result)) {
+            SheetUtils.ensureColumn(sheet, key, headerMap);
+            updateData[key] = value;
+          }
+
+          // Capture Token Usage
+          if (response.usageMetadata) {
+            const thinkingTokens = response.usageMetadata.thoughtsTokenCount || 0;
+            const candidateTokens = response.usageMetadata.candidatesTokenCount || 0;
+            const promptTokens = response.usageMetadata.promptTokenCount || 0;
+            const totalTokens = response.usageMetadata.totalTokenCount || 0;
+
+            // Ensure columns exist
+            SheetUtils.ensureColumn(sheet, "Thinking_Token", headerMap);
+            SheetUtils.ensureColumn(sheet, "Candidate_Token", headerMap);
+            SheetUtils.ensureColumn(sheet, "Input_Token", headerMap);
+            SheetUtils.ensureColumn(sheet, "Total_Token", headerMap);
+
+            updateData["Thinking_Token"] = thinkingTokens;
+            updateData["Candidate_Token"] = candidateTokens;
+            updateData["Input_Token"] = promptTokens;
+            updateData["Total_Token"] = totalTokens;
+          }
 
           processedCount++;
 
         } catch (e) {
           console.error(`Error processing row ${row._rowIndex}:`, e);
           updateData["AI_Status"] = "Error";
-          updateData["Notes"] = `Error: ${e.message}`; // Append to notes? Or just overwrite.
+
+          // Add error log into cell notes in column AI_Status
+          const statusColIdx = headerMap["AI_Status"];
+          if (statusColIdx) {
+            sheet.getRange(row._rowIndex, statusColIdx).setNote(`Error: ${e.message}`);
+          }
           errorCount++;
         }
 
