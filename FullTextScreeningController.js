@@ -215,6 +215,18 @@ const FullTextScreeningController = (function() {
       const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "8192");
+
+      // Determine Reasoning Limit Strategy
+      const reasoningLimit = config["REASONING_LIMIT"];
+      let thinkingLevel = undefined;
+      let thinkingBudget = undefined;
+
+      if (reasoningLimit === "THINKING_LEVEL") {
+        thinkingLevel = config["THINKING_LEVEL"];
+      } else if (reasoningLimit === "THINKING_BUDGET") {
+        thinkingBudget = config["THINKING_BUDGET"];
+      }
+
       // Use FULLTEXT_SCREENING_PROMPT
       const systemPrompt = config["FULLTEXT_SCREENING_PROMPT"];
       // Reuse BATCH_SIZE or define a new one? Assuming BATCH_SIZE is shared or small enough.
@@ -269,7 +281,7 @@ const FullTextScreeningController = (function() {
           const pdfBlob = DriveUtils.getFileBlob(pdfUrl);
 
           // Call Gemini
-          const response = GeminiAdapter.callGemini(systemPrompt, apiKey, modelName, temperature, maxTokens, pdfBlob);
+          const response = GeminiAdapter.callGemini(systemPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
           const result = response.content;
           
           // Map result to sheet columns
