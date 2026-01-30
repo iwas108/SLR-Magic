@@ -93,7 +93,16 @@ const FullTextScreeningController = (function() {
       });
 
       if (newRows.length > 0) {
+        // Ensure columns exist in destination sheet (in case it's empty)
         const destHeaderMap = SheetUtils.getHeaderMap(destSheet);
+
+        // Use keys from the first row to check/create columns
+        // The object structure is uniform for all newRows
+        const sampleRow = newRows[0];
+        Object.keys(sampleRow).forEach(key => {
+          SheetUtils.ensureColumn(destSheet, key, destHeaderMap);
+        });
+
         SheetUtils.appendDataMapped(destSheet, newRows, destHeaderMap);
         return `Copied ${newRows.length} papers to Full-Text Screening.\n(Skipped ${skippedCount} existing papers)`;
       } else {
