@@ -6,9 +6,49 @@
 const FullTextScreeningController = (function() {
 
   /**
-   * Copies "Include" and "Maybe" papers from Abstract Screening to Full Text Screening.
+   * Shows the Copy Screened Papers dialog.
    */
-  function runCopyScreenedPapers() {
+  function showCopyScreenedPapersDialog() {
+    const html = HtmlService.createHtmlOutputFromFile('CopyScreenedPapersUI')
+      .setWidth(400)
+      .setHeight(500)
+      .setTitle('Copy Screened Papers');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Copy Screened Papers');
+  }
+
+  /**
+   * Helper: Get headers from Abstract Screening sheet.
+   */
+  function getAbstractScreeningColumns() {
+    const sheet = SheetUtils.getSheetByName("01_abstract_screening");
+    const lastCol = sheet.getLastColumn();
+    if (lastCol === 0) return [];
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    return headers.filter(h => h && h.toString().trim() !== "");
+  }
+
+  /**
+   * Helper: Get unique values for a specific column in Abstract Screening.
+   */
+  function getUniqueValuesForColumn(columnName) {
+    const sheet = SheetUtils.getSheetByName("01_abstract_screening");
+    const data = SheetUtils.getDataAsObjects(sheet);
+    const values = new Set();
+
+    data.forEach(row => {
+      const val = row[columnName];
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        values.add(String(val).trim());
+      }
+    });
+
+    return Array.from(values);
+  }
+
+  /**
+   * Process the copy operation based on user selection.
+   */
+  function processCopyScreenedPapers(columnName, includedValues) {
     try {
       const sourceSheet = SheetUtils.getSheetByName("01_abstract_screening");
       const destSheet = SheetUtils.getSheetByName("02_fulltext_screening");
@@ -17,20 +57,24 @@ const FullTextScreeningController = (function() {
       const destData = SheetUtils.getDataAsObjects(destSheet);
 
       // Get existing Paper IDs in destination to avoid duplicates
+      // "always use the 02_fulltext_screening as the source of truth"
       const existingIds = new Set(destData.map(row => row["Paper_ID"]));
 
       // Filter rows to copy
       const rowsToCopy = sourceData.filter(row => {
-        const decision = (row["Human_Decision"] || "").trim();
-        return (decision === "Include" || decision === "Maybe");
+        const rowVal = String(row[columnName] || "").trim();
+        // Check if value is in the included list
+        // includedValues comes from client, ensure we compare correctly
+        return includedValues.includes(rowVal);
       });
 
       if (rowsToCopy.length === 0) {
-        SheetUtils.alert("No papers marked as 'Include' or 'Maybe' found in abstract screening.");
-        return;
+        return "No papers match the selected criteria.";
       }
 
       const newRows = [];
+      let skippedCount = 0;
+
       rowsToCopy.forEach(row => {
         if (!existingIds.has(row["Paper_ID"])) {
           newRows.push({
@@ -43,21 +87,31 @@ const FullTextScreeningController = (function() {
             "Source_DB": row["Source_DB"],
             "AI_Status": "Pending" // Reset status for full text screening
           });
+        } else {
+          skippedCount++;
         }
       });
 
       if (newRows.length > 0) {
         const destHeaderMap = SheetUtils.getHeaderMap(destSheet);
         SheetUtils.appendDataMapped(destSheet, newRows, destHeaderMap);
-        SheetUtils.alert(`Copied ${newRows.length} papers to Full-Text Screening.`);
+        return `Copied ${newRows.length} papers to Full-Text Screening.\n(Skipped ${skippedCount} existing papers)`;
       } else {
-        SheetUtils.alert("All relevant papers are already present in Full-Text Screening.");
+        return `All matching papers are already present in Full-Text Screening.\n(Skipped ${skippedCount} existing papers)`;
       }
 
     } catch (e) {
       console.error(e);
-      SheetUtils.alert(`Error copying papers: ${e.message}`);
+      throw new Error(e.message);
     }
+  }
+
+  /**
+   * Wraps the dialog display for external calls.
+   * Keeps the name runCopyScreenedPapers for compatibility with existing menu.
+   */
+  function runCopyScreenedPapers() {
+      showCopyScreenedPapersDialog();
   }
 
   /**
@@ -448,7 +502,11 @@ const FullTextScreeningController = (function() {
     runCopyScreenedPapers,
     runImportPDFs,
     runScreening,
-    runTransformDOILinks
+    runTransformDOILinks,
+    showCopyScreenedPapersDialog,
+    getAbstractScreeningColumns,
+    getUniqueValuesForColumn,
+    processCopyScreenedPapers
   };
 
 })();
