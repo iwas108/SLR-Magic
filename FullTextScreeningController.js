@@ -420,13 +420,13 @@ const FullTextScreeningController = (function() {
       let processedCount = 0;
       let errorCount = 0;
 
-      // Helper function to accumulate usage metadata per model
-      const accumulateTokens = (usageMap, modelName, newUsage) => {
+      // Helper function to accumulate usage metadata per stage
+      const accumulateTokens = (usageMap, stageName, newUsage) => {
           if (!newUsage) return;
-          if (!usageMap[modelName]) {
-              usageMap[modelName] = { thinking: 0, candidate: 0, input: 0, total: 0 };
+          if (!usageMap[stageName]) {
+              usageMap[stageName] = { thinking: 0, candidate: 0, input: 0, total: 0 };
           }
-          const current = usageMap[modelName];
+          const current = usageMap[stageName];
           current.thinking += (newUsage.thoughtsTokenCount || 0);
           current.candidate += (newUsage.candidatesTokenCount || 0);
           current.input += (newUsage.promptTokenCount || 0);
@@ -457,7 +457,7 @@ const FullTextScreeningController = (function() {
 
         const rowUpdateData = { "AI_Status": "Done" };
         const rowUpdateNotes = {};
-        const tokenUsageByModel = {};
+        const tokenUsageByStage = {};
 
         const pdfValidity = row["PDF_Validity"];
 
@@ -478,7 +478,7 @@ const FullTextScreeningController = (function() {
             // --- STAGE 1: THE GATEKEEPER ---
             const gkReasoning = getReasoningConfig(gatekeeperModel);
             const stage1Resp = GeminiAdapter.callGemini(gatekeeperPrompt, apiKey, gatekeeperModel, temperature, maxTokens, gkReasoning.level, gkReasoning.budget, pdfBlob);
-            accumulateTokens(tokenUsageByModel, gatekeeperModel, stage1Resp.usageMetadata);
+            accumulateTokens(tokenUsageByStage, "The_Gatekeeper", stage1Resp.usageMetadata);
             processContent(stage1Resp.content, rowUpdateData, rowUpdateNotes);
 
             let decision = rowUpdateData["decision"];
@@ -493,7 +493,7 @@ const FullTextScreeningController = (function() {
                 // --- STAGE 2: THE SCIENTIST ---
                 const sciReasoning = getReasoningConfig(scientistModel);
                 const stage2Resp = GeminiAdapter.callGemini(scientistPrompt, apiKey, scientistModel, temperature, maxTokens, sciReasoning.level, sciReasoning.budget, pdfBlob);
-                accumulateTokens(tokenUsageByModel, scientistModel, stage2Resp.usageMetadata);
+                accumulateTokens(tokenUsageByStage, "The_Scientist", stage2Resp.usageMetadata);
                 processContent(stage2Resp.content, rowUpdateData, rowUpdateNotes);
 
                 decision = rowUpdateData["decision"]; // Update decision from Stage 2
@@ -507,20 +507,20 @@ const FullTextScreeningController = (function() {
                     // --- STAGE 3: THE MINER ---
                     const minerReasoning = getReasoningConfig(minerModel);
                     const stage3Resp = GeminiAdapter.callGemini(minerPrompt, apiKey, minerModel, temperature, maxTokens, minerReasoning.level, minerReasoning.budget, pdfBlob);
-                    accumulateTokens(tokenUsageByModel, minerModel, stage3Resp.usageMetadata);
+                    accumulateTokens(tokenUsageByStage, "The_Miner", stage3Resp.usageMetadata);
                     // Stage 3 is pure extraction, no decision check
                     processContent(stage3Resp.content, rowUpdateData, rowUpdateNotes);
                 }
             }
 
-            // Write Token Usage per Model
-            Object.keys(tokenUsageByModel).forEach(modelName => {
-                const usage = tokenUsageByModel[modelName];
-                // Append model name to columns
-                rowUpdateData[`Thinking_Token_${modelName}`] = usage.thinking;
-                rowUpdateData[`Candidate_Token_${modelName}`] = usage.candidate;
-                rowUpdateData[`Input_Token_${modelName}`] = usage.input;
-                rowUpdateData[`Total_Token_${modelName}`] = usage.total;
+            // Write Token Usage per Stage
+            Object.keys(tokenUsageByStage).forEach(stageName => {
+                const usage = tokenUsageByStage[stageName];
+                // Append stage name to columns
+                rowUpdateData[`Thinking_Token_${stageName}`] = usage.thinking;
+                rowUpdateData[`Candidate_Token_${stageName}`] = usage.candidate;
+                rowUpdateData[`Input_Token_${stageName}`] = usage.input;
+                rowUpdateData[`Total_Token_${stageName}`] = usage.total;
             });
 
             // Ensure columns exist
