@@ -309,3 +309,17 @@ function getUniqueValuesForAbstractColumn(columnName) {
 function processCopyScreenedPapers(columnName, includedValues, columnsToCopy) {
   return FullTextScreeningController.processCopyScreenedPapers(columnName, includedValues, columnsToCopy);
 }
+
+/**
+ * Server-side handler for saving Quality Check Configuration.
+ */
+function saveQualityCheckConfig(config) {
+  return QualityCheckController.saveQualityCheckConfig(config);
+}
+
+/**
+ * Server-side handler for getting full-text screening columns.
+ */
+function getFullTextScreeningColumns() {
+  return FullTextScreeningController.getFullTextScreeningColumns();
+}
