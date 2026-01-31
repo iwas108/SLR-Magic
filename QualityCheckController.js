@@ -6,6 +6,30 @@
 var QualityCheckController = (function() {
 
   /**
+   * Shows the configuration dialog for mapping AI columns.
+   */
+  function showQualityCheckSetupDialog() {
+      const html = HtmlService.createHtmlOutputFromFile('QualityCheckSetupUI')
+        .setWidth(400)
+        .setHeight(350)
+        .setTitle('Quality Check Configuration');
+      SpreadsheetApp.getUi().showModalDialog(html, 'Quality Check Configuration');
+  }
+
+  /**
+   * Saves the user-defined column mapping.
+   * @param {Object} config { decisionColumn, reasoningColumn }
+   */
+  function saveQualityCheckConfig(config) {
+      try {
+          PropertiesService.getScriptProperties().setProperty("QC_COLUMN_MAPPING", JSON.stringify(config));
+          return true;
+      } catch (e) {
+          throw new Error("Failed to save configuration: " + e.message);
+      }
+  }
+
+  /**
    * Main function to execute the Quality Check sampling process.
    * Renamed from runQualityCheck to generateQualityCheck.
    */
@@ -13,6 +37,15 @@ var QualityCheckController = (function() {
     console.log("[QualityCheck] Starting Human Quality Check sampling...");
 
     try {
+      // 0. Check Configuration
+      const qcConfigProp = PropertiesService.getScriptProperties().getProperty("QC_COLUMN_MAPPING");
+      if (!qcConfigProp) {
+         showQualityCheckSetupDialog();
+         return;
+      }
+      const qcConfig = JSON.parse(qcConfigProp);
+      const decisionCol = qcConfig.decisionColumn;
+
       // 1. Get Source Data
       const sourceSheetName = "02_fulltext_screening";
       const sourceSheet = SheetUtils.getSheetByName(sourceSheetName);
@@ -38,9 +71,9 @@ var QualityCheckController = (function() {
         return;
       }
 
-      // 3. Stratify by Recommendation
-      const included = eligibleRows.filter(r => String(r["AI_Recommendation"]).trim().toUpperCase() === "INCLUDE");
-      const excluded = eligibleRows.filter(r => String(r["AI_Recommendation"]).trim().toUpperCase() === "EXCLUDE");
+      // 3. Stratify by Recommendation using Dynamic Column
+      const included = eligibleRows.filter(r => String(r[decisionCol]).trim().toUpperCase() === "INCLUDE");
+      const excluded = eligibleRows.filter(r => String(r[decisionCol]).trim().toUpperCase() === "EXCLUDE");
 
       console.log(`[QualityCheck] Found ${included.length} Includes and ${excluded.length} Excludes.`);
 
@@ -184,11 +217,13 @@ var QualityCheckController = (function() {
       const sheet = SheetUtils.getSheetByName("03_quality_check");
       const rows = sheet ? SheetUtils.getDataAsObjects(sheet) : [];
 
-      // Get Prompt Context
+      // Get Prompt Context (Fallback to manifest check if needed, but currently unused in UI heavily)
+      // Since FULLTEXT_SCREENING_PROMPT is gone, we might return empty or new prompts.
+      // For now returning empty string if not found.
       let promptContext = "";
       try {
         const config = SheetUtils.getConfigMap("00_manifest");
-        promptContext = config["FULLTEXT_SCREENING_PROMPT"] || "";
+        promptContext = config["FULLTEXT_SCREENING_PROMPT"] || "Multi-stage prompting enabled.";
       } catch (err) {
         console.warn("[QualityCheck] Could not fetch manifest prompt:", err);
       }
@@ -229,6 +264,15 @@ var QualityCheckController = (function() {
    */
   function calculateQCScore() {
     try {
+      // 0. Check Configuration
+      const qcConfigProp = PropertiesService.getScriptProperties().getProperty("QC_COLUMN_MAPPING");
+      if (!qcConfigProp) {
+         showQualityCheckSetupDialog();
+         return;
+      }
+      const qcConfig = JSON.parse(qcConfigProp);
+      const decisionCol = qcConfig.decisionColumn;
+
       const sheet = SheetUtils.getSheetByName("03_quality_check");
       if (!sheet) {
         SheetUtils.alert("Sheet '03_quality_check' not found.");
@@ -248,8 +292,9 @@ var QualityCheckController = (function() {
         return;
       }
 
-      const includeRows = qcRows.filter(r => String(r["AI_Recommendation"]).trim().toUpperCase() === "INCLUDE");
-      const excludeRows = qcRows.filter(r => String(r["AI_Recommendation"]).trim().toUpperCase() === "EXCLUDE");
+      // Use dynamic column for Include/Exclude
+      const includeRows = qcRows.filter(r => String(r[decisionCol]).trim().toUpperCase() === "INCLUDE");
+      const excludeRows = qcRows.filter(r => String(r[decisionCol]).trim().toUpperCase() === "EXCLUDE");
 
       const calculateStats = (dataRows) => {
         if (dataRows.length === 0) {
@@ -412,7 +457,9 @@ var QualityCheckController = (function() {
     getQualityCheckData,
     saveQualityCheckRow,
     calculateQCScore,
-    syncGoldMine
+    syncGoldMine,
+    showQualityCheckSetupDialog,
+    saveQualityCheckConfig
   };
 
 })();

@@ -28,6 +28,17 @@ const FullTextScreeningController = (function() {
   }
 
   /**
+   * Helper: Get headers from Full-Text Screening sheet.
+   */
+  function getFullTextScreeningColumns() {
+    const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+    const lastCol = sheet.getLastColumn();
+    if (lastCol === 0) return [];
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    return headers.filter(h => h && h.toString().trim() !== "");
+  }
+
+  /**
    * Helper: Get unique values for a specific column in Abstract Screening.
    */
   function getUniqueValuesForColumn(columnName) {
@@ -313,10 +324,6 @@ const FullTextScreeningController = (function() {
                 const pdfUrl = DriveUtils.searchFile(pdfRepoUrl, paperId);
                 if (pdfUrl) {
                     updateData["PDF"] = pdfUrl;
-
-                    // If we didn't get status from metadata, set a default?
-                    // The prompt doesn't specify default if metadata missing, but usually we want to know it's there.
-                    // Leaving it empty if no metadata is safer unless we want to invent a status.
                 }
             } catch (err) {
                 console.error(`Error searching PDF for ${paperId}: ${err.message}`);
@@ -338,7 +345,6 @@ const FullTextScreeningController = (function() {
 
     } catch (e) {
       console.error(e);
-      // Avoid alerts in background if possible, but keeping safety check inside SheetUtils.alert/toast
       SheetUtils.alert(`Error importing PDFs: ${e.message}`);
     } finally {
       lock.releaseLock();
@@ -346,7 +352,7 @@ const FullTextScreeningController = (function() {
   }
 
   /**
-   * Runs the AI Full-Text Screening.
+   * Runs the AI Full-Text Screening with Multi-Stage Prompting.
    */
   function runScreening() {
     // Acquire Lock
@@ -364,7 +370,7 @@ const FullTextScreeningController = (function() {
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "8192");
 
-      // Determine Reasoning Limit Strategy
+      // Reasoning config
       const reasoningLimit = config["REASONING_LIMIT"];
       let thinkingLevel = undefined;
       let thinkingBudget = undefined;
@@ -375,18 +381,16 @@ const FullTextScreeningController = (function() {
         thinkingBudget = config["THINKING_BUDGET"];
       }
 
-      // Use FULLTEXT_SCREENING_PROMPT
-      const systemPrompt = config["FULLTEXT_SCREENING_PROMPT"];
-      // Reuse BATCH_SIZE or define a new one? Assuming BATCH_SIZE is shared or small enough.
-      // Full text processing takes longer, so maybe smaller batch size is better, but let's stick to config.
+      // Load 3 Prompts
+      const gatekeeperPrompt = config["THE_GATEKEEPER_PROMPT"];
+      const scientistPrompt = config["THE_SCIENTIST_PROMPT"];
+      const minerPrompt = config["THE_MINER_PROMPT"];
       const batchSize = parseInt(config["BATCH_SIZE"] || "3");
 
-      if (!apiKey) {
-        throw new Error("API_KEY is missing in 00_manifest.");
-      }
-      if (!systemPrompt) {
-        throw new Error("FULLTEXT_SCREENING_PROMPT is missing in 00_manifest.");
-      }
+      if (!apiKey) throw new Error("API_KEY is missing in 00_manifest.");
+      if (!gatekeeperPrompt) throw new Error("THE_GATEKEEPER_PROMPT is missing in 00_manifest.");
+      if (!scientistPrompt) throw new Error("THE_SCIENTIST_PROMPT is missing in 00_manifest.");
+      if (!minerPrompt) throw new Error("THE_MINER_PROMPT is missing in 00_manifest.");
 
       // 2. Get Data
       const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
@@ -403,121 +407,130 @@ const FullTextScreeningController = (function() {
 
       // 4. Process Batch
       const batch = pendingRows.slice(0, batchSize);
-      SheetUtils.toast(`Starting full-text screening for ${batch.length} papers...`, "Processing", -1);
+      SheetUtils.toast(`Starting multi-stage screening for ${batch.length} papers...`, "Processing", -1);
 
       let processedCount = 0;
       let errorCount = 0;
 
+      // Helper function to accumulate usage metadata
+      const accumulateTokens = (totalUsage, newUsage) => {
+          if (!newUsage) return;
+          totalUsage.thinking += (newUsage.thoughtsTokenCount || 0);
+          totalUsage.candidate += (newUsage.candidatesTokenCount || 0);
+          totalUsage.input += (newUsage.promptTokenCount || 0);
+          totalUsage.total += (newUsage.totalTokenCount || 0);
+      };
+
+      // Helper to process fields (flattening and value/evidence)
+      const processContent = (content, targetData, targetNotes) => {
+          for (const [key, value] of Object.entries(content)) {
+               if (value && typeof value === 'object' && value.hasOwnProperty('value')) {
+                   targetData[key] = value.value;
+                   if (value.hasOwnProperty('evidence')) {
+                      targetNotes[key] = value.evidence;
+                   }
+               } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+                   // Recursive flatten for nested objects that are NOT value/evidence pairs
+                   processContent(value, targetData, targetNotes);
+               } else {
+                   // Primitive or Array
+                   targetData[key] = value;
+               }
+          }
+      };
+
       batch.forEach((row, index) => {
         const pdfUrl = row["PDF"];
         console.log(`Processing Row ${row._rowIndex}, PDF: ${pdfUrl}`);
-        const updateData = {};
-        const updateNotes = {};
-        const PDFValidity = row["PDF_Validity"];
-      
-        if (!PDFValidity){
-          updateData["AI_Status"] = "Done";
-          updateData["AI_Recommendation"] = "Exclude";
-          updateData["Exclusion_Reason"] = "EC5_WrongDoc";
-          updateData["AI_Reasoning"] = "No PDF file linked.";
 
-          SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
-          processedCount++; // Counted as processed even if skipped
-          return;
+        const rowUpdateData = { "AI_Status": "Done" };
+        const rowUpdateNotes = {};
+        const tokenUsage = { thinking: 0, candidate: 0, input: 0, total: 0 };
+
+        const pdfValidity = row["PDF_Validity"];
+
+        // Initial PDF Check
+        if (!pdfValidity) {
+            rowUpdateData["AI_Recommendation"] = "Exclude";
+            rowUpdateData["Exclusion_Reason"] = "EC5_WrongDoc";
+            rowUpdateData["AI_Reasoning"] = "No PDF file linked.";
+
+            SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
+            processedCount++;
+            return;
         }
 
         try {
-          const pdfBlob = DriveUtils.getFileBlob(pdfUrl);
+            const pdfBlob = DriveUtils.getFileBlob(pdfUrl);
 
-          // Call Gemini
-          const response = GeminiAdapter.callGemini(systemPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
-          const result = response.content;
-          
-          updateData["AI_Status"] = "Done";
+            // --- STAGE 1: THE GATEKEEPER ---
+            const stage1Resp = GeminiAdapter.callGemini(gatekeeperPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
+            accumulateTokens(tokenUsage, stage1Resp.usageMetadata);
+            processContent(stage1Resp.content, rowUpdateData, rowUpdateNotes);
 
-          // Helper to process nested fields and separate value/evidence
-          const processField = (key, value) => {
-             // Handle object with value and evidence
-             if (value && typeof value === 'object' && value.hasOwnProperty('value')) {
-                 updateData[key] = value.value;
-                 if (value.hasOwnProperty('evidence')) {
-                    updateNotes[key] = value.evidence;
-                 }
-             } else if (value !== null && value !== undefined) {
-                 // Handle primitive
-                 updateData[key] = value;
-             }
-          };
+            let decision = rowUpdateData["decision"];
+            // Normalize decision check
+            let isExcluded = (String(decision).trim().toUpperCase() === "EXCLUDE");
+            let isIncluded = (String(decision).trim().toUpperCase() === "INCLUDE");
 
-          // 1. Process screening_decision
-          if (result.screening_decision) {
-              const sd = result.screening_decision;
-              processField("decision", sd.decision);
-              processField("exclusion_code", sd.exclusion_code);
-              processField("reasoning", sd.reasoning);
+            if (isExcluded) {
+                // Stop here, write data
+            } else if (isIncluded) {
 
-              // Map to legacy columns for compatibility with QualityCheckController
-              if (sd.decision) updateData["AI_Recommendation"] = sd.decision;
-              if (sd.reasoning) updateData["AI_Reasoning"] = sd.reasoning;
-              if (sd.exclusion_code) updateData["Exclusion_Reason"] = sd.exclusion_code;
-          }
+                // --- STAGE 2: THE SCIENTIST ---
+                const stage2Resp = GeminiAdapter.callGemini(scientistPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
+                accumulateTokens(tokenUsage, stage2Resp.usageMetadata);
+                processContent(stage2Resp.content, rowUpdateData, rowUpdateNotes);
 
-          // 2. Process quality_assessment
-          if (result.quality_assessment) {
-              for (const [key, value] of Object.entries(result.quality_assessment)) {
-                  processField(key, value);
-              }
-          }
+                decision = rowUpdateData["decision"]; // Update decision from Stage 2
+                isExcluded = (String(decision).trim().toUpperCase() === "EXCLUDE");
+                isIncluded = (String(decision).trim().toUpperCase() === "INCLUDE");
 
-          // 3. Process extracted_data
-          if (result.extracted_data) {
-              for (const [key, value] of Object.entries(result.extracted_data)) {
-                  processField(key, value);
-              }
-          }
+                if (isExcluded) {
+                    // Stop here
+                } else if (isIncluded) {
 
-          // Capture Token Usage
-          if (response.usageMetadata) {
-            const thinkingTokens = response.usageMetadata.thoughtsTokenCount || 0;
-            const candidateTokens = response.usageMetadata.candidatesTokenCount || 0;
-            const promptTokens = response.usageMetadata.promptTokenCount || 0;
-            const totalTokens = response.usageMetadata.totalTokenCount || 0;
+                    // --- STAGE 3: THE MINER ---
+                    const stage3Resp = GeminiAdapter.callGemini(minerPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
+                    accumulateTokens(tokenUsage, stage3Resp.usageMetadata);
+                    // Stage 3 is pure extraction, no decision check
+                    processContent(stage3Resp.content, rowUpdateData, rowUpdateNotes);
+                }
+            }
 
-            updateData["Thinking_Token"] = thinkingTokens;
-            updateData["Candidate_Token"] = candidateTokens;
-            updateData["Input_Token"] = promptTokens;
-            updateData["Total_Token"] = totalTokens;
-          }
+            // Write Token Usage
+            rowUpdateData["Thinking_Token"] = tokenUsage.thinking;
+            rowUpdateData["Candidate_Token"] = tokenUsage.candidate;
+            rowUpdateData["Input_Token"] = tokenUsage.input;
+            rowUpdateData["Total_Token"] = tokenUsage.total;
 
-          // Ensure all columns exist for data we are about to write
-          for (const key of Object.keys(updateData)) {
-              SheetUtils.ensureColumn(sheet, key, headerMap);
-          }
+            // Ensure columns exist
+            for (const key of Object.keys(rowUpdateData)) {
+                SheetUtils.ensureColumn(sheet, key, headerMap);
+            }
 
-          processedCount++;
+            // Write Data
+            SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
+            if (Object.keys(rowUpdateNotes).length > 0) {
+                SheetUtils.updateRowNotes(sheet, row._rowIndex, rowUpdateNotes, headerMap);
+            }
+
+            processedCount++;
 
         } catch (e) {
-          console.error(`Error processing row ${row._rowIndex}:`, e);
-          updateData["AI_Status"] = "Error";
-          updateData["Notes"] = `Error: ${e.message}`;
-          errorCount++;
+            console.error(`Error processing row ${row._rowIndex}:`, e);
+            rowUpdateData["AI_Status"] = "Error";
+            rowUpdateData["Notes"] = `Error: ${e.message}`;
+            SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
+            errorCount++;
         }
 
-        // Update Sheet Values
-        SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
-
-        // Update Sheet Notes (if any)
-        if (Object.keys(updateNotes).length > 0) {
-            SheetUtils.updateRowNotes(sheet, row._rowIndex, updateNotes, headerMap);
-        }
-
-        // Delay between calls
         if (index < batch.length - 1) {
-          Utilities.sleep(5000); // Increased sleep for full text as it might be heavier on quotas
+            Utilities.sleep(3000);
         }
       });
 
-      SheetUtils.toast(`Full-Text Screening Complete.\nProcessed: ${processedCount}\nErrors: ${errorCount}`, "Job Done", 10);
+      SheetUtils.toast(`Multi-Stage Screening Complete.\nProcessed: ${processedCount}\nErrors: ${errorCount}`, "Job Done", 10);
 
     } catch (e) {
       console.error(e);
@@ -529,12 +542,10 @@ const FullTextScreeningController = (function() {
 
   /**
    * Transforms DOI Links to use a web proxy for manual download.
-   * Pattern: www.domain.com -> www-domain-com.proxy.url
    */
   function runTransformDOILinks() {
     try {
       console.log("[DEBUG] Starting runTransformDOILinks");
-      // 1. Get Proxy Config
       const config = SheetUtils.getConfigMap("00_manifest");
       const proxyUrl = config["WEB_PROXY_URL"];
       console.log(`[DEBUG] Proxy URL: ${proxyUrl}`);
@@ -546,30 +557,16 @@ const FullTextScreeningController = (function() {
 
       const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
-      console.log(`[DEBUG] Header Map: ${JSON.stringify(headerMap)}`);
-
       const data = SheetUtils.getDataAsObjects(sheet);
-      console.log(`[DEBUG] Total Rows fetched: ${data.length}`);
-
-      if (data.length > 0) {
-          console.log(`[DEBUG] First Row Sample: ${JSON.stringify(data[0])}`);
-      }
-
       let updatedCount = 0;
 
-      // 2. Iterate and Transform
-      // Only process if PDF is missing
       const rowsToProcess = data.filter(row => {
           const pdf = row["PDF"];
           const doi = row["DOI_Link"];
-          // Check for missing PDF (undefined, null, or empty string after trim)
           const isPdfMissing = !pdf || pdf.toString().trim() === "";
-          // Check for present DOI
           const isDoiPresent = doi && doi.toString().trim() !== "";
           return isPdfMissing && isDoiPresent;
       });
-
-      console.log(`[DEBUG] Rows to process (No PDF + Has DOI): ${rowsToProcess.length}`);
 
       if (rowsToProcess.length === 0) {
         SheetUtils.alert("No rows with missing PDFs and valid DOI Links found.");
@@ -578,37 +575,21 @@ const FullTextScreeningController = (function() {
 
       rowsToProcess.forEach(row => {
         const originalUrl = row["DOI_Link"].toString().trim();
-
         try {
-          // Simple check to avoid double proxying
-          if (originalUrl.includes(proxyUrl)) {
-            console.log(`[DEBUG] Skipping row ${row._rowIndex}, already proxied: ${originalUrl}`);
-            return;
-          }
+          if (originalUrl.includes(proxyUrl)) return;
 
-          // Parse URL using Regex to avoid ReferenceError: URL is not defined in some GAS environments
-          // Matches: protocol (http/s), hostname (stops at / or ?), and rest
           const urlRegex = /^(https?:\/\/)([^/?#]+)(.*)$/;
           const match = originalUrl.match(urlRegex);
 
-          if (!match) {
-             console.warn(`[DEBUG] Could not parse URL for row ${row._rowIndex}: ${originalUrl}`);
-             return;
-          }
+          if (!match) return;
 
-          const protocol = match[1]; // "https://"
-          const hostname = match[2]; // "www.scopus.com"
-          const rest = match[3];     // "/inward/record.uri?..."
+          const protocol = match[1];
+          const hostname = match[2];
+          const rest = match[3];
 
-          // Transform hostname: replace . with -
           const transformedHostname = hostname.replace(/\./g, '-');
-
-          // Construct new URL
           const newUrl = `${protocol}${transformedHostname}.${proxyUrl}${rest}`;
 
-          console.log(`[DEBUG] Row ${row._rowIndex}: ${originalUrl} -> ${newUrl}`);
-
-          // Update Sheet
           SheetUtils.updateRow(sheet, row._rowIndex, { "DOI_Link": newUrl }, headerMap);
           updatedCount++;
 
@@ -635,7 +616,8 @@ const FullTextScreeningController = (function() {
     getUniqueValuesForColumn,
     processCopyScreenedPapers,
     showPDFImportDialog,
-    runImportFileMetadata
+    runImportFileMetadata,
+    getFullTextScreeningColumns
   };
 
 })();

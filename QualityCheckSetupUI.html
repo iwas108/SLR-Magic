@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: sans-serif; padding: 20px; }
+      .form-group { margin-bottom: 15px; }
+      label { display: block; margin-bottom: 5px; font-weight: bold; }
+      select { width: 100%; padding: 8px; }
+      button { padding: 10px 20px; background-color: #4285f4; color: white; border: none; cursor: pointer; }
+      button:disabled { background-color: #ccc; }
+      .error { color: red; margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <h2>Quality Check Configuration</h2>
+    <p>Please map the AI output columns to the Quality Check fields.</p>
+
+    <div class="form-group">
+      <label for="decisionCol">AI Decision / Recommendation Column:</label>
+      <select id="decisionCol" disabled>
+        <option>Loading...</option>
+      </select>
+      <small>Select the column containing "Include" / "Exclude".</small>
+    </div>
+
+    <div class="form-group">
+      <label for="reasoningCol">AI Reasoning Column (Optional):</label>
+      <select id="reasoningCol" disabled>
+        <option>Loading...</option>
+      </select>
+    </div>
+
+    <button id="saveBtn" disabled onclick="saveConfig()">Save Configuration</button>
+    <div id="status" class="error"></div>
+
+    <script>
+      function loadColumns() {
+        google.script.run
+          .withSuccessHandler(populateDropdowns)
+          .withFailureHandler(showError)
+          .getFullTextScreeningColumns();
+      }
+
+      function populateDropdowns(columns) {
+        const decisionSelect = document.getElementById('decisionCol');
+        const reasoningSelect = document.getElementById('reasoningCol');
+
+        // Clear loading
+        decisionSelect.innerHTML = '';
+        reasoningSelect.innerHTML = '';
+
+        // Add empty option
+        const defaultOpt = document.createElement('option');
+        defaultOpt.text = '-- Select Column --';
+        defaultOpt.value = '';
+        decisionSelect.add(defaultOpt);
+
+        const defaultOpt2 = document.createElement('option');
+        defaultOpt2.text = '-- Select Column --';
+        defaultOpt2.value = '';
+        reasoningSelect.add(defaultOpt2);
+
+        columns.forEach(col => {
+           const opt1 = document.createElement('option');
+           opt1.text = col;
+           opt1.value = col;
+           decisionSelect.add(opt1);
+
+           const opt2 = document.createElement('option');
+           opt2.text = col;
+           opt2.value = col;
+           reasoningSelect.add(opt2);
+        });
+
+        decisionSelect.disabled = false;
+        reasoningSelect.disabled = false;
+        document.getElementById('saveBtn').disabled = false;
+      }
+
+      function saveConfig() {
+        const decision = document.getElementById('decisionCol').value;
+        const reasoning = document.getElementById('reasoningCol').value;
+
+        if (!decision) {
+          showError("Please select the Decision column.");
+          return;
+        }
+
+        document.getElementById('saveBtn').disabled = true;
+        document.getElementById('saveBtn').textContent = "Saving...";
+
+        const config = {
+           decisionColumn: decision,
+           reasoningColumn: reasoning
+        };
+
+        google.script.run
+          .withSuccessHandler(onSaveSuccess)
+          .withFailureHandler(showError)
+          .saveQualityCheckConfig(config);
+      }
+
+      function onSaveSuccess() {
+         document.getElementById('status').style.color = 'green';
+         document.getElementById('status').textContent = 'Configuration saved! You can close this dialog.';
+         setTimeout(() => google.script.host.close(), 2000);
+      }
+
+      function showError(err) {
+        document.getElementById('status').style.color = 'red';
+        document.getElementById('status').textContent = "Error: " + err;
+        document.getElementById('saveBtn').disabled = false;
+        document.getElementById('saveBtn').textContent = "Save Configuration";
+      }
+
+      window.onload = loadColumns;
+    </script>
+  </body>
+</html>
