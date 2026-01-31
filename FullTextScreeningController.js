@@ -484,11 +484,11 @@ const FullTextScreeningController = (function() {
 
                 decision = rowUpdateData["decision"]; // Update decision from Stage 2
                 isExcluded = (String(decision).trim().toUpperCase() === "EXCLUDE");
-                let isProceed = (String(decision).trim().toUpperCase() === "PROCEED");
+                isIncluded = (String(decision).trim().toUpperCase() === "INCLUDE");
 
                 if (isExcluded) {
                     // Stop here
-                } else if (isProceed) {
+                } else if (isIncluded) {
 
                     // --- STAGE 3: THE MINER ---
                     const stage3Resp = GeminiAdapter.callGemini(minerPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
