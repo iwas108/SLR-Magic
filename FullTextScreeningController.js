@@ -413,6 +413,7 @@ const FullTextScreeningController = (function() {
         const pdfUrl = row["PDF"];
         console.log(`Processing Row ${row._rowIndex}, PDF: ${pdfUrl}`);
         const updateData = {};
+        const updateNotes = {};
         const PDFValidity = row["PDF_Validity"];
       
         if (!PDFValidity){
@@ -433,11 +434,48 @@ const FullTextScreeningController = (function() {
           const response = GeminiAdapter.callGemini(systemPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
           const result = response.content;
           
-          // Map result to sheet columns
           updateData["AI_Status"] = "Done";
-          updateData["AI_Recommendation"] = result.decision;
-          updateData["AI_Reasoning"] = result.reasoning;
-          updateData["Exclusion_Reason"] = result.exclusion_code || "";
+
+          // Helper to process nested fields and separate value/evidence
+          const processField = (key, value) => {
+             // Handle object with value and evidence
+             if (value && typeof value === 'object' && value.hasOwnProperty('value')) {
+                 updateData[key] = value.value;
+                 if (value.hasOwnProperty('evidence')) {
+                    updateNotes[key] = value.evidence;
+                 }
+             } else if (value !== null && value !== undefined) {
+                 // Handle primitive
+                 updateData[key] = value;
+             }
+          };
+
+          // 1. Process screening_decision
+          if (result.screening_decision) {
+              const sd = result.screening_decision;
+              processField("decision", sd.decision);
+              processField("exclusion_code", sd.exclusion_code);
+              processField("reasoning", sd.reasoning);
+
+              // Map to legacy columns for compatibility with QualityCheckController
+              if (sd.decision) updateData["AI_Recommendation"] = sd.decision;
+              if (sd.reasoning) updateData["AI_Reasoning"] = sd.reasoning;
+              if (sd.exclusion_code) updateData["Exclusion_Reason"] = sd.exclusion_code;
+          }
+
+          // 2. Process quality_assessment
+          if (result.quality_assessment) {
+              for (const [key, value] of Object.entries(result.quality_assessment)) {
+                  processField(key, value);
+              }
+          }
+
+          // 3. Process extracted_data
+          if (result.extracted_data) {
+              for (const [key, value] of Object.entries(result.extracted_data)) {
+                  processField(key, value);
+              }
+          }
 
           // Capture Token Usage
           if (response.usageMetadata) {
@@ -446,25 +484,15 @@ const FullTextScreeningController = (function() {
             const promptTokens = response.usageMetadata.promptTokenCount || 0;
             const totalTokens = response.usageMetadata.totalTokenCount || 0;
 
-            // Ensure columns exist
-            SheetUtils.ensureColumn(sheet, "Thinking_Token", headerMap);
-            SheetUtils.ensureColumn(sheet, "Candidate_Token", headerMap);
-            SheetUtils.ensureColumn(sheet, "Input_Token", headerMap);
-            SheetUtils.ensureColumn(sheet, "Total_Token", headerMap);
-
             updateData["Thinking_Token"] = thinkingTokens;
             updateData["Candidate_Token"] = candidateTokens;
             updateData["Input_Token"] = promptTokens;
             updateData["Total_Token"] = totalTokens;
           }
 
-          if (result.extraction_preview) {
-            // Dynamically map all keys in extraction_preview to Sheet Columns
-            // Assumes Sheet Column Name == JSON Key Name (as per user instruction)
-            for (const [key, value] of Object.entries(result.extraction_preview)) {
+          // Ensure all columns exist for data we are about to write
+          for (const key of Object.keys(updateData)) {
               SheetUtils.ensureColumn(sheet, key, headerMap);
-              updateData[key] = value;
-            }
           }
 
           processedCount++;
@@ -476,8 +504,13 @@ const FullTextScreeningController = (function() {
           errorCount++;
         }
 
-        // Update Sheet
+        // Update Sheet Values
         SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
+
+        // Update Sheet Notes (if any)
+        if (Object.keys(updateNotes).length > 0) {
+            SheetUtils.updateRowNotes(sheet, row._rowIndex, updateNotes, headerMap);
+        }
 
         // Delay between calls
         if (index < batch.length - 1) {
