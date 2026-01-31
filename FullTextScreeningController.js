@@ -166,8 +166,7 @@ const FullTextScreeningController = (function() {
       }
 
       // Fetch CSV
-      const response = UrlFetchApp.fetch(csvUrl);
-      const csvContent = response.getContentText();
+      const csvContent = DriveUtils.getFileContent(csvUrl);
 
       if (!csvContent) {
         SheetUtils.alert("Fetched CSV content is empty.");
