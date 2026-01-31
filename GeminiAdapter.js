@@ -19,8 +19,8 @@ const GeminiAdapter = (function() {
     // --- FIX 1: Safety Default ---
     // If model is undefined/null, default to Flash-Lite to prevent crash
     if (!model) {
-       console.warn("Model was undefined! Defaulting to 'gemini-2.0-flash-lite'");
-       model = "gemini-2.0-flash-lite";
+       console.warn("Model was undefined! Defaulting to 'gemini-2.5-flash-lite'");
+       model = "gemini-2.5-flash-lite";
     }
     // Ensure it is a string for .indexOf()
     var safeModel = String(model).toLowerCase();
@@ -75,7 +75,7 @@ const GeminiAdapter = (function() {
     };
 
     // Retry Configuration
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 2;
     const BASE_DELAY_MS = 2000;
     let attempt = 0;
 
