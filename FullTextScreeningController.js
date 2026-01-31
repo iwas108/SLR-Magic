@@ -366,20 +366,14 @@ const FullTextScreeningController = (function() {
       // 1. Read Configuration
       const config = SheetUtils.getConfigMap("00_manifest");
       const apiKey = config["API_KEY"];
-      const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
+
+      // Load Stage Models
+      const gatekeeperModel = config["THE_GATEKEEPER_MODEL"] || "gemini-2.0-flash-lite";
+      const scientistModel = config["THE_SCIENTIST_MODEL"] || "gemini-2.0-flash-lite";
+      const minerModel = config["THE_MINER_MODEL"] || "gemini-2.0-flash-lite";
+
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "8192");
-
-      // Reasoning config
-      const reasoningLimit = config["REASONING_LIMIT"];
-      let thinkingLevel = undefined;
-      let thinkingBudget = undefined;
-
-      if (reasoningLimit === "THINKING_LEVEL") {
-        thinkingLevel = config["THINKING_LEVEL"];
-      } else if (reasoningLimit === "THINKING_BUDGET") {
-        thinkingBudget = config["THINKING_BUDGET"];
-      }
 
       // Load 3 Prompts
       const gatekeeperPrompt = config["THE_GATEKEEPER_PROMPT"];
@@ -391,6 +385,20 @@ const FullTextScreeningController = (function() {
       if (!gatekeeperPrompt) throw new Error("THE_GATEKEEPER_PROMPT is missing in 00_manifest.");
       if (!scientistPrompt) throw new Error("THE_SCIENTIST_PROMPT is missing in 00_manifest.");
       if (!minerPrompt) throw new Error("THE_MINER_PROMPT is missing in 00_manifest.");
+
+      // Reasoning Config Helper
+      const getReasoningConfig = (model) => {
+          const lowerModel = (model || "").toLowerCase();
+          let level = undefined;
+          let budget = undefined;
+
+          if (lowerModel.includes("gemini-2.5") || lowerModel.includes("flash-thinking")) {
+              budget = config["THINKING_BUDGET"];
+          } else if (lowerModel.includes("gemini-3")) {
+              level = config["THINKING_LEVEL"];
+          }
+          return { level, budget };
+      };
 
       // 2. Get Data
       const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
@@ -464,7 +472,8 @@ const FullTextScreeningController = (function() {
             const pdfBlob = DriveUtils.getFileBlob(pdfUrl);
 
             // --- STAGE 1: THE GATEKEEPER ---
-            const stage1Resp = GeminiAdapter.callGemini(gatekeeperPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
+            const gkReasoning = getReasoningConfig(gatekeeperModel);
+            const stage1Resp = GeminiAdapter.callGemini(gatekeeperPrompt, apiKey, gatekeeperModel, temperature, maxTokens, gkReasoning.level, gkReasoning.budget, pdfBlob);
             accumulateTokens(tokenUsage, stage1Resp.usageMetadata);
             processContent(stage1Resp.content, rowUpdateData, rowUpdateNotes);
 
@@ -478,7 +487,8 @@ const FullTextScreeningController = (function() {
             } else if (isIncluded) {
 
                 // --- STAGE 2: THE SCIENTIST ---
-                const stage2Resp = GeminiAdapter.callGemini(scientistPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
+                const sciReasoning = getReasoningConfig(scientistModel);
+                const stage2Resp = GeminiAdapter.callGemini(scientistPrompt, apiKey, scientistModel, temperature, maxTokens, sciReasoning.level, sciReasoning.budget, pdfBlob);
                 accumulateTokens(tokenUsage, stage2Resp.usageMetadata);
                 processContent(stage2Resp.content, rowUpdateData, rowUpdateNotes);
 
@@ -491,7 +501,8 @@ const FullTextScreeningController = (function() {
                 } else if (isIncluded) {
 
                     // --- STAGE 3: THE MINER ---
-                    const stage3Resp = GeminiAdapter.callGemini(minerPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
+                    const minerReasoning = getReasoningConfig(minerModel);
+                    const stage3Resp = GeminiAdapter.callGemini(minerPrompt, apiKey, minerModel, temperature, maxTokens, minerReasoning.level, minerReasoning.budget, pdfBlob);
                     accumulateTokens(tokenUsage, stage3Resp.usageMetadata);
                     // Stage 3 is pure extraction, no decision check
                     processContent(stage3Resp.content, rowUpdateData, rowUpdateNotes);

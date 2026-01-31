@@ -18,7 +18,7 @@ var QualityCheckController = (function() {
 
   /**
    * Saves the user-defined column mapping.
-   * @param {Object} config { decisionColumn, reasoningColumn }
+   * @param {Object} config { decisionColumn, reasoningColumn, samplingSize }
    */
   function saveQualityCheckConfig(config) {
       try {
@@ -45,6 +45,8 @@ var QualityCheckController = (function() {
       }
       const qcConfig = JSON.parse(qcConfigProp);
       const decisionCol = qcConfig.decisionColumn;
+      // Default to 10% if not set
+      const samplingPercent = (qcConfig.samplingSize ? parseInt(qcConfig.samplingSize) : 10) / 100;
 
       // 1. Get Source Data
       const sourceSheetName = "02_fulltext_screening";
@@ -77,11 +79,11 @@ var QualityCheckController = (function() {
 
       console.log(`[QualityCheck] Found ${included.length} Includes and ${excluded.length} Excludes.`);
 
-      // 4. Sample 10%
-      const sampleSizeInclude = Math.ceil(included.length * 0.10);
-      const sampleSizeExclude = Math.ceil(excluded.length * 0.10);
+      // 4. Sample (User Defined %)
+      const sampleSizeInclude = Math.ceil(included.length * samplingPercent);
+      const sampleSizeExclude = Math.ceil(excluded.length * samplingPercent);
 
-      console.log(`[QualityCheck] Sampling target: ${sampleSizeInclude} Include, ${sampleSizeExclude} Exclude.`);
+      console.log(`[QualityCheck] Sampling target (${samplingPercent * 100}%): ${sampleSizeInclude} Include, ${sampleSizeExclude} Exclude.`);
 
       const sampledInclude = getRandomSample(included, sampleSizeInclude);
       const sampledExclude = getRandomSample(excluded, sampleSizeExclude);

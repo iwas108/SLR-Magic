@@ -31,6 +31,12 @@
       </select>
     </div>
 
+    <div class="form-group">
+      <label for="samplingSize">Sampling Size (%):</label>
+      <input type="number" id="samplingSize" value="10" min="1" max="100" style="width: 100%; padding: 8px; box-sizing: border-box;">
+      <small>Percentage of included/excluded papers to sample (Default: 10%).</small>
+    </div>
+
     <button id="saveBtn" disabled onclick="saveConfig()">Save Configuration</button>
     <div id="status" class="error"></div>
 
@@ -81,10 +87,16 @@
       function saveConfig() {
         const decision = document.getElementById('decisionCol').value;
         const reasoning = document.getElementById('reasoningCol').value;
+        const samplingSize = document.getElementById('samplingSize').value;
 
         if (!decision) {
           showError("Please select the Decision column.");
           return;
+        }
+
+        if (!samplingSize || samplingSize <= 0 || samplingSize > 100) {
+            showError("Please enter a valid sampling size (1-100).");
+            return;
         }
 
         document.getElementById('saveBtn').disabled = true;
@@ -92,7 +104,8 @@
 
         const config = {
            decisionColumn: decision,
-           reasoningColumn: reasoning
+           reasoningColumn: reasoning,
+           samplingSize: parseInt(samplingSize)
         };
 
         google.script.run

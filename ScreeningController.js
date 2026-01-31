@@ -19,19 +19,21 @@ const ScreeningController = (function() {
       // 1. Read Configuration
       const config = SheetUtils.getConfigMap("00_manifest");
       const apiKey = config["API_KEY"];
-      const modelName = config["MODEL_NAME"] || "gemini-2.0-flash-lite";
+      const modelName = config["ABSTRACT_SCREENING_MODEL"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
 
-      // Determine Reasoning Limit Strategy
-      const reasoningLimit = config["REASONING_LIMIT"]; // Expect "THINKING_LEVEL" or "THINKING_BUDGET"
+      // Automatic Reasoning Selection
       let thinkingLevel = undefined;
       let thinkingBudget = undefined;
 
-      if (reasoningLimit === "THINKING_LEVEL") {
-        thinkingLevel = config["THINKING_LEVEL"];
-      } else if (reasoningLimit === "THINKING_BUDGET") {
-        thinkingBudget = config["THINKING_BUDGET"];
+      const lowerModel = modelName.toLowerCase();
+      if (lowerModel.includes("gemini-2.5") || lowerModel.includes("flash-thinking")) {
+          // Rule: Gemini 2.5 uses thinking budget
+          thinkingBudget = config["THINKING_BUDGET"];
+      } else if (lowerModel.includes("gemini-3")) {
+          // Rule: Gemini 3 uses thinking level
+          thinkingLevel = config["THINKING_LEVEL"];
       }
 
       const batchSize = parseInt(config["BATCH_SIZE"] || "5");
