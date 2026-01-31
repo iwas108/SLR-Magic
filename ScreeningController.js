@@ -98,15 +98,15 @@ const ScreeningController = (function() {
             const totalTokens = response.usageMetadata.totalTokenCount || 0;
 
             // Ensure columns exist
-            SheetUtils.ensureColumn(sheet, "Thinking_Token", headerMap);
-            SheetUtils.ensureColumn(sheet, "Candidate_Token", headerMap);
-            SheetUtils.ensureColumn(sheet, "Input_Token", headerMap);
-            SheetUtils.ensureColumn(sheet, "Total_Token", headerMap);
+            SheetUtils.ensureColumn(sheet, `Thinking_Token_${modelName}`, headerMap);
+            SheetUtils.ensureColumn(sheet, `Candidate_Token_${modelName}`, headerMap);
+            SheetUtils.ensureColumn(sheet, `Input_Token_${modelName}`, headerMap);
+            SheetUtils.ensureColumn(sheet, `Total_Token_${modelName}`, headerMap);
 
-            updateData["Thinking_Token"] = thinkingTokens;
-            updateData["Candidate_Token"] = candidateTokens;
-            updateData["Input_Token"] = promptTokens;
-            updateData["Total_Token"] = totalTokens;
+            updateData[`Thinking_Token_${modelName}`] = thinkingTokens;
+            updateData[`Candidate_Token_${modelName}`] = candidateTokens;
+            updateData[`Input_Token_${modelName}`] = promptTokens;
+            updateData[`Total_Token_${modelName}`] = totalTokens;
           }
 
           processedCount++;
