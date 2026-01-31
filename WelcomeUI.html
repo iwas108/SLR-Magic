@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: 'Google Sans', Arial, sans-serif; padding: 20px; text-align: center; }
+      .slide { display: none; }
+      .slide.active { display: block; }
+      h2 { color: #1a73e8; }
+      p { color: #5f6368; line-height: 1.5; font-size: 14px; }
+      .nav-buttons { margin-top: 20px; }
+      button { background-color: #1a73e8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin: 0 5px; }
+      button:disabled { background-color: #dadce0; cursor: default; }
+      .footer { margin-top: 30px; font-size: 12px; color: #70757a; border-top: 1px solid #e0e0e0; padding-top: 10px; }
+      .checkbox-container { margin-top: 15px; }
+    </style>
+  </head>
+  <body>
+
+    <!-- Slide 1: Welcome -->
+    <div id="slide-1" class="slide active">
+      <h2>Welcome to SLR-Magic! ✨</h2>
+      <p>Your AI-powered assistant for Systematic Literature Reviews.</p>
+      <p>SLR-Magic automates the tedious parts of research, from screening thousands of abstracts to extracting data from full-text PDFs.</p>
+      <img src="https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_48dp.png" alt="Sheets Logo" width="48">
+    </div>
+
+    <!-- Slide 2: Workflow -->
+    <div id="slide-2" class="slide">
+      <h2>How It Works</h2>
+      <p><b>1. Abstract Screening:</b> AI reviews titles and abstracts to filter irrelevant papers based on your criteria.</p>
+      <p><b>2. Full-Text Screening:</b> Upload PDFs to Drive. The multi-stage AI (Gatekeeper, Scientist, Miner) reads the full text to confirm inclusion and extract data.</p>
+    </div>
+
+    <!-- Slide 3: Quality & Data -->
+    <div id="slide-3" class="slide">
+      <h2>Quality Check & Data</h2>
+      <p><b>Quality Check:</b> The system samples AI decisions for human review to ensure high accuracy (Agreement Rate, Recall).</p>
+      <p><b>Data Collection:</b> Automatically parse structured data from the "The Miner" stage into clean columns.</p>
+    </div>
+
+    <!-- Slide 4: Open Source -->
+    <div id="slide-4" class="slide">
+      <h2>Open Source</h2>
+      <p>This project is open-source and free to use.</p>
+      <p>Code available at: <a href="https://github.com/iwas108/SLR-Magic" target="_blank">github.com/iwas108/SLR-Magic</a></p>
+      <p>Feel free to contribute or report issues!</p>
+    </div>
+
+    <div class="nav-buttons">
+      <button id="prev-btn" onclick="changeSlide(-1)" disabled>Previous</button>
+      <button id="next-btn" onclick="changeSlide(1)">Next</button>
+    </div>
+
+    <div class="checkbox-container">
+      <label>
+        <input type="checkbox" id="dont-show" onchange="togglePreference()"> Don't show this again
+      </label>
+    </div>
+
+    <script>
+      let currentSlide = 1;
+      const totalSlides = 4;
+
+      function changeSlide(direction) {
+        // Hide current
+        document.getElementById(`slide-${currentSlide}`).classList.remove('active');
+
+        // Update index
+        currentSlide += direction;
+
+        // Show new
+        document.getElementById(`slide-${currentSlide}`).classList.add('active');
+
+        // Update buttons
+        document.getElementById('prev-btn').disabled = (currentSlide === 1);
+
+        const nextBtn = document.getElementById('next-btn');
+        if (currentSlide === totalSlides) {
+            nextBtn.textContent = "Close";
+            nextBtn.onclick = closeDialog;
+        } else {
+            nextBtn.textContent = "Next";
+            nextBtn.onclick = function() { changeSlide(1); };
+        }
+      }
+
+      function togglePreference() {
+        const isChecked = document.getElementById('dont-show').checked;
+        // If Checked -> Hide (SHOW_OPENING_POPUP = FALSE)
+        // If Unchecked -> Show (SHOW_OPENING_POPUP = TRUE)
+        google.script.run.saveWelcomePreference(!isChecked);
+      }
+
+      function closeDialog() {
+        google.script.host.close();
+      }
+    </script>
+  </body>
+</html>
