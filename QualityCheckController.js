@@ -76,7 +76,7 @@ var QualityCheckController = (function() {
       const userColumns = qcConfig.columnsToCopy || [];
 
       // Ensure Mandatory Columns
-      const mandatory = ["PDF", "AI_Recommendation", "Exclusion_Reason", "AI_Reasoning"];
+      const mandatory = ['Paper_ID', 'PDF', 'decision', 'exclusion_code', 'reasoning'];
       mandatory.forEach(col => {
          if (!userColumns.includes(col)) {
              userColumns.push(col);
