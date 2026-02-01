@@ -16,6 +16,7 @@
       .nav-buttons { display: flex; gap: 10px; }
       .loading { text-align: center; margin-top: 50px; }
       .copy-btn { font-size: 0.8em; padding: 4px 8px; }
+      .finish-btn { background-color: #4CAF50; color: white; border: none; font-weight: bold; }
     </style>
   </head>
   <body>
@@ -25,35 +26,24 @@
 
     <script>
       let allRows = [];
-      let promptContext = "";
       let currentIndex = 0;
 
-      // skipped columns
-      const SKIPPED_COLUMNS = [
-        "Paper_ID", "PDF", "DOI_Link", "Abstract", "Year", "Authors", "Source_DB",
-        "PDF_Validity", "Page_Count", "AI_Status", "Human_Decision", "AI_Relevance_Score",
-        "HUMAN_QC_Decision_Agree", "HUMAN_QC_Reason_Valid", "HUMAN_QC_Data_Extraction_Score", "HUMAN_QC_Critical_Correction",
-        "_rowIndex" // internal field
-      ];
+      // Internal columns to hide
+      const HIDDEN_COLUMNS = ["_rowIndex", "State"];
 
       function init() {
         google.script.run.withSuccessHandler(onDataLoaded).getQualityCheckData();
       }
 
       function onDataLoaded(response) {
-        // Handle new response structure { rows: [], promptContext: "" }
         if (response && response.rows) {
             allRows = response.rows;
-            promptContext = response.promptContext || "";
-        } else {
-            // Fallback for array response if server logic hasn't updated yet (safety)
-            if (Array.isArray(response)) {
-                allRows = response;
-            }
+        } else if (Array.isArray(response)) {
+            allRows = response;
         }
 
         if (allRows.length === 0) {
-          document.getElementById('app').innerHTML = '<div class="loading">No rows found in 03_quality_check.</div>';
+          document.getElementById('app').innerHTML = '<div class="loading">No unprocessed rows found in 03_quality_check.</div>';
           return;
         }
         currentIndex = 0;
@@ -67,7 +57,7 @@
           <div class="container">
             <div class="prompt-label-row">
               <div class="prompt-controls">
-                <strong>Prompt for AI Assistant:</strong>
+                <strong>Data to Verify (Copy-Ready):</strong>
                 <button onclick="copyPrompt()" class="copy-btn" id="btnCopy">Copy</button>
               </div>
               <span id="pdfLinkContainer"></span>
@@ -106,7 +96,10 @@
                 <button onclick="prevRow()" id="btnPrev">PREV</button>
                 <button onclick="nextRow()" id="btnNext">NEXT</button>
               </div>
-              <button onclick="closeDialog()">CLOSE</button>
+              <div>
+                 <button onclick="finishRow()" id="btnFinish" class="finish-btn">FINISH & NEXT</button>
+                 <button onclick="closeDialog()" style="margin-left: 10px;">CLOSE</button>
+              </div>
             </div>
             <div style="text-align: right; font-size: 0.8em; color: #666;">
               Row <span id="rowDisplay"></span> of <span id="totalDisplay"></span>
@@ -119,38 +112,45 @@
         if (allRows.length === 0) return;
         const row = allRows[currentIndex];
 
-        // 1. Build Prompt & Get PDF Link
-        let promptText = "Please check whether the attached paper matches the provided details below:\n\n";
-
+        // 1. Build Display Text
+        let displayText = "";
         for (const [key, value] of Object.entries(row)) {
-          if (!SKIPPED_COLUMNS.includes(key) && value !== "") {
-            promptText += `${key}: ${value}\n`;
+          // Skip internal or QC columns from the "Prompt" display if desired,
+          // but user said "show all the row column".
+          // We definitely skip internal/hidden ones.
+          // We probably shouldn't show the QC fields themselves in the "Prompt" area
+          // because they are inputs below.
+          if (HIDDEN_COLUMNS.includes(key)) continue;
+          if (key.startsWith("HUMAN_QC_")) continue;
+
+          if (value !== null && value !== undefined && String(value).trim() !== "") {
+            displayText += `${key}: ${value}\n`;
           }
         }
 
-        // Add Context
-        if (promptContext) {
-            promptText += "\n\n--- Context Start: Find any relevant data generation protocol/rules from this prompt if you are unsure about data above. Ignore the JSON output format in this context! ---\n" + promptContext + "\n\n --- Context End ---";
-            promptText += "\n\n OUTPUT FORMAT: Show the result in the form of matrix (Original Key, Original Value, Verification Status (Match/Partial/Unmatch), Verification Description)";
-        }
-
-        document.getElementById('promptDisplay').textContent = promptText;
+        document.getElementById('promptDisplay').textContent = displayText;
 
         // Reset Copy Button
         const btn = document.getElementById('btnCopy');
         if(btn) btn.textContent = "Copy";
 
+        // Reset Finish Button
+        const btnFinish = document.getElementById('btnFinish');
+        if(btnFinish) {
+            btnFinish.disabled = false;
+            btnFinish.textContent = "FINISH & NEXT";
+        }
+
         // PDF Link
         const pdfUrl = row["PDF"];
         const pdfContainer = document.getElementById('pdfLinkContainer');
-        if (pdfUrl && pdfUrl.toString().trim() !== "") {
+        if (pdfUrl && String(pdfUrl).trim() !== "") {
           pdfContainer.innerHTML = `<a href="${pdfUrl}" target="_blank">Open PDF</a>`;
         } else {
           pdfContainer.innerHTML = "";
         }
 
         // 2. Set Inputs
-        // Convert string "TRUE"/"FALSE" to boolean for checkboxes if needed, or handle empty
         document.getElementById('decisionAgree').checked = isTrue(row['HUMAN_QC_Decision_Agree']);
         document.getElementById('reasonValid').checked = isTrue(row['HUMAN_QC_Reason_Valid']);
         document.getElementById('score').value = row['HUMAN_QC_Data_Extraction_Score'] || "";
@@ -195,6 +195,52 @@
         google.script.run.saveQualityCheckRow(row.Paper_ID, updateData);
       }
 
+      function finishRow() {
+        const row = allRows[currentIndex];
+
+        // Ensure latest values are captured
+        const decisionAgree = document.getElementById('decisionAgree').checked;
+        const reasonValid = document.getElementById('reasonValid').checked;
+        const score = document.getElementById('score').value;
+        const correction = document.getElementById('correction').value;
+
+        const updateData = {
+          HUMAN_QC_Decision_Agree: decisionAgree,
+          HUMAN_QC_Reason_Valid: reasonValid,
+          HUMAN_QC_Data_Extraction_Score: score,
+          HUMAN_QC_Critical_Correction: correction,
+          State: 1 // Mark as processed
+        };
+
+        const btn = document.getElementById('btnFinish');
+        btn.disabled = true;
+        btn.textContent = "Saving...";
+
+        google.script.run
+           .withSuccessHandler(() => {
+               // Remove completed row from local list
+               allRows.splice(currentIndex, 1);
+
+               if (allRows.length === 0) {
+                   document.getElementById('app').innerHTML = '<div class="loading">All rows processed!</div>';
+                   setTimeout(() => google.script.host.close(), 2000);
+                   return;
+               }
+
+               // If we were at the last element, step back
+               if (currentIndex >= allRows.length) {
+                   currentIndex = allRows.length - 1;
+               }
+               renderRow();
+           })
+           .withFailureHandler((err) => {
+               alert("Error saving: " + err);
+               btn.disabled = false;
+               btn.textContent = "FINISH & NEXT";
+           })
+           .saveQualityCheckRow(row.Paper_ID, updateData);
+      }
+
       function nextRow() {
         if (currentIndex < allRows.length - 1) {
           currentIndex++;
@@ -215,14 +261,12 @@
 
       function copyPrompt() {
         const text = document.getElementById('promptDisplay').textContent;
-        // Standard clipboard API
         navigator.clipboard.writeText(text).then(function() {
           const btn = document.getElementById('btnCopy');
           btn.textContent = "Copied!";
           setTimeout(() => { btn.textContent = "Copy"; }, 2000);
         }, function(err) {
           console.error('Could not copy text: ', err);
-          // Fallback for some environments
           fallbackCopy(text);
         });
       }
@@ -230,15 +274,11 @@
       function fallbackCopy(text) {
           const textArea = document.createElement("textarea");
           textArea.value = text;
-
-          // Ensure it's not visible but part of DOM
           textArea.style.position = "fixed";
           textArea.style.left = "-9999px";
           document.body.appendChild(textArea);
-
           textArea.focus();
           textArea.select();
-
           try {
             document.execCommand('copy');
             const btn = document.getElementById('btnCopy');
@@ -247,7 +287,6 @@
           } catch (err) {
             console.error('Fallback: Oops, unable to copy', err);
           }
-
           document.body.removeChild(textArea);
       }
 

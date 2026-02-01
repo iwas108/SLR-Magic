@@ -6,15 +6,28 @@
       body { font-family: sans-serif; padding: 20px; }
       .form-group { margin-bottom: 15px; }
       label { display: block; margin-bottom: 5px; font-weight: bold; }
-      select { width: 100%; padding: 8px; }
+      select, input[type="number"] { width: 100%; padding: 8px; box-sizing: border-box; }
       button { padding: 10px 20px; background-color: #4285f4; color: white; border: none; cursor: pointer; }
       button:disabled { background-color: #ccc; }
       .error { color: red; margin-top: 10px; }
+      .checkbox-container {
+        border: 1px solid #ccc;
+        padding: 10px;
+        max-height: 150px;
+        overflow-y: auto;
+      }
+      .checkbox-item {
+        display: block;
+        margin-bottom: 5px;
+      }
+      .checkbox-item input {
+        margin-right: 10px;
+      }
     </style>
   </head>
   <body>
     <h2>Quality Check Configuration</h2>
-    <p>Please map the AI output columns to the Quality Check fields.</p>
+    <p>Configure how the Quality Check sheet is generated.</p>
 
     <div class="form-group">
       <label for="decisionCol">AI Decision / Recommendation Column:</label>
@@ -32,9 +45,25 @@
     </div>
 
     <div class="form-group">
-      <label for="samplingSize">Sampling Size (%):</label>
-      <input type="number" id="samplingSize" value="10" min="1" max="100" style="width: 100%; padding: 8px; box-sizing: border-box;">
-      <small>Percentage of included/excluded papers to sample (Default: 10%).</small>
+      <label>Sampling Percentages:</label>
+      <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+           <label for="samplePercentInclude" style="font-weight: normal; font-size: 0.9em;">Included Rows (%):</label>
+           <input type="number" id="samplePercentInclude" value="10" min="1" max="100">
+        </div>
+        <div style="flex: 1;">
+           <label for="samplePercentExclude" style="font-weight: normal; font-size: 0.9em;">Excluded Rows (%):</label>
+           <input type="number" id="samplePercentExclude" value="10" min="1" max="100">
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Columns to Copy to Quality Check Sheet:</label>
+      <div id="columnsContainer" class="checkbox-container">
+        Loading...
+      </div>
+      <small>Select columns to include in the QC review.</small>
     </div>
 
     <button id="saveBtn" disabled onclick="saveConfig()">Save Configuration</button>
@@ -43,40 +72,54 @@
     <script>
       function loadColumns() {
         google.script.run
-          .withSuccessHandler(populateDropdowns)
+          .withSuccessHandler(populateForm)
           .withFailureHandler(showError)
           .getFullTextScreeningColumns();
       }
 
-      function populateDropdowns(columns) {
+      function populateForm(columns) {
         const decisionSelect = document.getElementById('decisionCol');
         const reasoningSelect = document.getElementById('reasoningCol');
+        const columnsContainer = document.getElementById('columnsContainer');
 
         // Clear loading
         decisionSelect.innerHTML = '';
         reasoningSelect.innerHTML = '';
+        columnsContainer.innerHTML = '';
 
         // Add empty option
-        const defaultOpt = document.createElement('option');
-        defaultOpt.text = '-- Select Column --';
-        defaultOpt.value = '';
-        decisionSelect.add(defaultOpt);
+        const addOption = (select, text, val) => {
+            const opt = document.createElement('option');
+            opt.text = text;
+            opt.value = val;
+            select.add(opt);
+        };
 
-        const defaultOpt2 = document.createElement('option');
-        defaultOpt2.text = '-- Select Column --';
-        defaultOpt2.value = '';
-        reasoningSelect.add(defaultOpt2);
+        addOption(decisionSelect, '-- Select Column --', '');
+        addOption(reasoningSelect, '-- Select Column --', '');
 
         columns.forEach(col => {
-           const opt1 = document.createElement('option');
-           opt1.text = col;
-           opt1.value = col;
-           decisionSelect.add(opt1);
+           // Populate Selects
+           addOption(decisionSelect, col, col);
+           addOption(reasoningSelect, col, col);
 
-           const opt2 = document.createElement('option');
-           opt2.text = col;
-           opt2.value = col;
-           reasoningSelect.add(opt2);
+           // Populate Checkboxes
+           const label = document.createElement('label');
+           label.className = 'checkbox-item';
+
+           const checkbox = document.createElement('input');
+           checkbox.type = 'checkbox';
+           checkbox.value = col;
+           checkbox.name = 'columnsToCopy';
+           // Default check commonly used columns if you want, or leave blank.
+           // Let's default check Title, Abstract, DOI if present
+           if (['Title', 'Abstract', 'DOI_Link', 'PDF'].includes(col)) {
+               checkbox.checked = true;
+           }
+
+           label.appendChild(checkbox);
+           label.appendChild(document.createTextNode(col));
+           columnsContainer.appendChild(label);
         });
 
         decisionSelect.disabled = false;
@@ -87,15 +130,30 @@
       function saveConfig() {
         const decision = document.getElementById('decisionCol').value;
         const reasoning = document.getElementById('reasoningCol').value;
-        const samplingSize = document.getElementById('samplingSize').value;
+        const includePct = document.getElementById('samplePercentInclude').value;
+        const excludePct = document.getElementById('samplePercentExclude').value;
+
+        // Get selected columns
+        const checkboxes = document.querySelectorAll('input[name="columnsToCopy"]:checked');
+        const columnsToCopy = Array.from(checkboxes).map(cb => cb.value);
 
         if (!decision) {
           showError("Please select the Decision column.");
           return;
         }
 
-        if (!samplingSize || samplingSize <= 0 || samplingSize > 100) {
-            showError("Please enter a valid sampling size (1-100).");
+        if (!includePct || includePct <= 0 || includePct > 100) {
+            showError("Please enter a valid Include percentage (1-100).");
+            return;
+        }
+
+        if (!excludePct || excludePct <= 0 || excludePct > 100) {
+            showError("Please enter a valid Exclude percentage (1-100).");
+            return;
+        }
+
+        if (columnsToCopy.length === 0) {
+            showError("Please select at least one column to copy.");
             return;
         }
 
@@ -105,7 +163,9 @@
         const config = {
            decisionColumn: decision,
            reasoningColumn: reasoning,
-           samplingSize: parseInt(samplingSize)
+           samplePercentInclude: parseInt(includePct),
+           samplePercentExclude: parseInt(excludePct),
+           columnsToCopy: columnsToCopy
         };
 
         google.script.run

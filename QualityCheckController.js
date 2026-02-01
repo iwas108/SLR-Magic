@@ -45,8 +45,13 @@ var QualityCheckController = (function() {
       }
       const qcConfig = JSON.parse(qcConfigProp);
       const decisionCol = qcConfig.decisionColumn;
-      // Default to 10% if not set
-      const samplingPercent = (qcConfig.samplingSize ? parseInt(qcConfig.samplingSize) : 10) / 100;
+
+      // Separate sampling percentages (default to 10% if missing)
+      const percentInclude = (qcConfig.samplePercentInclude ? parseInt(qcConfig.samplePercentInclude) : 10) / 100;
+      const percentExclude = (qcConfig.samplePercentExclude ? parseInt(qcConfig.samplePercentExclude) : 10) / 100;
+
+      // User selected columns to copy (plus defaults)
+      const userColumns = qcConfig.columnsToCopy || [];
 
       // 1. Get Source Data
       const sourceSheetName = "02_fulltext_screening";
@@ -80,10 +85,10 @@ var QualityCheckController = (function() {
       console.log(`[QualityCheck] Found ${included.length} Includes and ${excluded.length} Excludes.`);
 
       // 4. Sample (User Defined %)
-      const sampleSizeInclude = Math.ceil(included.length * samplingPercent);
-      const sampleSizeExclude = Math.ceil(excluded.length * samplingPercent);
+      const sampleSizeInclude = Math.ceil(included.length * percentInclude);
+      const sampleSizeExclude = Math.ceil(excluded.length * percentExclude);
 
-      console.log(`[QualityCheck] Sampling target (${samplingPercent * 100}%): ${sampleSizeInclude} Include, ${sampleSizeExclude} Exclude.`);
+      console.log(`[QualityCheck] Sampling target: ${sampleSizeInclude} Include (${percentInclude*100}%), ${sampleSizeExclude} Exclude (${percentExclude*100}%).`);
 
       const sampledInclude = getRandomSample(included, sampleSizeInclude);
       const sampledExclude = getRandomSample(excluded, sampleSizeExclude);
@@ -113,37 +118,45 @@ var QualityCheckController = (function() {
       }
 
       // 6. Sync Headers
-      // We want all headers from source + QC headers
-      const sourceHeaderMap = SheetUtils.getHeaderMap(sourceSheet);
-      // We re-fetch target map every time we add a column, or just maintain it manually.
-      // SheetUtils.ensureColumn updates the map if passed, but let's be careful.
+      // We explicitly copy only: Paper_ID (mandatory), State (mandatory), Selected Cols, QC Cols
       const targetHeaderMap = SheetUtils.getHeaderMap(targetSheet);
 
-      // Get source headers sorted by index to maintain order roughly
-      const sourceHeaders = Object.keys(sourceHeaderMap).sort((a,b) => sourceHeaderMap[a] - sourceHeaderMap[b]);
+      const columnsToEnsure = new Set(["Paper_ID", "State"]);
+      userColumns.forEach(c => columnsToEnsure.add(c));
 
-      // Ensure source headers exist in target
-      sourceHeaders.forEach(header => {
-          SheetUtils.ensureColumn(targetSheet, header, targetHeaderMap);
-      });
-
-      // 7. Add QC Columns
       const qcColumns = [
           "HUMAN_QC_Decision_Agree",
           "HUMAN_QC_Reason_Valid",
           "HUMAN_QC_Data_Extraction_Score",
           "HUMAN_QC_Critical_Correction"
       ];
+      qcColumns.forEach(c => columnsToEnsure.add(c));
 
-      qcColumns.forEach(header => {
+      // Ensure they exist in target
+      columnsToEnsure.forEach(header => {
           SheetUtils.ensureColumn(targetSheet, header, targetHeaderMap);
       });
 
-      // 8. Filter Duplicates
+      // 7. Filter Duplicates & Prepare Data
       const existingTargetData = SheetUtils.getDataAsObjects(targetSheet);
       const existingIds = new Set(existingTargetData.map(r => r["Paper_ID"]));
 
-      const newRows = finalSample.filter(r => !existingIds.has(r["Paper_ID"]));
+      const newRows = finalSample
+        .filter(r => !existingIds.has(r["Paper_ID"]))
+        .map(sourceRow => {
+           // Construct new row object with only desired columns + State: 0
+           const newRow = {
+               "Paper_ID": sourceRow["Paper_ID"],
+               "State": 0
+           };
+           // Copy user columns
+           userColumns.forEach(col => {
+               if (sourceRow.hasOwnProperty(col)) {
+                   newRow[col] = sourceRow[col];
+               }
+           });
+           return newRow;
+        });
 
       console.log(`[QualityCheck] New unique rows to add: ${newRows.length}`);
 
@@ -152,13 +165,13 @@ var QualityCheckController = (function() {
           return;
       }
 
-      // 9. Append Data
+      // 8. Append Data
       SheetUtils.appendDataMapped(targetSheet, newRows, targetHeaderMap);
 
       SheetUtils.alert(
         `Quality Check Preparation Complete.\n\n` +
         `Total Eligible: ${eligibleRows.length}\n` +
-        `Sampled (10%): ${finalSample.length} (${sampledInclude.length} Include, ${sampledExclude.length} Exclude)\n` +
+        `Sampled: ${finalSample.length} (${sampledInclude.length} Include, ${sampledExclude.length} Exclude)\n` +
         `Added to Sheet: ${newRows.length}`
       );
 
@@ -212,12 +225,19 @@ var QualityCheckController = (function() {
 
   /**
    * Retrieves data from 03_quality_check for the UI.
-   * Also returns the FULLTEXT_SCREENING_PROMPT as context.
+   * Only returns rows with State == 0 (Unprocessed).
    */
   function getQualityCheckData() {
     try {
       const sheet = SheetUtils.getSheetByName("03_quality_check");
-      const rows = sheet ? SheetUtils.getDataAsObjects(sheet) : [];
+      const allRows = sheet ? SheetUtils.getDataAsObjects(sheet) : [];
+
+      // Filter for unprocessed rows (State is 0 or "0")
+      // Also treat empty/missing state as 0 just in case.
+      const rows = allRows.filter(r => {
+          const state = r["State"];
+          return state == 0 || state === "" || state === undefined;
+      });
 
       // Get Prompt Context (Fallback to manifest check if needed, but currently unused in UI heavily)
       // Since FULLTEXT_SCREENING_PROMPT is gone, we might return empty or new prompts.
