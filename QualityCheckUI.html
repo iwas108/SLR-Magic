@@ -3,20 +3,77 @@
   <head>
     <base target="_top">
     <style>
-      body { font-family: sans-serif; padding: 10px; }
+      body { font-family: sans-serif; padding: 10px; max-width: 900px; margin: 0 auto; }
       .container { display: flex; flex-direction: column; gap: 10px; }
-      .prompt-label-row { display: flex; justify-content: space-between; align-items: center; }
-      .prompt-controls { display: flex; gap: 10px; align-items: center; }
-      .prompt { background-color: #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px; white-space: pre-wrap; font-family: monospace; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; }
+
+      .header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #eee;
+      }
+
+      /* Split View Container */
+      .split-container {
+          display: flex;
+          gap: 15px;
+          height: 350px; /* Fixed height for scrollable areas */
+      }
+
+      .human-view {
+          flex: 1;
+          border: 1px solid #ccc;
+          padding: 10px;
+          border-radius: 5px;
+          overflow-y: auto;
+          background-color: #f9f9f9;
+      }
+
+      .ai-view {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+      }
+
+      .prompt {
+          flex: 1;
+          background-color: #f0f0f0;
+          padding: 10px;
+          border-radius: 5px;
+          white-space: pre-wrap;
+          font-family: monospace;
+          border: 1px solid #ccc;
+          overflow-y: auto;
+          font-size: 0.9em;
+      }
+
       .controls { border-top: 1px solid #eee; padding-top: 10px; }
       .control-group { margin-bottom: 10px; }
       .control-group label { display: inline-block; width: 200px; }
+
       .buttons { display: flex; justify-content: space-between; margin-top: 20px; }
       button { padding: 8px 16px; cursor: pointer; }
       .nav-buttons { display: flex; gap: 10px; }
       .loading { text-align: center; margin-top: 50px; }
-      .copy-btn { font-size: 0.8em; padding: 4px 8px; }
+
+      .copy-btn { font-size: 0.8em; padding: 4px 8px; align-self: flex-end; }
       .finish-btn { background-color: #4CAF50; color: white; border: none; font-weight: bold; }
+
+      .pdf-btn {
+          display: inline-block;
+          padding: 8px 16px;
+          background-color: #db4437; /* PDF Red */
+          color: white;
+          text-decoration: none;
+          border-radius: 4px;
+          font-weight: bold;
+      }
+      .pdf-btn:hover { background-color: #c53929; }
+
+      .key-label { font-weight: bold; color: #333; }
+      .val-text { margin-bottom: 8px; display: block; word-wrap: break-word; }
     </style>
   </head>
   <body>
@@ -55,14 +112,23 @@
         const app = document.getElementById('app');
         app.innerHTML = `
           <div class="container">
-            <div class="prompt-label-row">
-              <div class="prompt-controls">
-                <strong>Data to Verify (Copy-Ready):</strong>
-                <button onclick="copyPrompt()" class="copy-btn" id="btnCopy">Copy</button>
-              </div>
+            <div class="header-row">
+              <h3>Quality Check Assistant</h3>
               <span id="pdfLinkContainer"></span>
             </div>
-            <div id="promptDisplay" class="prompt"></div>
+
+            <div class="split-container">
+               <div class="human-view" id="humanDisplay">
+                  <!-- Structured Data Goes Here -->
+               </div>
+               <div class="ai-view">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <strong>AI Copy-Ready:</strong>
+                      <button onclick="copyPrompt()" class="copy-btn" id="btnCopy">Copy</button>
+                  </div>
+                  <div id="promptDisplay" class="prompt"></div>
+               </div>
+            </div>
 
             <div class="controls">
               <h3>Human Decision</h3>
@@ -112,23 +178,25 @@
         if (allRows.length === 0) return;
         const row = allRows[currentIndex];
 
-        // 1. Build Display Text
-        let displayText = "";
+        // 1. Build Data Strings
+        let copyText = "";
+        let humanHtml = "";
+
         for (const [key, value] of Object.entries(row)) {
-          // Skip internal or QC columns from the "Prompt" display if desired,
-          // but user said "show all the row column".
-          // We definitely skip internal/hidden ones.
-          // We probably shouldn't show the QC fields themselves in the "Prompt" area
-          // because they are inputs below.
           if (HIDDEN_COLUMNS.includes(key)) continue;
           if (key.startsWith("HUMAN_QC_")) continue;
 
           if (value !== null && value !== undefined && String(value).trim() !== "") {
-            displayText += `${key}: ${value}\n`;
+            // Add to Copy Text
+            copyText += `${key}: ${value}\n`;
+
+            // Add to Human View
+            humanHtml += `<span class="key-label">${key}:</span><br><span class="val-text">${escapeHtml(value)}</span>`;
           }
         }
 
-        document.getElementById('promptDisplay').textContent = displayText;
+        document.getElementById('promptDisplay').textContent = copyText;
+        document.getElementById('humanDisplay').innerHTML = humanHtml;
 
         // Reset Copy Button
         const btn = document.getElementById('btnCopy');
@@ -145,9 +213,9 @@
         const pdfUrl = row["PDF"];
         const pdfContainer = document.getElementById('pdfLinkContainer');
         if (pdfUrl && String(pdfUrl).trim() !== "") {
-          pdfContainer.innerHTML = `<a href="${pdfUrl}" target="_blank">Open PDF</a>`;
+          pdfContainer.innerHTML = `<a href="${pdfUrl}" target="_blank" class="pdf-btn">OPEN PDF</a>`;
         } else {
-          pdfContainer.innerHTML = "";
+          pdfContainer.innerHTML = "<span style='color:#ccc;'>No PDF</span>";
         }
 
         // 2. Set Inputs
@@ -162,6 +230,16 @@
 
         document.getElementById('btnPrev').disabled = (currentIndex === 0);
         document.getElementById('btnNext').disabled = (currentIndex === allRows.length - 1);
+      }
+
+      function escapeHtml(text) {
+          if (!text) return text;
+          return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
       }
 
       function isTrue(val) {

@@ -52,6 +52,10 @@ var QualityCheckController = (function() {
 
       // User selected columns to copy (plus defaults)
       const userColumns = qcConfig.columnsToCopy || [];
+      // Ensure PDF is strictly included in userColumns list (if not already)
+      if (!userColumns.includes("PDF")) {
+          userColumns.push("PDF");
+      }
 
       // 1. Get Source Data
       const sourceSheetName = "02_fulltext_screening";
