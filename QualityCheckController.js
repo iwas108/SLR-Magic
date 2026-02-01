@@ -196,7 +196,9 @@ var QualityCheckController = (function() {
       }
 
       // 9. Append Data
+      console.log(`[QualityCheck] Appending ${newRows.length} rows to target sheet...`);
       SheetUtils.appendDataMapped(targetSheet, newRows, targetHeaderMap);
+      console.log(`[QualityCheck] Append complete.`);
 
       const msg = `Quality Check Preparation Complete.\n\n` +
         `Total Eligible: ${eligibleRows.length}\n` +
