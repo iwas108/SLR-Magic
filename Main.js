@@ -14,11 +14,6 @@ function onOpen() {
     .addItem('Start AI Title-Abstract Screening', 'runScreening')
     .addItem('Manage Background Screening (Abstract)', 'manageScreeningTrigger')
     .addSeparator()
-    .addItem('Copy Screened Title-Abstract', 'runCopyScreenedPapers')
-    .addItem('Import PDF Files', 'presentPDFImportUI')
-    .addItem('Import PDF Metadata (CSV)', 'runImportFileMetadata')
-    .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
-    .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks')
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
     .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
     .addSeparator()
@@ -27,7 +22,83 @@ function onOpen() {
     .addItem('Calculate QC Score', 'calculateQCScore')
     .addSeparator()
     .addItem('Process Data Collection', 'runDataCollection')
+    .addSeparator()
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Utilities')
+        .addItem('Copy Screened Title-Abstract', 'runCopyScreenedPapers')
+        .addItem('Import PDF Files', 'presentPDFImportUI')
+        .addItem('Import PDF Metadata (CSV)', 'runImportFileMetadata')
+        .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
+        .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks'))
+    .addSeparator()
+    .addItem('Project Cost Preview', 'showCostPreviewDialog')
+    .addItem('About SLR-Magic', 'showWelcomeDialog')
     .addToUi();
+
+  // Attempt to show welcome screen if configured
+  checkWelcomeScreen();
+}
+
+/**
+ * Checks if the welcome screen should be shown.
+ */
+function checkWelcomeScreen() {
+  try {
+    const config = SheetUtils.getConfigMap("00_manifest");
+    // Default to TRUE if missing or not strictly FALSE
+    // Note: Manifest values are strings usually.
+    const showPopup = config["SHOW_OPENING_POPUP"];
+
+    // If undefined or "TRUE" (case insensitive), show it.
+    // Explicitly check for "FALSE" to hide it.
+    if (showPopup && String(showPopup).toUpperCase().trim() === "FALSE") {
+      return;
+    }
+
+    // Only try to show if we think we can (though simple trigger will fail silently/log error)
+    showWelcomeDialog();
+  } catch (e) {
+    console.log("Could not show welcome screen (likely simple trigger restriction): " + e.message);
+  }
+}
+
+/**
+ * Shows the Welcome / Help Dialog.
+ */
+function showWelcomeDialog() {
+  const html = HtmlService.createHtmlOutputFromFile('WelcomeUI')
+    .setWidth(600)
+    .setHeight(500)
+    .setTitle('About SLR-Magic');
+  SpreadsheetApp.getUi().showModalDialog(html, 'About SLR-Magic');
+}
+
+/**
+ * Saves the user's preference for showing the welcome screen.
+ * @param {boolean} show - Whether to show the popup next time.
+ */
+function saveWelcomePreference(show) {
+  SheetUtils.setConfigValue("SHOW_OPENING_POPUP", show ? "TRUE" : "FALSE");
+}
+
+/**
+ * Shows the Project Cost Preview Dialog.
+ */
+function showCostPreviewDialog() {
+  CostAnalysisController.showCostPreviewDialog();
+}
+
+/**
+ * Server-side handler for getting cost analysis unique models.
+ */
+function getUniqueModels() {
+  return CostAnalysisController.getUniqueModels();
+}
+
+/**
+ * Server-side handler for calculating project costs.
+ */
+function calculateProjectCosts(priceMap) {
+  return CostAnalysisController.calculateProjectCosts(priceMap);
 }
 
 /**

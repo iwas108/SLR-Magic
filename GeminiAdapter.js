@@ -75,7 +75,7 @@ const GeminiAdapter = (function() {
     };
 
     // Retry Configuration
-    const MAX_RETRIES = 2;
+    const MAX_RETRIES = 0;
     const BASE_DELAY_MS = 2000;
     let attempt = 0;
 

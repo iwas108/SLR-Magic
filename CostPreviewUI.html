@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body { font-family: 'Google Sans', Arial, sans-serif; padding: 20px; font-size: 14px; }
+      h2 { color: #202124; margin-top: 0; }
+      h3 { color: #5f6368; margin-top: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+      th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
+      th { background-color: #f1f3f4; color: #202124; font-weight: 500; }
+      input[type="number"] { width: 80px; padding: 4px; border: 1px solid #dadce0; border-radius: 4px; }
+      button { background-color: #1a73e8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 500; }
+      button:hover { background-color: #1557b0; }
+      button:disabled { background-color: #dadce0; cursor: default; }
+      .results { margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; display: none; }
+      .result-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+      .result-label { font-weight: 500; color: #5f6368; }
+      .result-value { font-family: monospace; font-weight: bold; color: #202124; }
+      .note { font-size: 12px; color: #ea4335; margin-top: 10px; font-style: italic; }
+      .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 20px; height: 20px; animation: spin 2s linear infinite; display: none; margin-left: 10px; vertical-align: middle; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <h2>Project Cost Preview</h2>
+    <p>Enter the pricing for the models used in your project.</p>
+
+    <div id="model-container">
+      Loading models...
+    </div>
+
+    <div class="note">
+      * Note: Thinking and Candidate tokens are regarded as Input tokens for this cost calculation. Output prices entered below will not be used for these tokens.
+    </div>
+
+    <div style="margin-top: 20px;">
+      <button id="calc-btn" onclick="calculate()">Calculate Cost</button>
+      <div id="loader" class="loader"></div>
+    </div>
+
+    <div id="results" class="results">
+      <h3>Abstract Screening</h3>
+      <div class="result-row"><span class="result-label">Total Cost:</span><span id="abs-total" class="result-value">-</span></div>
+      <div class="result-row"><span class="result-label">Avg Cost/Paper:</span><span id="abs-avg" class="result-value">-</span></div>
+      <div class="result-row"><span class="result-label">Min Cost:</span><span id="abs-min" class="result-value">-</span></div>
+      <div class="result-row"><span class="result-label">Max Cost:</span><span id="abs-max" class="result-value">-</span></div>
+      <div class="result-row"><span class="result-label">Papers Processed:</span><span id="abs-count" class="result-value">-</span></div>
+
+      <h3>Full-Text Screening (Multi-Stage)</h3>
+      <div class="result-row"><span class="result-label">Total Cost:</span><span id="ft-total" class="result-value">-</span></div>
+      <div class="result-row"><span class="result-label">Avg Cost/Paper:</span><span id="ft-avg" class="result-value">-</span></div>
+      <div class="result-row"><span class="result-label">Min Cost:</span><span id="ft-min" class="result-value">-</span></div>
+      <div class="result-row"><span class="result-label">Max Cost:</span><span id="ft-max" class="result-value">-</span></div>
+      <div class="result-row"><span class="result-label">Papers Processed:</span><span id="ft-count" class="result-value">-</span></div>
+    </div>
+
+    <script>
+      let uniqueModels = [];
+
+      window.onload = function() {
+        google.script.run
+          .withSuccessHandler(renderModelTable)
+          .withFailureHandler(showError)
+          .getUniqueModels();
+      };
+
+      function renderModelTable(models) {
+        uniqueModels = models;
+        let html = '<table><thead><tr><th>Model</th><th>Input Price ($)</th><th>Per Tokens</th><th>Output Price ($)</th><th>Per Tokens</th></tr></thead><tbody>';
+
+        models.forEach(m => {
+          html += `<tr>
+            <td>${m}</td>
+            <td><input type="number" id="in-price-${m}" value="0.5" step="0.01"></td>
+            <td><input type="number" id="in-tokens-${m}" value="1000000"></td>
+            <td><input type="number" id="out-price-${m}" value="1.5" step="0.01"></td>
+            <td><input type="number" id="out-tokens-${m}" value="1000000"></td>
+          </tr>`;
+        });
+
+        html += '</tbody></table>';
+        document.getElementById('model-container').innerHTML = html;
+      }
+
+      function calculate() {
+        const btn = document.getElementById('calc-btn');
+        const loader = document.getElementById('loader');
+        const priceMap = {};
+
+        btn.disabled = true;
+        loader.style.display = 'inline-block';
+
+        uniqueModels.forEach(m => {
+          const inPrice = document.getElementById(`in-price-${m}`).value;
+          const inTokens = document.getElementById(`in-tokens-${m}`).value;
+          const outPrice = document.getElementById(`out-price-${m}`).value;
+          const outTokens = document.getElementById(`out-tokens-${m}`).value;
+
+          priceMap[m] = {
+            price: inPrice,
+            tokenCount: inTokens, // We map Input Price/Tokens here as primary for calculation
+            outputPrice: outPrice,
+            outputTokenCount: outTokens
+          };
+        });
+
+        google.script.run
+          .withSuccessHandler(showResults)
+          .withFailureHandler(showError)
+          .calculateProjectCosts(priceMap);
+      }
+
+      function showResults(data) {
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('calc-btn').disabled = false;
+        document.getElementById('results').style.display = 'block';
+
+        // Helper to format currency
+        const fmt = (num) => '$' + (parseFloat(num) || 0).toFixed(4);
+
+        // Abstract
+        document.getElementById('abs-total').textContent = fmt(data.abstract.total);
+        document.getElementById('abs-avg').textContent = fmt(data.abstract.avg);
+        document.getElementById('abs-min').textContent = fmt(data.abstract.min);
+        document.getElementById('abs-max').textContent = fmt(data.abstract.max);
+        document.getElementById('abs-count').textContent = data.abstract.count;
+
+        // Full Text
+        document.getElementById('ft-total').textContent = fmt(data.fulltext.total);
+        document.getElementById('ft-avg').textContent = fmt(data.fulltext.avg);
+        document.getElementById('ft-min').textContent = fmt(data.fulltext.min);
+        document.getElementById('ft-max').textContent = fmt(data.fulltext.max);
+        document.getElementById('ft-count').textContent = data.fulltext.count;
+      }
+
+      function showError(err) {
+        alert('Error: ' + err.message);
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('calc-btn').disabled = false;
+      }
+    </script>
+  </body>
+</html>
