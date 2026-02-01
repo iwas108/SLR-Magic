@@ -14,11 +14,10 @@
           border-bottom: 1px solid #eee;
       }
 
-      /* Split View Container */
-      .split-container {
+      .header-controls {
           display: flex;
-          gap: 15px;
-          height: 350px; /* Fixed height for scrollable areas */
+          gap: 10px;
+          align-items: center;
       }
 
       .human-view {
@@ -28,25 +27,7 @@
           border-radius: 5px;
           overflow-y: auto;
           background-color: #f9f9f9;
-      }
-
-      .ai-view {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-      }
-
-      .prompt {
-          flex: 1;
-          background-color: #f0f0f0;
-          padding: 10px;
-          border-radius: 5px;
-          white-space: pre-wrap;
-          font-family: monospace;
-          border: 1px solid #ccc;
-          overflow-y: auto;
-          font-size: 0.9em;
+          height: 350px;
       }
 
       .controls { border-top: 1px solid #eee; padding-top: 10px; }
@@ -58,7 +39,7 @@
       .nav-buttons { display: flex; gap: 10px; }
       .loading { text-align: center; margin-top: 50px; }
 
-      .copy-btn { font-size: 0.8em; padding: 4px 8px; align-self: flex-end; }
+      .copy-btn { font-size: 0.9em; padding: 6px 12px; }
       .finish-btn { background-color: #4CAF50; color: white; border: none; font-weight: bold; }
 
       .pdf-btn {
@@ -84,6 +65,7 @@
     <script>
       let allRows = [];
       let currentIndex = 0;
+      let currentPromptText = "";
 
       // Internal columns to hide
       const HIDDEN_COLUMNS = ["_rowIndex", "State"];
@@ -113,21 +95,15 @@
         app.innerHTML = `
           <div class="container">
             <div class="header-row">
-              <h3>Quality Check Assistant</h3>
+              <div class="header-controls">
+                <h3>Quality Check Assistant</h3>
+                <button onclick="copyPrompt()" class="copy-btn" id="btnCopy">Copy AI Prompt</button>
+              </div>
               <span id="pdfLinkContainer"></span>
             </div>
 
-            <div class="split-container">
-               <div class="human-view" id="humanDisplay">
+            <div class="human-view" id="humanDisplay">
                   <!-- Structured Data Goes Here -->
-               </div>
-               <div class="ai-view">
-                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                      <strong>AI Copy-Ready:</strong>
-                      <button onclick="copyPrompt()" class="copy-btn" id="btnCopy">Copy</button>
-                  </div>
-                  <div id="promptDisplay" class="prompt"></div>
-               </div>
             </div>
 
             <div class="controls">
@@ -195,12 +171,12 @@
           }
         }
 
-        document.getElementById('promptDisplay').textContent = copyText;
+        currentPromptText = copyText;
         document.getElementById('humanDisplay').innerHTML = humanHtml;
 
         // Reset Copy Button
         const btn = document.getElementById('btnCopy');
-        if(btn) btn.textContent = "Copy";
+        if(btn) btn.textContent = "Copy AI Prompt";
 
         // Reset Finish Button
         const btnFinish = document.getElementById('btnFinish');
@@ -338,14 +314,13 @@
       }
 
       function copyPrompt() {
-        const text = document.getElementById('promptDisplay').textContent;
-        navigator.clipboard.writeText(text).then(function() {
+        navigator.clipboard.writeText(currentPromptText).then(function() {
           const btn = document.getElementById('btnCopy');
           btn.textContent = "Copied!";
-          setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+          setTimeout(() => { btn.textContent = "Copy AI Prompt"; }, 2000);
         }, function(err) {
           console.error('Could not copy text: ', err);
-          fallbackCopy(text);
+          fallbackCopy(currentPromptText);
         });
       }
 
@@ -361,7 +336,7 @@
             document.execCommand('copy');
             const btn = document.getElementById('btnCopy');
             btn.textContent = "Copied!";
-            setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+            setTimeout(() => { btn.textContent = "Copy AI Prompt"; }, 2000);
           } catch (err) {
             console.error('Fallback: Oops, unable to copy', err);
           }
