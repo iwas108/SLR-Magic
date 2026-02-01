@@ -1,0 +1,12 @@
+Zotero_Linked_PDFs
+Zotero_Linked_PDFs\*
+zotero_chrome_profile
+zotero_chrome_profile\*
+*.csv
+chrome_profile
+temp_pdfs
+"Manual Download"
+*.json
+Downloaded_PDFs
+*.log
+database.csv
