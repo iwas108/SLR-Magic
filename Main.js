@@ -389,6 +389,13 @@ function saveQualityCheckConfig(config) {
 }
 
 /**
+ * Server-side handler for submitting setup and generating check list.
+ */
+function submitQualityCheckSetup(config) {
+  return QualityCheckController.submitQualityCheckSetup(config);
+}
+
+/**
  * Server-side handler for getting full-text screening columns.
  */
 function getFullTextScreeningColumns() {
