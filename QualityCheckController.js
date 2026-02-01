@@ -195,9 +195,6 @@ var QualityCheckController = (function() {
           return;
       }
 
-      // 8. Append Data
-      SheetUtils.appendDataMapped(targetSheet, newRows, targetHeaderMap);
-
       // 9. Append Data
       SheetUtils.appendDataMapped(targetSheet, newRows, targetHeaderMap);
 
