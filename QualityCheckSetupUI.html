@@ -112,8 +112,9 @@
            checkbox.value = col;
            checkbox.name = 'columnsToCopy';
 
-           // Mandatory PDF
-           if (col === 'PDF') {
+           // Mandatory Columns
+           const mandatory = ['PDF', 'AI_Recommendation', 'Exclusion_Reason', 'AI_Reasoning'];
+           if (mandatory.includes(col)) {
               checkbox.checked = true;
               checkbox.disabled = true; // Cannot uncheck
            } else if (['Title', 'Abstract', 'DOI_Link'].includes(col)) {
@@ -123,7 +124,7 @@
            label.appendChild(checkbox);
            label.appendChild(document.createTextNode(col));
 
-           if (col === 'PDF') {
+           if (mandatory.includes(col)) {
              const span = document.createElement('span');
              span.style.color = '#666';
              span.style.fontSize = '0.9em';
@@ -170,7 +171,7 @@
         }
 
         document.getElementById('saveBtn').disabled = true;
-        document.getElementById('saveBtn').textContent = "Saving...";
+        document.getElementById('saveBtn').textContent = "Generating...";
 
         const config = {
            decisionColumn: decision,
@@ -183,12 +184,12 @@
         google.script.run
           .withSuccessHandler(onSaveSuccess)
           .withFailureHandler(showError)
-          .saveQualityCheckConfig(config);
+          .submitQualityCheckSetup(config);
       }
 
       function onSaveSuccess() {
          document.getElementById('status').style.color = 'green';
-         document.getElementById('status').textContent = 'Configuration saved! You can close this dialog.';
+         document.getElementById('status').textContent = 'Generation Complete! You can close this dialog.';
          setTimeout(() => google.script.host.close(), 2000);
       }
 
