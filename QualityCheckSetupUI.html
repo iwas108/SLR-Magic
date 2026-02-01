@@ -111,14 +111,26 @@
            checkbox.type = 'checkbox';
            checkbox.value = col;
            checkbox.name = 'columnsToCopy';
-           // Default check commonly used columns if you want, or leave blank.
-           // Let's default check Title, Abstract, DOI if present
-           if (['Title', 'Abstract', 'DOI_Link', 'PDF'].includes(col)) {
-               checkbox.checked = true;
+
+           // Mandatory PDF
+           if (col === 'PDF') {
+              checkbox.checked = true;
+              checkbox.disabled = true; // Cannot uncheck
+           } else if (['Title', 'Abstract', 'DOI_Link'].includes(col)) {
+              checkbox.checked = true;
            }
 
            label.appendChild(checkbox);
            label.appendChild(document.createTextNode(col));
+
+           if (col === 'PDF') {
+             const span = document.createElement('span');
+             span.style.color = '#666';
+             span.style.fontSize = '0.9em';
+             span.innerText = ' (Mandatory)';
+             label.appendChild(span);
+           }
+
            columnsContainer.appendChild(label);
         });
 
