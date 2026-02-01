@@ -30,20 +30,42 @@ var QualityCheckController = (function() {
   }
 
   /**
-   * Main function to execute the Quality Check sampling process.
-   * Renamed from runQualityCheck to generateQualityCheck.
+   * Opens the Setup UI. This is now the entry point for Generation.
    */
   function generateQualityCheck() {
+    showQualityCheckSetupDialog();
+  }
+
+  /**
+   * Saves config and triggers generation immediately.
+   */
+  function submitQualityCheckSetup(config) {
+    try {
+      saveQualityCheckConfig(config);
+      return executeQualityCheckGeneration(config);
+    } catch (e) {
+      throw new Error("Setup failed: " + e.message);
+    }
+  }
+
+  /**
+   * Executes the sampling logic.
+   * @param {Object} [config] - Optional config object. If null, loads from props.
+   */
+  function executeQualityCheckGeneration(config) {
     console.log("[QualityCheck] Starting Human Quality Check sampling...");
 
     try {
       // 0. Check Configuration
-      const qcConfigProp = PropertiesService.getScriptProperties().getProperty("QC_COLUMN_MAPPING");
-      if (!qcConfigProp) {
-         showQualityCheckSetupDialog();
-         return;
+      let qcConfig = config;
+      if (!qcConfig) {
+          const qcConfigProp = PropertiesService.getScriptProperties().getProperty("QC_COLUMN_MAPPING");
+          if (!qcConfigProp) {
+             throw new Error("Configuration missing.");
+          }
+          qcConfig = JSON.parse(qcConfigProp);
       }
-      const qcConfig = JSON.parse(qcConfigProp);
+
       const decisionCol = qcConfig.decisionColumn;
 
       // Separate sampling percentages (default to 10% if missing)
@@ -52,10 +74,14 @@ var QualityCheckController = (function() {
 
       // User selected columns to copy (plus defaults)
       const userColumns = qcConfig.columnsToCopy || [];
-      // Ensure PDF is strictly included in userColumns list (if not already)
-      if (!userColumns.includes("PDF")) {
-          userColumns.push("PDF");
-      }
+
+      // Ensure Mandatory Columns
+      const mandatory = ["PDF", "AI_Recommendation", "Exclusion_Reason", "AI_Reasoning"];
+      mandatory.forEach(col => {
+         if (!userColumns.includes(col)) {
+             userColumns.push(col);
+         }
+      });
 
       // 1. Get Source Data
       const sourceSheetName = "02_fulltext_screening";
@@ -172,16 +198,23 @@ var QualityCheckController = (function() {
       // 8. Append Data
       SheetUtils.appendDataMapped(targetSheet, newRows, targetHeaderMap);
 
-      SheetUtils.alert(
-        `Quality Check Preparation Complete.\n\n` +
+      // 9. Append Data
+      SheetUtils.appendDataMapped(targetSheet, newRows, targetHeaderMap);
+
+      const msg = `Quality Check Preparation Complete.\n\n` +
         `Total Eligible: ${eligibleRows.length}\n` +
         `Sampled: ${finalSample.length} (${sampledInclude.length} Include, ${sampledExclude.length} Exclude)\n` +
-        `Added to Sheet: ${newRows.length}`
-      );
+        `Added to Sheet: ${newRows.length}`;
+
+      console.log(msg);
+      // We don't alert here because we are called from client side usually, which handles success.
+      // But for robustness if run manually, we can log.
+      return msg;
 
     } catch (e) {
       console.error(e);
-      SheetUtils.alert(`Error in Quality Check: ${e.message}`);
+      // Re-throw so the UI catches it
+      throw new Error(`Error in Quality Check: ${e.message}`);
     }
   }
 
@@ -479,6 +512,8 @@ var QualityCheckController = (function() {
 
   return {
     generateQualityCheck,
+    executeQualityCheckGeneration,
+    submitQualityCheckSetup,
     runQualityCheck,
     getQualityCheckData,
     saveQualityCheckRow,
