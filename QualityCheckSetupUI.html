@@ -113,11 +113,11 @@
            checkbox.name = 'columnsToCopy';
 
            // Mandatory Columns
-           const mandatory = ['PDF', 'AI_Recommendation', 'Exclusion_Reason', 'AI_Reasoning'];
+           const mandatory = ['Paper_ID', 'PDF', 'decision', 'exclusion_code', 'reasoning'];
            if (mandatory.includes(col)) {
               checkbox.checked = true;
               checkbox.disabled = true; // Cannot uncheck
-           } else if (['Title', 'Abstract', 'DOI_Link'].includes(col)) {
+           } else if (['Title', 'Abstract', 'qa_score'].includes(col)) {
               checkbox.checked = true;
            }
 
