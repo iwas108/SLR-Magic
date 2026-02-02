@@ -275,6 +275,28 @@ var QualityCheckController = (function() {
           return state == 0 || state === "" || state === undefined;
       });
 
+      // Attach Notes
+      if (sheet && rows.length > 0) {
+          const notes = sheet.getDataRange().getNotes();
+          const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+          rows.forEach(row => {
+             // _rowIndex is 1-based index in the sheet.
+             // notes array is 0-based. notes[0] is Row 1 (Header).
+             // row data is at notes[row._rowIndex - 1]
+             const rIdx = row._rowIndex - 1;
+
+             if (rIdx < notes.length) {
+                 row._notes = {};
+                 headers.forEach((h, cIdx) => {
+                     if (h && notes[rIdx][cIdx]) {
+                         row._notes[h.trim()] = notes[rIdx][cIdx];
+                     }
+                 });
+             }
+          });
+      }
+
       // Get Prompt Context (Fallback to manifest check if needed, but currently unused in UI heavily)
       // Since FULLTEXT_SCREENING_PROMPT is gone, we might return empty or new prompts.
       // For now returning empty string if not found.
