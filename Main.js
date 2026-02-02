@@ -16,6 +16,8 @@ function onOpen() {
     .addSeparator()
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
     .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
+    .addItem('Start AI Extended Miner', 'runExtendedMiner')
+    .addItem('Manage Background AI Extended Miner', 'manageExtendedMinerTrigger')
     .addSeparator()
     .addItem('Generate Quality Check List', 'generateQualityCheck')
     .addItem('Run Quality Check Assistant', 'runQualityCheck')
@@ -400,4 +402,18 @@ function submitQualityCheckSetup(config) {
  */
 function getFullTextScreeningColumns() {
   return FullTextScreeningController.getFullTextScreeningColumns();
+}
+
+/**
+ * Runs the Extended Miner.
+ */
+function runExtendedMiner() {
+  ExtendedMinerController.run();
+}
+
+/**
+ * Manages the background trigger for Extended Miner.
+ */
+function manageExtendedMinerTrigger() {
+  ExtendedMinerController.manageTrigger();
 }
