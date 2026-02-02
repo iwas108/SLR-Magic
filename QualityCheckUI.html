@@ -53,8 +53,9 @@
       }
       .pdf-btn:hover { background-color: #c53929; }
 
-      .key-label { font-weight: bold; color: #333; }
-      .val-text { margin-bottom: 8px; display: block; word-wrap: break-word; }
+      .data-item { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+      .key-label { font-weight: bold; color: #2c3e50; font-size: 1.05em; display: block; margin-bottom: 4px; }
+      .val-text { display: block; word-wrap: break-word; white-space: pre-wrap; color: #555; line-height: 1.4; }
     </style>
   </head>
   <body>
@@ -158,7 +159,10 @@
         let copyText = "";
         let humanHtml = "";
 
-        for (const [key, value] of Object.entries(row)) {
+        const keys = Object.keys(row).sort();
+        for (const key of keys) {
+          const value = row[key];
+
           if (HIDDEN_COLUMNS.includes(key)) continue;
           if (key.startsWith("HUMAN_QC_")) continue;
 
@@ -167,7 +171,7 @@
             copyText += `${key}: ${value}\n`;
 
             // Add to Human View
-            humanHtml += `<span class="key-label">${key}:</span><br><span class="val-text">${escapeHtml(value)}</span>`;
+            humanHtml += `<div class="data-item"><span class="key-label">${key}:</span><span class="val-text">${escapeHtml(value)}</span></div>`;
           }
         }
 
