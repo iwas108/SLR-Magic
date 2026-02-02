@@ -134,21 +134,27 @@ const SheetUtils = (function() {
    * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
    * @param {Array<Object>} dataObjects List of objects { "Paper_ID": "...", "Title": "..." }
    * @param {Object} headerMap Map of { "HeaderName": ColumnIndex }
+   * @param {Array<Object>} [notesObjects] Optional list of objects { "HeaderName": "Note" }
    */
-  function appendDataMapped(sheet, dataObjects, headerMap) {
+  function appendDataMapped(sheet, dataObjects, headerMap, notesObjects = null) {
     if (dataObjects.length === 0) return;
 
     const lastRow = sheet.getLastRow();
     const lastCol = sheet.getLastColumn();
 
     const numRows = dataObjects.length;
-    // Initialize empty 2D array
+    // Initialize empty 2D arrays
     const outputValues = [];
+    const outputNotes = notesObjects ? [] : null;
 
     for (let i = 0; i < numRows; i++) {
       const rowData = new Array(lastCol).fill(""); // Fill with empty strings
-      const obj = dataObjects[i];
+      const rowNotes = notesObjects ? new Array(lastCol).fill("") : null;
 
+      const obj = dataObjects[i];
+      const noteObj = notesObjects ? notesObjects[i] : null;
+
+      // Map Values
       for (const [key, value] of Object.entries(obj)) {
         const colIdx = headerMap[key];
         if (colIdx && colIdx <= lastCol) {
@@ -156,10 +162,26 @@ const SheetUtils = (function() {
         }
       }
       outputValues.push(rowData);
+
+      // Map Notes
+      if (notesObjects && noteObj) {
+        for (const [key, note] of Object.entries(noteObj)) {
+            const colIdx = headerMap[key];
+            if (colIdx && colIdx <= lastCol) {
+                rowNotes[colIdx - 1] = note;
+            }
+        }
+        outputNotes.push(rowNotes);
+      }
     }
 
     // Write to sheet
-    sheet.getRange(lastRow + 1, 1, numRows, lastCol).setValues(outputValues);
+    const targetRange = sheet.getRange(lastRow + 1, 1, numRows, lastCol);
+    targetRange.setValues(outputValues);
+
+    if (outputNotes) {
+        targetRange.setNotes(outputNotes);
+    }
   }
 
   /**
