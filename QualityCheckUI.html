@@ -194,7 +194,11 @@
 
           if (value !== null && value !== undefined && String(value).trim() !== "") {
             // Add to Copy Text
-            copyText += `${key}: ${value}\n`;
+            copyText += `${key}: ${value}`;
+            if (row._notes && row._notes[key]) {
+                copyText += ` - [Notes: ${row._notes[key]}]`;
+            }
+            copyText += `\n`;
 
             // Add to Human View
             humanHtml += `<div class="data-item">
