@@ -38,15 +38,15 @@ var DataCollectionController = (function() {
       // 1. Get Source Data
       const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
 
-      // 2. Filter "Include" papers (Human_Decision = Include)
+      // 2. Filter "Include" papers (decision = Include)
       // "The source of truth is 02_fulltext_screening. Sync Included paper."
       const includedRows = sourceData.filter(row => {
-          const humanDecision = String(row["Human_Decision"] || "").trim().toUpperCase();
-          return humanDecision === "INCLUDE";
+          const decision = String(row["decision"] || "").trim().toUpperCase();
+          return decision === "INCLUDE";
       });
 
       if (includedRows.length === 0) {
-          throw new Error("No papers found with Human_Decision = 'Include' in 02_fulltext_screening.");
+          throw new Error("No papers found with decision = 'Include' in 02_fulltext_screening.");
       }
 
       // 3. Prepare Destination Data
