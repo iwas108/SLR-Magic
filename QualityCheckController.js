@@ -93,7 +93,9 @@ var QualityCheckController = (function() {
       const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
       // Fetch source notes and headers for mapping
       const sourceNotes = sourceSheet.getDataRange().getNotes();
-      const sourceHeaders = sourceSheet.getRange(1, 1, 1, sourceSheet.getLastColumn()).getValues()[0];
+      const sourceHeadersRaw = sourceSheet.getRange(1, 1, 1, sourceSheet.getLastColumn()).getValues()[0];
+      // Normalize headers for robust matching (trim whitespace)
+      const sourceHeaders = sourceHeadersRaw.map(h => String(h).trim());
 
       console.log(`[QualityCheck] Source data loaded: ${sourceData.length} rows.`);
 
