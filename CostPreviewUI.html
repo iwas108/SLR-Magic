@@ -27,7 +27,7 @@
     <p>Enter the pricing for the models used in your project.</p>
 
     <div id="model-container">
-      Loading models...
+      Loading models and pricing...
     </div>
 
     <div class="note">
@@ -59,23 +59,37 @@
       let uniqueModels = [];
 
       window.onload = function() {
+        // 1. Get Models
         google.script.run
-          .withSuccessHandler(renderModelTable)
+          .withSuccessHandler(function(models) {
+              uniqueModels = models;
+              // 2. Get Pricing Defaults
+              google.script.run
+                .withSuccessHandler(renderModelTable)
+                .withFailureHandler(showError)
+                .parseModelPricing();
+          })
           .withFailureHandler(showError)
           .getUniqueModels();
       };
 
-      function renderModelTable(models) {
-        uniqueModels = models;
+      function renderModelTable(pricingMap) {
         let html = '<table><thead><tr><th>Model</th><th>Input Price ($)</th><th>Per Tokens</th><th>Output Price ($)</th><th>Per Tokens</th></tr></thead><tbody>';
 
-        models.forEach(m => {
+        uniqueModels.forEach(m => {
+          const def = pricingMap[m] || {
+             inputPrice: 0.5,
+             outputPrice: 1.5,
+             inputTokenCount: 1000000,
+             outputTokenCount: 1000000
+          };
+
           html += `<tr>
             <td>${m}</td>
-            <td><input type="number" id="in-price-${m}" value="0.5" step="0.01"></td>
-            <td><input type="number" id="in-tokens-${m}" value="1000000"></td>
-            <td><input type="number" id="out-price-${m}" value="1.5" step="0.01"></td>
-            <td><input type="number" id="out-tokens-${m}" value="1000000"></td>
+            <td><input type="number" id="in-price-${m}" value="${def.inputPrice}" step="any"></td>
+            <td><input type="number" id="in-tokens-${m}" value="${def.inputTokenCount}"></td>
+            <td><input type="number" id="out-price-${m}" value="${def.outputPrice}" step="any"></td>
+            <td><input type="number" id="out-tokens-${m}" value="${def.outputTokenCount}"></td>
           </tr>`;
         });
 
@@ -98,17 +112,27 @@
           const outTokens = document.getElementById(`out-tokens-${m}`).value;
 
           priceMap[m] = {
-            price: inPrice,
-            tokenCount: inTokens, // We map Input Price/Tokens here as primary for calculation
+            inputPrice: inPrice,
+            inputTokenCount: inTokens,
             outputPrice: outPrice,
-            outputTokenCount: outTokens
+            outputTokenCount: outTokens,
+            // Map to keys expected by calculation logic (legacy compat)
+            price: inPrice,
+            tokenCount: inTokens
           };
         });
 
+        // 1. Save Pricing
         google.script.run
-          .withSuccessHandler(showResults)
+          .withSuccessHandler(function() {
+             // 2. Calculate
+             google.script.run
+               .withSuccessHandler(showResults)
+               .withFailureHandler(showError)
+               .calculateProjectCosts(priceMap);
+          })
           .withFailureHandler(showError)
-          .calculateProjectCosts(priceMap);
+          .saveModelPricing(priceMap);
       }
 
       function showResults(data) {

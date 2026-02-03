@@ -16,7 +16,8 @@ var CostAnalysisController = (function() {
         config["ABSTRACT_SCREENING_MODEL"],
         config["THE_GATEKEEPER_MODEL"],
         config["THE_SCIENTIST_MODEL"],
-        config["THE_MINER_MODEL"]
+        config["THE_MINER_MODEL"],
+        config["THE_EXTENDED_MINER_MODEL"]
       ];
 
       // Filter distinct, non-empty values
@@ -29,8 +30,64 @@ var CostAnalysisController = (function() {
   }
 
   /**
+   * Parses the MODEL_PRICING CSV string from manifest.
+   * Format: ModelName,InputPrice,OutputPrice,PerCount
+   */
+  function parseModelPricing() {
+    try {
+      const config = SheetUtils.getConfigMap("00_manifest");
+      const pricingRaw = config["MODEL_PRICING"];
+
+      const pricingMap = {};
+
+      if (pricingRaw) {
+        // Split by newline
+        const lines = pricingRaw.split(/\r?\n/);
+        lines.forEach(line => {
+           const parts = line.split(',');
+           if (parts.length >= 4) {
+               const model = parts[0].trim();
+               pricingMap[model] = {
+                   inputPrice: parseFloat(parts[1]) || 0,
+                   outputPrice: parseFloat(parts[2]) || 0,
+                   inputTokenCount: parseFloat(parts[3]) || 1, // Usually same for both
+                   outputTokenCount: parseFloat(parts[3]) || 1
+               };
+           }
+        });
+      }
+      return pricingMap;
+    } catch (e) {
+      console.error("Error parsing model pricing: " + e.message);
+      return {};
+    }
+  }
+
+  /**
+   * Saves pricing data back to manifest.
+   * pricingData: Object { modelName: { inputPrice, outputPrice, count } }
+   */
+  function saveModelPricing(pricingData) {
+     try {
+       // Convert object to CSV string
+       let csvLines = [];
+       for (const [model, data] of Object.entries(pricingData)) {
+           // model, inputPrice, outputPrice, count
+           csvLines.push(`${model},${data.inputPrice},${data.outputPrice},${data.inputTokenCount}`);
+       }
+
+       const csvString = csvLines.join("\n");
+       SheetUtils.setConfigValue("MODEL_PRICING", csvString);
+       return "Pricing updated.";
+     } catch (e) {
+       console.error(e);
+       throw new Error("Failed to save pricing: " + e.message);
+     }
+  }
+
+  /**
    * Calculates the project costs based on provided model prices.
-   * @param {Object} priceMap Map of modelName -> { price, tokens } (e.g. { "gemini-pro": { price: 0.5, tokens: 1000000 } })
+   * @param {Object} priceMap Map of modelName -> { price, tokens }
    * @returns {Object} Cost analysis stats for Abstract and Full-Text screening.
    */
   function calculateProjectCosts(priceMap) {
@@ -38,15 +95,12 @@ var CostAnalysisController = (function() {
         const config = SheetUtils.getConfigMap("00_manifest");
 
         // Helper: Get price per token for a model
-        // Note: We treat Thinking & Candidate as Input as per instruction.
         const getRate = (modelName) => {
             if (!modelName) return 0;
             const entry = priceMap[modelName];
             if (!entry) return 0;
-            // Calculate rate: Price / TokenCount
-            // We use the INPUT price/count as requested
             const price = parseFloat(entry.price) || 0;
-            const count = parseFloat(entry.tokenCount) || 1; // Avoid division by zero
+            const count = parseFloat(entry.tokenCount) || 1;
             return price / count;
         };
 
@@ -54,11 +108,13 @@ var CostAnalysisController = (function() {
         const gkModel = config["THE_GATEKEEPER_MODEL"];
         const sciModel = config["THE_SCIENTIST_MODEL"];
         const minerModel = config["THE_MINER_MODEL"];
+        const extMinerModel = config["THE_EXTENDED_MINER_MODEL"];
 
         const absRate = getRate(absModel);
         const gkRate = getRate(gkModel);
         const sciRate = getRate(sciModel);
         const minerRate = getRate(minerModel);
+        const extMinerRate = getRate(extMinerModel);
 
         // --- Abstract Screening ---
         const absStats = { total: 0, min: Infinity, max: 0, avg: 0, count: 0 };
@@ -68,13 +124,11 @@ var CostAnalysisController = (function() {
         let absPaperCount = 0;
 
         absData.forEach(row => {
-            // Only consider processed rows for "Current Cost"
              if (row["AI_Status"] === "Done") {
                  const input = parseInt(row["Input_Token_Abstract_Screening"] || 0);
                  const thinking = parseInt(row["Thinking_Token_Abstract_Screening"] || 0);
                  const candidate = parseInt(row["Candidate_Token_Abstract_Screening"] || 0);
 
-                 // "thinking and candidate token is regarded as input"
                  const totalTokens = input + thinking + candidate;
                  const cost = totalTokens * absRate;
 
@@ -102,6 +156,8 @@ var CostAnalysisController = (function() {
         let ftPaperCount = 0;
 
         ftData.forEach(row => {
+             // For Extended Miner, status might be Done, or just Extended.
+             // We accumulate costs regardless of state if tokens exist, but usually we filter by Done.
              if (row["AI_Status"] === "Done") {
                  let rowCost = 0;
 
@@ -122,6 +178,12 @@ var CostAnalysisController = (function() {
                  const minerThink = parseInt(row["Thinking_Token_The_Miner"] || 0);
                  const minerCand = parseInt(row["Candidate_Token_The_Miner"] || 0);
                  rowCost += (minerInput + minerThink + minerCand) * minerRate;
+
+                 // Extended Miner
+                 const extInput = parseInt(row["Input_Token_The_Extended_Miner"] || 0);
+                 const extThink = parseInt(row["Thinking_Token_The_Extended_Miner"] || 0);
+                 const extCand = parseInt(row["Candidate_Token_The_Extended_Miner"] || 0);
+                 rowCost += (extInput + extThink + extCand) * extMinerRate;
 
                  ftTotalCost += rowCost;
                  ftPaperCount++;
@@ -164,7 +226,9 @@ var CostAnalysisController = (function() {
   return {
     getUniqueModels,
     calculateProjectCosts,
-    showCostPreviewDialog
+    showCostPreviewDialog,
+    parseModelPricing,
+    saveModelPricing
   };
 
 })();

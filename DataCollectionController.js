@@ -1,122 +1,88 @@
 /**
  * DataCollectionController.js
- * Handles extraction of JSON data from 'Raw' column into separate columns.
+ * Handles the logic for syncing Included papers to 04_data_collection.
  */
 
 var DataCollectionController = (function() {
 
   /**
-   * Processes rows in '04_data_collection' with State = 0.
-   * Extracts JSON from 'Raw' and populates columns.
+   * Shows the Data Collection Sync UI.
    */
   function run() {
+    const html = HtmlService.createHtmlOutputFromFile('DataCollectionSyncUI')
+      .setWidth(400)
+      .setHeight(500)
+      .setTitle('Sync to Data Collection');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Sync to Data Collection');
+  }
+
+  /**
+   * Gets headers from 02_fulltext_screening for selection.
+   */
+  function getDataCollectionColumns() {
+    const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+    const lastCol = sheet.getLastColumn();
+    if (lastCol === 0) return [];
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    return headers.filter(h => h && h.toString().trim() !== "");
+  }
+
+  /**
+   * Syncs selected columns for "Included" papers to 04_data_collection.
+   */
+  function syncDataCollection(selectedColumns) {
     try {
-      const sheet = SheetUtils.getSheetByName("04_data_collection");
-      const headerMap = SheetUtils.getHeaderMap(sheet);
-      const data = SheetUtils.getDataAsObjects(sheet);
+      const sourceSheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const destSheet = SheetUtils.getSheetByName("04_data_collection");
 
-      // Filter rows with State = 0 (handle number or string)
-      const rowsToProcess = data.filter(row => {
-        const state = row["State"];
-        return state == 0; // loose equality for 0 or "0"
+      // 1. Get Source Data
+      const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
+
+      // 2. Filter "Include" papers (Human_Decision = Include)
+      // "The source of truth is 02_fulltext_screening. Sync Included paper."
+      const includedRows = sourceData.filter(row => {
+          const humanDecision = String(row["Human_Decision"] || "").trim().toUpperCase();
+          return humanDecision === "INCLUDE";
       });
 
-      if (rowsToProcess.length === 0) {
-        SheetUtils.alert("No rows found with State = 0.");
-        return;
+      if (includedRows.length === 0) {
+          throw new Error("No papers found with Human_Decision = 'Include' in 02_fulltext_screening.");
       }
 
-      SheetUtils.toast(`Scanning ${rowsToProcess.length} rows for keys...`, "Data Collection", -1);
+      // 3. Prepare Destination Data
+      const finalColumns = ['Paper_ID', ...selectedColumns];
 
-      // 1. First Pass: Parse JSON and Collect Keys
-      const allKeys = new Set();
-      const validRows = []; // Stores { rowIndex, parsedData }
-      let errorCount = 0;
+      // Clear destination
+      destSheet.clear();
 
-      rowsToProcess.forEach(row => {
-        const rowIndex = row._rowIndex;
-        const rawJson = row["Raw"];
+      // Write Header
+      destSheet.getRange(1, 1, 1, finalColumns.length).setValues([finalColumns]);
 
-        if (!rawJson || rawJson.toString().trim() === "") {
-            console.warn(`Row ${rowIndex}: 'Raw' column is empty.`);
-            SheetUtils.updateRow(sheet, rowIndex, { "State": -1 }, headerMap);
-            errorCount++;
-            return;
-        }
-
-        try {
-            const parsedData = JSON.parse(rawJson);
-            validRows.push({ rowIndex: rowIndex, data: parsedData });
-
-            // Collect keys
-            Object.keys(parsedData).forEach(key => allKeys.add(key));
-        } catch (e) {
-            console.error(`Row ${rowIndex}: JSON Parse Error: ${e.message}`);
-            SheetUtils.updateRow(sheet, rowIndex, { "State": -1 }, headerMap);
-            try {
-                if (headerMap["State"]) {
-                    sheet.getRange(rowIndex, headerMap["State"]).setNote(`Error: ${e.message}`);
-                }
-            } catch(ign) {}
-            errorCount++;
-        }
+      // Map Data
+      const outputValues = includedRows.map(row => {
+          return finalColumns.map(col => {
+              // Handle Paper_ID specifically if needed, but it should be in row object
+              return row[col] || "";
+          });
       });
 
-      // 2. Ensure Columns Exist
-      if (allKeys.size > 0) {
-        SheetUtils.toast(`Ensuring columns for ${allKeys.size} keys...`, "Data Collection", -1);
-        allKeys.forEach(key => {
-            SheetUtils.ensureColumn(sheet, key, headerMap);
-        });
+      // Write Data
+      if (outputValues.length > 0) {
+          destSheet.getRange(2, 1, outputValues.length, finalColumns.length).setValues(outputValues);
       }
 
-      // 3. Second Pass: Write Data
-      SheetUtils.toast(`Writing data to ${validRows.length} rows...`, "Data Collection", -1);
-      let successCount = 0;
-
-      validRows.forEach(item => {
-          const rowIndex = item.rowIndex;
-          const parsedData = item.data;
-
-          try {
-              for (const key of Object.keys(parsedData)) {
-                  const dataObj = parsedData[key];
-                  if (dataObj && typeof dataObj === 'object') {
-                      const value = dataObj.value;
-                      const evidence = dataObj.evidence;
-                      const colIndex = headerMap[key]; // Should exist now
-
-                      if (colIndex) {
-                          const cell = sheet.getRange(rowIndex, colIndex);
-                          if (value !== undefined) {
-                              cell.setValue(value);
-                          }
-                          if (evidence !== undefined) {
-                              cell.setNote(evidence);
-                          }
-                      }
-                  }
-              }
-              // Success
-              SheetUtils.updateRow(sheet, rowIndex, { "State": 1 }, headerMap);
-              successCount++;
-          } catch (e) {
-              console.error(`Row ${rowIndex}: Write Error: ${e.message}`);
-              SheetUtils.updateRow(sheet, rowIndex, { "State": -1 }, headerMap);
-              errorCount++;
-          }
-      });
-
-      SheetUtils.alert(`Data Collection Process Complete.\nSuccess: ${successCount}\nFailures: ${errorCount}`);
+      return `Sync Complete.\nSynced ${outputValues.length} papers.\n\nPlease do not modify any value in the destination sheet (read only). Make modifications in the source sheet and sync again.`;
 
     } catch (e) {
       console.error(e);
-      SheetUtils.alert(`Error in Data Collection: ${e.message}`);
+      throw new Error(e.message);
     }
   }
 
   return {
-    run
+    run,
+    getDataCollectionColumns,
+    syncDataCollection
   };
 
 })();
