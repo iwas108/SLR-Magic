@@ -192,10 +192,13 @@
         for (const key of keys) {
           const value = row[key];
 
-          if (value !== null && value !== undefined && String(value).trim() !== "") {
+          const hasValue = (value !== null && value !== undefined && String(value).trim() !== "");
+          const hasNote = (row._notes && row._notes[key] && String(row._notes[key]).trim() !== "");
+
+          if (hasValue || hasNote) {
             // Add to Copy Text
-            copyText += `${key}: ${value}`;
-            if (row._notes && row._notes[key]) {
+            copyText += `${key}: ${hasValue ? value : ""}`;
+            if (hasNote) {
                 copyText += ` - [Notes: ${row._notes[key]}]`;
             }
             copyText += `\n`;
@@ -203,10 +206,10 @@
             // Add to Human View
             humanHtml += `<div class="data-item">
                 <span class="key-label">${key}:</span>
-                <span class="val-text">${escapeHtml(value)}</span>`;
+                <span class="val-text">${hasValue ? escapeHtml(value) : ""}</span>`;
 
             // Check for Note
-            if (row._notes && row._notes[key]) {
+            if (hasNote) {
                 humanHtml += `<div class="note-text">Note: ${escapeHtml(row._notes[key])}</div>`;
             }
 
