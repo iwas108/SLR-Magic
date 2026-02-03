@@ -56,6 +56,16 @@
       .data-item { margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
       .key-label { font-weight: bold; color: #2c3e50; font-size: 1.05em; display: block; margin-bottom: 4px; }
       .val-text { display: block; word-wrap: break-word; white-space: pre-wrap; color: #555; line-height: 1.4; }
+      .note-text {
+          display: block;
+          margin-top: 5px;
+          padding: 8px;
+          background-color: #fff8e1;
+          border-left: 3px solid #ffc107;
+          font-size: 0.9em;
+          color: #666;
+          white-space: pre-wrap;
+      }
     </style>
   </head>
   <body>
@@ -159,20 +169,51 @@
         let copyText = "";
         let humanHtml = "";
 
-        const keys = Object.keys(row).sort();
+        const PRIORITY_KEYS = ['Paper_ID', 'decision', 'exclusion_code', 'reasoning', 'Title', 'Abstract'];
+
+        const keys = Object.keys(row).filter(k =>
+            !HIDDEN_COLUMNS.includes(k) &&
+            !k.startsWith("HUMAN_QC_") &&
+            k !== "_notes"
+        );
+
+        // Sort: Priority Keys first, then A-Z
+        keys.sort((a, b) => {
+            const idxA = PRIORITY_KEYS.indexOf(a);
+            const idxB = PRIORITY_KEYS.indexOf(b);
+
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+
+            return a.localeCompare(b);
+        });
+
         for (const key of keys) {
           const value = row[key];
 
-          if (HIDDEN_COLUMNS.includes(key)) continue;
-          if (key.startsWith("HUMAN_QC_")) continue;
+          const hasValue = (value !== null && value !== undefined && String(value).trim() !== "");
+          const hasNote = (row._notes && row._notes[key] && String(row._notes[key]).trim() !== "");
 
-          if (value !== null && value !== undefined && String(value).trim() !== "") {
-            // Add to Copy Text
-            copyText += `${key}: ${value}\n`;
-
-            // Add to Human View
-            humanHtml += `<div class="data-item"><span class="key-label">${key}:</span><span class="val-text">${escapeHtml(value)}</span></div>`;
+          // Always display the field if it is not hidden
+          // Add to Copy Text
+          copyText += `${key}: ${hasValue ? value : ""}`;
+          if (hasNote) {
+            copyText += ` - [Notes: ${row._notes[key]}]`;
           }
+          copyText += `\n`;
+
+          // Add to Human View
+          humanHtml += `<div class="data-item">
+            <span class="key-label">${key}:</span>
+            <span class="val-text">${hasValue ? escapeHtml(value) : "<span style='color:#ccc; font-style:italic; font-size:0.9em;'>(empty)</span>"}</span>`;
+
+          // Check for Note
+          if (hasNote) {
+            humanHtml += `<div class="note-text">Note: ${escapeHtml(row._notes[key])}</div>`;
+          }
+
+          humanHtml += `</div>`;
         }
 
         currentPromptText = copyText;
