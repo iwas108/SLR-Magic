@@ -393,10 +393,10 @@ var QualityCheckController = (function() {
       const rows = SheetUtils.getDataAsObjects(sheet);
 
       // Filter rows where QC decision has been made
-      const qcRows = rows.filter(r =>
-        r["HUMAN_QC_Decision_Agree"] &&
-        String(r["HUMAN_QC_Decision_Agree"]).trim() !== ""
-      );
+      const qcRows = rows.filter(r => {
+        const val = r["HUMAN_QC_Decision_Agree"];
+        return val !== null && val !== undefined && String(val).trim() !== "";
+      });
 
       if (qcRows.length === 0) {
         SheetUtils.alert("No Quality Check data found (HUMAN_QC_Decision_Agree is empty).");
