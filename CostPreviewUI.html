@@ -47,7 +47,7 @@
       <div class="result-section">
           <div class="result-title">Title & Abstract Screening</div>
           <table class="data-table">
-              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th></tr></thead>
+              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
               <tbody>
                   <tr>
                       <td>Abstract Screening</td>
@@ -55,6 +55,9 @@
                       <td id="abs-avg">-</td>
                       <td id="abs-count">-</td>
                       <td id="abs-range">-</td>
+                      <td id="abs-input">-</td>
+                      <td id="abs-thinking">-</td>
+                      <td id="abs-candidate">-</td>
                   </tr>
               </tbody>
           </table>
@@ -63,7 +66,7 @@
       <div class="result-section">
           <div class="result-title">Full-Text Screening (Multi-Stage)</div>
           <table class="data-table">
-              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th></tr></thead>
+              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
               <tbody>
                   <tr>
                       <td>The Gatekeeper</td>
@@ -71,6 +74,9 @@
                       <td id="gk-avg">-</td>
                       <td id="gk-count">-</td>
                       <td id="gk-range">-</td>
+                      <td id="gk-input">-</td>
+                      <td id="gk-thinking">-</td>
+                      <td id="gk-candidate">-</td>
                   </tr>
                   <tr>
                       <td>The Scientist</td>
@@ -78,6 +84,9 @@
                       <td id="sci-avg">-</td>
                       <td id="sci-count">-</td>
                       <td id="sci-range">-</td>
+                      <td id="sci-input">-</td>
+                      <td id="sci-thinking">-</td>
+                      <td id="sci-candidate">-</td>
                   </tr>
                   <tr>
                       <td>The Miner</td>
@@ -85,6 +94,9 @@
                       <td id="miner-avg">-</td>
                       <td id="miner-count">-</td>
                       <td id="miner-range">-</td>
+                      <td id="miner-input">-</td>
+                      <td id="miner-thinking">-</td>
+                      <td id="miner-candidate">-</td>
                   </tr>
               </tbody>
           </table>
@@ -93,7 +105,7 @@
       <div class="result-section">
           <div class="result-title">Extended Screening</div>
           <table class="data-table">
-              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th></tr></thead>
+              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
               <tbody>
                   <tr>
                       <td>The Extended Miner</td>
@@ -101,6 +113,9 @@
                       <td id="ext-avg">-</td>
                       <td id="ext-count">-</td>
                       <td id="ext-range">-</td>
+                      <td id="ext-input">-</td>
+                      <td id="ext-thinking">-</td>
+                      <td id="ext-candidate">-</td>
                   </tr>
               </tbody>
           </table>
@@ -190,36 +205,53 @@
 
         const fmt = (num) => '$' + (parseFloat(num) || 0).toFixed(4);
         const range = (min, max) => fmt(min) + ' - ' + fmt(max);
+        // Format thousands
+        const num = (n) => (n || 0).toLocaleString();
 
         // Abstract
         document.getElementById('abs-total').textContent = fmt(data.abstract.total);
         document.getElementById('abs-avg').textContent = fmt(data.abstract.avg);
         document.getElementById('abs-count').textContent = data.abstract.count;
         document.getElementById('abs-range').textContent = range(data.abstract.min, data.abstract.max);
+        document.getElementById('abs-input').textContent = num(data.abstract.input);
+        document.getElementById('abs-thinking').textContent = num(data.abstract.thinking);
+        document.getElementById('abs-candidate').textContent = num(data.abstract.candidate);
 
         // Gatekeeper
         document.getElementById('gk-total').textContent = fmt(data.gatekeeper.total);
         document.getElementById('gk-avg').textContent = fmt(data.gatekeeper.avg);
         document.getElementById('gk-count').textContent = data.gatekeeper.count;
         document.getElementById('gk-range').textContent = range(data.gatekeeper.min, data.gatekeeper.max);
+        document.getElementById('gk-input').textContent = num(data.gatekeeper.input);
+        document.getElementById('gk-thinking').textContent = num(data.gatekeeper.thinking);
+        document.getElementById('gk-candidate').textContent = num(data.gatekeeper.candidate);
 
         // Scientist
         document.getElementById('sci-total').textContent = fmt(data.scientist.total);
         document.getElementById('sci-avg').textContent = fmt(data.scientist.avg);
         document.getElementById('sci-count').textContent = data.scientist.count;
         document.getElementById('sci-range').textContent = range(data.scientist.min, data.scientist.max);
+        document.getElementById('sci-input').textContent = num(data.scientist.input);
+        document.getElementById('sci-thinking').textContent = num(data.scientist.thinking);
+        document.getElementById('sci-candidate').textContent = num(data.scientist.candidate);
 
         // Miner
         document.getElementById('miner-total').textContent = fmt(data.miner.total);
         document.getElementById('miner-avg').textContent = fmt(data.miner.avg);
         document.getElementById('miner-count').textContent = data.miner.count;
         document.getElementById('miner-range').textContent = range(data.miner.min, data.miner.max);
+        document.getElementById('miner-input').textContent = num(data.miner.input);
+        document.getElementById('miner-thinking').textContent = num(data.miner.thinking);
+        document.getElementById('miner-candidate').textContent = num(data.miner.candidate);
 
         // Extended Miner
         document.getElementById('ext-total').textContent = fmt(data.extended_miner.total);
         document.getElementById('ext-avg').textContent = fmt(data.extended_miner.avg);
         document.getElementById('ext-count').textContent = data.extended_miner.count;
         document.getElementById('ext-range').textContent = range(data.extended_miner.min, data.extended_miner.max);
+        document.getElementById('ext-input').textContent = num(data.extended_miner.input);
+        document.getElementById('ext-thinking').textContent = num(data.extended_miner.thinking);
+        document.getElementById('ext-candidate').textContent = num(data.extended_miner.candidate);
       }
 
       function showError(err) {

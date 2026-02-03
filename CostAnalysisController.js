@@ -116,8 +116,20 @@ var CostAnalysisController = (function() {
         const minerRate = getRate(minerModel);
         const extMinerRate = getRate(extMinerModel);
 
+        // --- Stats Initialization ---
+        // Added: input, thinking, candidate counters
+        const initStats = () => ({
+            total: 0, min: Infinity, max: 0, avg: 0, count: 0,
+            input: 0, thinking: 0, candidate: 0
+        });
+
+        const absStats = initStats();
+        const gkStats = initStats();
+        const sciStats = initStats();
+        const minerStats = initStats();
+        const extStats = initStats();
+
         // --- Abstract Screening ---
-        const absStats = { total: 0, min: Infinity, max: 0, avg: 0, count: 0 };
         const absSheet = SheetUtils.getSheetByName("01_abstract_screening");
         const absData = SheetUtils.getDataAsObjects(absSheet);
 
@@ -132,6 +144,9 @@ var CostAnalysisController = (function() {
 
                  absStats.total += cost;
                  absStats.count++;
+                 absStats.input += input;
+                 absStats.thinking += thinking;
+                 absStats.candidate += candidate;
 
                  if (cost < absStats.min) absStats.min = cost;
                  if (cost > absStats.max) absStats.max = cost;
@@ -145,11 +160,6 @@ var CostAnalysisController = (function() {
         }
 
         // --- Full-Text & Extended Miner ---
-        const gkStats = { total: 0, min: Infinity, max: 0, avg: 0, count: 0 };
-        const sciStats = { total: 0, min: Infinity, max: 0, avg: 0, count: 0 };
-        const minerStats = { total: 0, min: Infinity, max: 0, avg: 0, count: 0 };
-        const extStats = { total: 0, min: Infinity, max: 0, avg: 0, count: 0 };
-
         const ftSheet = SheetUtils.getSheetByName("02_fulltext_screening");
         const ftData = SheetUtils.getDataAsObjects(ftSheet);
 
@@ -167,6 +177,10 @@ var CostAnalysisController = (function() {
                      const cost = gkSum * gkRate;
                      gkStats.total += cost;
                      gkStats.count++;
+                     gkStats.input += gkInput;
+                     gkStats.thinking += gkThink;
+                     gkStats.candidate += gkCand;
+
                      if (cost < gkStats.min) gkStats.min = cost;
                      if (cost > gkStats.max) gkStats.max = cost;
                  }
@@ -180,6 +194,10 @@ var CostAnalysisController = (function() {
                      const cost = sciSum * sciRate;
                      sciStats.total += cost;
                      sciStats.count++;
+                     sciStats.input += sciInput;
+                     sciStats.thinking += sciThink;
+                     sciStats.candidate += sciCand;
+
                      if (cost < sciStats.min) sciStats.min = cost;
                      if (cost > sciStats.max) sciStats.max = cost;
                  }
@@ -193,6 +211,10 @@ var CostAnalysisController = (function() {
                      const cost = minerSum * minerRate;
                      minerStats.total += cost;
                      minerStats.count++;
+                     minerStats.input += minerInput;
+                     minerStats.thinking += minerThink;
+                     minerStats.candidate += minerCand;
+
                      if (cost < minerStats.min) minerStats.min = cost;
                      if (cost > minerStats.max) minerStats.max = cost;
                  }
@@ -206,6 +228,10 @@ var CostAnalysisController = (function() {
                      const cost = extSum * extMinerRate;
                      extStats.total += cost;
                      extStats.count++;
+                     extStats.input += extInput;
+                     extStats.thinking += extThink;
+                     extStats.candidate += extCand;
+
                      if (cost < extStats.min) extStats.min = cost;
                      if (cost > extStats.max) extStats.max = cost;
                  }
