@@ -403,46 +403,87 @@ var QualityCheckController = (function() {
         return;
       }
 
-      // Use dynamic column for Include/Exclude
-      const includeRows = qcRows.filter(r => String(r[decisionCol]).trim().toUpperCase() === "INCLUDE");
-      const excludeRows = qcRows.filter(r => String(r[decisionCol]).trim().toUpperCase() === "EXCLUDE");
+      // Initialize Confusion Matrix Counters
+      let TP = 0, FP = 0, TN = 0, FN = 0;
 
-      const calculateStats = (dataRows) => {
-        if (dataRows.length === 0) {
-          return {
-            agreementRate: 0,
-            validityRate: 0,
-            extractionScore: 0,
-            count: 0
-          };
+      // Initialize Quality Metrics Counters
+      let validReasonCount = 0;
+      let criticalCorrectionCount = 0;
+      let totalExtractionScore = 0;
+      let extractionScoreCount = 0;
+
+      qcRows.forEach(r => {
+        const aiDecision = String(r[decisionCol]).trim().toUpperCase();
+
+        // Parse Human Agreement (Boolean-like)
+        const agreeVal = String(r["HUMAN_QC_Decision_Agree"]).trim().toUpperCase();
+        const isAgreed = (agreeVal === "YES" || agreeVal === "TRUE" || agreeVal === "AGREE");
+
+        // Confusion Matrix Logic
+        // Assumption: Binary Classification (Include vs Exclude)
+        if (aiDecision === "INCLUDE") {
+           if (isAgreed) {
+             TP++; // AI=Include, Human=Agree -> Human=Include (True Positive)
+           } else {
+             FP++; // AI=Include, Human=Disagree -> Human=Exclude (False Positive)
+           }
+        } else if (aiDecision === "EXCLUDE") {
+           if (isAgreed) {
+             TN++; // AI=Exclude, Human=Agree -> Human=Exclude (True Negative)
+           } else {
+             FN++; // AI=Exclude, Human=Disagree -> Human=Include (False Negative)
+           }
         }
 
-        const agreeCount = dataRows.filter(r => {
-          const val = String(r["HUMAN_QC_Decision_Agree"]).trim().toUpperCase();
-          return val === "YES" || val === "TRUE" || val === "AGREE";
-        }).length;
+        // Quality Metrics
+        // Reason Validity
+        const validVal = String(r["HUMAN_QC_Reason_Valid"]).trim().toUpperCase();
+        if (validVal === "YES" || validVal === "TRUE" || validVal === "VALID") {
+          validReasonCount++;
+        }
 
-        const validCount = dataRows.filter(r => {
-          const val = String(r["HUMAN_QC_Reason_Valid"]).trim().toUpperCase();
-          return val === "YES" || val === "TRUE" || val === "VALID";
-        }).length;
+        // Critical Correction
+        const criticalVal = String(r["HUMAN_QC_Critical_Correction"]).trim();
+        if (criticalVal !== "" && criticalVal.toUpperCase() !== "NO" && criticalVal.toUpperCase() !== "NONE") {
+          criticalCorrectionCount++;
+        }
 
-        const totalScore = dataRows.reduce((sum, r) => {
-          const val = parseFloat(r["HUMAN_QC_Data_Extraction_Score"]);
-          return sum + (isNaN(val) ? 0 : val);
-        }, 0);
+        // Extraction Score
+        const scoreVal = parseFloat(r["HUMAN_QC_Data_Extraction_Score"]);
+        if (!isNaN(scoreVal)) {
+          totalExtractionScore += scoreVal;
+          extractionScoreCount++;
+        }
+      });
 
-        return {
-          agreementRate: ((agreeCount / dataRows.length) * 100).toFixed(1),
-          validityRate: ((validCount / dataRows.length) * 100).toFixed(1),
-          extractionScore: (totalScore / dataRows.length).toFixed(2),
-          count: dataRows.length
-        };
-      };
+      // Calculate Derived Metrics
+      const total = TP + FP + TN + FN;
+      // Avoid division by zero
+      const safeDiv = (num, den) => (den === 0 ? 0 : num / den);
+
+      const sensitivity = safeDiv(TP, TP + FN);
+      const specificity = safeDiv(TN, TN + FP);
+      const precision = safeDiv(TP, TP + FP);
+      const npv = safeDiv(TN, TN + FN);
+      const f1 = safeDiv(2 * TP, 2 * TP + FP + FN);
+      const accuracy = safeDiv(TP + TN, total);
 
       const stats = {
-        include: calculateStats(includeRows),
-        exclude: calculateStats(excludeRows)
+        confusionMatrix: { TP, FP, TN, FN, total },
+        metrics: {
+          sensitivity: (sensitivity * 100).toFixed(1),
+          specificity: (specificity * 100).toFixed(1),
+          precision: (precision * 100).toFixed(1),
+          npv: (npv * 100).toFixed(1),
+          f1: f1.toFixed(3),
+          accuracy: (accuracy * 100).toFixed(1)
+        },
+        quality: {
+          reasonValidityRate: (safeDiv(validReasonCount, total) * 100).toFixed(1),
+          criticalCorrectionRate: (safeDiv(criticalCorrectionCount, total) * 100).toFixed(1),
+          avgExtractionScore: safeDiv(totalExtractionScore, extractionScoreCount).toFixed(2),
+          count: total
+        }
       };
 
       const template = HtmlService.createTemplateFromFile('QualityCheckScoreReport');
