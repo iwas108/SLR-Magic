@@ -17,50 +17,88 @@
       .btn-secondary:hover { background-color: #218838; }
       .btn:disabled { background-color: #ccc; cursor: not-allowed; }
       hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+
+      /* New Styles */
+      .matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      .matrix-table th, .matrix-table td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+      .matrix-table th { background-color: #f9f9f9; color: #555; }
+
+      .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+      .stat-item { background: #f9f9f9; padding: 10px; border-radius: 4px; text-align: center; }
+      .stat-item .stat-label { font-size: 0.85em; display: block; margin-bottom: 5px; }
+      .stat-item .stat-value { font-size: 1.2em; }
     </style>
   </head>
   <body>
     <h2>Quality Check Score</h2>
 
-    <!-- Include Section -->
+    <!-- Confusion Matrix Section -->
     <div class="container">
-      <div class="section-title">AI Recommendation: INCLUDE</div>
-      <div class="stat-row">
-        <span class="stat-label">Decision Agreement:</span>
-        <span class="stat-value"><?= data.include.agreementRate ?>%</span>
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Reason Validity:</span>
-        <span class="stat-value"><?= data.include.validityRate ?>%</span>
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Avg. Data Extraction Score:</span>
-        <span class="stat-value"><?= data.include.extractionScore ?></span>
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Sample Size:</span>
-        <span class="stat-value"><?= data.include.count ?></span>
+      <div class="section-title">Confusion Matrix (n=<?= data.confusionMatrix.total ?>)</div>
+      <table class="matrix-table">
+          <tr>
+              <th style="background:none; border:none;"></th>
+              <th>Human: Include</th>
+              <th>Human: Exclude</th>
+          </tr>
+          <tr>
+              <th>AI: Include</th>
+              <td><span style="color:green; font-weight:bold;">TP</span>: <?= data.confusionMatrix.TP ?></td>
+              <td><span style="color:red; font-weight:bold;">FP</span>: <?= data.confusionMatrix.FP ?></td>
+          </tr>
+          <tr>
+              <th>AI: Exclude</th>
+              <td><span style="color:red; font-weight:bold;">FN</span>: <?= data.confusionMatrix.FN ?></td>
+              <td><span style="color:green; font-weight:bold;">TN</span>: <?= data.confusionMatrix.TN ?></td>
+          </tr>
+      </table>
+    </div>
+
+    <!-- Model Performance Section -->
+    <div class="container">
+      <div class="section-title">Model Validation Metrics</div>
+      <div class="stat-grid">
+          <div class="stat-item">
+              <div class="stat-label">Accuracy</div>
+              <div class="stat-value"><?= data.metrics.accuracy ?>%</div>
+          </div>
+          <div class="stat-item">
+              <div class="stat-label">F1 Score</div>
+              <div class="stat-value"><?= data.metrics.f1 ?></div>
+          </div>
+          <div class="stat-item">
+              <div class="stat-label">Sensitivity (Recall)</div>
+              <div class="stat-value"><?= data.metrics.sensitivity ?>%</div>
+          </div>
+          <div class="stat-item">
+              <div class="stat-label">Specificity</div>
+              <div class="stat-value"><?= data.metrics.specificity ?>%</div>
+          </div>
+          <div class="stat-item">
+              <div class="stat-label">Precision</div>
+              <div class="stat-value"><?= data.metrics.precision ?>%</div>
+          </div>
+          <div class="stat-item">
+              <div class="stat-label">NPV</div>
+              <div class="stat-value"><?= data.metrics.npv ?>%</div>
+          </div>
       </div>
     </div>
 
-    <!-- Exclude Section -->
+    <!-- Quality Assurance Section -->
     <div class="container">
-      <div class="section-title">AI Recommendation: EXCLUDE</div>
+      <div class="section-title">Quality Assurance</div>
       <div class="stat-row">
-        <span class="stat-label">Decision Agreement:</span>
-        <span class="stat-value"><?= data.exclude.agreementRate ?>%</span>
+        <span class="stat-label">Reasoning Validity Rate:</span>
+        <span class="stat-value"><?= data.quality.reasonValidityRate ?>%</span>
       </div>
       <div class="stat-row">
-        <span class="stat-label">Reason Validity:</span>
-        <span class="stat-value"><?= data.exclude.validityRate ?>%</span>
+        <span class="stat-label">Critical Correction Rate:</span>
+        <span class="stat-value"><?= data.quality.criticalCorrectionRate ?>%</span>
       </div>
       <div class="stat-row">
         <span class="stat-label">Avg. Data Extraction Score:</span>
-        <span class="stat-value"><?= data.exclude.extractionScore ?></span>
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Sample Size:</span>
-        <span class="stat-value"><?= data.exclude.count ?></span>
+        <span class="stat-value"><?= data.quality.avgExtractionScore ?> / 5</span>
       </div>
     </div>
 
