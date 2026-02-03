@@ -195,26 +195,25 @@
           const hasValue = (value !== null && value !== undefined && String(value).trim() !== "");
           const hasNote = (row._notes && row._notes[key] && String(row._notes[key]).trim() !== "");
 
-          if (hasValue || hasNote) {
-            // Add to Copy Text
-            copyText += `${key}: ${hasValue ? value : ""}`;
-            if (hasNote) {
-                copyText += ` - [Notes: ${row._notes[key]}]`;
-            }
-            copyText += `\n`;
-
-            // Add to Human View
-            humanHtml += `<div class="data-item">
-                <span class="key-label">${key}:</span>
-                <span class="val-text">${hasValue ? escapeHtml(value) : ""}</span>`;
-
-            // Check for Note
-            if (hasNote) {
-                humanHtml += `<div class="note-text">Note: ${escapeHtml(row._notes[key])}</div>`;
-            }
-
-            humanHtml += `</div>`;
+          // Always display the field if it is not hidden
+          // Add to Copy Text
+          copyText += `${key}: ${hasValue ? value : ""}`;
+          if (hasNote) {
+            copyText += ` - [Notes: ${row._notes[key]}]`;
           }
+          copyText += `\n`;
+
+          // Add to Human View
+          humanHtml += `<div class="data-item">
+            <span class="key-label">${key}:</span>
+            <span class="val-text">${hasValue ? escapeHtml(value) : "<span style='color:#ccc; font-style:italic; font-size:0.9em;'>(empty)</span>"}</span>`;
+
+          // Check for Note
+          if (hasNote) {
+            humanHtml += `<div class="note-text">Note: ${escapeHtml(row._notes[key])}</div>`;
+          }
+
+          humanHtml += `</div>`;
         }
 
         currentPromptText = copyText;
