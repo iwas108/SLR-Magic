@@ -204,7 +204,12 @@ const SheetUtils = (function() {
 
       headers.forEach((header, colIndex) => {
         if (header) {
-          obj[header.trim()] = row[colIndex];
+          const key = header.trim();
+          const val = row[colIndex];
+          // Prioritize non-empty values if duplicate headers exist
+          if (obj[key] === undefined || (val !== "" && val !== null && val !== undefined)) {
+            obj[key] = val;
+          }
         }
       });
       data.push(obj);
