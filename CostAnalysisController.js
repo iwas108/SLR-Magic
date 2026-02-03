@@ -94,14 +94,23 @@ var CostAnalysisController = (function() {
     try {
         const config = SheetUtils.getConfigMap("00_manifest");
 
-        // Helper: Get price per token for a model
-        const getRate = (modelName) => {
-            if (!modelName) return 0;
+        // Helper: Get input/output rates for a model
+        const getRates = (modelName) => {
+            if (!modelName) return { input: 0, output: 0 };
             const entry = priceMap[modelName];
-            if (!entry) return 0;
-            const price = parseFloat(entry.price) || 0;
-            const count = parseFloat(entry.tokenCount) || 1;
-            return price / count;
+            if (!entry) return { input: 0, output: 0 };
+
+            // Prefer explicit input/output fields, fallback to generic price for input if missing (legacy safety)
+            const inPrice = parseFloat(entry.inputPrice) !== undefined ? parseFloat(entry.inputPrice) : (parseFloat(entry.price) || 0);
+            const outPrice = parseFloat(entry.outputPrice) || 0;
+
+            const inCount = parseFloat(entry.inputTokenCount) || (parseFloat(entry.tokenCount) || 1);
+            const outCount = parseFloat(entry.outputTokenCount) || (parseFloat(entry.tokenCount) || 1);
+
+            return {
+                input: inPrice / inCount,
+                output: outPrice / outCount
+            };
         };
 
         const absModel = config["ABSTRACT_SCREENING_MODEL"];
@@ -110,14 +119,13 @@ var CostAnalysisController = (function() {
         const minerModel = config["THE_MINER_MODEL"];
         const extMinerModel = config["THE_EXTENDED_MINER_MODEL"];
 
-        const absRate = getRate(absModel);
-        const gkRate = getRate(gkModel);
-        const sciRate = getRate(sciModel);
-        const minerRate = getRate(minerModel);
-        const extMinerRate = getRate(extMinerModel);
+        const absRates = getRates(absModel);
+        const gkRates = getRates(gkModel);
+        const sciRates = getRates(sciModel);
+        const minerRates = getRates(minerModel);
+        const extRates = getRates(extMinerModel);
 
         // --- Stats Initialization ---
-        // Added: input, thinking, candidate counters
         const initStats = () => ({
             total: 0, min: Infinity, max: 0, avg: 0, count: 0,
             input: 0, thinking: 0, candidate: 0
@@ -139,8 +147,8 @@ var CostAnalysisController = (function() {
                  const thinking = parseInt(row["Thinking_Token_Abstract_Screening"] || 0);
                  const candidate = parseInt(row["Candidate_Token_Abstract_Screening"] || 0);
 
-                 const totalTokens = input + thinking + candidate;
-                 const cost = totalTokens * absRate;
+                 // Input cost + Output cost (thinking + candidate)
+                 const cost = (input * absRates.input) + ((thinking + candidate) * absRates.output);
 
                  absStats.total += cost;
                  absStats.count++;
@@ -164,17 +172,15 @@ var CostAnalysisController = (function() {
         const ftData = SheetUtils.getDataAsObjects(ftSheet);
 
         ftData.forEach(row => {
-             // Process independently if tokens exist (regardless of AI_Status for flexibility, or strictly "Done")
-             // Using "AI_Status" == "Done" is safer for "Paper Processed" count
              if (row["AI_Status"] === "Done") {
 
                  // Gatekeeper
                  const gkInput = parseInt(row["Input_Token_The_Gatekeeper"] || 0);
                  const gkThink = parseInt(row["Thinking_Token_The_Gatekeeper"] || 0);
                  const gkCand = parseInt(row["Candidate_Token_The_Gatekeeper"] || 0);
-                 const gkSum = gkInput + gkThink + gkCand;
-                 if (gkSum > 0) {
-                     const cost = gkSum * gkRate;
+
+                 if (gkInput + gkThink + gkCand > 0) {
+                     const cost = (gkInput * gkRates.input) + ((gkThink + gkCand) * gkRates.output);
                      gkStats.total += cost;
                      gkStats.count++;
                      gkStats.input += gkInput;
@@ -189,9 +195,9 @@ var CostAnalysisController = (function() {
                  const sciInput = parseInt(row["Input_Token_The_Scientist"] || 0);
                  const sciThink = parseInt(row["Thinking_Token_The_Scientist"] || 0);
                  const sciCand = parseInt(row["Candidate_Token_The_Scientist"] || 0);
-                 const sciSum = sciInput + sciThink + sciCand;
-                 if (sciSum > 0) {
-                     const cost = sciSum * sciRate;
+
+                 if (sciInput + sciThink + sciCand > 0) {
+                     const cost = (sciInput * sciRates.input) + ((sciThink + sciCand) * sciRates.output);
                      sciStats.total += cost;
                      sciStats.count++;
                      sciStats.input += sciInput;
@@ -206,9 +212,9 @@ var CostAnalysisController = (function() {
                  const minerInput = parseInt(row["Input_Token_The_Miner"] || 0);
                  const minerThink = parseInt(row["Thinking_Token_The_Miner"] || 0);
                  const minerCand = parseInt(row["Candidate_Token_The_Miner"] || 0);
-                 const minerSum = minerInput + minerThink + minerCand;
-                 if (minerSum > 0) {
-                     const cost = minerSum * minerRate;
+
+                 if (minerInput + minerThink + minerCand > 0) {
+                     const cost = (minerInput * minerRates.input) + ((minerThink + minerCand) * minerRates.output);
                      minerStats.total += cost;
                      minerStats.count++;
                      minerStats.input += minerInput;
@@ -223,9 +229,9 @@ var CostAnalysisController = (function() {
                  const extInput = parseInt(row["Input_Token_The_Extended_Miner"] || 0);
                  const extThink = parseInt(row["Thinking_Token_The_Extended_Miner"] || 0);
                  const extCand = parseInt(row["Candidate_Token_The_Extended_Miner"] || 0);
-                 const extSum = extInput + extThink + extCand;
-                 if (extSum > 0) {
-                     const cost = extSum * extMinerRate;
+
+                 if (extInput + extThink + extCand > 0) {
+                     const cost = (extInput * extRates.input) + ((extThink + extCand) * extRates.output);
                      extStats.total += cost;
                      extStats.count++;
                      extStats.input += extInput;
