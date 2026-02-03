@@ -91,6 +91,12 @@ var QualityCheckController = (function() {
         return;
       }
       const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
+      // Fetch source notes and headers for mapping
+      const sourceNotes = sourceSheet.getDataRange().getNotes();
+      const sourceHeadersRaw = sourceSheet.getRange(1, 1, 1, sourceSheet.getLastColumn()).getValues()[0];
+      // Normalize headers for robust matching (trim whitespace)
+      const sourceHeaders = sourceHeadersRaw.map(h => String(h).trim());
+
       console.log(`[QualityCheck] Source data loaded: ${sourceData.length} rows.`);
 
       // 2. Filter Eligible Rows
@@ -171,22 +177,47 @@ var QualityCheckController = (function() {
       const existingTargetData = SheetUtils.getDataAsObjects(targetSheet);
       const existingIds = new Set(existingTargetData.map(r => r["Paper_ID"]));
 
-      const newRows = finalSample
-        .filter(r => !existingIds.has(r["Paper_ID"]))
-        .map(sourceRow => {
-           // Construct new row object with only desired columns + State: 0
-           const newRow = {
-               "Paper_ID": sourceRow["Paper_ID"],
-               "State": 0
-           };
-           // Copy user columns
-           userColumns.forEach(col => {
-               if (sourceRow.hasOwnProperty(col)) {
-                   newRow[col] = sourceRow[col];
-               }
-           });
-           return newRow;
-        });
+      const newRows = [];
+      const newNotes = [];
+
+      finalSample.forEach(sourceRow => {
+         if (existingIds.has(sourceRow["Paper_ID"])) return;
+
+         // Construct new row object with only desired columns + State: 0
+         const newRow = {
+             "Paper_ID": sourceRow["Paper_ID"],
+             "State": 0
+         };
+
+         // Helper to get note for a column from source
+         // sourceRow._rowIndex is 1-based index
+         // sourceNotes[0] is Row 1 (Header)
+         // So data for row N is at sourceNotes[N-1]
+         const rIdx = sourceRow._rowIndex - 1;
+         const sourceRowNotes = (rIdx < sourceNotes.length) ? sourceNotes[rIdx] : null;
+
+         const newRowNote = {};
+
+         // Copy user columns
+         userColumns.forEach(col => {
+             // Copy Value
+             if (sourceRow.hasOwnProperty(col)) {
+                 newRow[col] = sourceRow[col];
+             }
+
+             // Copy Note
+             // Find column index in source header
+             if (sourceRowNotes) {
+                 const colIndex = sourceHeaders.indexOf(col);
+                 if (colIndex !== -1 && sourceRowNotes[colIndex]) {
+                     newRowNote[col] = sourceRowNotes[colIndex];
+                 }
+             }
+         });
+
+         newRows.push(newRow);
+         newNotes.push(newRowNote);
+      });
 
       console.log(`[QualityCheck] New unique rows to add: ${newRows.length}`);
 
@@ -197,7 +228,7 @@ var QualityCheckController = (function() {
 
       // 9. Append Data
       console.log(`[QualityCheck] Appending ${newRows.length} rows to target sheet...`);
-      SheetUtils.appendDataMapped(targetSheet, newRows, targetHeaderMap);
+      SheetUtils.appendDataMapped(targetSheet, newRows, targetHeaderMap, newNotes);
       console.log(`[QualityCheck] Append complete.`);
 
       const msg = `Quality Check Preparation Complete.\n\n` +
@@ -274,6 +305,28 @@ var QualityCheckController = (function() {
           const state = r["State"];
           return state == 0 || state === "" || state === undefined;
       });
+
+      // Attach Notes
+      if (sheet && rows.length > 0) {
+          const notes = sheet.getDataRange().getNotes();
+          const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+          rows.forEach(row => {
+             // _rowIndex is 1-based index in the sheet.
+             // notes array is 0-based. notes[0] is Row 1 (Header).
+             // row data is at notes[row._rowIndex - 1]
+             const rIdx = row._rowIndex - 1;
+
+             if (rIdx < notes.length) {
+                 row._notes = {};
+                 headers.forEach((h, cIdx) => {
+                     if (h && notes[rIdx][cIdx]) {
+                         row._notes[h.trim()] = notes[rIdx][cIdx];
+                     }
+                 });
+             }
+          });
+      }
 
       // Get Prompt Context (Fallback to manifest check if needed, but currently unused in UI heavily)
       // Since FULLTEXT_SCREENING_PROMPT is gone, we might return empty or new prompts.
