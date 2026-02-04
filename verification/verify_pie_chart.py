@@ -61,6 +61,10 @@ def test_pie_chart_ui():
         print("Waiting for Step 2...")
         page.wait_for_selector("#step-2:not(.hidden)")
 
+        # NEW: Check the "Enable Detailed Labels" checkbox
+        print("Enabling Detailed Labels...")
+        page.check("#enable-label")
+
         # Click Generate
         print("Clicking Generate...")
         page.click("button.btn-primary:has-text('Generate Chart')")
@@ -77,7 +81,7 @@ def test_pie_chart_ui():
         page.wait_for_timeout(1000)
 
         # Take screenshot
-        output_path = f"{cwd}/verification/pie_chart_verification.png"
+        output_path = f"{cwd}/verification/pie_chart_labels_verification.png"
         page.screenshot(path=output_path)
         print(f"Screenshot saved to {output_path}")
 
