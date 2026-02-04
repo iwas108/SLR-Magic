@@ -389,11 +389,12 @@
     function downloadSVG() {
       if (!lastChartData) return;
 
-      // Create a hidden container with same dimensions
+      // Create a hidden container with wider dimensions to prevent clipping
       const mainContainer = document.getElementById('chart-container');
+      const extraWidth = 300; // Extra space for labels on the right
       const div = document.createElement('div');
       div.style.visibility = 'hidden';
-      div.style.width = mainContainer.clientWidth + 'px';
+      div.style.width = (mainContainer.clientWidth + extraWidth) + 'px';
       div.style.height = mainContainer.clientHeight + 'px';
       div.style.position = 'absolute';
       div.style.top = '0';
