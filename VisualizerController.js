@@ -368,14 +368,165 @@ var VisualizerController = (function() {
     return { xAxisData, series };
   }
 
+  /**
+   * Opens the Stack Bar Chart settings/visualizer dialog.
+   */
+  function openBarStackSettings() {
+    const html = HtmlService.createHtmlOutputFromFile('VisualizerStackBarUI')
+      .setWidth(1000)
+      .setHeight(800)
+      .setTitle('Stack Bar Chart Visualizer');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Stack Bar Chart Visualizer');
+  }
+
+  /**
+   * Processes data for the Stack Bar Chart.
+   * @param {Object} config - { xAxisColumn, stackColumn, separator, stackMode, topN }
+   */
+  function processBarStackData(config) {
+    try {
+      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const data = SheetUtils.getDataAsObjects(sheet);
+
+      return prepareStackBarData(data, config);
+    } catch (e) {
+      console.error(e);
+      throw new Error("Error processing Stack Bar Chart data: " + e.message);
+    }
+  }
+
+  /**
+   * Pure function to prepare stack bar chart data.
+   */
+  function prepareStackBarData(rows, config) {
+    if (!rows || rows.length === 0 || !config || !config.xAxisColumn || !config.stackColumn) {
+      return { xAxisData: [], series: [] };
+    }
+
+    const { xAxisColumn, stackColumn, separator, stackMode, topN } = config;
+
+    // Map<XValue, Map<StackValue, Count>>
+    const matrix = new Map();
+    // Global counts for stack values to find Top N
+    const stackGlobalCounts = new Map();
+
+    // 1. Process Data
+    rows.forEach(row => {
+        // X-Axis
+        let xVal = row[xAxisColumn];
+        if (xVal === null || xVal === undefined) xVal = "(Empty)";
+        else xVal = String(xVal).trim();
+        if (xVal === "") xVal = "(Empty)";
+
+        // Stack Value
+        let rawStack = row[stackColumn];
+        let stackVals = [];
+        if (rawStack === null || rawStack === undefined) {
+             stackVals = ["(Empty)"];
+        } else {
+             const str = String(rawStack).trim();
+             if (str === "") {
+                 stackVals = ["(Empty)"];
+             } else if (separator && separator.trim() !== "") {
+                 stackVals = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                 if (stackVals.length === 0) stackVals = ["(Empty)"];
+             } else {
+                 stackVals = [str];
+             }
+        }
+
+        if (!matrix.has(xVal)) {
+            matrix.set(xVal, new Map());
+        }
+        const xMap = matrix.get(xVal);
+
+        stackVals.forEach(val => {
+            // Update Matrix
+            xMap.set(val, (xMap.get(val) || 0) + 1);
+            // Update Global
+            stackGlobalCounts.set(val, (stackGlobalCounts.get(val) || 0) + 1);
+        });
+    });
+
+    // 2. Identify Top N Stack Categories
+    const sortedStackCats = Array.from(stackGlobalCounts.entries())
+        .sort((a, b) => b[1] - a[1]);
+
+    const topStackCats = new Set();
+    const limit = topN || 10;
+    sortedStackCats.slice(0, limit).forEach(entry => topStackCats.add(entry[0]));
+
+    // 3. Re-aggregate with "Other"
+    // Map<XValue, Map<StackCategory, Count>>
+    const finalMatrix = new Map();
+    const allXValues = Array.from(matrix.keys()).sort(); // Sort X-Axis
+
+    allXValues.forEach(xVal => {
+        finalMatrix.set(xVal, new Map());
+        const sourceMap = matrix.get(xVal);
+        const targetMap = finalMatrix.get(xVal);
+
+        sourceMap.forEach((count, stackVal) => {
+            const finalKey = topStackCats.has(stackVal) ? stackVal : "Other";
+            targetMap.set(finalKey, (targetMap.get(finalKey) || 0) + count);
+        });
+    });
+
+    // 4. Build Series
+    const finalStackCats = Array.from(topStackCats);
+    // Add "Other" if it exists in any X
+    let hasOther = false;
+    for (const xMap of finalMatrix.values()) {
+        if (xMap.has("Other")) {
+            hasOther = true;
+            break;
+        }
+    }
+    if (hasOther) finalStackCats.push("Other");
+
+    const seriesData = [];
+    finalStackCats.forEach(cat => {
+        const dataPoints = [];
+        allXValues.forEach(xVal => {
+            const count = finalMatrix.get(xVal).get(cat) || 0;
+            dataPoints.push(count);
+        });
+        seriesData.push({ name: cat, data: dataPoints });
+    });
+
+    // 5. Handle Percentage Mode
+    if (stackMode === 'Percent') {
+        // Calculate totals per X
+        const totals = allXValues.map((_, i) => {
+            let sum = 0;
+            seriesData.forEach(series => {
+                sum += series.data[i];
+            });
+            return sum;
+        });
+
+        // Normalize
+        seriesData.forEach(series => {
+            series.data = series.data.map((val, i) => {
+                const total = totals[i];
+                return total === 0 ? 0 : val / total;
+            });
+        });
+    }
+
+    return { xAxisData: allXValues, series: seriesData };
+  }
+
   return {
     openSankeySettings,
     openPieChartSettings,
     openBarChartSettings,
+    openBarStackSettings,
     getDataCollectionColumns,
     processSankeyData,
     processPieChartData,
-    processBarChartData
+    processBarChartData,
+    processBarStackData
   };
 
 })();
