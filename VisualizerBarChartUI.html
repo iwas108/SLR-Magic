@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    body { font-family: 'Roboto', sans-serif; padding: 20px; background-color: #f5f5f5; color: #333; }
+    h2 { color: #202124; margin-top: 0; }
+    h3 { font-size: 16px; margin-bottom: 8px; color: #202124; }
+    p { color: #5f6368; }
+    .step-container { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); margin-bottom: 20px; }
+    .hidden { display: none; }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; margin-right: 10px; font-size: 14px; transition: background 0.2s; }
+    .btn-primary { background-color: #1a73e8; color: white; }
+    .btn-primary:hover { background-color: #1765cc; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); }
+    .btn-secondary { background-color: #fff; color: #1a73e8; border: 1px solid #dadce0; }
+    .btn-secondary:hover { background-color: #f8f9fa; color: #174ea6; border-color: #dadce0; }
+
+    /* Selection lists */
+    .selection-container { display: flex; gap: 20px; }
+    .selection-col { flex: 1; }
+    .checkbox-list { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 300px; overflow-y: auto; padding: 4px; border: 1px solid #dadce0; border-radius: 4px; }
+    .checkbox-item { display: flex; align-items: center; }
+    .checkbox-item input { margin-right: 8px; }
+
+    /* Config list */
+    .config-list { margin: 20px 0; border: 1px solid #dadce0; border-radius: 4px; }
+    .config-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #dadce0; background: #fff; }
+    .config-item:last-child { border-bottom: none; }
+    .config-name { flex: 1; font-weight: 500; font-size: 14px; }
+    .config-controls { display: flex; align-items: center; gap: 12px; }
+
+    /* Chart */
+    #chart-container { width: 100%; height: 600px; margin-top: 20px; border: 1px solid #eee; background-color: white; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+  </style>
+</head>
+<body>
+
+  <!-- Step 1: Select Columns -->
+  <div id="step-1" class="step-container">
+    <h2>Step 1: Select Data</h2>
+    <p>Select one column for the X-Axis (Categories) and one or more columns for the Series (Values).</p>
+
+    <div class="selection-container">
+        <div class="selection-col">
+            <h3>X-Axis (Category)</h3>
+            <div id="xaxis-list" class="checkbox-list">
+                <div>Loading columns...</div>
+            </div>
+        </div>
+        <div class="selection-col">
+            <h3>Series (Values)</h3>
+            <div id="series-list" class="checkbox-list">
+                <div>Loading columns...</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: right; margin-top: 20px;">
+      <button class="btn btn-primary" onclick="goToStep2()">Next: Configure</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Configure -->
+  <div id="step-2" class="step-container hidden">
+    <h2>Step 2: Configure</h2>
+    <p>Customize your Bar Chart settings.</p>
+
+    <div style="margin-bottom: 15px;">
+        <label for="chart-title" style="display: block; font-weight: 500; margin-bottom: 5px;">Chart Title</label>
+        <input type="text" id="chart-title" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="Enter chart title">
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 8px;">
+            <input type="checkbox" id="show-minmax" style="margin-right: 8px;">
+            <span style="font-weight: 500;">Show Min/Max Markers</span>
+        </label>
+        <p style="font-size: 12px; margin: 0 0 0 24px; color: #5f6368;">Highlights the maximum and minimum values in each series.</p>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 8px;">
+            <input type="checkbox" id="show-average" style="margin-right: 8px;">
+            <span style="font-weight: 500;">Show Average Line</span>
+        </label>
+        <p style="font-size: 12px; margin: 0 0 0 24px; color: #5f6368;">Draws a line representing the average value for each series.</p>
+    </div>
+
+    <div style="text-align: right; margin-top: 20px;">
+      <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
+      <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Visualization -->
+  <div id="step-3" class="step-container hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="margin: 0;">Bar Chart</h2>
+        <div>
+            <button class="btn btn-secondary" onclick="goToStep2()">Back to Config</button>
+            <button class="btn btn-secondary" onclick="toggleFullscreen()">Fullscreen</button>
+            <button class="btn btn-secondary" onclick="downloadChart('svg')">Download SVG</button>
+            <button class="btn btn-primary" onclick="downloadChart('png')">Download PNG</button>
+        </div>
+    </div>
+    <div id="chart-container"></div>
+  </div>
+
+  <script>
+    let availableColumns = [];
+    let xAxisColumn = null;
+    let seriesColumns = [];
+    let chartTitle = "";
+    let chartInstance = null;
+    let lastChartData = null;
+
+    // Initialize
+    window.onload = function() {
+      // Mock for development if needed
+      if (typeof google === 'undefined') {
+         setTimeout(() => renderColumnSelection(["Paper ID", "Year", "Citations", "Score"]), 500);
+         return;
+      }
+
+      google.script.run
+        .withSuccessHandler(renderColumnSelection)
+        .withFailureHandler(showError)
+        .getVisualizerColumns();
+    };
+
+    function showError(err) {
+      const container = document.getElementById('step-1');
+      container.innerHTML = `<div style="color: #d93025;">Error: ${err.message}</div>`;
+    }
+
+    // Step 1 Logic
+    function renderColumnSelection(columns) {
+      availableColumns = columns;
+      const xContainer = document.getElementById('xaxis-list');
+      const seriesContainer = document.getElementById('series-list');
+      xContainer.innerHTML = '';
+      seriesContainer.innerHTML = '';
+
+      if (!columns || columns.length === 0) {
+        xContainer.innerHTML = '<div>No columns found.</div>';
+        return;
+      }
+
+      columns.forEach(col => {
+        // X-Axis (Radio)
+        const xDiv = document.createElement('div');
+        xDiv.className = 'checkbox-item';
+
+        const xLabel = document.createElement('label');
+        xLabel.style.cssText = "cursor: pointer; display: flex; align-items: center; width: 100%;";
+
+        const xInput = document.createElement('input');
+        xInput.type = "radio";
+        xInput.name = "xaxisSelection";
+        xInput.value = col;
+        if (xAxisColumn === col) xInput.checked = true;
+
+        const xSpan = document.createElement('span');
+        xSpan.textContent = col;
+
+        xLabel.appendChild(xInput);
+        xLabel.appendChild(xSpan);
+        xDiv.appendChild(xLabel);
+        xContainer.appendChild(xDiv);
+
+        // Series (Checkbox)
+        const sDiv = document.createElement('div');
+        sDiv.className = 'checkbox-item';
+
+        const sLabel = document.createElement('label');
+        sLabel.style.cssText = "cursor: pointer; display: flex; align-items: center; width: 100%;";
+
+        const sInput = document.createElement('input');
+        sInput.type = "checkbox";
+        sInput.name = "seriesSelection";
+        sInput.value = col;
+        if (seriesColumns.includes(col)) sInput.checked = true;
+
+        const sSpan = document.createElement('span');
+        sSpan.textContent = col;
+
+        sLabel.appendChild(sInput);
+        sLabel.appendChild(sSpan);
+        sDiv.appendChild(sLabel);
+        seriesContainer.appendChild(sDiv);
+      });
+    }
+
+    function goToStep2() {
+      const xSelected = document.querySelector('input[name="xaxisSelection"]:checked');
+      if (!xSelected) {
+        alert("Please select an X-Axis column.");
+        return;
+      }
+      xAxisColumn = xSelected.value;
+
+      const sSelected = document.querySelectorAll('input[name="seriesSelection"]:checked');
+      if (sSelected.length === 0) {
+        alert("Please select at least one Series column.");
+        return;
+      }
+      seriesColumns = Array.from(sSelected).map(cb => cb.value);
+
+      // Auto-generate title
+      if (!chartTitle) {
+          document.getElementById('chart-title').value = `${seriesColumns.join(', ')} by ${xAxisColumn}`;
+      }
+
+      document.getElementById('step-1').classList.add('hidden');
+      document.getElementById('step-2').classList.remove('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
+    function goToStep1() {
+      chartTitle = document.getElementById('chart-title').value;
+      renderColumnSelection(availableColumns); // Re-render to restore state if needed
+
+      document.getElementById('step-1').classList.remove('hidden');
+      document.getElementById('step-2').classList.add('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
+    // Step 3 Logic
+    function generateChart() {
+       chartTitle = document.getElementById('chart-title').value;
+       const showMinMax = document.getElementById('show-minmax').checked;
+       const showAverage = document.getElementById('show-average').checked;
+
+       document.getElementById('step-1').classList.add('hidden');
+       document.getElementById('step-2').classList.add('hidden');
+       document.getElementById('step-3').classList.remove('hidden');
+
+       const container = document.getElementById('chart-container');
+       container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
+
+       google.script.run
+         .withSuccessHandler(data => renderChart(data, showMinMax, showAverage))
+         .withFailureHandler(err => {
+            container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
+            console.error(err);
+         })
+         .generateBarChartData({ xAxisColumn: xAxisColumn, seriesColumns: seriesColumns });
+    }
+
+    function renderChart(data, showMinMax, showAverage) {
+       lastChartData = { data, showMinMax, showAverage };
+
+       const container = document.getElementById('chart-container');
+       container.innerHTML = '';
+
+       if (!data.series || data.series.length === 0) {
+           container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">No data found to visualize.</div>';
+           return;
+       }
+
+       if (chartInstance) {
+         chartInstance.dispose();
+       }
+
+       chartInstance = echarts.init(container);
+       const option = getChartOption(data, showMinMax, showAverage);
+       chartInstance.setOption(option);
+
+       window.addEventListener('resize', function() {
+           chartInstance.resize();
+       });
+       document.addEventListener('fullscreenchange', function() {
+           chartInstance.resize();
+       });
+    }
+
+    function toggleFullscreen() {
+        const container = document.getElementById('chart-container');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen().catch(err => {
+                alert(`Error: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function getChartOption(data, showMinMax, showAverage) {
+      // Build series with user options
+      const formattedSeries = data.series.map(s => {
+          const seriesObj = {
+              name: s.name,
+              type: 'bar',
+              data: s.data
+          };
+
+          if (showMinMax) {
+              seriesObj.markPoint = {
+                  data: [
+                      { type: 'max', name: 'Max' },
+                      { type: 'min', name: 'Min' }
+                  ]
+              };
+          }
+
+          if (showAverage) {
+              seriesObj.markLine = {
+                  data: [{ type: 'average', name: 'Avg' }]
+              };
+          }
+
+          return seriesObj;
+      });
+
+      return {
+          title: {
+              text: chartTitle || 'Bar Chart',
+              left: 'center',
+              top: 10
+          },
+          tooltip: {
+              trigger: 'axis'
+          },
+          legend: {
+              data: data.series.map(s => s.name),
+              top: 40
+          },
+          toolbox: {
+              show: true,
+              feature: {
+                  dataView: { show: true, readOnly: false },
+                  magicType: { show: true, type: ['line', 'bar'] },
+                  restore: { show: true },
+                  saveAsImage: { show: true }
+              },
+              right: 20
+          },
+          calculable: true,
+          xAxis: [
+              {
+                  type: 'category',
+                  data: data.xAxisData,
+                  axisLabel: {
+                      interval: 0,
+                      rotate: 30 // Rotate labels to avoid overlap
+                  }
+              }
+          ],
+          yAxis: [
+              {
+                  type: 'value'
+              }
+          ],
+          grid: {
+              containLabel: true,
+              bottom: 60 // Space for rotated labels
+          },
+          series: formattedSeries
+      };
+    }
+
+    function downloadChart(type) {
+       const safeTitle = (chartTitle || 'BarChart').replace(/[^a-z0-9]/gi, '_');
+       const filename = `${safeTitle}.${type}`;
+
+       if (type === 'svg') {
+         downloadSVG(filename);
+       } else {
+         if (!chartInstance) return;
+         const url = chartInstance.getDataURL({
+             type: type,
+             pixelRatio: 2,
+             backgroundColor: '#fff'
+         });
+         triggerDownload(url, filename);
+       }
+    }
+
+    function downloadSVG(filename) {
+      if (!lastChartData) return;
+
+      const container = document.getElementById('chart-container');
+      const fixedHeight = container.clientHeight || 600;
+      const fixedWidth = container.clientWidth || 1000;
+
+      const div = document.createElement('div');
+      div.style.visibility = 'hidden';
+      div.style.width = fixedWidth + 'px';
+      div.style.height = fixedHeight + 'px';
+      div.style.position = 'absolute';
+      div.style.top = '0';
+      div.style.left = '0';
+      document.body.appendChild(div);
+
+      const tempChart = echarts.init(div, null, { renderer: 'svg' });
+      tempChart.setOption(getChartOption(lastChartData.data, lastChartData.showMinMax, lastChartData.showAverage));
+
+      const url = tempChart.getDataURL({
+        type: 'svg',
+        backgroundColor: '#fff'
+      });
+
+      triggerDownload(url, filename);
+
+      tempChart.dispose();
+      document.body.removeChild(div);
+    }
+
+    function triggerDownload(url, filename) {
+       const link = document.createElement('a');
+       link.download = filename;
+       link.href = url;
+       document.body.appendChild(link);
+       link.click();
+       document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
