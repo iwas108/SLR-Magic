@@ -79,6 +79,19 @@
     </div>
 
     <div style="margin-bottom: 15px;">
+        <label for="aggregation-type" style="display: block; font-weight: 500; margin-bottom: 5px;">Aggregation Method</label>
+        <select id="aggregation-type" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="None">None (Plot raw rows)</option>
+            <option value="Count">Count (Frequency)</option>
+            <option value="Sum">Sum</option>
+            <option value="Average">Average</option>
+            <option value="Min">Min</option>
+            <option value="Max">Max</option>
+        </select>
+        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">Use <b>Count</b> for non-numeric series. Other methods (Sum, Avg, etc.) group data by X-Axis.</p>
+    </div>
+
+    <div style="margin-bottom: 15px;">
         <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 8px;">
             <input type="checkbox" id="show-minmax" style="margin-right: 8px;">
             <span style="font-weight: 500;">Show Min/Max Markers</span>
@@ -236,6 +249,7 @@
     // Step 3 Logic
     function generateChart() {
        chartTitle = document.getElementById('chart-title').value;
+       const aggregationType = document.getElementById('aggregation-type').value;
        const showMinMax = document.getElementById('show-minmax').checked;
        const showAverage = document.getElementById('show-average').checked;
 
@@ -252,7 +266,11 @@
             container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
             console.error(err);
          })
-         .generateBarChartData({ xAxisColumn: xAxisColumn, seriesColumns: seriesColumns });
+         .generateBarChartData({
+             xAxisColumn: xAxisColumn,
+             seriesColumns: seriesColumns,
+             aggregationType: aggregationType
+         });
     }
 
     function renderChart(data, showMinMax, showAverage) {
