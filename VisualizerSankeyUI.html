@@ -385,8 +385,12 @@
     }
 
     function downloadChart(type) {
+       // Sanitize filename from title
+       const safeTitle = (chartTitle || 'SankeyDiagram').replace(/[^a-z0-9]/gi, '_');
+       const filename = `${safeTitle}.${type}`;
+
        if (type === 'svg') {
-         downloadSVG();
+         downloadSVG(filename);
        } else {
          if (!chartInstance) return;
          // Force white background for download
@@ -395,20 +399,52 @@
              pixelRatio: 2,
              backgroundColor: '#fff'
          });
-         triggerDownload(url, type);
+         triggerDownload(url, filename);
        }
     }
 
-    function downloadSVG() {
+    function measureMaxLabelWidth(nodes) {
+        if (!nodes || nodes.length === 0) return 0;
+
+        // Create a temp canvas context to measure text
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        // ECharts default font usually sans-serif 12px
+        context.font = '12px sans-serif';
+
+        let maxWidth = 0;
+        nodes.forEach(node => {
+            // Node name might have the ::: suffix if not stripped, but our data has full keys?
+            // Wait, data.nodes has { name: "Key:::Value" }. The formatter strips it.
+            // We must measure the DISPLAYED text.
+            let labelText = node.name;
+            if (labelText && labelText.includes(':::')) {
+                labelText = labelText.split(':::')[1];
+            }
+            const width = context.measureText(labelText).width;
+            if (width > maxWidth) maxWidth = width;
+        });
+
+        return maxWidth;
+    }
+
+    function downloadSVG(filename) {
       if (!lastChartData) return;
 
-      // Use a fixed wide layout strategy to ensure labels fit and graph is not squeezed
-      const fixedWidth = 2500;
+      // Calculate dynamic right padding based on longest label
+      const maxLabelWidth = measureMaxLabelWidth(lastChartData.nodes);
+      // Add generous buffer (e.g. 60px)
+      const dynamicRightPadding = Math.ceil(maxLabelWidth + 60);
+
+      // Define a reasonable graph body width (not too wide, not too narrow)
+      const graphBodyWidth = 1200;
+      // Total container width
+      const totalWidth = graphBodyWidth + dynamicRightPadding + 20; // 20 is left margin
       const fixedHeight = document.getElementById('chart-container').clientHeight || 800;
 
       const div = document.createElement('div');
       div.style.visibility = 'hidden';
-      div.style.width = fixedWidth + 'px';
+      div.style.width = totalWidth + 'px';
       div.style.height = fixedHeight + 'px';
       div.style.position = 'absolute';
       div.style.top = '0';
@@ -418,14 +454,11 @@
       // Initialize with SVG renderer
       const tempChart = echarts.init(div, null, { renderer: 'svg' });
 
-      // Get options and apply wide layout settings
+      // Get options and apply dynamic layout settings
       const option = getChartOption(lastChartData);
       if (option.series && option.series.length > 0) {
-          // Set a fixed safe margin on the right for labels (e.g., 500px)
-          // The rest of the width (2500 - 20 - 500 = ~1980px) is used for the graph body.
-          // This expands the graph horizontally compared to the screen view.
-          option.series[0].right = 500;
-
+          // Set right margin to the calculated width to fit labels
+          option.series[0].right = dynamicRightPadding;
           // Ensure left margin is standard
           option.series[0].left = 20;
       }
@@ -439,16 +472,16 @@
         backgroundColor: '#fff'
       });
 
-      triggerDownload(url, 'svg');
+      triggerDownload(url, filename);
 
       // Cleanup
       tempChart.dispose();
       document.body.removeChild(div);
     }
 
-    function triggerDownload(url, ext) {
+    function triggerDownload(url, filename) {
        const link = document.createElement('a');
-       link.download = `SankeyDiagram.${ext}`;
+       link.download = filename;
        link.href = url;
        document.body.appendChild(link);
        link.click();
