@@ -46,11 +46,15 @@
         .getDataCollectionColumns();
     };
 
-    function populateColumns(columns) {
+    function populateColumns(data) {
       const container = document.getElementById('columnsContainer');
       container.innerHTML = '';
 
-      if (!columns || columns.length === 0) {
+      // Backward compatibility if data is just array
+      const sourceColumns = Array.isArray(data) ? data : (data.source || []);
+      const destColumns = Array.isArray(data) ? [] : (data.destination || []);
+
+      if (!sourceColumns || sourceColumns.length === 0) {
         container.innerHTML = 'No columns found.';
         return;
       }
@@ -62,16 +66,24 @@
       container.appendChild(selectAllDiv);
       container.appendChild(document.createElement('hr'));
 
-      // Default columns to check (Commonly useful ones)
-      const defaultChecked = ['Title', 'Abstract', 'Year', 'Authors', 'DOI_Link', 'Source_DB', 'PDF', 'decision'];
+      // Default columns to check
+      let columnsToCheck = ['Title', 'Abstract', 'Year', 'Authors', 'DOI_Link', 'Source_DB', 'PDF', 'decision'];
 
-      columns.forEach(col => {
+      // If destination has columns (other than just Paper_ID), use those instead
+      if (destColumns.length > 0) {
+        const existingFiltered = destColumns.filter(c => c !== 'Paper_ID');
+        if (existingFiltered.length > 0) {
+          columnsToCheck = destColumns;
+        }
+      }
+
+      sourceColumns.forEach(col => {
         // Skip Paper_ID (mandatory)
         if (col !== 'Paper_ID') {
           const div = document.createElement('div');
           div.className = 'checkbox-item';
 
-          const isChecked = defaultChecked.includes(col) ? 'checked' : '';
+          const isChecked = columnsToCheck.includes(col) ? 'checked' : '';
           const escapedVal = String(col).replace(/"/g, '&quot;');
 
           div.innerHTML = `<input type="checkbox" name="syncColumn" value="${escapedVal}" ${isChecked}> <label style="display:inline; font-weight:normal"></label>`;
