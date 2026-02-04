@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    body { font-family: 'Roboto', sans-serif; padding: 20px; background-color: #f5f5f5; color: #333; }
+    h2 { color: #202124; margin-top: 0; }
+    h3 { font-size: 16px; margin-bottom: 8px; color: #202124; }
+    p { color: #5f6368; }
+    .step-container { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); margin-bottom: 20px; }
+    .hidden { display: none; }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; margin-right: 10px; font-size: 14px; transition: background 0.2s; }
+    .btn-primary { background-color: #1a73e8; color: white; }
+    .btn-primary:hover { background-color: #1765cc; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); }
+    .btn-secondary { background-color: #fff; color: #1a73e8; border: 1px solid #dadce0; }
+    .btn-secondary:hover { background-color: #f8f9fa; color: #174ea6; border-color: #dadce0; }
+
+    /* Selection lists */
+    .selection-container { display: flex; gap: 20px; }
+    .selection-col { flex: 1; }
+    .checkbox-list { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 300px; overflow-y: auto; padding: 4px; border: 1px solid #dadce0; border-radius: 4px; }
+    .checkbox-item { display: flex; align-items: center; }
+    .checkbox-item input { margin-right: 8px; }
+
+    /* Chart */
+    #chart-container { width: 100%; height: 600px; margin-top: 20px; border: 1px solid #eee; background-color: white; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+  </style>
+</head>
+<body>
+
+  <!-- Step 1: Select Columns -->
+  <div id="step-1" class="step-container">
+    <h2>Step 1: Select Data</h2>
+    <p>Select the columns to define the Radar Chart dimensions and series.</p>
+
+    <div class="selection-container">
+        <div class="selection-col">
+            <h3>Series Column (Group/Shape)</h3>
+            <p style="font-size: 12px; margin-top:0;">Determines the different polygons (e.g. Year, Paper ID).</p>
+            <div id="series-list" class="checkbox-list">
+                <div>Loading columns...</div>
+            </div>
+        </div>
+        <div class="selection-col">
+            <h3>Indicator Column (Axes)</h3>
+            <p style="font-size: 12px; margin-top:0;">Determines the axes (spokes) of the chart (e.g. Keywords, Topics).</p>
+            <div id="indicator-list" class="checkbox-list">
+                <div>Loading columns...</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: right; margin-top: 20px;">
+      <button class="btn btn-primary" onclick="goToStep2()">Next: Configure</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Configure -->
+  <div id="step-2" class="step-container hidden">
+    <h2>Step 2: Configure</h2>
+    <p>Customize your Radar Chart data preparation and appearance.</p>
+
+    <div style="margin-bottom: 15px;">
+        <label for="chart-title" style="display: block; font-weight: 500; margin-bottom: 5px;">Chart Title</label>
+        <input type="text" id="chart-title" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="Enter chart title">
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="separator" style="display: block; font-weight: 500; margin-bottom: 5px;">Indicator Separator</label>
+        <input type="text" id="separator" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="e.g. , (Leave empty if single value)">
+        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">If the Indicator Column contains multiple values (e.g. "AI, ML"), specify the separator here.</p>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="value-column" style="display: block; font-weight: 500; margin-bottom: 5px;">Value Column (Optional)</label>
+        <select id="value-column" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="">(None - Use Frequency Count)</option>
+        </select>
+        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">
+            Select a numeric column to aggregate. If "None", the chart counts the occurrences of each Indicator.
+        </p>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="aggregation-mode" style="display: block; font-weight: 500; margin-bottom: 5px;">Aggregation Mode</label>
+        <select id="aggregation-mode" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="Count">Count (Frequency)</option>
+            <option value="Sum">Sum</option>
+            <option value="Average">Average</option>
+        </select>
+        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">How to combine values when multiple rows match the same Series and Indicator.</p>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="top-n" style="display: block; font-weight: 500; margin-bottom: 5px;">Limit Indicators (Top N)</label>
+        <input type="number" id="top-n" min="3" max="50" value="6" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;">
+        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">Limit the number of axes to the top N most frequent items.</p>
+    </div>
+
+    <div style="text-align: right; margin-top: 20px;">
+      <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
+      <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Visualization -->
+  <div id="step-3" class="step-container hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="margin: 0;">Radar Chart</h2>
+        <div>
+            <button class="btn btn-secondary" onclick="goToStep2()">Back to Config</button>
+            <button class="btn btn-secondary" onclick="toggleFullscreen()">Fullscreen</button>
+            <button class="btn btn-secondary" onclick="downloadChart('svg')">Download SVG</button>
+            <button class="btn btn-primary" onclick="downloadChart('png')">Download PNG</button>
+        </div>
+    </div>
+    <div id="chart-container"></div>
+  </div>
+
+  <script>
+    let availableColumns = [];
+    let seriesColumn = null;
+    let indicatorColumn = null;
+    let chartTitle = "";
+    let chartInstance = null;
+    let lastChartData = null;
+    let lastConfig = null;
+
+    // Initialize
+    window.onload = function() {
+      // Mock for development
+      if (typeof google === 'undefined') {
+        window.google = {
+          script: {
+            run: {
+              withSuccessHandler: function(success) {
+                this.success = success;
+                return this;
+              },
+              withFailureHandler: function(failure) {
+                this.failure = failure;
+                return this;
+              },
+              getVisualizerColumns: function() {
+                setTimeout(() => {
+                  if(this.success) this.success(["Paper ID", "Year", "Decision", "Keywords", "Relevance_Score", "Novelty_Score"]);
+                }, 500);
+              },
+              generateRadarChartData: function(config) {
+                 setTimeout(() => {
+                   // Mock Response
+                   const mockData = {
+                      indicator: [
+                          { name: 'AI', max: 100 },
+                          { name: 'ML', max: 100 },
+                          { name: 'DL', max: 100 },
+                          { name: 'NLP', max: 100 },
+                          { name: 'CV', max: 100 },
+                          { name: 'RL', max: 100 }
+                      ],
+                      series: [
+                          {
+                              name: '2020',
+                              value: [80, 50, 30, 40, 60, 20]
+                          },
+                          {
+                              name: '2021',
+                              value: [90, 70, 60, 50, 70, 40]
+                          }
+                      ]
+                   };
+                   if(this.success) this.success(mockData);
+                 }, 1000);
+              }
+            }
+          }
+        };
+      }
+
+      google.script.run
+        .withSuccessHandler(initColumns)
+        .withFailureHandler(showError)
+        .getVisualizerColumns();
+    };
+
+    function showError(err) {
+      const container = document.getElementById('step-1');
+      container.innerHTML = `<div style="color: #d93025;">Error: ${err.message}</div>`;
+    }
+
+    function initColumns(columns) {
+      availableColumns = columns;
+      renderColumnSelection(columns);
+      updateValueColumnOptions(columns);
+    }
+
+    // Step 1 Logic
+    function renderColumnSelection(columns) {
+      const sContainer = document.getElementById('series-list');
+      const iContainer = document.getElementById('indicator-list');
+      sContainer.innerHTML = '';
+      iContainer.innerHTML = '';
+
+      if (!columns || columns.length === 0) {
+        sContainer.innerHTML = '<div>No columns found.</div>';
+        return;
+      }
+
+      columns.forEach(col => {
+        // Series Column (Radio)
+        const sDiv = document.createElement('div');
+        sDiv.className = 'checkbox-item';
+        const sLabel = document.createElement('label');
+        sLabel.style.cssText = "cursor: pointer; display: flex; align-items: center; width: 100%;";
+        const sInput = document.createElement('input');
+        sInput.type = "radio";
+        sInput.name = "seriesSelection";
+        sInput.value = col;
+        if (seriesColumn === col) sInput.checked = true;
+        sLabel.appendChild(sInput);
+        sLabel.appendChild(document.createTextNode(col));
+        sDiv.appendChild(sLabel);
+        sContainer.appendChild(sDiv);
+
+        // Indicator Column (Radio)
+        const iDiv = document.createElement('div');
+        iDiv.className = 'checkbox-item';
+        const iLabel = document.createElement('label');
+        iLabel.style.cssText = "cursor: pointer; display: flex; align-items: center; width: 100%;";
+        const iInput = document.createElement('input');
+        iInput.type = "radio";
+        iInput.name = "indicatorSelection";
+        iInput.value = col;
+        if (indicatorColumn === col) iInput.checked = true;
+        iLabel.appendChild(iInput);
+        iLabel.appendChild(document.createTextNode(col));
+        iDiv.appendChild(iLabel);
+        iContainer.appendChild(iDiv);
+      });
+    }
+
+    function updateValueColumnOptions(columns) {
+        const select = document.getElementById('value-column');
+        // Clear existing options except default
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+        if (!columns) return;
+        columns.forEach(col => {
+            const option = document.createElement('option');
+            option.value = col;
+            option.text = col;
+            select.add(option);
+        });
+    }
+
+    function goToStep2() {
+      const sSelected = document.querySelector('input[name="seriesSelection"]:checked');
+      if (!sSelected) {
+        alert("Please select a Series Column.");
+        return;
+      }
+      seriesColumn = sSelected.value;
+
+      const iSelected = document.querySelector('input[name="indicatorSelection"]:checked');
+      if (!iSelected) {
+        alert("Please select an Indicator Column.");
+        return;
+      }
+      indicatorColumn = iSelected.value;
+
+      // Auto-generate title
+      if (!chartTitle) {
+          document.getElementById('chart-title').value = `${indicatorColumn} Analysis by ${seriesColumn}`;
+      }
+
+      document.getElementById('step-1').classList.add('hidden');
+      document.getElementById('step-2').classList.remove('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
+    function goToStep1() {
+      chartTitle = document.getElementById('chart-title').value;
+      renderColumnSelection(availableColumns); // Re-render to keep selection state visually
+
+      document.getElementById('step-1').classList.remove('hidden');
+      document.getElementById('step-2').classList.add('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
+    // Step 3 Logic
+    function generateChart() {
+       chartTitle = document.getElementById('chart-title').value;
+       const separator = document.getElementById('separator').value;
+       const valueColumn = document.getElementById('value-column').value;
+       const aggregation = document.getElementById('aggregation-mode').value;
+       const topN = parseInt(document.getElementById('top-n').value) || 6;
+
+       lastConfig = { seriesColumn, indicatorColumn, separator, valueColumn, aggregation, topN };
+
+       document.getElementById('step-1').classList.add('hidden');
+       document.getElementById('step-2').classList.add('hidden');
+       document.getElementById('step-3').classList.remove('hidden');
+
+       const container = document.getElementById('chart-container');
+       container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
+
+       google.script.run
+         .withSuccessHandler(data => renderChart(data))
+         .withFailureHandler(err => {
+            container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
+            console.error(err);
+         })
+         .generateRadarChartData(lastConfig);
+    }
+
+    function renderChart(data) {
+       lastChartData = data;
+       const container = document.getElementById('chart-container');
+       container.innerHTML = '';
+
+       if (!data.series || data.series.length === 0 || !data.indicator || data.indicator.length === 0) {
+           container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">No data found to visualize.</div>';
+           return;
+       }
+
+       if (chartInstance) {
+         chartInstance.dispose();
+       }
+
+       chartInstance = echarts.init(container);
+       const option = getChartOption(data);
+       chartInstance.setOption(option);
+
+       window.addEventListener('resize', function() {
+           chartInstance.resize();
+       });
+       document.addEventListener('fullscreenchange', function() {
+           chartInstance.resize();
+       });
+    }
+
+    function toggleFullscreen() {
+        const container = document.getElementById('chart-container');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen().catch(err => {
+                alert(`Error: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function getChartOption(data) {
+      return {
+        title: {
+          text: chartTitle || 'Radar Chart',
+          left: 'center',
+          top: 10
+        },
+        tooltip: {
+            trigger: 'item'
+        },
+        legend: {
+          data: data.series.map(s => s.name),
+          top: 40,
+          type: 'scroll'
+        },
+        toolbox: {
+            show: true,
+            feature: {
+                dataView: { show: true, readOnly: false },
+                saveAsImage: { show: true }
+            },
+            right: 20
+        },
+        radar: {
+          indicator: data.indicator,
+          shape: 'circle', // Optional, user might like polygon too, but circle is safe
+          radius: '65%'
+        },
+        series: [
+          {
+            name: chartTitle,
+            type: 'radar',
+            data: data.series,
+            areaStyle: {
+                opacity: 0.1
+            }
+          }
+        ]
+      };
+    }
+
+    function downloadChart(type) {
+       const safeTitle = (chartTitle || 'RadarChart').replace(/[^a-z0-9]/gi, '_');
+       const filename = `${safeTitle}.${type}`;
+
+       if (type === 'svg') {
+         downloadSVG(filename);
+       } else {
+         if (!chartInstance) return;
+         const url = chartInstance.getDataURL({
+             type: type,
+             pixelRatio: 2,
+             backgroundColor: '#fff'
+         });
+         triggerDownload(url, filename);
+       }
+    }
+
+    function downloadSVG(filename) {
+      if (!lastChartData) return;
+
+      const container = document.getElementById('chart-container');
+      const fixedHeight = container.clientHeight || 600;
+      const fixedWidth = container.clientWidth || 1000;
+
+      const div = document.createElement('div');
+      div.style.visibility = 'hidden';
+      div.style.width = fixedWidth + 'px';
+      div.style.height = fixedHeight + 'px';
+      div.style.position = 'absolute';
+      div.style.top = '0';
+      div.style.left = '0';
+      document.body.appendChild(div);
+
+      const tempChart = echarts.init(div, null, { renderer: 'svg' });
+      tempChart.setOption(getChartOption(lastChartData));
+
+      const url = tempChart.getDataURL({
+        type: 'svg',
+        backgroundColor: '#fff'
+      });
+
+      triggerDownload(url, filename);
+
+      tempChart.dispose();
+      document.body.removeChild(div);
+    }
+
+    function triggerDownload(url, filename) {
+       const link = document.createElement('a');
+       link.download = filename;
+       link.href = url;
+       document.body.appendChild(link);
+       link.click();
+       document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
