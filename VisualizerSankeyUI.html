@@ -391,7 +391,7 @@
 
       // Create a hidden container with wider dimensions to prevent clipping
       const mainContainer = document.getElementById('chart-container');
-      const extraWidth = 300; // Extra space for labels on the right
+      const extraWidth = 1000; // Extra space for labels on the right
       const div = document.createElement('div');
       div.style.visibility = 'hidden';
       div.style.width = (mainContainer.clientWidth + extraWidth) + 'px';
@@ -403,7 +403,17 @@
 
       // Initialize with SVG renderer
       const tempChart = echarts.init(div, null, { renderer: 'svg' });
-      tempChart.setOption(getChartOption(lastChartData));
+
+      // Get options and adjust right padding to match extra width
+      const option = getChartOption(lastChartData);
+      if (option.series && option.series.length > 0) {
+          // Add extra width to existing right padding to keep graph size constant relative to left
+          // Default right is 200 in getChartOption
+          const currentRight = option.series[0].right || 200;
+          option.series[0].right = currentRight + extraWidth;
+      }
+
+      tempChart.setOption(option);
 
       // Get SVG Data URL
       // Note: getDataURL for SVG renderer returns the SVG file content as data URI
