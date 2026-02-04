@@ -33,7 +33,7 @@
     .order-btn:disabled { opacity: 0.3; cursor: default; }
 
     /* Chart */
-    #chart-container { width: 100%; height: 600px; margin-top: 20px; border: 1px solid #eee; }
+    #chart-container { width: 100%; height: 600px; margin-top: 20px; border: 1px solid #eee; background-color: white; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 8px; }
@@ -76,6 +76,7 @@
         <h2 style="margin: 0;">Sankey Diagram</h2>
         <div>
             <button class="btn btn-secondary" onclick="goToStep2()">Back to Config</button>
+            <button class="btn btn-secondary" onclick="toggleFullscreen()">Fullscreen</button>
             <button class="btn btn-secondary" onclick="downloadChart('svg')">Download SVG</button>
             <button class="btn btn-primary" onclick="downloadChart('png')">Download PNG</button>
         </div>
@@ -305,9 +306,25 @@
        chartInstance.setOption(option);
 
        // Handle resize
-       window.onresize = function() {
+       window.addEventListener('resize', function() {
            chartInstance.resize();
-       };
+       });
+
+       // Handle fullscreen change
+       document.addEventListener('fullscreenchange', function() {
+           chartInstance.resize();
+       });
+    }
+
+    function toggleFullscreen() {
+        const container = document.getElementById('chart-container');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen().catch(err => {
+                alert(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
     }
 
     function getChartOption(data) {
@@ -332,7 +349,7 @@
                 top: 50,
                 bottom: 20,
                 left: 20,
-                right: 20,
+                right: 200,
                 nodeWidth: 20,
                 nodeGap: 8,
                 layoutIterations: 32,
