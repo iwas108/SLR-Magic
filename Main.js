@@ -35,7 +35,8 @@ function onOpen() {
         .addItem('Sankey Diagram', 'openSankeyVisualizer')
         .addItem('Pie Chart', 'openPieChartVisualizer')
         .addItem('Bar Chart', 'openBarChartVisualizer')
-        .addItem('Stack Bar Chart', 'openBarStackVisualizer'))
+        .addItem('Stack Bar Chart', 'openBarStackVisualizer')
+        .addItem('Line Chart', 'openLineChartVisualizer'))
     .addSeparator()
     .addItem('Project Cost Preview', 'showCostPreviewDialog')
     .addItem('About SLR-Magic', 'showWelcomeDialog')
@@ -488,4 +489,12 @@ function openBarStackVisualizer() {
 
 function generateBarStackData(config) {
   return VisualizerController.processBarStackData(config);
+}
+
+function openLineChartVisualizer() {
+  VisualizerController.openLineChartSettings();
+}
+
+function generateLineChartData(config) {
+  return VisualizerController.processLineChartData(config);
 }
