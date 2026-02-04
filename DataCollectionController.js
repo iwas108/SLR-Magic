@@ -18,13 +18,35 @@ var DataCollectionController = (function() {
 
   /**
    * Gets headers from 02_fulltext_screening for selection.
+   * Also returns headers from 04_data_collection to pre-select them.
    */
   function getDataCollectionColumns() {
+    // 1. Source Headers
     const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
     const lastCol = sheet.getLastColumn();
-    if (lastCol === 0) return [];
-    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-    return headers.filter(h => h && h.toString().trim() !== "");
+    let sourceHeaders = [];
+    if (lastCol > 0) {
+      sourceHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+        .filter(h => h && h.toString().trim() !== "");
+    }
+
+    // 2. Destination Headers (for auto-check)
+    let destHeaders = [];
+    try {
+      const destSheet = SheetUtils.getSheetByName("04_data_collection");
+      const destLastCol = destSheet.getLastColumn();
+      if (destLastCol > 0) {
+        destHeaders = destSheet.getRange(1, 1, 1, destLastCol).getValues()[0]
+          .filter(h => h && h.toString().trim() !== "");
+      }
+    } catch (e) {
+      // Ignore if sheet missing
+    }
+
+    return {
+      source: sourceHeaders,
+      destination: destHeaders
+    };
   }
 
   /**
