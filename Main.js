@@ -97,6 +97,20 @@ function getUniqueModels() {
 }
 
 /**
+ * Server-side handler for saving model pricing.
+ */
+function saveModelPricing(pricingData) {
+  return CostAnalysisController.saveModelPricing(pricingData);
+}
+
+/**
+ * Server-side handler for parsing model pricing.
+ */
+function parseModelPricing() {
+  return CostAnalysisController.parseModelPricing();
+}
+
+/**
  * Server-side handler for calculating project costs.
  */
 function calculateProjectCosts(priceMap) {
@@ -402,6 +416,20 @@ function submitQualityCheckSetup(config) {
  */
 function getFullTextScreeningColumns() {
   return FullTextScreeningController.getFullTextScreeningColumns();
+}
+
+/**
+ * Server-side handler for getting data collection columns.
+ */
+function getDataCollectionColumns() {
+  return DataCollectionController.getDataCollectionColumns();
+}
+
+/**
+ * Server-side handler for syncing data collection.
+ */
+function syncDataCollection(selectedColumns) {
+  return DataCollectionController.syncDataCollection(selectedColumns);
 }
 
 /**
