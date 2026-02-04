@@ -61,6 +61,12 @@
   <div id="step-2" class="step-container hidden">
     <h2>Step 2: Configure Connections</h2>
     <p>Order the columns to define the flow (Source &rarr; Target). Specify a separator (e.g., comma) if a cell contains multiple values.</p>
+
+    <div style="margin-bottom: 15px;">
+        <label for="chart-title" style="display: block; font-weight: 500; margin-bottom: 5px;">Chart Title</label>
+        <input type="text" id="chart-title" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="Enter chart title">
+    </div>
+
     <div id="config-list" class="config-list">
       <!-- Populated by JS -->
     </div>
@@ -87,6 +93,7 @@
   <script>
     let availableColumns = [];
     let selectedColumns = []; // Array of objects { name: "Col", separator: "" }
+    let chartTitle = "";
     let chartInstance = null;
     let lastChartData = null;
 
@@ -177,6 +184,10 @@
       });
 
       selectedColumns = newSelected;
+
+      // Auto-generate title if empty or default
+      const defaultTitle = selectedColumns.map(c => c.name).join(' vs ');
+      document.getElementById('chart-title').value = defaultTitle;
 
       renderConfigList();
 
@@ -271,6 +282,8 @@
 
     // Step 3 Logic
     function generateDiagram() {
+       chartTitle = document.getElementById('chart-title').value;
+
        document.getElementById('step-1').classList.add('hidden');
        document.getElementById('step-2').classList.add('hidden');
        document.getElementById('step-3').classList.remove('hidden');
@@ -330,7 +343,7 @@
     function getChartOption(data) {
       return {
         title: {
-            text: 'Data Collection Flow',
+            text: chartTitle || 'Data Collection Flow',
             left: 'center',
             top: 10
         },
@@ -389,13 +402,14 @@
     function downloadSVG() {
       if (!lastChartData) return;
 
-      // Create a hidden container with wider dimensions to prevent clipping
-      const mainContainer = document.getElementById('chart-container');
-      const extraWidth = 1000; // Extra space for labels on the right
+      // Use a fixed wide layout strategy to ensure labels fit and graph is not squeezed
+      const fixedWidth = 2500;
+      const fixedHeight = document.getElementById('chart-container').clientHeight || 800;
+
       const div = document.createElement('div');
       div.style.visibility = 'hidden';
-      div.style.width = (mainContainer.clientWidth + extraWidth) + 'px';
-      div.style.height = mainContainer.clientHeight + 'px';
+      div.style.width = fixedWidth + 'px';
+      div.style.height = fixedHeight + 'px';
       div.style.position = 'absolute';
       div.style.top = '0';
       div.style.left = '0';
@@ -404,13 +418,16 @@
       // Initialize with SVG renderer
       const tempChart = echarts.init(div, null, { renderer: 'svg' });
 
-      // Get options and adjust right padding to match extra width
+      // Get options and apply wide layout settings
       const option = getChartOption(lastChartData);
       if (option.series && option.series.length > 0) {
-          // Add extra width to existing right padding to keep graph size constant relative to left
-          // Default right is 200 in getChartOption
-          const currentRight = option.series[0].right || 200;
-          option.series[0].right = currentRight + extraWidth;
+          // Set a fixed safe margin on the right for labels (e.g., 500px)
+          // The rest of the width (2500 - 20 - 500 = ~1980px) is used for the graph body.
+          // This expands the graph horizontally compared to the screen view.
+          option.series[0].right = 500;
+
+          // Ensure left margin is standard
+          option.series[0].left = 20;
       }
 
       tempChart.setOption(option);
