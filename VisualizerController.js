@@ -203,12 +203,100 @@ var VisualizerController = (function() {
     return { legendData, seriesData };
   }
 
+  /**
+   * Opens the Bar Chart settings/visualizer dialog.
+   */
+  function openBarChartSettings() {
+    const html = HtmlService.createHtmlOutputFromFile('VisualizerBarChartUI')
+      .setWidth(1000)
+      .setHeight(800)
+      .setTitle('Bar Chart Visualizer');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Bar Chart Visualizer');
+  }
+
+  /**
+   * Processes data for the Bar Chart.
+   * @param {Object} config - { xAxisColumn: "ColName", seriesColumns: ["ColA", "ColB"] }
+   */
+  function processBarChartData(config) {
+    try {
+      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const data = SheetUtils.getDataAsObjects(sheet);
+
+      return prepareBarChartData(data, config);
+    } catch (e) {
+      console.error(e);
+      throw new Error("Error processing Bar Chart data: " + e.message);
+    }
+  }
+
+  /**
+   * Pure function to prepare bar chart data.
+   */
+  function prepareBarChartData(rows, config) {
+    if (!rows || rows.length === 0 || !config || !config.xAxisColumn || !config.seriesColumns) {
+      return { xAxisData: [], series: [] };
+    }
+
+    const xAxisColumn = config.xAxisColumn;
+    const seriesColumns = config.seriesColumns;
+
+    const xAxisData = [];
+    const seriesMap = new Map(); // ColName -> Array of numbers
+
+    // Initialize series arrays
+    seriesColumns.forEach(col => seriesMap.set(col, []));
+
+    rows.forEach(row => {
+      // 1. Process X-Axis Label
+      let label = row[xAxisColumn];
+      if (label === null || label === undefined) label = "(Empty)";
+      else label = String(label).trim();
+      if (label === "") label = "(Empty)";
+
+      xAxisData.push(label);
+
+      // 2. Process Series Data
+      seriesColumns.forEach(col => {
+        let val = row[col];
+        // Parse number
+        let num = parseFloat(val);
+        if (isNaN(num)) {
+          // Try to handle strings like "$100" or "1,000" if needed, but standard parseFloat is basic
+          // If strictly non-numeric, use 0 or null?
+          // ECharts handles null as "no bar", 0 as "zero height".
+          // Let's use 0 for simplicity in this context, or null if empty string.
+          if (val === "" || val === null || val === undefined) {
+             num = null;
+          } else {
+             // If it's text, it might be 0
+             num = 0;
+          }
+        }
+        seriesMap.get(col).push(num);
+      });
+    });
+
+    // Format for ECharts
+    const series = [];
+    seriesColumns.forEach(col => {
+      series.push({
+        name: col,
+        data: seriesMap.get(col)
+      });
+    });
+
+    return { xAxisData, series };
+  }
+
   return {
     openSankeySettings,
     openPieChartSettings,
+    openBarChartSettings,
     getDataCollectionColumns,
     processSankeyData,
-    processPieChartData
+    processPieChartData,
+    processBarChartData
   };
 
 })();
