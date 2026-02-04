@@ -33,6 +33,8 @@ function onOpen() {
         .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks'))
     .addSeparator()
     .addItem('Project Cost Preview', 'showCostPreviewDialog')
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Visualizer')
+        .addItem('Sankey Diagram', 'openSankeyVisualizer'))
     .addItem('About SLR-Magic', 'showWelcomeDialog')
     .addToUi();
 
@@ -444,4 +446,19 @@ function runExtendedMiner() {
  */
 function manageExtendedMinerTrigger() {
   ExtendedMinerController.manageTrigger();
+}
+
+/**
+ * Visualizer Module Functions
+ */
+function openSankeyVisualizer() {
+  VisualizerController.openSankeySettings();
+}
+
+function getVisualizerColumns() {
+  return VisualizerController.getDataCollectionColumns();
+}
+
+function generateSankeyData(config) {
+  return VisualizerController.processSankeyData(config);
 }
