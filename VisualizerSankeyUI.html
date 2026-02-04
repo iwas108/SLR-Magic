@@ -76,6 +76,7 @@
         <h2 style="margin: 0;">Sankey Diagram</h2>
         <div>
             <button class="btn btn-secondary" onclick="goToStep2()">Back to Config</button>
+            <button class="btn btn-secondary" onclick="downloadChart('svg')">Download SVG</button>
             <button class="btn btn-primary" onclick="downloadChart('png')">Download PNG</button>
         </div>
     </div>
@@ -86,6 +87,7 @@
     let availableColumns = [];
     let selectedColumns = []; // Array of objects { name: "Col", separator: "" }
     let chartInstance = null;
+    let lastChartData = null;
 
     // Initialize
     window.onload = function() {
@@ -285,6 +287,7 @@
     }
 
     function renderChart(data) {
+       lastChartData = data;
        const container = document.getElementById('chart-container');
        container.innerHTML = '';
 
@@ -298,8 +301,17 @@
        }
 
        chartInstance = echarts.init(container);
+       const option = getChartOption(data);
+       chartInstance.setOption(option);
 
-       const option = {
+       // Handle resize
+       window.onresize = function() {
+           chartInstance.resize();
+       };
+    }
+
+    function getChartOption(data) {
+      return {
         title: {
             text: 'Data Collection Flow',
             left: 'center',
@@ -339,28 +351,59 @@
                 }
             }
         ]
-       };
-
-       chartInstance.setOption(option);
-
-       // Handle resize
-       window.onresize = function() {
-           chartInstance.resize();
-       };
+      };
     }
 
     function downloadChart(type) {
-       if (!chartInstance) return;
+       if (type === 'svg') {
+         downloadSVG();
+       } else {
+         if (!chartInstance) return;
+         // Force white background for download
+         const url = chartInstance.getDataURL({
+             type: type,
+             pixelRatio: 2,
+             backgroundColor: '#fff'
+         });
+         triggerDownload(url, type);
+       }
+    }
 
-       // Force white background for download
-       const url = chartInstance.getDataURL({
-           type: type,
-           pixelRatio: 2,
-           backgroundColor: '#fff'
-       });
+    function downloadSVG() {
+      if (!lastChartData) return;
 
+      // Create a hidden container with same dimensions
+      const mainContainer = document.getElementById('chart-container');
+      const div = document.createElement('div');
+      div.style.visibility = 'hidden';
+      div.style.width = mainContainer.clientWidth + 'px';
+      div.style.height = mainContainer.clientHeight + 'px';
+      div.style.position = 'absolute';
+      div.style.top = '0';
+      div.style.left = '0';
+      document.body.appendChild(div);
+
+      // Initialize with SVG renderer
+      const tempChart = echarts.init(div, null, { renderer: 'svg' });
+      tempChart.setOption(getChartOption(lastChartData));
+
+      // Get SVG Data URL
+      // Note: getDataURL for SVG renderer returns the SVG file content as data URI
+      const url = tempChart.getDataURL({
+        type: 'svg',
+        backgroundColor: '#fff'
+      });
+
+      triggerDownload(url, 'svg');
+
+      // Cleanup
+      tempChart.dispose();
+      document.body.removeChild(div);
+    }
+
+    function triggerDownload(url, ext) {
        const link = document.createElement('a');
-       link.download = `SankeyDiagram.${type}`;
+       link.download = `SankeyDiagram.${ext}`;
        link.href = url;
        document.body.appendChild(link);
        link.click();
