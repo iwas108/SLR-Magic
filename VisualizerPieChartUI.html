@@ -67,6 +67,13 @@
     <div id="config-list" class="config-list">
       <!-- Populated by JS -->
     </div>
+    <div style="margin-top: 15px;">
+        <label style="display: flex; align-items: center; cursor: pointer;">
+            <input type="checkbox" id="enable-label" style="margin-right: 8px;">
+            <span style="font-weight: 500;">Enable Detailed Labels</span>
+        </label>
+        <p style="font-size: 12px; margin: 4px 0 0 24px;">Shows rich data labels with name, value, and percentage.</p>
+    </div>
     <div style="text-align: right; margin-top: 20px;">
       <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
       <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
@@ -227,6 +234,7 @@
     // Step 3 Logic
     function generateChart() {
        chartTitle = document.getElementById('chart-title').value;
+       const enableLabel = document.getElementById('enable-label').checked;
 
        document.getElementById('step-1').classList.add('hidden');
        document.getElementById('step-2').classList.add('hidden');
@@ -236,7 +244,7 @@
        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
 
        google.script.run
-         .withSuccessHandler(renderChart)
+         .withSuccessHandler(data => renderChart(data, enableLabel))
          .withFailureHandler(err => {
             container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
             console.error(err);
@@ -244,8 +252,10 @@
          .generatePieChartData({ column: selectedColumn });
     }
 
-    function renderChart(data) {
+    function renderChart(data, enableLabel) {
        lastChartData = data;
+       lastChartData.enableLabel = enableLabel; // Store for download
+
        const container = document.getElementById('chart-container');
        container.innerHTML = '';
 
@@ -259,7 +269,7 @@
        }
 
        chartInstance = echarts.init(container);
-       const option = getChartOption(data);
+       const option = getChartOption(data, enableLabel);
        chartInstance.setOption(option);
 
        // Handle resize
@@ -284,8 +294,8 @@
         }
     }
 
-    function getChartOption(data) {
-      return {
+    function getChartOption(data, enableLabel) {
+      const option = {
         title: {
             text: chartTitle || 'Pie Chart',
             left: 'center',
@@ -307,7 +317,7 @@
             {
                 name: selectedColumn ? selectedColumn.name : 'Data',
                 type: 'pie',
-                radius: '55%',
+                radius: '55%', // Default radius
                 center: ['40%', '50%'],
                 data: data.seriesData,
                 emphasis: {
@@ -320,6 +330,53 @@
             }
         ]
       };
+
+      if (enableLabel) {
+          // Update radius to be a donut to match style better, or keep pie?
+          // User example had two series, one inner (pie) one outer (donut).
+          // We only have one series. The outer one had the label.
+          // Let's set the radius to a donut for better look with these labels,
+          // or keep it 55% as per original if not specified.
+          // The example used radius: ['45%', '60%'].
+
+          const series = option.series[0];
+          series.radius = ['45%', '60%'];
+          series.labelLine = { length: 30 };
+          series.label = {
+            formatter: '{a|{a}}{abg|}\n{hr|}\n  {b|{b}：}{c}  {per|{d}%}  ',
+            backgroundColor: '#F6F8FC',
+            borderColor: '#8C8D8E',
+            borderWidth: 1,
+            borderRadius: 4,
+            rich: {
+              a: {
+                color: '#6E7079',
+                lineHeight: 22,
+                align: 'center'
+              },
+              hr: {
+                borderColor: '#8C8D8E',
+                width: '100%',
+                borderWidth: 1,
+                height: 0
+              },
+              b: {
+                color: '#4C5058',
+                fontSize: 14,
+                fontWeight: 'bold',
+                lineHeight: 33
+              },
+              per: {
+                color: '#fff',
+                backgroundColor: '#4C5058',
+                padding: [3, 4],
+                borderRadius: 4
+              }
+            }
+          };
+      }
+
+      return option;
     }
 
     function downloadChart(type) {
@@ -359,7 +416,9 @@
 
       // Initialize with SVG renderer
       const tempChart = echarts.init(div, null, { renderer: 'svg' });
-      tempChart.setOption(getChartOption(lastChartData));
+
+      // Use stored enableLabel state
+      tempChart.setOption(getChartOption(lastChartData, lastChartData.enableLabel));
 
       // Get SVG Data URL
       const url = tempChart.getDataURL({
