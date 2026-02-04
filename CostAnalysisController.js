@@ -137,6 +137,13 @@ var CostAnalysisController = (function() {
         const minerStats = initStats();
         const extStats = initStats();
 
+        // Assign model names for UI display
+        absStats.model = absModel;
+        gkStats.model = gkModel;
+        sciStats.model = sciModel;
+        minerStats.model = minerModel;
+        extStats.model = extMinerModel;
+
         // --- Abstract Screening ---
         const absSheet = SheetUtils.getSheetByName("01_abstract_screening");
         const absData = SheetUtils.getDataAsObjects(absSheet);
@@ -258,12 +265,16 @@ var CostAnalysisController = (function() {
         finalizeStats(minerStats);
         finalizeStats(extStats);
 
+        // Calculate Grand Total
+        const grandTotal = absStats.total + gkStats.total + sciStats.total + minerStats.total + extStats.total;
+
         return {
             abstract: absStats,
             gatekeeper: gkStats,
             scientist: sciStats,
             miner: minerStats,
-            extended_miner: extStats
+            extended_miner: extStats,
+            grandTotal: grandTotal
         };
 
     } catch (e) {

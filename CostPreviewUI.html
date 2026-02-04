@@ -20,6 +20,7 @@
       .data-table th { background-color: #e8f0fe; color: #1967d2; }
       .data-table td { font-family: monospace; }
       .note { font-size: 12px; color: #ea4335; margin-top: 10px; font-style: italic; }
+      .grand-total { margin-top: 20px; border-top: 2px solid #1a73e8; padding-top: 10px; font-size: 18px; font-weight: bold; text-align: right; color: #202124; }
       .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 20px; height: 20px; animation: spin 2s linear infinite; display: none; margin-left: 10px; vertical-align: middle; }
       @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -50,7 +51,7 @@
               <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
               <tbody>
                   <tr>
-                      <td>Abstract Screening</td>
+                      <td id="abs-name">Abstract Screening</td>
                       <td id="abs-total">-</td>
                       <td id="abs-avg">-</td>
                       <td id="abs-count">-</td>
@@ -69,7 +70,7 @@
               <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
               <tbody>
                   <tr>
-                      <td>The Gatekeeper</td>
+                      <td id="gk-name">The Gatekeeper</td>
                       <td id="gk-total">-</td>
                       <td id="gk-avg">-</td>
                       <td id="gk-count">-</td>
@@ -79,7 +80,7 @@
                       <td id="gk-candidate">-</td>
                   </tr>
                   <tr>
-                      <td>The Scientist</td>
+                      <td id="sci-name">The Scientist</td>
                       <td id="sci-total">-</td>
                       <td id="sci-avg">-</td>
                       <td id="sci-count">-</td>
@@ -89,7 +90,7 @@
                       <td id="sci-candidate">-</td>
                   </tr>
                   <tr>
-                      <td>The Miner</td>
+                      <td id="miner-name">The Miner</td>
                       <td id="miner-total">-</td>
                       <td id="miner-avg">-</td>
                       <td id="miner-count">-</td>
@@ -108,7 +109,7 @@
               <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
               <tbody>
                   <tr>
-                      <td>The Extended Miner</td>
+                      <td id="ext-name">The Extended Miner</td>
                       <td id="ext-total">-</td>
                       <td id="ext-avg">-</td>
                       <td id="ext-count">-</td>
@@ -119,6 +120,10 @@
                   </tr>
               </tbody>
           </table>
+      </div>
+
+      <div class="grand-total">
+          Grand Total: <span id="grand-total">-</span>
       </div>
 
     </div>
@@ -205,53 +210,31 @@
 
         const fmt = (num) => '$' + (parseFloat(num) || 0).toFixed(4);
         const range = (min, max) => fmt(min) + ' - ' + fmt(max);
-        // Format thousands
         const num = (n) => (n || 0).toLocaleString();
 
-        // Abstract
-        document.getElementById('abs-total').textContent = fmt(data.abstract.total);
-        document.getElementById('abs-avg').textContent = fmt(data.abstract.avg);
-        document.getElementById('abs-count').textContent = data.abstract.count;
-        document.getElementById('abs-range').textContent = range(data.abstract.min, data.abstract.max);
-        document.getElementById('abs-input').textContent = num(data.abstract.input);
-        document.getElementById('abs-thinking').textContent = num(data.abstract.thinking);
-        document.getElementById('abs-candidate').textContent = num(data.abstract.candidate);
+        // Helper to set stage info
+        const setStage = (prefix, stageData, baseName) => {
+             // Name + Model
+             const modelSuffix = stageData.model ? ` (${stageData.model})` : '';
+             document.getElementById(prefix + '-name').textContent = baseName + modelSuffix;
 
-        // Gatekeeper
-        document.getElementById('gk-total').textContent = fmt(data.gatekeeper.total);
-        document.getElementById('gk-avg').textContent = fmt(data.gatekeeper.avg);
-        document.getElementById('gk-count').textContent = data.gatekeeper.count;
-        document.getElementById('gk-range').textContent = range(data.gatekeeper.min, data.gatekeeper.max);
-        document.getElementById('gk-input').textContent = num(data.gatekeeper.input);
-        document.getElementById('gk-thinking').textContent = num(data.gatekeeper.thinking);
-        document.getElementById('gk-candidate').textContent = num(data.gatekeeper.candidate);
+             document.getElementById(prefix + '-total').textContent = fmt(stageData.total);
+             document.getElementById(prefix + '-avg').textContent = fmt(stageData.avg);
+             document.getElementById(prefix + '-count').textContent = stageData.count;
+             document.getElementById(prefix + '-range').textContent = range(stageData.min, stageData.max);
+             document.getElementById(prefix + '-input').textContent = num(stageData.input);
+             document.getElementById(prefix + '-thinking').textContent = num(stageData.thinking);
+             document.getElementById(prefix + '-candidate').textContent = num(stageData.candidate);
+        };
 
-        // Scientist
-        document.getElementById('sci-total').textContent = fmt(data.scientist.total);
-        document.getElementById('sci-avg').textContent = fmt(data.scientist.avg);
-        document.getElementById('sci-count').textContent = data.scientist.count;
-        document.getElementById('sci-range').textContent = range(data.scientist.min, data.scientist.max);
-        document.getElementById('sci-input').textContent = num(data.scientist.input);
-        document.getElementById('sci-thinking').textContent = num(data.scientist.thinking);
-        document.getElementById('sci-candidate').textContent = num(data.scientist.candidate);
+        setStage('abs', data.abstract, 'Abstract Screening');
+        setStage('gk', data.gatekeeper, 'The Gatekeeper');
+        setStage('sci', data.scientist, 'The Scientist');
+        setStage('miner', data.miner, 'The Miner');
+        setStage('ext', data.extended_miner, 'The Extended Miner');
 
-        // Miner
-        document.getElementById('miner-total').textContent = fmt(data.miner.total);
-        document.getElementById('miner-avg').textContent = fmt(data.miner.avg);
-        document.getElementById('miner-count').textContent = data.miner.count;
-        document.getElementById('miner-range').textContent = range(data.miner.min, data.miner.max);
-        document.getElementById('miner-input').textContent = num(data.miner.input);
-        document.getElementById('miner-thinking').textContent = num(data.miner.thinking);
-        document.getElementById('miner-candidate').textContent = num(data.miner.candidate);
-
-        // Extended Miner
-        document.getElementById('ext-total').textContent = fmt(data.extended_miner.total);
-        document.getElementById('ext-avg').textContent = fmt(data.extended_miner.avg);
-        document.getElementById('ext-count').textContent = data.extended_miner.count;
-        document.getElementById('ext-range').textContent = range(data.extended_miner.min, data.extended_miner.max);
-        document.getElementById('ext-input').textContent = num(data.extended_miner.input);
-        document.getElementById('ext-thinking').textContent = num(data.extended_miner.thinking);
-        document.getElementById('ext-candidate').textContent = num(data.extended_miner.candidate);
+        // Grand Total
+        document.getElementById('grand-total').textContent = fmt(data.grandTotal);
       }
 
       function showError(err) {
