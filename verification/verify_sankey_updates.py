@@ -1,33 +1,26 @@
-import re
-
 def verify_file_content(filepath):
     try:
         with open(filepath, 'r') as f:
             content = f.read()
 
-        # Check for Title Input
-        if 'id="chart-title"' not in content:
-            print("FAIL: Title input not found.")
+        # Check for measureText logic
+        if "context.measureText(labelText).width" not in content:
+            print("FAIL: measureText logic not found.")
             return False
 
-        # Check for Default Title Logic
-        if "selectedColumns.map(c => c.name).join(' vs ')" not in content:
-            print("FAIL: Default title generation logic not found.")
+        # Check for Dynamic Right Padding
+        if "const dynamicRightPadding = Math.ceil(maxLabelWidth + 60);" not in content:
+            print("FAIL: Dynamic right padding calculation not found.")
             return False
 
-        # Check for Dynamic Title usage in Option
-        if "text: chartTitle || 'Data Collection Flow'" not in content:
-            print("FAIL: Dynamic title usage in getChartOption not found.")
+        # Check for Total Width Calculation
+        if "const totalWidth = graphBodyWidth + dynamicRightPadding + 20;" not in content:
+            print("FAIL: Total width calculation not found.")
             return False
 
-        # Check for Fixed Width in Download
-        if "const fixedWidth = 2500;" not in content:
-            print("FAIL: Fixed width 2500 not found in downloadSVG.")
-            return False
-
-        # Check for Right Margin in Download
-        if "option.series[0].right = 500;" not in content:
-            print("FAIL: Right margin 500 not found in downloadSVG.")
+        # Check for Filename Logic
+        if "const safeTitle = (chartTitle || 'SankeyDiagram').replace(/[^a-z0-9]/gi, '_');" not in content:
+            print("FAIL: Filename sanitization not found.")
             return False
 
         print("SUCCESS: All checks passed.")
