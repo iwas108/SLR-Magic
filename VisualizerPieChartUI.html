@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    body { font-family: 'Roboto', sans-serif; padding: 20px; background-color: #f5f5f5; color: #333; }
+    h2 { color: #202124; margin-top: 0; }
+    p { color: #5f6368; }
+    .step-container { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); margin-bottom: 20px; }
+    .hidden { display: none; }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; margin-right: 10px; font-size: 14px; transition: background 0.2s; }
+    .btn-primary { background-color: #1a73e8; color: white; }
+    .btn-primary:hover { background-color: #1765cc; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); }
+    .btn-secondary { background-color: #fff; color: #1a73e8; border: 1px solid #dadce0; }
+    .btn-secondary:hover { background-color: #f8f9fa; color: #174ea6; border-color: #dadce0; }
+
+    /* Checkbox/Radio list */
+    .checkbox-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; margin: 20px 0; padding: 4px; }
+    .checkbox-item { display: flex; align-items: center; }
+    .checkbox-item input { margin-right: 8px; }
+
+    /* Config list */
+    .config-list { margin: 20px 0; border: 1px solid #dadce0; border-radius: 4px; }
+    .config-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #dadce0; background: #fff; }
+    .config-item:last-child { border-bottom: none; }
+    .config-name { flex: 1; font-weight: 500; font-size: 14px; }
+    .config-controls { display: flex; align-items: center; gap: 12px; }
+    .separator-input { padding: 6px; border: 1px solid #dadce0; border-radius: 4px; width: 80px; font-size: 14px; }
+
+    /* Chart */
+    #chart-container { width: 100%; height: 600px; margin-top: 20px; border: 1px solid #eee; background-color: white; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+  </style>
+</head>
+<body>
+
+  <!-- Step 1: Select Column -->
+  <div id="step-1" class="step-container">
+    <h2>Step 1: Select Column</h2>
+    <p>Select the column you want to visualize in the Pie Chart.</p>
+    <div id="column-list" class="checkbox-list">
+      <!-- Populated by JS -->
+      <div>Loading columns...</div>
+    </div>
+    <div style="text-align: right; margin-top: 20px;">
+      <button class="btn btn-primary" onclick="goToStep2()">Next: Configure</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Configure -->
+  <div id="step-2" class="step-container hidden">
+    <h2>Step 2: Configure</h2>
+    <p>Specify a separator (e.g., comma) if the cells contain multiple values.</p>
+
+    <div style="margin-bottom: 15px;">
+        <label for="chart-title" style="display: block; font-weight: 500; margin-bottom: 5px;">Chart Title</label>
+        <input type="text" id="chart-title" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="Enter chart title">
+    </div>
+
+    <div id="config-list" class="config-list">
+      <!-- Populated by JS -->
+    </div>
+    <div style="text-align: right; margin-top: 20px;">
+      <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
+      <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Visualization -->
+  <div id="step-3" class="step-container hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="margin: 0;">Pie Chart</h2>
+        <div>
+            <button class="btn btn-secondary" onclick="goToStep2()">Back to Config</button>
+            <button class="btn btn-secondary" onclick="toggleFullscreen()">Fullscreen</button>
+            <button class="btn btn-secondary" onclick="downloadChart('svg')">Download SVG</button>
+            <button class="btn btn-primary" onclick="downloadChart('png')">Download PNG</button>
+        </div>
+    </div>
+    <div id="chart-container"></div>
+  </div>
+
+  <script>
+    let availableColumns = [];
+    let selectedColumn = null; // Object { name: "Col", separator: "" }
+    let chartTitle = "";
+    let chartInstance = null;
+    let lastChartData = null;
+
+    // Initialize
+    window.onload = function() {
+      // Mock for development if needed, but in production this runs in Apps Script
+      if (typeof google === 'undefined') {
+         // Mock
+         setTimeout(() => renderColumnSelection(["Col A", "Col B", "Col C"]), 500);
+         return;
+      }
+
+      google.script.run
+        .withSuccessHandler(renderColumnSelection)
+        .withFailureHandler(showError)
+        .getVisualizerColumns();
+    };
+
+    function showError(err) {
+      const container = document.getElementById('column-list');
+      container.innerHTML = `<div style="color: #d93025;">Error: ${err.message}</div>`;
+    }
+
+    // Step 1 Logic
+    function renderColumnSelection(columns) {
+      availableColumns = columns;
+      const container = document.getElementById('column-list');
+      container.innerHTML = '';
+
+      if (!columns || columns.length === 0) {
+        container.innerHTML = '<div>No columns found in 04_data_collection. Please ensure the sheet exists and has data.</div>';
+        return;
+      }
+
+      columns.forEach(col => {
+        const div = document.createElement('div');
+        div.className = 'checkbox-item';
+
+        const isChecked = selectedColumn && selectedColumn.name === col;
+
+        const label = document.createElement('label');
+        label.style.cssText = "cursor: pointer; display: flex; align-items: center;";
+
+        const input = document.createElement('input');
+        input.type = "radio";
+        input.name = "columnSelection";
+        input.value = col;
+        input.checked = isChecked;
+        input.style.marginRight = "8px";
+
+        const span = document.createElement('span');
+        span.textContent = col;
+
+        label.appendChild(input);
+        label.appendChild(span);
+        div.appendChild(label);
+
+        container.appendChild(div);
+      });
+    }
+
+    function goToStep2() {
+      // Gather selected column
+      const selectedRadio = document.querySelector('#column-list input[type="radio"]:checked');
+      if (!selectedRadio) {
+        alert("Please select a column.");
+        return;
+      }
+
+      const colName = selectedRadio.value;
+
+      if (!selectedColumn || selectedColumn.name !== colName) {
+         selectedColumn = { name: colName, separator: "" };
+      }
+
+      // Auto-generate title if empty or default
+      if (!chartTitle) {
+          document.getElementById('chart-title').value = "Distribution of " + selectedColumn.name;
+      }
+
+      renderConfigList();
+
+      document.getElementById('step-1').classList.add('hidden');
+      document.getElementById('step-2').classList.remove('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
+    function goToStep1() {
+      chartTitle = document.getElementById('chart-title').value;
+      renderColumnSelection(availableColumns);
+
+      document.getElementById('step-1').classList.remove('hidden');
+      document.getElementById('step-2').classList.add('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
+    // Step 2 Logic
+    function renderConfigList() {
+      const container = document.getElementById('config-list');
+      container.innerHTML = '';
+
+      if (!selectedColumn) return;
+
+      const div = document.createElement('div');
+      div.className = 'config-item';
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'config-name';
+      nameDiv.textContent = selectedColumn.name;
+
+      const controlsDiv = document.createElement('div');
+      controlsDiv.className = 'config-controls';
+
+      const label = document.createElement('label');
+      label.style.cssText = "font-size: 13px; color: #5f6368;";
+      label.textContent = "Separator:";
+
+      const input = document.createElement('input');
+      input.type = "text";
+      input.className = "separator-input";
+      input.placeholder = "e.g. ,";
+      input.value = selectedColumn.separator;
+      input.onchange = function() { selectedColumn.separator = this.value; };
+
+      controlsDiv.appendChild(label);
+      controlsDiv.appendChild(input);
+
+      div.appendChild(nameDiv);
+      div.appendChild(controlsDiv);
+
+      container.appendChild(div);
+    }
+
+    // Step 3 Logic
+    function generateChart() {
+       chartTitle = document.getElementById('chart-title').value;
+
+       document.getElementById('step-1').classList.add('hidden');
+       document.getElementById('step-2').classList.add('hidden');
+       document.getElementById('step-3').classList.remove('hidden');
+
+       const container = document.getElementById('chart-container');
+       container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
+
+       google.script.run
+         .withSuccessHandler(renderChart)
+         .withFailureHandler(err => {
+            container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
+            console.error(err);
+         })
+         .generatePieChartData({ column: selectedColumn });
+    }
+
+    function renderChart(data) {
+       lastChartData = data;
+       const container = document.getElementById('chart-container');
+       container.innerHTML = '';
+
+       if (!data.seriesData || data.seriesData.length === 0) {
+           container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">No data found to visualize.</div>';
+           return;
+       }
+
+       if (chartInstance) {
+         chartInstance.dispose();
+       }
+
+       chartInstance = echarts.init(container);
+       const option = getChartOption(data);
+       chartInstance.setOption(option);
+
+       // Handle resize
+       window.addEventListener('resize', function() {
+           chartInstance.resize();
+       });
+
+       // Handle fullscreen change
+       document.addEventListener('fullscreenchange', function() {
+           chartInstance.resize();
+       });
+    }
+
+    function toggleFullscreen() {
+        const container = document.getElementById('chart-container');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen().catch(err => {
+                alert(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function getChartOption(data) {
+      return {
+        title: {
+            text: chartTitle || 'Pie Chart',
+            left: 'center',
+            top: 10
+        },
+        tooltip: {
+            trigger: 'item',
+            formatter: '{a} <br/>{b} : {c} ({d}%)'
+        },
+        legend: {
+            type: 'scroll',
+            orient: 'vertical',
+            right: 10,
+            top: 20,
+            bottom: 20,
+            data: data.legendData
+        },
+        series: [
+            {
+                name: selectedColumn ? selectedColumn.name : 'Data',
+                type: 'pie',
+                radius: '55%',
+                center: ['40%', '50%'],
+                data: data.seriesData,
+                emphasis: {
+                    itemStyle: {
+                        shadowBlur: 10,
+                        shadowOffsetX: 0,
+                        shadowColor: 'rgba(0, 0, 0, 0.5)'
+                    }
+                }
+            }
+        ]
+      };
+    }
+
+    function downloadChart(type) {
+       // Sanitize filename from title
+       const safeTitle = (chartTitle || 'PieChart').replace(/[^a-z0-9]/gi, '_');
+       const filename = `${safeTitle}.${type}`;
+
+       if (type === 'svg') {
+         downloadSVG(filename);
+       } else {
+         if (!chartInstance) return;
+         // Force white background for download
+         const url = chartInstance.getDataURL({
+             type: type,
+             pixelRatio: 2,
+             backgroundColor: '#fff'
+         });
+         triggerDownload(url, filename);
+       }
+    }
+
+    function downloadSVG(filename) {
+      if (!lastChartData) return;
+
+      const container = document.getElementById('chart-container');
+      const fixedHeight = container.clientHeight || 800;
+      const fixedWidth = container.clientWidth || 1000;
+
+      const div = document.createElement('div');
+      div.style.visibility = 'hidden';
+      div.style.width = fixedWidth + 'px';
+      div.style.height = fixedHeight + 'px';
+      div.style.position = 'absolute';
+      div.style.top = '0';
+      div.style.left = '0';
+      document.body.appendChild(div);
+
+      // Initialize with SVG renderer
+      const tempChart = echarts.init(div, null, { renderer: 'svg' });
+      tempChart.setOption(getChartOption(lastChartData));
+
+      // Get SVG Data URL
+      const url = tempChart.getDataURL({
+        type: 'svg',
+        backgroundColor: '#fff'
+      });
+
+      triggerDownload(url, filename);
+
+      // Cleanup
+      tempChart.dispose();
+      document.body.removeChild(div);
+    }
+
+    function triggerDownload(url, filename) {
+       const link = document.createElement('a');
+       link.download = filename;
+       link.href = url;
+       document.body.appendChild(link);
+       link.click();
+       document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>

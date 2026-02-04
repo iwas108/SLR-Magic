@@ -17,6 +17,17 @@ var VisualizerController = (function() {
   }
 
   /**
+   * Opens the Pie Chart settings/visualizer dialog.
+   */
+  function openPieChartSettings() {
+    const html = HtmlService.createHtmlOutputFromFile('VisualizerPieChartUI')
+      .setWidth(1000)
+      .setHeight(800)
+      .setTitle('Pie Chart Visualizer');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Pie Chart Visualizer');
+  }
+
+  /**
    * Retrieves headers from 04_data_collection.
    */
   function getDataCollectionColumns() {
@@ -58,6 +69,22 @@ var VisualizerController = (function() {
     } catch (e) {
       console.error(e);
       throw new Error("Error processing Sankey data: " + e.message);
+    }
+  }
+
+  /**
+   * Processes data for the Pie Chart.
+   * @param {Object} config - { column: { name: "ColA", separator: "," } }
+   */
+  function processPieChartData(config) {
+    try {
+      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const data = SheetUtils.getDataAsObjects(sheet);
+
+      return preparePieChartData(data, config.column);
+    } catch (e) {
+      console.error(e);
+      throw new Error("Error processing Pie Chart data: " + e.message);
     }
   }
 
@@ -134,10 +161,54 @@ var VisualizerController = (function() {
     return { nodes, links };
   }
 
+  /**
+   * Pure function to prepare pie chart data.
+   */
+  function preparePieChartData(rows, columnConfig) {
+    if (!rows || rows.length === 0 || !columnConfig) {
+      return { legendData: [], seriesData: [] };
+    }
+
+    const counts = new Map();
+    const separator = columnConfig.separator;
+
+    rows.forEach(row => {
+      let rawVal = row[columnConfig.name];
+      if (rawVal === null || rawVal === undefined) rawVal = "(Empty)";
+      let str = String(rawVal).trim();
+      if (str === "") str = "(Empty)";
+
+      let values = [str];
+      if (separator && separator.trim() !== "") {
+        values = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+        if (values.length === 0) values = ["(Empty)"];
+      }
+
+      values.forEach(val => {
+        counts.set(val, (counts.get(val) || 0) + 1);
+      });
+    });
+
+    const legendData = [];
+    const seriesData = [];
+
+    // Convert map to array and sort by value desc
+    const sortedEntries = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+
+    sortedEntries.forEach(([name, value]) => {
+      legendData.push(name);
+      seriesData.push({ name, value });
+    });
+
+    return { legendData, seriesData };
+  }
+
   return {
     openSankeySettings,
+    openPieChartSettings,
     getDataCollectionColumns,
-    processSankeyData
+    processSankeyData,
+    processPieChartData
   };
 
 })();
