@@ -14,6 +14,13 @@ function onOpen() {
     .addItem('Start AI Title-Abstract Screening', 'runScreening')
     .addItem('Manage Background Screening (Abstract)', 'manageScreeningTrigger')
     .addSeparator()
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Utilities')
+        .addItem('Copy Screened Title-Abstract', 'runCopyScreenedPapers')
+        .addItem('Import PDF Files', 'presentPDFImportUI')
+        .addItem('Import PDF Metadata (CSV)', 'runImportFileMetadata')
+        .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
+        .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks'))
+    .addSeparator()
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
     .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
     .addItem('Start AI Extended Miner', 'runExtendedMiner')
@@ -24,13 +31,8 @@ function onOpen() {
     .addItem('Calculate QC Score', 'calculateQCScore')
     .addSeparator()
     .addItem('Process Data Collection', 'runDataCollection')
-    .addSeparator()
-    .addSubMenu(SpreadsheetApp.getUi().createMenu('Utilities')
-        .addItem('Copy Screened Title-Abstract', 'runCopyScreenedPapers')
-        .addItem('Import PDF Files', 'presentPDFImportUI')
-        .addItem('Import PDF Metadata (CSV)', 'runImportFileMetadata')
-        .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
-        .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks'))
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Visualizer')
+        .addItem('Sankey Diagram', 'openSankeyVisualizer'))
     .addSeparator()
     .addItem('Project Cost Preview', 'showCostPreviewDialog')
     .addItem('About SLR-Magic', 'showWelcomeDialog')
@@ -444,4 +446,19 @@ function runExtendedMiner() {
  */
 function manageExtendedMinerTrigger() {
   ExtendedMinerController.manageTrigger();
+}
+
+/**
+ * Visualizer Module Functions
+ */
+function openSankeyVisualizer() {
+  VisualizerController.openSankeySettings();
+}
+
+function getVisualizerColumns() {
+  return VisualizerController.getDataCollectionColumns();
+}
+
+function generateSankeyData(config) {
+  return VisualizerController.processSankeyData(config);
 }

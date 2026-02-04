@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <style>
+    body { font-family: 'Roboto', sans-serif; padding: 20px; background-color: #f5f5f5; color: #333; }
+    h2 { color: #202124; margin-top: 0; }
+    p { color: #5f6368; }
+    .step-container { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); margin-bottom: 20px; }
+    .hidden { display: none; }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; margin-right: 10px; font-size: 14px; transition: background 0.2s; }
+    .btn-primary { background-color: #1a73e8; color: white; }
+    .btn-primary:hover { background-color: #1765cc; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); }
+    .btn-secondary { background-color: #fff; color: #1a73e8; border: 1px solid #dadce0; }
+    .btn-secondary:hover { background-color: #f8f9fa; color: #174ea6; border-color: #dadce0; }
+
+    /* Checkbox list */
+    .checkbox-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; max-height: 400px; overflow-y: auto; margin: 20px 0; padding: 4px; }
+    .checkbox-item { display: flex; align-items: center; }
+    .checkbox-item input { margin-right: 8px; }
+
+    /* Config list */
+    .config-list { margin: 20px 0; border: 1px solid #dadce0; border-radius: 4px; }
+    .config-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #dadce0; background: #fff; }
+    .config-item:last-child { border-bottom: none; }
+    .config-name { flex: 1; font-weight: 500; font-size: 14px; }
+    .config-controls { display: flex; align-items: center; gap: 12px; }
+    .separator-input { padding: 6px; border: 1px solid #dadce0; border-radius: 4px; width: 80px; font-size: 14px; }
+    .order-btn { padding: 4px 12px; cursor: pointer; background: #f1f3f4; border: none; border-radius: 4px; font-weight: bold; color: #5f6368; }
+    .order-btn:hover:not(:disabled) { background-color: #e8eaed; color: #202124; }
+    .order-btn:disabled { opacity: 0.3; cursor: default; }
+
+    /* Chart */
+    #chart-container { width: 100%; height: 600px; margin-top: 20px; border: 1px solid #eee; background-color: white; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+  </style>
+</head>
+<body>
+
+  <!-- Step 1: Select Columns -->
+  <div id="step-1" class="step-container">
+    <h2>Step 1: Select Columns</h2>
+    <p>Select the columns you want to visualize in the Sankey Diagram.</p>
+    <div id="column-list" class="checkbox-list">
+      <!-- Populated by JS -->
+      <div>Loading columns...</div>
+    </div>
+    <div style="text-align: right; margin-top: 20px;">
+      <button class="btn btn-primary" onclick="goToStep2()">Next: Configure Connections</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Configure Connections -->
+  <div id="step-2" class="step-container hidden">
+    <h2>Step 2: Configure Connections</h2>
+    <p>Order the columns to define the flow (Source &rarr; Target). Specify a separator (e.g., comma) if a cell contains multiple values.</p>
+
+    <div style="margin-bottom: 15px;">
+        <label for="chart-title" style="display: block; font-weight: 500; margin-bottom: 5px;">Chart Title</label>
+        <input type="text" id="chart-title" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="Enter chart title">
+    </div>
+
+    <div id="config-list" class="config-list">
+      <!-- Populated by JS -->
+    </div>
+    <div style="text-align: right; margin-top: 20px;">
+      <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
+      <button class="btn btn-primary" onclick="generateDiagram()">Generate Diagram</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Visualization -->
+  <div id="step-3" class="step-container hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="margin: 0;">Sankey Diagram</h2>
+        <div>
+            <button class="btn btn-secondary" onclick="goToStep2()">Back to Config</button>
+            <button class="btn btn-secondary" onclick="toggleFullscreen()">Fullscreen</button>
+            <button class="btn btn-secondary" onclick="downloadChart('svg')">Download SVG</button>
+            <button class="btn btn-primary" onclick="downloadChart('png')">Download PNG</button>
+        </div>
+    </div>
+    <div id="chart-container"></div>
+  </div>
+
+  <script>
+    let availableColumns = [];
+    let selectedColumns = []; // Array of objects { name: "Col", separator: "" }
+    let chartTitle = "";
+    let chartInstance = null;
+    let lastChartData = null;
+
+    // Initialize
+    window.onload = function() {
+      google.script.run
+        .withSuccessHandler(renderColumnSelection)
+        .withFailureHandler(showError)
+        .getVisualizerColumns();
+    };
+
+    function showError(err) {
+      const container = document.getElementById('column-list');
+      container.innerHTML = `<div style="color: #d93025;">Error: ${err.message}</div>`;
+    }
+
+    // Step 1 Logic
+    function renderColumnSelection(columns) {
+      availableColumns = columns;
+      const container = document.getElementById('column-list');
+      container.innerHTML = '';
+
+      if (!columns || columns.length === 0) {
+        container.innerHTML = '<div>No columns found in 04_data_collection. Please ensure the sheet exists and has data.</div>';
+        return;
+      }
+
+      columns.forEach(col => {
+        const div = document.createElement('div');
+        div.className = 'checkbox-item';
+        // Check if previously selected
+        const isChecked = selectedColumns.some(c => c.name === col);
+
+        const label = document.createElement('label');
+        label.style.cssText = "cursor: pointer; display: flex; align-items: center;";
+
+        const input = document.createElement('input');
+        input.type = "checkbox";
+        input.id = `col-${col}`; // Note: ID might still be vulnerable if col has weird chars, but less critical than innerHTML
+        input.value = col;
+        input.checked = isChecked;
+        input.style.marginRight = "8px";
+
+        const span = document.createElement('span');
+        span.textContent = col;
+
+        label.appendChild(input);
+        label.appendChild(span);
+        div.appendChild(label);
+
+        container.appendChild(div);
+      });
+    }
+
+    function goToStep2() {
+      // Gather selected columns
+      const checkboxes = document.querySelectorAll('#column-list input[type="checkbox"]:checked');
+      if (checkboxes.length < 2) {
+        alert("Please select at least 2 columns to create a flow.");
+        return;
+      }
+
+      const currentSelection = Array.from(checkboxes).map(cb => cb.value);
+
+      // Preserve settings for existing columns
+      const configMap = new Map(selectedColumns.map(c => [c.name, c]));
+
+      // Rebuild selectedColumns based on checkbox order (alphabetical usually, or sheet order)
+      // but if user reordered them before, we might lose that order if we just map from checkboxes.
+      // Strategy:
+      // 1. Keep existing selected columns that are still checked.
+      // 2. Append new checked columns.
+
+      const newSelected = [];
+
+      // First, iterate existing selected to keep their order
+      selectedColumns.forEach(c => {
+        if (currentSelection.includes(c.name)) {
+          newSelected.push(c);
+        }
+      });
+
+      // Then add any new ones that weren't in selectedColumns
+      currentSelection.forEach(name => {
+        if (!newSelected.some(c => c.name === name)) {
+           newSelected.push({ name: name, separator: "" });
+        }
+      });
+
+      selectedColumns = newSelected;
+
+      // Auto-generate title if empty or default
+      const defaultTitle = selectedColumns.map(c => c.name).join(' vs ');
+      document.getElementById('chart-title').value = defaultTitle;
+
+      renderConfigList();
+
+      document.getElementById('step-1').classList.add('hidden');
+      document.getElementById('step-2').classList.remove('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
+    function goToStep1() {
+      // Re-render to ensure checkboxes match state (though they should be fine in DOM)
+      renderColumnSelection(availableColumns);
+
+      document.getElementById('step-1').classList.remove('hidden');
+      document.getElementById('step-2').classList.add('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
+    // Step 2 Logic
+    function renderConfigList() {
+      const container = document.getElementById('config-list');
+      container.innerHTML = '';
+
+      selectedColumns.forEach((col, index) => {
+        const div = document.createElement('div');
+        div.className = 'config-item';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'config-name';
+        nameDiv.textContent = `${index + 1}. ${col.name}`;
+
+        const controlsDiv = document.createElement('div');
+        controlsDiv.className = 'config-controls';
+
+        const label = document.createElement('label');
+        label.style.cssText = "font-size: 13px; color: #5f6368;";
+        label.textContent = "Separator:";
+
+        const input = document.createElement('input');
+        input.type = "text";
+        input.className = "separator-input";
+        input.placeholder = "e.g. ,";
+        input.value = col.separator;
+        input.onchange = function() { updateSeparator(index, this.value); };
+
+        const btnUp = document.createElement('button');
+        btnUp.className = "order-btn";
+        btnUp.onclick = function() { moveUp(index); };
+        btnUp.disabled = (index === 0);
+        btnUp.title = "Move Up";
+        btnUp.innerHTML = "&uarr;"; // safe entity
+
+        const btnDown = document.createElement('button');
+        btnDown.className = "order-btn";
+        btnDown.onclick = function() { moveDown(index); };
+        btnDown.disabled = (index === selectedColumns.length - 1);
+        btnDown.title = "Move Down";
+        btnDown.innerHTML = "&darr;"; // safe entity
+
+        controlsDiv.appendChild(label);
+        controlsDiv.appendChild(input);
+        controlsDiv.appendChild(btnUp);
+        controlsDiv.appendChild(btnDown);
+
+        div.appendChild(nameDiv);
+        div.appendChild(controlsDiv);
+
+        container.appendChild(div);
+      });
+    }
+
+    function updateSeparator(index, val) {
+      selectedColumns[index].separator = val;
+    }
+
+    function moveUp(index) {
+      if (index > 0) {
+        const temp = selectedColumns[index];
+        selectedColumns[index] = selectedColumns[index - 1];
+        selectedColumns[index - 1] = temp;
+        renderConfigList();
+      }
+    }
+
+    function moveDown(index) {
+      if (index < selectedColumns.length - 1) {
+        const temp = selectedColumns[index];
+        selectedColumns[index] = selectedColumns[index + 1];
+        selectedColumns[index + 1] = temp;
+        renderConfigList();
+      }
+    }
+
+    // Step 3 Logic
+    function generateDiagram() {
+       chartTitle = document.getElementById('chart-title').value;
+
+       document.getElementById('step-1').classList.add('hidden');
+       document.getElementById('step-2').classList.add('hidden');
+       document.getElementById('step-3').classList.remove('hidden');
+
+       const container = document.getElementById('chart-container');
+       container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating diagram...</div>';
+
+       google.script.run
+         .withSuccessHandler(renderChart)
+         .withFailureHandler(err => {
+            container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
+            console.error(err);
+         })
+         .generateSankeyData({ columns: selectedColumns });
+    }
+
+    function renderChart(data) {
+       lastChartData = data;
+       const container = document.getElementById('chart-container');
+       container.innerHTML = '';
+
+       if (data.nodes.length === 0) {
+           container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">No data found to visualize. Check your column selection and data.</div>';
+           return;
+       }
+
+       if (chartInstance) {
+         chartInstance.dispose();
+       }
+
+       chartInstance = echarts.init(container);
+       const option = getChartOption(data);
+       chartInstance.setOption(option);
+
+       // Handle resize
+       window.addEventListener('resize', function() {
+           chartInstance.resize();
+       });
+
+       // Handle fullscreen change
+       document.addEventListener('fullscreenchange', function() {
+           chartInstance.resize();
+       });
+    }
+
+    function toggleFullscreen() {
+        const container = document.getElementById('chart-container');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen().catch(err => {
+                alert(`Error attempting to enable fullscreen mode: ${err.message} (${err.name})`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function getChartOption(data) {
+      return {
+        title: {
+            text: chartTitle || 'Data Collection Flow',
+            left: 'center',
+            top: 10
+        },
+        tooltip: {
+            trigger: 'item',
+            triggerOn: 'mousemove'
+        },
+        series: [
+            {
+                type: 'sankey',
+                data: data.nodes,
+                links: data.links,
+                emphasis: {
+                    focus: 'adjacency'
+                },
+                top: 50,
+                bottom: 20,
+                left: 20,
+                right: 200,
+                nodeWidth: 20,
+                nodeGap: 8,
+                layoutIterations: 32,
+                label: {
+                  position: 'right',
+                  formatter: function(params) {
+                      if (params.name && params.name.includes(':::')) {
+                          return params.name.split(':::')[1];
+                      }
+                      return params.name;
+                  }
+                },
+                lineStyle: {
+                    color: 'source',
+                    curveness: 0.5
+                }
+            }
+        ]
+      };
+    }
+
+    function downloadChart(type) {
+       // Sanitize filename from title
+       const safeTitle = (chartTitle || 'SankeyDiagram').replace(/[^a-z0-9]/gi, '_');
+       const filename = `${safeTitle}.${type}`;
+
+       if (type === 'svg') {
+         downloadSVG(filename);
+       } else {
+         if (!chartInstance) return;
+         // Force white background for download
+         const url = chartInstance.getDataURL({
+             type: type,
+             pixelRatio: 2,
+             backgroundColor: '#fff'
+         });
+         triggerDownload(url, filename);
+       }
+    }
+
+    function measureMaxLabelWidth(nodes) {
+        if (!nodes || nodes.length === 0) return 0;
+
+        // Create a temp canvas context to measure text
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        // ECharts default font usually sans-serif 12px
+        context.font = '12px sans-serif';
+
+        let maxWidth = 0;
+        nodes.forEach(node => {
+            // Node name might have the ::: suffix if not stripped, but our data has full keys?
+            // Wait, data.nodes has { name: "Key:::Value" }. The formatter strips it.
+            // We must measure the DISPLAYED text.
+            let labelText = node.name;
+            if (labelText && labelText.includes(':::')) {
+                labelText = labelText.split(':::')[1];
+            }
+            const width = context.measureText(labelText).width;
+            if (width > maxWidth) maxWidth = width;
+        });
+
+        return maxWidth;
+    }
+
+    function downloadSVG(filename) {
+      if (!lastChartData) return;
+
+      // Calculate dynamic right padding based on longest label
+      const maxLabelWidth = measureMaxLabelWidth(lastChartData.nodes);
+      // Add generous buffer (e.g. 60px)
+      const dynamicRightPadding = Math.ceil(maxLabelWidth + 60);
+
+      // Define a reasonable graph body width (not too wide, not too narrow)
+      const graphBodyWidth = 1200;
+      // Total container width
+      const totalWidth = graphBodyWidth + dynamicRightPadding + 20; // 20 is left margin
+      const fixedHeight = document.getElementById('chart-container').clientHeight || 800;
+
+      const div = document.createElement('div');
+      div.style.visibility = 'hidden';
+      div.style.width = totalWidth + 'px';
+      div.style.height = fixedHeight + 'px';
+      div.style.position = 'absolute';
+      div.style.top = '0';
+      div.style.left = '0';
+      document.body.appendChild(div);
+
+      // Initialize with SVG renderer
+      const tempChart = echarts.init(div, null, { renderer: 'svg' });
+
+      // Get options and apply dynamic layout settings
+      const option = getChartOption(lastChartData);
+      if (option.series && option.series.length > 0) {
+          // Set right margin to the calculated width to fit labels
+          option.series[0].right = dynamicRightPadding;
+          // Ensure left margin is standard
+          option.series[0].left = 20;
+      }
+
+      tempChart.setOption(option);
+
+      // Get SVG Data URL
+      // Note: getDataURL for SVG renderer returns the SVG file content as data URI
+      const url = tempChart.getDataURL({
+        type: 'svg',
+        backgroundColor: '#fff'
+      });
+
+      triggerDownload(url, filename);
+
+      // Cleanup
+      tempChart.dispose();
+      document.body.removeChild(div);
+    }
+
+    function triggerDownload(url, filename) {
+       const link = document.createElement('a');
+       link.download = filename;
+       link.href = url;
+       document.body.appendChild(link);
+       link.click();
+       document.body.removeChild(link);
+    }
+
+  </script>
+</body>
+</html>
