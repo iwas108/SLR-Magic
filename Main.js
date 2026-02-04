@@ -34,7 +34,8 @@ function onOpen() {
     .addSubMenu(SpreadsheetApp.getUi().createMenu('Visualizer')
         .addItem('Sankey Diagram', 'openSankeyVisualizer')
         .addItem('Pie Chart', 'openPieChartVisualizer')
-        .addItem('Bar Chart', 'openBarChartVisualizer'))
+        .addItem('Bar Chart', 'openBarChartVisualizer')
+        .addItem('Stack Bar Chart', 'openBarStackVisualizer'))
     .addSeparator()
     .addItem('Project Cost Preview', 'showCostPreviewDialog')
     .addItem('About SLR-Magic', 'showWelcomeDialog')
@@ -479,4 +480,12 @@ function openBarChartVisualizer() {
 
 function generateBarChartData(config) {
   return VisualizerController.processBarChartData(config);
+}
+
+function openBarStackVisualizer() {
+  VisualizerController.openBarStackSettings();
+}
+
+function generateBarStackData(config) {
+  return VisualizerController.processBarStackData(config);
 }
