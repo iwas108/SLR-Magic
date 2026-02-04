@@ -203,12 +203,179 @@ var VisualizerController = (function() {
     return { legendData, seriesData };
   }
 
+  /**
+   * Opens the Bar Chart settings/visualizer dialog.
+   */
+  function openBarChartSettings() {
+    const html = HtmlService.createHtmlOutputFromFile('VisualizerBarChartUI')
+      .setWidth(1000)
+      .setHeight(800)
+      .setTitle('Bar Chart Visualizer');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Bar Chart Visualizer');
+  }
+
+  /**
+   * Processes data for the Bar Chart.
+   * @param {Object} config - { xAxisColumn: "ColName", seriesColumns: ["ColA", "ColB"] }
+   */
+  function processBarChartData(config) {
+    try {
+      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const data = SheetUtils.getDataAsObjects(sheet);
+
+      return prepareBarChartData(data, config);
+    } catch (e) {
+      console.error(e);
+      throw new Error("Error processing Bar Chart data: " + e.message);
+    }
+  }
+
+  /**
+   * Helper to parse numeric values from strings more robustly.
+   */
+  function parseNumber(val) {
+    if (val === null || val === undefined || val === "") return null;
+    if (typeof val === 'number') return val;
+
+    // Remove non-numeric characters except dot and minus (for currency, commas, etc)
+    // E.g. "$1,200.50" -> "1200.50"
+    // E.g. "1,000" -> "1000"
+    // Note: This is a simple parser, might not handle European format (1.000,00) correctly if mixed.
+    // Assuming US/Standard format.
+    const str = String(val).replace(/,/g, '').replace(/[^\d.-]/g, '');
+    const num = parseFloat(str);
+    return isNaN(num) ? null : num;
+  }
+
+  /**
+   * Pure function to prepare bar chart data.
+   */
+  function prepareBarChartData(rows, config) {
+    if (!rows || rows.length === 0 || !config || !config.xAxisColumn || !config.seriesColumns) {
+      return { xAxisData: [], series: [] };
+    }
+
+    const xAxisColumn = config.xAxisColumn;
+    const seriesColumns = config.seriesColumns;
+    const aggregationType = config.aggregationType || 'None';
+
+    const xAxisData = [];
+    const seriesMap = new Map(); // ColName -> Array of numbers
+
+    // Initialize series arrays in map for final output
+    seriesColumns.forEach(col => seriesMap.set(col, []));
+
+    if (aggregationType === 'None') {
+      // Original Logic: Row by Row
+      rows.forEach(row => {
+        // 1. Process X-Axis Label
+        let label = row[xAxisColumn];
+        if (label === null || label === undefined) label = "(Empty)";
+        else label = String(label).trim();
+        if (label === "") label = "(Empty)";
+
+        xAxisData.push(label);
+
+        // 2. Process Series Data
+        seriesColumns.forEach(col => {
+          // Use robust parser
+          let num = parseNumber(row[col]);
+          if (num === null && row[col] && String(row[col]).trim() !== "") {
+              // If text exists but not number, treat as 0 for plotting
+              num = 0;
+          }
+          seriesMap.get(col).push(num);
+        });
+      });
+
+    } else {
+      // Aggregation Logic: Group by X-Axis
+
+      // 1. Group Data
+      const groups = new Map(); // X-Value -> { count: 0, seriesVals: { ColName: [] } }
+
+      rows.forEach(row => {
+        let label = row[xAxisColumn];
+        if (label === null || label === undefined) label = "(Empty)";
+        else label = String(label).trim();
+        if (label === "") label = "(Empty)";
+
+        if (!groups.has(label)) {
+            groups.set(label, { count: 0, seriesVals: {} });
+            seriesColumns.forEach(col => groups.get(label).seriesVals[col] = []);
+        }
+
+        const group = groups.get(label);
+        group.count++;
+
+        seriesColumns.forEach(col => {
+           group.seriesVals[col].push(row[col]);
+        });
+      });
+
+      // 2. Compute Aggregates
+      // Sort keys optionally? For now, insertion order (or alphabetical?)
+      // Typically charts look better if sorted or consistent. Map iterates in insertion order.
+      // Let's sort keys alphabetically for consistency if they are strings
+      const sortedKeys = Array.from(groups.keys()).sort();
+
+      sortedKeys.forEach(key => {
+         xAxisData.push(key);
+         const group = groups.get(key);
+
+         seriesColumns.forEach(col => {
+            const rawVals = group.seriesVals[col];
+            let resultVal = 0;
+
+            if (aggregationType === 'Count') {
+                // Count non-empty values in this series column
+                // If the user just wants row count, any column works.
+                // But specifically for this column:
+                resultVal = rawVals.filter(v => v !== null && v !== undefined && String(v).trim() !== "").length;
+            } else {
+                // Parse numbers for Sum, Avg, Min, Max
+                const nums = rawVals.map(v => parseNumber(v)).filter(n => n !== null);
+
+                if (nums.length === 0) {
+                    resultVal = null; // No data
+                } else {
+                    if (aggregationType === 'Sum') {
+                        resultVal = nums.reduce((a, b) => a + b, 0);
+                    } else if (aggregationType === 'Average') {
+                        const sum = nums.reduce((a, b) => a + b, 0);
+                        resultVal = sum / nums.length;
+                    } else if (aggregationType === 'Min') {
+                        resultVal = Math.min(...nums);
+                    } else if (aggregationType === 'Max') {
+                        resultVal = Math.max(...nums);
+                    }
+                }
+            }
+            seriesMap.get(col).push(resultVal);
+         });
+      });
+    }
+
+    // Format for ECharts
+    const series = [];
+    seriesColumns.forEach(col => {
+      series.push({
+        name: col,
+        data: seriesMap.get(col)
+      });
+    });
+
+    return { xAxisData, series };
+  }
+
   return {
     openSankeySettings,
     openPieChartSettings,
+    openBarChartSettings,
     getDataCollectionColumns,
     processSankeyData,
-    processPieChartData
+    processPieChartData,
+    processBarChartData
   };
 
 })();
