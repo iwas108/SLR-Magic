@@ -369,6 +369,151 @@ var VisualizerController = (function() {
   }
 
   /**
+   * Opens the Line Chart settings/visualizer dialog.
+   */
+  function openLineChartSettings() {
+    const html = HtmlService.createHtmlOutputFromFile('VisualizerLineChartUI')
+      .setWidth(1000)
+      .setHeight(800)
+      .setTitle('Line Chart Visualizer');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Line Chart Visualizer');
+  }
+
+  /**
+   * Processes data for the Line Chart.
+   * @param {Object} config - { xAxisColumn, seriesColumns, aggregationType, separator }
+   */
+  function processLineChartData(config) {
+    try {
+      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const data = SheetUtils.getDataAsObjects(sheet);
+
+      return prepareLineChartData(data, config);
+    } catch (e) {
+      console.error(e);
+      throw new Error("Error processing Line Chart data: " + e.message);
+    }
+  }
+
+  /**
+   * Pure function to prepare line chart data.
+   */
+  function prepareLineChartData(rows, config) {
+    if (!rows || rows.length === 0 || !config || !config.xAxisColumn || !config.seriesColumns) {
+      return { xAxisData: [], series: [] };
+    }
+
+    const xAxisColumn = config.xAxisColumn;
+    const seriesColumns = config.seriesColumns;
+    const aggregationType = config.aggregationType || 'None';
+    const separator = config.separator ? config.separator.trim() : "";
+
+    const xAxisData = [];
+    const seriesMap = new Map(); // ColName -> Array of values
+
+    // Initialize series arrays in map
+    seriesColumns.forEach(col => seriesMap.set(col, []));
+
+    if (aggregationType === 'None') {
+      // Logic: Row by Row (Separator ignored as 1:1 mapping required for basic plotting)
+      rows.forEach(row => {
+        let label = row[xAxisColumn];
+        if (label === null || label === undefined) label = "(Empty)";
+        else label = String(label).trim();
+        if (label === "") label = "(Empty)";
+
+        xAxisData.push(label);
+
+        seriesColumns.forEach(col => {
+          let num = parseNumber(row[col]);
+          if (num === null && row[col] && String(row[col]).trim() !== "") {
+              num = 0;
+          }
+          seriesMap.get(col).push(num);
+        });
+      });
+
+    } else {
+      // Aggregation Logic: Group by X-Axis
+
+      const groups = new Map(); // X-Value -> { count: 0, seriesVals: { ColName: [] } }
+
+      rows.forEach(row => {
+        let label = row[xAxisColumn];
+        if (label === null || label === undefined) label = "(Empty)";
+        else label = String(label).trim();
+        if (label === "") label = "(Empty)";
+
+        if (!groups.has(label)) {
+            groups.set(label, { count: 0, seriesVals: {} });
+            seriesColumns.forEach(col => groups.get(label).seriesVals[col] = []);
+        }
+
+        const group = groups.get(label);
+        group.count++;
+
+        seriesColumns.forEach(col => {
+           let raw = row[col];
+           // Handle Separator if provided
+           if (separator && raw !== null && raw !== undefined) {
+               const str = String(raw);
+               const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+               // Add all parts
+               group.seriesVals[col].push(...parts);
+           } else {
+               group.seriesVals[col].push(raw);
+           }
+        });
+      });
+
+      const sortedKeys = Array.from(groups.keys()).sort();
+
+      sortedKeys.forEach(key => {
+         xAxisData.push(key);
+         const group = groups.get(key);
+
+         seriesColumns.forEach(col => {
+            const rawVals = group.seriesVals[col];
+            let resultVal = 0;
+
+            if (aggregationType === 'Count') {
+                // Count non-empty values
+                resultVal = rawVals.filter(v => v !== null && v !== undefined && String(v).trim() !== "").length;
+            } else {
+                const nums = rawVals.map(v => parseNumber(v)).filter(n => n !== null);
+
+                if (nums.length === 0) {
+                    resultVal = null;
+                } else {
+                    if (aggregationType === 'Sum') {
+                        resultVal = nums.reduce((a, b) => a + b, 0);
+                    } else if (aggregationType === 'Average') {
+                        const sum = nums.reduce((a, b) => a + b, 0);
+                        resultVal = sum / nums.length;
+                    } else if (aggregationType === 'Min') {
+                        resultVal = Math.min(...nums);
+                    } else if (aggregationType === 'Max') {
+                        resultVal = Math.max(...nums);
+                    }
+                }
+            }
+            seriesMap.get(col).push(resultVal);
+         });
+      });
+    }
+
+    const series = [];
+    seriesColumns.forEach(col => {
+      series.push({
+        name: col,
+        data: seriesMap.get(col)
+      });
+    });
+
+    return { xAxisData, series };
+  }
+
+  /**
    * Opens the Stack Bar Chart settings/visualizer dialog.
    */
   function openBarStackSettings() {
@@ -522,11 +667,13 @@ var VisualizerController = (function() {
     openPieChartSettings,
     openBarChartSettings,
     openBarStackSettings,
+    openLineChartSettings,
     getDataCollectionColumns,
     processSankeyData,
     processPieChartData,
     processBarChartData,
-    processBarStackData
+    processBarStackData,
+    processLineChartData
   };
 
 })();
