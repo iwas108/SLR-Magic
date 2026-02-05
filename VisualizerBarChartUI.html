@@ -79,6 +79,12 @@
     </div>
 
     <div style="margin-bottom: 15px;">
+        <label for="separator" style="display: block; font-weight: 500; margin-bottom: 5px;">Data Separator</label>
+        <input type="text" id="separator" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="e.g. , (Leave empty if single value)">
+        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">If the Series Column(s) contain multiple values (e.g. "1, 2, 3"), specify the separator here to split them.</p>
+    </div>
+
+    <div style="margin-bottom: 15px;">
         <label for="aggregation-type" style="display: block; font-weight: 500; margin-bottom: 5px;">Aggregation Method</label>
         <select id="aggregation-type" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
             <option value="None">None (Plot raw rows)</option>
@@ -249,6 +255,7 @@
     // Step 3 Logic
     function generateChart() {
        chartTitle = document.getElementById('chart-title').value;
+       const separator = document.getElementById('separator').value;
        const aggregationType = document.getElementById('aggregation-type').value;
        const showMinMax = document.getElementById('show-minmax').checked;
        const showAverage = document.getElementById('show-average').checked;
@@ -269,7 +276,8 @@
          .generateBarChartData({
              xAxisColumn: xAxisColumn,
              seriesColumns: seriesColumns,
-             aggregationType: aggregationType
+             aggregationType: aggregationType,
+             separator: separator
          });
     }
 
