@@ -266,7 +266,93 @@ var VisualizerController = (function() {
     // Initialize series arrays in map for final output
     seriesColumns.forEach(col => seriesMap.set(col, []));
 
-    if (aggregationType === 'None') {
+    // NEW: Check if we are in "Use Values as Series" mode
+    const useValuesAsSeries = (aggregationType === 'Count' && config.useValuesAsSeries === true);
+
+    if (useValuesAsSeries) {
+         // --- PIVOT LOGIC: Values as Series ---
+         // Map<XValue, Map<SeriesValueName, Count>>
+         const pivotGroups = new Map();
+         const uniqueSeriesNames = new Set();
+
+         rows.forEach(row => {
+             // 1. Process X-Axis Label(s)
+             let rawLabel = row[xAxisColumn];
+             let labels = [];
+
+             if (separator && rawLabel !== null && rawLabel !== undefined) {
+                  const str = String(rawLabel);
+                  const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                  if (parts.length > 0) labels = parts;
+                  else labels = ["(Empty)"];
+             } else {
+                  let label = rawLabel;
+                  if (label === null || label === undefined) label = "(Empty)";
+                  else label = String(label).trim();
+                  if (label === "") label = "(Empty)";
+                  labels = [label];
+             }
+
+             // 2. For each X-Label, process Series Columns
+             labels.forEach(label => {
+                  if (!pivotGroups.has(label)) {
+                      pivotGroups.set(label, new Map());
+                  }
+                  const valueMap = pivotGroups.get(label);
+
+                  seriesColumns.forEach(col => {
+                      let rawVal = row[col];
+                      let vals = [];
+                      if (separator && rawVal !== null && rawVal !== undefined) {
+                           const str = String(rawVal);
+                           const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                           if (parts.length > 0) vals = parts;
+                           else vals = ["(Empty)"];
+                      } else {
+                           let v = rawVal;
+                           if (v === null || v === undefined) v = "(Empty)";
+                           else v = String(v).trim();
+                           if (v === "") v = "(Empty)";
+                           vals = [v];
+                      }
+
+                      vals.forEach(v => {
+                          valueMap.set(v, (valueMap.get(v) || 0) + 1);
+                          uniqueSeriesNames.add(v);
+                      });
+                  });
+             });
+         });
+
+         // Sort Keys
+         const sortedXKeys = Array.from(pivotGroups.keys()).sort();
+         const sortedSeriesNames = Array.from(uniqueSeriesNames).sort();
+
+         // Construct output
+         sortedXKeys.forEach(xKey => xAxisData.push(xKey));
+
+         sortedSeriesNames.forEach(sName => {
+             const data = [];
+             sortedXKeys.forEach(xKey => {
+                 const val = pivotGroups.get(xKey).get(sName) || 0;
+                 data.push(val);
+             });
+             seriesMap.set(sName, data); // Map key is now the value name
+         });
+
+         // Override seriesColumns for final output construction
+         // (Technically we just iterate the map we just built)
+         const series = [];
+         sortedSeriesNames.forEach(sName => {
+             series.push({
+                 name: sName,
+                 data: seriesMap.get(sName)
+             });
+         });
+
+         return { xAxisData, series };
+
+    } else if (aggregationType === 'None') {
       // Original Logic: Row by Row
       rows.forEach(row => {
         // 1. Process X-Axis Label(s)
