@@ -833,10 +833,21 @@ var VisualizerController = (function() {
 
     rows.forEach(row => {
         // Series (Group)
-        let sVal = row[seriesColumn];
-        if (sVal === null || sVal === undefined) sVal = "(Empty)";
-        else sVal = String(sVal).trim();
-        if (sVal === "") sVal = "(Empty)";
+        let rawSVal = row[seriesColumn];
+        let sVals = [];
+        if (rawSVal === null || rawSVal === undefined) {
+             sVals = ["(Empty)"];
+        } else {
+             const str = String(rawSVal).trim();
+             if (str === "") {
+                 sVals = ["(Empty)"];
+             } else if (separator && separator.trim() !== "") {
+                 sVals = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                 if (sVals.length === 0) sVals = ["(Empty)"];
+             } else {
+                 sVals = [str];
+             }
+        }
 
         // Indicator (Axes)
         let rawInd = row[indicatorColumn];
@@ -863,21 +874,41 @@ var VisualizerController = (function() {
             else val = 0; // Or null? Treat as 0 for sum/avg
         }
 
-        if (!matrix.has(sVal)) {
-            matrix.set(sVal, new Map()); // Indicator -> { sum: 0, count: 0 }
-        }
-        const sMap = matrix.get(sVal);
-
-        indVals.forEach(ind => {
-            // Update Series Map
-            if (!sMap.has(ind)) {
-                sMap.set(ind, { sum: 0, count: 0 });
+        // Iterate over all Series values found in this row
+        sVals.forEach(sVal => {
+            if (!matrix.has(sVal)) {
+                matrix.set(sVal, new Map()); // Indicator -> { sum: 0, count: 0 }
             }
-            const entry = sMap.get(ind);
-            entry.sum += val;
-            entry.count += 1;
+            const sMap = matrix.get(sVal);
 
-            // Update Global Stats (Frequency)
+            // Iterate over all Indicators found in this row
+            indVals.forEach(ind => {
+                // Update Series Map
+                if (!sMap.has(ind)) {
+                    sMap.set(ind, { sum: 0, count: 0 });
+                }
+                const entry = sMap.get(ind);
+                entry.sum += val;
+                entry.count += 1;
+
+                // Update Global Stats (Frequency) - Only once per row?
+                // Actually, if a row contributes to multiple Series, does it increase the "global frequency" of the indicator?
+                // The Global Stats are used for "Top N Indicators".
+                // If we count it for every series, an indicator present in a row with 10 series will appear 10 times more frequent.
+                // Usually "Top N" means "in how many rows does this indicator appear?" or "total weight".
+                // Ideally, we should track indicator frequency per row, regardless of series.
+                // However, the original code tracked it inside the loop.
+                // Wait, original code had 1 sVal per row. So it was 1 * indVals.length.
+                // Now it is sVals.length * indVals.length.
+                // If we want "Top N Indicators across the dataset", it usually refers to row frequency.
+                // Let's stick to simple total weight/occurrence count in the matrix for now.
+                // But for `indicatorStats`, let's do it outside the series loop to avoid inflation.
+            });
+        });
+
+        // Update Global Stats for Indicators (Once per row, regardless of how many Series groups the row belongs to)
+        // This ensures "Top N" is based on the dataset prevalence, not multiplied by series overlap.
+        indVals.forEach(ind => {
             const stats = indicatorStats.get(ind) || { frequency: 0 };
             stats.frequency += 1;
             indicatorStats.set(ind, stats);
