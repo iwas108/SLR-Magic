@@ -363,10 +363,16 @@ var VisualizerController = (function() {
             let resultVal = 0;
 
             if (aggregationType === 'Count') {
-                // Count non-empty values in this series column
-                // If the user just wants row count, any column works.
-                // But specifically for this column:
-                resultVal = rawVals.filter(v => v !== null && v !== undefined && String(v).trim() !== "").length;
+                // If the series column is the same as the X-axis column, use row count (frequency)
+                // to avoid overcounting when values are split.
+                if (col === xAxisColumn) {
+                    resultVal = group.count;
+                } else {
+                    // Count non-empty values in this series column
+                    // If the user just wants row count, any column works.
+                    // But specifically for this column:
+                    resultVal = rawVals.filter(v => v !== null && v !== undefined && String(v).trim() !== "").length;
+                }
             } else {
                 // Parse numbers for Sum, Avg, Min, Max
                 const nums = rawVals.map(v => parseNumber(v)).filter(n => n !== null);
