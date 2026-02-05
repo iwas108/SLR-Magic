@@ -662,18 +662,174 @@ var VisualizerController = (function() {
     return { xAxisData: allXValues, series: seriesData };
   }
 
+  /**
+   * Opens the Radar Chart settings/visualizer dialog.
+   */
+  function openRadarChartSettings() {
+    const html = HtmlService.createHtmlOutputFromFile('VisualizerRadarChartUI')
+      .setWidth(1000)
+      .setHeight(800)
+      .setTitle('Radar Chart Visualizer');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Radar Chart Visualizer');
+  }
+
+  /**
+   * Processes data for the Radar Chart.
+   * @param {Object} config - { seriesColumn, indicatorColumn, separator, valueColumn, aggregation, topN }
+   */
+  function processRadarChartData(config) {
+    try {
+      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const data = SheetUtils.getDataAsObjects(sheet);
+
+      return prepareRadarChartData(data, config);
+    } catch (e) {
+      console.error(e);
+      throw new Error("Error processing Radar Chart data: " + e.message);
+    }
+  }
+
+  /**
+   * Pure function to prepare radar chart data.
+   */
+  function prepareRadarChartData(rows, config) {
+    if (!rows || rows.length === 0 || !config || !config.seriesColumn || !config.indicatorColumn) {
+      return { indicator: [], series: [] };
+    }
+
+    const { seriesColumn, indicatorColumn, separator, valueColumn, aggregation, topN } = config;
+
+    // Map<SeriesName, Map<IndicatorName, Value (Sum/Count)>>
+    const matrix = new Map();
+    // Global stats for Indicators to find Top N and Max
+    const indicatorStats = new Map(); // Name -> { count: 0, maxVal: 0 }
+
+    rows.forEach(row => {
+        // Series (Group)
+        let sVal = row[seriesColumn];
+        if (sVal === null || sVal === undefined) sVal = "(Empty)";
+        else sVal = String(sVal).trim();
+        if (sVal === "") sVal = "(Empty)";
+
+        // Indicator (Axes)
+        let rawInd = row[indicatorColumn];
+        let indVals = [];
+        if (rawInd === null || rawInd === undefined) {
+             indVals = ["(Empty)"];
+        } else {
+             const str = String(rawInd).trim();
+             if (str === "") {
+                 indVals = ["(Empty)"];
+             } else if (separator && separator.trim() !== "") {
+                 indVals = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                 if (indVals.length === 0) indVals = ["(Empty)"];
+             } else {
+                 indVals = [str];
+             }
+        }
+
+        // Value (Weight)
+        let val = 1; // Default for Count
+        if (valueColumn && aggregation !== 'Count') {
+            const parsed = parseNumber(row[valueColumn]);
+            if (parsed !== null) val = parsed;
+            else val = 0; // Or null? Treat as 0 for sum/avg
+        }
+
+        if (!matrix.has(sVal)) {
+            matrix.set(sVal, new Map()); // Indicator -> { sum: 0, count: 0 }
+        }
+        const sMap = matrix.get(sVal);
+
+        indVals.forEach(ind => {
+            // Update Series Map
+            if (!sMap.has(ind)) {
+                sMap.set(ind, { sum: 0, count: 0 });
+            }
+            const entry = sMap.get(ind);
+            entry.sum += val;
+            entry.count += 1;
+
+            // Update Global Stats (Frequency)
+            const stats = indicatorStats.get(ind) || { frequency: 0 };
+            stats.frequency += 1;
+            indicatorStats.set(ind, stats);
+        });
+    });
+
+    // 1. Identify Top N Indicators
+    const sortedInds = Array.from(indicatorStats.entries())
+        .sort((a, b) => b[1].frequency - a[1].frequency);
+
+    const limit = topN || 6;
+    const topIndicators = sortedInds.slice(0, limit).map(e => e[0]);
+
+    // 2. Compute Final Values and Global Max per Indicator (for Axis Scaling)
+    const axisMaxMap = new Map(); // Indicator -> MaxValue across all series
+
+    const seriesData = [];
+
+    // We iterate Series (Polygons)
+    Array.from(matrix.keys()).sort().forEach(sName => {
+        const sMap = matrix.get(sName);
+        const dataVector = [];
+
+        topIndicators.forEach(ind => {
+            let resultVal = 0;
+            if (sMap.has(ind)) {
+                const entry = sMap.get(ind);
+                if (aggregation === 'Average') {
+                     resultVal = entry.count > 0 ? entry.sum / entry.count : 0;
+                } else if (aggregation === 'Sum') {
+                     resultVal = entry.sum;
+                } else {
+                     // Count
+                     // If aggregation is Count, we used val=1. So entry.sum is the count.
+                     // But we also tracked entry.count which is the number of rows.
+                     // In Count mode they are the same.
+                     resultVal = entry.count;
+                }
+            }
+            dataVector.push(resultVal);
+
+            // Update Max
+            const currentMax = axisMaxMap.get(ind) || 0;
+            if (resultVal > currentMax) {
+                axisMaxMap.set(ind, resultVal);
+            }
+        });
+
+        seriesData.push({
+            name: sName,
+            value: dataVector
+        });
+    });
+
+    // 3. Construct Indicator Config
+    const indicatorConfig = topIndicators.map(ind => {
+        // Add some padding to max
+        const rawMax = axisMaxMap.get(ind) || 0;
+        const max = rawMax === 0 ? 10 : Math.ceil(rawMax * 1.1);
+        return { name: ind, max: max };
+    });
+
+    return { indicator: indicatorConfig, series: seriesData };
+  }
+
   return {
     openSankeySettings,
     openPieChartSettings,
     openBarChartSettings,
     openBarStackSettings,
     openLineChartSettings,
+    openRadarChartSettings,
     getDataCollectionColumns,
     processSankeyData,
     processPieChartData,
     processBarChartData,
     processBarStackData,
-    processLineChartData
+    processLineChartData,
+    processRadarChartData
   };
 
 })();

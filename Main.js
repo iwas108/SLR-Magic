@@ -36,7 +36,8 @@ function onOpen() {
         .addItem('Pie Chart', 'openPieChartVisualizer')
         .addItem('Bar Chart', 'openBarChartVisualizer')
         .addItem('Stack Bar Chart', 'openBarStackVisualizer')
-        .addItem('Line Chart', 'openLineChartVisualizer'))
+        .addItem('Line Chart', 'openLineChartVisualizer')
+        .addItem('Radar Chart', 'openRadarChartVisualizer'))
     .addSeparator()
     .addItem('Project Cost Preview', 'showCostPreviewDialog')
     .addItem('About SLR-Magic', 'showWelcomeDialog')
@@ -497,4 +498,12 @@ function openLineChartVisualizer() {
 
 function generateLineChartData(config) {
   return VisualizerController.processLineChartData(config);
+}
+
+function openRadarChartVisualizer() {
+  VisualizerController.openRadarChartSettings();
+}
+
+function generateRadarChartData(config) {
+  return VisualizerController.processRadarChartData(config);
 }
