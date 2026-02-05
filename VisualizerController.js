@@ -266,7 +266,93 @@ var VisualizerController = (function() {
     // Initialize series arrays in map for final output
     seriesColumns.forEach(col => seriesMap.set(col, []));
 
-    if (aggregationType === 'None') {
+    // NEW: Check if we are in "Use Values as Series" mode
+    const useValuesAsSeries = (aggregationType === 'Count' && config.useValuesAsSeries === true);
+
+    if (useValuesAsSeries) {
+         // --- PIVOT LOGIC: Values as Series ---
+         // Map<XValue, Map<SeriesValueName, Count>>
+         const pivotGroups = new Map();
+         const uniqueSeriesNames = new Set();
+
+         rows.forEach(row => {
+             // 1. Process X-Axis Label(s)
+             let rawLabel = row[xAxisColumn];
+             let labels = [];
+
+             if (separator && rawLabel !== null && rawLabel !== undefined) {
+                  const str = String(rawLabel);
+                  const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                  if (parts.length > 0) labels = parts;
+                  else labels = ["(Empty)"];
+             } else {
+                  let label = rawLabel;
+                  if (label === null || label === undefined) label = "(Empty)";
+                  else label = String(label).trim();
+                  if (label === "") label = "(Empty)";
+                  labels = [label];
+             }
+
+             // 2. For each X-Label, process Series Columns
+             labels.forEach(label => {
+                  if (!pivotGroups.has(label)) {
+                      pivotGroups.set(label, new Map());
+                  }
+                  const valueMap = pivotGroups.get(label);
+
+                  seriesColumns.forEach(col => {
+                      let rawVal = row[col];
+                      let vals = [];
+                      if (separator && rawVal !== null && rawVal !== undefined) {
+                           const str = String(rawVal);
+                           const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                           if (parts.length > 0) vals = parts;
+                           else vals = ["(Empty)"];
+                      } else {
+                           let v = rawVal;
+                           if (v === null || v === undefined) v = "(Empty)";
+                           else v = String(v).trim();
+                           if (v === "") v = "(Empty)";
+                           vals = [v];
+                      }
+
+                      vals.forEach(v => {
+                          valueMap.set(v, (valueMap.get(v) || 0) + 1);
+                          uniqueSeriesNames.add(v);
+                      });
+                  });
+             });
+         });
+
+         // Sort Keys
+         const sortedXKeys = Array.from(pivotGroups.keys()).sort();
+         const sortedSeriesNames = Array.from(uniqueSeriesNames).sort();
+
+         // Construct output
+         sortedXKeys.forEach(xKey => xAxisData.push(xKey));
+
+         sortedSeriesNames.forEach(sName => {
+             const data = [];
+             sortedXKeys.forEach(xKey => {
+                 const val = pivotGroups.get(xKey).get(sName) || 0;
+                 data.push(val);
+             });
+             seriesMap.set(sName, data); // Map key is now the value name
+         });
+
+         // Override seriesColumns for final output construction
+         // (Technically we just iterate the map we just built)
+         const series = [];
+         sortedSeriesNames.forEach(sName => {
+             series.push({
+                 name: sName,
+                 data: seriesMap.get(sName)
+             });
+         });
+
+         return { xAxisData, series };
+
+    } else if (aggregationType === 'None') {
       // Original Logic: Row by Row
       rows.forEach(row => {
         // 1. Process X-Axis Label(s)
@@ -363,10 +449,16 @@ var VisualizerController = (function() {
             let resultVal = 0;
 
             if (aggregationType === 'Count') {
-                // Count non-empty values in this series column
-                // If the user just wants row count, any column works.
-                // But specifically for this column:
-                resultVal = rawVals.filter(v => v !== null && v !== undefined && String(v).trim() !== "").length;
+                // If the series column is the same as the X-axis column, use row count (frequency)
+                // to avoid overcounting when values are split.
+                if (col === xAxisColumn) {
+                    resultVal = group.count;
+                } else {
+                    // Count non-empty values in this series column
+                    // If the user just wants row count, any column works.
+                    // But specifically for this column:
+                    resultVal = rawVals.filter(v => v !== null && v !== undefined && String(v).trim() !== "").length;
+                }
             } else {
                 // Parse numbers for Sum, Avg, Min, Max
                 const nums = rawVals.map(v => parseNumber(v)).filter(n => n !== null);
@@ -741,10 +833,21 @@ var VisualizerController = (function() {
 
     rows.forEach(row => {
         // Series (Group)
-        let sVal = row[seriesColumn];
-        if (sVal === null || sVal === undefined) sVal = "(Empty)";
-        else sVal = String(sVal).trim();
-        if (sVal === "") sVal = "(Empty)";
+        let rawSVal = row[seriesColumn];
+        let sVals = [];
+        if (rawSVal === null || rawSVal === undefined) {
+             sVals = ["(Empty)"];
+        } else {
+             const str = String(rawSVal).trim();
+             if (str === "") {
+                 sVals = ["(Empty)"];
+             } else if (separator && separator.trim() !== "") {
+                 sVals = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                 if (sVals.length === 0) sVals = ["(Empty)"];
+             } else {
+                 sVals = [str];
+             }
+        }
 
         // Indicator (Axes)
         let rawInd = row[indicatorColumn];
@@ -771,21 +874,41 @@ var VisualizerController = (function() {
             else val = 0; // Or null? Treat as 0 for sum/avg
         }
 
-        if (!matrix.has(sVal)) {
-            matrix.set(sVal, new Map()); // Indicator -> { sum: 0, count: 0 }
-        }
-        const sMap = matrix.get(sVal);
-
-        indVals.forEach(ind => {
-            // Update Series Map
-            if (!sMap.has(ind)) {
-                sMap.set(ind, { sum: 0, count: 0 });
+        // Iterate over all Series values found in this row
+        sVals.forEach(sVal => {
+            if (!matrix.has(sVal)) {
+                matrix.set(sVal, new Map()); // Indicator -> { sum: 0, count: 0 }
             }
-            const entry = sMap.get(ind);
-            entry.sum += val;
-            entry.count += 1;
+            const sMap = matrix.get(sVal);
 
-            // Update Global Stats (Frequency)
+            // Iterate over all Indicators found in this row
+            indVals.forEach(ind => {
+                // Update Series Map
+                if (!sMap.has(ind)) {
+                    sMap.set(ind, { sum: 0, count: 0 });
+                }
+                const entry = sMap.get(ind);
+                entry.sum += val;
+                entry.count += 1;
+
+                // Update Global Stats (Frequency) - Only once per row?
+                // Actually, if a row contributes to multiple Series, does it increase the "global frequency" of the indicator?
+                // The Global Stats are used for "Top N Indicators".
+                // If we count it for every series, an indicator present in a row with 10 series will appear 10 times more frequent.
+                // Usually "Top N" means "in how many rows does this indicator appear?" or "total weight".
+                // Ideally, we should track indicator frequency per row, regardless of series.
+                // However, the original code tracked it inside the loop.
+                // Wait, original code had 1 sVal per row. So it was 1 * indVals.length.
+                // Now it is sVals.length * indVals.length.
+                // If we want "Top N Indicators across the dataset", it usually refers to row frequency.
+                // Let's stick to simple total weight/occurrence count in the matrix for now.
+                // But for `indicatorStats`, let's do it outside the series loop to avoid inflation.
+            });
+        });
+
+        // Update Global Stats for Indicators (Once per row, regardless of how many Series groups the row belongs to)
+        // This ensures "Top N" is based on the dataset prevalence, not multiplied by series overlap.
+        indVals.forEach(ind => {
             const stats = indicatorStats.get(ind) || { frequency: 0 };
             stats.frequency += 1;
             indicatorStats.set(ind, stats);
