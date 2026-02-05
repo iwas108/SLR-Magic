@@ -269,23 +269,36 @@ var VisualizerController = (function() {
     if (aggregationType === 'None') {
       // Original Logic: Row by Row
       rows.forEach(row => {
-        // 1. Process X-Axis Label
-        let label = row[xAxisColumn];
-        if (label === null || label === undefined) label = "(Empty)";
-        else label = String(label).trim();
-        if (label === "") label = "(Empty)";
+        // 1. Process X-Axis Label(s)
+        let rawLabel = row[xAxisColumn];
+        let labels = [];
 
-        xAxisData.push(label);
+        if (separator && rawLabel !== null && rawLabel !== undefined) {
+             const str = String(rawLabel);
+             const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+             if (parts.length > 0) labels = parts;
+             else labels = ["(Empty)"];
+        } else {
+             let label = rawLabel;
+             if (label === null || label === undefined) label = "(Empty)";
+             else label = String(label).trim();
+             if (label === "") label = "(Empty)";
+             labels = [label];
+        }
 
-        // 2. Process Series Data
-        seriesColumns.forEach(col => {
-          // Use robust parser
-          let num = parseNumber(row[col]);
-          if (num === null && row[col] && String(row[col]).trim() !== "") {
-              // If text exists but not number, treat as 0 for plotting
-              num = 0;
-          }
-          seriesMap.get(col).push(num);
+        labels.forEach(label => {
+            xAxisData.push(label);
+
+            // 2. Process Series Data
+            seriesColumns.forEach(col => {
+              // Use robust parser
+              let num = parseNumber(row[col]);
+              if (num === null && row[col] && String(row[col]).trim() !== "") {
+                  // If text exists but not number, treat as 0 for plotting
+                  num = 0;
+              }
+              seriesMap.get(col).push(num);
+            });
         });
       });
 
@@ -296,28 +309,42 @@ var VisualizerController = (function() {
       const groups = new Map(); // X-Value -> { count: 0, seriesVals: { ColName: [] } }
 
       rows.forEach(row => {
-        let label = row[xAxisColumn];
-        if (label === null || label === undefined) label = "(Empty)";
-        else label = String(label).trim();
-        if (label === "") label = "(Empty)";
+        // 1. Process X-Axis Label(s)
+        let rawLabel = row[xAxisColumn];
+        let labels = [];
 
-        if (!groups.has(label)) {
-            groups.set(label, { count: 0, seriesVals: {} });
-            seriesColumns.forEach(col => groups.get(label).seriesVals[col] = []);
+        if (separator && rawLabel !== null && rawLabel !== undefined) {
+             const str = String(rawLabel);
+             const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+             if (parts.length > 0) labels = parts;
+             else labels = ["(Empty)"];
+        } else {
+             let label = rawLabel;
+             if (label === null || label === undefined) label = "(Empty)";
+             else label = String(label).trim();
+             if (label === "") label = "(Empty)";
+             labels = [label];
         }
 
-        const group = groups.get(label);
-        group.count++;
+        labels.forEach(label => {
+            if (!groups.has(label)) {
+                groups.set(label, { count: 0, seriesVals: {} });
+                seriesColumns.forEach(col => groups.get(label).seriesVals[col] = []);
+            }
 
-        seriesColumns.forEach(col => {
-           let raw = row[col];
-           if (separator && raw !== null && raw !== undefined) {
-               const str = String(raw);
-               const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
-               group.seriesVals[col].push(...parts);
-           } else {
-               group.seriesVals[col].push(raw);
-           }
+            const group = groups.get(label);
+            group.count++;
+
+            seriesColumns.forEach(col => {
+               let raw = row[col];
+               if (separator && raw !== null && raw !== undefined) {
+                   const str = String(raw);
+                   const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+                   group.seriesVals[col].push(...parts);
+               } else {
+                   group.seriesVals[col].push(raw);
+               }
+            });
         });
       });
 
