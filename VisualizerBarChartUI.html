@@ -86,7 +86,7 @@
 
     <div style="margin-bottom: 15px;">
         <label for="aggregation-type" style="display: block; font-weight: 500; margin-bottom: 5px;">Aggregation Method</label>
-        <select id="aggregation-type" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+        <select id="aggregation-type" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;" onchange="toggleCountOptions()">
             <option value="None">None (Plot raw rows)</option>
             <option value="Count">Count (Frequency)</option>
             <option value="Sum">Sum</option>
@@ -95,6 +95,16 @@
             <option value="Max">Max</option>
         </select>
         <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">Use <b>Count</b> for non-numeric series. Other methods (Sum, Avg, etc.) group data by X-Axis.</p>
+    </div>
+
+    <div id="count-options" style="margin-bottom: 15px; display: none; margin-left: 20px; border-left: 2px solid #eee; padding-left: 10px;">
+        <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 4px;">
+            <input type="checkbox" id="use-values-as-series" style="margin-right: 8px;">
+            <span style="font-weight: 500;">Use unique values as Series</span>
+        </label>
+        <p style="font-size: 12px; margin: 0 0 0 24px; color: #5f6368;">
+            Treats the content of the selected Series columns as categories to count, creating a separate bar/color for each unique value.
+        </p>
     </div>
 
     <div style="margin-bottom: 15px;">
@@ -257,6 +267,7 @@
        chartTitle = document.getElementById('chart-title').value;
        const separator = document.getElementById('separator').value;
        const aggregationType = document.getElementById('aggregation-type').value;
+       const useValuesAsSeries = document.getElementById('use-values-as-series').checked;
        const showMinMax = document.getElementById('show-minmax').checked;
        const showAverage = document.getElementById('show-average').checked;
 
@@ -277,8 +288,20 @@
              xAxisColumn: xAxisColumn,
              seriesColumns: seriesColumns,
              aggregationType: aggregationType,
-             separator: separator
+             separator: separator,
+             useValuesAsSeries: useValuesAsSeries
          });
+    }
+
+    function toggleCountOptions() {
+        const type = document.getElementById('aggregation-type').value;
+        const optionsDiv = document.getElementById('count-options');
+        if (type === 'Count') {
+            optionsDiv.style.display = 'block';
+        } else {
+            optionsDiv.style.display = 'none';
+            document.getElementById('use-values-as-series').checked = false;
+        }
     }
 
     function renderChart(data, showMinMax, showAverage) {
