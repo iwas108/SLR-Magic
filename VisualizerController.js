@@ -258,6 +258,7 @@ var VisualizerController = (function() {
     const xAxisColumn = config.xAxisColumn;
     const seriesColumns = config.seriesColumns;
     const aggregationType = config.aggregationType || 'None';
+    const separator = config.separator ? config.separator.trim() : "";
 
     const xAxisData = [];
     const seriesMap = new Map(); // ColName -> Array of numbers
@@ -309,7 +310,14 @@ var VisualizerController = (function() {
         group.count++;
 
         seriesColumns.forEach(col => {
-           group.seriesVals[col].push(row[col]);
+           let raw = row[col];
+           if (separator && raw !== null && raw !== undefined) {
+               const str = String(raw);
+               const parts = str.split(separator).map(s => s.trim()).filter(s => s !== "");
+               group.seriesVals[col].push(...parts);
+           } else {
+               group.seriesVals[col].push(raw);
+           }
         });
       });
 
