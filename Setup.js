@@ -1,108 +1,142 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-    <style>
-      body { font-family: 'Google Sans', Arial, sans-serif; padding: 0; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-      .header { background-color: #f1f3f4; padding: 15px; text-align: center; border-bottom: 1px solid #e0e0e0; }
-      .header h2 { margin: 0; color: #1a73e8; font-size: 20px; }
+/**
+ * Setup.js
+ * Handles the initialization of the SLR Magic environment.
+ */
 
-      .tabs { display: flex; background-color: #fff; border-bottom: 1px solid #e0e0e0; }
-      .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; color: #5f6368; font-weight: 500; font-size: 13px; border-bottom: 2px solid transparent; }
-      .tab:hover { background-color: #f8f9fa; }
-      .tab.active { color: #1a73e8; border-bottom: 2px solid #1a73e8; }
+const Setup = (function() {
 
-      .content-area { flex: 1; overflow-y: auto; padding: 20px; }
-      .content-section { display: none; }
-      .content-section.active { display: block; }
+  const MODEL_OPTIONS = [
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite"
+  ];
 
-      h3 { color: #202124; margin-top: 0; font-size: 16px; }
-      p, li { color: #3c4043; line-height: 1.5; font-size: 13px; }
+  const THINKING_LEVEL_OPTIONS = ["minimum", "low", "medium", "high"];
 
-      .code-block { background-color: #f5f5f5; padding: 10px; border-radius: 4px; border: 1px solid #e0e0e0; font-family: monospace; white-space: pre-wrap; font-size: 11px; overflow-x: auto; max-height: 300px; overflow-y: auto; margin-top: 10px; }
+  const DEFAULT_MANIFEST = [
+    { key: "API_KEY", value: "" },
+    { key: "ABSTRACT_SCREENING_MODEL", value: "gemini-2.5-flash", validation: MODEL_OPTIONS },
+    { key: "THE_GATEKEEPER_MODEL", value: "gemini-2.5-flash", validation: MODEL_OPTIONS },
+    { key: "THE_SCIENTIST_MODEL", value: "gemini-2.5-pro", validation: MODEL_OPTIONS },
+    { key: "THE_MINER_MODEL", value: "gemini-2.5-pro", validation: MODEL_OPTIONS },
+    { key: "THE_EXTENDED_MINER_MODEL", value: "gemini-2.5-pro", validation: MODEL_OPTIONS },
+    { key: "TEMPERATURE", value: 0.0 }, // Assuming number
+    { key: "MAX_TOKENS", value: 8192 }, // Assuming number
+    { key: "THINKING_LEVEL", value: "high", validation: THINKING_LEVEL_OPTIONS },
+    { key: "THINKING_BUDGET", value: -1 },
+    { key: "SLR_PROTOCOL_DOCUMENT", value: "" },
+    { key: "SLR_PAPER", value: "" },
+    { key: "ABSTRACT_SCREENING_PROMPT", value: getAbstractScreeningPrompt() },
+    { key: "THE_GATEKEEPER_PROMPT", value: getGatekeeperPrompt() },
+    { key: "THE_SCIENTIST_PROMPT", value: getScientistPrompt() },
+    { key: "THE_MINER_PROMPT", value: getMinerPrompt() },
+    { key: "THE_EXTENDED_MINER_PROMPT", value: getExtendedMinerPrompt() },
+    { key: "BATCH_SIZE", value: 1 },
+    { key: "SEARCH_DATE", value: new Date().toISOString().slice(0, 10) }, // Today YYYY-MM-DD
+    { key: "SEARCH_STRING", value: getSearchString() },
+    { key: "WEB_PROXY_URL", value: "" },
+    { key: "RAW_CSV_DATABASE", value: "" },
+    { key: "PDF_REPO", value: "" },
+    { key: "PDF_METADATA", value: "" },
+    { key: "GOLD_MINE", value: "" },
+    { key: "MODEL_PRICING", value: "gemini-2.5-flash-lite,0.1,0.4,1000000\ngemini-3-flash-preview,0.5,3,1000000\ngemini-2.5-pro,1.25,10,1000000" },
+    { key: "SHOW_OPENING_POPUP", value: "TRUE" }
+  ];
 
-      .footer { padding: 10px; text-align: center; background-color: #fff; border-top: 1px solid #e0e0e0; font-size: 12px; }
+  const SHEETS_TO_CREATE = [
+    "01_abstract_screening",
+    "02_fulltext_screening",
+    "03_quality_check",
+    "04_data_collection",
+    "98_file_metadata"
+  ];
 
-      /* Accordion for Prompts */
-      .accordion { margin-top: 10px; border: 1px solid #e0e0e0; border-radius: 4px; }
-      .accordion-item { border-bottom: 1px solid #e0e0e0; }
-      .accordion-item:last-child { border-bottom: none; }
-      .accordion-header { padding: 10px 15px; background-color: #f8f9fa; cursor: pointer; font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
-      .accordion-header:hover { background-color: #f1f3f4; }
-      .accordion-content { display: none; padding: 15px; background-color: #fff; }
-      .accordion-content.open { display: block; }
-      .icon { transition: transform 0.2s; }
-      .accordion-header.active .icon { transform: rotate(180deg); }
+  /**
+   * Main initialization function.
+   */
+  function runInitialization() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-      .checkbox-container { margin-top: 5px; }
-    </style>
-  </head>
-  <body>
+    // 1. Setup Manifest
+    setupManifest(ss);
 
-    <div class="header">
-      <h2>SLR Magic ✨</h2>
-    </div>
+    // 2. Create other sheets
+    SHEETS_TO_CREATE.forEach(sheetName => {
+      createSheetIfNotExists(ss, sheetName);
+    });
 
-    <div class="tabs">
-      <div class="tab active" onclick="showTab('overview')">Overview</div>
-      <div class="tab" onclick="showTab('workflow')">Workflow</div>
-      <div class="tab" onclick="showTab('prompts')">Prompts</div>
-      <div class="tab" onclick="showTab('search')">Search</div>
-      <div class="tab" onclick="showTab('about')">About</div>
-    </div>
+    // 3. Inform user
+    SpreadsheetApp.getUi().alert("Environment Initialized Successfully!");
+  }
 
-    <div class="content-area">
+  /**
+   * Creates 00_manifest and populates it if it doesn't exist.
+   * If it exists, it assumes it's already set up and does nothing (robustness).
+   */
+  function setupManifest(ss) {
+    const sheetName = "00_manifest";
+    let sheet = ss.getSheetByName(sheetName);
 
-      <!-- Overview Tab -->
-      <div id="overview" class="content-section active">
-        <h3>Welcome to Your AI Research Assistant</h3>
-        <p>SLR Magic acts as an accelerator and a guard for your Systematic Literature Review. It helps eliminate human error and ensures consistency without bias.</p>
-        <p><b>Key Features:</b></p>
-        <ul>
-          <li><b>Automated Screening:</b> AI filters thousands of abstracts and full-texts based on strict logic gates.</li>
-          <li><b>Data Extraction:</b> "The Miner" extracts structured data (JSON) directly from PDFs.</li>
-          <li><b>Quality Control:</b> Calculates agreement rates (Cohen's Kappa) and samples decisions for human review.</li>
-          <li><b>Cost Estimation:</b> Preview token usage and costs before running large batches.</li>
-          <li><b>Visualization:</b> Generate Sankey diagrams, Pie charts, and Bar charts from your data.</li>
-        </ul>
-        <p><i>Tip: Initialize the environment from the menu to get started!</i></p>
-      </div>
+    if (sheet) {
+      console.log(`[Setup] ${sheetName} already exists. Skipping creation.`);
+      return;
+    }
 
-      <!-- Workflow Tab -->
-      <div id="workflow" class="content-section">
-        <h3>The SLR Magic Pipeline</h3>
-        <p>Follow these steps to conduct your review:</p>
-        <ol>
-          <li><b>Setup:</b> Run "Initialize Environment" to create sheets. Configure your API Key and Models in <code>00_manifest</code>.</li>
-          <li><b>Import:</b> Use "Import Raw CSV" to load your search results (Scopus/WoS) into <code>01_abstract_screening</code>.</li>
-          <li><b>Abstract Screening:</b> Run the AI screener. It reads Title + Abstract and decides Include/Exclude.</li>
-          <li><b>Full-Text Screening:</b>
-            <ul>
-              <li>Upload PDFs to a Google Drive folder.</li>
-              <li>Link PDFs using "Import PDF Metadata".</li>
-              <li>Run "The Gatekeeper" (Relevance) and "The Scientist" (Quality) checks.</li>
-            </ul>
-          </li>
-          <li><b>Data Extraction:</b> Run "The Miner" to extract data into cell notes.</li>
-          <li><b>Data Collection:</b> Sync extracted data to <code>04_data_collection</code> for analysis and visualization.</li>
-        </ol>
-      </div>
+    sheet = ss.insertSheet(sheetName, 0);
 
-      <!-- Prompts Tab -->
-      <div id="prompts" class="content-section">
-        <h3>Prompt Engineering Guide</h3>
-        <p>Effective prompts are critical. Use these examples as templates for your <code>00_manifest</code> configuration.</p>
+    // Set Headers
+    sheet.getRange(1, 1).setValue("Key").setFontWeight("bold");
+    sheet.getRange(1, 2).setValue("Value").setFontWeight("bold");
 
-        <div class="accordion">
-          <!-- Abstract Screening -->
-          <div class="accordion-item">
-            <div class="accordion-header" onclick="toggleAccordion(this)">
-              <span>1. Abstract Screening Prompt</span>
-              <span class="icon">▼</span>
-            </div>
-            <div class="accordion-content">
-              <p>Used for the first pass on Title and Abstract.</p>
-              <div class="code-block">"Act as a strict Senior Editor conducting the first-pass screening for a Systematic Literature Review (SLR).
+    // Prepare data
+    const data = DEFAULT_MANIFEST.map(item => [item.key, item.value]);
+
+    // Write data
+    if (data.length > 0) {
+      sheet.getRange(2, 1, data.length, 2).setValues(data);
+    }
+
+    // Apply validations
+    DEFAULT_MANIFEST.forEach((item, index) => {
+      if (item.validation) {
+        const row = index + 2; // Header is 1
+        const cell = sheet.getRange(row, 2);
+        const rule = SpreadsheetApp.newDataValidation()
+          .requireValueInList(item.validation, true)
+          .setAllowInvalid(false)
+          .build();
+        cell.setDataValidation(rule);
+      }
+    });
+
+    // Formatting
+    sheet.autoResizeColumns(1, 2);
+    sheet.setColumnWidth(2, 600); // Make Value column wide for prompts
+    sheet.getRange(2, 2, data.length, 1).setWrap(true); // Wrap text for prompts
+  }
+
+  /**
+   * Creates a sheet if it doesn't exist.
+   */
+  function createSheetIfNotExists(ss, sheetName) {
+    let sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      console.log(`[Setup] Created sheet: ${sheetName}`);
+    } else {
+      console.log(`[Setup] Sheet ${sheetName} already exists. Skipping.`);
+    }
+    return sheet;
+  }
+
+  // --- Prompts ---
+
+  function getAbstractScreeningPrompt() {
+    return `"Act as a strict Senior Editor conducting the first-pass screening for a Systematic Literature Review (SLR).
 
 YOUR CONTEXT:
 PhD Topic: ""Digital Twin-Based Smart Prediction Analytics for Small-scale Precision Horticulture"".
@@ -146,19 +180,11 @@ This response will be parsed directly by a Google Apps Script JSON.parse() funct
   ""exclusion_code"": ""E101_WrongContext"" OR ""E102_NonTech"" OR ""E103_NoIntelligence"" OR ""E104_WrongType"" OR null,
   ""scale_tag"": ""Small-scale"" OR ""Industrial/Commercial"" OR ""General/Unspecified"" OR null,
   ""reasoning"": ""Max 150 words. If Excluded E103, specify if it was 'Passive Monitoring' or 'Pure Perception'. If Included, state the specific 'Intelligence' found (e.g., Yield Prediction, Climate Control) in the reasoning.""
-}"</div>
-            </div>
-          </div>
+}"`;
+  }
 
-          <!-- The Gatekeeper -->
-          <div class="accordion-item">
-            <div class="accordion-header" onclick="toggleAccordion(this)">
-              <span>2. The Gatekeeper (Relevance)</span>
-              <span class="icon">▼</span>
-            </div>
-            <div class="accordion-content">
-              <p>Reads the full text to confirm relevance.</p>
-              <div class="code-block">"Act as a strict Scientific Reviewer conducting the STAGE 1 (RELEVANCE FILTER) for a PhD Systematic Literature Review.
+  function getGatekeeperPrompt() {
+    return `"Act as a strict Scientific Reviewer conducting the STAGE 1 (RELEVANCE FILTER) for a PhD Systematic Literature Review.
 Context: ""Digital Twin-Based Smart Prediction Analytics for Small-scale Precision Horticulture"".
 
 YOUR SOLE TASK:
@@ -219,19 +245,11 @@ This response will be parsed directly by a Google Apps Script JSON.parse() funct
   ""decision"": ""Include"" OR ""Exclude"",
   ""exclusion_code"": ""E201_WrongContext"" OR ""E202_NoValidation"" OR ""E203_Language_Error"" OR ""E204_LowQuality"" OR ""E205_TechMismatch"" OR null,
   ""reasoning"": ""Strict explanation (max 150 words). State clearly what was found in the METHODOLOGY section. IF E205, explicitly state: 'Methodology describes [Threshold/WSN/Passive] logic, lacking predictive analytics or adaptive control'.""
-}"</div>
-            </div>
-          </div>
+}"`;
+  }
 
-          <!-- The Scientist -->
-          <div class="accordion-item">
-            <div class="accordion-header" onclick="toggleAccordion(this)">
-              <span>3. The Scientist (Quality Check)</span>
-              <span class="icon">▼</span>
-            </div>
-            <div class="accordion-content">
-              <p>Evaluates scientific rigor and completeness.</p>
-              <div class="code-block">"Act as a strict Scientific Reviewer conducting the STAGE 2 (QUALITY ASSESSMENT) for a PhD Systematic Literature Review.
+  function getScientistPrompt() {
+    return `"Act as a strict Scientific Reviewer conducting the STAGE 2 (QUALITY ASSESSMENT) for a PhD Systematic Literature Review.
 Context: ""Digital Twin-Based Smart Prediction Analytics for Small-scale Precision Horticulture"".
 
 YOUR INPUT:
@@ -293,19 +311,11 @@ This response will be parsed directly by a Google Apps Script JSON.parse() funct
     ""qa8_conclusion"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""..."" }
   },
   ""reasoning"": ""Brief summary (max 150 words). If Excluded, explicitly state: 'Missing Architecture Details', 'No Quantitative Data', or 'Vague System Design'.""
-}"</div>
-            </div>
-          </div>
+}"`;
+  }
 
-          <!-- The Miner -->
-          <div class="accordion-item">
-            <div class="accordion-header" onclick="toggleAccordion(this)">
-              <span>4. The Miner (Data Extraction)</span>
-              <span class="icon">▼</span>
-            </div>
-            <div class="accordion-content">
-              <p>Extracts specific variables and data points.</p>
-              <div class="code-block">"Act as a meticulous Data Extraction Specialist for a PhD Systematic Literature Review.
+  function getMinerPrompt() {
+    return `"Act as a meticulous Data Extraction Specialist for a PhD Systematic Literature Review.
 Context: ""Digital Twin-Based Smart Prediction Analytics for Small-scale Precision Horticulture"".
 
 YOUR INPUT:
@@ -377,19 +387,11 @@ Example:
     ""rq4a_metric"": { ""value"": ""RMSE 0.05"", ""evidence"": ""Table 2: 'Soil moisture RMSE was 0.05...'"" },
     ""rq4b_interface"": { ""value"": ""Dashboard_2D"", ""evidence"": ""Fig 5 shows a web dashboard."" }
   }
-}"</div>
-            </div>
-          </div>
+}"`;
+  }
 
-          <!-- The Extended Miner -->
-          <div class="accordion-item">
-            <div class="accordion-header" onclick="toggleAccordion(this)">
-              <span>5. The Extended Miner</span>
-              <span class="icon">▼</span>
-            </div>
-            <div class="accordion-content">
-              <p>Extracts detailed qualitative and technical points.</p>
-              <div class="code-block">"Act as a Domain Expert and Senior Software Architect for a Systematic Literature Review.
+  function getExtendedMinerPrompt() {
+    return `"Act as a Domain Expert and Senior Software Architect for a Systematic Literature Review.
 Study Topic: ""Democratizing the Digital Twin: Architectures and Predictive Analytics for Small-scale Horticulture"".
 
 YOUR INPUT:
@@ -505,17 +507,11 @@ Return ONLY a single valid JSON object. Do not include markdown formatting.
       ""evidence"": ""GitHub link provided in footnote 3.""
     }
   }
-}"</div>
-            </div>
-          </div>
-        </div>
-      </div>
+}"`;
+  }
 
-      <!-- Search String Tab -->
-      <div id="search" class="content-section">
-        <h3>Example Search String</h3>
-        <p>Use this format for Scopus or Web of Science exports.</p>
-        <div class="code-block">"TITLE-ABS-KEY (
+  function getSearchString() {
+    return `"TITLE-ABS-KEY (
   ( ""Greenhouse*"" OR ""Glasshouse*"" OR ""Polyhouse*"" OR ""Net house*"" OR ""Screen house*"" OR ""Protected cultivation"" OR ""Controlled environment agriculture"" OR ""Vertical farm*"" OR ""Plant factory"" OR ""Indoor farm*"" )
   AND
   ( ""Horticulture"" OR ""Crop*"" OR ""Plant*"" OR ""Vegetable*"" OR ""Fruit*"" OR ""Flower*"" OR ""Ornamental*"" OR ""Tomato*"" OR ""Pepper*"" OR ""Cucumber*"" OR ""Melon*"" OR ""Strawberry*"" OR ""Lettuce*"" )
@@ -535,57 +531,18 @@ AND NOT TITLE-ABS-KEY (
 )
 AND ( LIMIT-TO ( DOCTYPE, ""ar"" ) OR LIMIT-TO ( DOCTYPE, ""cp"" ) )
 AND ( LIMIT-TO ( PUBYEAR, 2025 ) OR LIMIT-TO ( PUBYEAR, 2024 ) OR LIMIT-TO ( PUBYEAR, 2023 ) OR LIMIT-TO ( PUBYEAR, 2022 ) OR LIMIT-TO ( PUBYEAR, 2021 ) OR LIMIT-TO ( PUBYEAR, 2020 ) OR LIMIT-TO ( PUBYEAR, 2019 ) OR LIMIT-TO ( PUBYEAR, 2018 ) OR LIMIT-TO ( PUBYEAR, 2017 ) OR LIMIT-TO ( PUBYEAR, 2016 ) )
-AND ( LIMIT-TO ( LANGUAGE, ""English"" ) )"</div>
-      </div>
+AND ( LIMIT-TO ( LANGUAGE, ""English"" ) )"`;
+  }
 
-      <!-- About Tab -->
-      <div id="about" class="content-section">
-        <h3>About SLR Magic</h3>
-        <p>This project is open-source and free to use.</p>
-        <p>Code available at: <a href="https://github.com/iwas108/SLR-Magic" target="_blank">github.com/iwas108/SLR-Magic</a></p>
-        <p>Feel free to contribute or report issues!</p>
-        <p><i>Adhering to FAIR and Clean Code Architecture principles.</i></p>
-      </div>
+  return {
+    runInitialization
+  };
 
-    </div>
+})();
 
-    <div class="footer">
-      <div class="checkbox-container">
-        <label>
-          <input type="checkbox" id="dont-show" onchange="togglePreference()"> Don't show this again
-        </label>
-      </div>
-      <button onclick="google.script.host.close()" style="margin-top:10px; padding: 5px 15px; cursor: pointer;">Close</button>
-    </div>
-
-    <script>
-      function showTab(tabId) {
-        // Hide all sections
-        const sections = document.querySelectorAll('.content-section');
-        sections.forEach(s => s.classList.remove('active'));
-
-        // Deactivate all tabs
-        const tabs = document.querySelectorAll('.tab');
-        tabs.forEach(t => t.classList.remove('active'));
-
-        // Activate selected
-        document.getElementById(tabId).classList.add('active');
-        // Activate button
-        const activeTab = Array.from(tabs).find(t => t.innerText.toLowerCase().includes(tabId.replace('search', 'search')));
-        if (activeTab) activeTab.classList.add('active');
-        else if (tabId === 'search') tabs[3].classList.add('active'); // fallback
-      }
-
-      function toggleAccordion(header) {
-        header.classList.toggle('active');
-        const content = header.nextElementSibling;
-        content.classList.toggle('open');
-      }
-
-      function togglePreference() {
-        const isChecked = document.getElementById('dont-show').checked;
-        google.script.run.saveWelcomePreference(!isChecked);
-      }
-    </script>
-  </body>
-</html>
+/**
+ * Global function to be called from the menu.
+ */
+function runInitialization() {
+  Setup.runInitialization();
+}
