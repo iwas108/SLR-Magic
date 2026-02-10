@@ -9,6 +9,8 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('SLR Magic')
+    .addItem('Initialize Environment', 'runInitialization')
+    .addSeparator()
     .addItem('Import Raw CSV', 'runImportRawCSV')
     .addSeparator()
     .addItem('Start AI Title-Abstract Screening', 'runScreening')
