@@ -42,6 +42,49 @@ SLR Magic follows **Clean Code Architecture** principles to ensure maintainabili
 
 ---
 
+## 💻 Installation (Developers)
+
+This project uses **clasp** (Command Line Apps Script Projects) to manage code locally.
+
+### Prerequisites
+1.  **Node.js**: Install Node.js from [nodejs.org](https://nodejs.org/).
+2.  **Clasp**: Install clasp globally.
+    ```bash
+    npm install -g @google/clasp
+    ```
+3.  **Google Apps Script API**: Enable the API at [script.google.com/home/usersettings](https://script.google.com/home/usersettings).
+
+### Setup & Push
+1.  **Login to Google**:
+    ```bash
+    clasp login
+    ```
+    *This will open a browser window to authorize clasp.*
+
+2.  **Clone or Create**:
+    *   **Option A: Create a New Project** (Recommended for fresh setup)
+        ```bash
+        clasp create --type sheets --title "SLR Magic Project"
+        ```
+    *   **Option B: Clone Existing Project**
+        ```bash
+        clasp clone <scriptId>
+        ```
+        *Find the script ID in your Google Sheet > Extensions > Apps Script > Project Settings.*
+
+3.  **Push Code**:
+    Push the local files to the Google Apps Script project.
+    ```bash
+    clasp push
+    ```
+
+4.  **Open in Browser**:
+    ```bash
+    clasp open
+    ```
+
+---
+
 ## 📖 How to Use
 
 ### Step 1: Initialization
