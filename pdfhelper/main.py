@@ -38,7 +38,7 @@ class Config:
     
     # Browser & Network
     CHROME_VERSION = 144  # Sesuaikan dengan versi Chrome yang terinstall
-    PROXY_BASE_URL = "https://ezproxy.library.wur.nl/login?url=https://doi.org/"
+    PROXY_BASE_URL = "https://ezproxy.library.domain.com/login?url=https://doi.org/"
     TIMEOUT = 45
     DELAY_SECONDS = 20  # Base delay between downloads
     JITTER_SECONDS = 5  # Random jitter
@@ -430,8 +430,8 @@ def main():
     print("\n" + "="*50)
     print("CHECK LOGIN STATUS:")
     print("1. The browser window should open.")
-    print("2. Navigate to: https://ezproxy.library.wur.nl/login")
-    print("3. Log in with your WUR credentials.")
+    print("2. Navigate to: https://ezproxy.library.domain.com/login")
+    print("3. Log in with your ezproxy credentials.")
     print("4. Once logged in, return here and Press ENTER to start downloading.")
     print("="*50 + "\n")
     input()
