@@ -113,7 +113,8 @@ const GeminiAdapter = (function() {
         }
 
         const jsonResponse = JSON.parse(responseText);
-        console.log(`JSON Response from Gemini: ${jsonResponse}`);
+        // Angka 2 di belakang artinya berikan indentasi 2 spasi
+        console.log(`JSON Response from Gemini: ${JSON.stringify(jsonResponse, null, 2)}`);
 
         // Extract the text content
         if (jsonResponse.candidates && jsonResponse.candidates.length > 0) {
