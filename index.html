@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLR-Magic | Automated Systematic Literature Review</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+        // Configure Tailwind to use a custom color theme if desired
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e3a8a', // Tailwind blue-900
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans leading-normal tracking-normal min-h-screen flex flex-col">
+
+    <header class="bg-primary text-white p-6 shadow-lg">
+        <div class="container mx-auto max-w-4xl flex justify-between items-center">
+            <h1 class="text-3xl font-bold tracking-tight">SLR-Magic</h1>
+            <a href="https://github.com/iwas108/SLR-Magic" class="text-blue-200 hover:text-white transition duration-300">View on GitHub</a>
+        </div>
+    </header>
+
+    <main class="container mx-auto max-w-4xl p-8 mt-8 mb-auto bg-white shadow-md rounded-lg">
+        
+        <div id="loading" class="text-center text-gray-500 py-10">
+            <p class="text-lg animate-pulse">Fetching latest documentation...</p>
+        </div>
+
+        <div id="content" class="prose prose-blue max-w-none hidden"></div>
+
+    </main>
+
+    <footer class="container mx-auto max-w-4xl text-center p-6 mt-8 text-gray-500 text-sm">
+        &copy; 2026 iwas108. Open-source under the MIT License.
+    </footer>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // URL to the raw README.md file
+            // Note: Make sure your default branch is 'main'. If it is 'master', change it below.
+            const readmeUrl = 'https://raw.githubusercontent.com/iwas108/SLR-Magic/main/README.md';
+            
+            fetch(readmeUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok: ' + response.statusText);
+                    }
+                    return response.text();
+                })
+                .then(text => {
+                    // Hide loading indicator
+                    document.getElementById('loading').classList.add('hidden');
+                    
+                    // Parse markdown and inject into the DOM
+                    const contentDiv = document.getElementById('content');
+                    contentDiv.innerHTML = marked.parse(text);
+                    contentDiv.classList.remove('hidden');
+                })
+                .catch(error => {
+                    console.error('Error fetching README:', error);
+                    document.getElementById('loading').innerHTML = '<p class="text-red-500">Failed to load documentation. Please check the repository.</p>';
+                });
+        });
+    </script>
+
+</body>
+</html>
