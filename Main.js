@@ -10,6 +10,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('SLR Magic')
     .addItem('Initialize Environment', 'runInitialization')
+    .addItem('Configuration', 'showConfigurationDialog')
     .addSeparator()
     .addItem('Import Raw CSV', 'runImportRawCSV')
     .addSeparator()
@@ -54,18 +55,13 @@ function onOpen() {
  */
 function checkWelcomeScreen() {
   try {
-    const config = SheetUtils.getConfigMap("00_manifest");
-    // Default to TRUE if missing or not strictly FALSE
-    // Note: Manifest values are strings usually.
+    const config = ConfigManager.getAll();
     const showPopup = config["SHOW_OPENING_POPUP"];
 
-    // If undefined or "TRUE" (case insensitive), show it.
-    // Explicitly check for "FALSE" to hide it.
     if (showPopup && String(showPopup).toUpperCase().trim() === "FALSE") {
       return;
     }
 
-    // Only try to show if we think we can (though simple trigger will fail silently/log error)
     showWelcomeDialog();
   } catch (e) {
     console.log("Could not show welcome screen (likely simple trigger restriction): " + e.message);
@@ -88,7 +84,33 @@ function showWelcomeDialog() {
  * @param {boolean} show - Whether to show the popup next time.
  */
 function saveWelcomePreference(show) {
-  SheetUtils.setConfigValue("SHOW_OPENING_POPUP", show ? "TRUE" : "FALSE");
+  ConfigManager.set("SHOW_OPENING_POPUP", show ? "TRUE" : "FALSE");
+}
+
+/**
+ * Shows the Configuration Dialog.
+ */
+function showConfigurationDialog() {
+  const html = HtmlService.createHtmlOutputFromFile('ConfigurationUI')
+    .setWidth(700)
+    .setHeight(600)
+    .setTitle('SLR Magic Configuration');
+  SpreadsheetApp.getUi().showModalDialog(html, 'SLR Magic Configuration');
+}
+
+/**
+ * Server-side handler for getting configuration (called from ConfigurationUI).
+ */
+function getConfiguration() {
+  return ConfigManager.getAll();
+}
+
+/**
+ * Server-side handler for saving configuration (called from ConfigurationUI).
+ */
+function saveConfiguration(config) {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperties(config);
 }
 
 /**
@@ -128,10 +150,20 @@ function calculateProjectCosts(priceMap) {
 
 /**
  * The main workflow controller wrapper.
- * Needs to be a top-level function to be assigned to a menu item.
  */
 function runImportRawCSV() {
-  ImportController.run();
+  ImportController.showImportDialog();
+}
+
+/**
+ * Server-side handlers for ImportCSVUI.
+ */
+function getCSVHeaders(url) {
+  return ImportController.getCSVHeaders(url);
+}
+
+function processImport(url, sourceName, mapping) {
+  return ImportController.processImport(url, sourceName, mapping);
 }
 
 function runScreening() {
@@ -170,7 +202,6 @@ function runFullTextScreening() {
 
 /**
  * Generates the sample list for Quality Check.
- * (Renamed from runQualityCheck)
  */
 function generateQualityCheck() {
   QualityCheckController.generateQualityCheck();

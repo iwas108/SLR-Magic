@@ -8,7 +8,8 @@ This tool acts as both an **accelerator**, processing thousands of papers in min
 
 ## 🚀 Key Features
 
-*   **Automated Environment Setup**: One-click initialization of the entire workspace (`00_manifest`, screening sheets, etc.).
+*   **Automated Environment Setup**: One-click initialization of the entire workspace.
+*   **Centralized Configuration**: easy-to-use menu-based configuration for API keys, models, and prompts.
 *   **AI Abstract Screening**: rapid "first-pass" filtering based on Title and Abstract using strict inclusion/exclusion criteria.
 *   **Full-Text Analysis (The Gatekeeper)**: Deep reading of PDFs to confirm relevance based on Methodology and Results, not just abstract promises.
 *   **Quality Assessment (The Scientist)**: Automated evaluation of scientific rigor, documentation quality, and system validity.
@@ -23,9 +24,9 @@ This tool acts as both an **accelerator**, processing thousands of papers in min
 
 SLR Magic follows **Clean Code Architecture** principles to ensure maintainability and robustness:
 *   **Controllers**: Handle business logic and orchestration (e.g., `ScreeningController`, `QualityCheckController`).
-*   **UI**: Separate HTML/JS files for frontend interactions (e.g., `WelcomeUI`, `Setup.js`).
+*   **UI**: Separate HTML/JS files for frontend interactions (e.g., `WelcomeUI`, `ConfigurationUI`).
 *   **Services/Adapters**: specialized modules for external services (e.g., `GeminiAdapter` for AI calls).
-*   **Utils**: Shared helper functions (`SheetUtils`, `DriveUtils`).
+*   **Utils**: Shared helper functions (`SheetUtils`, `DriveUtils`, `ConfigManager`).
 
 ---
 
@@ -115,27 +116,29 @@ This project uses **clasp** (Command Line Apps Script Projects) to manage code l
 1.  Open the Google Sheet.
 2.  Click **SLR Magic** > **Initialize Environment**.
 3.  This creates the necessary sheets:
-    *   `00_manifest`: Configuration center.
     *   `01_abstract_screening`: For Title/Abstract data.
     *   `02_fulltext_screening`: For PDF processing.
     *   `03_quality_check`: For human validation.
     *   `04_data_collection`: For final extracted data.
 
-### Step 2: Configuration (`00_manifest`)
-1.  Enter your **API_KEY** (Gemini).
-2.  Select your desired models (e.g., `gemini-2.5-flash`).
-3.  Customize the **Prompts** (Abstract Screening, Gatekeeper, Scientist, Miner) to fit your research topic. *See "About SLR-Magic" for templates.*
+### Step 2: Configuration
+1.  Click **SLR Magic** > **Configuration**.
+2.  Enter your **API_KEY** (Gemini).
+3.  Select your desired models (e.g., `gemini-2.5-flash`).
+4.  Customize the **Prompts** (Abstract Screening, Gatekeeper, Scientist, Miner) to fit your research topic.
 
 ### Step 3: Abstract Screening
 1.  Export your search results (Scopus, WoS) as CSV.
 2.  **SLR Magic** > **Import Raw CSV**.
-3.  **SLR Magic** > **Start AI Title-Abstract Screening**.
-4.  The AI will populate the `decision` and `reasoning` columns.
+3.  Enter the CSV Drive URL and a Source Name. Map columns to system fields.
+4.  **SLR Magic** > **Start AI Title-Abstract Screening**.
+5.  The AI will populate the `decision` and `reasoning` columns.
 
 ### Step 4: Full-Text Screening
 1.  Upload PDFs of included papers to a Google Drive folder.
-2.  **SLR Magic** > **Utilities** > **Import PDF Metadata**.
-3.  **SLR Magic** > **Start AI Full-Text Screening**.
+2.  Set the **PDF_REPO** URL in Configuration.
+3.  **SLR Magic** > **Utilities** > **Import PDF Files** (or use Metadata import).
+4.  **SLR Magic** > **Start AI Full-Text Screening**.
     *   **The Gatekeeper** checks relevance.
     *   **The Scientist** checks quality.
     *   **The Miner** extracts data.

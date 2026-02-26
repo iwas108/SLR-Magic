@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        background-color: #f4f4f9;
+        color: #333;
+      }
+      h2 {
+        color: #2c3e50;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+        margin-top: 0;
+      }
+      .tabs {
+        display: flex;
+        border-bottom: 1px solid #ccc;
+        margin-bottom: 20px;
+      }
+      .tab {
+        padding: 10px 20px;
+        cursor: pointer;
+        background-color: #e0e0e0;
+        margin-right: 5px;
+        border-radius: 5px 5px 0 0;
+        font-weight: bold;
+      }
+      .tab.active {
+        background-color: #fff;
+        border: 1px solid #ccc;
+        border-bottom: 1px solid #fff;
+        color: #3498db;
+      }
+      .tab-content {
+        display: none;
+        background-color: #fff;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-top: none;
+        border-radius: 0 5px 5px 5px;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      input[type="text"], input[type="number"], select, textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      textarea {
+        height: 100px;
+        font-family: monospace;
+      }
+      .btn-container {
+        margin-top: 20px;
+        text-align: right;
+      }
+      button {
+        padding: 10px 20px;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      button:hover {
+        background-color: #2980b9;
+      }
+      .loading {
+        text-align: center;
+        margin-top: 20px;
+        font-style: italic;
+        color: #666;
+      }
+      .hint {
+        font-size: 0.85em;
+        color: #666;
+        margin-top: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>SLR Magic Configuration</h2>
+
+    <div id="loading" class="loading">Loading configuration...</div>
+
+    <div id="main-content" style="display:none;">
+      <div class="tabs">
+        <div class="tab active" onclick="openTab('general')">General & Models</div>
+        <div class="tab" onclick="openTab('prompts')">Prompts</div>
+        <div class="tab" onclick="openTab('files')">Files & Folders</div>
+        <div class="tab" onclick="openTab('advanced')">Advanced</div>
+      </div>
+
+      <form id="configForm">
+        <!-- General & Models -->
+        <div id="general" class="tab-content active">
+          <div class="form-group">
+            <label for="API_KEY">Google Generative AI API Key</label>
+            <input type="text" id="API_KEY" name="API_KEY" placeholder="Enter your API Key">
+          </div>
+
+          <h3>Model Selection</h3>
+          <div class="form-group">
+            <label for="ABSTRACT_SCREENING_MODEL">Abstract Screening Model</label>
+            <input type="text" id="ABSTRACT_SCREENING_MODEL" name="ABSTRACT_SCREENING_MODEL">
+          </div>
+          <div class="form-group">
+            <label for="THE_GATEKEEPER_MODEL">The Gatekeeper Model (Full Text)</label>
+            <input type="text" id="THE_GATEKEEPER_MODEL" name="THE_GATEKEEPER_MODEL">
+          </div>
+          <div class="form-group">
+            <label for="THE_SCIENTIST_MODEL">The Scientist Model (Quality Check)</label>
+            <input type="text" id="THE_SCIENTIST_MODEL" name="THE_SCIENTIST_MODEL">
+          </div>
+          <div class="form-group">
+            <label for="THE_MINER_MODEL">The Miner Model (Extraction)</label>
+            <input type="text" id="THE_MINER_MODEL" name="THE_MINER_MODEL">
+          </div>
+          <div class="form-group">
+            <label for="THE_EXTENDED_MINER_MODEL">The Extended Miner Model</label>
+            <input type="text" id="THE_EXTENDED_MINER_MODEL" name="THE_EXTENDED_MINER_MODEL">
+          </div>
+        </div>
+
+        <!-- Prompts -->
+        <div id="prompts" class="tab-content">
+          <div class="form-group">
+            <label for="ABSTRACT_SCREENING_PROMPT">Abstract Screening Prompt</label>
+            <textarea id="ABSTRACT_SCREENING_PROMPT" name="ABSTRACT_SCREENING_PROMPT" style="height: 200px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="THE_GATEKEEPER_PROMPT">The Gatekeeper Prompt</label>
+            <textarea id="THE_GATEKEEPER_PROMPT" name="THE_GATEKEEPER_PROMPT" style="height: 200px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="THE_SCIENTIST_PROMPT">The Scientist Prompt</label>
+            <textarea id="THE_SCIENTIST_PROMPT" name="THE_SCIENTIST_PROMPT" style="height: 200px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="THE_MINER_PROMPT">The Miner Prompt</label>
+            <textarea id="THE_MINER_PROMPT" name="THE_MINER_PROMPT" style="height: 200px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="THE_EXTENDED_MINER_PROMPT">The Extended Miner Prompt</label>
+            <textarea id="THE_EXTENDED_MINER_PROMPT" name="THE_EXTENDED_MINER_PROMPT" style="height: 200px;"></textarea>
+          </div>
+        </div>
+
+        <!-- Files & Folders -->
+        <div id="files" class="tab-content">
+           <div class="form-group">
+            <label for="PDF_REPO">PDF Repository (Folder URL)</label>
+            <input type="text" id="PDF_REPO" name="PDF_REPO">
+          </div>
+          <div class="form-group">
+            <label for="PDF_METADATA">PDF Metadata (CSV URL)</label>
+            <input type="text" id="PDF_METADATA" name="PDF_METADATA">
+          </div>
+           <div class="form-group">
+            <label for="RAW_CSV_DATABASE">Raw CSV Database (Import URL)</label>
+            <input type="text" id="RAW_CSV_DATABASE" name="RAW_CSV_DATABASE">
+          </div>
+          <div class="form-group">
+            <label for="GOLD_MINE">Gold Mine (Sync Folder/File URL)</label>
+            <input type="text" id="GOLD_MINE" name="GOLD_MINE">
+          </div>
+          <div class="form-group">
+            <label for="SLR_PROTOCOL_DOCUMENT">SLR Protocol Document</label>
+            <input type="text" id="SLR_PROTOCOL_DOCUMENT" name="SLR_PROTOCOL_DOCUMENT">
+          </div>
+          <div class="form-group">
+            <label for="SLR_PAPER">SLR Paper</label>
+            <input type="text" id="SLR_PAPER" name="SLR_PAPER">
+          </div>
+        </div>
+
+        <!-- Advanced -->
+        <div id="advanced" class="tab-content">
+          <div class="form-group">
+            <label for="TEMPERATURE">Temperature (0.0 - 1.0)</label>
+            <input type="number" id="TEMPERATURE" name="TEMPERATURE" step="0.1" min="0" max="1">
+          </div>
+          <div class="form-group">
+            <label for="MAX_TOKENS">Max Tokens</label>
+            <input type="number" id="MAX_TOKENS" name="MAX_TOKENS">
+          </div>
+          <div class="form-group">
+            <label for="THINKING_LEVEL">Thinking Level</label>
+            <select id="THINKING_LEVEL" name="THINKING_LEVEL">
+              <option value="minimum">Minimum</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="THINKING_BUDGET">Thinking Budget (-1 for auto)</label>
+            <input type="number" id="THINKING_BUDGET" name="THINKING_BUDGET">
+          </div>
+           <div class="form-group">
+            <label for="BATCH_SIZE">Batch Size</label>
+            <input type="number" id="BATCH_SIZE" name="BATCH_SIZE">
+          </div>
+          <div class="form-group">
+            <label for="WEB_PROXY_URL">Web Proxy URL</label>
+            <input type="text" id="WEB_PROXY_URL" name="WEB_PROXY_URL">
+          </div>
+          <div class="form-group">
+            <label for="SEARCH_STRING">Search String (Scopus/WoS)</label>
+            <textarea id="SEARCH_STRING" name="SEARCH_STRING" style="height: 100px;"></textarea>
+          </div>
+           <div class="form-group">
+            <label for="MODEL_PRICING">Model Pricing (CSV Format)</label>
+            <textarea id="MODEL_PRICING" name="MODEL_PRICING" style="height: 80px;"></textarea>
+            <div class="hint">Format: ModelName,InputPrice,OutputPrice,PerCount</div>
+          </div>
+          <div class="form-group">
+            <label for="SHOW_OPENING_POPUP">Show Opening Popup</label>
+            <select id="SHOW_OPENING_POPUP" name="SHOW_OPENING_POPUP">
+              <option value="TRUE">TRUE</option>
+              <option value="FALSE">FALSE</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="btn-container">
+          <button type="button" onclick="saveConfig()">Save Configuration</button>
+        </div>
+      </form>
+    </div>
+
+    <script>
+      function openTab(tabName) {
+        var i;
+        var x = document.getElementsByClassName("tab-content");
+        for (i = 0; i < x.length; i++) {
+          x[i].style.display = "none";
+          x[i].classList.remove("active");
+        }
+        document.getElementById(tabName).style.display = "block";
+        document.getElementById(tabName).classList.add("active");
+
+        var tabs = document.getElementsByClassName("tab");
+        for (i = 0; i < tabs.length; i++) {
+            tabs[i].classList.remove("active");
+        }
+        // Find the tab button that calls this and make it active
+        // Simplification: just match index or check onclick attr?
+        // We'll iterate and check.
+        for(i=0; i<tabs.length; i++) {
+            if(tabs[i].getAttribute("onclick").includes(tabName)) {
+                tabs[i].classList.add("active");
+            }
+        }
+      }
+
+      function loadConfig() {
+        google.script.run.withSuccessHandler(onLoadSuccess).withFailureHandler(onFailure).getConfiguration();
+      }
+
+      function onLoadSuccess(config) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("main-content").style.display = "block";
+
+        for (const [key, value] of Object.entries(config)) {
+          const el = document.getElementById(key);
+          if (el) {
+            el.value = value;
+          }
+        }
+      }
+
+      function saveConfig() {
+        const form = document.getElementById("configForm");
+        const formData = new FormData(form);
+        const config = {};
+
+        // Manual iteration because FormData behavior might vary in Apps Script HTML context
+        // But we can just iterate elements
+        const elements = form.elements;
+        for (let i = 0; i < elements.length; i++) {
+            const el = elements[i];
+            if (el.name) {
+                config[el.name] = el.value;
+            }
+        }
+
+        document.getElementById("loading").innerText = "Saving...";
+        document.getElementById("loading").style.display = "block";
+        document.getElementById("main-content").style.display = "none";
+
+        google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onFailure).saveConfiguration(config);
+      }
+
+      function onSaveSuccess() {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("main-content").style.display = "block";
+        alert("Configuration saved successfully!");
+      }
+
+      function onFailure(error) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("main-content").style.display = "block";
+        alert("Error: " + error.message);
+      }
+
+      // Initial Load
+      window.onload = loadConfig;
+    </script>
+  </body>
+</html>
