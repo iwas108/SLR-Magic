@@ -333,10 +333,10 @@ var QualityCheckController = (function() {
       // For now returning empty string if not found.
       let promptContext = "";
       try {
-        const config = SheetUtils.getConfigMap("00_manifest");
+        const config = ConfigManager.getAll();
         promptContext = config["FULLTEXT_SCREENING_PROMPT"] || "Multi-stage prompting enabled.";
       } catch (err) {
-        console.warn("[QualityCheck] Could not fetch manifest prompt:", err);
+        console.warn("[QualityCheck] Could not fetch prompt configuration:", err);
       }
 
       return {
@@ -507,11 +507,11 @@ var QualityCheckController = (function() {
     console.log("[QualityCheck] Starting Gold Mine Sync...");
     try {
       // 1. Get Configuration
-      const config = SheetUtils.getConfigMap("00_manifest");
+      const config = ConfigManager.getAll();
       const goldMineUrl = config["GOLD_MINE"];
 
       if (!goldMineUrl) {
-        return "Error: GOLD_MINE URL is missing in 00_manifest.";
+        return "Error: GOLD_MINE URL is missing in Configuration.";
       }
 
       let targetFolderId;

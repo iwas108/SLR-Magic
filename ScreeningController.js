@@ -17,7 +17,7 @@ const ScreeningController = (function() {
 
     try {
       // 1. Read Configuration
-      const config = SheetUtils.getConfigMap("00_manifest");
+      const config = ConfigManager.getAll();
       const apiKey = config["API_KEY"];
       const modelName = config["ABSTRACT_SCREENING_MODEL"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
@@ -40,10 +40,10 @@ const ScreeningController = (function() {
       const systemPrompt = config["ABSTRACT_SCREENING_PROMPT"];
 
       if (!apiKey) {
-        throw new Error("API_KEY is missing in 00_manifest.");
+        throw new Error("API_KEY is missing in Configuration.");
       }
       if (!systemPrompt) {
-        throw new Error("ABSTRACT_SCREENING_PROMPT is missing in 00_manifest.");
+        throw new Error("ABSTRACT_SCREENING_PROMPT is missing in Configuration.");
       }
 
       // 2. Get Data

@@ -168,11 +168,11 @@ const FullTextScreeningController = (function() {
    */
   function runImportFileMetadata() {
     try {
-      const config = SheetUtils.getConfigMap("00_manifest");
+      const config = ConfigManager.getAll();
       const csvUrl = config["PDF_METADATA"];
 
       if (!csvUrl) {
-        SheetUtils.alert("PDF_METADATA key is missing in 00_manifest. Please add the CSV URL.");
+        SheetUtils.alert("PDF_METADATA key is missing in Configuration. Please add the CSV URL.");
         return;
       }
 
@@ -233,11 +233,11 @@ const FullTextScreeningController = (function() {
         SheetUtils.ensureColumn(sheet, col, headerMap);
       });
 
-      const config = SheetUtils.getConfigMap("00_manifest");
+      const config = ConfigManager.getAll();
       const pdfRepoUrl = config["PDF_REPO"];
 
       if (!pdfRepoUrl) {
-        SheetUtils.alert("PDF_REPO is missing in 00_manifest.");
+        SheetUtils.alert("PDF_REPO is missing in Configuration.");
         return;
       }
 
@@ -364,7 +364,7 @@ const FullTextScreeningController = (function() {
 
     try {
       // 1. Read Configuration
-      const config = SheetUtils.getConfigMap("00_manifest");
+      const config = ConfigManager.getAll();
       const apiKey = config["API_KEY"];
 
       // Load Stage Models
@@ -381,10 +381,10 @@ const FullTextScreeningController = (function() {
       const minerPrompt = config["THE_MINER_PROMPT"];
       const batchSize = parseInt(config["BATCH_SIZE"] || "3");
 
-      if (!apiKey) throw new Error("API_KEY is missing in 00_manifest.");
-      if (!gatekeeperPrompt) throw new Error("THE_GATEKEEPER_PROMPT is missing in 00_manifest.");
-      if (!scientistPrompt) throw new Error("THE_SCIENTIST_PROMPT is missing in 00_manifest.");
-      if (!minerPrompt) throw new Error("THE_MINER_PROMPT is missing in 00_manifest.");
+      if (!apiKey) throw new Error("API_KEY is missing in Configuration.");
+      if (!gatekeeperPrompt) throw new Error("THE_GATEKEEPER_PROMPT is missing in Configuration.");
+      if (!scientistPrompt) throw new Error("THE_SCIENTIST_PROMPT is missing in Configuration.");
+      if (!minerPrompt) throw new Error("THE_MINER_PROMPT is missing in Configuration.");
 
       // Reasoning Config Helper
       const getReasoningConfig = (model) => {
@@ -565,12 +565,12 @@ const FullTextScreeningController = (function() {
   function runTransformDOILinks() {
     try {
       console.log("[DEBUG] Starting runTransformDOILinks");
-      const config = SheetUtils.getConfigMap("00_manifest");
+      const config = ConfigManager.getAll();
       const proxyUrl = config["WEB_PROXY_URL"];
       console.log(`[DEBUG] Proxy URL: ${proxyUrl}`);
 
       if (!proxyUrl) {
-        SheetUtils.alert("WEB_PROXY_URL is missing in 00_manifest.");
+        SheetUtils.alert("WEB_PROXY_URL is missing in Configuration.");
         return;
       }
 

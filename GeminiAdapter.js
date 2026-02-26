@@ -125,7 +125,7 @@ const GeminiAdapter = (function() {
                const reason = candidate.finishReason || "Unknown";
                let msg = `Gemini response missing content/parts. Finish Reason: ${reason}.`;
                if (reason === "MAX_TOKENS") {
-                   msg += " Try increasing MAX_TOKENS in 00_manifest.";
+                   msg += " Try increasing MAX_TOKENS in Configuration.";
                }
                throw new Error(msg);
           }

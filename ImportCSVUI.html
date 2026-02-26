@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        background-color: #f4f4f9;
+        color: #333;
+      }
+      h2 {
+        color: #2c3e50;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+        margin-top: 0;
+      }
+      .step {
+        display: none;
+      }
+      .step.active {
+        display: block;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        padding: 10px 20px;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      button:hover {
+        background-color: #2980b9;
+      }
+      button.secondary {
+        background-color: #7f8c8d;
+      }
+      .mapping-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+      }
+      .mapping-table th, .mapping-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      .mapping-table th {
+        background-color: #f2f2f2;
+      }
+      .loading {
+        text-align: center;
+        margin-top: 20px;
+        font-style: italic;
+        color: #666;
+      }
+      .report {
+        background-color: #fff;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Import Raw CSV</h2>
+
+    <!-- Step 1: Input -->
+    <div id="step1" class="step active">
+      <div class="form-group">
+        <label for="csvUrl">Google Drive CSV URL</label>
+        <input type="text" id="csvUrl" placeholder="https://drive.google.com/file/d/...">
+      </div>
+      <div class="form-group">
+        <label for="sourceName">Data Source Name</label>
+        <input type="text" id="sourceName" placeholder="e.g. Scopus_2023_Part1">
+      </div>
+      <button onclick="fetchHeaders()">Next: Map Columns</button>
+    </div>
+
+    <!-- Step 2: Mapping -->
+    <div id="step2" class="step">
+      <p>Map columns from your CSV to the system columns.</p>
+      <table class="mapping-table">
+        <thead>
+          <tr>
+            <th>CSV Header</th>
+            <th>Map To System Header</th>
+          </tr>
+        </thead>
+        <tbody id="mappingBody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+      <button class="secondary" onclick="showStep(1)">Back</button>
+      <button onclick="runImport()">Start Import</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="loading" style="display:none;">
+      Processing... Please wait.
+    </div>
+
+    <!-- Step 3: Report -->
+    <div id="step3" class="step">
+      <div class="report" id="reportContent">
+        <!-- Populated by JS -->
+      </div>
+      <br>
+      <button onclick="google.script.host.close()">Close</button>
+    </div>
+
+    <script>
+      let csvHeaders = [];
+      let systemHeaders = [];
+
+      function showStep(n) {
+        document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+        document.getElementById('step' + n).classList.add('active');
+      }
+
+      function fetchHeaders() {
+        const url = document.getElementById('csvUrl').value;
+        const source = document.getElementById('sourceName').value;
+
+        if (!url || !source) {
+          alert("Please enter both URL and Source Name.");
+          return;
+        }
+
+        document.getElementById('step1').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('loading').innerText = "Fetching headers...";
+
+        google.script.run
+          .withSuccessHandler(onHeadersFetched)
+          .withFailureHandler(onFailure)
+          .getCSVHeaders(url);
+      }
+
+      function onHeadersFetched(result) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('step1').style.display = 'block'; // Restore visibility logic handled by showStep
+
+        if (!result) return;
+
+        csvHeaders = result.csvHeaders;
+        systemHeaders = result.systemHeaders;
+
+        const tbody = document.getElementById('mappingBody');
+        tbody.innerHTML = "";
+
+        csvHeaders.forEach(header => {
+          const tr = document.createElement('tr');
+
+          const tdSrc = document.createElement('td');
+          tdSrc.innerText = header;
+          tr.appendChild(tdSrc);
+
+          const tdDest = document.createElement('td');
+          const select = document.createElement('select');
+
+          // Default option: Skip
+          const optSkip = document.createElement('option');
+          optSkip.value = "";
+          optSkip.text = "-- Skip --";
+          select.appendChild(optSkip);
+
+          // System Headers
+          systemHeaders.forEach(sysHeader => {
+            const opt = document.createElement('option');
+            opt.value = sysHeader;
+            opt.text = sysHeader;
+            // Auto-select if matches (case-insensitive fuzzy match)
+            if (sysHeader.toLowerCase() === header.toLowerCase().replace(/_/g, ' ')) {
+                opt.selected = true;
+            }
+            select.appendChild(opt);
+          });
+
+          // Option to Create New
+          const optNew = document.createElement('option');
+          optNew.value = "_CREATE_NEW_";
+          optNew.text = "[Create New Column]";
+          select.appendChild(optNew);
+
+          tdDest.appendChild(select);
+          tr.appendChild(tdDest);
+          tbody.appendChild(tr);
+        });
+
+        showStep(2);
+      }
+
+      function runImport() {
+        const url = document.getElementById('csvUrl').value;
+        const sourceName = document.getElementById('sourceName').value;
+
+        const mapping = {};
+        const rows = document.getElementById('mappingBody').querySelectorAll('tr');
+
+        rows.forEach((row, index) => {
+            const csvHeader = csvHeaders[index];
+            const select = row.querySelector('select');
+            const selectedVal = select.value;
+
+            if (selectedVal) {
+                if (selectedVal === "_CREATE_NEW_") {
+                    mapping[csvHeader] = csvHeader; // Use original name
+                } else {
+                    mapping[csvHeader] = selectedVal;
+                }
+            }
+        });
+
+        document.getElementById('step2').style.display = 'none';
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('loading').innerText = "Importing... This may take a while.";
+
+        google.script.run
+          .withSuccessHandler(onImportComplete)
+          .withFailureHandler(onFailure)
+          .processImport(url, sourceName, mapping);
+      }
+
+      function onImportComplete(report) {
+        document.getElementById('loading').style.display = 'none';
+        showStep(3);
+
+        const div = document.getElementById('reportContent');
+        div.innerHTML = `
+          <h3>Import Complete</h3>
+          <p><strong>Total Rows in CSV:</strong> ${report.totalRows}</p>
+          <p><strong>Duplicates Skipped:</strong> ${report.duplicates}</p>
+          <p><strong>Imported:</strong> ${report.imported}</p>
+          <p><strong>Source:</strong> ${report.sourceName}</p>
+        `;
+      }
+
+      function onFailure(e) {
+        document.getElementById('loading').style.display = 'none';
+        document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+        document.getElementById('step1').classList.add('active'); // Go back to start
+        alert("Error: " + e.message);
+      }
+    </script>
+  </body>
+</html>

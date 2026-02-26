@@ -11,7 +11,7 @@ var CostAnalysisController = (function() {
    */
   function getUniqueModels() {
     try {
-      const config = SheetUtils.getConfigMap("00_manifest");
+      const config = ConfigManager.getAll();
       const models = [
         config["ABSTRACT_SCREENING_MODEL"],
         config["THE_GATEKEEPER_MODEL"],
@@ -35,7 +35,7 @@ var CostAnalysisController = (function() {
    */
   function parseModelPricing() {
     try {
-      const config = SheetUtils.getConfigMap("00_manifest");
+      const config = ConfigManager.getAll();
       const pricingRaw = config["MODEL_PRICING"];
 
       const pricingMap = {};
@@ -77,7 +77,7 @@ var CostAnalysisController = (function() {
        }
 
        const csvString = csvLines.join("\n");
-       SheetUtils.setConfigValue("MODEL_PRICING", csvString);
+       ConfigManager.set("MODEL_PRICING", csvString);
        return "Pricing updated.";
      } catch (e) {
        console.error(e);
@@ -92,7 +92,7 @@ var CostAnalysisController = (function() {
    */
   function calculateProjectCosts(priceMap) {
     try {
-        const config = SheetUtils.getConfigMap("00_manifest");
+        const config = ConfigManager.getAll();
 
         // Helper: Get input/output rates for a model
         const getRates = (modelName) => {

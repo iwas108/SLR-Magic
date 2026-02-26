@@ -39,77 +39,6 @@ const SheetUtils = (function() {
   }
 
   /**
-   * Reads a Key-Value sheet and returns a Map/Object.
-   * Assumes Row 1 is header, Data starts at Row 2.
-   * Checks for specific "Key" and "Value" columns.
-   * @param {string} sheetName
-   * @returns {Object} Key-Value pairs
-   */
-  function getConfigMap(sheetName) {
-    const sheet = getSheetByName(sheetName);
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-
-    // Find column indices
-    const keyIdx = headers.indexOf('Key');
-    const valueIdx = headers.indexOf('Value');
-
-    if (keyIdx === -1 || valueIdx === -1) {
-      throw new Error(`Sheet "${sheetName}" must have "Key" and "Value" columns.`);
-    }
-
-    const config = {};
-    // Start from row index 1 (row 2)
-    for (let i = 1; i < data.length; i++) {
-      const key = data[i][keyIdx];
-      const value = data[i][valueIdx];
-      if (key) {
-        config[key] = value;
-      }
-    }
-    return config;
-  }
-
-  /**
-   * Updates or adds a Key-Value pair in the configuration sheet.
-   * @param {string} key
-   * @param {string} value
-   */
-  function setConfigValue(key, value) {
-    const sheetName = "00_manifest";
-    const sheet = getSheetByName(sheetName);
-    const dataRange = sheet.getDataRange();
-    const values = dataRange.getValues();
-    const headers = values[0];
-
-    const keyIdx = headers.indexOf('Key'); // 0-based
-    const valueIdx = headers.indexOf('Value'); // 0-based
-
-    if (keyIdx === -1 || valueIdx === -1) {
-      throw new Error(`Sheet "${sheetName}" must have "Key" and "Value" columns.`);
-    }
-
-    // Search for existing key
-    for (let i = 1; i < values.length; i++) {
-      if (values[i][keyIdx] === key) {
-        // Update existing (row is i+1)
-        // Column is valueIdx + 1
-        sheet.getRange(i + 1, valueIdx + 1).setValue(value);
-        console.log(`[SheetUtils] Updated ${key} to ${value}`);
-        return;
-      }
-    }
-
-    // Not found, append
-    // Construct row based on headers size
-    const newRow = new Array(headers.length).fill("");
-    newRow[keyIdx] = key;
-    newRow[valueIdx] = value;
-    sheet.appendRow(newRow);
-    console.log(`[SheetUtils] Added ${key} = ${value}`);
-  }
-
-  /**
    * Returns a map of Header Name -> Column Index (1-based).
    * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
    * @returns {Object} { "Paper_ID": 1, "Title": 2, ... }
@@ -324,8 +253,6 @@ const SheetUtils = (function() {
   return {
     getSpreadsheet,
     getSheetByName,
-    getConfigMap,
-    setConfigValue,
     getHeaderMap,
     appendDataMapped,
     getDataAsObjects,
