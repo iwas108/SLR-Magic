@@ -102,6 +102,28 @@
         <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">Limit the number of stack segments to the top N most frequent. Others will be grouped as "Other".</p>
     </div>
 
+    <div style="margin-bottom: 15px;">
+        <label for="legend-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Legend Position</label>
+        <select id="legend-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+        </select>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="label-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Label Position</label>
+        <select id="label-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="inside">Inside</option>
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+            <option value="none">None</option>
+        </select>
+    </div>
+
     <div style="text-align: right; margin-top: 20px;">
       <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
       <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
@@ -267,8 +289,10 @@
        const separator = document.getElementById('separator').value;
        const stackMode = document.getElementById('stack-mode').value;
        const topN = parseInt(document.getElementById('top-n').value) || 10;
+       const legendPosition = document.getElementById('legend-position').value;
+       const labelPosition = document.getElementById('label-position').value;
 
-       lastConfig = { separator, stackMode, topN };
+       lastConfig = { separator, stackMode, topN, legendPosition, labelPosition };
 
        document.getElementById('step-1').classList.add('hidden');
        document.getElementById('step-2').classList.add('hidden');
@@ -278,7 +302,7 @@
        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
 
        google.script.run
-         .withSuccessHandler(data => renderChart(data, stackMode))
+         .withSuccessHandler(data => renderChart(data, stackMode, legendPosition, labelPosition))
          .withFailureHandler(err => {
             container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
             console.error(err);
@@ -292,7 +316,7 @@
          });
     }
 
-    function renderChart(data, stackMode) {
+    function renderChart(data, stackMode, legendPosition, labelPosition) {
        lastChartData = data;
 
        const container = document.getElementById('chart-container');
@@ -308,7 +332,7 @@
        }
 
        chartInstance = echarts.init(container);
-       const option = getChartOption(data, stackMode);
+       const option = getChartOption(data, stackMode, legendPosition, labelPosition);
        chartInstance.setOption(option);
 
        window.addEventListener('resize', function() {
@@ -330,21 +354,25 @@
         }
     }
 
-    function getChartOption(data, stackMode) {
+    function getChartOption(data, stackMode, legendPosition, labelPosition) {
       // data.series contains objects: { name: 'StackVal', data: [val1, val2, ...] }
       // We need to add styling and stacking logic.
 
       const formattedSeries = data.series.map(s => {
-          return {
+          const seriesObj = {
               name: s.name,
               type: 'bar',
               stack: 'total', // All series stacked on top of each other
               data: s.data,
               emphasis: {
                   focus: 'series'
-              },
-              label: {
+              }
+          };
+
+          if (labelPosition && labelPosition !== 'none') {
+              seriesObj.label = {
                   show: true,
+                  position: labelPosition,
                   formatter: (params) => {
                       if (params.value === 0) return '';
                       if (stackMode === 'Percent') {
@@ -352,9 +380,34 @@
                       }
                       return params.value;
                   }
-              }
-          };
+              };
+          }
+
+          return seriesObj;
       });
+
+      const legendConfig = {
+          data: data.series.map(s => s.name),
+          type: 'scroll' // In case of many stack items
+      };
+
+      if (legendPosition === 'bottom') {
+          legendConfig.bottom = 10;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      } else if (legendPosition === 'left') {
+          legendConfig.left = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else if (legendPosition === 'right') {
+          legendConfig.right = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else { // default top
+          legendConfig.top = 40;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      }
 
       return {
           title: {
@@ -381,11 +434,7 @@
                   return res;
               }
           },
-          legend: {
-              data: data.series.map(s => s.name),
-              top: 40,
-              type: 'scroll' // In case of many stack items
-          },
+          legend: legendConfig,
           toolbox: {
               show: true,
               feature: {
@@ -457,7 +506,7 @@
       document.body.appendChild(div);
 
       const tempChart = echarts.init(div, null, { renderer: 'svg' });
-      tempChart.setOption(getChartOption(lastChartData, lastConfig.stackMode));
+      tempChart.setOption(getChartOption(lastChartData, lastConfig.stackMode, lastConfig.legendPosition, lastConfig.labelPosition));
 
       const url = tempChart.getDataURL({
         type: 'svg',

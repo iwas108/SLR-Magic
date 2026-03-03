@@ -120,6 +120,27 @@
         </label>
     </div>
 
+    <div style="margin-bottom: 15px;">
+        <label for="legend-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Legend Position</label>
+        <select id="legend-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+        </select>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="label-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Label Position</label>
+        <select id="label-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="none">None</option>
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+        </select>
+    </div>
+
     <div style="text-align: right; margin-top: 20px;">
       <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
       <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
@@ -268,6 +289,8 @@
        const showAverage = document.getElementById('show-average').checked;
        const smoothLine = document.getElementById('smooth-line').checked;
        const areaStyle = document.getElementById('area-style').checked;
+       const legendPosition = document.getElementById('legend-position').value;
+       const labelPosition = document.getElementById('label-position').value;
 
        document.getElementById('step-1').classList.add('hidden');
        document.getElementById('step-2').classList.add('hidden');
@@ -287,7 +310,7 @@
        // Backend only needs data processing params.
        // We save display params to local state.
        lastChartData = {
-           showMinMax, showAverage, smoothLine, areaStyle
+           showMinMax, showAverage, smoothLine, areaStyle, legendPosition, labelPosition
        };
 
        google.script.run
@@ -339,7 +362,7 @@
     }
 
     function getChartOption(data, displayConfig) {
-      const { showMinMax, showAverage, smoothLine, areaStyle } = displayConfig;
+      const { showMinMax, showAverage, smoothLine, areaStyle, legendPosition, labelPosition } = displayConfig;
 
       // Build series with user options
       const formattedSeries = data.series.map(s => {
@@ -349,6 +372,13 @@
               data: s.data,
               smooth: smoothLine,
           };
+
+          if (labelPosition && labelPosition !== 'none') {
+              seriesObj.label = {
+                  show: true,
+                  position: labelPosition
+              };
+          }
 
           if (areaStyle) {
               seriesObj.areaStyle = {};
@@ -372,6 +402,28 @@
           return seriesObj;
       });
 
+      const legendConfig = {
+          data: data.series.map(s => s.name)
+      };
+
+      if (legendPosition === 'bottom') {
+          legendConfig.bottom = 10;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      } else if (legendPosition === 'left') {
+          legendConfig.left = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else if (legendPosition === 'right') {
+          legendConfig.right = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else { // default top
+          legendConfig.top = 40;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      }
+
       return {
           title: {
               text: chartTitle || 'Line Chart',
@@ -381,10 +433,7 @@
           tooltip: {
               trigger: 'axis'
           },
-          legend: {
-              data: data.series.map(s => s.name),
-              top: 40
-          },
+          legend: legendConfig,
           toolbox: {
               show: true,
               feature: {
