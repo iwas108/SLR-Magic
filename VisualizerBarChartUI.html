@@ -123,6 +123,28 @@
         <p style="font-size: 12px; margin: 0 0 0 24px; color: #5f6368;">Draws a line representing the average value for each series.</p>
     </div>
 
+    <div style="margin-bottom: 15px;">
+        <label for="legend-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Legend Position</label>
+        <select id="legend-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+        </select>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="label-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Bar Label Position</label>
+        <select id="label-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="none">None</option>
+            <option value="top">Top</option>
+            <option value="inside">Inside</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+        </select>
+    </div>
+
     <div style="text-align: right; margin-top: 20px;">
       <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
       <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
@@ -270,6 +292,8 @@
        const useValuesAsSeries = document.getElementById('use-values-as-series').checked;
        const showMinMax = document.getElementById('show-minmax').checked;
        const showAverage = document.getElementById('show-average').checked;
+       const legendPosition = document.getElementById('legend-position').value;
+       const labelPosition = document.getElementById('label-position').value;
 
        document.getElementById('step-1').classList.add('hidden');
        document.getElementById('step-2').classList.add('hidden');
@@ -279,7 +303,7 @@
        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
 
        google.script.run
-         .withSuccessHandler(data => renderChart(data, showMinMax, showAverage))
+         .withSuccessHandler(data => renderChart(data, showMinMax, showAverage, legendPosition, labelPosition))
          .withFailureHandler(err => {
             container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
             console.error(err);
@@ -304,8 +328,8 @@
         }
     }
 
-    function renderChart(data, showMinMax, showAverage) {
-       lastChartData = { data, showMinMax, showAverage };
+    function renderChart(data, showMinMax, showAverage, legendPosition, labelPosition) {
+       lastChartData = { data, showMinMax, showAverage, legendPosition, labelPosition };
 
        const container = document.getElementById('chart-container');
        container.innerHTML = '';
@@ -320,7 +344,7 @@
        }
 
        chartInstance = echarts.init(container);
-       const option = getChartOption(data, showMinMax, showAverage);
+       const option = getChartOption(data, showMinMax, showAverage, legendPosition, labelPosition);
        chartInstance.setOption(option);
 
        window.addEventListener('resize', function() {
@@ -342,7 +366,7 @@
         }
     }
 
-    function getChartOption(data, showMinMax, showAverage) {
+    function getChartOption(data, showMinMax, showAverage, legendPosition, labelPosition) {
       // Build series with user options
       const formattedSeries = data.series.map(s => {
           const seriesObj = {
@@ -350,6 +374,13 @@
               type: 'bar',
               data: s.data
           };
+
+          if (labelPosition && labelPosition !== 'none') {
+              seriesObj.label = {
+                  show: true,
+                  position: labelPosition
+              };
+          }
 
           if (showMinMax) {
               seriesObj.markPoint = {
@@ -369,6 +400,28 @@
           return seriesObj;
       });
 
+      const legendConfig = {
+          data: data.series.map(s => s.name)
+      };
+
+      if (legendPosition === 'bottom') {
+          legendConfig.bottom = 10;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      } else if (legendPosition === 'left') {
+          legendConfig.left = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else if (legendPosition === 'right') {
+          legendConfig.right = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else { // default top
+          legendConfig.top = 40;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      }
+
       return {
           title: {
               text: chartTitle || 'Bar Chart',
@@ -378,10 +431,7 @@
           tooltip: {
               trigger: 'axis'
           },
-          legend: {
-              data: data.series.map(s => s.name),
-              top: 40
-          },
+          legend: legendConfig,
           toolbox: {
               show: true,
               feature: {
@@ -450,7 +500,7 @@
       document.body.appendChild(div);
 
       const tempChart = echarts.init(div, null, { renderer: 'svg' });
-      tempChart.setOption(getChartOption(lastChartData.data, lastChartData.showMinMax, lastChartData.showAverage));
+      tempChart.setOption(getChartOption(lastChartData.data, lastChartData.showMinMax, lastChartData.showAverage, lastChartData.legendPosition, lastChartData.labelPosition));
 
       const url = tempChart.getDataURL({
         type: 'svg',
