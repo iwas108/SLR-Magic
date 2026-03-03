@@ -105,6 +105,16 @@
         <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">Limit the number of axes to the top N most frequent items.</p>
     </div>
 
+    <div style="margin-bottom: 15px;">
+        <label for="legend-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Legend Position</label>
+        <select id="legend-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+        </select>
+    </div>
+
     <div style="text-align: right; margin-top: 20px;">
       <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
       <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
@@ -303,8 +313,9 @@
        const valueColumn = document.getElementById('value-column').value;
        const aggregation = document.getElementById('aggregation-mode').value;
        const topN = parseInt(document.getElementById('top-n').value) || 6;
+       const legendPosition = document.getElementById('legend-position').value;
 
-       lastConfig = { seriesColumn, indicatorColumn, separator, valueColumn, aggregation, topN };
+       lastConfig = { seriesColumn, indicatorColumn, separator, valueColumn, aggregation, topN, legendPosition };
 
        document.getElementById('step-1').classList.add('hidden');
        document.getElementById('step-2').classList.add('hidden');
@@ -337,7 +348,7 @@
        }
 
        chartInstance = echarts.init(container);
-       const option = getChartOption(data);
+       const option = getChartOption(data, lastConfig.legendPosition);
        chartInstance.setOption(option);
 
        window.addEventListener('resize', function() {
@@ -359,7 +370,30 @@
         }
     }
 
-    function getChartOption(data) {
+    function getChartOption(data, legendPosition) {
+      const legendConfig = {
+          data: data.series.map(s => s.name),
+          type: 'scroll'
+      };
+
+      if (legendPosition === 'bottom') {
+          legendConfig.bottom = 10;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      } else if (legendPosition === 'left') {
+          legendConfig.left = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else if (legendPosition === 'right') {
+          legendConfig.right = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else { // default top
+          legendConfig.top = 40;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      }
+
       return {
         title: {
           text: chartTitle || 'Radar Chart',
@@ -369,11 +403,7 @@
         tooltip: {
             trigger: 'item'
         },
-        legend: {
-          data: data.series.map(s => s.name),
-          top: 40,
-          type: 'scroll'
-        },
+        legend: legendConfig,
         toolbox: {
             show: true,
             feature: {
@@ -434,7 +464,7 @@
       document.body.appendChild(div);
 
       const tempChart = echarts.init(div, null, { renderer: 'svg' });
-      tempChart.setOption(getChartOption(lastChartData));
+      tempChart.setOption(getChartOption(lastChartData, lastConfig.legendPosition));
 
       const url = tempChart.getDataURL({
         type: 'svg',

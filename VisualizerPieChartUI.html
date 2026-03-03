@@ -74,6 +74,26 @@
         </label>
         <p style="font-size: 12px; margin: 4px 0 0 24px;">Shows rich data labels with name, value, and percentage.</p>
     </div>
+
+    <div style="margin-top: 15px;">
+        <label for="legend-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Legend Position</label>
+        <select id="legend-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="right">Right</option>
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+        </select>
+    </div>
+
+    <div style="margin-top: 15px;">
+        <label for="label-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Label Position (If enabled)</label>
+        <select id="label-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
+            <option value="outside">Outside</option>
+            <option value="inside">Inside</option>
+            <option value="center">Center (Donut only)</option>
+        </select>
+    </div>
+
     <div style="text-align: right; margin-top: 20px;">
       <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
       <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
@@ -235,6 +255,8 @@
     function generateChart() {
        chartTitle = document.getElementById('chart-title').value;
        const enableLabel = document.getElementById('enable-label').checked;
+       const legendPosition = document.getElementById('legend-position').value;
+       const labelPosition = document.getElementById('label-position').value;
 
        document.getElementById('step-1').classList.add('hidden');
        document.getElementById('step-2').classList.add('hidden');
@@ -244,7 +266,7 @@
        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
 
        google.script.run
-         .withSuccessHandler(data => renderChart(data, enableLabel))
+         .withSuccessHandler(data => renderChart(data, enableLabel, legendPosition, labelPosition))
          .withFailureHandler(err => {
             container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
             console.error(err);
@@ -252,9 +274,11 @@
          .generatePieChartData({ column: selectedColumn });
     }
 
-    function renderChart(data, enableLabel) {
+    function renderChart(data, enableLabel, legendPosition, labelPosition) {
        lastChartData = data;
        lastChartData.enableLabel = enableLabel; // Store for download
+       lastChartData.legendPosition = legendPosition;
+       lastChartData.labelPosition = labelPosition;
 
        const container = document.getElementById('chart-container');
        container.innerHTML = '';
@@ -269,7 +293,7 @@
        }
 
        chartInstance = echarts.init(container);
-       const option = getChartOption(data, enableLabel);
+       const option = getChartOption(data, enableLabel, legendPosition, labelPosition);
        chartInstance.setOption(option);
 
        // Handle resize
@@ -294,7 +318,31 @@
         }
     }
 
-    function getChartOption(data, enableLabel) {
+    function getChartOption(data, enableLabel, legendPosition, labelPosition) {
+      const legendConfig = {
+          type: 'scroll',
+          data: data.legendData
+      };
+
+      if (legendPosition === 'bottom') {
+          legendConfig.bottom = 10;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      } else if (legendPosition === 'left') {
+          legendConfig.left = 10;
+          legendConfig.top = 'middle';
+          legendConfig.orient = 'vertical';
+      } else if (legendPosition === 'top') {
+          legendConfig.top = 40;
+          legendConfig.left = 'center';
+          legendConfig.orient = 'horizontal';
+      } else { // default right
+          legendConfig.right = 10;
+          legendConfig.top = 20;
+          legendConfig.bottom = 20;
+          legendConfig.orient = 'vertical';
+      }
+
       const option = {
         title: {
             text: chartTitle || 'Pie Chart',
@@ -305,20 +353,13 @@
             trigger: 'item',
             formatter: '{a} <br/>{b} : {c} ({d}%)'
         },
-        legend: {
-            type: 'scroll',
-            orient: 'vertical',
-            right: 10,
-            top: 20,
-            bottom: 20,
-            data: data.legendData
-        },
+        legend: legendConfig,
         series: [
             {
                 name: selectedColumn ? selectedColumn.name : 'Data',
                 type: 'pie',
                 radius: '55%', // Default radius
-                center: ['40%', '50%'],
+                center: ['50%', '50%'],
                 data: data.seriesData,
                 emphasis: {
                     itemStyle: {
@@ -332,17 +373,12 @@
       };
 
       if (enableLabel) {
-          // Update radius to be a donut to match style better, or keep pie?
-          // User example had two series, one inner (pie) one outer (donut).
-          // We only have one series. The outer one had the label.
-          // Let's set the radius to a donut for better look with these labels,
-          // or keep it 55% as per original if not specified.
-          // The example used radius: ['45%', '60%'].
-
           const series = option.series[0];
           series.radius = ['45%', '60%'];
-          series.labelLine = { length: 30 };
+
           series.label = {
+            show: true,
+            position: labelPosition || 'outside',
             formatter: '{a|{a}}{abg|}\n{hr|}\n  {b|{b}：}{c}  {per|{d}%}  ',
             backgroundColor: '#F6F8FC',
             borderColor: '#8C8D8E',
@@ -374,6 +410,15 @@
               }
             }
           };
+
+          if (labelPosition === 'outside' || !labelPosition) {
+              series.labelLine = { length: 30, show: true };
+          } else {
+              series.labelLine = { show: false };
+          }
+      } else {
+          option.series[0].label = { show: false };
+          option.series[0].labelLine = { show: false };
       }
 
       return option;
@@ -418,7 +463,7 @@
       const tempChart = echarts.init(div, null, { renderer: 'svg' });
 
       // Use stored enableLabel state
-      tempChart.setOption(getChartOption(lastChartData, lastChartData.enableLabel));
+      tempChart.setOption(getChartOption(lastChartData, lastChartData.enableLabel, lastChartData.legendPosition, lastChartData.labelPosition));
 
       // Get SVG Data URL
       const url = tempChart.getDataURL({
