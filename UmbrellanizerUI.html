@@ -56,20 +56,20 @@
   <div id="step2" class="step">
     <div class="description">
       1. Copy the generated prompt below.<br>
-      2. Paste it into an LLM (like ChatGPT or Gemini) and modify categories as needed.<br>
-      3. Paste the LLM's final formula output into the box below and click Execute.
+      2. Paste it into an LLM (like ChatGPT or Gemini) to generate your classification prompt.<br>
+      3. Paste the LLM's final plain text output (containing the {{CELL_REF}} placeholder) into the box below and click Execute.
     </div>
 
     <div class="form-group">
       <label for="generatedPrompt">Generated Prompt</label>
-      <textarea id="generatedPrompt" readonly></textarea>
+      <textarea id="generatedPrompt" readonly style="height: 250px;"></textarea>
       <button class="copy-btn" onclick="copyPrompt()">Copy to Clipboard</button>
       <span id="copyFeedback" style="display:none; color: green; font-size: 12px; margin-left: 10px;">Copied!</span>
     </div>
 
     <div class="form-group">
       <label for="llmFormula">LLM Formula Result</label>
-      <textarea id="llmFormula" placeholder="Paste the =GEMINI(...) formula here..."></textarea>
+      <textarea id="llmFormula" placeholder="Paste the generated plain text prompt here (make sure it contains {{CELL_REF}})..." style="height: 200px;"></textarea>
     </div>
 
     <div class="buttons">
@@ -179,72 +179,69 @@
 
     function generatePrompt(colName) {
       const isMulti = document.getElementById('multiLabelCheck').checked;
-      const valList = uniqueValues.map(v => `- ${v}`).join('\n');
+      const isMultiStr = isMulti ? "True" : "False";
+      const valList = uniqueValues.join('\n');
 
-      let promptTop = "";
-      let promptBottom = "";
+      const prompt = `Act as an Expert Prompt Engineer specializing in Data Standardization and Thematic Coding for Systematic Literature Reviews (SLR).
 
-      if (isMulti) {
-          promptTop = `Act as a Senior Data Architect.
-Task: Classify the input values into 'Standardized Categories'.
+Your task is to generate a highly structured classification prompt (an "Umbrellanizer" prompt). I will use your output inside a Google Sheets script to classify raw, messy data into clean, standardized categories.
 
-INPUT: '`;
-          promptBottom = `'
+Here is the context for the column being processed:
 
----
-UNIQUE VALUES FOUND IN THIS COLUMN:
+Column/Data Context: ${colName}
+
+Is Multi-Label Allowed?: ${isMultiStr} (Boolean: True/False)
+
+Current Raw Values (Unique List):
+
+Plaintext
 ${valList}
 
----
-STANDARDIZED CATEGORIES (Map input keywords to these groups):
-(Provide your mapping here, e.g.:
-1. 'Category A'
-- Keywords: Keyword1, Keyword2.
-)
+INSTRUCTIONS:
+Analyze and Cluster: Review the "Current Raw Values". Group them logically into 5 to 12 overarching, mutually exclusive "Standardized Ecosystems" or "Groups" based on thematic similarity.
 
----
+Define a Persona: Start the prompt by assigning a strict, domain-expert persona relevant to the column context (e.g., "Act as a Senior Software Engineer" or "You are a strict Agricultural Data Steward").
+
+Draft the Categories: List your formulated groups. For each group, explicitly state the keywords or specific raw values that fall under it.
+
+Enforce Constraints based on ${isMultiStr}:
+
+If True: Include a rule stating that multiple categories can be outputted if the input warrants it (separated by a comma).
+
+If False: Include a strict rule stating that ONLY ONE category must be chosen.
+
+Formatting: Do NOT use markdown code blocks (\`\`\`) in your final output. Your output must be plain text that strictly follows the template below. Ensure the placeholder {{CELL_REF}} is kept exactly as is.
+
+STRICT OUTPUT TEMPLATE TO FOLLOW:
+[Insert Persona]
+Task: Classify the input data into the specific 'Standardized Groups' listed below.
+
+INPUT: '{{CELL_REF}}'
+
+ALLOWED STANDARDIZED GROUPS (Map input keywords to these groups):
+
+'[Group 1 Name]'
+
+Keywords: [List of matching terms from the raw values]
+
+'[Group 2 Name]'
+
+Keywords: [List of matching terms from the raw values]
+
+[Continue for all groups. Always include a 'Not Reported' group for blank or unspecified values]
+
 CRITICAL RULES:
-1. MULTI-LABEL: If input contains values matching multiple categories, output BOTH separated by a comma.
-2. DEDUPLICATE: If input maps to the same category multiple times, output the category ONLY ONCE.
-3. HIERARCHY: (Optional, specify precedence if needed)
+
+MULTI-LABEL / SINGLE-LABEL: [Adapt this rule based on the IS_MULTI_LABEL boolean provided above. Give a short example of "Right" vs "Wrong" output].
+
+DEDUPLICATE: Map all matching keywords to their category and output the category name ONLY ONCE.
+
+FORMAT: Do NOT use commas inside a group name (Use '&' or 'and' instead).
 
 OUTPUT FORMAT:
-Return unique category names separated by comma.
-`;
-      } else {
-          promptTop = `Act as a strict Data Steward.
-Task: Classify the input value into the specific 'Standardized Groups' listed below.
+Return unique category names separated by comma.`;
 
-INPUT: '`;
-          promptBottom = `'
-
----
-UNIQUE VALUES FOUND IN THIS COLUMN:
-${valList}
-
----
-ALLOWED STANDARDIZED GROUPS (Choose from this list ONLY):
-(Provide your groups here, e.g.:
-1. 'Group 1' (Includes: Item1, Item2)
-)
-
----
-CRITICAL RULES:
-1. NO DUPLICATES: Output the group name ONLY ONCE.
-2. MULTI-GROUP: If input contains items from DIFFERENT groups, output both group names separated by a comma.
-3. FORMAT: Do NOT use commas inside a group name (Use '&' instead).
-
-OUTPUT:
-`;
-      }
-
-      // Escape quotes for Google Sheets formula string literal
-      const escapedTop = promptTop.replace(/"/g, '""');
-      const escapedBottom = promptBottom.replace(/"/g, '""');
-
-      // Wrap in formula template with proper concatenation logic for A2
-      const finalOutput = `!=GEMINI("${escapedTop}" & A2 & "${escapedBottom}")`;
-      document.getElementById('generatedPrompt').value = finalOutput;
+      document.getElementById('generatedPrompt').value = prompt;
     }
 
     function copyPrompt() {
@@ -263,12 +260,12 @@ OUTPUT:
       const formula = document.getElementById('llmFormula').value.trim();
 
       if (!formula) {
-          alert("Please paste the formula generated by the LLM.");
+          alert("Please paste the plain text prompt generated by the LLM.");
           return;
       }
 
-      if (!formula.toUpperCase().startsWith("!=GEMINI(")) {
-          alert("Formula must start with !=GEMINI(");
+      if (!formula.includes("{{CELL_REF}}")) {
+          alert("The pasted text must contain the {{CELL_REF}} placeholder.");
           return;
       }
 

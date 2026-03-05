@@ -67,9 +67,9 @@ var UmbrellanizerController = (function() {
   }
 
   /**
-   * Applies the LLM-generated formula to a new "_fixed" column.
+   * Applies the LLM-generated prompt to a new "_fixed" column.
    * Note: The isMultiLabel flag is passed from UI if we need it for specific logic later.
-   * The formula string passed is the raw formula e.g. !=GEMINI(...)
+   * The formula string passed is the raw plaintext prompt containing {{CELL_REF}}.
    */
   function applyUmbrellanizer(columnName, isMultiLabel, formulaText) {
     try {
@@ -92,8 +92,6 @@ var UmbrellanizerController = (function() {
         targetColIdx = sourceColIdx + 1;
         // Set header name
         sheet.getRange(1, targetColIdx).setValue(fixedColumnName);
-        // We don't strictly need to update headerMap for this one operation,
-        // but it's good practice if other functions run later.
       } else {
         // Clear existing data in target column except header
         const lastRow = sheet.getLastRow();
@@ -106,12 +104,6 @@ var UmbrellanizerController = (function() {
       if (lastRow < 2) {
           throw new Error("No data found to process.");
       }
-
-      // Convert the source formula text (which references A2 usually)
-      // into a dynamic formula for each row.
-
-      // We assume the user wrote `... INPUT: '" & A2 & "' ...` or similar.
-      // We need to replace the column letter 'A' with the actual source column letter.
 
       // Determine source column letter
       const getColumnLetter = (colIndex) => {
@@ -126,51 +118,27 @@ var UmbrellanizerController = (function() {
 
       const sourceColLetter = getColumnLetter(sourceColIdx);
 
-      // We need to prepare an array of formulas.
+      // Prepare the array of formulas.
       const formulas = [];
 
-      // Google Sheets formulas must start with = not !=.
-      let baseFormula = formulaText;
-      if (baseFormula.startsWith("!=")) {
-          baseFormula = baseFormula.substring(1); // Remove !
-      } else if (!baseFormula.startsWith("=")) {
-          baseFormula = "=" + baseFormula;
-      }
+      // 1. First, we must escape double quotes in the plaintext to prepare it for a Google Sheets string literal
+      const escapedPrompt = formulaText.replace(/"/g, '""');
 
-      // If the user literally copied our placeholder '" & A2 & "' we can smartly replace it.
-      // But a more robust approach:
-      // We will look for A2, B2, etc in the formula string and replace the letter with the actual source letter.
-      // Wait, a simpler approach is to tell the user to literally use A2 in the prompt copy, and we replace 'A2' with '${sourceColLetter}${rowIndex}'.
-      // Let's do a regex replacement for the dynamic cell reference.
-
-      // The prompt generation in the UI creates a formula like: !=GEMINI("...INPUT: '" & A2 & "'...")
-      // or similar concatenation structures relying on `& A2 &`.
-      // The user might paste `... & A2 & ...` or `...&A2&...`
-      // We safely target `A2` only when surrounded by `&` and optional whitespace.
+      // 2. We locate the placeholder {{CELL_REF}}
+      // To properly inject the cell value dynamically into the `=GEMINI(...)` formula,
+      // we need to break out of the string literal using quotes and ampersands.
+      // So {{CELL_REF}} becomes `" & A2 & "`
 
       for (let i = 2; i <= lastRow; i++) {
         const dynamicCell = `${sourceColLetter}${i}`;
-        // More specific regex: Replace A2 if it's flanked by ampersands (typical concatenation)
-        // or just rely on a strict match if the user followed instructions.
-        // Let's replace the whole string `& A2 &` to be very safe against replacing regular "A2" strings.
-        // But what if they wrote `&A2&` or `&   A2  &`?
-        // Let's use `&\s*A2\s*&` to match, and replace it with `& ${dynamicCell} &`
-        // Wait, what if the A2 is at the very end of the formula? (Unlikely for our prompt).
-        // Let's fall back to a word boundary replacement to avoid replacing "A2" inside a word (though unlikely).
-        // Regex: `\bA2\b`
-        // But what if "A2" is literally in their prompt (e.g., "Category A2")?
-        // The safest approach is targeting the exact string expected from the template:
 
-        // This regex looks for an ampersand, optional space, A2, optional space, ampersand
-        let rowFormula = baseFormula;
-        if (/&\s*A2\s*&/.test(rowFormula)) {
-             rowFormula = rowFormula.replace(/&\s*A2\s*&/g, `& ${dynamicCell} &`);
-        } else {
-             // Fallback if they modified the concatenation slightly
-             rowFormula = rowFormula.replace(/\bA2\b/g, dynamicCell);
-        }
+        // We replace {{CELL_REF}} with `" & dynamicCell & "`
+        const promptWithDynamicCell = escapedPrompt.replace(/\{\{CELL_REF\}\}/g, `" & ${dynamicCell} & "`);
 
-        formulas.push([rowFormula]);
+        // Finally, wrap everything in `=GEMINI("...")`
+        const finalRowFormula = `=GEMINI("${promptWithDynamicCell}")`;
+
+        formulas.push([finalRowFormula]);
       }
 
       // Set the formulas in the sheet
