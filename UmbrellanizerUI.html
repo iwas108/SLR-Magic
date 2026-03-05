@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <style>
+    body { padding: 15px; font-family: 'Google Sans', Roboto, Arial, sans-serif; }
+    h2 { margin-top: 0; color: #1a73e8; }
+    .step { display: none; }
+    .step.active { display: block; }
+    .form-group { margin-bottom: 15px; }
+    label { font-weight: bold; display: block; margin-bottom: 5px; }
+    .description { color: #666; font-size: 13px; margin-bottom: 15px; }
+    select, textarea, input[type="text"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    textarea { height: 150px; font-family: monospace; font-size: 12px; resize: vertical; }
+    .buttons { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+    .copy-btn { margin-top: 5px; cursor: pointer; color: #1a73e8; font-weight: bold; font-size: 13px; background: none; border: none; padding: 0; }
+    .copy-btn:hover { text-decoration: underline; }
+    .loader { font-style: italic; color: #888; display: none; margin-bottom: 15px; }
+    .checkbox-group { margin-top: 10px; display: flex; align-items: center; }
+    .checkbox-group input { margin-right: 5px; }
+    .checkbox-group label { font-weight: normal; margin-bottom: 0; }
+  </style>
+</head>
+<body>
+
+  <h2>Umbrellanizer</h2>
+
+  <div id="loader" class="loader">Loading...</div>
+
+  <!-- Step 1: Configuration -->
+  <div id="step1" class="step active">
+    <div class="description">
+      Select a column from '02_fulltext_screening' to categorize (umbrellanify) similar values.
+    </div>
+
+    <div class="form-group">
+      <label for="columnSelect">Column to Process</label>
+      <select id="columnSelect">
+        <option value="">Loading columns...</option>
+      </select>
+    </div>
+
+    <div class="form-group checkbox-group">
+      <input type="checkbox" id="multiLabelCheck">
+      <label for="multiLabelCheck">Multi-labeling (Allow multiple categories per row)</label>
+    </div>
+
+    <div class="buttons">
+      <button class="share" onclick="google.script.host.close()">Cancel</button>
+      <button class="action" id="nextBtn" onclick="goToStep2()" disabled>Next</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Prompt Generation and Execution -->
+  <div id="step2" class="step">
+    <div class="description">
+      1. Copy the generated prompt below.<br>
+      2. Paste it into an LLM (like ChatGPT or Gemini) and modify categories as needed.<br>
+      3. Paste the LLM's final formula output into the box below and click Execute.
+    </div>
+
+    <div class="form-group">
+      <label for="generatedPrompt">Generated Prompt</label>
+      <textarea id="generatedPrompt" readonly></textarea>
+      <button class="copy-btn" onclick="copyPrompt()">Copy to Clipboard</button>
+      <span id="copyFeedback" style="display:none; color: green; font-size: 12px; margin-left: 10px;">Copied!</span>
+    </div>
+
+    <div class="form-group">
+      <label for="llmFormula">LLM Formula Result</label>
+      <textarea id="llmFormula" placeholder="Paste the =GEMINI(...) formula here..."></textarea>
+    </div>
+
+    <div class="buttons">
+      <button class="share" onclick="goToStep1()">Back</button>
+      <button class="action" id="executeBtn" onclick="executeUmbrellanizer()">Execute</button>
+    </div>
+  </div>
+
+  <script>
+    let uniqueValues = [];
+
+    // Check if google.script exists, if not, create a mock for local testing
+    if (typeof google === 'undefined') {
+        window.google = {
+            script: {
+                run: {
+                    withSuccessHandler: function(handler) {
+                        this.successHandler = handler;
+                        return this;
+                    },
+                    withFailureHandler: function(handler) {
+                        this.failureHandler = handler;
+                        return this;
+                    },
+                    getUmbrellanizerColumns: function() {
+                        setTimeout(() => this.successHandler(['Title', 'Abstract', 'rq2c_software_platforms', 'rq3a_ai_category']), 500);
+                    },
+                    getUmbrellanizerUniqueValues: function(colName) {
+                        setTimeout(() => this.successHandler(['Custom_API_Server', 'Custom_Database_System', 'GroIMP', 'MQTT', 'Node-RED', 'Unspecified']), 500);
+                    },
+                    applyUmbrellanizerFormula: function(col, multi, formula) {
+                         setTimeout(() => this.successHandler('Success'), 1000);
+                    },
+                    host: {
+                        close: function() { console.log("Dialog closed."); }
+                    }
+                }
+            }
+        };
+    }
+
+    window.onload = function() {
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(populateColumns)
+        .withFailureHandler(showError)
+        .getUmbrellanizerColumns();
+    };
+
+    function showLoader(show) {
+      document.getElementById('loader').style.display = show ? 'block' : 'none';
+    }
+
+    function showError(err) {
+      showLoader(false);
+      alert("Error: " + (err.message || err));
+    }
+
+    function populateColumns(columns) {
+      showLoader(false);
+      const select = document.getElementById('columnSelect');
+      select.innerHTML = '';
+
+      if (!columns || columns.length === 0) {
+        select.innerHTML = '<option value="">No columns found in 02_fulltext_screening</option>';
+        return;
+      }
+
+      columns.forEach(col => {
+        const option = document.createElement('option');
+        option.value = col;
+        option.textContent = col;
+        select.appendChild(option);
+      });
+
+      document.getElementById('nextBtn').disabled = false;
+    }
+
+    function goToStep2() {
+      const colName = document.getElementById('columnSelect').value;
+      if (!colName) return;
+
+      showLoader(true);
+      document.getElementById('nextBtn').disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(values) {
+           showLoader(false);
+           document.getElementById('nextBtn').disabled = false;
+           uniqueValues = values || [];
+           generatePrompt(colName);
+
+           document.getElementById('step1').classList.remove('active');
+           document.getElementById('step2').classList.add('active');
+        })
+        .withFailureHandler(function(err) {
+           document.getElementById('nextBtn').disabled = false;
+           showError(err);
+        })
+        .getUmbrellanizerUniqueValues(colName);
+    }
+
+    function goToStep1() {
+        document.getElementById('step2').classList.remove('active');
+        document.getElementById('step1').classList.add('active');
+    }
+
+    function generatePrompt(colName) {
+      const isMulti = document.getElementById('multiLabelCheck').checked;
+      const valList = uniqueValues.map(v => `- ${v}`).join('\n');
+
+      let promptTop = "";
+      let promptBottom = "";
+
+      if (isMulti) {
+          promptTop = `Act as a Senior Data Architect.
+Task: Classify the input values into 'Standardized Categories'.
+
+INPUT: '`;
+          promptBottom = `'
+
+---
+UNIQUE VALUES FOUND IN THIS COLUMN:
+${valList}
+
+---
+STANDARDIZED CATEGORIES (Map input keywords to these groups):
+(Provide your mapping here, e.g.:
+1. 'Category A'
+- Keywords: Keyword1, Keyword2.
+)
+
+---
+CRITICAL RULES:
+1. MULTI-LABEL: If input contains values matching multiple categories, output BOTH separated by a comma.
+2. DEDUPLICATE: If input maps to the same category multiple times, output the category ONLY ONCE.
+3. HIERARCHY: (Optional, specify precedence if needed)
+
+OUTPUT FORMAT:
+Return unique category names separated by comma.
+`;
+      } else {
+          promptTop = `Act as a strict Data Steward.
+Task: Classify the input value into the specific 'Standardized Groups' listed below.
+
+INPUT: '`;
+          promptBottom = `'
+
+---
+UNIQUE VALUES FOUND IN THIS COLUMN:
+${valList}
+
+---
+ALLOWED STANDARDIZED GROUPS (Choose from this list ONLY):
+(Provide your groups here, e.g.:
+1. 'Group 1' (Includes: Item1, Item2)
+)
+
+---
+CRITICAL RULES:
+1. NO DUPLICATES: Output the group name ONLY ONCE.
+2. MULTI-GROUP: If input contains items from DIFFERENT groups, output both group names separated by a comma.
+3. FORMAT: Do NOT use commas inside a group name (Use '&' instead).
+
+OUTPUT:
+`;
+      }
+
+      // Escape quotes for Google Sheets formula string literal
+      const escapedTop = promptTop.replace(/"/g, '""');
+      const escapedBottom = promptBottom.replace(/"/g, '""');
+
+      // Wrap in formula template with proper concatenation logic for A2
+      const finalOutput = `!=GEMINI("${escapedTop}" & A2 & "${escapedBottom}")`;
+      document.getElementById('generatedPrompt').value = finalOutput;
+    }
+
+    function copyPrompt() {
+      const textarea = document.getElementById('generatedPrompt');
+      textarea.select();
+      document.execCommand('copy');
+
+      const feedback = document.getElementById('copyFeedback');
+      feedback.style.display = 'inline';
+      setTimeout(() => feedback.style.display = 'none', 2000);
+    }
+
+    function executeUmbrellanizer() {
+      const colName = document.getElementById('columnSelect').value;
+      const isMulti = document.getElementById('multiLabelCheck').checked;
+      const formula = document.getElementById('llmFormula').value.trim();
+
+      if (!formula) {
+          alert("Please paste the formula generated by the LLM.");
+          return;
+      }
+
+      if (!formula.toUpperCase().startsWith("!=GEMINI(")) {
+          alert("Formula must start with !=GEMINI(");
+          return;
+      }
+
+      const btn = document.getElementById('executeBtn');
+      btn.disabled = true;
+      btn.innerText = 'Executing...';
+
+      google.script.run
+        .withSuccessHandler(function(msg) {
+           alert("Umbrellanizer processing complete.");
+           google.script.host.close();
+        })
+        .withFailureHandler(function(e) {
+           showError(e);
+           btn.disabled = false;
+           btn.innerText = 'Execute';
+        })
+        .applyUmbrellanizerFormula(colName, isMulti, formula);
+    }
+  </script>
+</body>
+</html>

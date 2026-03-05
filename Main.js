@@ -33,6 +33,7 @@ function onOpen() {
     .addItem('Run Quality Check Assistant', 'runQualityCheck')
     .addItem('Calculate QC Score', 'calculateQCScore')
     .addSeparator()
+    .addItem('Umbrellanizer (Data Categorizer)', 'runUmbrellanizer')
     .addItem('Process Data Collection', 'runDataCollection')
     .addSubMenu(SpreadsheetApp.getUi().createMenu('Visualizer')
         .addItem('Sankey Diagram', 'openSankeyVisualizer')
@@ -219,6 +220,34 @@ function runQualityCheck() {
  */
 function calculateQCScore() {
   QualityCheckController.calculateQCScore();
+}
+
+/**
+ * Opens the Umbrellanizer (Data Categorizer) UI.
+ */
+function runUmbrellanizer() {
+  UmbrellanizerController.showDialog();
+}
+
+/**
+ * Server-side handler for getting Umbrellanizer columns.
+ */
+function getUmbrellanizerColumns() {
+  return UmbrellanizerController.getColumnsAndValues();
+}
+
+/**
+ * Server-side handler for getting Umbrellanizer unique values for a column.
+ */
+function getUmbrellanizerUniqueValues(columnName) {
+  return UmbrellanizerController.getUniqueValues(columnName);
+}
+
+/**
+ * Server-side handler for applying the Umbrellanizer formula.
+ */
+function applyUmbrellanizerFormula(columnName, isMultiLabel, formulaText) {
+  return UmbrellanizerController.applyUmbrellanizer(columnName, isMultiLabel, formulaText);
 }
 
 /**
