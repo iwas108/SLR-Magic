@@ -71,38 +71,64 @@ var UmbrellanizerController = (function() {
    * Note: The isMultiLabel flag is passed from UI if we need it for specific logic later.
    * The formula string passed is the raw plaintext prompt containing {{CELL_REF}}.
    */
-  function applyUmbrellanizer(columnName, isMultiLabel, formulaText) {
+  function applyUmbrellanizer(columnName, decisionColumn, decisionValue, isMultiLabel, formulaText) {
     try {
       const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
 
-      // Ensure source column exists
+      // Ensure source and decision columns exist
       if (!headerMap[columnName]) {
         throw new Error(`Column '${columnName}' not found.`);
       }
+      if (!headerMap[decisionColumn]) {
+        throw new Error(`Decision Column '${decisionColumn}' not found.`);
+      }
 
       const sourceColIdx = headerMap[columnName]; // 1-based index
+      let decisionColIdx = headerMap[decisionColumn]; // 1-based index
       const fixedColumnName = `${columnName}_fixed`;
-
-      // Find or insert the new column to the right of the source column
-      let targetColIdx = headerMap[fixedColumnName];
-      if (!targetColIdx) {
-        // We want to insert to the right of sourceColIdx
-        sheet.insertColumnAfter(sourceColIdx);
-        targetColIdx = sourceColIdx + 1;
-        // Set header name
-        sheet.getRange(1, targetColIdx).setValue(fixedColumnName);
-      } else {
-        // Clear existing data in target column except header
-        const lastRow = sheet.getLastRow();
-        if (lastRow > 1) {
-            sheet.getRange(2, targetColIdx, lastRow - 1, 1).clearContent();
-        }
-      }
 
       const lastRow = sheet.getLastRow();
       if (lastRow < 2) {
           throw new Error("No data found to process.");
+      }
+
+      // Read decision column values BEFORE any column insertions to avoid index shifting bugs
+      const decisionRange = sheet.getRange(2, decisionColIdx, lastRow - 1, 1);
+      const decisionValues = decisionRange.getDisplayValues().map(row => row[0].trim());
+
+      // Find or insert the new column to the right of the source column
+      let targetColIdx = headerMap[fixedColumnName];
+      let isNewColumn = false;
+
+      if (!targetColIdx) {
+        // We want to insert to the right of sourceColIdx
+        sheet.insertColumnAfter(sourceColIdx);
+        targetColIdx = sourceColIdx + 1;
+        isNewColumn = true;
+        // Set header name
+        sheet.getRange(1, targetColIdx).setValue(fixedColumnName);
+
+        // If the decision column was to the right of the source column, its index has now shifted by 1
+        if (decisionColIdx > sourceColIdx) {
+            decisionColIdx++;
+        }
+      }
+
+      // Instead of clearing the target column, we fetch existing formulas/values to preserve non-matching rows
+      let existingTargetData = [];
+      if (!isNewColumn) {
+          existingTargetData = sheet.getRange(2, targetColIdx, lastRow - 1, 1).getFormulas();
+          const displayValues = sheet.getRange(2, targetColIdx, lastRow - 1, 1).getValues();
+          // getFormulas returns empty string if it's not a formula, so fallback to display value
+          for (let i = 0; i < existingTargetData.length; i++) {
+              if (existingTargetData[i][0] === "") {
+                  existingTargetData[i][0] = displayValues[i][0];
+              }
+          }
+      } else {
+          // Initialize with empty strings if it's a new column
+          existingTargetData = new Array(lastRow - 1).fill().map(() => [""]);
       }
 
       // Determine source column letter
@@ -118,31 +144,41 @@ var UmbrellanizerController = (function() {
 
       const sourceColLetter = getColumnLetter(sourceColIdx);
 
-      // Prepare the array of formulas.
+      // Prepare the array of formulas to write back.
       const formulas = [];
 
-      // 1. First, we must escape double quotes in the plaintext to prepare it for a Google Sheets string literal
+      // 1. Escape double quotes in the plaintext to prepare it for a Google Sheets string literal
       const escapedPrompt = formulaText.replace(/"/g, '""');
 
-      // 2. We locate the placeholder {{CELL_REF}}
-      // To properly inject the cell value dynamically into the `=GEMINI(...)` formula,
-      // we need to break out of the string literal using quotes and ampersands.
-      // So {{CELL_REF}} becomes `" & A2 & "`
+      // 2. Iterate and apply conditionally
+      const targetDecisionStr = String(decisionValue).trim().toLowerCase();
 
-      for (let i = 2; i <= lastRow; i++) {
-        const dynamicCell = `${sourceColLetter}${i}`;
+      for (let i = 0; i < lastRow - 1; i++) {
+        const currentRowDecision = String(decisionValues[i]).toLowerCase();
 
-        // We replace {{CELL_REF}} with `" & dynamicCell & "`
-        const promptWithDynamicCell = escapedPrompt.replace(/\{\{CELL_REF\}\}/g, `" & ${dynamicCell} & "`);
+        if (currentRowDecision === targetDecisionStr) {
+            const rowIndex = i + 2; // 0-based array index back to 1-based sheet row index starting at 2
+            const dynamicCell = `${sourceColLetter}${rowIndex}`;
 
-        // Finally, wrap everything in `=GEMINI("...")`
-        const finalRowFormula = `=GEMINI("${promptWithDynamicCell}")`;
+            // Replace {{CELL_REF}} with `" & dynamicCell & "`
+            const promptWithDynamicCell = escapedPrompt.replace(/\{\{CELL_REF\}\}/g, `" & ${dynamicCell} & "`);
 
-        formulas.push([finalRowFormula]);
+            // Wrap in `=GEMINI(...)`
+            const finalRowFormula = `=GEMINI("${promptWithDynamicCell}")`;
+
+            formulas.push([finalRowFormula]);
+        } else {
+            // Preserve existing value/formula if it doesn't match the current decision criteria
+            formulas.push([existingTargetData[i][0]]);
+        }
       }
 
       // Set the formulas in the sheet
-      sheet.getRange(2, targetColIdx, formulas.length, 1).setFormulas(formulas);
+      // Note: we use setValues to handle both formulas (starting with =) and plain strings
+      const targetRange = sheet.getRange(2, targetColIdx, formulas.length, 1);
+
+      // Google Apps Script setValues() handles strings that start with '=' automatically by parsing them as formulas.
+      targetRange.setValues(formulas);
 
       return "Success";
     } catch (e) {

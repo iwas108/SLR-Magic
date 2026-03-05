@@ -31,7 +31,21 @@
   <!-- Step 1: Configuration -->
   <div id="step1" class="step active">
     <div class="description">
-      Select a column from '02_fulltext_screening' to categorize (umbrellanify) similar values.
+      Select a column from '02_fulltext_screening' to categorize (umbrellanify) similar values. Only rows matching your decision criteria will be processed.
+    </div>
+
+    <div class="form-group">
+      <label for="decisionColumnSelect">Decision Column</label>
+      <select id="decisionColumnSelect" onchange="onDecisionColumnChange()">
+        <option value="">Loading columns...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="decisionValueSelect">Decision Value</label>
+      <select id="decisionValueSelect">
+        <option value="">Select a decision column first...</option>
+      </select>
     </div>
 
     <div class="form-group">
@@ -95,12 +109,16 @@
                         return this;
                     },
                     getUmbrellanizerColumns: function() {
-                        setTimeout(() => this.successHandler(['Title', 'Abstract', 'rq2c_software_platforms', 'rq3a_ai_category']), 500);
+                        setTimeout(() => this.successHandler(['Title', 'Abstract', 'decision', 'rq2c_software_platforms', 'rq3a_ai_category']), 500);
                     },
                     getUmbrellanizerUniqueValues: function(colName) {
-                        setTimeout(() => this.successHandler(['Custom_API_Server', 'Custom_Database_System', 'GroIMP', 'MQTT', 'Node-RED', 'Unspecified']), 500);
+                        if (colName === 'decision') {
+                            setTimeout(() => this.successHandler(['Include', 'Exclude', 'Pending']), 500);
+                        } else {
+                            setTimeout(() => this.successHandler(['Custom_API_Server', 'Custom_Database_System', 'GroIMP', 'MQTT', 'Node-RED', 'Unspecified']), 500);
+                        }
                     },
-                    applyUmbrellanizerFormula: function(col, multi, formula) {
+                    applyUmbrellanizerFormula: function(col, dCol, dVal, multi, formula) {
                          setTimeout(() => this.successHandler('Success'), 1000);
                     },
                     host: {
@@ -131,7 +149,10 @@
     function populateColumns(columns) {
       showLoader(false);
       const select = document.getElementById('columnSelect');
+      const decSelect = document.getElementById('decisionColumnSelect');
+
       select.innerHTML = '';
+      decSelect.innerHTML = '<option value="">-- Select Decision Column --</option>';
 
       if (!columns || columns.length === 0) {
         select.innerHTML = '<option value="">No columns found in 02_fulltext_screening</option>';
@@ -139,18 +160,74 @@
       }
 
       columns.forEach(col => {
+        // Populate Process Column
         const option = document.createElement('option');
         option.value = col;
         option.textContent = col;
         select.appendChild(option);
+
+        // Populate Decision Column
+        const dOption = document.createElement('option');
+        dOption.value = col;
+        dOption.textContent = col;
+        decSelect.appendChild(dOption);
       });
 
-      document.getElementById('nextBtn').disabled = false;
+      // Attempt to auto-select "decision" if it exists
+      if (columns.includes('decision')) {
+          decSelect.value = 'decision';
+          onDecisionColumnChange();
+      }
+    }
+
+    function onDecisionColumnChange() {
+      const decCol = document.getElementById('decisionColumnSelect').value;
+      const decValSelect = document.getElementById('decisionValueSelect');
+
+      if (!decCol) {
+          decValSelect.innerHTML = '<option value="">Select a decision column first...</option>';
+          document.getElementById('nextBtn').disabled = true;
+          return;
+      }
+
+      showLoader(true);
+      document.getElementById('nextBtn').disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(values) {
+           showLoader(false);
+           decValSelect.innerHTML = '';
+
+           if (!values || values.length === 0) {
+               decValSelect.innerHTML = '<option value="">No unique values found</option>';
+               return;
+           }
+
+           values.forEach(val => {
+               const option = document.createElement('option');
+               option.value = val;
+               option.textContent = val;
+               decValSelect.appendChild(option);
+           });
+
+           document.getElementById('nextBtn').disabled = false;
+        })
+        .withFailureHandler(function(err) {
+           document.getElementById('nextBtn').disabled = false;
+           showError(err);
+        })
+        .getUmbrellanizerUniqueValues(decCol);
     }
 
     function goToStep2() {
       const colName = document.getElementById('columnSelect').value;
-      if (!colName) return;
+      const decCol = document.getElementById('decisionColumnSelect').value;
+      const decVal = document.getElementById('decisionValueSelect').value;
+
+      if (!colName || !decCol || decVal === "") {
+          alert("Please select a Decision Column, a Decision Value, and a Column to Process.");
+          return;
+      }
 
       showLoader(true);
       document.getElementById('nextBtn').disabled = true;
@@ -256,6 +333,8 @@ Return unique category names separated by comma.`;
 
     function executeUmbrellanizer() {
       const colName = document.getElementById('columnSelect').value;
+      const decCol = document.getElementById('decisionColumnSelect').value;
+      const decVal = document.getElementById('decisionValueSelect').value;
       const isMulti = document.getElementById('multiLabelCheck').checked;
       const formula = document.getElementById('llmFormula').value.trim();
 
@@ -283,7 +362,7 @@ Return unique category names separated by comma.`;
            btn.disabled = false;
            btn.innerText = 'Execute';
         })
-        .applyUmbrellanizerFormula(colName, isMulti, formula);
+        .applyUmbrellanizerFormula(colName, decCol, decVal, isMulti, formula);
     }
   </script>
 </body>

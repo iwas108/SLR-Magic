@@ -246,8 +246,8 @@ function getUmbrellanizerUniqueValues(columnName) {
 /**
  * Server-side handler for applying the Umbrellanizer formula.
  */
-function applyUmbrellanizerFormula(columnName, isMultiLabel, formulaText) {
-  return UmbrellanizerController.applyUmbrellanizer(columnName, isMultiLabel, formulaText);
+function applyUmbrellanizerFormula(columnName, decisionColumn, decisionValue, isMultiLabel, formulaText) {
+  return UmbrellanizerController.applyUmbrellanizer(columnName, decisionColumn, decisionValue, isMultiLabel, formulaText);
 }
 
 /**
