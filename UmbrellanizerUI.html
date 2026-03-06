@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <style>
+    body { padding: 15px; font-family: 'Google Sans', Roboto, Arial, sans-serif; }
+    h2 { margin-top: 0; color: #1a73e8; }
+    .step { display: none; }
+    .step.active { display: block; }
+    .form-group { margin-bottom: 15px; }
+    label { font-weight: bold; display: block; margin-bottom: 5px; }
+    .description { color: #666; font-size: 13px; margin-bottom: 15px; }
+    select, textarea, input[type="text"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    textarea { height: 150px; font-family: monospace; font-size: 12px; resize: vertical; }
+    .buttons { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+    .copy-btn { margin-top: 5px; cursor: pointer; color: #1a73e8; font-weight: bold; font-size: 13px; background: none; border: none; padding: 0; }
+    .copy-btn:hover { text-decoration: underline; }
+    .loader { font-style: italic; color: #888; display: none; margin-bottom: 15px; }
+    .checkbox-group { margin-top: 10px; display: flex; align-items: center; }
+    .checkbox-group input { margin-right: 5px; }
+    .checkbox-group label { font-weight: normal; margin-bottom: 0; }
+  </style>
+</head>
+<body>
+
+  <h2>Umbrellanizer</h2>
+
+  <div id="loader" class="loader">Loading...</div>
+
+  <!-- Step 1: Configuration -->
+  <div id="step1" class="step active">
+    <div class="description">
+      Select a column from '02_fulltext_screening' to categorize (umbrellanify) similar values. Only rows matching your decision criteria will be processed.
+    </div>
+
+    <div class="form-group">
+      <label for="decisionColumnSelect">Decision Column</label>
+      <select id="decisionColumnSelect" onchange="onDecisionColumnChange()">
+        <option value="">Loading columns...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="decisionValueSelect">Decision Value</label>
+      <select id="decisionValueSelect">
+        <option value="">Select a decision column first...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="columnSelect">Column to Process</label>
+      <select id="columnSelect">
+        <option value="">Loading columns...</option>
+      </select>
+    </div>
+
+    <div class="form-group checkbox-group">
+      <input type="checkbox" id="multiLabelCheck">
+      <label for="multiLabelCheck">Multi-labeling (Allow multiple categories per row)</label>
+    </div>
+
+    <div class="buttons">
+      <button class="share" onclick="google.script.host.close()">Cancel</button>
+      <button class="action" id="nextBtn" onclick="goToStep2()" disabled>Next</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Prompt Generation and Execution -->
+  <div id="step2" class="step">
+    <div class="description">
+      1. Copy the generated prompt below.<br>
+      2. Paste it into an LLM (like ChatGPT or Gemini) to generate your classification prompt.<br>
+      3. Paste the LLM's final plain text output (containing the {{CELL_REF}} placeholder) into the box below and click Execute.
+    </div>
+
+    <div class="form-group">
+      <label for="generatedPrompt">Generated Prompt</label>
+      <textarea id="generatedPrompt" readonly style="height: 250px;"></textarea>
+      <button class="copy-btn" onclick="copyPrompt()">Copy to Clipboard</button>
+      <span id="copyFeedback" style="display:none; color: green; font-size: 12px; margin-left: 10px;">Copied!</span>
+    </div>
+
+    <div class="form-group">
+      <label for="llmFormula">LLM Formula Result</label>
+      <textarea id="llmFormula" placeholder="Paste the generated plain text prompt here (make sure it contains {{CELL_REF}})..." style="height: 200px;"></textarea>
+    </div>
+
+    <div class="buttons">
+      <button class="share" onclick="goToStep1()">Back</button>
+      <button class="action" id="executeBtn" onclick="executeUmbrellanizer()">Execute</button>
+    </div>
+  </div>
+
+  <script>
+    let uniqueValues = [];
+
+    // Check if google.script exists, if not, create a mock for local testing
+    if (typeof google === 'undefined') {
+        window.google = {
+            script: {
+                run: {
+                    withSuccessHandler: function(handler) {
+                        this.successHandler = handler;
+                        return this;
+                    },
+                    withFailureHandler: function(handler) {
+                        this.failureHandler = handler;
+                        return this;
+                    },
+                    getUmbrellanizerColumns: function() {
+                        setTimeout(() => this.successHandler(['Title', 'Abstract', 'decision', 'rq2c_software_platforms', 'rq3a_ai_category']), 500);
+                    },
+                    getUmbrellanizerUniqueValues: function(colName) {
+                        if (colName === 'decision') {
+                            setTimeout(() => this.successHandler(['Include', 'Exclude', 'Pending']), 500);
+                        } else {
+                            setTimeout(() => this.successHandler(['Custom_API_Server', 'Custom_Database_System', 'GroIMP', 'MQTT', 'Node-RED', 'Unspecified']), 500);
+                        }
+                    },
+                    applyUmbrellanizerFormula: function(col, dCol, dVal, multi, formula) {
+                         setTimeout(() => this.successHandler('Success'), 1000);
+                    },
+                    host: {
+                        close: function() { console.log("Dialog closed."); }
+                    }
+                }
+            }
+        };
+    }
+
+    window.onload = function() {
+      showLoader(true);
+      google.script.run
+        .withSuccessHandler(populateColumns)
+        .withFailureHandler(showError)
+        .getUmbrellanizerColumns();
+    };
+
+    function showLoader(show) {
+      document.getElementById('loader').style.display = show ? 'block' : 'none';
+    }
+
+    function showError(err) {
+      showLoader(false);
+      alert("Error: " + (err.message || err));
+    }
+
+    function populateColumns(columns) {
+      showLoader(false);
+      const select = document.getElementById('columnSelect');
+      const decSelect = document.getElementById('decisionColumnSelect');
+
+      select.innerHTML = '';
+      decSelect.innerHTML = '<option value="">-- Select Decision Column --</option>';
+
+      if (!columns || columns.length === 0) {
+        select.innerHTML = '<option value="">No columns found in 02_fulltext_screening</option>';
+        return;
+      }
+
+      columns.forEach(col => {
+        // Populate Process Column
+        const option = document.createElement('option');
+        option.value = col;
+        option.textContent = col;
+        select.appendChild(option);
+
+        // Populate Decision Column
+        const dOption = document.createElement('option');
+        dOption.value = col;
+        dOption.textContent = col;
+        decSelect.appendChild(dOption);
+      });
+
+      // Attempt to auto-select "decision" if it exists
+      if (columns.includes('decision')) {
+          decSelect.value = 'decision';
+          onDecisionColumnChange();
+      }
+    }
+
+    function onDecisionColumnChange() {
+      const decCol = document.getElementById('decisionColumnSelect').value;
+      const decValSelect = document.getElementById('decisionValueSelect');
+
+      if (!decCol) {
+          decValSelect.innerHTML = '<option value="">Select a decision column first...</option>';
+          document.getElementById('nextBtn').disabled = true;
+          return;
+      }
+
+      showLoader(true);
+      document.getElementById('nextBtn').disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(values) {
+           showLoader(false);
+           decValSelect.innerHTML = '';
+
+           if (!values || values.length === 0) {
+               decValSelect.innerHTML = '<option value="">No unique values found</option>';
+               return;
+           }
+
+           values.forEach(val => {
+               const option = document.createElement('option');
+               option.value = val;
+               option.textContent = val;
+               decValSelect.appendChild(option);
+           });
+
+           document.getElementById('nextBtn').disabled = false;
+        })
+        .withFailureHandler(function(err) {
+           document.getElementById('nextBtn').disabled = false;
+           showError(err);
+        })
+        .getUmbrellanizerUniqueValues(decCol);
+    }
+
+    function goToStep2() {
+      const colName = document.getElementById('columnSelect').value;
+      const decCol = document.getElementById('decisionColumnSelect').value;
+      const decVal = document.getElementById('decisionValueSelect').value;
+
+      if (!colName || !decCol || decVal === "") {
+          alert("Please select a Decision Column, a Decision Value, and a Column to Process.");
+          return;
+      }
+
+      showLoader(true);
+      document.getElementById('nextBtn').disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function(values) {
+           showLoader(false);
+           document.getElementById('nextBtn').disabled = false;
+           uniqueValues = values || [];
+           generatePrompt(colName);
+
+           document.getElementById('step1').classList.remove('active');
+           document.getElementById('step2').classList.add('active');
+        })
+        .withFailureHandler(function(err) {
+           document.getElementById('nextBtn').disabled = false;
+           showError(err);
+        })
+        .getUmbrellanizerUniqueValues(colName);
+    }
+
+    function goToStep1() {
+        document.getElementById('step2').classList.remove('active');
+        document.getElementById('step1').classList.add('active');
+    }
+
+    function generatePrompt(colName) {
+      const isMulti = document.getElementById('multiLabelCheck').checked;
+      const isMultiStr = isMulti ? "True" : "False";
+      const valList = uniqueValues.join('\n');
+
+      const prompt = `Act as an Expert Prompt Engineer specializing in Data Standardization and Thematic Coding for Systematic Literature Reviews (SLR).
+
+Your task is to generate a highly structured classification prompt (an "Umbrellanizer" prompt). I will use your output inside a Google Sheets script to classify raw, messy data into clean, standardized categories.
+
+Here is the context for the column being processed:
+
+Column/Data Context: ${colName}
+
+Is Multi-Label Allowed?: ${isMultiStr}
+
+Current Raw Values (Unique List):
+
+${valList}
+
+INSTRUCTIONS:
+Analyze and Cluster: Review the "Current Raw Values". Group them logically into 5 to 12 overarching, mutually exclusive "Standardized Ecosystems" or "Groups" based on thematic similarity.
+
+Define a Persona: Start the prompt by assigning a strict, domain-expert persona relevant to the column context (e.g., "Act as a Senior Software Engineer" or "You are a strict Agricultural Data Steward").
+
+Draft the Categories: List your formulated groups. For each group, explicitly state the keywords or specific raw values that fall under it.
+
+Enforce Constraints based on ${isMultiStr}:
+
+If True: Include a rule stating that multiple categories can be outputted if the input warrants it (separated by a comma).
+
+If False: Include a strict rule stating that ONLY ONE category must be chosen.
+
+Formatting: Do NOT use markdown code blocks (\`\`\`) in your final output. Your output must be plain text that strictly follows the template below. Ensure the placeholder {{CELL_REF}} is kept exactly as is.
+
+STRICT OUTPUT TEMPLATE TO FOLLOW:
+[Insert Persona]
+Task: Classify the input data into the specific 'Standardized Groups' listed below.
+
+INPUT: '{{CELL_REF}}'
+
+ALLOWED STANDARDIZED GROUPS (Map input keywords to these groups):
+
+'[Group 1 Name]'
+
+Keywords: [List of matching terms from the raw values]
+
+'[Group 2 Name]'
+
+Keywords: [List of matching terms from the raw values]
+
+[Continue for all groups. Always include a 'Not Reported' group for blank or unspecified values]
+
+CRITICAL RULES:
+
+MULTI-LABEL / SINGLE-LABEL: [Adapt this rule based on the IS_MULTI_LABEL boolean provided above. Give a short example of "Right" vs "Wrong" output].
+
+DEDUPLICATE: Map all matching keywords to their category and output the category name ONLY ONCE.
+
+FORMAT: Do NOT use commas inside a group name (Use '&' or 'and' instead).
+
+OUTPUT FORMAT:
+Return unique category names separated by comma.`;
+
+      document.getElementById('generatedPrompt').value = prompt;
+    }
+
+    function copyPrompt() {
+      const textarea = document.getElementById('generatedPrompt');
+      textarea.select();
+      document.execCommand('copy');
+
+      const feedback = document.getElementById('copyFeedback');
+      feedback.style.display = 'inline';
+      setTimeout(() => feedback.style.display = 'none', 2000);
+    }
+
+    function executeUmbrellanizer() {
+      const colName = document.getElementById('columnSelect').value;
+      const decCol = document.getElementById('decisionColumnSelect').value;
+      const decVal = document.getElementById('decisionValueSelect').value;
+      const isMulti = document.getElementById('multiLabelCheck').checked;
+      const formula = document.getElementById('llmFormula').value.trim();
+
+      if (!formula) {
+          alert("Please paste the plain text prompt generated by the LLM.");
+          return;
+      }
+
+      if (!formula.includes("{{CELL_REF}}")) {
+          alert("The pasted text must contain the {{CELL_REF}} placeholder.");
+          return;
+      }
+
+      const btn = document.getElementById('executeBtn');
+      btn.disabled = true;
+      btn.innerText = 'Executing...';
+
+      google.script.run
+        .withSuccessHandler(function(msg) {
+           alert("Umbrellanizer processing complete.");
+           google.script.host.close();
+        })
+        .withFailureHandler(function(e) {
+           showError(e);
+           btn.disabled = false;
+           btn.innerText = 'Execute';
+        })
+        .applyUmbrellanizerFormula(colName, decCol, decVal, isMulti, formula);
+    }
+  </script>
+</body>
+</html>
