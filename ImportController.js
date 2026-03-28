@@ -175,6 +175,10 @@ const ImportController = (function() {
           SheetUtils.appendDataMapped(sheet, recordsToAppend, headerMap);
       }
 
+      // 5. Sort final columns (left to right)
+      const desiredOrder = ["Paper_ID", "AI_Status", "Year", "Title", "Authors", "Abstract", "DOI_Link"];
+      SheetUtils.reorderColumns(sheet, desiredOrder);
+
       return {
         totalRows: rawRecords.length,
         duplicates: duplicateCount,
