@@ -102,7 +102,6 @@ const ImportController = (function() {
               SheetUtils.ensureColumn(sheet, destHeader, headerMap);
           }
       });
-      SheetUtils.ensureColumn(sheet, "Raw_Source", headerMap);
       SheetUtils.ensureColumn(sheet, "Source", headerMap);
       SheetUtils.ensureColumn(sheet, "Paper_ID", headerMap);
       SheetUtils.ensureColumn(sheet, "AI_Status", headerMap);
@@ -145,7 +144,6 @@ const ImportController = (function() {
 
         // 2. Map to System Object
         const newRow = {};
-        newRow["Raw_Source"] = sourceName;
         newRow["Source"] = sourceName;
         newRow["AI_Status"] = "Pending";
 
