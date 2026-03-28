@@ -114,6 +114,7 @@
             <select id="LLM_API_PROVIDER" name="LLM_API_PROVIDER" onchange="toggleProviderSettings()">
               <option value="Gemini">Gemini</option>
               <option value="vLLM">vLLM (OpenAI Compatible)</option>
+              <option value="Ollama">Ollama (OpenAI Compatible)</option>
             </select>
           </div>
           <div class="form-group">
@@ -125,6 +126,11 @@
             <label for="VLLM_API_URL">vLLM API URL</label>
             <input type="text" id="VLLM_API_URL" name="VLLM_API_URL" placeholder="e.g., https://api.runpod.ai/v2/YOUR_POD_ID/openai/v1/chat/completions">
             <div class="hint">The full endpoint URL for your vLLM server. Must accept OpenAI-compatible chat completion requests.</div>
+          </div>
+          <div class="form-group" id="ollama_url_group" style="display:none;">
+            <label for="OLLAMA_API_URL">Ollama API URL</label>
+            <input type="text" id="OLLAMA_API_URL" name="OLLAMA_API_URL" placeholder="e.g., https://your-ngrok-url.app/v1/chat/completions">
+            <div class="hint">The full endpoint URL for your Ollama server. Apps Script cannot access localhost, so you must use a public proxy like ngrok or Cloudflare Tunnels exposing the OpenAI-compatible endpoint.</div>
           </div>
 
           <h3>Model Selection</h3>
@@ -289,17 +295,28 @@
       function toggleProviderSettings() {
         const provider = document.getElementById("LLM_API_PROVIDER").value;
         const vllmUrlGroup = document.getElementById("vllm_url_group");
+        const ollamaUrlGroup = document.getElementById("ollama_url_group");
         const apiKeyLabel = document.getElementById("API_KEY_LABEL");
         const vllmApiKeyHint = document.getElementById("vllm_api_key_hint");
+
+        // Reset visibility
+        vllmUrlGroup.style.display = "none";
+        ollamaUrlGroup.style.display = "none";
+        vllmApiKeyHint.style.display = "none";
 
         if (provider === "vLLM") {
           vllmUrlGroup.style.display = "block";
           apiKeyLabel.innerText = "vLLM API Key (Bearer Token)";
+          vllmApiKeyHint.innerText = "For vLLM, this will be used as the Bearer Token (if your server requires authentication).";
+          vllmApiKeyHint.style.display = "block";
+        } else if (provider === "Ollama") {
+          ollamaUrlGroup.style.display = "block";
+          apiKeyLabel.innerText = "Ollama API Key (Bearer Token)";
+          vllmApiKeyHint.innerText = "For Ollama, this is usually left blank unless your proxy requires a Bearer token.";
           vllmApiKeyHint.style.display = "block";
         } else {
-          vllmUrlGroup.style.display = "none";
+          // Gemini
           apiKeyLabel.innerText = "Google Generative AI API Key";
-          vllmApiKeyHint.style.display = "none";
         }
       }
 

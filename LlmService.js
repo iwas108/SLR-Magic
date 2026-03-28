@@ -33,6 +33,12 @@ const LlmService = (function() {
         throw new Error("VLLM_API_URL is missing in Configuration for vLLM.");
       }
       return VllmAdapter.callVllm(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob);
+    } else if (provider === "Ollama") {
+      const apiUrl = config["OLLAMA_API_URL"];
+      if (!apiUrl) {
+        throw new Error("OLLAMA_API_URL is missing in Configuration for Ollama.");
+      }
+      return OllamaAdapter.callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob);
     } else {
       throw new Error(`Unsupported LLM_API_PROVIDER: ${provider}`);
     }
