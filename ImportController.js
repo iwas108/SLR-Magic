@@ -102,6 +102,7 @@ const ImportController = (function() {
               SheetUtils.ensureColumn(sheet, destHeader, headerMap);
           }
       });
+      SheetUtils.ensureColumn(sheet, "Raw_Source", headerMap);
       SheetUtils.ensureColumn(sheet, "Source", headerMap);
       SheetUtils.ensureColumn(sheet, "Paper_ID", headerMap);
       SheetUtils.ensureColumn(sheet, "AI_Status", headerMap);
@@ -144,6 +145,7 @@ const ImportController = (function() {
 
         // 2. Map to System Object
         const newRow = {};
+        newRow["Raw_Source"] = sourceName;
         newRow["Source"] = sourceName;
         newRow["AI_Status"] = "Pending";
 
@@ -174,6 +176,10 @@ const ImportController = (function() {
       if (recordsToAppend.length > 0) {
           SheetUtils.appendDataMapped(sheet, recordsToAppend, headerMap);
       }
+
+      // 5. Sort final columns (left to right)
+      const desiredOrder = ["Paper_ID", "AI_Status", "Year", "Title", "Authors", "Abstract", "DOI_Link"];
+      SheetUtils.reorderColumns(sheet, desiredOrder);
 
       return {
         totalRows: rawRecords.length,

@@ -96,7 +96,20 @@
 
     <!-- Step 2: Mapping -->
     <div id="step2" class="step">
-      <p>Map columns from your CSV to the system columns.</p>
+      <p>Map the mandatory system columns to your CSV columns.</p>
+      <table class="mapping-table">
+        <thead>
+          <tr>
+            <th>System Header (Mandatory)</th>
+            <th>Map From CSV Header</th>
+          </tr>
+        </thead>
+        <tbody id="mandatoryMappingBody">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+
+      <p>Map other columns from your CSV to the system columns.</p>
       <table class="mapping-table">
         <thead>
           <tr>
@@ -163,6 +176,40 @@
         csvHeaders = result.csvHeaders;
         systemHeaders = result.systemHeaders;
 
+        const mandatoryHeaders = ["Title", "Year", "Authors", "DOI"];
+        const mandatoryTbody = document.getElementById('mandatoryMappingBody');
+        mandatoryTbody.innerHTML = "";
+
+        mandatoryHeaders.forEach(sysHeader => {
+          const tr = document.createElement('tr');
+
+          const tdSys = document.createElement('td');
+          tdSys.innerText = sysHeader;
+          tr.appendChild(tdSys);
+
+          const tdDest = document.createElement('td');
+          const select = document.createElement('select');
+
+          const optSkip = document.createElement('option');
+          optSkip.value = "";
+          optSkip.text = "-- Select --";
+          select.appendChild(optSkip);
+
+          csvHeaders.forEach(csvHeader => {
+            const opt = document.createElement('option');
+            opt.value = csvHeader;
+            opt.text = csvHeader;
+            if (sysHeader.toLowerCase() === csvHeader.toLowerCase().replace(/_/g, ' ')) {
+                opt.selected = true;
+            }
+            select.appendChild(opt);
+          });
+
+          tdDest.appendChild(select);
+          tr.appendChild(tdDest);
+          mandatoryTbody.appendChild(tr);
+        });
+
         const tbody = document.getElementById('mappingBody');
         tbody.innerHTML = "";
 
@@ -184,6 +231,7 @@
 
           // System Headers
           systemHeaders.forEach(sysHeader => {
+            if (mandatoryHeaders.includes(sysHeader)) return;
             const opt = document.createElement('option');
             opt.value = sysHeader;
             opt.text = sysHeader;
@@ -213,14 +261,37 @@
         const sourceName = document.getElementById('sourceName').value;
 
         const mapping = {};
-        const rows = document.getElementById('mappingBody').querySelectorAll('tr');
 
+        const mandatoryRows = document.getElementById('mandatoryMappingBody').querySelectorAll('tr');
+        const mandatoryHeaders = ["Title", "Year", "Authors", "DOI"];
+        let missingMandatory = false;
+
+        mandatoryRows.forEach((row, index) => {
+            const sysHeader = mandatoryHeaders[index];
+            const select = row.querySelector('select');
+            const selectedVal = select.value;
+
+            if (selectedVal) {
+                mapping[selectedVal] = sysHeader;
+            } else {
+                missingMandatory = true;
+            }
+        });
+
+        if (missingMandatory) {
+            alert("Please map all mandatory columns (Title, Year, Authors, DOI).");
+            return;
+        }
+
+        const rows = document.getElementById('mappingBody').querySelectorAll('tr');
         rows.forEach((row, index) => {
             const csvHeader = csvHeaders[index];
             const select = row.querySelector('select');
             const selectedVal = select.value;
 
-            if (selectedVal) {
+            // If a CSV header is already mapped in mandatory section, don't map it again unless intentionally overridden, but we should skip it here or let it be. Actually, mapping object key is CSV header.
+            // If we set it here, we might overwrite. Let's ensure we only add if selected.
+            if (selectedVal && !mapping[csvHeader]) {
                 if (selectedVal === "_CREATE_NEW_") {
                     mapping[csvHeader] = csvHeader; // Use original name
                 } else {

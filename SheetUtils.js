@@ -226,6 +226,35 @@ const SheetUtils = (function() {
   }
 
   /**
+   * Reorders columns in a sheet based on a specific left-to-right order.
+   * Columns not specified in desiredOrderArray will be shifted to the right.
+   * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+   * @param {Array<string>} desiredOrderArray List of column names in desired order
+   */
+  function reorderColumns(sheet, desiredOrderArray) {
+    const lastCol = sheet.getLastColumn();
+    if (lastCol === 0) return;
+
+    let headerMap = getHeaderMap(sheet);
+    let targetColIdx = 1;
+
+    for (const colName of desiredOrderArray) {
+      const currentColIdx = headerMap[colName];
+
+      // If the column exists and it is not already in the target position
+      if (currentColIdx) {
+        if (currentColIdx !== targetColIdx) {
+          // Move the column
+          sheet.moveColumns(sheet.getRange(1, currentColIdx, sheet.getLastRow(), 1), targetColIdx);
+          // Re-fetch headerMap since columns shifted
+          headerMap = getHeaderMap(sheet);
+        }
+        targetColIdx++;
+      }
+    }
+  }
+
+  /**
    * Safely attempts to show a toast message.
    * Does nothing if UI is not available (e.g., time trigger).
    */
@@ -259,6 +288,7 @@ const SheetUtils = (function() {
     updateRow,
     updateRowNotes,
     ensureColumn,
+    reorderColumns,
     toast,
     alert
   };
