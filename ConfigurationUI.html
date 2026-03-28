@@ -110,8 +110,21 @@
         <!-- General & Models -->
         <div id="general" class="tab-content active">
           <div class="form-group">
-            <label for="API_KEY">Google Generative AI API Key</label>
+            <label for="LLM_API_PROVIDER">LLM API Provider</label>
+            <select id="LLM_API_PROVIDER" name="LLM_API_PROVIDER" onchange="toggleProviderSettings()">
+              <option value="Gemini">Gemini</option>
+              <option value="vLLM">vLLM (OpenAI Compatible)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label id="API_KEY_LABEL" for="API_KEY">API Key</label>
             <input type="text" id="API_KEY" name="API_KEY" placeholder="Enter your API Key">
+            <div id="vllm_api_key_hint" class="hint" style="display:none;">For vLLM, this will be used as the Bearer Token (if your server requires authentication).</div>
+          </div>
+          <div class="form-group" id="vllm_url_group" style="display:none;">
+            <label for="VLLM_API_URL">vLLM API URL</label>
+            <input type="text" id="VLLM_API_URL" name="VLLM_API_URL" placeholder="e.g., http://localhost:8000/v1/chat/completions">
+            <div class="hint">The full endpoint URL for your vLLM server. Must accept OpenAI-compatible chat completion requests.</div>
           </div>
 
           <h3>Model Selection</h3>
@@ -273,6 +286,23 @@
         google.script.run.withSuccessHandler(onLoadSuccess).withFailureHandler(onFailure).getConfiguration();
       }
 
+      function toggleProviderSettings() {
+        const provider = document.getElementById("LLM_API_PROVIDER").value;
+        const vllmUrlGroup = document.getElementById("vllm_url_group");
+        const apiKeyLabel = document.getElementById("API_KEY_LABEL");
+        const vllmApiKeyHint = document.getElementById("vllm_api_key_hint");
+
+        if (provider === "vLLM") {
+          vllmUrlGroup.style.display = "block";
+          apiKeyLabel.innerText = "vLLM API Key (Bearer Token)";
+          vllmApiKeyHint.style.display = "block";
+        } else {
+          vllmUrlGroup.style.display = "none";
+          apiKeyLabel.innerText = "Google Generative AI API Key";
+          vllmApiKeyHint.style.display = "none";
+        }
+      }
+
       function onLoadSuccess(config) {
         document.getElementById("loading").style.display = "none";
         document.getElementById("main-content").style.display = "block";
@@ -283,6 +313,7 @@
             el.value = value;
           }
         }
+        toggleProviderSettings();
       }
 
       function saveConfig() {

@@ -123,7 +123,7 @@ This project uses **clasp** (Command Line Apps Script Projects) to manage code l
 
 ### Step 2: Configuration
 1.  Click **SLR Magic** > **Configuration**.
-2.  Enter your **API_KEY** (Gemini).
+2.  Select your **LLM API Provider** (Gemini or vLLM) and enter your **API_KEY** (for Gemini) or **vLLM API URL**.
 3.  Select your desired models (e.g., `gemini-2.5-flash`).
 4.  Customize the **Prompts** (Abstract Screening, Gatekeeper, Scientist, Miner) to fit your research topic.
 

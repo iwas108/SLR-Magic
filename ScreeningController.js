@@ -18,8 +18,7 @@ const ScreeningController = (function() {
     try {
       // 1. Read Configuration
       const config = ConfigManager.getAll();
-      const apiKey = config["API_KEY"];
-      const modelName = config["ABSTRACT_SCREENING_MODEL"] || "gemini-2.0-flash-lite";
+            const modelName = config["ABSTRACT_SCREENING_MODEL"] || "gemini-2.0-flash-lite";
       const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
       const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
 
@@ -39,10 +38,7 @@ const ScreeningController = (function() {
       const batchSize = parseInt(config["BATCH_SIZE"] || "5");
       const systemPrompt = config["ABSTRACT_SCREENING_PROMPT"];
 
-      if (!apiKey) {
-        throw new Error("API_KEY is missing in Configuration.");
-      }
-      if (!systemPrompt) {
+            if (!systemPrompt) {
         throw new Error("ABSTRACT_SCREENING_PROMPT is missing in Configuration.");
       }
 
@@ -78,7 +74,7 @@ const ScreeningController = (function() {
 
         try {
           // Call Gemini
-          const response = GeminiAdapter.callGemini(fullPrompt, apiKey, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget);
+          const response = LlmService.callLlm(fullPrompt, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget);
           const result = response.content;
 
           // Map result to sheet columns

@@ -365,7 +365,6 @@ const FullTextScreeningController = (function() {
     try {
       // 1. Read Configuration
       const config = ConfigManager.getAll();
-      const apiKey = config["API_KEY"];
 
       // Load Stage Models
       const gatekeeperModel = config["THE_GATEKEEPER_MODEL"] || "gemini-2.0-flash-lite";
@@ -381,8 +380,7 @@ const FullTextScreeningController = (function() {
       const minerPrompt = config["THE_MINER_PROMPT"];
       const batchSize = parseInt(config["BATCH_SIZE"] || "3");
 
-      if (!apiKey) throw new Error("API_KEY is missing in Configuration.");
-      if (!gatekeeperPrompt) throw new Error("THE_GATEKEEPER_PROMPT is missing in Configuration.");
+            if (!gatekeeperPrompt) throw new Error("THE_GATEKEEPER_PROMPT is missing in Configuration.");
       if (!scientistPrompt) throw new Error("THE_SCIENTIST_PROMPT is missing in Configuration.");
       if (!minerPrompt) throw new Error("THE_MINER_PROMPT is missing in Configuration.");
 
@@ -477,7 +475,7 @@ const FullTextScreeningController = (function() {
 
             // --- STAGE 1: THE GATEKEEPER ---
             const gkReasoning = getReasoningConfig(gatekeeperModel);
-            const stage1Resp = GeminiAdapter.callGemini(gatekeeperPrompt, apiKey, gatekeeperModel, temperature, maxTokens, gkReasoning.level, gkReasoning.budget, pdfBlob);
+            const stage1Resp = LlmService.callLlm(gatekeeperPrompt, gatekeeperModel, temperature, maxTokens, gkReasoning.level, gkReasoning.budget, pdfBlob);
             accumulateTokens(tokenUsageByStage, "The_Gatekeeper", stage1Resp.usageMetadata);
             processContent(stage1Resp.content, rowUpdateData, rowUpdateNotes);
 
@@ -492,7 +490,7 @@ const FullTextScreeningController = (function() {
 
                 // --- STAGE 2: THE SCIENTIST ---
                 const sciReasoning = getReasoningConfig(scientistModel);
-                const stage2Resp = GeminiAdapter.callGemini(scientistPrompt, apiKey, scientistModel, temperature, maxTokens, sciReasoning.level, sciReasoning.budget, pdfBlob);
+                const stage2Resp = LlmService.callLlm(scientistPrompt, scientistModel, temperature, maxTokens, sciReasoning.level, sciReasoning.budget, pdfBlob);
                 accumulateTokens(tokenUsageByStage, "The_Scientist", stage2Resp.usageMetadata);
                 processContent(stage2Resp.content, rowUpdateData, rowUpdateNotes);
 
@@ -506,7 +504,7 @@ const FullTextScreeningController = (function() {
 
                     // --- STAGE 3: THE MINER ---
                     const minerReasoning = getReasoningConfig(minerModel);
-                    const stage3Resp = GeminiAdapter.callGemini(minerPrompt, apiKey, minerModel, temperature, maxTokens, minerReasoning.level, minerReasoning.budget, pdfBlob);
+                    const stage3Resp = LlmService.callLlm(minerPrompt, minerModel, temperature, maxTokens, minerReasoning.level, minerReasoning.budget, pdfBlob);
                     accumulateTokens(tokenUsageByStage, "The_Miner", stage3Resp.usageMetadata);
                     // Stage 3 is pure extraction, no decision check
                     processContent(stage3Resp.content, rowUpdateData, rowUpdateNotes);
