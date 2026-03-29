@@ -1,1 +1,4 @@
 .clasp.json
+.venv
+__pycache__/
+*.db

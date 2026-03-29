@@ -9,6 +9,7 @@ This tool acts as both an **accelerator**, processing thousands of papers in min
 ## 🚀 Key Features
 
 *   **Automated Environment Setup**: One-click initialization of the entire workspace.
+*   **Alternative LLM Providers**: Support for Google Gemini natively, private vLLM endpoints (OpenAI-compatible) via public domains like Runpod, and Ollama endpoints (via ngrok/tunnels) for sensitive data processing.
 *   **Centralized Configuration**: easy-to-use menu-based configuration for API keys, models, and prompts.
 *   **AI Abstract Screening**: rapid "first-pass" filtering based on Title and Abstract using strict inclusion/exclusion criteria.
 *   **Full-Text Analysis (The Gatekeeper)**: Deep reading of PDFs to confirm relevance based on Methodology and Results, not just abstract promises.
@@ -17,6 +18,7 @@ This tool acts as both an **accelerator**, processing thousands of papers in min
 *   **Cost Management**: Built-in token usage tracking and project cost preview.
 *   **Visualizations**: Generate publication-ready Sankey diagrams, Pie charts, and Bar charts directly from your data.
 *   **FAIR Principles**: Promotes Findability, Accessibility, Interoperability, and Reusability of research data.
+*   **Human-in-the-Loop Required**: SLR Magic is a powerful accelerator, but an expert human-in-the-loop is always required to review, correct, and validate AI decisions.
 
 ---
 
@@ -123,7 +125,7 @@ This project uses **clasp** (Command Line Apps Script Projects) to manage code l
 
 ### Step 2: Configuration
 1.  Click **SLR Magic** > **Configuration**.
-2.  Enter your **API_KEY** (Gemini).
+2.  Select your **LLM API Provider** (Gemini, vLLM, or Ollama) and enter your **API_KEY** (for Gemini) or the appropriate **API URL** for vLLM/Ollama.
 3.  Select your desired models (e.g., `gemini-2.5-flash`).
 4.  Customize the **Prompts** (Abstract Screening, Gatekeeper, Scientist, Miner) to fit your research topic.
 

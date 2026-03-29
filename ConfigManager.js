@@ -20,7 +20,10 @@ const ConfigManager = (function() {
 
   // Define defaults here, matching Setup.js logic
   const DEFAULTS = {
+    "LLM_API_PROVIDER": "Gemini",
     "API_KEY": "",
+    "VLLM_API_URL": "",
+    "OLLAMA_API_URL": "",
     "ABSTRACT_SCREENING_MODEL": "gemini-2.5-flash",
     "THE_GATEKEEPER_MODEL": "gemini-2.5-flash",
     "THE_SCIENTIST_MODEL": "gemini-2.5-pro",

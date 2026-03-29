@@ -57,7 +57,6 @@ const ExtendedMinerController = (function() {
     try {
       // 1. Read Configuration
       const config = ConfigManager.getAll();
-      const apiKey = config["API_KEY"];
 
       const model = config["THE_EXTENDED_MINER_MODEL"] || "gemini-2.0-flash-lite";
       const prompt = config["THE_EXTENDED_MINER_PROMPT"];
@@ -66,8 +65,7 @@ const ExtendedMinerController = (function() {
       const maxTokens = parseInt(config["MAX_TOKENS"] || "8192");
       const batchSize = parseInt(config["BATCH_SIZE"] || "3");
 
-      if (!apiKey) throw new Error("API_KEY is missing in Configuration.");
-      if (!prompt) throw new Error("THE_EXTENDED_MINER_PROMPT is missing in Configuration.");
+            if (!prompt) throw new Error("THE_EXTENDED_MINER_PROMPT is missing in Configuration.");
 
       // Reasoning Config
       const lowerModel = (model || "").toLowerCase();
@@ -125,7 +123,7 @@ const ExtendedMinerController = (function() {
         try {
             const pdfBlob = DriveUtils.getFileBlob(pdfUrl);
 
-            const response = GeminiAdapter.callGemini(prompt, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
+            const response = LlmService.callLlm(prompt, model, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
 
             accumulateTokens(rowUpdateData, "The_Extended_Miner", response.usageMetadata);
             processContent(response.content, rowUpdateData, rowUpdateNotes);
