@@ -119,16 +119,31 @@ const OllamaAdapter = (function() {
           }
 
           try {
-              const cleanedText = contentText.replace(/```json/g, '').replace(/```/g, '').trim();
+              let cleanedText = contentText;
+              
+              // 1. Strip out the entire <think> block so JSON.parse doesn't crash
+              cleanedText = cleanedText.replace(/<think>[\s\S]*?<\/think>/gi, '');
+              
+              // 2. Strip markdown code blocks
+              cleanedText = cleanedText.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+              // 3. (Optional but Safe) Isolate just the JSON object in case of trailing text
+              const jsonStartIndex = cleanedText.indexOf('{');
+              const jsonEndIndex = cleanedText.lastIndexOf('}');
+              
+              if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
+                  cleanedText = cleanedText.substring(jsonStartIndex, jsonEndIndex + 1);
+              }
+
               const parsedContent = JSON.parse(cleanedText);
 
-              // Standardize usage metadata mapping to what the rest of the application expects
+              // Standardize usage metadata mapping
               const usage = jsonResponse.usage || {};
               const mappedUsage = {
                   promptTokenCount: usage.prompt_tokens || 0,
                   candidatesTokenCount: usage.completion_tokens || 0,
                   totalTokenCount: usage.total_tokens || 0,
-                  thoughtsTokenCount: 0 // Typically not separate in Ollama unless specified by a custom extension
+                  thoughtsTokenCount: 0 
               };
 
               return {
@@ -136,7 +151,7 @@ const OllamaAdapter = (function() {
                   usageMetadata: mappedUsage
               };
           } catch (e) {
-              throw new Error(`Failed to parse JSON from Ollama response: ${contentText}`);
+              throw new Error(`Failed to parse JSON from Ollama response: ${e.message}\nCleaned Text Attempt: ${cleanedText}`);
           }
         } else {
           throw new Error("No choices returned from Ollama API.");
