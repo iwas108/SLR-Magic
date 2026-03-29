@@ -21,6 +21,7 @@ const LlmService = (function() {
     const config = ConfigManager.getAll();
     const provider = config["LLM_API_PROVIDER"] || "Gemini";
     const apiKey = config["API_KEY"];
+    const enableGenericThinking = config["ENABLE_GENERIC_THINKING"] === "TRUE";
 
     if (provider === "Gemini") {
       if (!apiKey) {
@@ -38,7 +39,7 @@ const LlmService = (function() {
       if (!apiUrl) {
         throw new Error("OLLAMA_API_URL is missing in Configuration for Ollama.");
       }
-      return OllamaAdapter.callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob);
+      return OllamaAdapter.callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob, enableGenericThinking);
     } else {
       throw new Error(`Unsupported LLM_API_PROVIDER: ${provider}`);
     }

@@ -43,7 +43,8 @@ const ConfigManager = (function() {
     "PDF_METADATA": "",
     "GOLD_MINE": "",
     "MODEL_PRICING": "gemini-2.5-flash-lite,0.1,0.4,1000000\ngemini-3-flash-preview,0.5,3,1000000\ngemini-2.5-pro,1.25,10,1000000",
-    "SHOW_OPENING_POPUP": "TRUE"
+    "SHOW_OPENING_POPUP": "TRUE",
+    "ENABLE_GENERIC_THINKING": "FALSE"
     // Prompts are handled dynamically to keep file size small if not needed constantly,
     // but for properties we initialize them once.
   };
