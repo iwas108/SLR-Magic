@@ -60,7 +60,7 @@ const OllamaAdapter = (function() {
         think: true
       };
     } else {
-      payload.temperature = parseFloat(temperature) || 0;
+      payload.temperature = parseFloat(temperature) !== undefined && !isNaN(parseFloat(temperature)) ? parseFloat(temperature) : 0.6,
       payload.max_tokens = parseInt(maxTokens) || 8192;
     }
 
