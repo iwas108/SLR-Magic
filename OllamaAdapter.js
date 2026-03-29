@@ -14,9 +14,10 @@ const OllamaAdapter = (function() {
    * @param {number} temperature
    * @param {number} maxTokens
    * @param {GoogleAppsScript.Base.Blob} [fileBlob] Optional file blob to include as an image.
+   * @param {boolean} [enableGenericThinking] Optional flag to enable generic thinking.
    * @returns {Object} The JSON object parsed from the response.
    */
-  function callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob) {
+  function callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob, enableGenericThinking) {
     if (!apiUrl) {
       throw new Error("Ollama API URL is missing in Configuration.");
     }
@@ -49,10 +50,19 @@ const OllamaAdapter = (function() {
 
     const payload = {
       model: model,
-      messages: messages,
-      temperature: parseFloat(temperature) || 0,
-      max_tokens: parseInt(maxTokens) || 8192
+      messages: messages
     };
+
+    if (enableGenericThinking) {
+      payload.options = {
+        temperature: parseFloat(temperature) !== undefined && !isNaN(parseFloat(temperature)) ? parseFloat(temperature) : 0.6,
+        num_predict: parseInt(maxTokens) || 8192,
+        think: true
+      };
+    } else {
+      payload.temperature = parseFloat(temperature) !== undefined && !isNaN(parseFloat(temperature)) ? parseFloat(temperature) : 0.6,
+      payload.max_tokens = parseInt(maxTokens) || 8192;
+    }
 
     // Note: Ollama chat completions typically don't have built-in "thinking" config like Gemini.
     // If specific Ollama configurations for thinking are required, they would go here.

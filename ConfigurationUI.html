@@ -219,6 +219,12 @@
             <input type="number" id="MAX_TOKENS" name="MAX_TOKENS">
           </div>
           <div class="form-group">
+            <label for="ENABLE_GENERIC_THINKING">
+              <input type="checkbox" id="ENABLE_GENERIC_THINKING" name="ENABLE_GENERIC_THINKING" style="width: auto; margin-right: 5px;">
+              Enable Generic Thinking
+            </label>
+          </div>
+          <div class="form-group">
             <label for="THINKING_LEVEL">Thinking Level</label>
             <select id="THINKING_LEVEL" name="THINKING_LEVEL">
               <option value="minimum">Minimum</option>
@@ -327,7 +333,11 @@
         for (const [key, value] of Object.entries(config)) {
           const el = document.getElementById(key);
           if (el) {
-            el.value = value;
+            if (el.type === 'checkbox') {
+              el.checked = (value === 'TRUE');
+            } else {
+              el.value = value;
+            }
           }
         }
         toggleProviderSettings();
@@ -344,7 +354,11 @@
         for (let i = 0; i < elements.length; i++) {
             const el = elements[i];
             if (el.name) {
-                config[el.name] = el.value;
+                if (el.type === 'checkbox') {
+                    config[el.name] = el.checked ? "TRUE" : "FALSE";
+                } else {
+                    config[el.name] = el.value;
+                }
             }
         }
 

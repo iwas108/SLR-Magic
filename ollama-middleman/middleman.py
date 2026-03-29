@@ -3,6 +3,7 @@ Ollama Middleman Proxy
 A caching layer for Ollama following FAIR principles and Clean Architecture.
 """
 
+import re
 import sys
 import json
 import sqlite3
@@ -92,6 +93,8 @@ class OllamaService:
 
         if self.stream_mode:
             payload["stream"] = True
+            # Force Ollama to send usage telemetry at the end of the stream
+            payload["stream_options"] = {"include_usage": True}
             return await self._fetch_via_stream(payload)
         
         payload["stream"] = False
@@ -106,7 +109,7 @@ class OllamaService:
     async def _fetch_via_stream(self, payload: dict) -> dict:
         """
         Streams from Ollama to the proxy, prints to terminal for visual feedback,
-        and dynamically colors <think> tags if Ollama sends them in the standard stream.
+        dynamically colors <think> tags, and aggregates usage telemetry.
         """
         logger.info("📡 Receiving stream from Ollama...")
         full_content = ""
@@ -141,8 +144,14 @@ class OllamaService:
                             "model": chunk.get("model", payload.get("model", "unknown")),
                             "choices": [{"index": 0, "message": {"role": "assistant", "content": ""}, "finish_reason": "stop"}]
                         }
+                    
+                    # Capture usage telemetry if Ollama sends it (usually in the final chunk)
+                    if "usage" in chunk and chunk["usage"]:
+                        base_response["usage"] = chunk["usage"]
 
-                    delta = chunk.get("choices", [{}])[0].get("delta", {})
+                    # Safely extract delta, handling the empty choices [] array sent with usage chunks
+                    choices = chunk.get("choices", [])
+                    delta = choices[0].get("delta", {}) if choices else {}
                     
                     # Grab content from either reasoning_content or standard content
                     content_piece = delta.get("reasoning_content", "") or delta.get("content", "")
@@ -178,10 +187,34 @@ class OllamaService:
         return base_response
 
 # =====================================================================
+# Presentation Layer (Visual Utilities)
+# =====================================================================
+
+def print_input_context(messages: list):
+    """
+    Extracts the Title and Abstract from the user prompt via Regex
+    and prints it to the terminal for easy visual comparison.
+    """
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                match = re.search(r"Title:\s*(.*?)\nAbstract:\s*(.*)", content, re.DOTALL | re.IGNORECASE)
+                if match:
+                    title = match.group(1).strip()
+                    abstract = match.group(2).strip()
+                    
+                    print("\n\033[96m" + "="*80 + "\033[0m")
+                    print("\033[96m[📄 INPUT CONTEXT]\033[0m")
+                    print(f"\033[94mTitle:\033[0m {title}")
+                    print(f"\033[94mAbstract:\033[0m {abstract}")
+                    print("\033[96m" + "="*80 + "\033[0m\n")
+                    return
+
+# =====================================================================
 # API Routing & App Initialization
 # =====================================================================
 
-# Global instances initialized during app startup
 cache_repo: CacheRepository
 ollama_service: OllamaService
 
@@ -212,17 +245,25 @@ async def proxy_to_ollama(request: Request):
     # 1. Check Cache
     cached_response = cache_repo.get(req_hash)
     if cached_response:
-        logger.info(f"⚡ CACHE HIT  | Hash: {hash_short} | Returning instant response.")
+        # Extract token telemetry from the cached JSON to prove it was saved
+        total_tokens = cached_response.get("usage", {}).get("total_tokens", "N/A")
+        logger.info(f"⚡ CACHE HIT  | Hash: {hash_short} | Tokens: {total_tokens} | Returning instant response.")
+        print_input_context(messages)
         return cached_response
 
-    # 2. Fetch from Ollama (Cache Miss)
+    # 2. Fetch from Ollama
     logger.info(f"⏳ CACHE MISS | Hash: {hash_short} | Forwarding to Ollama...")
     try:
         response_data = await ollama_service.fetch_completion(payload)
         
         # 3. Save to Cache
         cache_repo.set(req_hash, response_data)
-        logger.info(f"💾 CACHED     | Hash: {hash_short} | Saved successfully.")
+        
+        # Extract token telemetry from the fresh response to prove it was captured
+        total_tokens = response_data.get("usage", {}).get("total_tokens", "N/A")
+        logger.info(f"💾 CACHED     | Hash: {hash_short} | Tokens: {total_tokens} | Saved successfully.")
+        
+        print_input_context(messages)
         
         return response_data
         
@@ -233,22 +274,13 @@ async def proxy_to_ollama(request: Request):
         logger.error(f"❌ Internal Server Error: {str(e)}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-# =====================================================================
-# Execution Entry Point
-# =====================================================================
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ollama Caching Proxy")
     parser.add_argument(
         "--stream", 
         action="store_true", 
-        help="Enable internal streaming from Ollama to Middleman (prints generation live to terminal)"
+        help="Enable internal streaming from Ollama to Middleman"
     )
     args = parser.parse_args()
-    
-    # Set the config based on CLI argument
     Config.STREAM_OLLAMA = args.stream
-
-    # Run the Uvicorn server programmatically
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning") 
-    # Note: Uvicorn log level set to warning so it doesn't clutter our custom logger
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")

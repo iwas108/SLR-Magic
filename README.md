@@ -1,6 +1,6 @@
 # SLR Magic ✨
 
-**SLR Magic** is an AI-powered Google Apps Script tool designed to accelerate and safeguard the Systematic Literature Review (SLR) process. By leveraging Large Language Models (LLMs) like Gemini, it automates the tedious screening and extraction phases, eliminating human error, ensuring consistency, and removing bias from the review process.
+**SLR Magic** is an AI-powered Google Apps Script tool designed to accelerate and safeguard the Systematic Literature Review (SLR) process. By leveraging Large Language Models (LLMs) like Gemini or Qwen3, it automates the tedious screening and extraction phases, eliminating human error, ensuring consistency, and removing bias from the review process.
 
 This tool acts as both an **accelerator**, processing thousands of papers in minutes, and a **guard**, enforcing strict logic gates to ensure only relevant, high-quality research makes it to the final synthesis.
 
