@@ -1,6 +1,7 @@
 """
 Ollama Middleman Proxy
 A caching layer for Ollama following FAIR principles and Clean Architecture.
+TRANSLATION MODE: Converts OpenAI requests to Native Ollama requests for max stability.
 """
 
 import re
@@ -30,17 +31,15 @@ logging.basicConfig(
 logger = logging.getLogger("middleman")
 
 class Config:
-    OLLAMA_URL = "http://localhost:11434/v1/chat/completions"
+    OLLAMA_URL = "http://172.23.160.1:11434/v1/chat/completions"
     DB_FILE = "slr_cache.db"
-    STREAM_OLLAMA = False  # Overridden by CLI args
+    STREAM_OLLAMA = False
 
 # =====================================================================
-# Repository Layer (Data Persistence)
+# Repository Layer
 # =====================================================================
 
 class CacheRepository:
-    """Handles all SQLite database operations for payload caching."""
-    
     def __init__(self, db_file: str):
         self.db_file = db_file
         self._init_db()
@@ -57,7 +56,6 @@ class CacheRepository:
 
     @staticmethod
     def generate_hash(messages: list) -> str:
-        """Generates a SHA-256 fingerprint for precision caching."""
         message_str = json.dumps(messages, sort_keys=True)
         return hashlib.sha256(message_str.encode('utf-8')).hexdigest()
 
@@ -76,104 +74,116 @@ class CacheRepository:
             )
 
 # =====================================================================
-# Service Layer (LLM Interaction)
+# Service Layer (The OpenAI -> Native Translator)
 # =====================================================================
 
 class OllamaService:
-    """Handles communication with the Ollama backend."""
-    
     def __init__(self, url: str, stream_mode: bool):
-        self.url = url
+        # Dynamically intercept and route to the NATIVE Ollama endpoint
+        self.url = url.replace("/v1/chat/completions", "/api/chat")
         self.stream_mode = stream_mode
 
-    async def fetch_completion(self, payload: dict) -> dict:
-        """Determines the fetching strategy based on proxy config."""
-        # Unload model after generation to prevent VRAM/RAM leaks
-        payload["keep_alive"] = 0 
+    async def fetch_completion(self, openai_payload: dict) -> dict:
+        model_name = openai_payload.get("model", "qwen3.5-slr")
+        messages = openai_payload.get("messages", [])
+        
+        # 1. TRANSLATE TO NATIVE PAYLOAD
+        # This safely applies our VRAM limits without crashing the server!
+        native_payload = {
+            "model": model_name,
+            "messages": messages,
+            "keep_alive": 0, 
+            "options": {
+                "temperature": openai_payload.get("temperature", 0.6),
+                "num_predict": openai_payload.get("max_tokens", 8192),
+                "num_ctx": 16384  # <--- Safely restricts context to 16K tokens for AMD GPU!
+            }
+        }
 
         if self.stream_mode:
-            payload["stream"] = True
-            # Force Ollama to send usage telemetry at the end of the stream
-            payload["stream_options"] = {"include_usage": True}
-            return await self._fetch_via_stream(payload)
+            native_payload["stream"] = True
+            return await self._fetch_via_stream(native_payload, model_name, messages)
         
-        payload["stream"] = False
-        return await self._fetch_standard(payload)
+        native_payload["stream"] = False
+        return await self._fetch_standard(native_payload, model_name)
 
-    async def _fetch_standard(self, payload: dict) -> dict:
+    async def _fetch_standard(self, native_payload: dict, model_name: str) -> dict:
         async with httpx.AsyncClient(timeout=900.0) as client:
-            response = await client.post(self.url, json=payload)
+            response = await client.post(self.url, json=native_payload)
             response.raise_for_status()
-            return response.json()
+            chunk = response.json()
             
-    async def _fetch_via_stream(self, payload: dict) -> dict:
-        """
-        Streams from Ollama to the proxy, prints to terminal for visual feedback,
-        dynamically colors <think> tags, and aggregates usage telemetry.
-        """
-        logger.info("📡 Receiving stream from Ollama...")
-        full_content = ""
-        base_response = {}
+            usage = {
+                "prompt_tokens": chunk.get("prompt_eval_count", 0),
+                "completion_tokens": chunk.get("eval_count", 0),
+                "total_tokens": chunk.get("prompt_eval_count", 0) + chunk.get("eval_count", 0)
+            }
+            
+            return {
+                "id": f"chatcmpl-{int(datetime.now().timestamp())}",
+                "object": "chat.completion",
+                "created": int(datetime.now().timestamp()),
+                "model": model_name,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": chunk.get("message", {}).get("content", "")}, "finish_reason": "stop"}],
+                "usage": usage
+            }
+            
+    async def _fetch_via_stream(self, native_payload: dict, model_name: str, messages: list) -> dict:
+        logger.info("📡 Receiving native stream from Ollama...")
         
-        # State trackers for terminal colors
-        in_thinking = False
+        # Prefill detection
+        is_prefilled = False
+        if messages and messages[-1].get("role") == "assistant" and "<think>" in messages[-1].get("content", ""):
+            is_prefilled = True
+
+        full_content = "<think>\n" if is_prefilled else ""
+        usage = {}
+        
+        in_thinking = is_prefilled
         buffer = ""
 
+        if is_prefilled:
+            print("\n\033[90m[🤔 Thinking... (Prefilled)]\033[0m\n\033[90m", end="", flush=True)
+
         async with httpx.AsyncClient(timeout=900.0) as client:
-            async with client.stream("POST", self.url, json=payload) as response:
+            async with client.stream("POST", self.url, json=native_payload) as response:
                 response.raise_for_status()
                 
                 async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
+                    if not line.strip():
                         continue
                         
-                    data_str = line[6:].strip()
-                    if data_str == "[DONE]":
-                        break
-                        
                     try:
-                        chunk = json.loads(data_str)
+                        chunk = json.loads(line)
                     except json.JSONDecodeError:
                         continue
 
-                    if not base_response:
-                        base_response = {
-                            "id": chunk.get("id", "chatcmpl-streamed"),
-                            "object": "chat.completion",
-                            "created": chunk.get("created", int(datetime.now().timestamp())),
-                            "model": chunk.get("model", payload.get("model", "unknown")),
-                            "choices": [{"index": 0, "message": {"role": "assistant", "content": ""}, "finish_reason": "stop"}]
-                        }
-                    
-                    # Capture usage telemetry if Ollama sends it (usually in the final chunk)
-                    if "usage" in chunk and chunk["usage"]:
-                        base_response["usage"] = chunk["usage"]
-
-                    # Safely extract delta, handling the empty choices [] array sent with usage chunks
-                    choices = chunk.get("choices", [])
-                    delta = choices[0].get("delta", {}) if choices else {}
-                    
-                    # Grab content from either reasoning_content or standard content
-                    content_piece = delta.get("reasoning_content", "") or delta.get("content", "")
+                    # Native API puts tokens directly in chunk["message"]["content"]
+                    content_piece = chunk.get("message", {}).get("content", "")
                     
                     if content_piece:
                         full_content += content_piece
                         buffer += content_piece
 
-                        # Check for opening tag
                         if "<think>" in buffer and not in_thinking:
                             print("\n\033[90m[🤔 Thinking...]\033[0m\n\033[90m", end="")
                             in_thinking = True
-                            buffer = buffer.replace("<think>", "") # Clear tag from buffer trigger
+                            buffer = buffer.replace("<think>", "") 
                         
-                        # Check for closing tag
                         if "</think>" in buffer and in_thinking:
                             print("\033[0m\n\n\033[92m[💡 Final Output]\033[0m\n", end="")
                             in_thinking = False
                             buffer = buffer.replace("</think>", "")
                         
-                        # Print the token (Terminal will color it based on the state)
                         print(content_piece, end="", flush=True)
+
+                    # Native API sends telemetry when done=True
+                    if chunk.get("done") is True:
+                        usage = {
+                            "prompt_tokens": chunk.get("prompt_eval_count", 0),
+                            "completion_tokens": chunk.get("eval_count", 0),
+                            "total_tokens": chunk.get("prompt_eval_count", 0) + chunk.get("eval_count", 0)
+                        }
 
         if in_thinking:
             print("\033[0m", end="")
@@ -181,20 +191,21 @@ class OllamaService:
         print("\n") 
         logger.info("✅ Stream complete.")
 
-        if base_response:
-            base_response["choices"][0]["message"]["content"] = full_content
-            
-        return base_response
+        # 2. TRANSLATE BACK TO OPENAI FORMAT
+        return {
+            "id": f"chatcmpl-{int(datetime.now().timestamp())}",
+            "object": "chat.completion",
+            "created": int(datetime.now().timestamp()),
+            "model": model_name,
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": full_content}, "finish_reason": "stop"}],
+            "usage": usage
+        }
 
 # =====================================================================
-# Presentation Layer (Visual Utilities)
+# Presentation Layer
 # =====================================================================
 
 def print_input_context(messages: list):
-    """
-    Extracts the Title and Abstract from the user prompt via Regex
-    and prints it to the terminal for easy visual comparison.
-    """
     for msg in reversed(messages):
         if msg.get("role") == "user":
             content = msg.get("content", "")
@@ -223,7 +234,7 @@ async def lifespan(app: FastAPI):
     global cache_repo, ollama_service
     cache_repo = CacheRepository(Config.DB_FILE)
     ollama_service = OllamaService(Config.OLLAMA_URL, Config.STREAM_OLLAMA)
-    logger.info(f"🚀 Middleman started. (Ollama Streaming: {Config.STREAM_OLLAMA})")
+    logger.info(f"🚀 Middleman started. (Streaming: {Config.STREAM_OLLAMA} | Translation Mode: Active)")
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -242,24 +253,19 @@ async def proxy_to_ollama(request: Request):
     req_hash = cache_repo.generate_hash(messages)
     hash_short = req_hash[:8]
 
-    # 1. Check Cache
     cached_response = cache_repo.get(req_hash)
     if cached_response:
-        # Extract token telemetry from the cached JSON to prove it was saved
         total_tokens = cached_response.get("usage", {}).get("total_tokens", "N/A")
         logger.info(f"⚡ CACHE HIT  | Hash: {hash_short} | Tokens: {total_tokens} | Returning instant response.")
         print_input_context(messages)
         return cached_response
 
-    # 2. Fetch from Ollama
-    logger.info(f"⏳ CACHE MISS | Hash: {hash_short} | Forwarding to Ollama...")
+    logger.info(f"⏳ CACHE MISS | Hash: {hash_short} | Forwarding to Ollama Native API...")
     try:
         response_data = await ollama_service.fetch_completion(payload)
         
-        # 3. Save to Cache
         cache_repo.set(req_hash, response_data)
         
-        # Extract token telemetry from the fresh response to prove it was captured
         total_tokens = response_data.get("usage", {}).get("total_tokens", "N/A")
         logger.info(f"💾 CACHED     | Hash: {hash_short} | Tokens: {total_tokens} | Saved successfully.")
         
@@ -276,11 +282,7 @@ async def proxy_to_ollama(request: Request):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ollama Caching Proxy")
-    parser.add_argument(
-        "--stream", 
-        action="store_true", 
-        help="Enable internal streaming from Ollama to Middleman"
-    )
+    parser.add_argument("--stream", action="store_true", help="Enable internal streaming")
     args = parser.parse_args()
     Config.STREAM_OLLAMA = args.stream
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
