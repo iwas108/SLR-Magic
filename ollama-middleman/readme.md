@@ -6,13 +6,13 @@ A lightweight, high-performance FastAPI middleware designed to sit between your 
 
 * **Instant Responses (Cache Hit):** Caches successful responses using SQLite. If the exact same prompt is sent again, the proxy returns the cached answer instantly without waking up the LLM.
 * **Real-Time Terminal Streaming:** Use the `--stream` flag to watch the model generate its response live in your terminal while it aggregates the final JSON for the client.
-* **Web Review Interface (Port 8899):** Provides a clean HTML dashboard to review historical request/response payloads, duration (ms), and watch the model stream tokens live (including explicitly highlighting `<think>` blocks).
+* **Web Review Interface (Port 8899):** Provides a mobile-first, responsive Bootstrap 5 dashboard to review historical request/response payloads. Features include Light/Dark theme toggling, accordion-style payload organization (separating 'Thinking' trace from 'Final Answer'), and the ability to selectively delete or clear history records.
 * **Robust Parameter Support:** The Native Translator cleanly maps standard OpenAI properties (`temperature`, `max_tokens`) while fully passing through nested `options` (like `think: true`) into Ollama's native API.
 * **Comprehensive History Tracking:** Records every request in a dedicated `history` table within SQLite, capturing model names, exact JSON payloads, and precise execution times.
 * **Precision Hashing:** Uses SHA-256 to create a unique fingerprint of the exact `messages` payload, ensuring accurate cache matching.
 * **VRAM/RAM Management:** Automatically injects `"keep_alive": 0` into the payload on cache misses, forcing Ollama to unload the model from memory immediately after generating a response.
 * **Enhanced Visual Logging:** Clean, timestamped terminal logs let you track cache hits, misses, model execution times, and connection statuses at a glance.
-* **Clean Architecture:** Code is modularized into Repository, Service, and Routing layers, making it highly extensible and aligned with FAIR principles.
+* **Clean Architecture:** Code is heavily modularized across multiple files (Repository, Service, Routers) following FAIR principles.
 * **Zero Configuration:** Uses a local `slr_cache.db` file—no external database servers required.
 
 ## 📋 Prerequisites
@@ -23,7 +23,7 @@ A lightweight, high-performance FastAPI middleware designed to sit between your 
 ## 🚀 Installation
 
 1. **Clone or download** this repository.
-2. **Install the required Python dependencies** using the provided `requirements.txt` file:
+2. **Install the required Python dependencies** using the provided `requirements.txt` file (now includes FastAPI, Uvicorn, HTTPX, and Jinja2 for frontend templates):
 
     ```bash
     pip install -r requirements.txt
