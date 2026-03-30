@@ -73,8 +73,22 @@ class CacheRepository:
 
     def delete_history_item(self, item_id: int):
         with sqlite3.connect(self.db_file) as conn:
+            # 1. Fetch the request JSON to generate its cache hash
+            c = conn.cursor()
+            c.execute("SELECT request_json FROM history WHERE id = ?", (item_id,))
+            row = c.fetchone()
+            if row:
+                request_data = json.loads(row[0])
+                messages = request_data.get("messages", [])
+                payload_hash = self.generate_hash(messages)
+
+                # 2. Delete from cache
+                conn.execute("DELETE FROM cache WHERE payload_hash = ?", (payload_hash,))
+
+            # 3. Delete from history
             conn.execute("DELETE FROM history WHERE id = ?", (item_id,))
 
     def clear_history(self):
         with sqlite3.connect(self.db_file) as conn:
             conn.execute("DELETE FROM history")
+            conn.execute("DELETE FROM cache")
