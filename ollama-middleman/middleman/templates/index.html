@@ -19,6 +19,18 @@
             min-height: 100px; max-height: 300px; overflow-y: auto;
             font-family: monospace; white-space: pre-wrap; word-wrap: break-word;
         }
+        #live-stream-box:fullscreen {
+            max-height: 100vh;
+            border-radius: 0;
+            padding: 2rem;
+            font-size: 1.1em;
+        }
+        #live-stream-box:-webkit-full-screen {
+            max-height: 100vh;
+            border-radius: 0;
+            padding: 2rem;
+            font-size: 1.1em;
+        }
         .stream-thinking { color: #858585; font-style: italic; }
         .stream-final { color: #a6e22e; }
 
@@ -61,8 +73,11 @@
 
                 <!-- Live Stream Box -->
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header fw-bold text-danger">
-                        <i class="bi bi-record-circle-fill"></i> Live Stream
+                    <div class="card-header fw-bold text-danger d-flex justify-content-between align-items-center">
+                        <div><i class="bi bi-record-circle-fill"></i> Live Stream</div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullScreen()" title="Full Screen">
+                            <i class="bi bi-arrows-fullscreen"></i>
+                        </button>
                     </div>
                     <div class="card-body p-0">
                         <div id="live-stream-box" class="m-3">Waiting for stream...</div>
@@ -183,6 +198,27 @@
             } else {
                 html.setAttribute("data-bs-theme", "light");
                 icon.className = "bi bi-moon-fill";
+            }
+        }
+
+        function toggleFullScreen() {
+            const el = document.getElementById("live-stream-box");
+            if (!document.fullscreenElement) {
+                if (el.requestFullscreen) {
+                    el.requestFullscreen();
+                } else if (el.webkitRequestFullscreen) {
+                    el.webkitRequestFullscreen();
+                } else if (el.msRequestFullscreen) {
+                    el.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
             }
         }
 
