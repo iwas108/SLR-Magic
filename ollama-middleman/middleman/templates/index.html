@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Middleman Review</title>
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+    <style>
+        body { background: var(--bs-body-bg); color: var(--bs-body-color); }
+        .sidebar { height: 100vh; overflow-y: auto; border-right: 1px solid var(--bs-border-color); }
+        .history-item { cursor: pointer; transition: background 0.2s; }
+        .history-item:hover { background: var(--bs-tertiary-bg); }
+        .history-item.active { border-left: 4px solid var(--bs-primary); background: var(--bs-secondary-bg); }
+        .model-badge { font-size: 0.75rem; }
+
+        #live-stream-box {
+            background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 8px;
+            min-height: 100px; max-height: 300px; overflow-y: auto;
+            font-family: monospace; white-space: pre-wrap; word-wrap: break-word;
+        }
+        .stream-thinking { color: #858585; font-style: italic; }
+        .stream-final { color: #a6e22e; }
+
+        .prompt-box { font-size: 0.95em; white-space: pre-wrap; word-wrap: break-word; }
+        .thinking-box { background: var(--bs-tertiary-bg); font-style: italic; color: var(--bs-secondary-color); padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; }
+        .result-box { white-space: pre-wrap; word-wrap: break-word; padding: 1rem; background: var(--bs-light-bg-subtle); border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 sidebar p-3 shadow-sm d-flex flex-column h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="m-0">History</h4>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="loadHistory()" title="Refresh">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="clearHistory()" title="Clear All">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search history..." onkeyup="handleSearch(event)">
+                </div>
+                <div id="history-list" class="list-group list-group-flush overflow-auto flex-grow-1"></div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 p-4 main-content vh-100 overflow-auto">
+
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Live Review</h2>
+                    <button class="btn btn-outline-secondary" onclick="toggleTheme()">
+                        <i id="theme-icon" class="bi bi-moon-fill"></i> Theme
+                    </button>
+                </div>
+
+                <!-- Live Stream Box -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header fw-bold text-danger">
+                        <i class="bi bi-record-circle-fill"></i> Live Stream
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="live-stream-box" class="m-3">Waiting for stream...</div>
+                    </div>
+                </div>
+
+                <!-- Detail View -->
+                <div id="details-card" class="card shadow-sm" style="display:none;">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between">
+                        <span><strong>Model:</strong> <span id="detail-model"></span></span>
+                        <span><strong>Time:</strong> <span id="detail-time"></span> (<span id="detail-duration"></span> ms)</span>
+                    </div>
+                    <div class="card-body">
+
+                        <div class="accordion" id="reviewAccordion">
+                            <!-- Input Context Accordion -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingInput">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInput" aria-expanded="true" aria-controls="collapseInput">
+                                        <i class="bi bi-file-earmark-text me-2"></i> Input Context
+                                    </button>
+                                </h2>
+                                <div id="collapseInput" class="accordion-collapse collapse show" aria-labelledby="headingInput" data-bs-parent="#reviewAccordion">
+                                    <div class="accordion-body" id="detail-prompt-container">
+                                        <!-- Prompt contents dynamically injected here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Reasoning & Result Accordion -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingResult">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseResult" aria-expanded="false" aria-controls="collapseResult">
+                                        <i class="bi bi-cpu me-2"></i> Reasoning & Result
+                                    </button>
+                                </h2>
+                                <div id="collapseResult" class="accordion-collapse collapse" aria-labelledby="headingResult" data-bs-parent="#reviewAccordion">
+                                    <div class="accordion-body">
+
+                                        <div id="detail-thinking-container" class="mb-4" style="display:none;">
+                                            <h5 class="text-secondary"><i class="bi bi-lightbulb"></i> Reasoning Trace (Thinking)</h5>
+                                            <div class="thinking-box border" id="detail-thinking"></div>
+                                        </div>
+
+                                        <div>
+                                            <h5 class="text-success"><i class="bi bi-check-circle"></i> Final Answer</h5>
+                                            <div class="result-box border" id="detail-result"></div>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div> <!-- End Accordion -->
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let historyData = [];
+        let searchTimeout = null;
+
+        async function loadHistory() {
+            try {
+                const searchVal = document.getElementById('searchInput').value.trim();
+                let url = '/api/history';
+                if (searchVal) {
+                    url += '?search=' + encodeURIComponent(searchVal);
+                }
+                const res = await fetch(url);
+                historyData = await res.json();
+                renderHistory();
+            } catch (e) {
+                console.error('Failed to load history', e);
+            }
+        }
+
+        function handleSearch(event) {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadHistory();
+            }, 300);
+        }
+
+        async function clearHistory() {
+            if(!confirm("Are you sure you want to delete all history?")) return;
+            try {
+                await fetch('/api/history', { method: 'DELETE' });
+                loadHistory();
+                document.getElementById('details-card').style.display = 'none';
+            } catch (e) {
+                console.error("Failed to clear history", e);
+            }
+        }
+
+        async function deleteHistory(id, event) {
+            event.stopPropagation(); // prevent row click
+            if(!confirm(`Delete item ${id}?`)) return;
+            try {
+                await fetch(`/api/history/${id}`, { method: 'DELETE' });
+                loadHistory();
+                document.getElementById('details-card').style.display = 'none';
+            } catch (e) {
+                console.error("Failed to delete item", e);
+            }
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById("theme-icon");
+            if (html.getAttribute("data-bs-theme") === "light") {
+                html.setAttribute("data-bs-theme", "dark");
+                icon.className = "bi bi-sun-fill";
+            } else {
+                html.setAttribute("data-bs-theme", "light");
+                icon.className = "bi bi-moon-fill";
+            }
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = '';
+            historyData.forEach((item, index) => {
+                const time = new Date(item.created_at).toLocaleTimeString();
+
+                const div = document.createElement('div');
+                div.className = 'list-group-item history-item d-flex justify-content-between align-items-center p-3';
+                div.onclick = () => showDetails(index);
+
+                div.innerHTML = `
+                    <div class="w-100">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <span class="badge bg-secondary model-badge mb-1">${item.model_name}</span>
+                            <small class="text-muted">${time}</small>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>Req #${item.id}</strong>
+                            <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteHistory(${item.id}, event)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        <div class="small text-muted mt-1">${item.duration_ms}ms</div>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function renderPrompt(container, messages, rawFallback) {
+            container.innerHTML = '';
+
+            let userContent = "";
+            if (Array.isArray(messages)) {
+                for (let i = messages.length - 1; i >= 0; i--) {
+                    if (messages[i].role === 'user') {
+                        userContent = messages[i].content;
+                        break;
+                    }
+                }
+            } else {
+                userContent = JSON.stringify(messages, null, 2);
+            }
+
+            if (typeof userContent === 'string') {
+                const titleMatch = userContent.match(/Title:\s*(.*?)\n/i);
+                const abstractMatch = userContent.match(/Abstract:\s*(.*)/is);
+
+                if (titleMatch && abstractMatch) {
+
+                    // Paper Header (Title & Abstract)
+                    const headerCard = document.createElement('div');
+                    headerCard.className = 'card border-warning mb-3 shadow-sm';
+
+                    const cardBody = document.createElement('div');
+                    cardBody.className = 'card-body bg-warning-subtle text-warning-emphasis';
+
+                    const title = document.createElement('h5');
+                    title.className = 'card-title';
+                    title.textContent = titleMatch[1].trim();
+                    cardBody.appendChild(title);
+
+                    const hr = document.createElement('hr');
+                    cardBody.appendChild(hr);
+
+                    const abs = document.createElement('p');
+                    abs.className = 'card-text small mb-0';
+                    abs.innerHTML = `<strong>Abstract:</strong> ${abstractMatch[1].trim()}`;
+                    cardBody.appendChild(abs);
+
+                    headerCard.appendChild(cardBody);
+                    container.appendChild(headerCard);
+
+                    // Raw Prompt
+                    const details = document.createElement('details');
+                    const summary = document.createElement('summary');
+                    summary.textContent = 'View Full Prompt String';
+                    summary.className = "text-muted small";
+                    summary.style.cursor = "pointer";
+                    details.appendChild(summary);
+
+                    const pre = document.createElement('pre');
+                    pre.className = "p-3 bg-body-tertiary border rounded mt-2 small prompt-box";
+                    pre.textContent = userContent;
+                    details.appendChild(pre);
+
+                    container.appendChild(details);
+                    return;
+                }
+
+                // If no specific paper format found
+                const simpleBox = document.createElement('pre');
+                simpleBox.className = 'p-3 bg-body-tertiary border rounded prompt-box';
+                simpleBox.textContent = userContent;
+                container.appendChild(simpleBox);
+                return;
+            }
+
+            const fallbackPre = document.createElement('pre');
+            fallbackPre.className = 'p-3 bg-body-tertiary border rounded prompt-box';
+            fallbackPre.textContent = rawFallback;
+            container.appendChild(fallbackPre);
+        }
+
+        function showDetails(index) {
+            const item = historyData[index];
+            document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.history-item')[index].classList.add('active');
+
+            document.getElementById('details-card').style.display = 'block';
+            document.getElementById('detail-model').textContent = item.model_name;
+            document.getElementById('detail-duration').textContent = item.duration_ms;
+            document.getElementById('detail-time').textContent = new Date(item.created_at).toLocaleString();
+
+            const promptContainer = document.getElementById('detail-prompt-container');
+            try {
+                const reqObj = JSON.parse(item.request_json);
+                renderPrompt(promptContainer, reqObj.messages || reqObj, item.request_json);
+            } catch (e) {
+                promptContainer.innerHTML = '';
+                const pre = document.createElement('pre');
+                pre.className = 'p-3 bg-body-tertiary border rounded prompt-box';
+                pre.textContent = item.request_json;
+                promptContainer.appendChild(pre);
+            }
+
+            let thinking = "";
+            let content = "";
+            try {
+                const resObj = JSON.parse(item.response_json);
+                const msg = (resObj.choices && resObj.choices[0] && resObj.choices[0].message)
+                            ? resObj.choices[0].message
+                            : (resObj.message || {});
+
+                content = msg.content || "";
+
+                if (content.includes("<think>")) {
+                    const thinkMatch = content.match(/<think>(.*?)<\/think>/s);
+                    if (thinkMatch) {
+                        thinking = thinkMatch[1].trim();
+                        content = content.replace(/<think>.*?<\/think>/s, '').trim();
+                    }
+                } else if (msg.thinking) {
+                    thinking = msg.thinking;
+                }
+
+                if (!content) {
+                        if (resObj.error) {
+                            content = JSON.stringify(resObj.error, null, 2);
+                        } else {
+                            content = JSON.stringify(resObj, null, 2);
+                        }
+                }
+
+            } catch (e) {
+                content = item.response_json;
+            }
+
+            const thinkContainer = document.getElementById('detail-thinking-container');
+            const thinkEl = document.getElementById('detail-thinking');
+
+            if (thinking) {
+                thinkEl.textContent = thinking;
+                thinkContainer.style.display = 'block';
+            } else {
+                thinkContainer.style.display = 'none';
+                thinkEl.textContent = "";
+            }
+
+            document.getElementById('detail-result').textContent = content;
+
+            // Open the appropriate accordion pane by default if not open
+            var myCollapse = document.getElementById('collapseInput');
+            var bsCollapse = new bootstrap.Collapse(myCollapse, {toggle: false});
+            bsCollapse.show();
+        }
+
+        function setupStream() {
+            const box = document.getElementById('live-stream-box');
+            const evtSource = new EventSource('/api/stream');
+
+            evtSource.onmessage = function(event) {
+                if (box.textContent === 'Waiting for stream...') {
+                    box.textContent = '';
+                }
+                try {
+                    const data = JSON.parse(event.data);
+                    const span = document.createElement('span');
+                    span.textContent = data.content;
+                    span.className = data.in_thinking ? 'stream-thinking' : 'stream-final';
+                    box.appendChild(span);
+                    box.scrollTop = box.scrollHeight;
+                } catch (e) {
+                    console.error('SSE Error', e);
+                }
+            };
+        }
+
+        window.onload = () => {
+            loadHistory();
+            setupStream();
+        };
+    </script>
+</body>
+</html>
