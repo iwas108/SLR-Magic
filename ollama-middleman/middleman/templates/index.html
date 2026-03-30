@@ -88,7 +88,7 @@
                 <div id="details-card" class="card shadow-sm" style="display:none;">
                     <div class="card-header bg-primary text-white d-flex justify-content-between">
                         <span><strong>Model:</strong> <span id="detail-model"></span></span>
-                        <span><strong>Time:</strong> <span id="detail-time"></span> (<span id="detail-duration"></span> ms)</span>
+                        <span><strong>Time:</strong> <span id="detail-time"></span> (<span id="detail-duration"></span>)</span>
                     </div>
                     <div class="card-body">
 
@@ -222,6 +222,19 @@
             }
         }
 
+        function formatDuration(ms) {
+            if (!ms && ms !== 0) return 'N/A';
+            if (ms < 1000) return ms + 'ms';
+            const s = Math.floor(ms / 1000);
+            const remainderMs = ms % 1000;
+            if (s < 60) {
+                return s + '.' + Math.round(remainderMs / 100) + 's';
+            }
+            const m = Math.floor(s / 60);
+            const remainderS = s % 60;
+            return m + 'm ' + remainderS + 's';
+        }
+
         function renderHistory() {
             const list = document.getElementById('history-list');
             list.innerHTML = '';
@@ -244,7 +257,7 @@
                                 <i class="bi bi-trash"></i>
                             </button>
                         </div>
-                        <div class="small text-muted mt-1">${item.duration_ms}ms</div>
+                        <div class="small text-muted mt-1">${formatDuration(item.duration_ms)}</div>
                     </div>
                 `;
                 list.appendChild(div);
@@ -333,7 +346,7 @@
 
             document.getElementById('details-card').style.display = 'block';
             document.getElementById('detail-model').textContent = item.model_name;
-            document.getElementById('detail-duration').textContent = item.duration_ms;
+            document.getElementById('detail-duration').textContent = formatDuration(item.duration_ms);
             document.getElementById('detail-time').textContent = new Date(item.created_at).toLocaleString();
 
             const promptContainer = document.getElementById('detail-prompt-container');
