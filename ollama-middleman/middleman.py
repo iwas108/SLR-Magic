@@ -32,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger("middleman")
 
 class Config:
-    OLLAMA_URL = "http://127.0.0.1:11434/v1/chat/completions"
+    OLLAMA_URL = "http://127.0.0.1:11434/api/chat"
     DB_FILE = "slr_cache.db"
     STREAM_OLLAMA = False
 
@@ -116,8 +116,7 @@ stream_broadcaster = StreamBroadcaster()
 
 class OllamaService:
     def __init__(self, url: str, stream_mode: bool):
-        # Dynamically intercept and route to the NATIVE Ollama endpoint
-        self.url = url.replace("/v1/chat/completions", "/api/chat")
+        self.url = url
         self.stream_mode = stream_mode
 
     async def fetch_completion(self, openai_payload: dict) -> dict:
@@ -140,6 +139,8 @@ class OllamaService:
         }
 
         # Merge custom options provided by the caller (overriding defaults if specified)
+        # Note: 'think' is a special top-level parameter in Ollama's API, not an option.
+        think_param = custom_options.pop("think", None)
         native_options.update(custom_options)
 
         native_payload = {
@@ -148,6 +149,11 @@ class OllamaService:
             "keep_alive": 0, 
             "options": native_options
         }
+
+        if think_param is not None:
+            native_payload["think"] = think_param
+
+        logger.debug(f"Translated Native Payload: {json.dumps(native_payload)}")
 
         if self.stream_mode:
             native_payload["stream"] = True
@@ -189,7 +195,7 @@ class OllamaService:
         usage = {}
         
         in_thinking = is_prefilled
-        buffer = ""
+        has_printed_thinking_header = is_prefilled
 
         if is_prefilled:
             print("\n\033[90m[🤔 Thinking... (Prefilled)]\033[0m\n\033[90m", end="", flush=True)
@@ -207,29 +213,41 @@ class OllamaService:
                     except json.JSONDecodeError:
                         continue
 
-                    # Native API puts tokens directly in chunk["message"]["content"]
-                    content_piece = chunk.get("message", {}).get("content", "")
+                    msg = chunk.get("message", {})
+                    # Ollama's newer API explicitly separates the thinking field
+                    thinking_piece = msg.get("thinking", "")
+                    content_piece = msg.get("content", "")
                     
-                    if content_piece:
-                        full_content += content_piece
-                        buffer += content_piece
+                    if thinking_piece:
+                        if not in_thinking:
+                            full_content += "<think>\n"
 
-                        if "<think>" in buffer and not in_thinking:
+                        full_content += thinking_piece
+
+                        if not in_thinking and not has_printed_thinking_header:
                             print("\n\033[90m[🤔 Thinking...]\033[0m\n\033[90m", end="")
-                            in_thinking = True
-                            buffer = buffer.replace("<think>", "") 
+                            has_printed_thinking_header = True
+
+                        in_thinking = True
+                        print(thinking_piece, end="", flush=True)
                         
-                        if "</think>" in buffer and in_thinking:
+                        await stream_broadcaster.broadcast(json.dumps({
+                            "content": thinking_piece,
+                            "in_thinking": True
+                        }))
+
+                    if content_piece:
+                        if in_thinking:
+                            full_content += "\n</think>\n\n"
                             print("\033[0m\n\n\033[92m[💡 Final Output]\033[0m\n", end="")
                             in_thinking = False
-                            buffer = buffer.replace("</think>", "")
-                        
+
+                        full_content += content_piece
                         print(content_piece, end="", flush=True)
 
-                        # Broadcast chunk to web UI
                         await stream_broadcaster.broadcast(json.dumps({
                             "content": content_piece,
-                            "in_thinking": in_thinking
+                            "in_thinking": False
                         }))
 
                     # Native API sends telemetry when done=True
@@ -361,44 +379,105 @@ async def review_ui():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Middleman Review</title>
         <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-            .container { display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; }
-            .sidebar { flex: 1; max-width: 300px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); height: calc(100vh - 40px); overflow-y: auto; }
-            .main { flex: 3; display: flex; flex-direction: column; gap: 20px; }
-            .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            h2, h3 { margin-top: 0; }
-            .history-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
-            .history-item:hover { background: #f0f0f0; }
-            .history-item.active { background: #e3f2fd; border-left: 4px solid #2196f3; }
-            .model-badge { display: inline-block; padding: 3px 8px; background: #e0e0e0; border-radius: 12px; font-size: 0.8em; margin-bottom: 5px; }
-            .time-text { font-size: 0.8em; color: #666; }
-            pre { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
-            #live-stream-box { background: #2b2b2b; color: #fff; padding: 15px; border-radius: 5px; min-height: 100px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; }
-            .thinking { color: #888; font-style: italic; }
-            .final-output { color: #a6e22e; }
+            :root {
+                --primary: #2563eb;
+                --bg-main: #f8fafc;
+                --card-bg: #ffffff;
+                --text-dark: #1e293b;
+                --text-muted: #64748b;
+                --border: #e2e8f0;
+                --thinking-bg: #f1f5f9;
+                --thinking-text: #475569;
+                --result-bg: #f0fdf4;
+                --result-text: #166534;
+            }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background: var(--bg-main); color: var(--text-dark); }
+            .container { display: flex; gap: 24px; max-width: 1600px; margin: 0 auto; height: calc(100vh - 40px); }
+
+            /* Sidebar */
+            .sidebar { width: 320px; flex-shrink: 0; background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; }
+            .sidebar-header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+            h2, h3, h4 { margin: 0; font-weight: 600; }
+            .btn-refresh { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: opacity 0.2s; }
+            .btn-refresh:hover { opacity: 0.9; }
+            #history-list { overflow-y: auto; flex-grow: 1; padding-right: 5px; }
+            .history-item { padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+            .history-item:hover { border-color: #cbd5e1; background: #f8fafc; }
+            .history-item.active { border-color: var(--primary); background: #eff6ff; box-shadow: 0 0 0 1px var(--primary); }
+            .model-badge { display: inline-block; padding: 4px 10px; background: #e2e8f0; color: #334155; border-radius: 20px; font-size: 0.75em; font-weight: 600; margin-bottom: 8px; }
+            .req-id { font-weight: 500; margin-bottom: 4px; }
+            .time-text { font-size: 0.8em; color: var(--text-muted); }
+
+            /* Main Content Area */
+            .main { flex-grow: 1; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+            .card { background: var(--card-bg); padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+
+            /* Layout Grid for Prompt vs Result */
+            .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+            /* Metadata */
+            .meta-bar { display: flex; gap: 20px; padding: 12px 16px; background: #f8fafc; border-radius: 8px; margin-bottom: 20px; font-size: 0.9em; border: 1px solid var(--border); }
+
+            /* Content Blocks */
+            .section-title { font-size: 1.1em; color: var(--text-dark); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+
+            .prompt-box { background: #fdf8f6; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px; margin-bottom: 16px; white-space: pre-wrap; word-wrap: break-word; font-size: 0.95em; line-height: 1.5; color: #431407;}
+            .prompt-title { font-weight: 600; color: #9a3412; margin-bottom: 8px; }
+            .prompt-abstract { color: #7c2d12; }
+
+            .thinking-box { background: var(--thinking-bg); border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 16px; font-size: 0.9em; line-height: 1.6; color: var(--thinking-text); font-style: italic; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto;}
+
+            .result-box { background: var(--result-bg); border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; font-size: 0.95em; line-height: 1.6; color: var(--result-text); white-space: pre-wrap; word-wrap: break-word;}
+
+            /* Live Stream Box */
+            #live-stream-box { background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 8px; min-height: 100px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.9em; line-height: 1.5; }
+            .stream-thinking { color: #858585; font-style: italic; }
+            .stream-final { color: #a6e22e; }
         </style>
     </head>
     <body>
         <div class="container">
             <div class="sidebar">
-                <h2>History</h2>
-                <button onclick="loadHistory()" style="width:100%; padding:8px; margin-bottom:15px; cursor:pointer;">Refresh</button>
+                <div class="sidebar-header">
+                    <h2>History</h2>
+                    <button class="btn-refresh" onclick="loadHistory()">Refresh</button>
+                </div>
                 <div id="history-list"></div>
             </div>
+
             <div class="main">
                 <div class="card">
-                    <h2>Live Stream</h2>
+                    <h3 class="section-title">🔴 Live Stream</h3>
                     <div id="live-stream-box">Waiting for stream...</div>
                 </div>
+
                 <div class="card" id="details-card" style="display:none;">
-                    <h2>Request Details</h2>
-                    <div><strong>Model:</strong> <span id="detail-model"></span></div>
-                    <div><strong>Duration:</strong> <span id="detail-duration"></span> ms</div>
-                    <div><strong>Time:</strong> <span id="detail-time"></span></div>
-                    <h3>Request Messages</h3>
-                    <pre id="detail-request"></pre>
-                    <h3>Response Content</h3>
-                    <pre id="detail-response"></pre>
+                    <div class="meta-bar">
+                        <div><strong>Model:</strong> <span id="detail-model"></span></div>
+                        <div><strong>Duration:</strong> <span id="detail-duration"></span> ms</div>
+                        <div><strong>Time:</strong> <span id="detail-time"></span></div>
+                    </div>
+
+                    <div class="review-grid">
+                        <!-- Left Column: Prompt Evaluation -->
+                        <div>
+                            <h3 class="section-title">Input Context</h3>
+                            <div id="detail-prompt-container"></div>
+                        </div>
+
+                        <!-- Right Column: Model Output -->
+                        <div>
+                            <h3 class="section-title">Reasoning & Result</h3>
+                            <div id="detail-thinking-container" style="display:none;">
+                                <h4>Reasoning Trace (Thinking)</h4>
+                                <div class="thinking-box" id="detail-thinking"></div>
+                            </div>
+                            <div>
+                                <h4>Final Answer</h4>
+                                <div class="result-box" id="detail-result"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -426,11 +505,76 @@ async def review_ui():
                     const time = new Date(item.created_at).toLocaleTimeString();
                     div.innerHTML = `
                         <div class="model-badge">${item.model_name}</div>
-                        <div>Req #${item.id}</div>
+                        <div class="req-id">Req #${item.id}</div>
                         <div class="time-text">${time} • ${item.duration_ms}ms</div>
                     `;
                     list.appendChild(div);
                 });
+            }
+
+            function renderPrompt(container, messages, rawFallback) {
+                container.innerHTML = '';
+
+                let userContent = "";
+                if (Array.isArray(messages)) {
+                    for (let i = messages.length - 1; i >= 0; i--) {
+                        if (messages[i].role === 'user') {
+                            userContent = messages[i].content;
+                            break;
+                        }
+                    }
+                } else {
+                    userContent = JSON.stringify(messages, null, 2);
+                }
+
+                if (typeof userContent === 'string') {
+                    const titleMatch = userContent.match(/Title:\\s*(.*?)\\\\n/i);
+                    const abstractMatch = userContent.match(/Abstract:\\s*(.*)/is);
+
+                    if (titleMatch && abstractMatch) {
+                        const box = document.createElement('div');
+                        box.className = 'prompt-box';
+
+                        const titleDiv = document.createElement('div');
+                        titleDiv.className = 'prompt-title';
+                        titleDiv.textContent = 'Title: ' + titleMatch[1].trim();
+                        box.appendChild(titleDiv);
+
+                        const absDiv = document.createElement('div');
+                        absDiv.className = 'prompt-abstract';
+                        const strong = document.createElement('strong');
+                        strong.textContent = 'Abstract: ';
+                        absDiv.appendChild(strong);
+                        absDiv.appendChild(document.createTextNode(abstractMatch[1].trim()));
+                        box.appendChild(absDiv);
+
+                        container.appendChild(box);
+
+                        const details = document.createElement('details');
+                        details.style.cssText = 'font-size: 0.85em; color: #64748b; cursor: pointer;';
+                        const summary = document.createElement('summary');
+                        summary.textContent = 'View Raw Prompt';
+                        details.appendChild(summary);
+
+                        const pre = document.createElement('pre');
+                        pre.style.cssText = 'background:#f1f5f9; padding:10px; border-radius:4px; margin-top:8px;';
+                        pre.textContent = userContent;
+                        details.appendChild(pre);
+
+                        container.appendChild(details);
+                        return;
+                    }
+
+                    const simpleBox = document.createElement('div');
+                    simpleBox.className = 'prompt-box';
+                    simpleBox.textContent = userContent;
+                    container.appendChild(simpleBox);
+                    return;
+                }
+
+                const fallbackPre = document.createElement('pre');
+                fallbackPre.textContent = rawFallback;
+                container.appendChild(fallbackPre);
             }
 
             function showDetails(index) {
@@ -443,20 +587,69 @@ async def review_ui():
                 document.getElementById('detail-duration').textContent = item.duration_ms;
                 document.getElementById('detail-time').textContent = new Date(item.created_at).toLocaleString();
 
+                // Render Prompt Safely
+                const promptContainer = document.getElementById('detail-prompt-container');
                 try {
-                    const req = JSON.parse(item.request_json);
-                    document.getElementById('detail-request').textContent = JSON.stringify(req.messages || req, null, 2);
+                    const reqObj = JSON.parse(item.request_json);
+                    renderPrompt(promptContainer, reqObj.messages || reqObj, item.request_json);
                 } catch (e) {
-                    document.getElementById('detail-request').textContent = item.request_json;
+                    promptContainer.innerHTML = '';
+                    const pre = document.createElement('pre');
+                    pre.textContent = item.request_json;
+                    promptContainer.appendChild(pre);
                 }
 
+                // Render Response
+                let thinking = "";
+                let content = "";
                 try {
-                    const res = JSON.parse(item.response_json);
-                    const content = res.choices?.[0]?.message?.content || JSON.stringify(res, null, 2);
-                    document.getElementById('detail-response').textContent = content;
+                    const resObj = JSON.parse(item.response_json);
+
+                    // The proxy translates responses to OpenAI format (`choices[0].message`),
+                    // but we should fall back to Native format (`message.content`) just in case
+                    const msg = (resObj.choices && resObj.choices[0] && resObj.choices[0].message)
+                              ? resObj.choices[0].message
+                              : (resObj.message || {});
+
+                    // Our proxy wraps the thinking trace back in <think> tags for the final cache storage
+                    // to maintain OpenAI compatibility.
+                    content = msg.content || "";
+
+                    if (content.includes("<think>")) {
+                        const thinkMatch = content.match(/<think>(.*?)<\\/think>/s);
+                        if (thinkMatch) {
+                            thinking = thinkMatch[1].trim();
+                            content = content.replace(/<think>.*?<\\/think>/s, '').trim();
+                        }
+                    } else if (msg.thinking) {
+                        // Just in case it's exposed natively in the history object
+                        thinking = msg.thinking;
+                    }
+
+                    if (!content) {
+                         if (resObj.error) {
+                             content = JSON.stringify(resObj.error, null, 2);
+                         } else {
+                             content = JSON.stringify(resObj, null, 2);
+                         }
+                    }
+
                 } catch (e) {
-                    document.getElementById('detail-response').textContent = item.response_json;
+                    content = item.response_json;
                 }
+
+                const thinkContainer = document.getElementById('detail-thinking-container');
+                const thinkEl = document.getElementById('detail-thinking');
+
+                if (thinking) {
+                    thinkEl.textContent = thinking;
+                    thinkContainer.style.display = 'block';
+                } else {
+                    thinkContainer.style.display = 'none';
+                    thinkEl.textContent = "";
+                }
+
+                document.getElementById('detail-result').textContent = content;
             }
 
             function setupStream() {
@@ -467,12 +660,16 @@ async def review_ui():
                     if (box.textContent === 'Waiting for stream...') {
                         box.textContent = '';
                     }
-                    const data = JSON.parse(event.data);
-                    const span = document.createElement('span');
-                    span.textContent = data.content;
-                    span.className = data.in_thinking ? 'thinking' : 'final-output';
-                    box.appendChild(span);
-                    box.scrollTop = box.scrollHeight;
+                    try {
+                        const data = JSON.parse(event.data);
+                        const span = document.createElement('span');
+                        span.textContent = data.content;
+                        span.className = data.in_thinking ? 'stream-thinking' : 'stream-final';
+                        box.appendChild(span);
+                        box.scrollTop = box.scrollHeight;
+                    } catch (e) {
+                        console.error('SSE Error', e);
+                    }
                 };
             }
 
@@ -533,7 +730,7 @@ if __name__ == "__main__":
 
     # Construct OLLAMA_URL from the server parameter
     server_url = args.server.rstrip('/')
-    Config.OLLAMA_URL = f"{server_url}/v1/chat/completions"
+    Config.OLLAMA_URL = f"{server_url}/api/chat"
     Config.STREAM_OLLAMA = args.stream
 
     asyncio.run(serve())
