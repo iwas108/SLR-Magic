@@ -53,19 +53,18 @@ const OllamaAdapter = (function() {
       messages: messages
     };
 
+    // Centralize standard OpenAI-like options
+    payload.temperature = parseFloat(temperature) !== undefined && !isNaN(parseFloat(temperature)) ? parseFloat(temperature) : 0.6;
+    payload.max_tokens = parseInt(maxTokens) || 8192;
+
+    // Send advanced options mapped to the new middleman feature
+    payload.options = {};
     if (enableGenericThinking) {
-      payload.options = {
-        temperature: parseFloat(temperature) !== undefined && !isNaN(parseFloat(temperature)) ? parseFloat(temperature) : 0.6,
-        num_predict: parseInt(maxTokens) || 8192,
-        think: true
-      };
-    } else {
-      payload.temperature = parseFloat(temperature) !== undefined && !isNaN(parseFloat(temperature)) ? parseFloat(temperature) : 0.6,
-      payload.max_tokens = parseInt(maxTokens) || 8192;
+      payload.options.think = true;
     }
 
-    // Note: Ollama chat completions typically don't have built-in "thinking" config like Gemini.
-    // If specific Ollama configurations for thinking are required, they would go here.
+    // Additional parameters like context size could also be set here dynamically
+    // based on user configurations (e.g., payload.options.num_ctx = ...)
 
     const options = {
       method: 'post',

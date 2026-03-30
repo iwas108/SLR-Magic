@@ -14,10 +14,11 @@ import argparse
 from datetime import datetime
 from contextlib import asynccontextmanager
 
+import asyncio
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 
 # =====================================================================
 # Configuration & Logging setup
@@ -31,7 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger("middleman")
 
 class Config:
-    OLLAMA_URL = "http://172.23.160.1:11434/v1/chat/completions"
+    OLLAMA_URL = "http://127.0.0.1:11434/v1/chat/completions"
     DB_FILE = "slr_cache.db"
     STREAM_OLLAMA = False
 
@@ -50,6 +51,16 @@ class CacheRepository:
                 CREATE TABLE IF NOT EXISTS cache (
                     payload_hash TEXT PRIMARY KEY,
                     response_json TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    model_name TEXT,
+                    request_json TEXT,
+                    response_json TEXT,
+                    duration_ms INTEGER,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -73,9 +84,35 @@ class CacheRepository:
                 (payload_hash, json.dumps(response_data))
             )
 
+    def log_history(self, model_name: str, request_data: dict, response_data: dict, duration_ms: int):
+        with sqlite3.connect(self.db_file) as conn:
+            conn.execute(
+                "INSERT INTO history (model_name, request_json, response_json, duration_ms) VALUES (?, ?, ?, ?)",
+                (model_name, json.dumps(request_data), json.dumps(response_data), duration_ms)
+            )
+
 # =====================================================================
 # Service Layer (The OpenAI -> Native Translator)
 # =====================================================================
+
+class StreamBroadcaster:
+    def __init__(self):
+        self.listeners = []
+
+    async def broadcast(self, message: str):
+        for queue in self.listeners:
+            await queue.put(message)
+
+    def add_listener(self) -> asyncio.Queue:
+        q = asyncio.Queue()
+        self.listeners.append(q)
+        return q
+
+    def remove_listener(self, q: asyncio.Queue):
+        if q in self.listeners:
+            self.listeners.remove(q)
+
+stream_broadcaster = StreamBroadcaster()
 
 class OllamaService:
     def __init__(self, url: str, stream_mode: bool):
@@ -87,17 +124,29 @@ class OllamaService:
         model_name = openai_payload.get("model", "qwen3.5-slr")
         messages = openai_payload.get("messages", [])
         
+        # Extract default/basic options
+        temperature = openai_payload.get("temperature", 0.6)
+        max_tokens = openai_payload.get("max_tokens", 8192)
+
+        # Allow fully customizable options from the frontend payload "options" dict
+        custom_options = openai_payload.get("options", {})
+
         # 1. TRANSLATE TO NATIVE PAYLOAD
         # This safely applies our VRAM limits without crashing the server!
+        native_options = {
+            "temperature": temperature,
+            "num_predict": max_tokens,
+            "num_ctx": 16384  # Safely restricts context to 16K tokens for AMD GPU
+        }
+
+        # Merge custom options provided by the caller (overriding defaults if specified)
+        native_options.update(custom_options)
+
         native_payload = {
             "model": model_name,
             "messages": messages,
             "keep_alive": 0, 
-            "options": {
-                "temperature": openai_payload.get("temperature", 0.6),
-                "num_predict": openai_payload.get("max_tokens", 8192),
-                "num_ctx": 16384  # <--- Safely restricts context to 16K tokens for AMD GPU!
-            }
+            "options": native_options
         }
 
         if self.stream_mode:
@@ -177,6 +226,12 @@ class OllamaService:
                         
                         print(content_piece, end="", flush=True)
 
+                        # Broadcast chunk to web UI
+                        await stream_broadcaster.broadcast(json.dumps({
+                            "content": content_piece,
+                            "in_thinking": in_thinking
+                        }))
+
                     # Native API sends telemetry when done=True
                     if chunk.get("done") is True:
                         usage = {
@@ -223,7 +278,7 @@ def print_input_context(messages: list):
                     return
 
 # =====================================================================
-# API Routing & App Initialization
+# Main App Routing (Port 8000)
 # =====================================================================
 
 cache_repo: CacheRepository
@@ -253,10 +308,16 @@ async def proxy_to_ollama(request: Request):
     req_hash = cache_repo.generate_hash(messages)
     hash_short = req_hash[:8]
 
+    start_time = datetime.now()
+
     cached_response = cache_repo.get(req_hash)
     if cached_response:
+        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
         total_tokens = cached_response.get("usage", {}).get("total_tokens", "N/A")
-        logger.info(f"⚡ CACHE HIT  | Hash: {hash_short} | Tokens: {total_tokens} | Returning instant response.")
+        model_name = cached_response.get("model", "unknown")
+        logger.info(f"⚡ CACHE HIT  | Hash: {hash_short} | Model: {model_name} | Tokens: {total_tokens} | Time: {duration_ms}ms | Returning instant response.")
+
+        cache_repo.log_history(model_name, payload, cached_response, duration_ms)
         print_input_context(messages)
         return cached_response
 
@@ -264,10 +325,14 @@ async def proxy_to_ollama(request: Request):
     try:
         response_data = await ollama_service.fetch_completion(payload)
         
-        cache_repo.set(req_hash, response_data)
-        
+        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
         total_tokens = response_data.get("usage", {}).get("total_tokens", "N/A")
-        logger.info(f"💾 CACHED     | Hash: {hash_short} | Tokens: {total_tokens} | Saved successfully.")
+        model_name = response_data.get("model", "unknown")
+
+        cache_repo.set(req_hash, response_data)
+        cache_repo.log_history(model_name, payload, response_data, duration_ms)
+        
+        logger.info(f"💾 CACHED     | Hash: {hash_short} | Model: {model_name} | Tokens: {total_tokens} | Time: {duration_ms}ms | Saved successfully.")
         
         print_input_context(messages)
         
@@ -280,9 +345,195 @@ async def proxy_to_ollama(request: Request):
         logger.error(f"❌ Internal Server Error: {str(e)}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# =====================================================================
+# Web Review App Routing (Port 8899)
+# =====================================================================
+
+web_app = FastAPI()
+
+@web_app.get("/")
+async def review_ui():
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Middleman Review</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+            .container { display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; }
+            .sidebar { flex: 1; max-width: 300px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); height: calc(100vh - 40px); overflow-y: auto; }
+            .main { flex: 3; display: flex; flex-direction: column; gap: 20px; }
+            .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            h2, h3 { margin-top: 0; }
+            .history-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
+            .history-item:hover { background: #f0f0f0; }
+            .history-item.active { background: #e3f2fd; border-left: 4px solid #2196f3; }
+            .model-badge { display: inline-block; padding: 3px 8px; background: #e0e0e0; border-radius: 12px; font-size: 0.8em; margin-bottom: 5px; }
+            .time-text { font-size: 0.8em; color: #666; }
+            pre { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+            #live-stream-box { background: #2b2b2b; color: #fff; padding: 15px; border-radius: 5px; min-height: 100px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-family: monospace; }
+            .thinking { color: #888; font-style: italic; }
+            .final-output { color: #a6e22e; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="sidebar">
+                <h2>History</h2>
+                <button onclick="loadHistory()" style="width:100%; padding:8px; margin-bottom:15px; cursor:pointer;">Refresh</button>
+                <div id="history-list"></div>
+            </div>
+            <div class="main">
+                <div class="card">
+                    <h2>Live Stream</h2>
+                    <div id="live-stream-box">Waiting for stream...</div>
+                </div>
+                <div class="card" id="details-card" style="display:none;">
+                    <h2>Request Details</h2>
+                    <div><strong>Model:</strong> <span id="detail-model"></span></div>
+                    <div><strong>Duration:</strong> <span id="detail-duration"></span> ms</div>
+                    <div><strong>Time:</strong> <span id="detail-time"></span></div>
+                    <h3>Request Messages</h3>
+                    <pre id="detail-request"></pre>
+                    <h3>Response Content</h3>
+                    <pre id="detail-response"></pre>
+                </div>
+            </div>
+        </div>
+        <script>
+            let historyData = [];
+
+            async function loadHistory() {
+                try {
+                    const res = await fetch('/api/history');
+                    historyData = await res.json();
+                    renderHistory();
+                } catch (e) {
+                    console.error('Failed to load history', e);
+                }
+            }
+
+            function renderHistory() {
+                const list = document.getElementById('history-list');
+                list.innerHTML = '';
+                historyData.forEach((item, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'history-item';
+                    div.onclick = () => showDetails(index);
+
+                    const time = new Date(item.created_at).toLocaleTimeString();
+                    div.innerHTML = `
+                        <div class="model-badge">${item.model_name}</div>
+                        <div>Req #${item.id}</div>
+                        <div class="time-text">${time} • ${item.duration_ms}ms</div>
+                    `;
+                    list.appendChild(div);
+                });
+            }
+
+            function showDetails(index) {
+                const item = historyData[index];
+                document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.history-item')[index].classList.add('active');
+
+                document.getElementById('details-card').style.display = 'block';
+                document.getElementById('detail-model').textContent = item.model_name;
+                document.getElementById('detail-duration').textContent = item.duration_ms;
+                document.getElementById('detail-time').textContent = new Date(item.created_at).toLocaleString();
+
+                try {
+                    const req = JSON.parse(item.request_json);
+                    document.getElementById('detail-request').textContent = JSON.stringify(req.messages || req, null, 2);
+                } catch (e) {
+                    document.getElementById('detail-request').textContent = item.request_json;
+                }
+
+                try {
+                    const res = JSON.parse(item.response_json);
+                    const content = res.choices?.[0]?.message?.content || JSON.stringify(res, null, 2);
+                    document.getElementById('detail-response').textContent = content;
+                } catch (e) {
+                    document.getElementById('detail-response').textContent = item.response_json;
+                }
+            }
+
+            function setupStream() {
+                const box = document.getElementById('live-stream-box');
+                const evtSource = new EventSource('/api/stream');
+
+                evtSource.onmessage = function(event) {
+                    if (box.textContent === 'Waiting for stream...') {
+                        box.textContent = '';
+                    }
+                    const data = JSON.parse(event.data);
+                    const span = document.createElement('span');
+                    span.textContent = data.content;
+                    span.className = data.in_thinking ? 'thinking' : 'final-output';
+                    box.appendChild(span);
+                    box.scrollTop = box.scrollHeight;
+                };
+            }
+
+            window.onload = () => {
+                loadHistory();
+                setupStream();
+            };
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+@web_app.get("/api/history")
+async def get_history():
+    import sqlite3
+    with sqlite3.connect(Config.DB_FILE) as conn:
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        c.execute("SELECT * FROM history ORDER BY id DESC LIMIT 50")
+        rows = c.fetchall()
+        return [dict(row) for row in rows]
+
+@web_app.get("/api/stream")
+async def sse_stream(request: Request):
+    async def event_generator():
+        q = stream_broadcaster.add_listener()
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                message = await q.get()
+                yield f"data: {message}\n\n"
+        finally:
+            stream_broadcaster.remove_listener(q)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+async def serve():
+    config_main = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="warning")
+    server_main = uvicorn.Server(config_main)
+
+    config_web = uvicorn.Config(web_app, host="0.0.0.0", port=8899, log_level="warning")
+    server_web = uvicorn.Server(config_web)
+
+    await asyncio.gather(
+        server_main.serve(),
+        server_web.serve()
+    )
+
 if __name__ == "__main__":
+    import argparse
     parser = argparse.ArgumentParser(description="Ollama Caching Proxy")
     parser.add_argument("--stream", action="store_true", help="Enable internal streaming")
+    parser.add_argument("--server", type=str, default="http://127.0.0.1:11434", help="Ollama Server URL (e.g., http://127.0.0.1:11434)")
     args = parser.parse_args()
+
+    # Construct OLLAMA_URL from the server parameter
+    server_url = args.server.rstrip('/')
+    Config.OLLAMA_URL = f"{server_url}/v1/chat/completions"
     Config.STREAM_OLLAMA = args.stream
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+
+    asyncio.run(serve())
