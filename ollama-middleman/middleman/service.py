@@ -49,7 +49,7 @@ class OllamaService:
         native_options = {
             "temperature": temperature,
             "num_predict": max_tokens,
-            "num_ctx": 16384  # Safely restricts context to 16K tokens for AMD GPU
+            "num_ctx": 4096  # Safely restricts context to 16K tokens for AMD GPU
         }
 
         # Merge custom options provided by the caller (overriding defaults if specified)
