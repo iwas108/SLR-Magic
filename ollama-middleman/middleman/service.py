@@ -13,12 +13,16 @@ class StreamBroadcaster:
     def __init__(self):
         self.listeners = []
 
-    async def broadcast(self, message: str):
+    def broadcast(self, message: str):
         for queue in self.listeners:
-            await queue.put(message)
+            try:
+                # Use put_nowait to avoid blocking the terminal if web client is slow
+                queue.put_nowait(message)
+            except asyncio.QueueFull:
+                pass # Drop messages if the client can't keep up
 
     def add_listener(self) -> asyncio.Queue:
-        q = asyncio.Queue()
+        q = asyncio.Queue(maxsize=1000) # Buffer up to 1000 messages
         self.listeners.append(q)
         return q
 
@@ -46,22 +50,36 @@ class OllamaService:
 
         # 1. TRANSLATE TO NATIVE PAYLOAD
         # This safely applies our VRAM limits without crashing the server!
+
+        raw_num_ctx = custom_options.get("num_ctx", 4096)
+        try:
+            parsed_num_ctx = int(raw_num_ctx)
+        except (ValueError, TypeError):
+            parsed_num_ctx = 4096
+
         native_options = {
             "temperature": temperature,
             "num_predict": max_tokens,
-            "num_ctx": custom_options.get("num_ctx", 4096)  # Use custom options if provided
+            "num_ctx": parsed_num_ctx  # Use custom options if provided
         }
 
         # Merge custom options provided by the caller (overriding defaults if specified)
         # Note: 'think' is a special top-level parameter in Ollama's API, not an option.
         think_param = custom_options.pop("think", None)
-        keep_alive_param = openai_payload.get("keep_alive", 0)
+
+        raw_keep_alive = openai_payload.get("keep_alive", 0)
+        try:
+            parsed_keep_alive = int(raw_keep_alive)
+        except (ValueError, TypeError):
+            # If it's a string like "5m", keep it as string, otherwise default to 0
+            parsed_keep_alive = raw_keep_alive if isinstance(raw_keep_alive, str) and raw_keep_alive.strip() != "" else 0
+
         native_options.update(custom_options)
 
         native_payload = {
             "model": model_name,
             "messages": messages,
-            "keep_alive": keep_alive_param,
+            "keep_alive": parsed_keep_alive,
             "options": native_options
         }
 
@@ -103,6 +121,7 @@ class OllamaService:
 
         import re
         paper_title = "Unknown Paper"
+        paper_abstract = "No abstract available."
         for msg in reversed(messages):
             if msg.get("role") == "user":
                 content = msg.get("content", "")
@@ -110,10 +129,12 @@ class OllamaService:
                     match = re.search(r"Title:\s*(.*?)\nAbstract:\s*(.*)", content, re.DOTALL | re.IGNORECASE)
                     if match:
                         paper_title = match.group(1).strip()
+                        paper_abstract = match.group(2).strip()
                         break
-        await stream_broadcaster.broadcast(json.dumps({
+        stream_broadcaster.broadcast(json.dumps({
             "type": "start",
-            "title": paper_title
+            "title": paper_title,
+            "abstract": paper_abstract
         }))
 
         # Prefill detection
@@ -161,7 +182,7 @@ class OllamaService:
                         in_thinking = True
                         print(thinking_piece, end="", flush=True)
 
-                        await stream_broadcaster.broadcast(json.dumps({
+                        stream_broadcaster.broadcast(json.dumps({
                             "content": thinking_piece,
                             "in_thinking": True
                         }))
@@ -175,7 +196,7 @@ class OllamaService:
                         full_content += content_piece
                         print(content_piece, end="", flush=True)
 
-                        await stream_broadcaster.broadcast(json.dumps({
+                        stream_broadcaster.broadcast(json.dumps({
                             "content": content_piece,
                             "in_thinking": False
                         }))
@@ -194,7 +215,7 @@ class OllamaService:
         print("\n")
         logger.info("✅ Stream complete.")
 
-        await stream_broadcaster.broadcast(json.dumps({
+        stream_broadcaster.broadcast(json.dumps({
             "type": "end"
         }))
 

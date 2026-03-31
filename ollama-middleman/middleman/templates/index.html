@@ -84,7 +84,8 @@
                         <strong>Processing Paper</strong>
                     </div>
                     <div class="card-body">
-                        <p class="card-text mb-0" id="in-progress-title">Title will appear here</p>
+                        <p class="card-text mb-1 fw-bold" id="in-progress-title">Title will appear here</p>
+                        <p class="card-text small text-muted mb-0" id="in-progress-abstract" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"></p>
                     </div>
                 </div>
 
@@ -466,10 +467,32 @@
         let streamBuffer = "";
         let currentStreamElement = null;
         let isCurrentlyThinking = null;
+        let needsRender = false;
+
+        function renderStream() {
+            if (!needsRender || !currentStreamElement) {
+                requestAnimationFrame(renderStream);
+                return;
+            }
+
+            needsRender = false;
+            if (isCurrentlyThinking) {
+                currentStreamElement.textContent = streamBuffer;
+            } else {
+                currentStreamElement.innerHTML = parseMarkdown(streamBuffer);
+            }
+
+            const box = document.getElementById('live-stream-box');
+            box.scrollTop = box.scrollHeight;
+
+            requestAnimationFrame(renderStream);
+        }
 
         function setupStream() {
             const box = document.getElementById('live-stream-box');
             const evtSource = new EventSource('/api/stream');
+
+            requestAnimationFrame(renderStream);
 
             evtSource.onmessage = function(event) {
                 if (box.textContent === 'Waiting for stream...') {
@@ -481,7 +504,16 @@
                     if (data.type === "start") {
                         const inProgressCard = document.getElementById('in-progress-card');
                         const inProgressTitle = document.getElementById('in-progress-title');
+                        const inProgressAbstract = document.getElementById('in-progress-abstract');
+
                         inProgressTitle.textContent = data.title || "Unknown Paper";
+                        if (data.abstract) {
+                            inProgressAbstract.textContent = data.abstract;
+                            inProgressAbstract.style.display = '-webkit-box';
+                        } else {
+                            inProgressAbstract.style.display = 'none';
+                        }
+
                         inProgressCard.style.display = 'block';
 
                         const sep = document.createElement('div');
@@ -512,14 +544,7 @@
                         }
 
                         streamBuffer += data.content;
-
-                        if (data.in_thinking) {
-                            currentStreamElement.textContent = streamBuffer;
-                        } else {
-                            currentStreamElement.innerHTML = parseMarkdown(streamBuffer);
-                        }
-
-                        box.scrollTop = box.scrollHeight;
+                        needsRender = true;
                     }
                 } catch (e) {
                     console.error('SSE Error', e);
