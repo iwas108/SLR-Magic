@@ -49,18 +49,19 @@ class OllamaService:
         native_options = {
             "temperature": temperature,
             "num_predict": max_tokens,
-            "num_ctx": 4096  # Safely restricts context to 16K tokens for AMD GPU
+            "num_ctx": custom_options.get("num_ctx", 4096)  # Use custom options if provided
         }
 
         # Merge custom options provided by the caller (overriding defaults if specified)
         # Note: 'think' is a special top-level parameter in Ollama's API, not an option.
         think_param = custom_options.pop("think", None)
+        keep_alive_param = openai_payload.get("keep_alive", 0)
         native_options.update(custom_options)
 
         native_payload = {
             "model": model_name,
             "messages": messages,
-            "keep_alive": 0,
+            "keep_alive": keep_alive_param,
             "options": native_options
         }
 
@@ -99,6 +100,21 @@ class OllamaService:
 
     async def _fetch_via_stream(self, native_payload: dict, model_name: str, messages: list) -> dict:
         logger.info("📡 Receiving native stream from Ollama...")
+
+        import re
+        paper_title = "Unknown Paper"
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                content = msg.get("content", "")
+                if isinstance(content, str):
+                    match = re.search(r"Title:\s*(.*?)\nAbstract:\s*(.*)", content, re.DOTALL | re.IGNORECASE)
+                    if match:
+                        paper_title = match.group(1).strip()
+                        break
+        await stream_broadcaster.broadcast(json.dumps({
+            "type": "start",
+            "title": paper_title
+        }))
 
         # Prefill detection
         is_prefilled = False
@@ -177,6 +193,10 @@ class OllamaService:
 
         print("\n")
         logger.info("✅ Stream complete.")
+
+        await stream_broadcaster.broadcast(json.dumps({
+            "type": "end"
+        }))
 
         # 2. TRANSLATE BACK TO OPENAI FORMAT
         return {

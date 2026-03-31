@@ -36,10 +36,12 @@ const LlmService = (function() {
       return VllmAdapter.callVllm(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob);
     } else if (provider === "Ollama") {
       const apiUrl = config["OLLAMA_API_URL"];
+      const keepAlive = config["OLLAMA_KEEP_ALIVE"] !== undefined ? config["OLLAMA_KEEP_ALIVE"] : "0";
+      const numCtx = config["OLLAMA_NUM_CTX"] !== undefined ? parseInt(config["OLLAMA_NUM_CTX"]) : 4096;
       if (!apiUrl) {
         throw new Error("OLLAMA_API_URL is missing in Configuration for Ollama.");
       }
-      return OllamaAdapter.callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob, enableGenericThinking);
+      return OllamaAdapter.callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob, enableGenericThinking, keepAlive, numCtx);
     } else {
       throw new Error(`Unsupported LLM_API_PROVIDER: ${provider}`);
     }

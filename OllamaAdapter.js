@@ -15,9 +15,11 @@ const OllamaAdapter = (function() {
    * @param {number} maxTokens
    * @param {GoogleAppsScript.Base.Blob} [fileBlob] Optional file blob to include as an image.
    * @param {boolean} [enableGenericThinking] Optional flag to enable generic thinking.
+   * @param {string} [keepAlive] Optional keep alive duration.
+   * @param {number} [numCtx] Optional context window size.
    * @returns {Object} The JSON object parsed from the response.
    */
-  function callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob, enableGenericThinking) {
+  function callOllama(prompt, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob, enableGenericThinking, keepAlive, numCtx) {
     if (!apiUrl) {
       throw new Error("Ollama API URL is missing in Configuration.");
     }
@@ -61,6 +63,12 @@ const OllamaAdapter = (function() {
     payload.options = {};
     if (enableGenericThinking) {
       payload.options.think = true;
+    }
+    if (keepAlive !== undefined) {
+      payload.keep_alive = keepAlive;
+    }
+    if (numCtx !== undefined) {
+      payload.options.num_ctx = numCtx;
     }
 
     // Additional parameters like context size could also be set here dynamically
