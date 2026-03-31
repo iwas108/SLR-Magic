@@ -211,6 +211,14 @@
         <!-- Advanced -->
         <div id="advanced" class="tab-content">
           <div class="form-group">
+            <label for="OLLAMA_KEEP_ALIVE">Ollama Keep Alive (e.g. 0 to unload, -1 to keep)</label>
+            <input type="text" id="OLLAMA_KEEP_ALIVE" name="OLLAMA_KEEP_ALIVE">
+          </div>
+          <div class="form-group">
+            <label for="OLLAMA_NUM_CTX">Ollama Num Context (e.g. 4096)</label>
+            <input type="number" id="OLLAMA_NUM_CTX" name="OLLAMA_NUM_CTX">
+          </div>
+          <div class="form-group">
             <label for="TEMPERATURE">Temperature (0.0 - 1.0)</label>
             <input type="number" id="TEMPERATURE" name="TEMPERATURE" step="0.1" min="0" max="1">
           </div>

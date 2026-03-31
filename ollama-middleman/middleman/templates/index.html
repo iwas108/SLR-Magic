@@ -37,6 +37,11 @@
         .prompt-box { font-size: 0.95em; white-space: pre-wrap; word-wrap: break-word; }
         .thinking-box { background: var(--bs-tertiary-bg); font-style: italic; color: var(--bs-secondary-color); padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; }
         .result-box { white-space: pre-wrap; word-wrap: break-word; padding: 1rem; background: var(--bs-light-bg-subtle); border-radius: 6px; }
+
+        #in-progress-card {
+            display: none;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -69,6 +74,19 @@
                     <button class="btn btn-outline-secondary" onclick="toggleTheme()">
                         <i id="theme-icon" class="bi bi-moon-fill"></i> Theme
                     </button>
+                </div>
+
+                <div id="in-progress-card" class="card border-primary shadow-sm">
+                    <div class="card-header bg-primary text-white d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <strong>Processing Paper</strong>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text mb-1 fw-bold" id="in-progress-title">Title will appear here</p>
+                        <p class="card-text small text-muted mb-0" id="in-progress-abstract" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"></p>
+                    </div>
                 </div>
 
                 <!-- Live Stream Box -->
@@ -412,9 +430,69 @@
             bsCollapse.show();
         }
 
+        function parseMarkdown(text) {
+            // Escape HTML entities to prevent XSS
+            let html = text.replace(/&/g, '&amp;')
+                           .replace(/</g, '&lt;')
+                           .replace(/>/g, '&gt;')
+                           .replace(/"/g, '&quot;')
+                           .replace(/'/g, '&#039;');
+
+            // Temporarily replace code blocks to avoid messing with their newlines
+            const codeBlocks = [];
+            html = html.replace(/```([\s\S]*?)```/g, function(match, p1) {
+                codeBlocks.push(p1);
+                return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+            });
+
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Bold and Italic
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+            // Newlines to <br>
+            html = html.replace(/\n\n/g, '<br><br>');
+            html = html.replace(/\n/g, '<br>');
+
+            // Restore code blocks
+            html = html.replace(/__CODE_BLOCK_(\d+)__/g, function(match, index) {
+                return `<pre><code>${codeBlocks[index]}</code></pre>`;
+            });
+
+            return html;
+        }
+
+        let streamBuffer = "";
+        let currentStreamElement = null;
+        let isCurrentlyThinking = null;
+        let needsRender = false;
+
+        function renderStream() {
+            if (!needsRender || !currentStreamElement) {
+                requestAnimationFrame(renderStream);
+                return;
+            }
+
+            needsRender = false;
+            if (isCurrentlyThinking) {
+                currentStreamElement.textContent = streamBuffer;
+            } else {
+                currentStreamElement.innerHTML = parseMarkdown(streamBuffer);
+            }
+
+            const box = document.getElementById('live-stream-box');
+            box.scrollTop = box.scrollHeight;
+
+            requestAnimationFrame(renderStream);
+        }
+
         function setupStream() {
             const box = document.getElementById('live-stream-box');
             const evtSource = new EventSource('/api/stream');
+
+            requestAnimationFrame(renderStream);
 
             evtSource.onmessage = function(event) {
                 if (box.textContent === 'Waiting for stream...') {
@@ -422,11 +500,52 @@
                 }
                 try {
                     const data = JSON.parse(event.data);
-                    const span = document.createElement('span');
-                    span.textContent = data.content;
-                    span.className = data.in_thinking ? 'stream-thinking' : 'stream-final';
-                    box.appendChild(span);
-                    box.scrollTop = box.scrollHeight;
+
+                    if (data.type === "start") {
+                        const inProgressCard = document.getElementById('in-progress-card');
+                        const inProgressTitle = document.getElementById('in-progress-title');
+                        const inProgressAbstract = document.getElementById('in-progress-abstract');
+
+                        inProgressTitle.textContent = data.title || "Unknown Paper";
+                        if (data.abstract) {
+                            inProgressAbstract.textContent = data.abstract;
+                            inProgressAbstract.style.display = '-webkit-box';
+                        } else {
+                            inProgressAbstract.style.display = 'none';
+                        }
+
+                        inProgressCard.style.display = 'block';
+
+                        const sep = document.createElement('div');
+                        sep.innerHTML = `<hr class="border-secondary"><div class="text-secondary small mb-2"><i class="bi bi-clock"></i> New Stream Started: ${new Date().toLocaleTimeString()}</div>`;
+                        box.appendChild(sep);
+
+                        currentStreamElement = document.createElement('div');
+                        box.appendChild(currentStreamElement);
+                        streamBuffer = "";
+                    } else if (data.type === "end") {
+                        const inProgressCard = document.getElementById('in-progress-card');
+                        inProgressCard.style.display = 'none';
+
+                        const sep = document.createElement('div');
+                        sep.innerHTML = `<div class="text-success small mt-2 mb-2"><i class="bi bi-check-circle"></i> Stream Ended: ${new Date().toLocaleTimeString()}</div><hr class="border-secondary">`;
+                        box.appendChild(sep);
+
+                        currentStreamElement = null;
+                        streamBuffer = "";
+                    } else {
+                        // Detect transition between thinking and final
+                        if (isCurrentlyThinking !== data.in_thinking) {
+                            currentStreamElement = document.createElement('div');
+                            currentStreamElement.className = data.in_thinking ? 'stream-thinking' : 'stream-final';
+                            box.appendChild(currentStreamElement);
+                            streamBuffer = "";
+                            isCurrentlyThinking = data.in_thinking;
+                        }
+
+                        streamBuffer += data.content;
+                        needsRender = true;
+                    }
                 } catch (e) {
                     console.error('SSE Error', e);
                 }
