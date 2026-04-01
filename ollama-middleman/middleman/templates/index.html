@@ -107,6 +107,44 @@
                 </div>
             </div>
 
+
+            <!-- Stats Tab -->
+            <div class="tab-pane fade" id="stats-tab-pane" role="tabpanel" aria-labelledby="stats-tab" tabindex="0">
+                <div class="card mt-4 shadow-sm border-0">
+                    <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center pb-3">
+                        <h5 class="mb-0 text-primary"><i class="bi bi-bar-chart-fill me-2"></i>Endpoint Performance Statistics</h5>
+                        <button class="btn btn-primary" onclick="loadStats()">
+                            <i class="bi bi-calculator"></i> Recalculate
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 text-center align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Model Name</th>
+                                        <th class="text-start">Endpoint URL / Label</th>
+                                        <th>Processed Requests</th>
+                                        <th>Total Time</th>
+                                        <th>Avg Time</th>
+                                        <th>Min Time</th>
+                                        <th>Max Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="statsTableBody">
+                                    <tr>
+                                        <td colspan="7" class="text-center py-5 text-secondary">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            Click Recalculate to load and refresh statistics...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- History Tab -->
             <div class="tab-pane fade h-100" id="history-pane" role="tabpanel" aria-labelledby="history-tab" tabindex="0">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -216,7 +254,119 @@
         let currentPage = 1;
         const limit = 50;
 
-        async function loadHistory(page = 1) {
+        async
+        function selectAllHistoryItems(checked) {
+            const checkboxes = document.querySelectorAll('.history-checkbox');
+            checkboxes.forEach(cb => cb.checked = checked);
+            updateBulkDeleteButton();
+        }
+
+        function toggleHistoryCheckbox() {
+            updateBulkDeleteButton();
+            const allCheckboxes = document.querySelectorAll('.history-checkbox');
+            const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+            const someChecked = Array.from(allCheckboxes).some(cb => cb.checked);
+            const selectAllCb = document.getElementById('selectAllHistory');
+            selectAllCb.checked = allChecked;
+            selectAllCb.indeterminate = someChecked && !allChecked;
+        }
+
+        function updateBulkDeleteButton() {
+            const checkedCount = document.querySelectorAll('.history-checkbox:checked').length;
+            document.getElementById('btnBulkDelete').disabled = checkedCount === 0;
+        }
+
+        async function deleteSelectedHistory() {
+            const checkboxes = document.querySelectorAll('.history-checkbox:checked');
+            const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+            if (ids.length === 0) return;
+
+            if (!confirm(`Are you sure you want to delete ${ids.length} selected records?`)) return;
+
+            try {
+                const res = await fetch('/api/history/bulk', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ids: ids })
+                });
+
+                if (res.ok) {
+                    document.getElementById('selectAllHistory').checked = false;
+                    document.getElementById('selectAllHistory').indeterminate = false;
+                    loadHistory();
+                } else {
+                    alert('Failed to delete selected items');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+
+        async function loadStats() {
+            const tbody = document.getElementById('statsTableBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary"><div class="spinner-border spinner-border-sm me-2"></div>Calculating...</td></tr>';
+            try {
+                const res = await fetch('/api/stats');
+                const stats = await res.json();
+
+                if (stats.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary">No data available in history.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                stats.forEach(s => {
+                    const row = document.createElement('tr');
+
+                    const durationStr = formatDuration(s.total_duration_ms);
+                    const avgStr = formatDuration(s.avg_duration_ms);
+                    const minStr = formatDuration(s.min_duration_ms);
+                    const maxStr = formatDuration(s.max_duration_ms);
+
+                    row.innerHTML = `
+                        <td class="fw-bold text-success">${s.model_name}</td>
+                        <td class="text-start">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-info text-dark me-2 text-truncate" style="max-width:200px;" title="${s.endpoint_url}">${s.endpoint_url}</span>
+                                <input type="text" class="form-control form-control-sm border-secondary shadow-none" style="width: 150px"
+                                       value="${s.endpoint_label !== s.endpoint_url ? s.endpoint_label : ''}"
+                                       placeholder="Custom Label..."
+                                       onchange="saveEndpointLabel('${s.endpoint_url}', this.value)">
+                            </div>
+                        </td>
+                        <td><span class="badge bg-secondary fs-6 rounded-pill px-3">${s.request_count}</span></td>
+                        <td class="text-muted">${durationStr}</td>
+                        <td class="text-muted">${avgStr}</td>
+                        <td class="text-muted">${minStr}</td>
+                        <td class="text-muted">${maxStr}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch(e) {
+                console.error(e);
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">Failed to load stats</td></tr>';
+            }
+        }
+
+        async function saveEndpointLabel(url, label) {
+            try {
+                await fetch('/api/stats/label', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ endpoint_url: url, label: label })
+                });
+                // Optionally visually indicate success
+            } catch(e) {
+                console.error(e);
+                alert("Failed to save label");
+            }
+        }
+
+        function loadHistory(page = 1) {
             currentPage = page;
             try {
                 const searchVal = document.getElementById('searchInput').value.trim();
@@ -751,26 +901,9 @@
                         if (!state) return;
 
                         if (state.isCurrentlyThinking !== data.in_thinking) {
-                            if (data.in_thinking) {
-                                const details = document.createElement('details');
-                                details.className = 'stream-thinking-details mb-2';
-                                const summary = document.createElement('summary');
-                                summary.className = 'text-secondary user-select-none';
-                                summary.style.cursor = 'pointer';
-                                summary.innerHTML = '<i class="bi bi-lightbulb"></i> Reasoning Trace (Thinking)';
-                                details.appendChild(summary);
-
-                                const contentDiv = document.createElement('div');
-                                contentDiv.className = 'stream-thinking thinking-box mt-2';
-                                details.appendChild(contentDiv);
-
-                                state.container.appendChild(details);
-                                state.currentStreamElement = contentDiv;
-                            } else {
-                                state.currentStreamElement = document.createElement('div');
-                                state.currentStreamElement.className = 'stream-final mt-2';
-                                state.container.appendChild(state.currentStreamElement);
-                            }
+                            state.currentStreamElement = document.createElement('div');
+                            state.currentStreamElement.className = data.in_thinking ? 'stream-thinking' : 'stream-final';
+                            state.container.appendChild(state.currentStreamElement);
                             state.streamBuffer = "";
                             state.isCurrentlyThinking = data.in_thinking;
                         }

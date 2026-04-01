@@ -48,7 +48,6 @@ async def proxy_to_ollama(request: Request):
         model_name = cached_response.get("model", "unknown")
 
         endpoint_url = cached_response.pop("endpoint_url", "cache")
-        cache_repo.log_history(model_name, payload, cached_response, duration_ms, endpoint_url)
         logger.info(f"⚡ Cache Hit [{short_hash}] - Fulfilled instantly")
         return cached_response
 
@@ -63,7 +62,6 @@ async def proxy_to_ollama(request: Request):
             model_name = cached_response.get("model", "unknown")
 
             endpoint_url = cached_response.pop("endpoint_url", "cache")
-            cache_repo.log_history(model_name, payload, cached_response, duration_ms, endpoint_url)
             logger.info(f"⚡ Cache Hit [{short_hash}] - Fulfilled after waiting {duration_ms}ms")
             return cached_response
         else:
@@ -101,10 +99,42 @@ async def proxy_to_ollama(request: Request):
 # Web Review API Endpoints (Port 8899)
 # =====================================================================
 
+@web_api_router.get("/api/stats")
+async def get_stats():
+    try:
+        return cache_repo.get_stats()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@web_api_router.post("/api/stats/label")
+async def set_endpoint_label(request: Request):
+    try:
+        data = await request.json()
+        endpoint_url = data.get("endpoint_url")
+        label = data.get("label", "")
+        if not endpoint_url:
+            return JSONResponse(status_code=400, content={"error": "endpoint_url is required"})
+        cache_repo.set_endpoint_label(endpoint_url, label)
+        return {"status": "success"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @web_api_router.get("/api/history")
 async def get_history(search: str = None, page: int = 1, limit: int = 50):
     try:
         return cache_repo.get_history(search=search, page=page, limit=limit)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@web_api_router.delete("/api/history/bulk")
+async def bulk_delete_history(request: Request):
+    try:
+        data = await request.json()
+        item_ids = data.get("ids", [])
+        if not item_ids:
+            return JSONResponse(status_code=400, content={"error": "No IDs provided"})
+        cache_repo.delete_history_items(item_ids)
+        return {"status": "success", "message": f"Deleted {len(item_ids)} items"}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

@@ -115,6 +115,11 @@ class CacheRepository:
             # 3. Delete from history
             conn.execute("DELETE FROM history WHERE id = ?", (item_id,))
 
+        def delete_history_items(self, item_ids: list):
+        with self._get_connection() as c:
+            placeholders = ','.join('?' * len(item_ids))
+            c.execute(f"DELETE FROM history WHERE id IN ({placeholders})", item_ids)
+
     def clear_history(self):
         with sqlite3.connect(self.db_file) as conn:
             conn.execute("DELETE FROM history")
