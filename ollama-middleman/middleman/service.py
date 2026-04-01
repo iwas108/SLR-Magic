@@ -2,6 +2,7 @@ import json
 import asyncio
 import httpx
 import re
+import itertools
 from datetime import datetime
 
 from middleman.config import logger
@@ -80,9 +81,10 @@ class StreamBroadcaster:
 stream_broadcaster = StreamBroadcaster()
 
 class OllamaService:
-    def __init__(self, url: str, stream_mode: bool):
-        self.url = url
+    def __init__(self, urls: list, stream_mode: bool):
+        self.urls = urls
         self.stream_mode = stream_mode
+        self.url_cycle = itertools.cycle(self.urls)
 
     async def fetch_completion(self, openai_payload: dict) -> dict:
         model_name = openai_payload.get("model", "qwen3.5-slr")
@@ -135,16 +137,19 @@ class OllamaService:
 
         logger.debug(f"Translated Native Payload: {json.dumps(native_payload)}")
 
+        endpoint_url = next(self.url_cycle)
+        logger.info(f"🚀 Dispatching request to endpoint: {endpoint_url}")
+
         if self.stream_mode:
             native_payload["stream"] = True
-            return await self._fetch_via_stream(native_payload, model_name, messages)
+            return await self._fetch_via_stream(native_payload, model_name, messages, endpoint_url)
 
         native_payload["stream"] = False
-        return await self._fetch_standard(native_payload, model_name)
+        return await self._fetch_standard(native_payload, model_name, endpoint_url)
 
-    async def _fetch_standard(self, native_payload: dict, model_name: str) -> dict:
+    async def _fetch_standard(self, native_payload: dict, model_name: str, endpoint_url: str) -> dict:
         async with httpx.AsyncClient(timeout=900.0) as client:
-            response = await client.post(self.url, json=native_payload)
+            response = await client.post(endpoint_url, json=native_payload)
             response.raise_for_status()
             chunk = response.json()
 
@@ -163,13 +168,15 @@ class OllamaService:
                 "created": int(datetime.now().timestamp()),
                 "model": model_name,
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": cleaned_content}, "finish_reason": "stop"}],
-                "usage": usage
+                "usage": usage,
+                "endpoint_url": endpoint_url
             }
 
-    async def _fetch_via_stream(self, native_payload: dict, model_name: str, messages: list) -> dict:
-        logger.info("📡 Receiving native stream from Ollama...")
-
+    async def _fetch_via_stream(self, native_payload: dict, model_name: str, messages: list, endpoint_url: str) -> dict:
         import re
+        import uuid
+
+        stream_id = str(uuid.uuid4())
         paper_title = "Unknown Paper"
         paper_abstract = "No abstract available."
         for msg in reversed(messages):
@@ -183,8 +190,10 @@ class OllamaService:
                         break
         stream_broadcaster.broadcast(json.dumps({
             "type": "start",
+            "stream_id": stream_id,
             "title": paper_title,
-            "abstract": paper_abstract
+            "abstract": paper_abstract,
+            "endpoint_url": endpoint_url
         }))
 
         # Prefill detection
@@ -196,13 +205,9 @@ class OllamaService:
         usage = {}
 
         in_thinking = is_prefilled
-        has_printed_thinking_header = is_prefilled
-
-        if is_prefilled:
-            print("\n\033[90m[🤔 Thinking... (Prefilled)]\033[0m\n\033[90m", end="", flush=True)
 
         async with httpx.AsyncClient(timeout=900.0) as client:
-            async with client.stream("POST", self.url, json=native_payload) as response:
+            async with client.stream("POST", endpoint_url, json=native_payload) as response:
                 response.raise_for_status()
 
                 async for line in response.aiter_lines():
@@ -219,37 +224,54 @@ class OllamaService:
                     thinking_piece = msg.get("thinking", "")
                     content_piece = msg.get("content", "")
 
+                    # Fallback parsing for models that embed <think> inside content
+                    if not thinking_piece and content_piece:
+                        if "<think>" in content_piece and not in_thinking:
+                            in_thinking = True
+                        if "</think>" in content_piece and in_thinking:
+                            in_thinking = False
+
                     if thinking_piece:
                         if not in_thinking:
                             full_content += "<think>\n"
 
                         full_content += thinking_piece
 
-                        if not in_thinking and not has_printed_thinking_header:
-                            print("\n\033[90m[🤔 Thinking...]\033[0m\n\033[90m", end="")
-                            has_printed_thinking_header = True
-
                         in_thinking = True
-                        print(thinking_piece, end="", flush=True)
 
                         stream_broadcaster.broadcast(json.dumps({
+                            "type": "content",
+                            "stream_id": stream_id,
                             "content": thinking_piece,
-                            "in_thinking": True
+                            "in_thinking": True,
+                            "endpoint_url": endpoint_url
                         }))
 
                     if content_piece:
-                        if in_thinking:
-                            full_content += "\n</think>\n\n"
-                            print("\033[0m\n\n\033[92m[💡 Final Output]\033[0m\n", end="")
-                            in_thinking = False
+                        if in_thinking and not thinking_piece and "</think>" not in content_piece:
+                            # It's an embedded thinking chunk
+                            full_content += content_piece
+                            stream_broadcaster.broadcast(json.dumps({
+                                "type": "content",
+                                "stream_id": stream_id,
+                                "content": content_piece,
+                                "in_thinking": True,
+                                "endpoint_url": endpoint_url
+                            }))
+                        else:
+                            if in_thinking and thinking_piece:
+                                full_content += "\n</think>\n\n"
+                                in_thinking = False
 
-                        full_content += content_piece
-                        print(content_piece, end="", flush=True)
+                            full_content += content_piece
 
-                        stream_broadcaster.broadcast(json.dumps({
-                            "content": content_piece,
-                            "in_thinking": False
-                        }))
+                            stream_broadcaster.broadcast(json.dumps({
+                                "type": "content",
+                                "stream_id": stream_id,
+                                "content": content_piece,
+                                "in_thinking": False,
+                                "endpoint_url": endpoint_url
+                            }))
 
                     # Native API sends telemetry when done=True
                     if chunk.get("done") is True:
@@ -259,14 +281,10 @@ class OllamaService:
                             "total_tokens": chunk.get("prompt_eval_count", 0) + chunk.get("eval_count", 0)
                         }
 
-        if in_thinking:
-            print("\033[0m", end="")
-
-        print("\n")
-        logger.info("✅ Stream complete.")
-
         stream_broadcaster.broadcast(json.dumps({
-            "type": "end"
+            "type": "end",
+            "stream_id": stream_id,
+            "endpoint_url": endpoint_url
         }))
 
         # 2. TRANSLATE BACK TO OPENAI FORMAT
@@ -289,5 +307,6 @@ class OllamaService:
             "created": int(datetime.now().timestamp()),
             "model": model_name,
             "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}],
-            "usage": usage
+            "usage": usage,
+            "endpoint_url": endpoint_url
         }

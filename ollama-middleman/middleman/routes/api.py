@@ -17,27 +17,6 @@ cache_repo = None
 ollama_service = None
 
 # =====================================================================
-# Presentation Layer Helper
-# =====================================================================
-
-def print_input_context(messages: list):
-    for msg in reversed(messages):
-        if msg.get("role") == "user":
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                match = re.search(r"Title:\s*(.*?)\nAbstract:\s*(.*)", content, re.DOTALL | re.IGNORECASE)
-                if match:
-                    title = match.group(1).strip()
-                    abstract = match.group(2).strip()
-
-                    print("\n\033[96m" + "="*80 + "\033[0m")
-                    print("\033[96m[📄 INPUT CONTEXT]\033[0m")
-                    print(f"\033[94mTitle:\033[0m {title}")
-                    print(f"\033[94mAbstract:\033[0m {abstract}")
-                    print("\033[96m" + "="*80 + "\033[0m\n")
-                    return
-
-# =====================================================================
 # Proxy API Endpoints (Port 8000)
 # =====================================================================
 
@@ -53,36 +32,29 @@ async def proxy_to_ollama(request: Request):
          return JSONResponse(status_code=400, content={"error": "No messages found in payload"})
 
     req_hash = cache_repo.generate_hash(messages)
-    hash_short = req_hash[:8]
 
     start_time = datetime.now()
 
     cached_response = cache_repo.get(req_hash)
     if cached_response:
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-        total_tokens = cached_response.get("usage", {}).get("total_tokens", "N/A")
         model_name = cached_response.get("model", "unknown")
-        logger.info(f"⚡ CACHE HIT  | Hash: {hash_short} | Model: {model_name} | Tokens: {total_tokens} | Time: {duration_ms}ms | Returning instant response.")
 
-        cache_repo.log_history(model_name, payload, cached_response, duration_ms)
-        print_input_context(messages)
+        endpoint_url = cached_response.pop("endpoint_url", "cache")
+        cache_repo.log_history(model_name, payload, cached_response, duration_ms, endpoint_url)
         return cached_response
 
-    logger.info(f"⏳ CACHE MISS | Hash: {hash_short} | Forwarding to Ollama Native API...")
     try:
         import httpx
         response_data = await ollama_service.fetch_completion(payload)
 
         duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-        total_tokens = response_data.get("usage", {}).get("total_tokens", "N/A")
         model_name = response_data.get("model", "unknown")
 
+        endpoint_url = response_data.pop("endpoint_url", "unknown")
+
         cache_repo.set(req_hash, response_data)
-        cache_repo.log_history(model_name, payload, response_data, duration_ms)
-
-        logger.info(f"💾 CACHED     | Hash: {hash_short} | Model: {model_name} | Tokens: {total_tokens} | Time: {duration_ms}ms | Saved successfully.")
-
-        print_input_context(messages)
+        cache_repo.log_history(model_name, payload, response_data, duration_ms, endpoint_url)
 
         return response_data
 

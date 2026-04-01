@@ -229,8 +229,119 @@ const OllamaAdapter = (function() {
     }
   }
 
+  /**
+   * Calls the Ollama API with multiple prompts in parallel.
+   * @param {Array<Object>} promptsData Array of { prompt, fileBlob }
+   * @returns {Array<Object>} Array of results { content, usageMetadata }
+   */
+  function callOllamaParallel(promptsData, apiUrl, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, enableGenericThinking, keepAlive, numCtx) {
+    if (!apiUrl) throw new Error("Ollama API URL is missing in Configuration.");
+    if (!promptsData || promptsData.length === 0) return [];
+    if (!model) console.warn("Model was undefined! The Ollama server might require a specific model name.");
+
+    const requests = promptsData.map(data => {
+      const { prompt, fileBlob } = data;
+      let messages = [];
+
+      if (fileBlob) {
+        const base64Data = Utilities.base64Encode(fileBlob.getBytes());
+        const mimeType = fileBlob.getContentType();
+        const imageUrl = `data:${mimeType};base64,${base64Data}`;
+        messages.push({
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: imageUrl } }
+          ]
+        });
+      } else {
+        messages.push({
+          role: "user",
+          content: prompt
+        });
+      }
+
+      const payload = { model: model, messages: messages };
+      payload.temperature = parseFloat(temperature) !== undefined && !isNaN(parseFloat(temperature)) ? parseFloat(temperature) : 0.6;
+      payload.max_tokens = parseInt(maxTokens) || 8192;
+      payload.options = {};
+
+      if (enableGenericThinking) payload.options.think = true;
+      if (keepAlive !== undefined) payload.keep_alive = keepAlive;
+      if (numCtx !== undefined) payload.options.num_ctx = numCtx;
+
+      const options = {
+        url: apiUrl,
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      };
+
+      if (apiKey && apiKey.trim() !== "") {
+        options.headers = { "Authorization": `Bearer ${apiKey.trim()}` };
+      }
+
+      return options;
+    });
+
+    console.log(`[OllamaAdapter] Sending ${requests.length} parallel requests...`);
+    const startTime = new Date().getTime();
+
+    // Attempt parallel fetch (retries could be implemented per request, but UrlFetchApp.fetchAll fails or succeeds as a batch)
+    // For simplicity, we assume robust proxy or let it throw
+    const responses = UrlFetchApp.fetchAll(requests);
+
+    const endTime = new Date().getTime();
+    console.log(`[OllamaAdapter] Received ${responses.length} parallel responses in ${endTime - startTime}ms.`);
+
+    return responses.map((response, idx) => {
+      try {
+        const responseCode = response.getResponseCode();
+        const responseText = response.getContentText();
+
+        if (responseCode !== 200) {
+           return { error: true, message: `Ollama API Error (${responseCode}) on request ${idx}: ${responseText}` };
+        }
+
+        const jsonResponse = JSON.parse(responseText);
+        if (jsonResponse.choices && jsonResponse.choices.length > 0) {
+          const choice = jsonResponse.choices[0];
+          const contentText = choice.message?.content;
+
+          if (!contentText) {
+            return { error: true, message: `Ollama response missing message content on request ${idx}.` };
+          }
+
+          try {
+              const parsedContent = extractAndParseJSON(contentText);
+              const usage = jsonResponse.usage || {};
+              const mappedUsage = {
+                  promptTokenCount: usage.prompt_tokens || 0,
+                  candidatesTokenCount: usage.completion_tokens || 0,
+                  totalTokenCount: usage.total_tokens || 0,
+                  thoughtsTokenCount: 0
+              };
+
+              return {
+                  content: parsedContent,
+                  usageMetadata: mappedUsage
+              };
+          } catch (e) {
+              return { error: true, message: `Failed to parse JSON from Ollama response on request ${idx}: ${e.message}` };
+          }
+        } else {
+          return { error: true, message: `No choices returned from Ollama API on request ${idx}.` };
+        }
+      } catch (e) {
+        return { error: true, message: `Unexpected error processing request ${idx}: ${e.message}` };
+      }
+    });
+  }
+
   return {
-    callOllama
+    callOllama,
+    callOllamaParallel
   };
 
 })();

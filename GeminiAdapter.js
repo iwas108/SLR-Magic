@@ -220,8 +220,106 @@ const GeminiAdapter = (function() {
     }
   }
 
+  /**
+   * Calls the Gemini API with multiple prompts in parallel.
+   * @param {Array<Object>} promptsData Array of { prompt, fileBlob }
+   * @returns {Array<Object>} Array of results { content, usageMetadata }
+   */
+  function callGeminiParallel(promptsData, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget) {
+    if (!promptsData || promptsData.length === 0) return [];
+    if (!model) {
+       console.warn("Model was undefined! Defaulting to 'gemini-2.5-flash-lite'");
+       model = "gemini-2.5-flash-lite";
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const requests = promptsData.map(data => {
+      const { prompt, fileBlob } = data;
+      const parts = [{ text: prompt }];
+
+      if (fileBlob) {
+        const base64Data = Utilities.base64Encode(fileBlob.getBytes());
+        const mimeType = fileBlob.getContentType();
+        parts.push({
+          inline_data: { mime_type: mimeType, data: base64Data }
+        });
+      }
+
+      var myThinkingConfig = { includeThoughts: false };
+      if (thinkingLevel) myThinkingConfig.thinkingLevel = thinkingLevel;
+      if (thinkingBudget !== undefined && thinkingBudget !== null && String(thinkingBudget).trim() !== "") {
+          myThinkingConfig.thinkingBudget = parseInt(thinkingBudget);
+      }
+
+      const payload = {
+        contents: [{ parts: parts }],
+        generationConfig: {
+          temperature: temperature,
+          maxOutputTokens: maxTokens,
+          responseMimeType: "application/json",
+          thinkingConfig: myThinkingConfig
+        }
+      };
+
+      return {
+        url: url,
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      };
+    });
+
+    console.log(`[GeminiAdapter] Sending ${requests.length} parallel requests...`);
+    const startTime = new Date().getTime();
+
+    const responses = UrlFetchApp.fetchAll(requests);
+
+    const endTime = new Date().getTime();
+    console.log(`[GeminiAdapter] Received ${responses.length} parallel responses in ${endTime - startTime}ms.`);
+
+    return responses.map((response, idx) => {
+      try {
+        const responseCode = response.getResponseCode();
+        const responseText = response.getContentText();
+
+        if (responseCode !== 200) {
+          return { error: true, message: `Gemini API Error (${responseCode}) on request ${idx}: ${responseText}` };
+        }
+
+        const jsonResponse = JSON.parse(responseText);
+
+        if (jsonResponse.candidates && jsonResponse.candidates.length > 0) {
+          const candidate = jsonResponse.candidates[0];
+
+          if (!candidate.content || !candidate.content.parts || !candidate.content.parts[0]) {
+               const reason = candidate.finishReason || "Unknown";
+               return { error: true, message: `Gemini response missing content on request ${idx}. Finish Reason: ${reason}.` };
+          }
+
+          const contentText = candidate.content.parts[0].text;
+          try {
+              const parsedContent = extractAndParseJSON(contentText);
+              return {
+                  content: parsedContent,
+                  usageMetadata: jsonResponse.usageMetadata || {}
+              };
+          } catch (e) {
+              return { error: true, message: `Failed to parse JSON from Gemini response on request ${idx}: ${e.message}` };
+          }
+        } else {
+          return { error: true, message: `No candidates returned from Gemini API on request ${idx}.` };
+        }
+      } catch (e) {
+        return { error: true, message: `Unexpected error processing request ${idx}: ${e.message}` };
+      }
+    });
+  }
+
   return {
-    callGemini
+    callGemini,
+    callGeminiParallel
   };
 
 })();

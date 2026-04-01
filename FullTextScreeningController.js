@@ -411,6 +411,8 @@ const FullTextScreeningController = (function() {
         return;
       }
 
+      const parallelRequestSize = parseInt(config["PARALLEL_REQUEST_SIZE"] || "1");
+
       // 4. Process Batch
       const batch = pendingRows.slice(0, batchSize);
       SheetUtils.toast(`Starting multi-stage screening for ${batch.length} papers...`, "Processing", -1);
@@ -449,103 +451,187 @@ const FullTextScreeningController = (function() {
           }
       };
 
-      batch.forEach((row, index) => {
-        const pdfUrl = row["PDF"];
-        console.log(`Processing Row ${row._rowIndex}, PDF: ${pdfUrl}`);
+      for (let i = 0; i < batch.length; i += parallelRequestSize) {
+        const subBatch = batch.slice(i, i + parallelRequestSize);
 
-        const rowUpdateData = { "AI_Status": "Done" };
-        const rowUpdateNotes = {};
-        const tokenUsageByStage = {};
+        const subBatchContexts = [];
 
-        const pdfValidity = row["PDF_Validity"];
+        subBatch.forEach(row => {
+          const context = {
+            row: row,
+            rowUpdateData: { "AI_Status": "Done" },
+            rowUpdateNotes: {},
+            tokenUsageByStage: {},
+            pdfBlob: null,
+            skip: false
+          };
 
-        // Initial PDF Check
-        if (!pdfValidity) {
-            rowUpdateData["AI_Recommendation"] = "Exclude";
-            rowUpdateData["Exclusion_Reason"] = "EC5_WrongDoc";
-            rowUpdateData["AI_Reasoning"] = "No PDF file linked.";
+          if (!row["PDF_Validity"]) {
+              context.rowUpdateData["AI_Recommendation"] = "Exclude";
+              context.rowUpdateData["Exclusion_Reason"] = "EC5_WrongDoc";
+              context.rowUpdateData["AI_Reasoning"] = "No PDF file linked.";
+              context.skip = true;
+          } else {
+              try {
+                  context.pdfBlob = DriveUtils.getFileBlob(row["PDF"]);
+              } catch(e) {
+                  context.rowUpdateData["AI_Status"] = "Error";
+                  context.rowUpdateData["Notes"] = `PDF Error: ${e.message}`;
+                  context.skip = true;
+                  errorCount++;
+              }
+          }
+          subBatchContexts.push(context);
+        });
 
-            SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
-            processedCount++;
-            return;
+        // Stage 1: Gatekeeper
+        let activeContexts = subBatchContexts.filter(c => !c.skip);
+        if (activeContexts.length > 0) {
+            const gkReasoning = getReasoningConfig(gatekeeperModel);
+            const gkPrompts = activeContexts.map(c => ({ prompt: gatekeeperPrompt, fileBlob: c.pdfBlob }));
+            try {
+                const gkResponses = LlmService.callLlmParallel(gkPrompts, gatekeeperModel, temperature, maxTokens, gkReasoning.level, gkReasoning.budget);
+                activeContexts.forEach((ctx, idx) => {
+                    const resp = gkResponses[idx];
+                    if (resp.error) {
+                        ctx.rowUpdateData["AI_Status"] = "Error";
+                        ctx.rowUpdateData["Notes"] = `Gatekeeper Mapping Error: ${resp.message}`;
+                        ctx.skip = true;
+                        errorCount++;
+                        return;
+                    }
+                    try {
+                        accumulateTokens(ctx.tokenUsageByStage, "The_Gatekeeper", resp.usageMetadata);
+                        processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
+                        const decision = String(ctx.rowUpdateData["decision"] || "").trim().toUpperCase();
+                        if (decision !== "INCLUDE") {
+                            ctx.skip = true; // Excluded or malformed
+                        }
+                    } catch(e) {
+                        ctx.rowUpdateData["AI_Status"] = "Error";
+                        ctx.rowUpdateData["Notes"] = `Gatekeeper Mapping Error: ${e.message}`;
+                        ctx.skip = true;
+                        errorCount++;
+                    }
+                });
+            } catch(e) {
+                activeContexts.forEach(ctx => {
+                    ctx.rowUpdateData["AI_Status"] = "Error";
+                    ctx.rowUpdateData["Notes"] = `Gatekeeper Batch Error: ${e.message}`;
+                    ctx.skip = true;
+                    errorCount++;
+                });
+            }
         }
 
-        try {
-            const pdfBlob = DriveUtils.getFileBlob(pdfUrl);
-
-            // --- STAGE 1: THE GATEKEEPER ---
-            const gkReasoning = getReasoningConfig(gatekeeperModel);
-            const stage1Resp = LlmService.callLlm(gatekeeperPrompt, gatekeeperModel, temperature, maxTokens, gkReasoning.level, gkReasoning.budget, pdfBlob);
-            accumulateTokens(tokenUsageByStage, "The_Gatekeeper", stage1Resp.usageMetadata);
-            processContent(stage1Resp.content, rowUpdateData, rowUpdateNotes);
-
-            let decision = rowUpdateData["decision"];
-            // Normalize decision check
-            let isExcluded = (String(decision).trim().toUpperCase() === "EXCLUDE");
-            let isIncluded = (String(decision).trim().toUpperCase() === "INCLUDE");
-
-            if (isExcluded) {
-                // Stop here, write data
-            } else if (isIncluded) {
-
-                // --- STAGE 2: THE SCIENTIST ---
-                const sciReasoning = getReasoningConfig(scientistModel);
-                const stage2Resp = LlmService.callLlm(scientistPrompt, scientistModel, temperature, maxTokens, sciReasoning.level, sciReasoning.budget, pdfBlob);
-                accumulateTokens(tokenUsageByStage, "The_Scientist", stage2Resp.usageMetadata);
-                processContent(stage2Resp.content, rowUpdateData, rowUpdateNotes);
-
-                decision = rowUpdateData["decision"]; // Update decision from Stage 2
-                isExcluded = (String(decision).trim().toUpperCase() === "EXCLUDE");
-                isIncluded = (String(decision).trim().toUpperCase() === "INCLUDE");
-
-                if (isExcluded) {
-                    // Stop here
-                } else if (isIncluded) {
-
-                    // --- STAGE 3: THE MINER ---
-                    const minerReasoning = getReasoningConfig(minerModel);
-                    const stage3Resp = LlmService.callLlm(minerPrompt, minerModel, temperature, maxTokens, minerReasoning.level, minerReasoning.budget, pdfBlob);
-                    accumulateTokens(tokenUsageByStage, "The_Miner", stage3Resp.usageMetadata);
-                    // Stage 3 is pure extraction, no decision check
-                    processContent(stage3Resp.content, rowUpdateData, rowUpdateNotes);
-                }
+        // Stage 2: Scientist
+        activeContexts = subBatchContexts.filter(c => !c.skip);
+        if (activeContexts.length > 0) {
+            const sciReasoning = getReasoningConfig(scientistModel);
+            const sciPrompts = activeContexts.map(c => ({ prompt: scientistPrompt, fileBlob: c.pdfBlob }));
+            try {
+                const sciResponses = LlmService.callLlmParallel(sciPrompts, scientistModel, temperature, maxTokens, sciReasoning.level, sciReasoning.budget);
+                activeContexts.forEach((ctx, idx) => {
+                    const resp = sciResponses[idx];
+                    if (resp.error) {
+                        ctx.rowUpdateData["AI_Status"] = "Error";
+                        ctx.rowUpdateData["Notes"] = `Scientist Mapping Error: ${resp.message}`;
+                        ctx.skip = true;
+                        errorCount++;
+                        return;
+                    }
+                    try {
+                        accumulateTokens(ctx.tokenUsageByStage, "The_Scientist", resp.usageMetadata);
+                        processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
+                        const decision = String(ctx.rowUpdateData["decision"] || "").trim().toUpperCase();
+                        if (decision !== "INCLUDE") {
+                            ctx.skip = true;
+                        }
+                    } catch(e) {
+                        ctx.rowUpdateData["AI_Status"] = "Error";
+                        ctx.rowUpdateData["Notes"] = `Scientist Mapping Error: ${e.message}`;
+                        ctx.skip = true;
+                        errorCount++;
+                    }
+                });
+            } catch(e) {
+                activeContexts.forEach(ctx => {
+                    ctx.rowUpdateData["AI_Status"] = "Error";
+                    ctx.rowUpdateData["Notes"] = `Scientist Batch Error: ${e.message}`;
+                    ctx.skip = true;
+                    errorCount++;
+                });
             }
+        }
 
-            // Write Token Usage per Stage
-            Object.keys(tokenUsageByStage).forEach(stageName => {
-                const usage = tokenUsageByStage[stageName];
-                // Append stage name to columns
-                rowUpdateData[`Thinking_Token_${stageName}`] = usage.thinking;
-                rowUpdateData[`Candidate_Token_${stageName}`] = usage.candidate;
-                rowUpdateData[`Input_Token_${stageName}`] = usage.input;
-                rowUpdateData[`Total_Token_${stageName}`] = usage.total;
+        // Stage 3: Miner
+        activeContexts = subBatchContexts.filter(c => !c.skip);
+        if (activeContexts.length > 0) {
+            const minerReasoning = getReasoningConfig(minerModel);
+            const minerPrompts = activeContexts.map(c => ({ prompt: minerPrompt, fileBlob: c.pdfBlob }));
+            try {
+                const minerResponses = LlmService.callLlmParallel(minerPrompts, minerModel, temperature, maxTokens, minerReasoning.level, minerReasoning.budget);
+                activeContexts.forEach((ctx, idx) => {
+                    const resp = minerResponses[idx];
+                    if (resp.error) {
+                        ctx.rowUpdateData["AI_Status"] = "Error";
+                        ctx.rowUpdateData["Notes"] = `Miner Mapping Error: ${resp.message}`;
+                        ctx.skip = true;
+                        errorCount++;
+                        return;
+                    }
+                    try {
+                        accumulateTokens(ctx.tokenUsageByStage, "The_Miner", resp.usageMetadata);
+                        processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
+                    } catch(e) {
+                        ctx.rowUpdateData["AI_Status"] = "Error";
+                        ctx.rowUpdateData["Notes"] = `Miner Mapping Error: ${e.message}`;
+                        ctx.skip = true; // Not strictly necessary since it's the last stage, but good for consistency
+                        errorCount++;
+                    }
+                });
+            } catch(e) {
+                activeContexts.forEach(ctx => {
+                    ctx.rowUpdateData["AI_Status"] = "Error";
+                    ctx.rowUpdateData["Notes"] = `Miner Batch Error: ${e.message}`;
+                    ctx.skip = true;
+                    errorCount++;
+                });
+            }
+        }
+
+        // Finalize sub-batch
+        subBatchContexts.forEach(ctx => {
+            const updateData = ctx.rowUpdateData;
+
+            Object.keys(ctx.tokenUsageByStage).forEach(stageName => {
+                const usage = ctx.tokenUsageByStage[stageName];
+                updateData[`Thinking_Token_${stageName}`] = usage.thinking;
+                updateData[`Candidate_Token_${stageName}`] = usage.candidate;
+                updateData[`Input_Token_${stageName}`] = usage.input;
+                updateData[`Total_Token_${stageName}`] = usage.total;
             });
 
-            // Ensure columns exist
-            for (const key of Object.keys(rowUpdateData)) {
+            for (const key of Object.keys(updateData)) {
                 SheetUtils.ensureColumn(sheet, key, headerMap);
             }
 
-            // Write Data
-            SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
-            if (Object.keys(rowUpdateNotes).length > 0) {
-                SheetUtils.updateRowNotes(sheet, row._rowIndex, rowUpdateNotes, headerMap);
+            try {
+                SheetUtils.updateRow(sheet, ctx.row._rowIndex, updateData, headerMap);
+                if (Object.keys(ctx.rowUpdateNotes).length > 0) {
+                    SheetUtils.updateRowNotes(sheet, ctx.row._rowIndex, ctx.rowUpdateNotes, headerMap);
+                }
+                if (updateData["AI_Status"] !== "Error") processedCount++;
+            } catch(e) {
+                console.error(`Error saving row ${ctx.row._rowIndex}:`, e);
+                errorCount++;
             }
+        });
 
-            processedCount++;
-
-        } catch (e) {
-            console.error(`Error processing row ${row._rowIndex}:`, e);
-            rowUpdateData["AI_Status"] = "Error";
-            rowUpdateData["Notes"] = `Error: ${e.message}`;
-            SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
-            errorCount++;
-        }
-
-        if (index < batch.length - 1) {
+        if (i + parallelRequestSize < batch.length) {
             Utilities.sleep(3000);
         }
-      });
+      }
 
       SheetUtils.toast(`Multi-Stage Screening Complete.\nProcessed: ${processedCount}\nErrors: ${errorCount}`, "Job Done", 10);
 

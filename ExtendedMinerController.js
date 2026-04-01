@@ -95,6 +95,8 @@ const ExtendedMinerController = (function() {
         return;
       }
 
+      const parallelRequestSize = parseInt(config["PARALLEL_REQUEST_SIZE"] || "1");
+
       // 4. Process Batch
       const batch = targetRows.slice(0, batchSize);
       SheetUtils.toast(`Processing ${batch.length} papers for Extended Miner...`, "Processing", -1);
@@ -102,57 +104,79 @@ const ExtendedMinerController = (function() {
       let processedCount = 0;
       let errorCount = 0;
 
-      batch.forEach((row, index) => {
-        const pdfUrl = row["PDF"];
-        console.log(`Processing Row ${row._rowIndex}, PDF: ${pdfUrl}`);
+      for (let i = 0; i < batch.length; i += parallelRequestSize) {
+        const subBatch = batch.slice(i, i + parallelRequestSize);
+        const validSubBatch = [];
 
-        const rowUpdateData = { "AI_Status": "Done" };
-        const rowUpdateNotes = {};
-
-        const pdfValidity = row["PDF_Validity"];
-
-        if (!pdfValidity) {
-             // If PDF is not valid, we cannot extend. Mark as Error.
-             rowUpdateData["AI_Status"] = "Error";
-             rowUpdateData["Notes"] = "Cannot run Extended Miner: PDF invalid or missing.";
+        // Filter out invalid PDFs first
+        subBatch.forEach(row => {
+          if (!row["PDF_Validity"]) {
+             const rowUpdateData = { "AI_Status": "Error", "Notes": "Cannot run Extended Miner: PDF invalid or missing." };
              SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
              errorCount++;
-             return;
-        }
+          } else {
+             validSubBatch.push(row);
+          }
+        });
+
+        if (validSubBatch.length === 0) continue;
+
+        const promptsData = validSubBatch.map(row => {
+          const pdfBlob = DriveUtils.getFileBlob(row["PDF"]);
+          return { prompt: prompt, fileBlob: pdfBlob };
+        });
 
         try {
-            const pdfBlob = DriveUtils.getFileBlob(pdfUrl);
+            const responses = LlmService.callLlmParallel(promptsData, model, temperature, maxTokens, thinkingLevel, thinkingBudget);
 
-            const response = LlmService.callLlm(prompt, model, temperature, maxTokens, thinkingLevel, thinkingBudget, pdfBlob);
+            responses.forEach((response, idx) => {
+              const row = validSubBatch[idx];
+              const rowUpdateData = { "AI_Status": "Done" };
+              const rowUpdateNotes = {};
 
-            accumulateTokens(rowUpdateData, "The_Extended_Miner", response.usageMetadata);
-            processContent(response.content, rowUpdateData, rowUpdateNotes);
+              if (response.error) {
+                console.error(`Error mapping row ${row._rowIndex}:`, response.message);
+                rowUpdateData["AI_Status"] = "Error";
+                rowUpdateData["Notes"] = `Extended Miner Map Error: ${response.message}`;
+                SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
+                errorCount++;
+                return;
+              }
 
-            // Ensure columns exist
-            for (const key of Object.keys(rowUpdateData)) {
-                SheetUtils.ensureColumn(sheet, key, headerMap);
-            }
+              try {
+                accumulateTokens(rowUpdateData, "The_Extended_Miner", response.usageMetadata);
+                processContent(response.content, rowUpdateData, rowUpdateNotes);
 
-            // Write Data
-            SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
-            if (Object.keys(rowUpdateNotes).length > 0) {
-                SheetUtils.updateRowNotes(sheet, row._rowIndex, rowUpdateNotes, headerMap);
-            }
+                for (const key of Object.keys(rowUpdateData)) {
+                    SheetUtils.ensureColumn(sheet, key, headerMap);
+                }
 
-            processedCount++;
-
+                SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
+                if (Object.keys(rowUpdateNotes).length > 0) {
+                    SheetUtils.updateRowNotes(sheet, row._rowIndex, rowUpdateNotes, headerMap);
+                }
+                processedCount++;
+              } catch (e) {
+                console.error(`Error mapping row ${row._rowIndex}:`, e);
+                rowUpdateData["AI_Status"] = "Error";
+                rowUpdateData["Notes"] = `Extended Miner Map Error: ${e.message}`;
+                SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
+                errorCount++;
+              }
+            });
         } catch (e) {
-            console.error(`Error processing row ${row._rowIndex}:`, e);
-            rowUpdateData["AI_Status"] = "Error";
-            rowUpdateData["Notes"] = `Extended Miner Error: ${e.message}`;
-            SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
-            errorCount++;
+            console.error(`Error processing parallel batch:`, e);
+            validSubBatch.forEach(row => {
+                const rowUpdateData = { "AI_Status": "Error", "Notes": `Extended Miner Batch Error: ${e.message}` };
+                SheetUtils.updateRow(sheet, row._rowIndex, rowUpdateData, headerMap);
+                errorCount++;
+            });
         }
 
-        if (index < batch.length - 1) {
+        if (i + parallelRequestSize < batch.length) {
             Utilities.sleep(3000);
         }
-      });
+      }
 
       SheetUtils.toast(`Extended Miner Batch Complete.\nProcessed: ${processedCount}\nErrors: ${errorCount}`, "Job Done", 10);
 

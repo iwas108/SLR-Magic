@@ -92,7 +92,12 @@
                 <!-- Live Stream Box -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header fw-bold text-danger d-flex justify-content-between align-items-center">
-                        <div><i class="bi bi-record-circle-fill"></i> Live Stream</div>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-record-circle-fill me-2"></i> Live Stream
+                            <select id="endpointFilter" class="form-select form-select-sm ms-3" style="width: auto;">
+                                <option value="">All Endpoints</option>
+                            </select>
+                        </div>
                         <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullScreen()" title="Full Screen">
                             <i class="bi bi-arrows-fullscreen"></i>
                         </button>
@@ -258,6 +263,7 @@
             list.innerHTML = '';
             historyData.forEach((item, index) => {
                 const time = new Date(item.created_at).toLocaleTimeString();
+                const endpointText = item.endpoint_url ? item.endpoint_url : 'N/A';
 
                 const div = document.createElement('div');
                 div.className = 'list-group-item history-item d-flex justify-content-between align-items-center p-3';
@@ -266,7 +272,10 @@
                 div.innerHTML = `
                     <div class="w-100">
                         <div class="d-flex justify-content-between align-items-start">
-                            <span class="badge bg-secondary model-badge mb-1">${item.model_name}</span>
+                            <div>
+                                <span class="badge bg-secondary model-badge mb-1">${item.model_name}</span>
+                                <span class="badge bg-info model-badge mb-1 ms-1">${endpointText}</span>
+                            </div>
                             <small class="text-muted">${time}</small>
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
@@ -464,26 +473,33 @@
             return html;
         }
 
-        let streamBuffer = "";
-        let currentStreamElement = null;
-        let isCurrentlyThinking = null;
+        let streamState = {};
         let needsRender = false;
 
         function renderStream() {
-            if (!needsRender || !currentStreamElement) {
+            if (!needsRender) {
                 requestAnimationFrame(renderStream);
                 return;
             }
 
             needsRender = false;
-            if (isCurrentlyThinking) {
-                currentStreamElement.textContent = streamBuffer;
-            } else {
-                currentStreamElement.innerHTML = parseMarkdown(streamBuffer);
-            }
 
-            const box = document.getElementById('live-stream-box');
-            box.scrollTop = box.scrollHeight;
+            // Only update streams that have changed since last frame
+            for (const [streamId, state] of Object.entries(streamState)) {
+                if (!state.dirty || !state.currentStreamElement) continue;
+
+                if (state.isCurrentlyThinking) {
+                    state.currentStreamElement.textContent = state.streamBuffer;
+                } else {
+                    state.currentStreamElement.innerHTML = parseMarkdown(state.streamBuffer);
+                }
+
+                state.dirty = false;
+
+                // Auto scroll the container (only if it's the latest stream for simplicity)
+                const box = document.getElementById('live-stream-box');
+                box.scrollTop = box.scrollHeight;
+            }
 
             requestAnimationFrame(renderStream);
         }
@@ -501,7 +517,53 @@
                 try {
                     const data = JSON.parse(event.data);
 
+                    // Filter logic
+                    const endpointFilter = document.getElementById('endpointFilter');
+                    if (data.endpoint_url) {
+                        let optionExists = false;
+                        for (let i = 0; i < endpointFilter.options.length; i++) {
+                            if (endpointFilter.options[i].value === data.endpoint_url) {
+                                optionExists = true;
+                                break;
+                            }
+                        }
+                        if (!optionExists) {
+                            const newOption = document.createElement('option');
+                            newOption.value = data.endpoint_url;
+                            newOption.textContent = data.endpoint_url;
+                            endpointFilter.appendChild(newOption);
+                        }
+                    }
+
+                    if (endpointFilter.value && endpointFilter.value !== data.endpoint_url) {
+                        return; // Ignore chunks not from selected endpoint
+                    }
+
+                    const streamId = data.stream_id || 'default';
+
                     if (data.type === "start") {
+                        // Initialize state for this stream
+                        streamState[streamId] = {
+                            streamBuffer: "",
+                            currentStreamElement: null,
+                            isCurrentlyThinking: null,
+                            dirty: false,
+                            container: document.createElement('div')
+                        };
+
+                        const state = streamState[streamId];
+                        state.container.className = 'mb-4 border-bottom pb-3';
+
+                        const sep = document.createElement('div');
+                        sep.innerHTML = `<div class="text-secondary small mb-2"><i class="bi bi-clock"></i> New Stream Started: ${new Date().toLocaleTimeString()} <span class="badge bg-info ms-2">${data.endpoint_url || ''}</span> <span class="badge bg-secondary ms-1">Paper: ${data.title || 'Unknown'}</span></div>`;
+                        state.container.appendChild(sep);
+
+                        state.currentStreamElement = document.createElement('div');
+                        state.container.appendChild(state.currentStreamElement);
+
+                        box.appendChild(state.container);
+
+                        // Only show in-progress card for the most recent stream start
                         const inProgressCard = document.getElementById('in-progress-card');
                         const inProgressTitle = document.getElementById('in-progress-title');
                         const inProgressAbstract = document.getElementById('in-progress-abstract');
@@ -513,37 +575,35 @@
                         } else {
                             inProgressAbstract.style.display = 'none';
                         }
-
                         inProgressCard.style.display = 'block';
 
-                        const sep = document.createElement('div');
-                        sep.innerHTML = `<hr class="border-secondary"><div class="text-secondary small mb-2"><i class="bi bi-clock"></i> New Stream Started: ${new Date().toLocaleTimeString()}</div>`;
-                        box.appendChild(sep);
-
-                        currentStreamElement = document.createElement('div');
-                        box.appendChild(currentStreamElement);
-                        streamBuffer = "";
                     } else if (data.type === "end") {
-                        const inProgressCard = document.getElementById('in-progress-card');
-                        inProgressCard.style.display = 'none';
+                        const state = streamState[streamId];
+                        if (!state) return;
 
                         const sep = document.createElement('div');
-                        sep.innerHTML = `<div class="text-success small mt-2 mb-2"><i class="bi bi-check-circle"></i> Stream Ended: ${new Date().toLocaleTimeString()}</div><hr class="border-secondary">`;
-                        box.appendChild(sep);
+                        sep.innerHTML = `<div class="text-success small mt-2 mb-2"><i class="bi bi-check-circle"></i> Stream Ended: ${new Date().toLocaleTimeString()}</div>`;
+                        state.container.appendChild(sep);
 
-                        currentStreamElement = null;
-                        streamBuffer = "";
-                    } else {
-                        // Detect transition between thinking and final
-                        if (isCurrentlyThinking !== data.in_thinking) {
-                            currentStreamElement = document.createElement('div');
-                            currentStreamElement.className = data.in_thinking ? 'stream-thinking' : 'stream-final';
-                            box.appendChild(currentStreamElement);
-                            streamBuffer = "";
-                            isCurrentlyThinking = data.in_thinking;
+                        // Hide in progress card (if it's the last one running, simplified)
+                        document.getElementById('in-progress-card').style.display = 'none';
+
+                        delete streamState[streamId];
+
+                    } else if (data.type === "content") {
+                        const state = streamState[streamId];
+                        if (!state) return; // Might happen if filtered at start
+
+                        if (state.isCurrentlyThinking !== data.in_thinking) {
+                            state.currentStreamElement = document.createElement('div');
+                            state.currentStreamElement.className = data.in_thinking ? 'stream-thinking' : 'stream-final';
+                            state.container.appendChild(state.currentStreamElement);
+                            state.streamBuffer = "";
+                            state.isCurrentlyThinking = data.in_thinking;
                         }
 
-                        streamBuffer += data.content;
+                        state.streamBuffer += data.content;
+                        state.dirty = true;
                         needsRender = true;
                     }
                 } catch (e) {
