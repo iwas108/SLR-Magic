@@ -34,6 +34,16 @@ async def lifespan(app: FastAPI):
     api.ollama_service = ollama_service
 
     logger.info(f"🚀 Middleman started. (Streaming: {Config.STREAM_OLLAMA} | Translation Mode: Active)")
+    logger.info(f"🔗 Active Endpoints ({len(Config.OLLAMA_URLS)}): {', '.join(Config.OLLAMA_URLS)}")
+    yield
+
+@asynccontextmanager
+async def web_lifespan(app: FastAPI):
+    # Initialize Dependencies for the web process
+    cache_repo = CacheRepository(Config.DB_FILE)
+
+    # Inject dependencies into routers
+    api.cache_repo = cache_repo
     yield
 
 # Create Port 8000 Proxy Application
@@ -41,7 +51,7 @@ app = FastAPI(lifespan=lifespan)
 app.include_router(api_router)
 
 # Create Port 8899 Web Review Application
-web_app = FastAPI()
+web_app = FastAPI(lifespan=web_lifespan)
 # Serve static files for Bootstrap and local CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 web_app.mount("/static", StaticFiles(directory=static_dir), name="static")

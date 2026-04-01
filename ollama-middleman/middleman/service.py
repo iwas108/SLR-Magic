@@ -138,6 +138,7 @@ class OllamaService:
         logger.debug(f"Translated Native Payload: {json.dumps(native_payload)}")
 
         endpoint_url = next(self.url_cycle)
+        logger.info(f"🚀 Dispatching request to endpoint: {endpoint_url}")
 
         if self.stream_mode:
             native_payload["stream"] = True
