@@ -5,6 +5,59 @@
 
 const OllamaAdapter = (function() {
 
+  function extractAndParseJSON(text) {
+    let originalText = text;
+    // 1. Remove <think> blocks
+    text = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+
+    // 2. Try to extract from markdown code blocks
+    const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+    const match = text.match(jsonBlockRegex);
+    if (match) {
+        try {
+            return JSON.parse(match[1]);
+        } catch (e) {
+            // Ignore and fall through to manual extraction
+        }
+    }
+
+    // 3. Fallback to finding outermost {} or []
+    const firstCurly = text.indexOf('{');
+    const lastCurly = text.lastIndexOf('}');
+    const firstSquare = text.indexOf('[');
+    const lastSquare = text.lastIndexOf(']');
+
+    let startIndex = -1;
+    let endIndex = -1;
+
+    if (firstCurly !== -1 && (firstSquare === -1 || firstCurly < firstSquare)) {
+        startIndex = firstCurly;
+        endIndex = lastCurly;
+    } else if (firstSquare !== -1) {
+        startIndex = firstSquare;
+        endIndex = lastSquare;
+    }
+
+    if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
+        const extracted = text.substring(startIndex, endIndex + 1);
+        try {
+            return JSON.parse(extracted);
+        } catch (e) {
+            // Try to fix common JSON errors (like trailing commas) or let it throw
+            try {
+                // Very basic repair: remove trailing commas before } or ]
+                const repaired = extracted.replace(/,\s*([}\]])/g, '$1');
+                return JSON.parse(repaired);
+            } catch (e2) {
+                throw new Error("Extracted string is not valid JSON.");
+            }
+        }
+    }
+
+    // 4. If all else fails, try parsing the original text
+    return JSON.parse(originalText);
+  }
+
   /**
    * Calls the Ollama API with the given prompt and configuration.
    * @param {string} prompt The full prompt to send.
@@ -136,23 +189,7 @@ const OllamaAdapter = (function() {
           }
 
           try {
-              let cleanedText = contentText;
-              
-              // 1. Strip out the entire <think> block so JSON.parse doesn't crash
-              cleanedText = cleanedText.replace(/<think>[\s\S]*?<\/think>/gi, '');
-              
-              // 2. Strip markdown code blocks
-              cleanedText = cleanedText.replace(/```json/gi, '').replace(/```/g, '').trim();
-
-              // 3. (Optional but Safe) Isolate just the JSON object in case of trailing text
-              const jsonStartIndex = cleanedText.indexOf('{');
-              const jsonEndIndex = cleanedText.lastIndexOf('}');
-              
-              if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
-                  cleanedText = cleanedText.substring(jsonStartIndex, jsonEndIndex + 1);
-              }
-
-              const parsedContent = JSON.parse(cleanedText);
+              const parsedContent = extractAndParseJSON(contentText);
 
               // Standardize usage metadata mapping
               const usage = jsonResponse.usage || {};
@@ -168,7 +205,7 @@ const OllamaAdapter = (function() {
                   usageMetadata: mappedUsage
               };
           } catch (e) {
-              throw new Error(`Failed to parse JSON from Ollama response: ${e.message}\nCleaned Text Attempt: ${cleanedText}`);
+              throw new Error(`Failed to parse JSON from Ollama response: ${e.message}\nContent Attempted: ${contentText}`);
           }
         } else {
           throw new Error("No choices returned from Ollama API.");

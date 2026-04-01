@@ -85,7 +85,7 @@
                     </div>
                     <div class="card-body">
                         <p class="card-text mb-1 fw-bold" id="in-progress-title">Title will appear here</p>
-                        <p class="card-text small text-muted mb-0" id="in-progress-abstract" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"></p>
+                        <p class="card-text small text-muted mb-0" id="in-progress-abstract" style="display: none;"></p>
                     </div>
                 </div>
 
@@ -509,7 +509,7 @@
                         inProgressTitle.textContent = data.title || "Unknown Paper";
                         if (data.abstract) {
                             inProgressAbstract.textContent = data.abstract;
-                            inProgressAbstract.style.display = '-webkit-box';
+                            inProgressAbstract.style.display = 'block';
                         } else {
                             inProgressAbstract.style.display = 'none';
                         }

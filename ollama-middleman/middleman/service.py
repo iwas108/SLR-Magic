@@ -1,9 +1,56 @@
 import json
 import asyncio
 import httpx
+import re
 from datetime import datetime
 
 from middleman.config import logger
+
+def extract_json_from_mixed_text(text: str) -> str:
+    # First, strip think block
+    text_no_think = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+
+    # Check if it has markdown json block
+    match = re.search(r"```(?:json)?\s*(.*?)\s*```", text_no_think, re.DOTALL | re.IGNORECASE)
+    if match:
+        extracted = match.group(1).strip()
+        try:
+            json.loads(extracted)
+            return extracted
+        except json.JSONDecodeError:
+            pass
+
+    # Try finding outermost {} or []
+    first_curly = text_no_think.find('{')
+    last_curly = text_no_think.rfind('}')
+    first_square = text_no_think.find('[')
+    last_square = text_no_think.rfind(']')
+
+    start_idx = -1
+    end_idx = -1
+
+    if first_curly != -1 and (first_square == -1 or first_curly < first_square):
+        start_idx = first_curly
+        end_idx = last_curly
+    elif first_square != -1:
+        start_idx = first_square
+        end_idx = last_square
+
+    if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+        extracted = text_no_think[start_idx:end_idx+1]
+        try:
+            json.loads(extracted)
+            return extracted
+        except json.JSONDecodeError:
+            # Try basic repair
+            repaired = re.sub(r",\s*([}\]])", r"\1", extracted)
+            try:
+                json.loads(repaired)
+                return repaired
+            except json.JSONDecodeError:
+                pass
+
+    return text
 
 # =====================================================================
 # Service Layer (The OpenAI -> Native Translator)
@@ -107,12 +154,15 @@ class OllamaService:
                 "total_tokens": chunk.get("prompt_eval_count", 0) + chunk.get("eval_count", 0)
             }
 
+            raw_content = chunk.get("message", {}).get("content", "")
+            cleaned_content = extract_json_from_mixed_text(raw_content)
+
             return {
                 "id": f"chatcmpl-{int(datetime.now().timestamp())}",
                 "object": "chat.completion",
                 "created": int(datetime.now().timestamp()),
                 "model": model_name,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": chunk.get("message", {}).get("content", "")}, "finish_reason": "stop"}],
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": cleaned_content}, "finish_reason": "stop"}],
                 "usage": usage
             }
 
@@ -220,11 +270,24 @@ class OllamaService:
         }))
 
         # 2. TRANSLATE BACK TO OPENAI FORMAT
+        # Attempt to cleanly extract JSON from the final assembled content
+        final_content = full_content
+        if is_prefilled or "<think>" in full_content:
+            # If thinking is present, we still want to return it but we ensure the non-thinking part is clean JSON
+            think_part = ""
+            think_match = re.search(r"(<think>.*?</think>)", full_content, re.DOTALL)
+            if think_match:
+                think_part = think_match.group(1) + "\n\n"
+            cleaned_json = extract_json_from_mixed_text(full_content)
+            final_content = think_part + cleaned_json
+        else:
+            final_content = extract_json_from_mixed_text(full_content)
+
         return {
             "id": f"chatcmpl-{int(datetime.now().timestamp())}",
             "object": "chat.completion",
             "created": int(datetime.now().timestamp()),
             "model": model_name,
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": full_content}, "finish_reason": "stop"}],
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}],
             "usage": usage
         }
