@@ -184,10 +184,16 @@ class OllamaService:
             if msg.get("role") == "user":
                 content = msg.get("content", "")
                 if isinstance(content, str):
-                    match = re.search(r"Title:\s*(.*?)\nAbstract:\s*(.*)", content, re.DOTALL | re.IGNORECASE)
-                    if match:
-                        paper_title = match.group(1).strip()
-                        paper_abstract = match.group(2).strip()
+                    # Extract Title and Abstract dynamically handling multiline markdown
+                    title_match = re.search(r"(?i)Title:\s*(.*?)(?=\nAbstract:|\Z)", content, re.DOTALL)
+                    abstract_match = re.search(r"(?i)Abstract:\s*(.*?)(?=\n[A-Za-z0-9_-]+:|\n\n|\Z)", content, re.DOTALL)
+
+                    if title_match:
+                        paper_title = title_match.group(1).replace('**', '').strip()
+                    if abstract_match:
+                        paper_abstract = abstract_match.group(1).replace('**', '').strip()
+
+                    if title_match or abstract_match:
                         break
         stream_broadcaster.broadcast(json.dumps({
             "type": "start",

@@ -547,7 +547,11 @@
             document.getElementById('detail-result').textContent = content;
 
             // Show the modal
-            const modal = new bootstrap.Modal(document.getElementById('historyDetailModal'));
+            const modalEl = document.getElementById('historyDetailModal');
+            let modal = bootstrap.Modal.getInstance(modalEl);
+            if (!modal) {
+                modal = new bootstrap.Modal(modalEl);
+            }
             modal.show();
         }
 
@@ -587,7 +591,7 @@
 
         let streamState = {};
         let needsRender = false;
-        let activeEndpoints = {}; // Map of endpoint_url -> { streamId, title, abstract }
+        let activeEndpoints = {}; // Map of streamId -> { endpointUrl, title, abstract }
 
         function renderStream() {
             if (!needsRender) {
@@ -625,27 +629,28 @@
 
             select.innerHTML = '';
 
-            const endpoints = Object.keys(activeEndpoints);
-            if (endpoints.length === 0) {
+            const streamIds = Object.keys(activeEndpoints);
+            if (streamIds.length === 0) {
                 const option = document.createElement('option');
                 option.value = "";
-                option.textContent = "-- No active endpoints --";
+                option.textContent = "-- No active streams --";
                 select.appendChild(option);
                 updateDisplayForSelectedEndpoint();
                 return;
             }
 
-            endpoints.forEach(url => {
+            streamIds.forEach(id => {
+                const data = activeEndpoints[id];
                 const option = document.createElement('option');
-                option.value = url;
-                option.textContent = url;
+                option.value = id;
+                option.textContent = `${data.endpointUrl} - ${data.title ? data.title.substring(0, 30) + '...' : 'Unknown Paper'}`;
                 select.appendChild(option);
             });
 
-            if (endpoints.includes(currentValue)) {
+            if (streamIds.includes(currentValue)) {
                 select.value = currentValue;
             } else {
-                select.value = endpoints[0]; // Auto-select first active if current is gone
+                select.value = streamIds[0]; // Auto-select first active if current is gone
             }
 
             updateDisplayForSelectedEndpoint();
@@ -653,7 +658,7 @@
 
         function updateDisplayForSelectedEndpoint() {
             const select = document.getElementById('activeEndpointSelect');
-            const selectedUrl = select.value;
+            const selectedStreamId = select.value;
             const inProgressCard = document.getElementById('in-progress-card');
             const inProgressTitle = document.getElementById('in-progress-title');
             const inProgressAbstract = document.getElementById('in-progress-abstract');
@@ -661,13 +666,13 @@
 
             liveStreamBox.innerHTML = '';
 
-            if (!selectedUrl || !activeEndpoints[selectedUrl]) {
+            if (!selectedStreamId || !activeEndpoints[selectedStreamId]) {
                 inProgressCard.style.display = 'none';
-                liveStreamBox.textContent = "Select an active endpoint to view the stream...";
+                liveStreamBox.textContent = "Select an active stream to view...";
                 return;
             }
 
-            const endpointData = activeEndpoints[selectedUrl];
+            const endpointData = activeEndpoints[selectedStreamId];
 
             // Update Card
             inProgressTitle.textContent = endpointData.title || "Unknown Paper";
@@ -680,9 +685,8 @@
             inProgressCard.style.display = 'block';
 
             // Show stream for this endpoint
-            const streamId = endpointData.streamId;
-            if (streamState[streamId]) {
-                liveStreamBox.appendChild(streamState[streamId].container);
+            if (streamState[selectedStreamId]) {
+                liveStreamBox.appendChild(streamState[selectedStreamId].container);
             }
         }
 
@@ -720,9 +724,9 @@
                         state.currentStreamElement = document.createElement('div');
                         state.container.appendChild(state.currentStreamElement);
 
-                        // Track active endpoint
-                        activeEndpoints[endpointUrl] = {
-                            streamId: streamId,
+                        // Track active stream
+                        activeEndpoints[streamId] = {
+                            endpointUrl: endpointUrl,
                             title: data.title,
                             abstract: data.abstract
                         };
@@ -737,9 +741,9 @@
                         sep.innerHTML = `<div class="text-success small mt-2 mb-2"><i class="bi bi-check-circle"></i> Stream Ended: ${new Date().toLocaleTimeString()}</div>`;
                         state.container.appendChild(sep);
 
-                        // Remove from active endpoints if it matches the current stream
-                        if (activeEndpoints[endpointUrl] && activeEndpoints[endpointUrl].streamId === streamId) {
-                            delete activeEndpoints[endpointUrl];
+                        // Remove from active streams
+                        if (activeEndpoints[streamId]) {
+                            delete activeEndpoints[streamId];
                             updateEndpointDropdown();
                         }
                     } else if (data.type === "content") {
@@ -747,9 +751,26 @@
                         if (!state) return;
 
                         if (state.isCurrentlyThinking !== data.in_thinking) {
-                            state.currentStreamElement = document.createElement('div');
-                            state.currentStreamElement.className = data.in_thinking ? 'stream-thinking' : 'stream-final';
-                            state.container.appendChild(state.currentStreamElement);
+                            if (data.in_thinking) {
+                                const details = document.createElement('details');
+                                details.className = 'stream-thinking-details mb-2';
+                                const summary = document.createElement('summary');
+                                summary.className = 'text-secondary user-select-none';
+                                summary.style.cursor = 'pointer';
+                                summary.innerHTML = '<i class="bi bi-lightbulb"></i> Reasoning Trace (Thinking)';
+                                details.appendChild(summary);
+
+                                const contentDiv = document.createElement('div');
+                                contentDiv.className = 'stream-thinking thinking-box mt-2';
+                                details.appendChild(contentDiv);
+
+                                state.container.appendChild(details);
+                                state.currentStreamElement = contentDiv;
+                            } else {
+                                state.currentStreamElement = document.createElement('div');
+                                state.currentStreamElement.className = 'stream-final mt-2';
+                                state.container.appendChild(state.currentStreamElement);
+                            }
                             state.streamBuffer = "";
                             state.isCurrentlyThinking = data.in_thinking;
                         }
