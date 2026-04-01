@@ -84,7 +84,9 @@ class OllamaService:
     def __init__(self, urls: list, stream_mode: bool):
         self.urls = urls
         self.stream_mode = stream_mode
-        self.url_cycle = itertools.cycle(self.urls)
+        self.endpoint_queue = asyncio.Queue()
+        for url in self.urls:
+            self.endpoint_queue.put_nowait(url)
 
     async def fetch_completion(self, openai_payload: dict, req_hash: str = "") -> dict:
         model_name = openai_payload.get("model", "qwen3.5-slr")
@@ -137,16 +139,19 @@ class OllamaService:
 
         logger.debug(f"Translated Native Payload: {json.dumps(native_payload)}")
 
-        endpoint_url = next(self.url_cycle)
+        endpoint_url = await self.endpoint_queue.get()
         short_hash = req_hash[:8] if req_hash else "Unknown"
         logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: {endpoint_url} (Model: {model_name})")
 
-        if self.stream_mode:
-            native_payload["stream"] = True
-            return await self._fetch_via_stream(native_payload, model_name, messages, endpoint_url)
+        try:
+            if self.stream_mode:
+                native_payload["stream"] = True
+                return await self._fetch_via_stream(native_payload, model_name, messages, endpoint_url)
 
-        native_payload["stream"] = False
-        return await self._fetch_standard(native_payload, model_name, endpoint_url)
+            native_payload["stream"] = False
+            return await self._fetch_standard(native_payload, model_name, endpoint_url)
+        finally:
+            self.endpoint_queue.put_nowait(endpoint_url)
 
     async def _fetch_standard(self, native_payload: dict, model_name: str, endpoint_url: str) -> dict:
         async with httpx.AsyncClient(timeout=900.0) as client:

@@ -39,6 +39,13 @@ class CacheRepository:
             if "endpoint_url" not in columns:
                 conn.execute("ALTER TABLE history ADD COLUMN endpoint_url TEXT")
 
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS endpoint_labels (
+                    endpoint_url TEXT PRIMARY KEY,
+                    label TEXT
+                )
+            ''')
+
     @staticmethod
     def generate_hash(messages: list) -> str:
         message_str = json.dumps(messages, sort_keys=True)
@@ -70,6 +77,35 @@ class CacheRepository:
             c = conn.cursor()
             c.execute("SELECT DISTINCT endpoint_url FROM history WHERE endpoint_url IS NOT NULL")
             return [row[0] for row in c.fetchall()]
+
+    def get_stats(self) -> list:
+        with sqlite3.connect(self.db_file) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("""
+                SELECT
+                    h.model_name,
+                    h.endpoint_url,
+                    COALESCE(l.label, h.endpoint_url) as endpoint_label,
+                    COUNT(*) as request_count,
+                    SUM(h.duration_ms) as total_duration_ms,
+                    AVG(h.duration_ms) as avg_duration_ms,
+                    MIN(h.duration_ms) as min_duration_ms,
+                    MAX(h.duration_ms) as max_duration_ms
+                FROM history h
+                LEFT JOIN endpoint_labels l ON h.endpoint_url = l.endpoint_url
+                WHERE h.endpoint_url IS NOT NULL
+                GROUP BY h.model_name, h.endpoint_url
+                ORDER BY h.model_name ASC, request_count DESC
+            """)
+            return [dict(row) for row in c.fetchall()]
+
+    def set_endpoint_label(self, endpoint_url: str, label: str):
+        with sqlite3.connect(self.db_file) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO endpoint_labels (endpoint_url, label) VALUES (?, ?)",
+                (endpoint_url, label)
+            )
 
     def get_history(self, search: str = None, endpoint: str = None, page: int = 1, limit: int = 50) -> dict:
         offset = (page - 1) * limit
@@ -130,9 +166,20 @@ class CacheRepository:
             conn.execute("DELETE FROM history WHERE id = ?", (item_id,))
 
     def delete_history_items(self, item_ids: list):
-        with self._get_connection() as c:
+        with sqlite3.connect(self.db_file) as conn:
+            c = conn.cursor()
             placeholders = ','.join('?' * len(item_ids))
-            c.execute(f"DELETE FROM history WHERE id IN ({placeholders})", item_ids)
+            c.execute(f"SELECT request_json FROM history WHERE id IN ({placeholders})", item_ids)
+            rows = c.fetchall()
+
+            for row in rows:
+                if row:
+                    request_data = json.loads(row[0])
+                    messages = request_data.get("messages", [])
+                    payload_hash = self.generate_hash(messages)
+                    conn.execute("DELETE FROM cache WHERE payload_hash = ?", (payload_hash,))
+
+            conn.execute(f"DELETE FROM history WHERE id IN ({placeholders})", item_ids)
 
     def clear_history(self):
         with sqlite3.connect(self.db_file) as conn:

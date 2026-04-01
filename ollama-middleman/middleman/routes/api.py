@@ -133,7 +133,7 @@ async def get_history(search: str = None, endpoint: str = None, page: int = 1, l
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@web_api_router.delete("/api/history/bulk")
+@web_api_router.delete("/api/history/bulk_delete")
 async def bulk_delete_history(request: Request):
     try:
         data = await request.json()
