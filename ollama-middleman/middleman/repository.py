@@ -20,6 +20,7 @@ class CacheRepository:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,6 +31,13 @@ class CacheRepository:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+
+            # Ensure endpoint_url column exists
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(history)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if "endpoint_url" not in columns:
+                conn.execute("ALTER TABLE history ADD COLUMN endpoint_url TEXT")
 
     @staticmethod
     def generate_hash(messages: list) -> str:
@@ -50,11 +58,11 @@ class CacheRepository:
                 (payload_hash, json.dumps(response_data))
             )
 
-    def log_history(self, model_name: str, request_data: dict, response_data: dict, duration_ms: int):
+    def log_history(self, model_name: str, request_data: dict, response_data: dict, duration_ms: int, endpoint_url: str = ""):
         with sqlite3.connect(self.db_file) as conn:
             conn.execute(
-                "INSERT INTO history (model_name, request_json, response_json, duration_ms) VALUES (?, ?, ?, ?)",
-                (model_name, json.dumps(request_data), json.dumps(response_data), duration_ms)
+                "INSERT INTO history (model_name, request_json, response_json, duration_ms, endpoint_url) VALUES (?, ?, ?, ?, ?)",
+                (model_name, json.dumps(request_data), json.dumps(response_data), duration_ms, endpoint_url)
             )
 
     def get_history(self, search: str = None) -> list:

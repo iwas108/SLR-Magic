@@ -55,6 +55,8 @@ const ScreeningController = (function() {
         return;
       }
 
+      const parallelRequestSize = parseInt(config["PARALLEL_REQUEST_SIZE"] || "1");
+
       // 4. Process Batch
       const batch = pendingRows.slice(0, batchSize);
       SheetUtils.toast(`Starting screening for ${batch.length} papers. This may take a while.`, "Processing", 5);
@@ -62,72 +64,84 @@ const ScreeningController = (function() {
       let processedCount = 0;
       let errorCount = 0;
 
-      batch.forEach((row, index) => {
-        const title = row["Title"] || "";
-        const abstract = row["Abstract"] || "";
-
-        // Construct the prompt
-        // We append the specific paper details to the system prompt
-        const fullPrompt = `${systemPrompt}\n\n---\n\nPaper to Evaluate:\nTitle: ${title}\nAbstract: ${abstract}`;
-
-        const updateData = {};
+      for (let i = 0; i < batch.length; i += parallelRequestSize) {
+        const subBatch = batch.slice(i, i + parallelRequestSize);
+        const promptsData = subBatch.map(row => {
+          const title = row["Title"] || "";
+          const abstract = row["Abstract"] || "";
+          const fullPrompt = `${systemPrompt}\n\n---\n\nPaper to Evaluate:\nTitle: ${title}\nAbstract: ${abstract}`;
+          return { prompt: fullPrompt, fileBlob: null };
+        });
 
         try {
-          // Call Gemini
-          const response = LlmService.callLlm(fullPrompt, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget);
-          const result = response.content;
+          const responses = LlmService.callLlmParallel(promptsData, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget);
 
-          // Map result to sheet columns
-          updateData["AI_Status"] = "Done";
+          responses.forEach((response, idx) => {
+            const row = subBatch[idx];
+            const updateData = {};
 
-          // Auto create columns based on returned json key
-          for (const [key, value] of Object.entries(result)) {
-            SheetUtils.ensureColumn(sheet, key, headerMap);
-            updateData[key] = value;
-          }
+            if (response.error) {
+              console.error(`Error mapping row ${row._rowIndex}:`, response.message);
+              updateData["AI_Status"] = "Error";
+              const statusColIdx = headerMap["AI_Status"];
+              if (statusColIdx) sheet.getRange(row._rowIndex, statusColIdx).setNote(`Error: ${response.message}`);
+              errorCount++;
+              SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
+              return;
+            }
 
-          // Capture Token Usage
-          if (response.usageMetadata) {
-            const thinkingTokens = response.usageMetadata.thoughtsTokenCount || 0;
-            const candidateTokens = response.usageMetadata.candidatesTokenCount || 0;
-            const promptTokens = response.usageMetadata.promptTokenCount || 0;
-            const totalTokens = response.usageMetadata.totalTokenCount || 0;
+            try {
+              const result = response.content;
+              updateData["AI_Status"] = "Done";
 
-            // Ensure columns exist
-            SheetUtils.ensureColumn(sheet, "Thinking_Token_Abstract_Screening", headerMap);
-            SheetUtils.ensureColumn(sheet, "Candidate_Token_Abstract_Screening", headerMap);
-            SheetUtils.ensureColumn(sheet, "Input_Token_Abstract_Screening", headerMap);
-            SheetUtils.ensureColumn(sheet, "Total_Token_Abstract_Screening", headerMap);
+              for (const [key, value] of Object.entries(result)) {
+                SheetUtils.ensureColumn(sheet, key, headerMap);
+                updateData[key] = value;
+              }
 
-            updateData["Thinking_Token_Abstract_Screening"] = thinkingTokens;
-            updateData["Candidate_Token_Abstract_Screening"] = candidateTokens;
-            updateData["Input_Token_Abstract_Screening"] = promptTokens;
-            updateData["Total_Token_Abstract_Screening"] = totalTokens;
-          }
+              if (response.usageMetadata) {
+                const thinkingTokens = response.usageMetadata.thoughtsTokenCount || 0;
+                const candidateTokens = response.usageMetadata.candidatesTokenCount || 0;
+                const promptTokens = response.usageMetadata.promptTokenCount || 0;
+                const totalTokens = response.usageMetadata.totalTokenCount || 0;
 
-          processedCount++;
+                SheetUtils.ensureColumn(sheet, "Thinking_Token_Abstract_Screening", headerMap);
+                SheetUtils.ensureColumn(sheet, "Candidate_Token_Abstract_Screening", headerMap);
+                SheetUtils.ensureColumn(sheet, "Input_Token_Abstract_Screening", headerMap);
+                SheetUtils.ensureColumn(sheet, "Total_Token_Abstract_Screening", headerMap);
 
+                updateData["Thinking_Token_Abstract_Screening"] = thinkingTokens;
+                updateData["Candidate_Token_Abstract_Screening"] = candidateTokens;
+                updateData["Input_Token_Abstract_Screening"] = promptTokens;
+                updateData["Total_Token_Abstract_Screening"] = totalTokens;
+              }
+
+              processedCount++;
+            } catch (e) {
+              console.error(`Error mapping row ${row._rowIndex}:`, e);
+              updateData["AI_Status"] = "Error";
+              const statusColIdx = headerMap["AI_Status"];
+              if (statusColIdx) sheet.getRange(row._rowIndex, statusColIdx).setNote(`Error: ${e.message}`);
+              errorCount++;
+            }
+            SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
+          });
         } catch (e) {
-          console.error(`Error processing row ${row._rowIndex}:`, e);
-          updateData["AI_Status"] = "Error";
-
-          // Add error log into cell notes in column AI_Status
-          const statusColIdx = headerMap["AI_Status"];
-          if (statusColIdx) {
-            sheet.getRange(row._rowIndex, statusColIdx).setNote(`Error: ${e.message}`);
-          }
-          errorCount++;
+          console.error(`Error processing parallel batch:`, e);
+          // If the whole parallel fetch fails, mark all in this sub-batch as error
+          subBatch.forEach(row => {
+            const updateData = { "AI_Status": "Error" };
+            const statusColIdx = headerMap["AI_Status"];
+            if (statusColIdx) sheet.getRange(row._rowIndex, statusColIdx).setNote(`Batch Error: ${e.message}`);
+            SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
+            errorCount++;
+          });
         }
 
-        // Update Sheet immediately
-        SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
-
-        // Ideal delay to prevent rate limits (e.g., 2 seconds)
-        // Only delay if it's not the last item
-        if (index < batch.length - 1) {
+        if (i + parallelRequestSize < batch.length) {
           Utilities.sleep(2000);
         }
-      });
+      }
 
       // 5. Final Feedback
       const msg = `Screening Complete.\nProcessed: ${processedCount}\nErrors: ${errorCount}`;

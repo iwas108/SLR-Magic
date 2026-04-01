@@ -36,6 +36,7 @@ const ConfigManager = (function() {
     "SLR_PROTOCOL_DOCUMENT": "",
     "SLR_PAPER": "",
     "BATCH_SIZE": "1",
+    "PARALLEL_REQUEST_SIZE": "1",
     "SEARCH_DATE": new Date().toISOString().slice(0, 10),
     "WEB_PROXY_URL": "",
     "RAW_CSV_DATABASE": "",

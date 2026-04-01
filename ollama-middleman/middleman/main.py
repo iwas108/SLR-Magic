@@ -27,7 +27,7 @@ from middleman.routes.ui import ui_router
 async def lifespan(app: FastAPI):
     # Initialize Dependencies
     cache_repo = CacheRepository(Config.DB_FILE)
-    ollama_service = OllamaService(Config.OLLAMA_URL, Config.STREAM_OLLAMA)
+    ollama_service = OllamaService(Config.OLLAMA_URLS, Config.STREAM_OLLAMA)
 
     # Inject dependencies into routers
     api.cache_repo = cache_repo
@@ -48,8 +48,8 @@ web_app.mount("/static", StaticFiles(directory=static_dir), name="static")
 web_app.include_router(web_api_router)
 web_app.include_router(ui_router)
 
-def run_main_app(server_url: str, stream: bool):
-    Config.OLLAMA_URL = f"{server_url}/api/chat"
+def run_main_app(server_urls: list, stream: bool):
+    Config.OLLAMA_URLS = server_urls
     Config.STREAM_OLLAMA = stream
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
 
@@ -59,16 +59,17 @@ def run_web_app():
 def main():
     parser = argparse.ArgumentParser(description="Ollama Caching Proxy")
     parser.add_argument("--stream", action="store_true", help="Enable internal streaming")
-    parser.add_argument("--server", type=str, default="http://127.0.0.1:11434", help="Ollama Server URL (e.g., http://127.0.0.1:11434)")
+    parser.add_argument("--server", type=str, default="http://127.0.0.1:11434", help="Ollama Server URLs separated by comma (e.g., http://127.0.0.1:11434,http://192.168.1.5:11434)")
     args = parser.parse_args()
 
-    server_url = args.server.rstrip('/')
+    raw_urls = [u.strip().rstrip('/') for u in args.server.split(',')]
+    server_urls = [f"{u}/api/chat" for u in raw_urls if u]
 
     # Also set for the main process just in case
-    Config.OLLAMA_URL = f"{server_url}/api/chat"
+    Config.OLLAMA_URLS = server_urls
     Config.STREAM_OLLAMA = args.stream
 
-    p1 = multiprocessing.Process(target=run_main_app, args=(server_url, args.stream))
+    p1 = multiprocessing.Process(target=run_main_app, args=(server_urls, args.stream))
     p2 = multiprocessing.Process(target=run_web_app)
 
     p1.start()
