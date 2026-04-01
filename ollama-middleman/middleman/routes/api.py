@@ -3,7 +3,7 @@ import json
 import sqlite3
 from datetime import datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 
 import asyncio
@@ -102,9 +102,9 @@ async def proxy_to_ollama(request: Request):
 # =====================================================================
 
 @web_api_router.get("/api/history")
-async def get_history(search: str = None):
+async def get_history(search: str = None, page: int = 1, limit: int = 50):
     try:
-        return cache_repo.get_history(search=search)
+        return cache_repo.get_history(search=search, page=page, limit=limit)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -124,17 +124,17 @@ async def clear_history():
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@web_api_router.get("/api/stream")
-async def sse_stream(request: Request):
-    async def event_generator():
-        q = stream_broadcaster.add_listener()
-        try:
-            while True:
-                if await request.is_disconnected():
-                    break
-                message = await q.get()
-                yield f"data: {message}\n\n"
-        finally:
-            stream_broadcaster.remove_listener(q)
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+@web_api_router.websocket("/ws/stream")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    q = stream_broadcaster.add_listener()
+    try:
+        while True:
+            message = await q.get()
+            await websocket.send_text(message)
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        stream_broadcaster.remove_listener(q)

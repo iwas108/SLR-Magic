@@ -65,19 +65,38 @@ class CacheRepository:
                 (model_name, json.dumps(request_data), json.dumps(response_data), duration_ms, endpoint_url)
             )
 
-    def get_history(self, search: str = None) -> list:
+    def get_history(self, search: str = None, page: int = 1, limit: int = 50) -> dict:
+        offset = (page - 1) * limit
         with sqlite3.connect(self.db_file) as conn:
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
 
-            if search:
-                query = "SELECT * FROM history WHERE model_name LIKE ? OR request_json LIKE ? OR response_json LIKE ? ORDER BY id DESC LIMIT 50"
-                like_term = f"%{search}%"
-                c.execute(query, (like_term, like_term, like_term))
-            else:
-                c.execute("SELECT * FROM history ORDER BY id DESC LIMIT 50")
+            count_query = "SELECT COUNT(*) FROM history"
+            select_query = "SELECT * FROM history"
+            params = []
 
-            return [dict(row) for row in c.fetchall()]
+            if search:
+                where_clause = " WHERE model_name LIKE ? OR request_json LIKE ? OR response_json LIKE ?"
+                count_query += where_clause
+                select_query += where_clause
+                like_term = f"%{search}%"
+                params.extend([like_term, like_term, like_term])
+
+            c.execute(count_query, params)
+            total = c.fetchone()[0]
+
+            select_query += " ORDER BY id DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+            c.execute(select_query, params)
+            data = [dict(row) for row in c.fetchall()]
+
+            return {
+                "data": data,
+                "total": total,
+                "page": page,
+                "limit": limit
+            }
 
     def delete_history_item(self, item_id: int):
         with sqlite3.connect(self.db_file) as conn:
