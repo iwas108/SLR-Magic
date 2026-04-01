@@ -1,11 +1,15 @@
 import argparse
 import asyncio
+import multiprocessing
+import signal
+import sys
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import os
+import time
 
 from middleman.config import Config, logger
 from middleman.repository import CacheRepository
@@ -44,17 +48,13 @@ web_app.mount("/static", StaticFiles(directory=static_dir), name="static")
 web_app.include_router(web_api_router)
 web_app.include_router(ui_router)
 
-async def serve():
-    config_main = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="warning")
-    server_main = uvicorn.Server(config_main)
+def run_main_app(server_url: str, stream: bool):
+    Config.OLLAMA_URL = f"{server_url}/api/chat"
+    Config.STREAM_OLLAMA = stream
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
 
-    config_web = uvicorn.Config(web_app, host="0.0.0.0", port=8899, log_level="warning")
-    server_web = uvicorn.Server(config_web)
-
-    await asyncio.gather(
-        server_main.serve(),
-        server_web.serve()
-    )
+def run_web_app():
+    uvicorn.run(web_app, host="0.0.0.0", port=8899, log_level="warning")
 
 def main():
     parser = argparse.ArgumentParser(description="Ollama Caching Proxy")
@@ -62,12 +62,42 @@ def main():
     parser.add_argument("--server", type=str, default="http://127.0.0.1:11434", help="Ollama Server URL (e.g., http://127.0.0.1:11434)")
     args = parser.parse_args()
 
-    # Construct OLLAMA_URL from the server parameter
     server_url = args.server.rstrip('/')
+
+    # Also set for the main process just in case
     Config.OLLAMA_URL = f"{server_url}/api/chat"
     Config.STREAM_OLLAMA = args.stream
 
-    asyncio.run(serve())
+    p1 = multiprocessing.Process(target=run_main_app, args=(server_url, args.stream))
+    p2 = multiprocessing.Process(target=run_web_app)
+
+    p1.start()
+    p2.start()
+
+    def kill_children():
+        try:
+            os.kill(p1.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            os.kill(p2.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def handle_sigterm(signum, frame):
+        kill_children()
+        os._exit(0)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+
+    try:
+        while True:
+            line = sys.stdin.readline()
+            if not line:
+                time.sleep(1)
+    except KeyboardInterrupt:
+        kill_children()
+        os._exit(0)
 
 if __name__ == "__main__":
     main()
