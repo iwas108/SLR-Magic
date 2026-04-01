@@ -224,6 +224,13 @@ class OllamaService:
                     thinking_piece = msg.get("thinking", "")
                     content_piece = msg.get("content", "")
 
+                    # Fallback parsing for models that embed <think> inside content
+                    if not thinking_piece and content_piece:
+                        if "<think>" in content_piece and not in_thinking:
+                            in_thinking = True
+                        if "</think>" in content_piece and in_thinking:
+                            in_thinking = False
+
                     if thinking_piece:
                         if not in_thinking:
                             full_content += "<think>\n"
@@ -241,19 +248,30 @@ class OllamaService:
                         }))
 
                     if content_piece:
-                        if in_thinking:
-                            full_content += "\n</think>\n\n"
-                            in_thinking = False
+                        if in_thinking and not thinking_piece and "</think>" not in content_piece:
+                            # It's an embedded thinking chunk
+                            full_content += content_piece
+                            stream_broadcaster.broadcast(json.dumps({
+                                "type": "content",
+                                "stream_id": stream_id,
+                                "content": content_piece,
+                                "in_thinking": True,
+                                "endpoint_url": endpoint_url
+                            }))
+                        else:
+                            if in_thinking and thinking_piece:
+                                full_content += "\n</think>\n\n"
+                                in_thinking = False
 
-                        full_content += content_piece
+                            full_content += content_piece
 
-                        stream_broadcaster.broadcast(json.dumps({
-                            "type": "content",
-                            "stream_id": stream_id,
-                            "content": content_piece,
-                            "in_thinking": False,
-                            "endpoint_url": endpoint_url
-                        }))
+                            stream_broadcaster.broadcast(json.dumps({
+                                "type": "content",
+                                "stream_id": stream_id,
+                                "content": content_piece,
+                                "in_thinking": False,
+                                "endpoint_url": endpoint_url
+                            }))
 
                     # Native API sends telemetry when done=True
                     if chunk.get("done") is True:

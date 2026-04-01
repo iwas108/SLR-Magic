@@ -35,36 +35,25 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"🚀 Middleman started. (Streaming: {Config.STREAM_OLLAMA} | Translation Mode: Active)")
     logger.info(f"🔗 Active Endpoints ({len(Config.OLLAMA_URLS)}): {', '.join(Config.OLLAMA_URLS)}")
+    logger.info("🌐 Web Review UI available at http://localhost:8899")
     yield
 
-@asynccontextmanager
-async def web_lifespan(app: FastAPI):
-    # Initialize Dependencies for the web process
-    cache_repo = CacheRepository(Config.DB_FILE)
-
-    # Inject dependencies into routers
-    api.cache_repo = cache_repo
-    yield
-
-# Create Port 8000 Proxy Application
+# Create Shared Application
 app = FastAPI(lifespan=lifespan)
 app.include_router(api_router)
+app.include_router(web_api_router)
+app.include_router(ui_router)
 
-# Create Port 8899 Web Review Application
-web_app = FastAPI(lifespan=web_lifespan)
 # Serve static files for Bootstrap and local CSS/JS
 static_dir = os.path.join(os.path.dirname(__file__), "static")
-web_app.mount("/static", StaticFiles(directory=static_dir), name="static")
-web_app.include_router(web_api_router)
-web_app.include_router(ui_router)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-def run_main_app(server_urls: list, stream: bool):
+def run_server(server_urls: list, stream: bool):
     Config.OLLAMA_URLS = server_urls
     Config.STREAM_OLLAMA = stream
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
-
-def run_web_app():
-    uvicorn.run(web_app, host="0.0.0.0", port=8899, log_level="warning")
+    # Run the unified app on port 8899 (which is what the UI instructions say)
+    # The proxy API can easily be accessed at the same port /v1/chat/completions
+    uvicorn.run(app, host="0.0.0.0", port=8899, log_level="warning")
 
 def main():
     parser = argparse.ArgumentParser(description="Ollama Caching Proxy")
@@ -79,19 +68,12 @@ def main():
     Config.OLLAMA_URLS = server_urls
     Config.STREAM_OLLAMA = args.stream
 
-    p1 = multiprocessing.Process(target=run_main_app, args=(server_urls, args.stream))
-    p2 = multiprocessing.Process(target=run_web_app)
-
+    p1 = multiprocessing.Process(target=run_server, args=(server_urls, args.stream))
     p1.start()
-    p2.start()
 
     def kill_children():
         try:
             os.kill(p1.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        try:
-            os.kill(p2.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
 
