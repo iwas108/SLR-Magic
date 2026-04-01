@@ -140,6 +140,9 @@ const OllamaAdapter = (function() {
       };
     }
 
+    // Logging parameters
+    console.log(`[OllamaAdapter] Request Params -> Endpoint: ${apiUrl}, Model: ${model}, num_ctx: ${payload.options?.num_ctx || 'default'}, max_tokens: ${payload.max_tokens}, temperature: ${payload.temperature}`);
+
     // Retry Configuration
     const MAX_RETRIES = 0;
     const BASE_DELAY_MS = 2000;
@@ -154,9 +157,9 @@ const OllamaAdapter = (function() {
 
         const endTime = new Date().getTime();
         const duration = endTime - startTime;
-        console.log(`[OllamaAdapter] Response received in ${duration}ms. Status: ${response.getResponseCode()}`);
-
         const responseCode = response.getResponseCode();
+        console.log(`[OllamaAdapter] Response received in ${duration}ms. Status: ${responseCode}`);
+
         const responseText = response.getContentText();
 
         if (responseCode === 429 || responseCode >= 500) {
@@ -239,7 +242,7 @@ const OllamaAdapter = (function() {
     if (!promptsData || promptsData.length === 0) return [];
     if (!model) console.warn("Model was undefined! The Ollama server might require a specific model name.");
 
-    const requests = promptsData.map(data => {
+    const requests = promptsData.map((data, idx) => {
       const { prompt, fileBlob } = data;
       let messages = [];
 
@@ -270,6 +273,8 @@ const OllamaAdapter = (function() {
       if (keepAlive !== undefined) payload.keep_alive = keepAlive;
       if (numCtx !== undefined) payload.options.num_ctx = numCtx;
 
+      console.log(`[OllamaAdapter] Request ${idx} Params -> Endpoint: ${apiUrl}, Model: ${model}, num_ctx: ${payload.options?.num_ctx || 'default'}, max_tokens: ${payload.max_tokens}, temperature: ${payload.temperature}`);
+
       const options = {
         url: apiUrl,
         method: 'post',
@@ -299,6 +304,8 @@ const OllamaAdapter = (function() {
       try {
         const responseCode = response.getResponseCode();
         const responseText = response.getContentText();
+        console.log(`[OllamaAdapter] Response ${idx} Status: ${responseCode}`);
+        console.log(`[OllamaAdapter] Response ${idx} Content: ${responseText.substring(0, 200)}...`);
 
         if (responseCode !== 200) {
            return { error: true, message: `Ollama API Error (${responseCode}) on request ${idx}: ${responseText}` };
