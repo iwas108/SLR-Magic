@@ -402,16 +402,24 @@
                 const res = await fetch(url);
                 const jsonRes = await res.json();
 
-                // Handle new paginated format vs old format
-                if (jsonRes.data && Array.isArray(jsonRes.data)) {
-                    historyData = jsonRes.data;
-                    renderHistory(jsonRes.total, jsonRes.page, jsonRes.limit);
+                if (res.ok) {
+                    // Handle new paginated format vs old format
+                    if (jsonRes.data && Array.isArray(jsonRes.data)) {
+                        historyData = jsonRes.data;
+                        renderHistory(jsonRes.total, jsonRes.page, jsonRes.limit);
+                    } else {
+                        historyData = jsonRes;
+                        renderHistory(historyData.length, 1, historyData.length);
+                    }
                 } else {
-                    historyData = jsonRes;
-                    renderHistory(historyData.length, 1, historyData.length);
+                    console.error("Backend error:", jsonRes.error);
+                    historyData = [];
+                    renderHistory(0, 1, limit);
                 }
             } catch (e) {
                 console.error('Failed to load history', e);
+                historyData = [];
+                renderHistory(0, 1, limit);
             }
         }
 
