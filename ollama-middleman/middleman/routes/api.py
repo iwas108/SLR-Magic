@@ -119,10 +119,17 @@ async def set_endpoint_label(request: Request):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@web_api_router.get("/api/history")
-async def get_history(search: str = None, page: int = 1, limit: int = 50):
+@web_api_router.get("/api/endpoints")
+async def get_endpoints():
     try:
-        return cache_repo.get_history(search=search, page=page, limit=limit)
+        return cache_repo.get_endpoints()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@web_api_router.get("/api/history")
+async def get_history(search: str = None, endpoint: str = None, page: int = 1, limit: int = 50):
+    try:
+        return cache_repo.get_history(search=search, endpoint=endpoint, page=page, limit=limit)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

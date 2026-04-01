@@ -366,13 +366,39 @@
             }
         }
 
-        function loadHistory(page = 1) {
+        let endpointsLoaded = false;
+        async function loadEndpoints() {
+            try {
+                const res = await fetch('/api/endpoints');
+                const endpoints = await res.json();
+                const select = document.getElementById('endpointFilter');
+                if (!select) return;
+
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">All Endpoints</option>';
+                endpoints.forEach(ep => {
+                    const opt = document.createElement('option');
+                    opt.value = ep;
+                    opt.textContent = ep;
+                    if (ep === currentVal) opt.selected = true;
+                    select.appendChild(opt);
+                });
+                endpointsLoaded = true;
+            } catch (e) { console.error('Failed to load endpoints', e); }
+        }
+
+        async function loadHistory(page = 1) {
             currentPage = page;
+            if (!endpointsLoaded) loadEndpoints();
             try {
                 const searchVal = document.getElementById('searchInput').value.trim();
+                const endpointVal = document.getElementById('endpointFilter') ? document.getElementById('endpointFilter').value : '';
                 let url = `/api/history?page=${page}&limit=${limit}`;
                 if (searchVal) {
                     url += '&search=' + encodeURIComponent(searchVal);
+                }
+                if (endpointVal) {
+                    url += '&endpoint=' + encodeURIComponent(endpointVal);
                 }
                 const res = await fetch(url);
                 const jsonRes = await res.json();
