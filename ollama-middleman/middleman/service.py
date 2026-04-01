@@ -86,7 +86,7 @@ class OllamaService:
         self.stream_mode = stream_mode
         self.url_cycle = itertools.cycle(self.urls)
 
-    async def fetch_completion(self, openai_payload: dict) -> dict:
+    async def fetch_completion(self, openai_payload: dict, req_hash: str = "") -> dict:
         model_name = openai_payload.get("model", "qwen3.5-slr")
         messages = openai_payload.get("messages", [])
 
@@ -138,7 +138,8 @@ class OllamaService:
         logger.debug(f"Translated Native Payload: {json.dumps(native_payload)}")
 
         endpoint_url = next(self.url_cycle)
-        logger.info(f"🚀 Dispatching request to endpoint: {endpoint_url}")
+        short_hash = req_hash[:8] if req_hash else "Unknown"
+        logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: {endpoint_url} (Model: {model_name})")
 
         if self.stream_mode:
             native_payload["stream"] = True
