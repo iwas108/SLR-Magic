@@ -407,12 +407,15 @@
                     if (jsonRes.data && Array.isArray(jsonRes.data)) {
                         historyData = jsonRes.data;
                         renderHistory(jsonRes.total, jsonRes.page, jsonRes.limit);
-                    } else {
+                    } else if (Array.isArray(jsonRes)) {
                         historyData = jsonRes;
                         renderHistory(historyData.length, 1, historyData.length);
+                    } else {
+                        historyData = [];
+                        renderHistory(0, 1, limit);
                     }
                 } else {
-                    console.error("Backend error:", jsonRes.error);
+                    console.error("Backend error:", jsonRes.error || jsonRes);
                     historyData = [];
                     renderHistory(0, 1, limit);
                 }
@@ -503,7 +506,7 @@
             const tbody = document.getElementById('history-table-body');
             tbody.innerHTML = '';
 
-            if (!historyData || historyData.length === 0) {
+            if (!historyData || !Array.isArray(historyData) || historyData.length === 0) {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `<td colspan="6" class="text-center py-4 text-muted">No history found</td>`;
                 tbody.appendChild(tr);
