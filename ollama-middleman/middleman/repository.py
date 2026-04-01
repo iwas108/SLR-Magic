@@ -65,7 +65,13 @@ class CacheRepository:
                 (model_name, json.dumps(request_data), json.dumps(response_data), duration_ms, endpoint_url)
             )
 
-    def get_history(self, search: str = None, page: int = 1, limit: int = 50) -> dict:
+    def get_endpoints(self):
+        with sqlite3.connect(self.db_file) as conn:
+            c = conn.cursor()
+            c.execute("SELECT DISTINCT endpoint_url FROM history WHERE endpoint_url IS NOT NULL")
+            return [row[0] for row in c.fetchall()]
+
+    def get_history(self, search: str = None, endpoint: str = None, page: int = 1, limit: int = 50) -> dict:
         offset = (page - 1) * limit
         with sqlite3.connect(self.db_file) as conn:
             conn.row_factory = sqlite3.Row
@@ -74,13 +80,21 @@ class CacheRepository:
             count_query = "SELECT COUNT(*) FROM history"
             select_query = "SELECT * FROM history"
             params = []
+            conditions = []
 
             if search:
-                where_clause = " WHERE model_name LIKE ? OR request_json LIKE ? OR response_json LIKE ?"
-                count_query += where_clause
-                select_query += where_clause
+                conditions.append("(model_name LIKE ? OR request_json LIKE ? OR response_json LIKE ?)")
                 like_term = f"%{search}%"
                 params.extend([like_term, like_term, like_term])
+
+            if endpoint:
+                conditions.append("endpoint_url = ?")
+                params.append(endpoint)
+
+            if conditions:
+                where_clause = " WHERE " + " AND ".join(conditions)
+                count_query += where_clause
+                select_query += where_clause
 
             c.execute(count_query, params)
             total = c.fetchone()[0]
@@ -114,6 +128,11 @@ class CacheRepository:
 
             # 3. Delete from history
             conn.execute("DELETE FROM history WHERE id = ?", (item_id,))
+
+    def delete_history_items(self, item_ids: list):
+        with self._get_connection() as c:
+            placeholders = ','.join('?' * len(item_ids))
+            c.execute(f"DELETE FROM history WHERE id IN ({placeholders})", item_ids)
 
     def clear_history(self):
         with sqlite3.connect(self.db_file) as conn:

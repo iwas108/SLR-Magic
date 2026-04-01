@@ -107,6 +107,44 @@
                 </div>
             </div>
 
+
+            <!-- Stats Tab -->
+            <div class="tab-pane fade" id="stats-tab-pane" role="tabpanel" aria-labelledby="stats-tab" tabindex="0">
+                <div class="card mt-4 shadow-sm border-0">
+                    <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center pb-3">
+                        <h5 class="mb-0 text-primary"><i class="bi bi-bar-chart-fill me-2"></i>Endpoint Performance Statistics</h5>
+                        <button class="btn btn-primary" onclick="loadStats()">
+                            <i class="bi bi-calculator"></i> Recalculate
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 text-center align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Model Name</th>
+                                        <th class="text-start">Endpoint URL / Label</th>
+                                        <th>Processed Requests</th>
+                                        <th>Total Time</th>
+                                        <th>Avg Time</th>
+                                        <th>Min Time</th>
+                                        <th>Max Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="statsTableBody">
+                                    <tr>
+                                        <td colspan="7" class="text-center py-5 text-secondary">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            Click Recalculate to load and refresh statistics...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- History Tab -->
             <div class="tab-pane fade h-100" id="history-pane" role="tabpanel" aria-labelledby="history-tab" tabindex="0">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -216,27 +254,175 @@
         let currentPage = 1;
         const limit = 50;
 
+        function selectAllHistoryItems(checked) {
+            const checkboxes = document.querySelectorAll('.history-checkbox');
+            checkboxes.forEach(cb => cb.checked = checked);
+            updateBulkDeleteButton();
+        }
+
+        function toggleHistoryCheckbox() {
+            updateBulkDeleteButton();
+            const allCheckboxes = document.querySelectorAll('.history-checkbox');
+            const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+            const someChecked = Array.from(allCheckboxes).some(cb => cb.checked);
+            const selectAllCb = document.getElementById('selectAllHistory');
+            selectAllCb.checked = allChecked;
+            selectAllCb.indeterminate = someChecked && !allChecked;
+        }
+
+        function updateBulkDeleteButton() {
+            const checkedCount = document.querySelectorAll('.history-checkbox:checked').length;
+            document.getElementById('btnBulkDelete').disabled = checkedCount === 0;
+        }
+
+        async function deleteSelectedHistory() {
+            const checkboxes = document.querySelectorAll('.history-checkbox:checked');
+            const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+            if (ids.length === 0) return;
+
+            if (!confirm(`Are you sure you want to delete ${ids.length} selected records?`)) return;
+
+            try {
+                const res = await fetch('/api/history/bulk', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ids: ids })
+                });
+
+                if (res.ok) {
+                    document.getElementById('selectAllHistory').checked = false;
+                    document.getElementById('selectAllHistory').indeterminate = false;
+                    loadHistory();
+                } else {
+                    alert('Failed to delete selected items');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+
+        async function loadStats() {
+            const tbody = document.getElementById('statsTableBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary"><div class="spinner-border spinner-border-sm me-2"></div>Calculating...</td></tr>';
+            try {
+                const res = await fetch('/api/stats');
+                const stats = await res.json();
+
+                if (stats.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-secondary">No data available in history.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                stats.forEach(s => {
+                    const row = document.createElement('tr');
+
+                    const durationStr = formatDuration(s.total_duration_ms);
+                    const avgStr = formatDuration(s.avg_duration_ms);
+                    const minStr = formatDuration(s.min_duration_ms);
+                    const maxStr = formatDuration(s.max_duration_ms);
+
+                    row.innerHTML = `
+                        <td class="fw-bold text-success">${s.model_name}</td>
+                        <td class="text-start">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-info text-dark me-2 text-truncate" style="max-width:200px;" title="${s.endpoint_url}">${s.endpoint_url}</span>
+                                <input type="text" class="form-control form-control-sm border-secondary shadow-none" style="width: 150px"
+                                       value="${s.endpoint_label !== s.endpoint_url ? s.endpoint_label : ''}"
+                                       placeholder="Custom Label..."
+                                       onchange="saveEndpointLabel('${s.endpoint_url}', this.value)">
+                            </div>
+                        </td>
+                        <td><span class="badge bg-secondary fs-6 rounded-pill px-3">${s.request_count}</span></td>
+                        <td class="text-muted">${durationStr}</td>
+                        <td class="text-muted">${avgStr}</td>
+                        <td class="text-muted">${minStr}</td>
+                        <td class="text-muted">${maxStr}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch(e) {
+                console.error(e);
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">Failed to load stats</td></tr>';
+            }
+        }
+
+        async function saveEndpointLabel(url, label) {
+            try {
+                await fetch('/api/stats/label', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ endpoint_url: url, label: label })
+                });
+                // Optionally visually indicate success
+            } catch(e) {
+                console.error(e);
+                alert("Failed to save label");
+            }
+        }
+
+        let endpointsLoaded = false;
+        async function loadEndpoints() {
+            try {
+                const res = await fetch('/api/endpoints');
+                const endpoints = await res.json();
+                const select = document.getElementById('endpointFilter');
+                if (!select) return;
+
+                const currentVal = select.value;
+                select.innerHTML = '<option value="">All Endpoints</option>';
+                endpoints.forEach(ep => {
+                    const opt = document.createElement('option');
+                    opt.value = ep;
+                    opt.textContent = ep;
+                    if (ep === currentVal) opt.selected = true;
+                    select.appendChild(opt);
+                });
+                endpointsLoaded = true;
+            } catch (e) { console.error('Failed to load endpoints', e); }
+        }
+
         async function loadHistory(page = 1) {
             currentPage = page;
+            if (!endpointsLoaded) loadEndpoints();
             try {
                 const searchVal = document.getElementById('searchInput').value.trim();
+                const endpointVal = document.getElementById('endpointFilter') ? document.getElementById('endpointFilter').value : '';
                 let url = `/api/history?page=${page}&limit=${limit}`;
                 if (searchVal) {
                     url += '&search=' + encodeURIComponent(searchVal);
                 }
+                if (endpointVal) {
+                    url += '&endpoint=' + encodeURIComponent(endpointVal);
+                }
                 const res = await fetch(url);
                 const jsonRes = await res.json();
 
-                // Handle new paginated format vs old format
-                if (jsonRes.data && Array.isArray(jsonRes.data)) {
-                    historyData = jsonRes.data;
-                    renderHistory(jsonRes.total, jsonRes.page, jsonRes.limit);
+                if (res.ok) {
+                    // Handle new paginated format vs old format
+                    if (jsonRes.data && Array.isArray(jsonRes.data)) {
+                        historyData = jsonRes.data;
+                        renderHistory(jsonRes.total, jsonRes.page, jsonRes.limit);
+                    } else if (Array.isArray(jsonRes)) {
+                        historyData = jsonRes;
+                        renderHistory(historyData.length, 1, historyData.length);
+                    } else {
+                        historyData = [];
+                        renderHistory(0, 1, limit);
+                    }
                 } else {
-                    historyData = jsonRes;
-                    renderHistory(historyData.length, 1, historyData.length);
+                    console.error("Backend error:", jsonRes.error || jsonRes);
+                    historyData = [];
+                    renderHistory(0, 1, limit);
                 }
             } catch (e) {
                 console.error('Failed to load history', e);
+                historyData = [];
+                renderHistory(0, 1, limit);
             }
         }
 
@@ -320,7 +506,7 @@
             const tbody = document.getElementById('history-table-body');
             tbody.innerHTML = '';
 
-            if (!historyData || historyData.length === 0) {
+            if (!historyData || !Array.isArray(historyData) || historyData.length === 0) {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `<td colspan="6" class="text-center py-4 text-muted">No history found</td>`;
                 tbody.appendChild(tr);
@@ -547,7 +733,11 @@
             document.getElementById('detail-result').textContent = content;
 
             // Show the modal
-            const modal = new bootstrap.Modal(document.getElementById('historyDetailModal'));
+            const modalEl = document.getElementById('historyDetailModal');
+            let modal = bootstrap.Modal.getInstance(modalEl);
+            if (!modal) {
+                modal = new bootstrap.Modal(modalEl);
+            }
             modal.show();
         }
 
@@ -587,7 +777,7 @@
 
         let streamState = {};
         let needsRender = false;
-        let activeEndpoints = {}; // Map of endpoint_url -> { streamId, title, abstract }
+        let activeEndpoints = {}; // Map of streamId -> { endpointUrl, title, abstract }
 
         function renderStream() {
             if (!needsRender) {
@@ -625,27 +815,28 @@
 
             select.innerHTML = '';
 
-            const endpoints = Object.keys(activeEndpoints);
-            if (endpoints.length === 0) {
+            const streamIds = Object.keys(activeEndpoints);
+            if (streamIds.length === 0) {
                 const option = document.createElement('option');
                 option.value = "";
-                option.textContent = "-- No active endpoints --";
+                option.textContent = "-- No active streams --";
                 select.appendChild(option);
                 updateDisplayForSelectedEndpoint();
                 return;
             }
 
-            endpoints.forEach(url => {
+            streamIds.forEach(id => {
+                const data = activeEndpoints[id];
                 const option = document.createElement('option');
-                option.value = url;
-                option.textContent = url;
+                option.value = id;
+                option.textContent = `${data.endpointUrl} - ${data.title ? data.title.substring(0, 30) + '...' : 'Unknown Paper'}`;
                 select.appendChild(option);
             });
 
-            if (endpoints.includes(currentValue)) {
+            if (streamIds.includes(currentValue)) {
                 select.value = currentValue;
             } else {
-                select.value = endpoints[0]; // Auto-select first active if current is gone
+                select.value = streamIds[0]; // Auto-select first active if current is gone
             }
 
             updateDisplayForSelectedEndpoint();
@@ -653,7 +844,7 @@
 
         function updateDisplayForSelectedEndpoint() {
             const select = document.getElementById('activeEndpointSelect');
-            const selectedUrl = select.value;
+            const selectedStreamId = select.value;
             const inProgressCard = document.getElementById('in-progress-card');
             const inProgressTitle = document.getElementById('in-progress-title');
             const inProgressAbstract = document.getElementById('in-progress-abstract');
@@ -661,13 +852,13 @@
 
             liveStreamBox.innerHTML = '';
 
-            if (!selectedUrl || !activeEndpoints[selectedUrl]) {
+            if (!selectedStreamId || !activeEndpoints[selectedStreamId]) {
                 inProgressCard.style.display = 'none';
-                liveStreamBox.textContent = "Select an active endpoint to view the stream...";
+                liveStreamBox.textContent = "Select an active stream to view...";
                 return;
             }
 
-            const endpointData = activeEndpoints[selectedUrl];
+            const endpointData = activeEndpoints[selectedStreamId];
 
             // Update Card
             inProgressTitle.textContent = endpointData.title || "Unknown Paper";
@@ -680,9 +871,8 @@
             inProgressCard.style.display = 'block';
 
             // Show stream for this endpoint
-            const streamId = endpointData.streamId;
-            if (streamState[streamId]) {
-                liveStreamBox.appendChild(streamState[streamId].container);
+            if (streamState[selectedStreamId]) {
+                liveStreamBox.appendChild(streamState[selectedStreamId].container);
             }
         }
 
@@ -720,9 +910,9 @@
                         state.currentStreamElement = document.createElement('div');
                         state.container.appendChild(state.currentStreamElement);
 
-                        // Track active endpoint
-                        activeEndpoints[endpointUrl] = {
-                            streamId: streamId,
+                        // Track active stream
+                        activeEndpoints[streamId] = {
+                            endpointUrl: endpointUrl,
                             title: data.title,
                             abstract: data.abstract
                         };
@@ -737,9 +927,9 @@
                         sep.innerHTML = `<div class="text-success small mt-2 mb-2"><i class="bi bi-check-circle"></i> Stream Ended: ${new Date().toLocaleTimeString()}</div>`;
                         state.container.appendChild(sep);
 
-                        // Remove from active endpoints if it matches the current stream
-                        if (activeEndpoints[endpointUrl] && activeEndpoints[endpointUrl].streamId === streamId) {
-                            delete activeEndpoints[endpointUrl];
+                        // Remove from active streams
+                        if (activeEndpoints[streamId]) {
+                            delete activeEndpoints[streamId];
                             updateEndpointDropdown();
                         }
                     } else if (data.type === "content") {
