@@ -1,14 +1,15 @@
 # Ollama Caching Proxy (Middleman)
 
-A lightweight, high-performance FastAPI middleware designed to sit between your client applications and a local Ollama instance. Built with **Clean Code Architecture**, it caches LLM responses in a local SQLite database to drastically reduce response times, saves compute resources on repeated queries, and supports real-time terminal streaming. It features an integrated Web Review Interface for inspecting history and streaming tokens live.
+A lightweight, high-performance FastAPI middleware designed to sit between your client applications and local Ollama instance(s). Built with **Clean Code Architecture**, it caches LLM responses in a local SQLite database to drastically reduce response times, supports multi-endpoint load balancing for parallel batching, and provides an integrated Web Review Interface for inspecting history and streaming tokens live.
 
 ## ✨ Features
 
 * **Instant Responses (Cache Hit):** Caches successful responses using SQLite. If the exact same prompt is sent again, the proxy returns the cached answer instantly without waking up the LLM.
-* **Real-Time Terminal Streaming:** Use the `--stream` flag to watch the model generate its response live in your terminal while it aggregates the final JSON for the client.
-* **Web Review Interface (Port 8899):** Provides a mobile-first, responsive Bootstrap 5 dashboard to review historical request/response payloads. Features include Light/Dark theme toggling, accordion-style payload organization (separating 'Thinking' trace from 'Final Answer'), and the ability to selectively delete or clear history records.
+* **Multi-Endpoint Load Balancing:** Start the middleman with a comma-separated list of Ollama URLs to dynamically load-balance requests across multiple nodes in a round-robin fashion, supercharging parallel analysis.
+* **Web Review Interface (Port 8899):** Provides a mobile-first, responsive Bootstrap 5 dashboard to review historical request/response payloads. View endpoint routing details, dynamically filter live streams by serving node, toggle Light/Dark themes, and manage cached history.
+* **Concurrent Live Streaming:** The Web UI natively supports simultaneous incoming parallel token streams, dynamically grouping them into isolated interface cards via UUID tracking to prevent corrupted race conditions.
 * **Robust Parameter Support:** The Native Translator cleanly maps standard OpenAI properties (`temperature`, `max_tokens`) while fully passing through nested `options` (like `think: true`) into Ollama's native API.
-* **Comprehensive History Tracking:** Records every request in a dedicated `history` table within SQLite, capturing model names, exact JSON payloads, and precise execution times.
+* **Comprehensive History Tracking:** Records every request in a dedicated `history` table within SQLite, capturing model names, endpoints utilized, exact JSON payloads, and precise execution times.
 * **Precision Hashing:** Uses SHA-256 to create a unique fingerprint of the exact `messages` payload, ensuring accurate cache matching.
 * **VRAM/RAM Management:** Automatically injects `"keep_alive": 0` into the payload on cache misses, forcing Ollama to unload the model from memory immediately after generating a response.
 * **Enhanced Visual Logging:** Clean, timestamped terminal logs let you track cache hits, misses, model execution times, and connection statuses at a glance.
@@ -39,14 +40,14 @@ Run this command in the same directory as your `middleman.py` script:
 python middleman.py
 ```
 
-**Customizing Upstream Server:**
-If your Ollama instance is not running on localhost or uses a different port, you can explicitly define it using the `--server` argument:
+**Customizing Upstream Servers & Load Balancing:**
+If your Ollama instance is not running on localhost, or you want to route traffic across multiple Ollama nodes, you can explicitly define a comma-separated list using the `--server` argument:
 ```bash
-python middleman.py --server http://192.168.1.100:11434
+python middleman.py --server http://192.168.1.100:11434,http://192.168.1.101:11434
 ```
 
-**Streaming Mode (Live Terminal Output):**
-If you want to watch the LLM's response stream live in your terminal as it's being generated (useful for debugging or long generations), append the `--stream` flag:
+**Streaming Mode:**
+Append the `--stream` flag to enable internal event broadcasting to the Web UI dashboard for live token tracking during generation:
 
 ```bash
 python middleman.py --stream

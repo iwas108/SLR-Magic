@@ -9,8 +9,9 @@ This tool acts as both an **accelerator**, processing thousands of papers in min
 ## 🚀 Key Features
 
 *   **Automated Environment Setup**: One-click initialization of the entire workspace.
-*   **Alternative LLM Providers**: Support for Google Gemini natively, private vLLM endpoints (OpenAI-compatible) via public domains like Runpod, and Ollama endpoints (via ngrok/tunnels) for sensitive data processing.
-*   **Centralized Configuration**: easy-to-use menu-based configuration for API keys, models, and prompts.
+*   **Alternative LLM Providers**: Support for Google Gemini natively, private vLLM endpoints (OpenAI-compatible) via public domains like Runpod, and Ollama endpoints (via ngrok/tunnels) for sensitive data processing. Supports multi-Ollama endpoint load balancing.
+*   **Centralized Configuration**: easy-to-use menu-based configuration for API keys, models, prompts, and parallel request batch sizes.
+*   **Parallel Execution**: Native support for parallelizing LLM processing across massive systematic reviews, dramatically accelerating analysis via the Apps Script config menu.
 *   **AI Abstract Screening**: rapid "first-pass" filtering based on Title and Abstract using strict inclusion/exclusion criteria.
 *   **Full-Text Analysis (The Gatekeeper)**: Deep reading of PDFs to confirm relevance based on Methodology and Results, not just abstract promises.
 *   **Quality Assessment (The Scientist)**: Automated evaluation of scientific rigor, documentation quality, and system validity.
