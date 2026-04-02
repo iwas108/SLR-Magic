@@ -200,15 +200,27 @@ class OllamaService:
                 "total_tokens": chunk.get("prompt_eval_count", 0) + chunk.get("eval_count", 0)
             }
 
-            raw_content = chunk.get("message", {}).get("content", "")
+            msg = chunk.get("message", {})
+            raw_content = msg.get("content", "")
+            thinking = msg.get("thinking", "")
+
             cleaned_content = extract_json_from_mixed_text(raw_content)
+
+            final_content = cleaned_content
+
+            if thinking:
+                final_content = f"<think>\n{thinking}\n</think>\n\n{cleaned_content}"
+            elif "<think>" in raw_content:
+                think_match = re.search(r"(<think>.*?</think>)", raw_content, re.DOTALL)
+                if think_match:
+                    final_content = f"{think_match.group(1)}\n\n{cleaned_content}"
 
             return {
                 "id": f"chatcmpl-{int(datetime.now().timestamp())}",
                 "object": "chat.completion",
                 "created": int(datetime.now().timestamp()),
                 "model": model_name,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": cleaned_content}, "finish_reason": "stop"}],
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}],
                 "usage": usage,
                 "endpoint_url": endpoint_url
             }
@@ -252,6 +264,7 @@ class OllamaService:
         usage = {}
 
         in_thinking = is_prefilled
+        native_thinking_mode = False
 
         async with httpx.AsyncClient(timeout=900.0) as client:
             async with client.stream("POST", endpoint_url, json=native_payload) as response:
@@ -271,20 +284,13 @@ class OllamaService:
                     thinking_piece = msg.get("thinking", "")
                     content_piece = msg.get("content", "")
 
-                    # Fallback parsing for models that embed <think> inside content
-                    if not thinking_piece and content_piece:
-                        if "<think>" in content_piece and not in_thinking:
-                            in_thinking = True
-                        if "</think>" in content_piece and in_thinking:
-                            in_thinking = False
-
                     if thinking_piece:
                         if not in_thinking:
                             full_content += "<think>\n"
+                            in_thinking = True
+                            native_thinking_mode = True
 
                         full_content += thinking_piece
-
-                        in_thinking = True
 
                         stream_broadcaster.broadcast(json.dumps({
                             "type": "content",
@@ -295,30 +301,26 @@ class OllamaService:
                         }))
 
                     if content_piece:
-                        if in_thinking and not thinking_piece and "</think>" not in content_piece:
-                            # It's an embedded thinking chunk
-                            full_content += content_piece
-                            stream_broadcaster.broadcast(json.dumps({
-                                "type": "content",
-                                "stream_id": stream_id,
-                                "content": content_piece,
-                                "in_thinking": True,
-                                "endpoint_url": endpoint_url
-                            }))
-                        else:
-                            if in_thinking and thinking_piece:
-                                full_content += "\n</think>\n\n"
-                                in_thinking = False
+                        if native_thinking_mode:
+                            full_content += "\n</think>\n\n"
+                            in_thinking = False
+                            native_thinking_mode = False
 
-                            full_content += content_piece
+                        if not in_thinking and "<think>" in content_piece:
+                            in_thinking = True
 
-                            stream_broadcaster.broadcast(json.dumps({
-                                "type": "content",
-                                "stream_id": stream_id,
-                                "content": content_piece,
-                                "in_thinking": False,
-                                "endpoint_url": endpoint_url
-                            }))
+                        full_content += content_piece
+
+                        stream_broadcaster.broadcast(json.dumps({
+                            "type": "content",
+                            "stream_id": stream_id,
+                            "content": content_piece,
+                            "in_thinking": in_thinking,
+                            "endpoint_url": endpoint_url
+                        }))
+
+                        if in_thinking and "</think>" in content_piece:
+                            in_thinking = False
 
                     # Native API sends telemetry when done=True
                     if chunk.get("done") is True:
