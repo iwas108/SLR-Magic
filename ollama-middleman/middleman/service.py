@@ -21,24 +21,30 @@ def extract_json_from_mixed_text(text: str) -> str:
         except json.JSONDecodeError:
             pass
 
-    # Try finding outermost {} or []
+    # Try finding outermost {}
     first_curly = text_no_think.find('{')
     last_curly = text_no_think.rfind('}')
+
+    if first_curly != -1 and last_curly != -1 and last_curly > first_curly:
+        extracted = text_no_think[first_curly:last_curly+1]
+        try:
+            json.loads(extracted)
+            return extracted
+        except json.JSONDecodeError:
+            # Try basic repair
+            repaired = re.sub(r",\s*([}\]])", r"\1", extracted)
+            try:
+                json.loads(repaired)
+                return repaired
+            except json.JSONDecodeError:
+                pass
+
+    # Try finding outermost []
     first_square = text_no_think.find('[')
     last_square = text_no_think.rfind(']')
 
-    start_idx = -1
-    end_idx = -1
-
-    if first_curly != -1 and (first_square == -1 or first_curly < first_square):
-        start_idx = first_curly
-        end_idx = last_curly
-    elif first_square != -1:
-        start_idx = first_square
-        end_idx = last_square
-
-    if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
-        extracted = text_no_think[start_idx:end_idx+1]
+    if first_square != -1 and last_square != -1 and last_square > first_square:
+        extracted = text_no_think[first_square:last_square+1]
         try:
             json.loads(extracted)
             return extracted
