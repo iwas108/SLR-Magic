@@ -127,9 +127,10 @@ async def get_endpoints():
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @web_api_router.get("/api/history")
-async def get_history(search: str = None, endpoint: str = None, page: int = 1, limit: int = 50):
+async def get_history(search: str = None, endpoint: str = None, page: int = 1, limit: int = 50, sort_by: str = "id", sort_desc: str = "true"):
     try:
-        return cache_repo.get_history(search=search, endpoint=endpoint, page=page, limit=limit)
+        is_desc = sort_desc.lower() == "true"
+        return cache_repo.get_history(search=search, endpoint=endpoint, page=page, limit=limit, sort_by=sort_by, sort_desc=is_desc)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -158,6 +159,13 @@ async def clear_history():
     try:
         cache_repo.clear_history()
         return {"status": "success", "message": "All history cleared"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@web_api_router.get("/api/streams/active")
+async def get_active_streams():
+    try:
+        return stream_broadcaster.active_streams
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

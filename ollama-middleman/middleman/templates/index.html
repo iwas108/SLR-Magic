@@ -48,9 +48,12 @@
     <div class="container-fluid p-4 h-100 d-flex flex-column">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2>Middleman Review</h2>
-            <button class="btn btn-outline-secondary" onclick="toggleTheme()">
-                <i id="theme-icon" class="bi bi-moon-fill"></i> Theme
-            </button>
+            <div>
+                <span id="ws-status" class="badge bg-warning me-3">Connecting...</span>
+                <button class="btn btn-outline-secondary" onclick="toggleTheme()">
+                    <i id="theme-icon" class="bi bi-moon-fill"></i> Theme
+                </button>
+            </div>
         </div>
 
         <!-- Navigation Tabs -->
@@ -180,11 +183,11 @@
                                     <input type="checkbox" id="selectAllHistory" onchange="selectAllHistoryItems(this.checked)">
                                 </th>
                                 <th scope="col" style="width: 120px;">Actions</th>
-                                <th scope="col">ID</th>
-                                <th scope="col">Model</th>
-                                <th scope="col">Endpoint</th>
-                                <th scope="col">Time</th>
-                                <th scope="col">Duration</th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('id')">ID <i id="sort-icon-id" class="bi bi-sort-down"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('model_name')">Model <i id="sort-icon-model_name" class="bi bi-arrow-down-up text-muted"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('endpoint_url')">Endpoint <i id="sort-icon-endpoint_url" class="bi bi-arrow-down-up text-muted"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('created_at')">Time <i id="sort-icon-created_at" class="bi bi-arrow-down-up text-muted"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('duration_ms')">Duration <i id="sort-icon-duration_ms" class="bi bi-arrow-down-up text-muted"></i></th>
                             </tr>
                         </thead>
                         <tbody id="history-table-body">
@@ -267,6 +270,34 @@
         let searchTimeout = null;
         let currentPage = 1;
         const limit = 50;
+        let currentSortBy = 'id';
+        let currentSortDesc = true;
+
+        function setSort(column) {
+            if (currentSortBy === column) {
+                currentSortDesc = !currentSortDesc;
+            } else {
+                currentSortBy = column;
+                currentSortDesc = true;
+            }
+            updateSortIcons();
+            loadHistory(currentPage);
+        }
+
+        function updateSortIcons() {
+            const columns = ['id', 'model_name', 'endpoint_url', 'created_at', 'duration_ms'];
+            columns.forEach(col => {
+                const icon = document.getElementById(`sort-icon-${col}`);
+                if (!icon) return;
+
+                if (col === currentSortBy) {
+                    icon.className = currentSortDesc ? 'bi bi-sort-down' : 'bi bi-sort-up';
+                    icon.classList.remove('text-muted');
+                } else {
+                    icon.className = 'bi bi-arrow-down-up text-muted';
+                }
+            });
+        }
 
         function selectAllHistoryItems(checked) {
             const checkboxes = document.querySelectorAll('.history-checkbox');
@@ -406,7 +437,7 @@
             try {
                 const searchVal = document.getElementById('searchInput').value.trim();
                 const endpointVal = document.getElementById('endpointFilter') ? document.getElementById('endpointFilter').value : '';
-                let url = `/api/history?page=${page}&limit=${limit}`;
+                let url = `/api/history?page=${page}&limit=${limit}&sort_by=${currentSortBy}&sort_desc=${currentSortDesc}`;
                 if (searchVal) {
                     url += '&search=' + encodeURIComponent(searchVal);
                 }
@@ -895,10 +926,23 @@
 
         let ws;
 
+        function updateWsStatus(status, text) {
+            const badge = document.getElementById('ws-status');
+            if (!badge) return;
+            badge.className = `badge me-3 bg-${status}`;
+            badge.textContent = text;
+        }
+
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws/stream`;
+
+            updateWsStatus('warning', 'Connecting...');
             ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                updateWsStatus('success', 'Connected');
+            };
 
             ws.onmessage = function(event) {
                 try {
@@ -971,21 +1015,84 @@
             };
 
             ws.onclose = function() {
+                updateWsStatus('danger', 'Disconnected');
                 console.warn('WebSocket disconnected. Attempting to reconnect in 3s...');
                 setTimeout(connectWebSocket, 3000);
             };
 
             ws.onerror = function(err) {
+                updateWsStatus('danger', 'Error');
                 console.error('WebSocket error:', err);
                 ws.close();
             };
+        }
+
+        async function fetchActiveStreams() {
+            try {
+                const res = await fetch('/api/streams/active');
+                if (!res.ok) return;
+                const streams = await res.json();
+
+                for (const streamId in streams) {
+                    const data = streams[streamId];
+
+                    streamState[streamId] = {
+                        streamBuffer: "",
+                        currentStreamElement: null,
+                        isCurrentlyThinking: null,
+                        dirty: false,
+                        endpoint_url: data.endpointUrl,
+                        container: document.createElement('div')
+                    };
+
+                    const state = streamState[streamId];
+                    state.container.className = 'mb-4 border-bottom pb-3';
+
+                    const sep = document.createElement('div');
+                    sep.innerHTML = `<div class="text-secondary small mb-2"><i class="bi bi-clock"></i> Stream Started: (Restored) <span class="badge bg-info ms-2">${data.endpointUrl}</span></div>`;
+                    state.container.appendChild(sep);
+
+                    // Reconstruct chunks
+                    if (data.content_chunks && data.content_chunks.length > 0) {
+                        for (const chunk of data.content_chunks) {
+                            const el = document.createElement('div');
+                            el.className = chunk.in_thinking ? 'stream-thinking' : 'stream-final';
+                            if (chunk.in_thinking) {
+                                el.textContent = chunk.content;
+                            } else {
+                                el.innerHTML = parseMarkdown(chunk.content);
+                            }
+                            state.container.appendChild(el);
+
+                            state.currentStreamElement = el;
+                            state.isCurrentlyThinking = chunk.in_thinking;
+                        }
+                    } else {
+                        state.currentStreamElement = document.createElement('div');
+                        state.container.appendChild(state.currentStreamElement);
+                    }
+
+                    activeEndpoints[streamId] = {
+                        endpointUrl: data.endpointUrl,
+                        title: data.title,
+                        abstract: data.abstract
+                    };
+                }
+
+                updateEndpointDropdown();
+            } catch (e) {
+                console.error('Failed to fetch active streams:', e);
+            }
         }
 
         function setupStream() {
             // Listen for dropdown changes
             document.getElementById('activeEndpointSelect').addEventListener('change', updateDisplayForSelectedEndpoint);
             requestAnimationFrame(renderStream);
-            connectWebSocket();
+
+            fetchActiveStreams().then(() => {
+                connectWebSocket();
+            });
         }
 
         window.onload = () => {
