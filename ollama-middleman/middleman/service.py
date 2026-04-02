@@ -120,6 +120,8 @@ class OllamaService:
         self.urls = urls
         self.stream_mode = stream_mode
         self.endpoint_queue = asyncio.Queue()
+        self.endpoint_status = {url: "idle" for url in self.urls}
+        self.pending_requests = 0
         for url in self.urls:
             self.endpoint_queue.put_nowait(url)
 
@@ -174,18 +176,30 @@ class OllamaService:
 
         logger.debug(f"Translated Native Payload: {json.dumps(native_payload)}")
 
-        endpoint_url = await self.endpoint_queue.get()
+        self.pending_requests += 1
+        try:
+            endpoint_url = await self.endpoint_queue.get()
+        finally:
+            self.pending_requests -= 1
+
+        self.endpoint_status[endpoint_url] = "active"
         short_hash = req_hash[:8] if req_hash else "Unknown"
         logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: {endpoint_url} (Model: {model_name})")
 
+        start_time = datetime.now()
         try:
             if self.stream_mode:
                 native_payload["stream"] = True
-                return await self._fetch_via_stream(native_payload, model_name, messages, endpoint_url)
+                result = await self._fetch_via_stream(native_payload, model_name, messages, endpoint_url)
+            else:
+                native_payload["stream"] = False
+                result = await self._fetch_standard(native_payload, model_name, endpoint_url)
 
-            native_payload["stream"] = False
-            return await self._fetch_standard(native_payload, model_name, endpoint_url)
+            endpoint_duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            result["endpoint_duration_ms"] = endpoint_duration_ms
+            return result
         finally:
+            self.endpoint_status[endpoint_url] = "idle"
             self.endpoint_queue.put_nowait(endpoint_url)
 
     async def _fetch_standard(self, native_payload: dict, model_name: str, endpoint_url: str) -> dict:

@@ -78,6 +78,12 @@ class CacheRepository:
             c.execute("SELECT DISTINCT endpoint_url FROM history WHERE endpoint_url IS NOT NULL")
             return [row[0] for row in c.fetchall()]
 
+    def get_endpoint_labels(self) -> dict:
+        with sqlite3.connect(self.db_file) as conn:
+            c = conn.cursor()
+            c.execute("SELECT endpoint_url, label FROM endpoint_labels")
+            return {row[0]: row[1] for row in c.fetchall()}
+
     def get_stats(self) -> list:
         with sqlite3.connect(self.db_file) as conn:
             conn.row_factory = sqlite3.Row
