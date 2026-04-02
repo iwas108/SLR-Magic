@@ -107,8 +107,15 @@ class CacheRepository:
                 (endpoint_url, label)
             )
 
-    def get_history(self, search: str = None, endpoint: str = None, page: int = 1, limit: int = 50) -> dict:
+    def get_history(self, search: str = None, endpoint: str = None, page: int = 1, limit: int = 50, sort_by: str = "id", sort_desc: bool = True) -> dict:
         offset = (page - 1) * limit
+
+        valid_sort_columns = {"id", "model_name", "endpoint_url", "created_at", "duration_ms"}
+        if sort_by not in valid_sort_columns:
+            sort_by = "id"
+
+        sort_order = "DESC" if sort_desc else "ASC"
+
         with sqlite3.connect(self.db_file) as conn:
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
@@ -135,7 +142,7 @@ class CacheRepository:
             c.execute(count_query, params)
             total = c.fetchone()[0]
 
-            select_query += " ORDER BY id DESC LIMIT ? OFFSET ?"
+            select_query += f" ORDER BY {sort_by} {sort_order} LIMIT ? OFFSET ?"
             params.extend([limit, offset])
 
             c.execute(select_query, params)

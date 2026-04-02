@@ -60,14 +60,49 @@ def extract_json_from_mixed_text(text: str) -> str:
 class StreamBroadcaster:
     def __init__(self):
         self.listeners = []
+        self.active_streams = {}
 
     def broadcast(self, message: str):
+        self._update_state(message)
         for queue in self.listeners:
             try:
                 # Use put_nowait to avoid blocking the terminal if web client is slow
                 queue.put_nowait(message)
             except asyncio.QueueFull:
                 pass # Drop messages if the client can't keep up
+
+    def _update_state(self, message_str: str):
+        try:
+            data = json.loads(message_str)
+            stream_id = data.get("stream_id")
+            if not stream_id:
+                return
+
+            msg_type = data.get("type")
+            if msg_type == "start":
+                self.active_streams[stream_id] = {
+                    "endpointUrl": data.get("endpoint_url"),
+                    "title": data.get("title"),
+                    "abstract": data.get("abstract"),
+                    "content_chunks": [],
+                    "current_chunk": None
+                }
+            elif msg_type == "content":
+                if stream_id in self.active_streams:
+                    stream_state = self.active_streams[stream_id]
+                    in_thinking = data.get("in_thinking", False)
+                    content = data.get("content", "")
+
+                    if stream_state["current_chunk"] is None or stream_state["current_chunk"]["in_thinking"] != in_thinking:
+                        stream_state["current_chunk"] = {"in_thinking": in_thinking, "content": ""}
+                        stream_state["content_chunks"].append(stream_state["current_chunk"])
+
+                    stream_state["current_chunk"]["content"] += content
+            elif msg_type == "end":
+                if stream_id in self.active_streams:
+                    del self.active_streams[stream_id]
+        except Exception:
+            pass
 
     def add_listener(self) -> asyncio.Queue:
         q = asyncio.Queue(maxsize=1000) # Buffer up to 1000 messages
