@@ -753,6 +753,59 @@
             }
         }
 
+        function showManualCopyPopup(textToCopy) {
+            // Remove any existing manual copy modal
+            let existingModal = document.getElementById('manualCopyModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Create Modal DOM Elements
+            const modalEl = document.createElement('div');
+            modalEl.className = 'modal fade';
+            modalEl.id = 'manualCopyModal';
+            modalEl.tabIndex = -1;
+            modalEl.style.zIndex = 1060; // Ensure it's above the history modal
+
+            modalEl.innerHTML = `
+              <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header bg-warning">
+                    <h5 class="modal-title text-dark"><i class="bi bi-exclamation-triangle"></i> Manual Copy Required</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                    <p class="text-muted small mb-2">Automatic copy is disabled on non-HTTPS connections. Please copy the text below manually (Ctrl+C / Cmd+C).</p>
+                    <textarea id="manualCopyTextarea" class="form-control" rows="15" readonly style="font-family: monospace; font-size: 0.9em; resize: none;"></textarea>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                  </div>
+                </div>
+              </div>
+            `;
+
+            document.body.appendChild(modalEl);
+
+            const textarea = modalEl.querySelector('#manualCopyTextarea');
+            textarea.value = textToCopy;
+
+            // Show Modal using Bootstrap
+            const manualModal = new bootstrap.Modal(modalEl);
+            manualModal.show();
+
+            // Auto-select text for convenience when shown
+            modalEl.addEventListener('shown.bs.modal', () => {
+                textarea.focus();
+                textarea.select();
+            });
+
+            // Clean up DOM after hidden
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                modalEl.remove();
+            });
+        }
+
         async function copyPromptRefinement() {
             const model = document.getElementById('detail-model').textContent;
             const duration = document.getElementById('detail-duration').textContent;
@@ -822,35 +875,12 @@ Provide your response in two parts:
                     await navigator.clipboard.writeText(template);
                     alert("Prompt Refinement template copied to clipboard!");
                 } else {
-                    // Fallback for insecure contexts (HTTP)
-                    const textArea = document.createElement("textarea");
-                    textArea.value = template;
-
-                    // Avoid scrolling to bottom
-                    textArea.style.top = "0";
-                    textArea.style.left = "0";
-                    textArea.style.position = "fixed";
-
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-
-                    try {
-                        const successful = document.execCommand('copy');
-                        if (successful) {
-                            alert("Prompt Refinement template copied to clipboard (fallback)!");
-                        } else {
-                            alert("Failed to copy to clipboard.");
-                        }
-                    } catch (err) {
-                        console.error('Fallback: Oops, unable to copy', err);
-                        alert("Failed to copy to clipboard.");
-                    }
-                    document.body.removeChild(textArea);
+                    console.warn("navigator.clipboard API unavailable. Showing manual copy pop-up.");
+                    showManualCopyPopup(template);
                 }
             } catch (err) {
-                console.error('Failed to copy text: ', err);
-                alert("Failed to copy to clipboard.");
+                console.error('Failed to copy text (falling back to manual): ', err);
+                showManualCopyPopup(template);
             }
         }
 
