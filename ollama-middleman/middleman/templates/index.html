@@ -79,10 +79,26 @@
             <!-- Realtime Tab -->
             <div class="tab-pane fade show active h-100" id="realtime-pane" role="tabpanel" aria-labelledby="realtime-tab" tabindex="0">
 
+                <!-- Queue Stats Card -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="card-title mb-0 fw-bold"><i class="bi bi-cpu me-2"></i>Queue Status</h6>
+                            <span class="badge bg-secondary" id="queue-pending-badge">0 Pending</span>
+                        </div>
+                        <div class="progress mb-3" style="height: 10px;">
+                            <div id="queue-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2" id="queue-workers-container">
+                            <!-- Worker LEDs injected here -->
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mb-3 d-flex align-items-center">
                     <label for="activeEndpointSelect" class="form-label me-2 mb-0 fw-bold">Select Active Endpoint:</label>
                     <select id="activeEndpointSelect" class="form-select" style="max-width: 300px;">
-                        <option value="">-- No active endpoints --</option>
+                        <option value="">-- No active streams --</option>
                     </select>
                 </div>
 
@@ -208,11 +224,19 @@
 
     <!-- History Detail Modal -->
     <div class="modal fade" id="historyDetailModal" tabindex="-1" aria-labelledby="historyDetailModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable" id="historyDetailModalDialog">
         <div class="modal-content">
           <div class="modal-header bg-primary text-white">
             <h5 class="modal-title" id="historyDetailModalLabel">Request Details</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="d-flex align-items-center ms-auto me-3 gap-2">
+                <button type="button" class="btn btn-sm btn-light text-primary fw-bold" onclick="copyPromptRefinement()" title="Copy Prompt Refinement">
+                    <i class="bi bi-clipboard"></i> Copy Refinement Prompt
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleModalFullScreen()" title="Toggle Full Screen">
+                    <i id="modal-fs-icon" class="bi bi-arrows-fullscreen"></i>
+                </button>
+            </div>
+            <button type="button" class="btn-close btn-close-white ms-0" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
 
@@ -715,6 +739,93 @@
             container.appendChild(fallbackPre);
         }
 
+        function toggleModalFullScreen() {
+            const dialog = document.getElementById('historyDetailModalDialog');
+            const icon = document.getElementById('modal-fs-icon');
+            if (dialog.classList.contains('modal-fullscreen')) {
+                dialog.classList.remove('modal-fullscreen');
+                dialog.classList.add('modal-xl');
+                icon.className = 'bi bi-arrows-fullscreen';
+            } else {
+                dialog.classList.remove('modal-xl');
+                dialog.classList.add('modal-fullscreen');
+                icon.className = 'bi bi-fullscreen-exit';
+            }
+        }
+
+        async function copyPromptRefinement() {
+            const model = document.getElementById('detail-model').textContent;
+            const duration = document.getElementById('detail-duration').textContent;
+
+            // Extract the original prompt string without HTML formatting
+            let fullPromptString = "N/A";
+            const promptPre = document.querySelector('#detail-prompt-container pre.prompt-box');
+            if (promptPre) {
+                fullPromptString = promptPre.textContent;
+            } else {
+                // Fallback to searching the details block if it's hidden behind the summary
+                const detailsPre = document.querySelector('#detail-prompt-container details pre');
+                if (detailsPre) {
+                    fullPromptString = detailsPre.textContent;
+                }
+            }
+
+            const thinking = document.getElementById('detail-thinking').textContent || "No thinking trace available.";
+            const finalAnswer = document.getElementById('detail-result').textContent || "No final answer available.";
+
+            const template = `Act as an Elite AI Prompt Engineer and Latency Optimizer. Your objective is to analyze the execution trace of an LLM prompt and rewrite the prompt to eliminate hallucinations, prevent logic loops, and drastically reduce inference time.
+
+--- SYSTEM CONTEXT ---
+Target Model: ${model}
+Execution Duration: ${duration}
+
+--- INPUT DATA ---
+1. ORIGINAL PROMPT & INPUT DATA:
+${fullPromptString}
+
+
+2. MODEL'S REASONING TRACE (THINKING):
+${thinking}
+
+
+3. FINAL OUTPUT (JSON):
+${finalAnswer}
+
+
+--- DIAGNOSTIC & REFINEMENT TASKS ---
+Analyze the provided data and execute the following steps:
+
+STEP 1: LATENCY & OVERTHINKING AUDIT
+Check the Duration and Reasoning Trace. If the duration is high or the trace is excessively long:
+- Did the model debate the instructions? (e.g., arguing about markdown, definitions, or output formats).
+- Did it fall into a "Verification Loop" (e.g., "Wait, let me check again")?
+
+STEP 2: SEMANTIC & TEMPLATE HALLUCINATION CHECK
+Compare the Final Output against the Reasoning Trace and the Original Prompt rules.
+- Did the model accurately analyze the text but output the wrong JSON because it mimicked a hardcoded example?
+- Did it suffer from "Semantic Blindness" (ignoring a literal keyword because of the surrounding context)?
+
+STEP 3: REWRITE THE PROMPT
+Based on your diagnosis, rewrite the "ORIGINAL PROMPT" using these advanced techniques:
+1. Constrained Output Generation: Force a strict, minimalist <think> template if the model is overthinking.
+2. Fail-Fast Execution: Ensure logic gates are strictly sequential and abort immediately upon a trigger.
+3. Literal vs. Semantic Targeting: Clarify if the model should act as a "RegEx Engine" (literal) or an "Analytical Scientist" (semantic).
+4. Template Sanitization: Remove highly specific examples from the JSON schema that the model might blindly copy.
+
+--- OUTPUT FORMAT ---
+Provide your response in two parts:
+1. 🔍 DIAGNOSIS: A brief, punchy explanation of why the original prompt failed or was slow.
+2. 🚀 OPTIMIZED PROMPT: The complete, ready-to-use rewritten prompt enclosed in a markdown code block.`;
+
+            try {
+                await navigator.clipboard.writeText(template);
+                alert("Prompt Refinement template copied to clipboard!");
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                alert("Failed to copy to clipboard.");
+            }
+        }
+
         function showDetails(index) {
             const item = historyData[index];
 
@@ -1085,6 +1196,59 @@
             }
         }
 
+        async function fetchQueueStats() {
+            try {
+                const res = await fetch('/api/queue_stats');
+                if (!res.ok) return;
+                const stats = await res.json();
+
+                // Update Progress Bar & Pending Badge
+                const pendingBadge = document.getElementById('queue-pending-badge');
+                pendingBadge.textContent = `${stats.pending_requests} Pending`;
+                pendingBadge.className = stats.pending_requests > 0 ? 'badge bg-warning text-dark' : 'badge bg-secondary';
+
+                const totalActiveAndPending = stats.active_requests + stats.pending_requests;
+                let progressPercent = 0;
+                if (totalActiveAndPending > 0) {
+                    progressPercent = (stats.active_requests / totalActiveAndPending) * 100;
+                } else {
+                    progressPercent = 0;
+                }
+                const progressBar = document.getElementById('queue-progress-bar');
+                progressBar.style.width = `${progressPercent}%`;
+                progressBar.className = stats.pending_requests > 0
+                    ? 'progress-bar progress-bar-striped progress-bar-animated bg-primary'
+                    : 'progress-bar bg-success';
+
+                // Update Worker LEDs
+                const workersContainer = document.getElementById('queue-workers-container');
+                workersContainer.innerHTML = '';
+                stats.endpoints.forEach(ep => {
+                    const el = document.createElement('div');
+                    el.className = 'd-flex align-items-center border rounded px-2 py-1 bg-body-tertiary';
+                    el.style.fontSize = '0.85rem';
+
+                    const led = document.createElement('span');
+                    led.className = ep.status === 'active' ? 'spinner-grow spinner-grow-sm text-success me-2' : 'badge bg-secondary rounded-circle p-1 me-2';
+                    if (ep.status !== 'active') {
+                        led.style.width = '10px';
+                        led.style.height = '10px';
+                        led.style.display = 'inline-block';
+                    }
+
+                    const label = document.createElement('span');
+                    label.textContent = ep.label;
+                    label.title = ep.url;
+
+                    el.appendChild(led);
+                    el.appendChild(label);
+                    workersContainer.appendChild(el);
+                });
+            } catch (e) {
+                console.error("Failed to fetch queue stats", e);
+            }
+        }
+
         function setupStream() {
             // Listen for dropdown changes
             document.getElementById('activeEndpointSelect').addEventListener('change', updateDisplayForSelectedEndpoint);
@@ -1093,6 +1257,10 @@
             fetchActiveStreams().then(() => {
                 connectWebSocket();
             });
+
+            // Poll queue stats
+            fetchQueueStats();
+            setInterval(fetchQueueStats, 1000);
         }
 
         window.onload = () => {

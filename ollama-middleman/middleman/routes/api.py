@@ -74,10 +74,10 @@ async def proxy_to_ollama(request: Request):
         import httpx
         response_data = await ollama_service.fetch_completion(payload, req_hash)
 
-        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
         model_name = response_data.get("model", "unknown")
 
         endpoint_url = response_data.pop("endpoint_url", "unknown")
+        duration_ms = response_data.pop("endpoint_duration_ms", int((datetime.now() - start_time).total_seconds() * 1000))
 
         cache_repo.set(req_hash, response_data)
         cache_repo.log_history(model_name, payload, response_data, duration_ms, endpoint_url)
@@ -98,6 +98,32 @@ async def proxy_to_ollama(request: Request):
 # =====================================================================
 # Web Review API Endpoints (Port 8899)
 # =====================================================================
+
+@web_api_router.get("/api/queue_stats")
+async def get_queue_stats():
+    try:
+        active_count = sum(1 for status in ollama_service.endpoint_status.values() if status == "active")
+        total_count = len(ollama_service.urls)
+        labels = cache_repo.get_endpoint_labels()
+
+        endpoints_data = []
+        for url in ollama_service.urls:
+            status = ollama_service.endpoint_status.get(url, "idle")
+            label = labels.get(url, url)
+            endpoints_data.append({
+                "url": url,
+                "label": label,
+                "status": status
+            })
+
+        return {
+            "total_endpoints": total_count,
+            "active_requests": active_count,
+            "pending_requests": ollama_service.pending_requests,
+            "endpoints": endpoints_data
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @web_api_router.get("/api/stats")
 async def get_stats():
