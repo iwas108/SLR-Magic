@@ -46,7 +46,15 @@ const OllamaAdapter = (function() {
             // Try to fix common JSON errors (like trailing commas) or let it throw
             try {
                 // Very basic repair: remove trailing commas before } or ]
-                const repaired = extracted.replace(/,\s*([}\]])/g, '$1');
+                let repaired = extracted.replace(/,\s*([}\]])/g, '$1');
+
+                // Optimistic repair: escape unescaped double quotes and newlines inside string values
+                repaired = repaired.replace(/("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))/gs, function(match, start, content, end) {
+                    let fixedContent = content.replace(/\\"/g, '"').replace(/"/g, '\\"');
+                    fixedContent = fixedContent.replace(/\n/g, '\\n').replace(/\r/g, '');
+                    return start + fixedContent + end;
+                });
+
                 return JSON.parse(repaired);
             } catch (e2) {
                 throw new Error("Extracted string is not valid JSON.");
@@ -54,8 +62,17 @@ const OllamaAdapter = (function() {
         }
     }
 
-    // 4. If all else fails, try parsing the original text
-    return JSON.parse(originalText);
+    // 4. If all else fails, attempt optimistic repair on the original text before giving up
+    try {
+        let repairedOriginal = originalText.replace(/("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))/gs, function(match, start, content, end) {
+            let fixedContent = content.replace(/\\"/g, '"').replace(/"/g, '\\"');
+            fixedContent = fixedContent.replace(/\n/g, '\\n').replace(/\r/g, '');
+            return start + fixedContent + end;
+        });
+        return JSON.parse(repairedOriginal);
+    } catch (finalError) {
+        throw new Error("Extracted string is not valid JSON and could not be repaired.");
+    }
   }
 
   /**

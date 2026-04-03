@@ -7,8 +7,25 @@ from datetime import datetime
 
 from middleman.config import logger
 
+def optimistic_repair_json(text: str) -> str:
+    # A robust regex to find JSON string values and escape unescaped double quotes and newlines
+    pattern = re.compile(r'("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))', re.DOTALL)
+
+    def replacer(match):
+        start = match.group(1)
+        content = match.group(2)
+        end = match.group(3)
+
+        # Escape double quotes by unescaping first to avoid double-escaping, then escape all
+        content = content.replace('\\"', '"').replace('"', '\\"')
+        # Escape newlines
+        content = content.replace('\n', '\\n').replace('\r', '')
+        return start + content + end
+
+    return pattern.sub(replacer, text)
+
 def extract_json_from_mixed_text(text: str) -> str:
-    # First, strip think block
+    # First, strip valid think blocks
     text_no_think = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
 
     # Check if it has markdown json block
@@ -21,41 +38,49 @@ def extract_json_from_mixed_text(text: str) -> str:
         except json.JSONDecodeError:
             pass
 
-    # Try finding outermost {}
-    first_curly = text_no_think.find('{')
-    last_curly = text_no_think.rfind('}')
+    # Global basic repair for trailing commas to help raw_decode
+    text_repaired = re.sub(r",\s*([}\]])", r"\1", text_no_think)
 
-    if first_curly != -1 and last_curly != -1 and last_curly > first_curly:
-        extracted = text_no_think[first_curly:last_curly+1]
-        try:
-            json.loads(extracted)
-            return extracted
-        except json.JSONDecodeError:
-            # Try basic repair
-            repaired = re.sub(r",\s*([}\]])", r"\1", extracted)
+    valid_blocks = []
+    decoder = json.JSONDecoder()
+
+    # Find all valid JSON objects/arrays by attempting to decode
+    i = 0
+    while i < len(text_repaired):
+        if text_repaired[i] in '{[':
             try:
-                json.loads(repaired)
-                return repaired
+                obj, idx = decoder.raw_decode(text_repaired[i:])
+                if isinstance(obj, (dict, list)):
+                    valid_blocks.append(text_repaired[i:i+idx])
+                    i += idx
+                    continue
             except json.JSONDecodeError:
                 pass
+        i += 1
 
-    # Try finding outermost []
-    first_square = text_no_think.find('[')
-    last_square = text_no_think.rfind(']')
+    if valid_blocks:
+        # Return the LAST valid block found (safest against unclosed <think> containing JSON)
+        return valid_blocks[-1]
 
-    if first_square != -1 and last_square != -1 and last_square > first_square:
-        extracted = text_no_think[first_square:last_square+1]
-        try:
-            json.loads(extracted)
-            return extracted
-        except json.JSONDecodeError:
-            # Try basic repair
-            repaired = re.sub(r",\s*([}\]])", r"\1", extracted)
+    # If no valid blocks found, attempt optimistic repair on the whole repaired text
+    repaired_text = optimistic_repair_json(text_repaired)
+    valid_blocks_repaired = []
+
+    i = 0
+    while i < len(repaired_text):
+        if repaired_text[i] in '{[':
             try:
-                json.loads(repaired)
-                return repaired
+                obj, idx = decoder.raw_decode(repaired_text[i:])
+                if isinstance(obj, (dict, list)):
+                    valid_blocks_repaired.append(repaired_text[i:i+idx])
+                    i += idx
+                    continue
             except json.JSONDecodeError:
                 pass
+        i += 1
+
+    if valid_blocks_repaired:
+        return valid_blocks_repaired[-1]
 
     return text
 
