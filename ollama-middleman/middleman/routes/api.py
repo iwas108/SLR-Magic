@@ -42,14 +42,15 @@ async def proxy_to_ollama(request: Request):
 
     start_time = datetime.now()
 
-    cached_response = cache_repo.get(req_hash)
-    if cached_response:
-        duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-        model_name = cached_response.get("model", "unknown")
+    if not Config.UPDATE_CACHE:
+        cached_response = cache_repo.get(req_hash)
+        if cached_response:
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            model_name = cached_response.get("model", "unknown")
 
-        endpoint_url = cached_response.pop("endpoint_url", "cache")
-        logger.info(f"⚡ Cache Hit [{short_hash}] - Fulfilled instantly")
-        return cached_response
+            endpoint_url = cached_response.pop("endpoint_url", "cache")
+            logger.info(f"⚡ Cache Hit [{short_hash}] - Fulfilled instantly")
+            return cached_response
 
     if req_hash in in_flight_requests:
         logger.info(f"⏳ Coalescing [{short_hash}] - Waiting for an identical in-flight request...")

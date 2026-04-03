@@ -48,9 +48,10 @@ app.include_router(ui_router)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-def run_server(server_urls: list, stream: bool):
+def run_server(server_urls: list, stream: bool, update_cache: bool):
     Config.OLLAMA_URLS = server_urls
     Config.STREAM_OLLAMA = stream
+    Config.UPDATE_CACHE = update_cache
     # Run the unified app on port 8899 (which is what the UI instructions say)
     # The proxy API can easily be accessed at the same port /v1/chat/completions
     uvicorn.run(app, host="0.0.0.0", port=8899, log_level="warning")
@@ -59,6 +60,7 @@ def main():
     parser = argparse.ArgumentParser(description="Ollama Caching Proxy")
     parser.add_argument("--stream", action="store_true", help="Enable internal streaming")
     parser.add_argument("--server", type=str, default="http://127.0.0.1:11434", help="Ollama Server URLs separated by comma (e.g., http://127.0.0.1:11434,http://192.168.1.5:11434)")
+    parser.add_argument("--update-cache", action="store_true", help="Update existing cache or create if not exists")
     args = parser.parse_args()
 
     raw_urls = [u.strip().rstrip('/') for u in args.server.split(',')]
@@ -67,8 +69,9 @@ def main():
     # Also set for the main process just in case
     Config.OLLAMA_URLS = server_urls
     Config.STREAM_OLLAMA = args.stream
+    Config.UPDATE_CACHE = args.update_cache
 
-    p1 = multiprocessing.Process(target=run_server, args=(server_urls, args.stream))
+    p1 = multiprocessing.Process(target=run_server, args=(server_urls, args.stream, args.update_cache))
     p1.start()
 
     def kill_children():

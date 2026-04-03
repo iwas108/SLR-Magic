@@ -2,6 +2,9 @@ import asyncio
 import json
 import httpx
 
+import pytest
+
+@pytest.mark.asyncio
 async def test_ollama_stream():
     url = "http://localhost:11434/api/chat"
     payload = {
