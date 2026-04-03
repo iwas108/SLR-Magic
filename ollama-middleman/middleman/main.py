@@ -33,6 +33,16 @@ async def lifespan(app: FastAPI):
     api.cache_repo = cache_repo
     api.ollama_service = ollama_service
 
+    # Load endpoint configs from DB and sync with OllamaService
+    # Fallback to CLI URLs if DB is empty
+    db_configs = cache_repo.get_all_endpoint_configs()
+    if not db_configs:
+        for url in Config.OLLAMA_URLS:
+            cache_repo.upsert_endpoint_config(url, True, "")
+        db_configs = cache_repo.get_all_endpoint_configs()
+
+    ollama_service.sync_endpoints(db_configs)
+
     logger.info(f"🚀 Middleman started. (Streaming: {Config.STREAM_OLLAMA} | Translation Mode: Active)")
     logger.info(f"🔗 Active Endpoints ({len(Config.OLLAMA_URLS)}): {', '.join(Config.OLLAMA_URLS)}")
     logger.info("🌐 Web Review UI available at http://localhost:8899")

@@ -153,11 +153,45 @@ class OllamaService:
         self.endpoint_queue = asyncio.Queue()
         self.endpoint_status = {url: "idle" for url in self.urls}
         self.pending_requests = 0
+        self.custom_models = {}  # endpoint_url -> custom_model string
+
         for url in self.urls:
             self.endpoint_queue.put_nowait(url)
 
+    def sync_endpoints(self, configs: list):
+        # configs is a list of dicts: [{"endpoint_url": "...", "enabled": True/False, "custom_model": "..."}]
+        active_urls = [c["endpoint_url"] for c in configs if c.get("enabled")]
+        self.custom_models = {c["endpoint_url"]: c.get("custom_model") for c in configs if c.get("enabled") and c.get("custom_model")}
+
+        # Remove urls that are no longer active
+        for url in self.urls:
+            if url not in active_urls:
+                if url in self.endpoint_status:
+                    del self.endpoint_status[url]
+
+        # We need to recreate the queue with idle active urls, but preserve active ones
+        # A simple way without locking is to clear the queue and re-add what's idle
+        # We must be careful not to lose active processing ones.
+
+        # Add new urls
+        for url in active_urls:
+            if url not in self.urls:
+                self.endpoint_status[url] = "idle"
+
+        self.urls = active_urls
+
+        # Re-populate queue
+        while not self.endpoint_queue.empty():
+            try:
+                self.endpoint_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+        for url in self.urls:
+            if self.endpoint_status.get(url) == "idle":
+                self.endpoint_queue.put_nowait(url)
+
     async def fetch_completion(self, openai_payload: dict, req_hash: str = "") -> dict:
-        model_name = openai_payload.get("model", "qwen3.5-slr")
         messages = openai_payload.get("messages", [])
 
         # Extract default/basic options
@@ -195,6 +229,16 @@ class OllamaService:
 
         native_options.update(custom_options)
 
+        self.pending_requests += 1
+        try:
+            endpoint_url = await self.endpoint_queue.get()
+        finally:
+            self.pending_requests -= 1
+
+        # Use custom model if defined for this endpoint, else default
+        base_model = openai_payload.get("model", "qwen3.5-slr")
+        model_name = self.custom_models.get(endpoint_url) or base_model
+
         native_payload = {
             "model": model_name,
             "messages": messages,
@@ -206,12 +250,6 @@ class OllamaService:
             native_payload["think"] = think_param
 
         logger.debug(f"Translated Native Payload: {json.dumps(native_payload)}")
-
-        self.pending_requests += 1
-        try:
-            endpoint_url = await self.endpoint_queue.get()
-        finally:
-            self.pending_requests -= 1
 
         self.endpoint_status[endpoint_url] = "active"
         short_hash = req_hash[:8] if req_hash else "Unknown"
@@ -230,8 +268,10 @@ class OllamaService:
             result["endpoint_duration_ms"] = endpoint_duration_ms
             return result
         finally:
-            self.endpoint_status[endpoint_url] = "idle"
-            self.endpoint_queue.put_nowait(endpoint_url)
+            if endpoint_url in self.endpoint_status:
+                self.endpoint_status[endpoint_url] = "idle"
+            if endpoint_url in self.urls:
+                self.endpoint_queue.put_nowait(endpoint_url)
 
     async def _fetch_standard(self, native_payload: dict, model_name: str, endpoint_url: str) -> dict:
         async with httpx.AsyncClient(timeout=900.0) as client:
