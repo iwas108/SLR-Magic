@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import asyncio
 
 from middleman.config import Config, logger
-from middleman.service import stream_broadcaster
+from middleman.service import stream_broadcaster, extract_json_from_mixed_text
 
 api_router = APIRouter()
 web_api_router = APIRouter()
@@ -72,12 +72,52 @@ async def proxy_to_ollama(request: Request):
 
     try:
         import httpx
-        response_data = await ollama_service.fetch_completion(payload, req_hash)
 
-        model_name = response_data.get("model", "unknown")
+        expects_json = False
+        if payload.get("response_format", {}).get("type") == "json_object":
+            expects_json = True
+        else:
+            for msg in messages:
+                if "json" in str(msg.get("content", "")).lower():
+                    expects_json = True
+                    break
 
-        endpoint_url = response_data.pop("endpoint_url", "unknown")
-        duration_ms = response_data.pop("endpoint_duration_ms", int((datetime.now() - start_time).total_seconds() * 1000))
+        max_retries = 3 if expects_json else 1
+        response_data = None
+        duration_ms = 0
+        endpoint_url = "unknown"
+        model_name = "unknown"
+
+        for attempt in range(max_retries):
+            response_data = await ollama_service.fetch_completion(payload, req_hash)
+
+            model_name = response_data.get("model", "unknown")
+            endpoint_url = response_data.pop("endpoint_url", "unknown")
+            duration_ms = response_data.pop("endpoint_duration_ms", int((datetime.now() - start_time).total_seconds() * 1000))
+
+            if expects_json:
+                content = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+                extracted = extract_json_from_mixed_text(content)
+
+                is_valid_json = False
+                if extracted:
+                    try:
+                        parsed = json.loads(extracted)
+                        if isinstance(parsed, (dict, list)):
+                            is_valid_json = True
+                    except json.JSONDecodeError:
+                        pass
+
+                if is_valid_json:
+                    break
+                else:
+                    logger.warning(f"⚠️ Invalid JSON detected for [{short_hash}] on attempt {attempt + 1}/{max_retries}. Retrying...")
+                    if attempt == max_retries - 1:
+                        logger.warning(f"❌ Failed to get valid JSON after {max_retries} attempts for [{short_hash}]. Proceeding with last response.")
+            else:
+                break
+
 
         cache_repo.set(req_hash, response_data)
         cache_repo.log_history(model_name, payload, response_data, duration_ms, endpoint_url)

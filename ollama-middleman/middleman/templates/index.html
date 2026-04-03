@@ -995,6 +995,7 @@ Provide your response in two parts:
         let streamState = {};
         let needsRender = false;
         let activeEndpoints = {}; // Map of streamId -> { endpointUrl, title, abstract }
+        let endpointLabelsMap = {}; // Map of endpointUrl -> label
 
         function renderStream() {
             if (!needsRender) {
@@ -1044,9 +1045,10 @@ Provide your response in two parts:
 
             streamIds.forEach(id => {
                 const data = activeEndpoints[id];
+                const displayUrl = endpointLabelsMap[data.endpointUrl] || data.endpointUrl;
                 const option = document.createElement('option');
                 option.value = id;
-                option.textContent = `${data.endpointUrl} - ${data.title ? data.title.substring(0, 30) + '...' : 'Unknown Paper'}`;
+                option.textContent = `${displayUrl} - ${data.title ? data.title.substring(0, 30) + '...' : 'Unknown Paper'}`;
                 select.appendChild(option);
             });
 
@@ -1281,7 +1283,15 @@ Provide your response in two parts:
                 // Update Worker LEDs
                 const workersContainer = document.getElementById('queue-workers-container');
                 workersContainer.innerHTML = '';
+
+                let labelsChanged = false;
+
                 stats.endpoints.forEach(ep => {
+                    if (endpointLabelsMap[ep.url] !== ep.label) {
+                        endpointLabelsMap[ep.url] = ep.label;
+                        labelsChanged = true;
+                    }
+
                     const el = document.createElement('div');
                     el.className = 'd-flex align-items-center border rounded px-2 py-1 bg-body-tertiary';
                     el.style.fontSize = '0.85rem';
@@ -1302,6 +1312,10 @@ Provide your response in two parts:
                     el.appendChild(label);
                     workersContainer.appendChild(el);
                 });
+
+                if (labelsChanged) {
+                    updateEndpointDropdown();
+                }
             } catch (e) {
                 console.error("Failed to fetch queue stats", e);
             }
