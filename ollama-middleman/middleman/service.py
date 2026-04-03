@@ -7,6 +7,23 @@ from datetime import datetime
 
 from middleman.config import logger
 
+def optimistic_repair_json(text: str) -> str:
+    # A robust regex to find JSON string values and escape unescaped double quotes and newlines
+    pattern = re.compile(r'("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))', re.DOTALL)
+
+    def replacer(match):
+        start = match.group(1)
+        content = match.group(2)
+        end = match.group(3)
+
+        # Escape double quotes by unescaping first to avoid double-escaping, then escape all
+        content = content.replace('\\"', '"').replace('"', '\\"')
+        # Escape newlines
+        content = content.replace('\n', '\\n').replace('\r', '')
+        return start + content + end
+
+    return pattern.sub(replacer, text)
+
 def extract_json_from_mixed_text(text: str) -> str:
     # First, strip valid think blocks
     text_no_think = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
@@ -44,6 +61,26 @@ def extract_json_from_mixed_text(text: str) -> str:
     if valid_blocks:
         # Return the LAST valid block found (safest against unclosed <think> containing JSON)
         return valid_blocks[-1]
+
+    # If no valid blocks found, attempt optimistic repair on the whole repaired text
+    repaired_text = optimistic_repair_json(text_repaired)
+    valid_blocks_repaired = []
+
+    i = 0
+    while i < len(repaired_text):
+        if repaired_text[i] in '{[':
+            try:
+                obj, idx = decoder.raw_decode(repaired_text[i:])
+                if isinstance(obj, (dict, list)):
+                    valid_blocks_repaired.append(repaired_text[i:i+idx])
+                    i += idx
+                    continue
+            except json.JSONDecodeError:
+                pass
+        i += 1
+
+    if valid_blocks_repaired:
+        return valid_blocks_repaired[-1]
 
     return text
 

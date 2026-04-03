@@ -50,6 +50,25 @@ async def proxy_to_ollama(request: Request):
 
             endpoint_url = cached_response.pop("endpoint_url", "cache")
             logger.info(f"⚡ Cache Hit [{short_hash}] - Fulfilled instantly")
+
+            # Intercept cached response to repair previously saved bad JSON
+            expects_json = payload.get("response_format", {}).get("type") == "json_object" or any("json" in str(msg.get("content", "")).lower() for msg in messages)
+            if expects_json:
+                content = cached_response.get("choices", [{}])[0].get("message", {}).get("content", "")
+                extracted = extract_json_from_mixed_text(content)
+                if extracted and extracted != content:
+                    try:
+                        parsed = json.loads(extracted)
+                        if isinstance(parsed, (dict, list)):
+                            cached_response["choices"][0]["message"]["content"] = extracted
+                            # Optionally update the cache to fix it permanently
+                            cached_response_copy = cached_response.copy()
+                            cached_response_copy["endpoint_url"] = endpoint_url
+                            cache_repo.set(req_hash, cached_response_copy)
+                            logger.info(f"🔧 Repaired previously malformed JSON from cache for [{short_hash}]")
+                    except json.JSONDecodeError:
+                        pass
+
             return cached_response
 
     if req_hash in in_flight_requests:
@@ -64,6 +83,24 @@ async def proxy_to_ollama(request: Request):
 
             endpoint_url = cached_response.pop("endpoint_url", "cache")
             logger.info(f"⚡ Cache Hit [{short_hash}] - Fulfilled after waiting {duration_ms}ms")
+
+            # Intercept cached response to repair previously saved bad JSON
+            expects_json = payload.get("response_format", {}).get("type") == "json_object" or any("json" in str(msg.get("content", "")).lower() for msg in messages)
+            if expects_json:
+                content = cached_response.get("choices", [{}])[0].get("message", {}).get("content", "")
+                extracted = extract_json_from_mixed_text(content)
+                if extracted and extracted != content:
+                    try:
+                        parsed = json.loads(extracted)
+                        if isinstance(parsed, (dict, list)):
+                            cached_response["choices"][0]["message"]["content"] = extracted
+                            cached_response_copy = cached_response.copy()
+                            cached_response_copy["endpoint_url"] = endpoint_url
+                            cache_repo.set(req_hash, cached_response_copy)
+                            logger.info(f"🔧 Repaired previously malformed JSON from coalesced cache for [{short_hash}]")
+                    except json.JSONDecodeError:
+                        pass
+
             return cached_response
         else:
              logger.warning(f"⚠️ Coalescing [{short_hash}] - Woke up but cache was empty. This shouldn't happen.")
