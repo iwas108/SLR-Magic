@@ -1,19 +1,20 @@
 import subprocess
 import logging
 
+from app.repository import db
+
 logger = logging.getLogger(__name__)
 
-class SyncerConfig:
-    SOURCE_FOLDERS = ["compressed"]
-    REMOTE_GDRIVE = "gdrive"
-    DEST_BACKUP = "00 PHD Research/My First SLR/PDFs"
-
 def run_syncer(is_cancelled=None):
+    source_folders = db.get_config("SYNCER_SOURCE_FOLDERS")
+    remote_gdrive = db.get_config("SYNCER_REMOTE_GDRIVE")
+    dest_backup = db.get_config("SYNCER_DEST_BACKUP")
+
     logger.info("Starting rclone sync process...")
     success_count = 0
-    total_count = len(SyncerConfig.SOURCE_FOLDERS)
+    total_count = len(source_folders)
 
-    for folder in SyncerConfig.SOURCE_FOLDERS:
+    for folder in source_folders:
         if is_cancelled and is_cancelled():
             logger.info("Sync cancelled by user.")
             break
@@ -23,7 +24,7 @@ def run_syncer(is_cancelled=None):
             # Execute rclone sync command
             cmd = [
                 "rclone", "sync", folder,
-                f"{SyncerConfig.REMOTE_GDRIVE}:{SyncerConfig.DEST_BACKUP}/{folder}",
+                f"{remote_gdrive}:{dest_backup}/{folder}",
                 "-L", "--progress", "--create-empty-src-dirs"
             ]
 

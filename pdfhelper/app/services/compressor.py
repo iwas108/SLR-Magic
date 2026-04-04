@@ -6,13 +6,9 @@ import platform
 from pathlib import Path
 import logging
 
-logger = logging.getLogger(__name__)
+from app.repository import db
 
-class CompressorConfig:
-    INPUT_FOLDER_NAME = "Downloaded_PDFs"
-    OUTPUT_FOLDER_NAME = "compressed"
-    DB_FILE = "compression_manifest.json"
-    COMPRESSION_LEVEL = "/ebook"
+logger = logging.getLogger(__name__)
 
 def get_ghostscript_command():
     possible_commands = ["gs", "gswin64c", "gswin32c"]
@@ -21,29 +17,13 @@ def get_ghostscript_command():
             return cmd
     return None
 
-def load_manifest(db_path):
-    if db_path.exists():
-        try:
-            with open(db_path, 'r') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return {}
-    return {}
-
-def save_manifest(db_path, data):
-    try:
-        with open(db_path, 'w') as f:
-            json.dump(data, f, indent=4)
-    except IOError as e:
-        logger.warning(f"Could not save manifest file: {e}")
-
-def compress_pdf(gs_command, input_file, output_file):
+def compress_pdf(gs_command, input_file, output_file, compression_level):
     try:
         command = [
             gs_command,
             "-sDEVICE=pdfwrite",
             "-dCompatibilityLevel=1.4",
-            f"-dPDFSETTINGS={CompressorConfig.COMPRESSION_LEVEL}",
+            f"-dPDFSETTINGS={compression_level}",
             "-dNOPAUSE",
             "-dQUIET",
             "-dBATCH",
@@ -61,10 +41,13 @@ def compress_pdf(gs_command, input_file, output_file):
         return False
 
 def run_compressor(is_cancelled=None):
+    input_folder = db.get_config("COMPRESSOR_INPUT_FOLDER_NAME")
+    output_folder = db.get_config("COMPRESSOR_OUTPUT_FOLDER_NAME")
+    compression_level = db.get_config("COMPRESSOR_COMPRESSION_LEVEL")
+
     cwd = Path.cwd()
-    input_dir = cwd / CompressorConfig.INPUT_FOLDER_NAME
-    output_dir = cwd / CompressorConfig.OUTPUT_FOLDER_NAME
-    db_path = cwd / CompressorConfig.DB_FILE
+    input_dir = cwd / input_folder
+    output_dir = cwd / output_folder
 
     logger.info("Starting PDF Compressor...")
 
@@ -78,7 +61,7 @@ def run_compressor(is_cancelled=None):
         output_dir.mkdir()
         logger.info(f"Created output folder: {output_dir}")
 
-    manifest = load_manifest(db_path)
+    manifest = db.get_compression_manifest()
     pdf_files = list(input_dir.glob("*.pdf"))
 
     if not pdf_files:
@@ -122,17 +105,13 @@ def run_compressor(is_cancelled=None):
         if needs_processing:
             logger.info(f"Processing ({reason}): {pdf.name}...")
 
-            if compress_pdf(gs_command, pdf, output_path):
+            if compress_pdf(gs_command, pdf, output_path, compression_level):
                 if output_path.exists():
                     new_size = output_path.stat().st_size
                     ratio = (1 - (new_size / current_size)) * 100
                     saved_space += (current_size - new_size)
 
-                    manifest[pdf.name] = {
-                        "mtime": current_mtime,
-                        "original_size": current_size,
-                        "compressed_size": new_size
-                    }
+                    db.update_compression_manifest(pdf.name, current_mtime, current_size, new_size)
                     logger.info(f"Done! (-{ratio:.1f}%)")
                     processed_count += 1
                 else:
@@ -144,9 +123,7 @@ def run_compressor(is_cancelled=None):
 
     for recorded_file in list(manifest.keys()):
         if recorded_file not in current_filenames:
-            del manifest[recorded_file]
-
-    save_manifest(db_path, manifest)
+            db.remove_from_compression_manifest(recorded_file)
 
     logger.info(f"Compression Summary: Processed: {processed_count}, Skipped: {skipped_count}, Saved Space: {saved_space / (1024*1024):.2f} MB")
 
