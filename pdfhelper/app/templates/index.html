@@ -40,6 +40,12 @@
         <p>Reads <code>database.csv</code>, scrapes DOIs, and downloads PDFs via EzProxy.</p>
         <button class="btn btn-primary" onclick="startTask('downloader')">Start Download</button>
         <div class="mt-2 text-muted" id="msg-downloader"></div>
+        <div id="progress-container-downloader" class="mt-3 d-none">
+            <div class="progress">
+                <div id="progress-bar-downloader" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+            </div>
+            <div id="progress-title-downloader" class="mt-1 small text-truncate"></div>
+        </div>
     </div>
 
     <!-- Step 2: Verify -->
@@ -90,6 +96,7 @@
         for (const [task, state] of Object.entries(data)) {
             const badge = document.getElementById(`status-${task}`);
             const msg = document.getElementById(`msg-${task}`);
+            const progressContainer = document.getElementById(`progress-container-${task}`);
 
             if (badge && msg) {
                 msg.textContent = state.message;
@@ -102,17 +109,71 @@
                 else if (state.status === 'error') badge.classList.add('bg-danger');
                 else if (state.status === 'warning') badge.classList.add('bg-warning');
                 else badge.classList.add('bg-info');
+
+                if (progressContainer) {
+                    if (state.status !== 'running') {
+                        progressContainer.classList.add('d-none');
+                    }
+                }
             }
         }
     }
 
-    async function pollStatus() {
+    function updateProgressUI(task, data) {
+        const progressContainer = document.getElementById(`progress-container-${task}`);
+        const progressBar = document.getElementById(`progress-bar-${task}`);
+        const progressTitle = document.getElementById(`progress-title-${task}`);
+
+        if (progressContainer && progressBar && progressTitle) {
+            progressContainer.classList.remove('d-none');
+            const percentage = Math.round((data.current / data.total) * 100);
+            progressBar.style.width = `${percentage}%`;
+            progressBar.setAttribute('aria-valuenow', percentage);
+            progressBar.textContent = `${percentage}% (${data.current}/${data.total})`;
+            progressTitle.textContent = `Processing: ${data.title}`;
+        }
+    }
+
+    let ws;
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+            fetchStatus(); // Get initial status
+        };
+
+        ws.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            if (message.type === 'state') {
+                updateStatusUI(message.data);
+            } else if (message.type === 'progress') {
+                updateProgressUI(message.task, message.data);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket disconnected. Reconnecting in 3 seconds...');
+            setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            ws.close();
+        };
+    }
+
+    async function fetchStatus() {
         try {
             const response = await fetch('/api/status');
             const data = await response.json();
             updateStatusUI(data);
         } catch (error) {
-            console.error('Error polling status:', error);
+            console.error('Error fetching initial status:', error);
         }
     }
 
@@ -121,16 +182,12 @@
             const response = await fetch(apiMap[taskName], { method: 'POST' });
             const result = await response.json();
             console.log(result.message);
-            pollStatus(); // Immediate update
         } catch (error) {
             console.error(`Error starting ${taskName}:`, error);
         }
     }
 
-    // Poll status every 2 seconds
-    setInterval(pollStatus, 2000);
-    // Initial poll
-    pollStatus();
+    connectWebSocket();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
