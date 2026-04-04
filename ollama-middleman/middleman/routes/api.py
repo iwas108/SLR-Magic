@@ -230,6 +230,53 @@ async def get_endpoints():
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@web_api_router.get("/api/endpoints/config")
+async def get_endpoints_config():
+    try:
+        configs = cache_repo.get_all_endpoint_configs()
+        return configs
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@web_api_router.post("/api/endpoints/config")
+async def upsert_endpoint_config(request: Request):
+    try:
+        data = await request.json()
+        endpoint_url = data.get("endpoint_url")
+        if not endpoint_url:
+            return JSONResponse(status_code=400, content={"error": "endpoint_url is required"})
+
+        enabled = data.get("enabled", True)
+        custom_model = data.get("custom_model", "")
+
+        cache_repo.upsert_endpoint_config(endpoint_url, enabled, custom_model)
+
+        # Sync with service
+        configs = cache_repo.get_all_endpoint_configs()
+        ollama_service.sync_endpoints(configs)
+
+        return {"status": "success"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@web_api_router.delete("/api/endpoints/config")
+async def delete_endpoint_config(request: Request):
+    try:
+        data = await request.json()
+        endpoint_url = data.get("endpoint_url")
+        if not endpoint_url:
+            return JSONResponse(status_code=400, content={"error": "endpoint_url is required"})
+
+        cache_repo.delete_endpoint_config(endpoint_url)
+
+        # Sync with service
+        configs = cache_repo.get_all_endpoint_configs()
+        ollama_service.sync_endpoints(configs)
+
+        return {"status": "success"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @web_api_router.get("/api/history")
 async def get_history(search: str = None, endpoint: str = None, page: int = 1, limit: int = 50, sort_by: str = "id", sort_desc: str = "true"):
     try:

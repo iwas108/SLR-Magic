@@ -46,6 +46,14 @@ class CacheRepository:
                 )
             ''')
 
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS endpoints_config (
+                    endpoint_url TEXT PRIMARY KEY,
+                    enabled BOOLEAN DEFAULT 1,
+                    custom_model TEXT
+                )
+            ''')
+
     @staticmethod
     def generate_hash(messages: list) -> str:
         message_str = json.dumps(messages, sort_keys=True)
@@ -112,6 +120,24 @@ class CacheRepository:
                 "INSERT OR REPLACE INTO endpoint_labels (endpoint_url, label) VALUES (?, ?)",
                 (endpoint_url, label)
             )
+
+    def get_all_endpoint_configs(self) -> list:
+        with sqlite3.connect(self.db_file) as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("SELECT endpoint_url, enabled, custom_model FROM endpoints_config")
+            return [dict(row) for row in c.fetchall()]
+
+    def upsert_endpoint_config(self, endpoint_url: str, enabled: bool, custom_model: str):
+        with sqlite3.connect(self.db_file) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO endpoints_config (endpoint_url, enabled, custom_model) VALUES (?, ?, ?)",
+                (endpoint_url, 1 if enabled else 0, custom_model)
+            )
+
+    def delete_endpoint_config(self, endpoint_url: str):
+        with sqlite3.connect(self.db_file) as conn:
+            conn.execute("DELETE FROM endpoints_config WHERE endpoint_url = ?", (endpoint_url,))
 
     def get_history(self, search: str = None, endpoint: str = None, page: int = 1, limit: int = 50, sort_by: str = "id", sort_desc: bool = True) -> dict:
         offset = (page - 1) * limit

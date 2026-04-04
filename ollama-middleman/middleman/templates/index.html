@@ -84,6 +84,56 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="card-title mb-0 fw-bold"><i class="bi bi-cpu me-2"></i>Queue Status</h6>
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#endpointManagerCollapse" aria-expanded="false" aria-controls="endpointManagerCollapse" onclick="loadEndpointConfigs()">
+                                <i class="bi bi-sliders me-1"></i> Manage Endpoints
+                            </button>
+                        </div>
+
+                        <!-- Endpoint Manager Collapse -->
+                        <div class="collapse mt-3 mb-3" id="endpointManagerCollapse">
+                            <div class="card card-body bg-light border-0">
+                                <h6 class="fw-bold mb-3"><i class="bi bi-hdd-network me-2"></i>Endpoint Manager</h6>
+
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered align-middle">
+                                        <thead class="table-secondary">
+                                            <tr>
+                                                <th>Endpoint URL</th>
+                                                <th style="width: 100px;">Enabled</th>
+                                                <th>Custom Model Override</th>
+                                                <th style="width: 80px;">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="endpointConfigTableBody">
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted">Loading endpoints...</td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td>
+                                                    <input type="text" id="newEndpointUrl" class="form-control form-control-sm" placeholder="http://192.168.1.x:11434/api/chat">
+                                                </td>
+                                                <td class="text-center">
+                                                    <div class="form-check form-switch d-inline-block">
+                                                        <input class="form-check-input" type="checkbox" id="newEndpointEnabled" checked>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <input type="text" id="newEndpointModel" class="form-control form-control-sm" placeholder="(Optional) e.g., qwen2.5:32b">
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-success w-100" onclick="addEndpointConfig()">Add</button>
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                                <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Custom Model Override forces the specific endpoint to use a different model, bypassing the request payload. Leave blank to follow payload.</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="badge bg-secondary" id="queue-pending-badge">0 Pending</span>
                         </div>
                         <div class="progress mb-3" style="height: 10px;">
@@ -1043,19 +1093,32 @@ Provide your response in two parts:
                 return;
             }
 
+            const seenEndpoints = new Set();
+
             streamIds.forEach(id => {
                 const data = activeEndpoints[id];
-                const displayUrl = endpointLabelsMap[data.endpointUrl] || data.endpointUrl;
-                const option = document.createElement('option');
-                option.value = id;
-                option.textContent = displayUrl;
-                select.appendChild(option);
+                if (!seenEndpoints.has(data.endpointUrl)) {
+                    seenEndpoints.add(data.endpointUrl);
+                    const displayUrl = endpointLabelsMap[data.endpointUrl] || data.endpointUrl;
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = displayUrl;
+                    select.appendChild(option);
+                }
             });
 
-            if (streamIds.includes(currentValue)) {
+            let foundCurrent = false;
+            for (let i = 0; i < select.options.length; i++) {
+                if (select.options[i].value === currentValue) {
+                    foundCurrent = true;
+                    break;
+                }
+            }
+
+            if (foundCurrent) {
                 select.value = currentValue;
             } else {
-                select.value = streamIds[0]; // Auto-select first active if current is gone
+                select.value = select.options[0].value;
             }
 
             updateDisplayForSelectedEndpoint();
@@ -1220,7 +1283,7 @@ Provide your response in two parts:
                     state.container.className = 'mb-4 border-bottom pb-3';
 
                     const sep = document.createElement('div');
-                    sep.innerHTML = `<div class="text-secondary small mb-2"><i class="bi bi-clock"></i> Stream Started: (Restored) <span class="badge bg-info ms-2">${data.endpointUrl}</span></div>`;
+                    sep.innerHTML = `<div class="text-secondary small mb-2"><i class="bi bi-clock"></i> Stream Started: ${new Date().toLocaleTimeString()} <span class="badge bg-info ms-2">${data.endpointUrl}</span></div>`;
                     state.container.appendChild(sep);
 
                     // Reconstruct chunks
@@ -1321,14 +1384,112 @@ Provide your response in two parts:
             }
         }
 
+        async function loadEndpointConfigs() {
+            const tbody = document.getElementById('endpointConfigTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>';
+            try {
+                const res = await fetch('/api/endpoints/config');
+                const configs = await res.json();
+
+                tbody.innerHTML = '';
+                if (configs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No endpoints configured.</td></tr>';
+                    return;
+                }
+
+                configs.forEach(c => {
+                    const tr = document.createElement('tr');
+
+                    const urlTd = document.createElement('td');
+                    urlTd.innerHTML = `<span class="fw-bold">${c.endpoint_url}</span>`;
+
+                    const enabledTd = document.createElement('td');
+                    enabledTd.className = 'text-center';
+                    enabledTd.innerHTML = `
+                        <div class="form-check form-switch d-inline-block">
+                            <input class="form-check-input" type="checkbox" ${c.enabled ? 'checked' : ''} onchange="updateEndpointConfig('${c.endpoint_url}', this.checked, '${c.custom_model || ''}')">
+                        </div>
+                    `;
+
+                    const modelTd = document.createElement('td');
+                    modelTd.innerHTML = `
+                        <input type="text" class="form-control form-control-sm" value="${c.custom_model || ''}" placeholder="(Default)" onchange="updateEndpointConfig('${c.endpoint_url}', ${c.enabled}, this.value)">
+                    `;
+
+                    const actionsTd = document.createElement('td');
+                    actionsTd.innerHTML = `
+                        <button class="btn btn-sm btn-outline-danger w-100" onclick="deleteEndpointConfig('${c.endpoint_url}')"><i class="bi bi-trash"></i></button>
+                    `;
+
+                    tr.appendChild(urlTd);
+                    tr.appendChild(enabledTd);
+                    tr.appendChild(modelTd);
+                    tr.appendChild(actionsTd);
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                console.error("Failed to load endpoint configs", e);
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Failed to load</td></tr>';
+            }
+        }
+
+        async function addEndpointConfig() {
+            const url = document.getElementById('newEndpointUrl').value.trim();
+            const enabled = document.getElementById('newEndpointEnabled').checked;
+            const model = document.getElementById('newEndpointModel').value.trim();
+
+            if (!url) return alert("Endpoint URL is required");
+
+            await updateEndpointConfig(url, enabled, model);
+
+            document.getElementById('newEndpointUrl').value = '';
+            document.getElementById('newEndpointEnabled').checked = true;
+            document.getElementById('newEndpointModel').value = '';
+        }
+
+        async function updateEndpointConfig(url, enabled, customModel) {
+            try {
+                await fetch('/api/endpoints/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        endpoint_url: url,
+                        enabled: enabled,
+                        custom_model: customModel
+                    })
+                });
+                loadEndpointConfigs(); // refresh list
+                fetchQueueStats(); // refresh queue stats right away
+            } catch (e) {
+                console.error("Failed to update endpoint config", e);
+                alert("Failed to update endpoint config");
+            }
+        }
+
+        async function deleteEndpointConfig(url) {
+            if (!confirm(`Remove endpoint ${url}?`)) return;
+            try {
+                await fetch('/api/endpoints/config', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ endpoint_url: url })
+                });
+                loadEndpointConfigs();
+                fetchQueueStats();
+            } catch (e) {
+                console.error("Failed to delete endpoint config", e);
+                alert("Failed to delete endpoint");
+            }
+        }
+
         function setupStream() {
             // Listen for dropdown changes
             document.getElementById('activeEndpointSelect').addEventListener('change', updateDisplayForSelectedEndpoint);
             requestAnimationFrame(renderStream);
 
-            fetchActiveStreams().then(() => {
-                connectWebSocket();
-            });
+            // Fetch active streams removed so we only see current active streams in realtime
+            // even if user reloads the window.
+            connectWebSocket();
 
             // Poll queue stats
             fetchQueueStats();
