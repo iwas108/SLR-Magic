@@ -7,6 +7,8 @@ import json
 import csv
 import urllib.parse
 import random
+import subprocess
+import platform
 from typing import List, Dict, Optional
 import logging
 
@@ -27,7 +29,6 @@ class DownloaderConfig:
     CHROME_PROFILE_DIR = os.path.join(os.getcwd(), "chrome_profile")
 
     # Browser & Network
-    CHROME_VERSION = 144  # Adjust with the installed Chrome version
     PROXY_BASE_URL = "https://ezproxy.library.domain.com/login?url=https://doi.org/"
     TIMEOUT = 45
     DELAY_SECONDS = 20  # Base delay between downloads
@@ -127,6 +128,33 @@ class BrowserHandler:
         self.profile_dir = profile_dir
         self.driver = None
 
+    def get_chrome_version(self) -> Optional[int]:
+        """Detects the installed Chrome version."""
+        system = platform.system()
+        try:
+            if system == 'Windows':
+                import winreg
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Google\Chrome\BLBeacon')
+                version, _ = winreg.QueryValueEx(key, 'version')
+                return int(version.split('.')[0])
+            elif system == 'Darwin':
+                process = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '--version'], capture_output=True, text=True, check=True)
+                version_str = process.stdout.strip().split()[-1]
+                return int(version_str.split('.')[0])
+            elif system == 'Linux':
+                # Try common commands for Linux
+                commands = ['google-chrome --version', 'google-chrome-stable --version', 'chromium-browser --version', 'chromium --version']
+                for cmd in commands:
+                    try:
+                        process = subprocess.run(cmd.split(), capture_output=True, text=True, check=True)
+                        version_str = process.stdout.strip().split()[-1]
+                        return int(version_str.split('.')[0])
+                    except (subprocess.CalledProcessError, FileNotFoundError):
+                        continue
+        except Exception as e:
+            logger.debug(f"Failed to detect Chrome version: {e}")
+        return None
+
     def start_browser(self):
         logger.info("Starting Browser...")
         options = uc.ChromeOptions()
@@ -142,12 +170,22 @@ class BrowserHandler:
         }
         options.add_experimental_option("prefs", prefs)
 
+        version = self.get_chrome_version()
+        if version:
+            logger.info(f"Detected Chrome major version: {version}")
+        else:
+            logger.info("Could not detect Chrome version. Letting undetected_chromedriver auto-detect.")
+
         try:
-            # Using DownloaderConfig version_main if needed in future, omitting for auto-detect
-            self.driver = uc.Chrome(options=options)
-        except OSError:
-            logger.warning("Could not start Chrome. Make sure it's installed and not running.")
-            pass
+            if version:
+                self.driver = uc.Chrome(options=options, version_main=version)
+            else:
+                self.driver = uc.Chrome(options=options)
+        except Exception as e:
+            logger.error(f"Failed to start Chrome: {e}")
+            logger.error("Please ensure you have Google Chrome installed.")
+            logger.error("If the error persists, you may need to manually specify the ChromeDriver version or download it manually.")
+            self.driver = None
 
     def stop_browser(self):
         if self.driver:
