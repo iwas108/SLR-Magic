@@ -29,7 +29,7 @@ class DownloaderConfig:
     CHROME_PROFILE_DIR = os.path.join(os.getcwd(), "chrome_profile")
 
     # Browser & Network
-    PROXY_BASE_URL = "https://ezproxy.library.domain.com/login?url=https://doi.org/"
+    PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://ezproxy.library.domain.com/login?url=https://doi.org/")
     TIMEOUT = 45
     DELAY_SECONDS = 20  # Base delay between downloads
     JITTER_SECONDS = 5  # Random jitter
@@ -184,7 +184,9 @@ class BrowserHandler:
         except Exception as e:
             logger.error(f"Failed to start Chrome: {e}")
             logger.error("Please ensure you have Google Chrome installed.")
-            logger.error("If the error persists, you may need to manually specify the ChromeDriver version or download it manually.")
+            logger.error(f"If this is a version mismatch error (e.g. Chrome {version}), you may need to manually download ChromeDriver.")
+            logger.error("Download it from: https://googlechromelabs.github.io/chrome-for-testing/")
+            logger.error("Extract the binary and place it in your system PATH or next to this script.")
             self.driver = None
 
     def stop_browser(self):
@@ -270,7 +272,12 @@ class BrowserHandler:
                 return None
 
         except Exception as e:
-            logger.error(f"Error downloading {doi}: {e}")
+            error_msg = str(e)
+            if "ERR_NAME_NOT_RESOLVED" in error_msg:
+                logger.error(f"Network error (ERR_NAME_NOT_RESOLVED) while downloading {doi}.")
+                logger.error(f"Please configure your actual proxy URL. Current PROXY_BASE_URL is '{DownloaderConfig.PROXY_BASE_URL}'. You can set it via the PROXY_BASE_URL environment variable.")
+            else:
+                logger.error(f"Error downloading {doi}: {error_msg}")
             return None
 
     def _handle_ieee(self) -> bool:
