@@ -31,6 +31,13 @@ task_state = {
     "syncer": {"status": "idle", "message": ""}
 }
 
+task_cancel_flags = {
+    "downloader": False,
+    "verifier": False,
+    "compressor": False,
+    "syncer": False
+}
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
@@ -56,10 +63,14 @@ manager = ConnectionManager()
 def execute_task(task_name, func, loop=None):
     task_state[task_name]["status"] = "running"
     task_state[task_name]["message"] = "Processing..."
+    task_cancel_flags[task_name] = False
     if loop:
         asyncio.run_coroutine_threadsafe(manager.broadcast({"type": "state", "data": task_state}), loop)
 
     try:
+        def is_cancelled():
+            return task_cancel_flags.get(task_name, False)
+
         if task_name == "downloader" and loop:
             def progress_callback(current, total, title):
                 asyncio.run_coroutine_threadsafe(
@@ -73,12 +84,16 @@ def execute_task(task_name, func, loop=None):
                         }
                     }), loop
                 )
-            result = func(progress_callback=progress_callback)
+            result = func(progress_callback=progress_callback, is_cancelled=is_cancelled)
         else:
-            result = func()
+            result = func(is_cancelled=is_cancelled)
 
-        task_state[task_name]["status"] = result.get("status", "success")
-        task_state[task_name]["message"] = result.get("message", "Completed")
+        if is_cancelled():
+            task_state[task_name]["status"] = "warning"
+            task_state[task_name]["message"] = "Cancelled by user"
+        else:
+            task_state[task_name]["status"] = result.get("status", "success")
+            task_state[task_name]["message"] = result.get("message", "Completed")
     except Exception as e:
         logger.error(f"Error in {task_name}: {e}")
         task_state[task_name]["status"] = "error"
@@ -139,6 +154,15 @@ async def start_sync(background_tasks: BackgroundTasks):
         loop = None
     background_tasks.add_task(execute_task, "syncer", run_syncer, loop)
     return {"message": "Sync task started"}
+
+@api_router.post("/stop/{task_name}")
+async def stop_task(task_name: str):
+    if task_name in task_cancel_flags:
+        if task_state[task_name]["status"] == "running":
+            task_cancel_flags[task_name] = True
+            return {"message": f"Requested cancellation for {task_name}"}
+        return {"message": f"Task {task_name} is not running"}
+    return {"error": "Invalid task name"}
 
 @api_router.get("/status")
 async def get_status():

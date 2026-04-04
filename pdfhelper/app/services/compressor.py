@@ -60,7 +60,7 @@ def compress_pdf(gs_command, input_file, output_file):
         logger.warning(f"Unexpected error: {e}")
         return False
 
-def run_compressor():
+def run_compressor(is_cancelled=None):
     cwd = Path.cwd()
     input_dir = cwd / CompressorConfig.INPUT_FOLDER_NAME
     output_dir = cwd / CompressorConfig.OUTPUT_FOLDER_NAME
@@ -92,6 +92,10 @@ def run_compressor():
     current_filenames = []
 
     for pdf in pdf_files:
+        if is_cancelled and is_cancelled():
+            logger.info("Compression cancelled by user.")
+            break
+
         current_filenames.append(pdf.name)
         output_path = output_dir / pdf.name
 

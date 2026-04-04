@@ -8,12 +8,16 @@ class SyncerConfig:
     REMOTE_GDRIVE = "gdrive"
     DEST_BACKUP = "00 PHD Research/My First SLR/PDFs"
 
-def run_syncer():
+def run_syncer(is_cancelled=None):
     logger.info("Starting rclone sync process...")
     success_count = 0
     total_count = len(SyncerConfig.SOURCE_FOLDERS)
 
     for folder in SyncerConfig.SOURCE_FOLDERS:
+        if is_cancelled and is_cancelled():
+            logger.info("Sync cancelled by user.")
+            break
+
         logger.info(f"Syncing folder: {folder}")
         try:
             # Execute rclone sync command

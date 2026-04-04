@@ -38,7 +38,7 @@
             <span class="badge bg-secondary status-badge" id="status-downloader">Idle</span>
         </div>
         <p>Reads <code>database.csv</code>, scrapes DOIs, and downloads PDFs via EzProxy.</p>
-        <button class="btn btn-primary" onclick="startTask('downloader')">Start Download</button>
+        <button id="btn-downloader" class="btn btn-primary" onclick="toggleTask('downloader')">Start Download</button>
         <div class="mt-2 text-muted" id="msg-downloader"></div>
         <div id="progress-container-downloader" class="mt-3 d-none">
             <div class="progress">
@@ -55,7 +55,7 @@
             <span class="badge bg-secondary status-badge" id="status-verifier">Idle</span>
         </div>
         <p>Verifies the downloaded PDFs against the database using fuzzy matching on the title.</p>
-        <button class="btn btn-primary" onclick="startTask('verifier')">Start Verification</button>
+        <button id="btn-verifier" class="btn btn-primary" onclick="toggleTask('verifier')">Start Verification</button>
         <a href="/api/download-csv" class="btn btn-outline-success ms-2" target="_blank">Download Validation CSV</a>
         <div class="mt-2 text-muted" id="msg-verifier"></div>
     </div>
@@ -67,7 +67,7 @@
             <span class="badge bg-secondary status-badge" id="status-compressor">Idle</span>
         </div>
         <p>Compresses the verified PDFs using Ghostscript to save space.</p>
-        <button class="btn btn-primary" onclick="startTask('compressor')">Start Compression</button>
+        <button id="btn-compressor" class="btn btn-primary" onclick="toggleTask('compressor')">Start Compression</button>
         <div class="mt-2 text-muted" id="msg-compressor"></div>
     </div>
 
@@ -78,7 +78,7 @@
             <span class="badge bg-secondary status-badge" id="status-syncer">Idle</span>
         </div>
         <p>Syncs the compressed PDFs to Google Drive using rclone.</p>
-        <button class="btn btn-primary" onclick="startTask('syncer')">Start Sync</button>
+        <button id="btn-syncer" class="btn btn-primary" onclick="toggleTask('syncer')">Start Sync</button>
         <div class="mt-2 text-muted" id="msg-syncer"></div>
     </div>
 
@@ -97,6 +97,7 @@
             const badge = document.getElementById(`status-${task}`);
             const msg = document.getElementById(`msg-${task}`);
             const progressContainer = document.getElementById(`progress-container-${task}`);
+            const btn = document.getElementById(`btn-${task}`);
 
             if (badge && msg) {
                 msg.textContent = state.message;
@@ -113,6 +114,24 @@
                 if (progressContainer) {
                     if (state.status !== 'running') {
                         progressContainer.classList.add('d-none');
+                    }
+                }
+
+                if (btn) {
+                    const taskNames = {
+                        'downloader': 'Download',
+                        'verifier': 'Verification',
+                        'compressor': 'Compression',
+                        'syncer': 'Sync'
+                    };
+                    if (state.status === 'running') {
+                        btn.className = 'btn btn-danger';
+                        btn.textContent = `Stop ${taskNames[task]}`;
+                        btn.dataset.running = 'true';
+                    } else {
+                        btn.className = 'btn btn-primary';
+                        btn.textContent = `Start ${taskNames[task]}`;
+                        btn.dataset.running = 'false';
                     }
                 }
             }
@@ -177,13 +196,22 @@
         }
     }
 
-    async function startTask(taskName) {
+    async function toggleTask(taskName) {
+        const btn = document.getElementById(`btn-${taskName}`);
+        const isRunning = btn && btn.dataset.running === 'true';
+
         try {
-            const response = await fetch(apiMap[taskName], { method: 'POST' });
-            const result = await response.json();
-            console.log(result.message);
+            if (isRunning) {
+                const response = await fetch(`/api/stop/${taskName}`, { method: 'POST' });
+                const result = await response.json();
+                console.log(result.message || result.error);
+            } else {
+                const response = await fetch(apiMap[taskName], { method: 'POST' });
+                const result = await response.json();
+                console.log(result.message);
+            }
         } catch (error) {
-            console.error(`Error starting ${taskName}:`, error);
+            console.error(`Error toggling ${taskName}:`, error);
         }
     }
 
