@@ -1,0 +1,54 @@
+INFO:     Started server process [85813]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:45378 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45392 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:45378 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45378 - "POST /api/download HTTP/1.1" 200 OK
+2026-04-05 19:38:31,485 - app.services.downloader - INFO - Found 1 papers to process.
+2026-04-05 19:38:31,485 - app.services.downloader - INFO - Starting Browser...
+2026-04-05 19:38:33,557 - app.services.downloader - INFO - Detected Chrome major version: 145
+2026-04-05 19:38:34,073 - undetected_chromedriver.patcher - INFO - patching driver executable /home/jules/.local/share/undetected_chromedriver/undetected_chromedriver
+INFO:     connection closed
+INFO:     127.0.0.1:33036 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33044 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:33036 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33036 - "POST /api/stop/downloader HTTP/1.1" 200 OK
+2026-04-05 19:39:34,488 - app.services.downloader - ERROR - Failed to start Chrome: Message: session not created: cannot connect to chrome at 127.0.0.1:52243
+from chrome not reachable; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
+Stacktrace:
+#0 0x564f68db4b6a <unknown>
+#1 0x564f687c7720 <unknown>
+#2 0x564f687b2d7c <unknown>
+#3 0x564f6880a8fe <unknown>
+#4 0x564f687ffb11 <unknown>
+#5 0x564f68851c2e <unknown>
+#6 0x564f6885131c <unknown>
+#7 0x564f6880ec0f <unknown>
+#8 0x564f6880f9d1 <unknown>
+#9 0x564f68d796b9 <unknown>
+#10 0x564f68d7c5c1 <unknown>
+#11 0x564f68d65e29 <unknown>
+#12 0x564f68d7d17e <unknown>
+#13 0x564f68d4c4b0 <unknown>
+#14 0x564f68da1578 <unknown>
+#15 0x564f68da174b <unknown>
+#16 0x564f68db31a3 <unknown>
+#17 0x7f176c852aa4 <unknown>
+#18 0x7f176c8dfc6c <unknown>
+
+2026-04-05 19:39:34,488 - app.services.downloader - ERROR - Please ensure you have Google Chrome installed.
+2026-04-05 19:39:34,488 - app.services.downloader - ERROR - If this is a version mismatch error (e.g. Chrome 145), you may need to manually download ChromeDriver.
+2026-04-05 19:39:34,488 - app.services.downloader - ERROR - Download it from: https://googlechromelabs.github.io/chrome-for-testing/
+2026-04-05 19:39:34,488 - app.services.downloader - ERROR - Extract the binary and place it in your system PATH or next to this script.
+2026-04-05 19:39:34,489 - app.services.downloader - INFO - Navigating to https://ezproxy.library.domain.com/login?url=https://doi.org/ to allow manual login
+2026-04-05 19:39:34,489 - app.services.downloader - ERROR - Error navigating to proxy URL: 'NoneType' object has no attribute 'get'
+2026-04-05 19:39:34,489 - app.services.downloader - INFO - Waiting for user to resume download...
+INFO:     127.0.0.1:39912 - "POST /api/resume-download HTTP/1.1" 200 OK
+2026-04-05 19:39:34,763 - app.services.downloader - INFO - Resuming download.
+2026-04-05 19:39:34,763 - app.services.downloader - INFO - Download cancelled by user.
+2026-04-05 19:39:34,764 - app.services.downloader - INFO - Batch download complete!
+INFO:     connection closed
