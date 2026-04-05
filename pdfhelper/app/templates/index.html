@@ -6,6 +6,7 @@
     <title>PDF Helper Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         .step-container {
             margin-bottom: 20px;
@@ -162,6 +163,8 @@
         }
     }
 
+    let lastConfettiPaper = null;
+
     function updateProgressUI(task, data) {
         const progressContainer = document.getElementById(`progress-container-${task}`);
         const progressBar = document.getElementById(`progress-bar-${task}`);
@@ -173,7 +176,28 @@
             progressBar.style.width = `${percentage}%`;
             progressBar.setAttribute('aria-valuenow', percentage);
             progressBar.textContent = `${percentage}% (${data.current}/${data.total})`;
-            progressTitle.textContent = `Processing: ${data.title}`;
+
+            let statusText = `Processing: ${data.title}`;
+            if (data.status === 'success') {
+                statusText = `✅ Downloaded: ${data.title}`;
+                if (data.countdown > 0) {
+                    statusText += ` (Next in ${data.countdown}s)`;
+                }
+
+                // Pop confetti only once per paper
+                if (lastConfettiPaper !== data.title) {
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                    lastConfettiPaper = data.title;
+                }
+            } else if (data.status === 'failed') {
+                statusText = `❌ Failed: ${data.title}`;
+            }
+
+            progressTitle.textContent = statusText;
         }
     }
 

@@ -78,7 +78,7 @@ def execute_task(task_name, func, loop=None):
             return task_cancel_flags.get(task_name, False)
 
         if task_name == "downloader" and loop:
-            def progress_callback(current, total, title):
+            def progress_callback(current, total, title, status="downloading", countdown=0):
                 asyncio.run_coroutine_threadsafe(
                     manager.broadcast({
                         "type": "progress",
@@ -86,7 +86,9 @@ def execute_task(task_name, func, loop=None):
                         "data": {
                             "current": current,
                             "total": total,
-                            "title": title
+                            "title": title,
+                            "status": status,
+                            "countdown": countdown
                         }
                     }), loop
                 )
@@ -114,7 +116,9 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
+    except Exception:
+        pass
+    finally:
         manager.disconnect(websocket)
 
 @api_router.post("/download")
