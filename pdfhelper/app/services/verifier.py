@@ -39,7 +39,7 @@ def verify_pdf(file_path, target_title):
         logger.error(f"Error reading PDF {file_path}: {e}")
         return 0, 0, "Error Reading PDF"
 
-def run_verifier():
+def run_verifier(is_cancelled=None):
     # 1. Load Data
     if not os.path.exists(VerifierConfig.INPUT_CSV):
         msg = f"Error: {VerifierConfig.INPUT_CSV} not found."
@@ -62,6 +62,9 @@ def run_verifier():
 
     # 2. Process Files
     for index, row in df.iterrows():
+        if is_cancelled and is_cancelled():
+            logger.info("Verification cancelled by user.")
+            break
         
         # Handle Filename (auto-add .pdf if missing)
         paper_id_raw = str(row['Paper_ID']).strip()

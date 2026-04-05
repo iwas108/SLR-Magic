@@ -417,7 +417,7 @@ class BrowserHandler:
             logger.debug(f"Acta Horticulturae handler failed/skipped: {e}")
         return False
 
-def run_downloader():
+def run_downloader(progress_callback=None, is_cancelled=None):
     # 1. Setup Directories
     if os.path.exists(DownloaderConfig.DOWNLOAD_DIR): shutil.rmtree(DownloaderConfig.DOWNLOAD_DIR)
     os.makedirs(DownloaderConfig.DOWNLOAD_DIR)
@@ -441,11 +441,17 @@ def run_downloader():
     success_count = 0
     # 5. Download Loop
     for i, paper in enumerate(papers):
+        if is_cancelled and is_cancelled():
+            logger.info("Download cancelled by user.")
+            break
+
         paper_id = paper['id']
         title = paper['title']
         doi = paper['doi']
 
         logger.info(f"[{i+1}/{total_papers}] Processing: {title}")
+        if progress_callback:
+            progress_callback(i + 1, total_papers, title)
 
         browser.clear_download_folder()
         downloaded_file = browser.attempt_download(doi)
