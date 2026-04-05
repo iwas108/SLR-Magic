@@ -12,3 +12,4 @@ Downloaded_PDFs
 database.csv
 .venv
 .venv\**
+*.db

@@ -5,17 +5,23 @@ import asyncio
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
-from app.services.downloader import run_downloader, DownloaderConfig
-from app.services.verifier import run_verifier, VerifierConfig
+from app.services.downloader import run_downloader
+from app.services.verifier import run_verifier
 from app.services.compressor import run_compressor
 from app.services.syncer import run_syncer
 import os
+
+from app.repository import db
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="PDF Helper App")
+
+@app.on_event("startup")
+async def startup_event():
+    db.init_db()
 
 # Templates setup
 templates = Jinja2Templates(directory="app/templates")
@@ -170,10 +176,24 @@ async def get_status():
 
 @api_router.get("/download-csv")
 async def download_csv():
-    file_path = VerifierConfig.OUTPUT_CSV
+    file_path = db.get_config("VERIFIER_OUTPUT_CSV")
     if os.path.exists(file_path):
         return FileResponse(file_path, media_type='text/csv', filename="verified_results.csv")
     return {"error": "File not found."}
+
+@api_router.get("/config")
+async def get_config_api():
+    return db.get_all_configs()
+
+@api_router.post("/config")
+async def update_config_api(request: Request):
+    try:
+        data = await request.json()
+        for key, value in data.items():
+            db.set_config(key, value)
+        return {"message": "Configuration updated successfully."}
+    except Exception as e:
+        return {"error": str(e)}
 
 app.include_router(api_router, prefix="/api")
 

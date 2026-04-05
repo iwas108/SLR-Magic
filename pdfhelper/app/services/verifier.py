@@ -4,14 +4,9 @@ import pandas as pd
 from thefuzz import fuzz
 import logging
 
-logger = logging.getLogger(__name__)
+from app.repository import db
 
-# --- CONFIGURATION ---
-class VerifierConfig:
-    INPUT_CSV = "database.csv"
-    PDF_FOLDER = "Downloaded_PDFs"
-    OUTPUT_CSV = "verified_results.csv"
-    MATCH_THRESHOLD = 85
+logger = logging.getLogger(__name__)
 
 def verify_pdf(file_path, target_title):
     """
@@ -40,14 +35,19 @@ def verify_pdf(file_path, target_title):
         return 0, 0, "Error Reading PDF"
 
 def run_verifier(is_cancelled=None):
+    input_csv = db.get_config("VERIFIER_INPUT_CSV")
+    pdf_folder = db.get_config("VERIFIER_PDF_FOLDER")
+    output_csv = db.get_config("VERIFIER_OUTPUT_CSV")
+    match_threshold = db.get_config("VERIFIER_MATCH_THRESHOLD")
+
     # 1. Load Data
-    if not os.path.exists(VerifierConfig.INPUT_CSV):
-        msg = f"Error: {VerifierConfig.INPUT_CSV} not found."
+    if not os.path.exists(input_csv):
+        msg = f"Error: {input_csv} not found."
         logger.error(msg)
         return {"status": "error", "message": msg}
 
     # Force Paper_ID to string to avoid errors
-    df = pd.read_csv(VerifierConfig.INPUT_CSV, dtype={'Paper_ID': str})
+    df = pd.read_csv(input_csv, dtype={'Paper_ID': str})
     
     # Clean column names
     df.columns = [c.strip() for c in df.columns]
@@ -69,7 +69,7 @@ def run_verifier(is_cancelled=None):
         # Handle Filename (auto-add .pdf if missing)
         paper_id_raw = str(row['Paper_ID']).strip()
         filename = paper_id_raw if paper_id_raw.lower().endswith(".pdf") else f"{paper_id_raw}.pdf"
-        file_path = os.path.join(VerifierConfig.PDF_FOLDER, filename)
+        file_path = os.path.join(pdf_folder, filename)
         target_title = row['Title']
 
         # Default Values
@@ -82,7 +82,7 @@ def run_verifier(is_cancelled=None):
             score, page_count, msg = verify_pdf(file_path, target_title)
             
             if msg == "OK":
-                if score >= VerifierConfig.MATCH_THRESHOLD:
+                if score >= match_threshold:
                     status = "Confirmed"
                 elif score >= 50:
                     status = "Low Confidence"
@@ -105,8 +105,8 @@ def run_verifier(is_cancelled=None):
     # Sort by Score (ascending) so Mismatches appear at the top
     output_df = output_df.sort_values(by="Match_Score", ascending=True)
 
-    output_df.to_csv(VerifierConfig.OUTPUT_CSV, index=False)
+    output_df.to_csv(output_csv, index=False)
     
-    logger.info(f"Done! Saved small CSV to: {VerifierConfig.OUTPUT_CSV}")
+    logger.info(f"Done! Saved small CSV to: {output_csv}")
     summary = output_df["Verification_Status"].value_counts().to_dict()
     return {"status": "success", "message": f"Verified {len(df)} papers.", "summary": summary}

@@ -18,53 +18,21 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.common.exceptions import WebDriverException
 
+from app.repository import db
+
 logger = logging.getLogger(__name__)
-
-class DownloaderConfig:
-    # File Paths
-    CSV_FILE = 'database.csv'
-    CACHE_FILE = 'download_cache.json'
-    DOWNLOAD_DIR = os.path.join(os.getcwd(), "temp_pdfs")
-    FINAL_DIR = os.path.join(os.getcwd(), "Downloaded_PDFs")
-    CHROME_PROFILE_DIR = os.path.join(os.getcwd(), "chrome_profile")
-
-    # Browser & Network
-    PROXY_BASE_URL = os.environ.get("PROXY_BASE_URL", "https://ezproxy.library.domain.com/login?url=https://doi.org/")
-    TIMEOUT = 45
-    DELAY_SECONDS = 20  # Base delay between downloads
-    JITTER_SECONDS = 5  # Random jitter
-
-    # CSV Column Mapping & Filters
-    TARGET_DECISIONS = ['Include', 'Maybe']
-    DECISION_COLUMN = 'decision'
-    PAPER_ID_COLUMN = 'Paper_ID'
-    DOI_COLUMN = 'DOI_Link'
 
 class DataManager:
     """Handles data loading, filtering, and caching."""
 
-    def __init__(self, csv_file: str, cache_file: str):
+    def __init__(self, csv_file: str):
         self.csv_file = csv_file
-        self.cache_file = cache_file
-        self.cache = self._load_cache()
-
-    def _load_cache(self) -> List[str]:
-        if os.path.exists(self.cache_file):
-            try:
-                with open(self.cache_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except json.JSONDecodeError:
-                return []
-        return []
-
-    def save_cache(self):
-        with open(self.cache_file, 'w', encoding='utf-8') as f:
-            json.dump(self.cache, f, indent=4)
+        self.cache = db.get_download_cache()
 
     def add_to_cache(self, paper_id: str):
         if paper_id not in self.cache:
             self.cache.append(paper_id)
-            self.save_cache()
+            db.add_to_download_cache(paper_id)
 
     def extract_doi(self, url: str) -> Optional[str]:
         try:
@@ -83,13 +51,19 @@ class DataManager:
 
     def get_papers_to_download(self) -> List[Dict]:
         papers = []
+        decision_column = db.get_config("DOWNLOADER_DECISION_COLUMN")
+        target_decisions = db.get_config("DOWNLOADER_TARGET_DECISIONS")
+        paper_id_column = db.get_config("DOWNLOADER_PAPER_ID_COLUMN")
+        final_dir = db.get_config("DOWNLOADER_FINAL_DIR")
+        doi_column = db.get_config("DOWNLOADER_DOI_COLUMN")
+
         try:
             with open(self.csv_file, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    # Using DownloaderConfig for column names
-                    if row.get(DownloaderConfig.DECISION_COLUMN) in DownloaderConfig.TARGET_DECISIONS:
-                        paper_id = row.get(DownloaderConfig.PAPER_ID_COLUMN)
+                    # Using config for column names
+                    if row.get(decision_column) in target_decisions:
+                        paper_id = row.get(paper_id_column)
 
                         if not paper_id:
                             continue
@@ -101,13 +75,13 @@ class DataManager:
                         if paper_id in self.cache:
                             continue
 
-                        final_path = os.path.join(DownloaderConfig.FINAL_DIR, f"{paper_id}.pdf")
+                        final_path = os.path.join(final_dir, f"{paper_id}.pdf")
                         if os.path.exists(final_path):
                             self.add_to_cache(paper_id)
                             continue
 
-                        # Using DownloaderConfig for DOI column, with fallback
-                        doi_link = row.get(DownloaderConfig.DOI_COLUMN) or row.get('DOI') or row.get('doi') or ''
+                        # Using config for DOI column, with fallback
+                        doi_link = row.get(doi_column) or row.get('DOI') or row.get('doi') or ''
                         doi = self.extract_doi(doi_link)
                         if doi:
                             papers.append({
@@ -200,8 +174,10 @@ class BrowserHandler:
                 try: os.remove(f)
                 except: pass
 
-    def wait_for_download(self, timeout: int = DownloaderConfig.TIMEOUT) -> Optional[str]:
+    def wait_for_download(self, timeout: int = None) -> Optional[str]:
         """Waits for a file to appear in the folder."""
+        if timeout is None:
+            timeout = db.get_config("DOWNLOADER_TIMEOUT")
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
@@ -220,7 +196,8 @@ class BrowserHandler:
         if not self.driver:
             return None
 
-        target_url = f"{DownloaderConfig.PROXY_BASE_URL}{doi}"
+        proxy_base_url = db.get_config("DOWNLOADER_PROXY_BASE_URL")
+        target_url = f"{proxy_base_url}{doi}"
         try:
             logger.info(f"Navigating to {target_url}")
             self.driver.get(target_url)
@@ -275,7 +252,7 @@ class BrowserHandler:
             error_msg = str(e)
             if "ERR_NAME_NOT_RESOLVED" in error_msg:
                 logger.error(f"Network error (ERR_NAME_NOT_RESOLVED) while downloading {doi}.")
-                logger.error(f"Please configure your actual proxy URL. Current PROXY_BASE_URL is '{DownloaderConfig.PROXY_BASE_URL}'. You can set it via the PROXY_BASE_URL environment variable.")
+                logger.error(f"Please configure your actual proxy URL. Current PROXY_BASE_URL is '{proxy_base_url}'. You can set it via the configuration.")
             else:
                 logger.error(f"Error downloading {doi}: {error_msg}")
             return None
@@ -418,13 +395,20 @@ class BrowserHandler:
         return False
 
 def run_downloader(progress_callback=None, is_cancelled=None):
+    download_dir = db.get_config("DOWNLOADER_DOWNLOAD_DIR")
+    final_dir = db.get_config("DOWNLOADER_FINAL_DIR")
+    csv_file = db.get_config("DOWNLOADER_CSV_FILE")
+    chrome_profile_dir = db.get_config("DOWNLOADER_CHROME_PROFILE_DIR")
+    delay_seconds = db.get_config("DOWNLOADER_DELAY_SECONDS")
+    jitter_seconds = db.get_config("DOWNLOADER_JITTER_SECONDS")
+
     # 1. Setup Directories
-    if os.path.exists(DownloaderConfig.DOWNLOAD_DIR): shutil.rmtree(DownloaderConfig.DOWNLOAD_DIR)
-    os.makedirs(DownloaderConfig.DOWNLOAD_DIR)
-    if not os.path.exists(DownloaderConfig.FINAL_DIR): os.makedirs(DownloaderConfig.FINAL_DIR)
+    if os.path.exists(download_dir): shutil.rmtree(download_dir)
+    os.makedirs(download_dir)
+    if not os.path.exists(final_dir): os.makedirs(final_dir)
 
     # 2. Data Management
-    data_manager = DataManager(DownloaderConfig.CSV_FILE, DownloaderConfig.CACHE_FILE)
+    data_manager = DataManager(csv_file)
     papers = data_manager.get_papers_to_download()
 
     total_papers = len(papers)
@@ -435,7 +419,7 @@ def run_downloader(progress_callback=None, is_cancelled=None):
         return {"status": "success", "message": "No papers to download", "total_processed": 0}
 
     # 3. Browser Setup
-    browser = BrowserHandler(DownloaderConfig.DOWNLOAD_DIR, DownloaderConfig.CHROME_PROFILE_DIR)
+    browser = BrowserHandler(download_dir, chrome_profile_dir)
     browser.start_browser()
 
     success_count = 0
@@ -458,7 +442,7 @@ def run_downloader(progress_callback=None, is_cancelled=None):
 
         if downloaded_file:
             # Rename and move
-            target_path = os.path.join(DownloaderConfig.FINAL_DIR, f"{paper_id}.pdf")
+            target_path = os.path.join(final_dir, f"{paper_id}.pdf")
             try:
                 shutil.move(downloaded_file, target_path)
                 logger.info(f"Saved: {target_path}")
@@ -466,7 +450,7 @@ def run_downloader(progress_callback=None, is_cancelled=None):
                 success_count += 1
 
                 # Apply Rate Limiting Delay
-                delay = DownloaderConfig.DELAY_SECONDS + random.uniform(0, DownloaderConfig.JITTER_SECONDS)
+                delay = delay_seconds + random.uniform(0, jitter_seconds)
                 logger.info(f"Sleeping for {delay:.2f} seconds to respect rate limits...")
                 time.sleep(delay)
 
@@ -477,6 +461,6 @@ def run_downloader(progress_callback=None, is_cancelled=None):
 
     # 6. Cleanup
     browser.stop_browser()
-    shutil.rmtree(DownloaderConfig.DOWNLOAD_DIR)
+    shutil.rmtree(download_dir)
     logger.info("Batch download complete!")
     return {"status": "success", "message": f"Processed {success_count}/{total_papers} papers", "total_processed": success_count}
