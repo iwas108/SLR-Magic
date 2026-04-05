@@ -435,7 +435,7 @@ def run_downloader(progress_callback=None, is_cancelled=None):
 
         logger.info(f"[{i+1}/{total_papers}] Processing: {title}")
         if progress_callback:
-            progress_callback(i + 1, total_papers, title)
+            progress_callback(i + 1, total_papers, title, status="downloading", countdown=0)
 
         browser.clear_download_folder()
         downloaded_file = browser.attempt_download(doi)
@@ -449,15 +449,30 @@ def run_downloader(progress_callback=None, is_cancelled=None):
                 data_manager.add_to_cache(paper_id)
                 success_count += 1
 
+                if progress_callback:
+                    progress_callback(i + 1, total_papers, title, status="success", countdown=0)
+
                 # Apply Rate Limiting Delay
                 delay = delay_seconds + random.uniform(0, jitter_seconds)
                 logger.info(f"Sleeping for {delay:.2f} seconds to respect rate limits...")
-                time.sleep(delay)
+
+                delay_remaining = int(delay)
+                while delay_remaining > 0:
+                    if is_cancelled and is_cancelled():
+                        break
+                    if progress_callback:
+                        progress_callback(i + 1, total_papers, title, status="success", countdown=delay_remaining)
+                    time.sleep(1)
+                    delay_remaining -= 1
 
             except Exception as e:
                 logger.error(f"Failed to move file: {e}")
+                if progress_callback:
+                    progress_callback(i + 1, total_papers, title, status="failed", countdown=0)
         else:
             logger.warning(f"Failed to download: {title}")
+            if progress_callback:
+                progress_callback(i + 1, total_papers, title, status="failed", countdown=0)
 
     # 6. Cleanup
     browser.stop_browser()
