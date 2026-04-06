@@ -495,4 +495,11 @@ def run_downloader(progress_callback=None, is_cancelled=None, resume_event=None)
     browser.stop_browser()
     shutil.rmtree(download_dir)
     logger.info("Batch download complete!")
-    return {"status": "success", "message": f"Processed {success_count}/{total_papers} papers", "total_processed": success_count}
+    failed_count = total_papers - success_count
+    return {
+        "status": "success",
+        "message": f"Processed {success_count}/{total_papers} papers",
+        "total_processed": success_count,
+        "failed_count": failed_count,
+        "success_count": success_count
+    }

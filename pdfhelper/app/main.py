@@ -105,12 +105,15 @@ def execute_task(task_name, func, loop=None):
         else:
             task_state[task_name]["status"] = result.get("status", "success")
             task_state[task_name]["message"] = result.get("message", "Completed")
+            if isinstance(result, dict) and result.get("status") == "success":
+                task_state[task_name]["data"] = result
     except Exception as e:
         logger.error(f"Error in {task_name}: {e}")
         task_state[task_name]["status"] = "error"
         task_state[task_name]["message"] = str(e)
 
     if loop:
+        # Need to re-broadcast with the new data
         asyncio.run_coroutine_threadsafe(manager.broadcast({"type": "state", "data": task_state}), loop)
 
 @app.websocket("/ws")

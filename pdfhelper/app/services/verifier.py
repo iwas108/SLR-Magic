@@ -57,7 +57,13 @@ def run_verifier(is_cancelled=None):
         logger.error(msg)
         return {"status": "error", "message": msg}
 
-    logger.info(f"Processing {len(df)} papers...")
+    decision_column = db.get_config("DOWNLOADER_DECISION_COLUMN")
+    target_decisions = db.get_config("DOWNLOADER_TARGET_DECISIONS")
+
+    if decision_column in df.columns and target_decisions:
+        df = df[df[decision_column].isin(target_decisions)]
+
+    logger.info(f"Processing {len(df)} papers after filtering...")
     results = []
 
     # 2. Process Files
@@ -109,4 +115,5 @@ def run_verifier(is_cancelled=None):
     
     logger.info(f"Done! Saved small CSV to: {output_csv}")
     summary = output_df["Verification_Status"].value_counts().to_dict()
-    return {"status": "success", "message": f"Verified {len(df)} papers.", "summary": summary}
+    detailed_results = output_df.to_dict(orient="records")
+    return {"status": "success", "message": f"Verified {len(df)} papers.", "summary": summary, "results": detailed_results}
