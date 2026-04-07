@@ -6,19 +6,14 @@
 const SheetUtils = (function() {
 
   /**
-   * Helper to get the active spreadsheet or open by ID.
+   * Helper to get the active spreadsheet.
    * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
    */
   function getSpreadsheet() {
-    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
-    if (sheetId) {
-      return SpreadsheetApp.openById(sheetId);
-    }
-    // Fallback to active spreadsheet (works in container-bound scripts, but not triggers if standalone)
     try {
         return SpreadsheetApp.getActiveSpreadsheet();
     } catch (e) {
-        throw new Error("Could not access spreadsheet. Please set 'SHEET_ID' in Script Properties.");
+        throw new Error("Could not access the active spreadsheet.");
     }
   }
 
