@@ -120,6 +120,13 @@ function saveConfiguration(config) {
 }
 
 /**
+ * Server-side handler to provide an OAuth token to the frontend Google Picker API.
+ */
+function getOAuthToken() {
+  return ScriptApp.getOAuthToken();
+}
+
+/**
  * Shows the Project Cost Preview Dialog.
  */
 function showCostPreviewDialog() {

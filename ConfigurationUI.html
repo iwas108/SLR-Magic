@@ -92,6 +92,7 @@
         margin-top: 2px;
       }
     </style>
+    <script src="https://apis.google.com/js/api.js"></script>
   </head>
   <body>
     <h2>SLR Magic Configuration</h2>
@@ -182,29 +183,49 @@
 
         <!-- Files & Folders -->
         <div id="files" class="tab-content">
+          <p class="hint" style="margin-bottom: 15px;">Note: You must select files and folders using the "Select" button to grant the script permission to access them.</p>
+
            <div class="form-group">
-            <label for="PDF_REPO">PDF Repository (Folder URL)</label>
-            <input type="text" id="PDF_REPO" name="PDF_REPO">
+            <label for="PDF_REPO">PDF Repository (Folder ID)</label>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" id="PDF_REPO" name="PDF_REPO" readonly style="background-color: #f9f9f9;">
+              <button type="button" onclick="loadPicker('PDF_REPO', 'folder')" style="white-space: nowrap;">Select Folder</button>
+            </div>
           </div>
           <div class="form-group">
-            <label for="PDF_METADATA">PDF Metadata (CSV URL)</label>
-            <input type="text" id="PDF_METADATA" name="PDF_METADATA">
+            <label for="PDF_METADATA">PDF Metadata (CSV ID)</label>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" id="PDF_METADATA" name="PDF_METADATA" readonly style="background-color: #f9f9f9;">
+              <button type="button" onclick="loadPicker('PDF_METADATA', 'file')" style="white-space: nowrap;">Select File</button>
+            </div>
           </div>
            <div class="form-group">
-            <label for="RAW_CSV_DATABASE">Raw CSV Database (Import URL)</label>
-            <input type="text" id="RAW_CSV_DATABASE" name="RAW_CSV_DATABASE">
+            <label for="RAW_CSV_DATABASE">Raw CSV Database (Import ID)</label>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" id="RAW_CSV_DATABASE" name="RAW_CSV_DATABASE" readonly style="background-color: #f9f9f9;">
+              <button type="button" onclick="loadPicker('RAW_CSV_DATABASE', 'file')" style="white-space: nowrap;">Select File</button>
+            </div>
           </div>
           <div class="form-group">
-            <label for="GOLD_MINE">Gold Mine (Sync Folder/File URL)</label>
-            <input type="text" id="GOLD_MINE" name="GOLD_MINE">
+            <label for="GOLD_MINE">Gold Mine (Sync Folder ID)</label>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" id="GOLD_MINE" name="GOLD_MINE" readonly style="background-color: #f9f9f9;">
+              <button type="button" onclick="loadPicker('GOLD_MINE', 'folder')" style="white-space: nowrap;">Select Folder</button>
+            </div>
           </div>
           <div class="form-group">
-            <label for="SLR_PROTOCOL_DOCUMENT">SLR Protocol Document</label>
-            <input type="text" id="SLR_PROTOCOL_DOCUMENT" name="SLR_PROTOCOL_DOCUMENT">
+            <label for="SLR_PROTOCOL_DOCUMENT">SLR Protocol Document (File ID)</label>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" id="SLR_PROTOCOL_DOCUMENT" name="SLR_PROTOCOL_DOCUMENT" readonly style="background-color: #f9f9f9;">
+              <button type="button" onclick="loadPicker('SLR_PROTOCOL_DOCUMENT', 'file')" style="white-space: nowrap;">Select File</button>
+            </div>
           </div>
           <div class="form-group">
-            <label for="SLR_PAPER">SLR Paper</label>
-            <input type="text" id="SLR_PAPER" name="SLR_PAPER">
+            <label for="SLR_PAPER">SLR Paper (File ID)</label>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" id="SLR_PAPER" name="SLR_PAPER" readonly style="background-color: #f9f9f9;">
+              <button type="button" onclick="loadPicker('SLR_PAPER', 'file')" style="white-space: nowrap;">Select File</button>
+            </div>
           </div>
         </div>
 
@@ -393,8 +414,60 @@
         alert("Error: " + error.message);
       }
 
+      // --- Google Picker API ---
+      let pickerApiLoaded = false;
+      let oauthToken = null;
+      let currentPickerTarget = null;
+
+      function onApiLoad() {
+        gapi.load('picker', { 'callback': function() { pickerApiLoaded = true; } });
+        google.script.run.withSuccessHandler(function(token) {
+            oauthToken = token;
+        }).getOAuthToken();
+      }
+
+      function loadPicker(targetInputId, viewType) {
+        if (!pickerApiLoaded || !oauthToken) {
+           alert('Google Picker API is still loading. Please try again in a few seconds.');
+           return;
+        }
+        currentPickerTarget = targetInputId;
+
+        let view;
+        if (viewType === 'folder') {
+            view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+                .setIncludeFolders(true)
+                .setSelectFolderEnabled(true)
+                .setMimeTypes('application/vnd.google-apps.folder');
+        } else {
+            view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+                .setIncludeFolders(true);
+        }
+
+        const picker = new google.picker.PickerBuilder()
+            .addView(view)
+            .setOAuthToken(oauthToken)
+            .setDeveloperKey('') // API key is often not required when using OAuth token in Apps Script
+            .setCallback(pickerCallback)
+            .build();
+        picker.setVisible(true);
+      }
+
+      function pickerCallback(data) {
+        if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
+            const doc = data[google.picker.Response.DOCUMENTS][0];
+            const id = doc[google.picker.Document.ID];
+            if (currentPickerTarget) {
+               document.getElementById(currentPickerTarget).value = id;
+            }
+        }
+      }
+
       // Initial Load
-      window.onload = loadConfig;
+      window.onload = function() {
+        loadConfig();
+        onApiLoad();
+      };
     </script>
   </body>
 </html>

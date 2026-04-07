@@ -6,18 +6,25 @@
 const DriveUtils = (function() {
 
   /**
-   * Extracts file ID from a Google Drive URL.
-   * @param {string} url
+   * Extracts file ID from a Google Drive URL, or returns it if it's already an ID.
+   * @param {string} urlOrId
    * @returns {string} File ID
    */
-  function getFileIdFromUrl(url) {
+  function getFileIdFromUrl(urlOrId) {
+    if (!urlOrId) throw new Error("Provided Drive URL or ID is empty.");
+
+    // If it doesn't look like a URL and is long enough, assume it's already an ID from the Picker
+    if (urlOrId.indexOf('http') === -1 && urlOrId.length >= 15 && !urlOrId.includes(' ')) {
+      return urlOrId;
+    }
+
     let id = "";
     // Regex for various Drive URL formats
-    const parts = url.match(/[-\w]{25,}/);
+    const parts = urlOrId.match(/[-\w]{25,}/);
     if (parts && parts.length > 0) {
       id = parts[0];
     } else {
-      throw new Error("Invalid Google Drive URL: Could not extract File ID.");
+      throw new Error(`Invalid Google Drive URL or ID: Could not extract ID from "${urlOrId}".`);
     }
     return id;
   }
@@ -28,16 +35,13 @@ const DriveUtils = (function() {
    * @returns {string} File content
    */
   function getFileContent(urlOrId) {
-    let fileId = urlOrId;
-    if (urlOrId.indexOf('http') !== -1) {
-      fileId = getFileIdFromUrl(urlOrId);
-    }
+    const fileId = getFileIdFromUrl(urlOrId);
 
     try {
       const file = DriveApp.getFileById(fileId);
       return file.getBlob().getDataAsString();
     } catch (e) {
-      throw new Error(`Failed to read file from Drive (ID: ${fileId}): ${e.message}`);
+      throw new Error(`Access Denied or File Not Found. The script lacks permission to read this file (ID: ${fileId}). Please re-select it using the Google Picker in the Configuration menu. Details: ${e.message}`);
     }
   }
 
@@ -47,16 +51,13 @@ const DriveUtils = (function() {
    * @returns {GoogleAppsScript.Base.Blob}
    */
   function getFileBlob(urlOrId) {
-    let fileId = urlOrId;
-    if (urlOrId.indexOf('http') !== -1) {
-      fileId = getFileIdFromUrl(urlOrId);
-    }
+    const fileId = getFileIdFromUrl(urlOrId);
 
     try {
       const file = DriveApp.getFileById(fileId);
       return file.getBlob();
     } catch (e) {
-      throw new Error(`Failed to get file blob (ID: ${fileId}): ${e.message}`);
+      throw new Error(`Access Denied or File Not Found. The script lacks permission to read this file (ID: ${fileId}). Please re-select it using the Google Picker in the Configuration menu. Details: ${e.message}`);
     }
   }
 
@@ -67,10 +68,7 @@ const DriveUtils = (function() {
    * @returns {string} File URL or null if not found.
    */
   function searchFile(folderUrlOrId, fileNamePartial) {
-    let folderId = folderUrlOrId;
-    if (folderUrlOrId.indexOf('http') !== -1) {
-      folderId = getFileIdFromUrl(folderUrlOrId);
-    }
+    const folderId = getFileIdFromUrl(folderUrlOrId);
 
     // Log input to help debugging
     console.log(`[DriveUtils] Searching in folder ${folderId} for: "${fileNamePartial}"`);
@@ -108,6 +106,11 @@ const DriveUtils = (function() {
     } catch (e) {
       // Log more verbose error info
       console.error(`[DriveUtils] Error searching file. Folder: ${folderId}, Query: "${query}", Error: ${e.message}`);
+
+      // If it's likely an access error or missing folder, throw it back up
+      if (e.message.includes("No item with the given ID could be found") || e.message.includes("Access denied")) {
+        throw new Error(`Access Denied or Folder Not Found. The script lacks permission to read this folder (ID: ${folderId}). Please re-select the PDF Repository using the Google Picker in the Configuration menu. Details: ${e.message}`);
+      }
       return null;
     }
   }
