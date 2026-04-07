@@ -518,6 +518,18 @@ function getFullTextScreeningColumns() {
 }
 
 /**
+ * Server-side handler for getting columns for the Quality Check Setup UI based on the active phase.
+ */
+function getColumnsForQualityCheck() {
+  const phase = PropertiesService.getScriptProperties().getProperty("QC_PHASE") || "full-text";
+  if (phase === "title-abs") {
+    return FullTextScreeningController.getAbstractScreeningColumns();
+  } else {
+    return FullTextScreeningController.getFullTextScreeningColumns();
+  }
+}
+
+/**
  * Server-side handler for getting data collection columns.
  */
 function getDataCollectionColumns() {
