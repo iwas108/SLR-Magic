@@ -1,4 +1,5 @@
 import logging
+import threading
 from fastapi import FastAPI, APIRouter, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse
 import asyncio
@@ -43,6 +44,8 @@ task_cancel_flags = {
     "compressor": False,
     "syncer": False
 }
+
+downloader_resume_event = threading.Event()
 
 class ConnectionManager:
     def __init__(self):
@@ -92,7 +95,7 @@ def execute_task(task_name, func, loop=None):
                         }
                     }), loop
                 )
-            result = func(progress_callback=progress_callback, is_cancelled=is_cancelled)
+            result = func(progress_callback=progress_callback, is_cancelled=is_cancelled, resume_event=downloader_resume_event)
         else:
             result = func(is_cancelled=is_cancelled)
 
@@ -102,12 +105,15 @@ def execute_task(task_name, func, loop=None):
         else:
             task_state[task_name]["status"] = result.get("status", "success")
             task_state[task_name]["message"] = result.get("message", "Completed")
+            if isinstance(result, dict) and result.get("status") == "success":
+                task_state[task_name]["data"] = result
     except Exception as e:
         logger.error(f"Error in {task_name}: {e}")
         task_state[task_name]["status"] = "error"
         task_state[task_name]["message"] = str(e)
 
     if loop:
+        # Need to re-broadcast with the new data
         asyncio.run_coroutine_threadsafe(manager.broadcast({"type": "state", "data": task_state}), loop)
 
 @app.websocket("/ws")
@@ -125,6 +131,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def start_download(background_tasks: BackgroundTasks):
     if task_state["downloader"]["status"] == "running":
         return {"message": "Download is already running"}
+    downloader_resume_event.clear()
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -154,6 +161,11 @@ async def start_compress(background_tasks: BackgroundTasks):
     background_tasks.add_task(execute_task, "compressor", run_compressor, loop)
     return {"message": "Compress task started"}
 
+@api_router.post("/resume-download")
+async def resume_download():
+    downloader_resume_event.set()
+    return {"message": "Resumed"}
+
 @api_router.post("/sync")
 async def start_sync(background_tasks: BackgroundTasks):
     if task_state["syncer"]["status"] == "running":
@@ -170,6 +182,8 @@ async def stop_task(task_name: str):
     if task_name in task_cancel_flags:
         if task_state[task_name]["status"] == "running":
             task_cancel_flags[task_name] = True
+            if task_name == "downloader":
+                downloader_resume_event.set()
             return {"message": f"Requested cancellation for {task_name}"}
         return {"message": f"Task {task_name} is not running"}
     return {"error": "Invalid task name"}

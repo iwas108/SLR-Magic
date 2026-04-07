@@ -1,0 +1,19 @@
+INFO:     Started server process [326351]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:36196 - "POST /api/compress HTTP/1.1" 200 OK
+2026-04-06 08:24:02,411 - app.services.compressor - INFO - Starting PDF Compressor...
+2026-04-06 08:24:02,462 - app.services.compressor - ERROR - Ghostscript not found in system PATH.
+INFO:     127.0.0.1:33192 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38366 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38368 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:     127.0.0.1:38366 - "GET /api/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38366 - "POST /api/verify HTTP/1.1" 200 OK
+2026-04-06 08:24:56,072 - app.services.verifier - INFO - Processing 1 papers after filtering...
+2026-04-06 08:24:56,077 - app.services.verifier - INFO - Done! Saved small CSV to: verified_results.csv
+INFO:     127.0.0.1:38366 - "POST /api/compress HTTP/1.1" 200 OK
+2026-04-06 08:24:57,360 - app.services.compressor - INFO - Starting PDF Compressor...
+2026-04-06 08:24:57,361 - app.services.compressor - ERROR - Ghostscript not found in system PATH.
+INFO:     connection closed

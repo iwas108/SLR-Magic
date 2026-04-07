@@ -394,7 +394,7 @@ class BrowserHandler:
             logger.debug(f"Acta Horticulturae handler failed/skipped: {e}")
         return False
 
-def run_downloader(progress_callback=None, is_cancelled=None):
+def run_downloader(progress_callback=None, is_cancelled=None, resume_event=None):
     download_dir = db.get_config("DOWNLOADER_DOWNLOAD_DIR")
     final_dir = db.get_config("DOWNLOADER_FINAL_DIR")
     csv_file = db.get_config("DOWNLOADER_CSV_FILE")
@@ -421,6 +421,23 @@ def run_downloader(progress_callback=None, is_cancelled=None):
     # 3. Browser Setup
     browser = BrowserHandler(download_dir, chrome_profile_dir)
     browser.start_browser()
+
+    # Wait for EzProxy login
+    if total_papers > 0 and resume_event is not None:
+        proxy_base_url = db.get_config("DOWNLOADER_PROXY_BASE_URL")
+        logger.info(f"Navigating to {proxy_base_url} to allow manual login")
+        try:
+            browser.driver.get(proxy_base_url)
+        except Exception as e:
+            logger.error(f"Error navigating to proxy URL: {e}")
+
+        if progress_callback:
+            progress_callback(0, total_papers, "Please login to EzProxy, then click Resume Download", status="waiting_login", countdown=0)
+
+        logger.info("Waiting for user to resume download...")
+        resume_event.wait()
+        logger.info("Resuming download.")
+        resume_event.clear()
 
     success_count = 0
     # 5. Download Loop
@@ -478,4 +495,11 @@ def run_downloader(progress_callback=None, is_cancelled=None):
     browser.stop_browser()
     shutil.rmtree(download_dir)
     logger.info("Batch download complete!")
-    return {"status": "success", "message": f"Processed {success_count}/{total_papers} papers", "total_processed": success_count}
+    failed_count = total_papers - success_count
+    return {
+        "status": "success",
+        "message": f"Processed {success_count}/{total_papers} papers",
+        "total_processed": success_count,
+        "failed_count": failed_count,
+        "success_count": success_count
+    }
