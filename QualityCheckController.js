@@ -32,7 +32,9 @@ var QualityCheckController = (function() {
   /**
    * Opens the Setup UI. This is now the entry point for Generation.
    */
-  function generateQualityCheck() {
+  function generateQualityCheck(phase = "full-text") {
+    // Store phase in Properties to pass to UI
+    PropertiesService.getScriptProperties().setProperty("QC_PHASE", phase);
     showQualityCheckSetupDialog();
   }
 
@@ -42,7 +44,8 @@ var QualityCheckController = (function() {
   function submitQualityCheckSetup(config) {
     try {
       saveQualityCheckConfig(config);
-      return executeQualityCheckGeneration(config);
+      const phase = PropertiesService.getScriptProperties().getProperty("QC_PHASE") || "full-text";
+      return executeQualityCheckGeneration(config, phase);
     } catch (e) {
       throw new Error("Setup failed: " + e.message);
     }
@@ -51,9 +54,10 @@ var QualityCheckController = (function() {
   /**
    * Executes the sampling logic.
    * @param {Object} [config] - Optional config object. If null, loads from props.
+   * @param {string} [phase="full-text"] - The phase of quality check ("title-abs" or "full-text").
    */
-  function executeQualityCheckGeneration(config) {
-    console.log("[QualityCheck] Starting Human Quality Check sampling...");
+  function executeQualityCheckGeneration(config, phase = "full-text") {
+    console.log(`[QualityCheck] Starting Human Quality Check sampling for phase: ${phase}...`);
 
     try {
       // 0. Check Configuration
@@ -65,6 +69,8 @@ var QualityCheckController = (function() {
           }
           qcConfig = JSON.parse(qcConfigProp);
       }
+
+      const reviewers = qcConfig.reviewers && qcConfig.reviewers.length > 0 ? qcConfig.reviewers : [null];
 
       const decisionCol = qcConfig.decisionColumn;
 
@@ -84,7 +90,16 @@ var QualityCheckController = (function() {
       });
 
       // 1. Get Source Data
-      const sourceSheetName = "02_fulltext_screening";
+      let sourceSheetName;
+      let targetSheetName;
+      if (phase === "title-abs") {
+        sourceSheetName = "01_abstract_screening";
+        targetSheetName = "02_titleabs_quality_check";
+      } else {
+        sourceSheetName = "03_fulltext_screening";
+        targetSheetName = "04_fulltext_quality_check";
+      }
+
       const sourceSheet = SheetUtils.getSheetByName(sourceSheetName);
       if (!sourceSheet) {
         SheetUtils.alert(`Sheet "${sourceSheetName}" not found.`);
@@ -101,16 +116,20 @@ var QualityCheckController = (function() {
 
       // 2. Filter Eligible Rows
       const eligibleRows = sourceData.filter(row => {
-        // PDF_Validity might be boolean true or string "TRUE" or "true"
-        const isValid = (row["PDF_Validity"] === true || String(row["PDF_Validity"]).toUpperCase() === "TRUE");
-        const isDone = (String(row["AI_Status"]).toUpperCase() === "DONE");
-        return isValid && isDone;
+        if (phase === "title-abs") {
+            return String(row["AI_Status"]).toUpperCase() === "DONE";
+        } else {
+            // PDF_Validity might be boolean true or string "TRUE" or "true"
+            const isValid = (row["PDF_Validity"] === true || String(row["PDF_Validity"]).toUpperCase() === "TRUE");
+            const isDone = (String(row["AI_Status"]).toUpperCase() === "DONE");
+            return isValid && isDone;
+        }
       });
 
-      console.log(`[QualityCheck] Eligible rows (PDF Valid & AI Done): ${eligibleRows.length}`);
+      console.log(`[QualityCheck] Eligible rows (AI Done): ${eligibleRows.length}`);
 
       if (eligibleRows.length === 0) {
-        SheetUtils.alert("No eligible rows found (PDF_Validity=TRUE and AI_Status=Done).");
+        SheetUtils.alert(`No eligible rows found (AI_Status=Done${phase === 'full-text' ? ' and PDF_Validity=TRUE' : ''}).`);
         return;
       }
 
@@ -137,7 +156,6 @@ var QualityCheckController = (function() {
       }
 
       // 5. Prepare Target Sheet
-      const targetSheetName = "03_quality_check";
       let targetSheet;
       try {
           // Check if exists, otherwise create
@@ -161,6 +179,7 @@ var QualityCheckController = (function() {
       userColumns.forEach(c => columnsToEnsure.add(c));
 
       const qcColumns = [
+          "HUMAN_QC_Reviewer",
           "HUMAN_QC_Decision_Agree",
           "HUMAN_QC_Reason_Valid",
           "HUMAN_QC_Data_Extraction_Score",
@@ -175,48 +194,56 @@ var QualityCheckController = (function() {
 
       // 7. Filter Duplicates & Prepare Data
       const existingTargetData = SheetUtils.getDataAsObjects(targetSheet);
-      const existingIds = new Set(existingTargetData.map(r => r["Paper_ID"]));
+      // Create a set of "Paper_ID|Reviewer" to check existence for multiple reviewers
+      const existingIds = new Set(existingTargetData.map(r => `${r["Paper_ID"]}|${r["HUMAN_QC_Reviewer"] || ""}`));
 
       const newRows = [];
       const newNotes = [];
 
       finalSample.forEach(sourceRow => {
-         if (existingIds.has(sourceRow["Paper_ID"])) return;
+          reviewers.forEach(reviewer => {
+             const existKey = `${sourceRow["Paper_ID"]}|${reviewer || ""}`;
+             if (existingIds.has(existKey)) return;
 
-         // Construct new row object with only desired columns + State: 0
-         const newRow = {
-             "Paper_ID": sourceRow["Paper_ID"],
-             "State": 0
-         };
+             // Construct new row object with only desired columns + State: 0
+             const newRow = {
+                 "Paper_ID": sourceRow["Paper_ID"],
+                 "State": 0
+             };
 
-         // Helper to get note for a column from source
-         // sourceRow._rowIndex is 1-based index
-         // sourceNotes[0] is Row 1 (Header)
-         // So data for row N is at sourceNotes[N-1]
-         const rIdx = sourceRow._rowIndex - 1;
-         const sourceRowNotes = (rIdx < sourceNotes.length) ? sourceNotes[rIdx] : null;
-
-         const newRowNote = {};
-
-         // Copy user columns
-         userColumns.forEach(col => {
-             // Copy Value
-             if (sourceRow.hasOwnProperty(col)) {
-                 newRow[col] = sourceRow[col];
+             if (reviewer) {
+                 newRow["HUMAN_QC_Reviewer"] = reviewer;
              }
 
-             // Copy Note
-             // Find column index in source header
-             if (sourceRowNotes) {
-                 const colIndex = sourceHeaders.indexOf(col);
-                 if (colIndex !== -1 && sourceRowNotes[colIndex]) {
-                     newRowNote[col] = sourceRowNotes[colIndex];
+             // Helper to get note for a column from source
+             // sourceRow._rowIndex is 1-based index
+             // sourceNotes[0] is Row 1 (Header)
+             // So data for row N is at sourceNotes[N-1]
+             const rIdx = sourceRow._rowIndex - 1;
+             const sourceRowNotes = (rIdx < sourceNotes.length) ? sourceNotes[rIdx] : null;
+
+             const newRowNote = {};
+
+             // Copy user columns
+             userColumns.forEach(col => {
+                 // Copy Value
+                 if (sourceRow.hasOwnProperty(col)) {
+                     newRow[col] = sourceRow[col];
                  }
-             }
-         });
 
-         newRows.push(newRow);
-         newNotes.push(newRowNote);
+                 // Copy Note
+                 // Find column index in source header
+                 if (sourceRowNotes) {
+                     const colIndex = sourceHeaders.indexOf(col);
+                     if (colIndex !== -1 && sourceRowNotes[colIndex]) {
+                         newRowNote[col] = sourceRowNotes[colIndex];
+                     }
+                 }
+             });
+
+             newRows.push(newRow);
+             newNotes.push(newRowNote);
+          });
       });
 
       console.log(`[QualityCheck] New unique rows to add: ${newRows.length}`);
@@ -270,14 +297,17 @@ var QualityCheckController = (function() {
   /**
    * Opens the Human Quality Check Assistant UI.
    */
-  function runQualityCheck() {
+  function runQualityCheck(phase = "full-text") {
     try {
+      const targetSheetName = phase === "title-abs" ? "02_titleabs_quality_check" : "04_fulltext_quality_check";
       // Check if sheet exists first
-      const sheet = SheetUtils.getSheetByName("03_quality_check");
+      const sheet = SheetUtils.getSheetByName(targetSheetName);
       if (!sheet) {
-        SheetUtils.alert("Sheet '03_quality_check' not found. Please run 'Generate Quality Check List' first.");
+        SheetUtils.alert(`Sheet '${targetSheetName}' not found. Please run 'Generate Quality Check List' first.`);
         return;
       }
+
+      PropertiesService.getScriptProperties().setProperty("QC_PHASE", phase);
 
       const html = HtmlService.createTemplateFromFile('QualityCheckUI')
           .evaluate()
@@ -291,12 +321,12 @@ var QualityCheckController = (function() {
   }
 
   /**
-   * Retrieves data from 03_quality_check for the UI.
+   * Retrieves data from the specific quality check sheet for the UI.
    * Only returns rows with State == 0 (Unprocessed).
    */
-  function getQualityCheckData() {
+  function getQualityCheckData(targetSheetName = "04_fulltext_quality_check") {
     try {
-      const sheet = SheetUtils.getSheetByName("03_quality_check");
+      const sheet = SheetUtils.getSheetByName(targetSheetName);
       const allRows = sheet ? SheetUtils.getDataAsObjects(sheet) : [];
 
       // Filter for unprocessed rows (State is 0 or "0")
@@ -350,19 +380,25 @@ var QualityCheckController = (function() {
   }
 
   /**
-   * Updates a row in 03_quality_check with human inputs.
+   * Updates a row in the quality check sheet with human inputs.
    */
-  function saveQualityCheckRow(paperId, data) {
+  function saveQualityCheckRow(paperId, data, reviewerName = "", targetSheetName = "04_fulltext_quality_check") {
     try {
-      const sheet = SheetUtils.getSheetByName("03_quality_check");
+      const sheet = SheetUtils.getSheetByName(targetSheetName);
       const allRows = SheetUtils.getDataAsObjects(sheet);
-      const rowObj = allRows.find(r => r["Paper_ID"] === paperId);
+
+      let rowObj;
+      if (reviewerName) {
+         rowObj = allRows.find(r => r["Paper_ID"] === paperId && r["HUMAN_QC_Reviewer"] === reviewerName);
+      } else {
+         rowObj = allRows.find(r => r["Paper_ID"] === paperId);
+      }
 
       if (rowObj) {
         const headerMap = SheetUtils.getHeaderMap(sheet);
         SheetUtils.updateRow(sheet, rowObj._rowIndex, data, headerMap);
       } else {
-        console.warn(`[QualityCheck] Paper_ID ${paperId} not found.`);
+        console.warn(`[QualityCheck] Paper_ID ${paperId} not found (Reviewer: ${reviewerName}).`);
       }
     } catch (e) {
       console.error(e);
@@ -373,7 +409,7 @@ var QualityCheckController = (function() {
   /**
    * Calculates and displays the Quality Check Score Report.
    */
-  function calculateQCScore() {
+  function calculateQCScore(phase = "full-text") {
     try {
       // 0. Check Configuration
       const qcConfigProp = PropertiesService.getScriptProperties().getProperty("QC_COLUMN_MAPPING");
@@ -384,9 +420,10 @@ var QualityCheckController = (function() {
       const qcConfig = JSON.parse(qcConfigProp);
       const decisionCol = qcConfig.decisionColumn;
 
-      const sheet = SheetUtils.getSheetByName("03_quality_check");
+      const targetSheetName = phase === "title-abs" ? "02_titleabs_quality_check" : "04_fulltext_quality_check";
+      const sheet = SheetUtils.getSheetByName(targetSheetName);
       if (!sheet) {
-        SheetUtils.alert("Sheet '03_quality_check' not found.");
+        SheetUtils.alert(`Sheet '${targetSheetName}' not found.`);
         return;
       }
 
@@ -406,6 +443,9 @@ var QualityCheckController = (function() {
       // Initialize Confusion Matrix Counters
       let TP = 0, FP = 0, TN = 0, FN = 0;
 
+      // Group by Paper_ID to calculate Cohen's Kappa if multiple reviewers
+      const groupedByPaper = {};
+
       // Initialize Quality Metrics Counters
       let validReasonCount = 0;
       let criticalCorrectionCount = 0;
@@ -418,6 +458,13 @@ var QualityCheckController = (function() {
         // Parse Human Agreement (Boolean-like)
         const agreeVal = String(r["HUMAN_QC_Decision_Agree"]).trim().toUpperCase();
         const isAgreed = (agreeVal === "YES" || agreeVal === "TRUE" || agreeVal === "AGREE");
+
+        // Grouping for Kappa
+        const paperId = r["Paper_ID"];
+        if (!groupedByPaper[paperId]) {
+            groupedByPaper[paperId] = [];
+        }
+        groupedByPaper[paperId].push({ reviewer: r["HUMAN_QC_Reviewer"], isAgreed: isAgreed });
 
         // Confusion Matrix Logic
         // Assumption: Binary Classification (Include vs Exclude)
@@ -456,6 +503,46 @@ var QualityCheckController = (function() {
         }
       });
 
+      // Calculate Cohen's Kappa (if multiple reviewers per paper)
+      let kappaScore = "N/A";
+      let totalPairs = 0;
+      let observedAgreements = 0;
+      let agreeYesCount = 0;
+      let agreeNoCount = 0;
+      let totalDecisions = 0;
+
+      Object.values(groupedByPaper).forEach(decisions => {
+         if (decisions.length >= 2) {
+             // For simplicity, if > 2, we just take the first two, or calculate pairwise
+             // Let's calculate pairwise for all combinations
+             for (let i = 0; i < decisions.length; i++) {
+                 totalDecisions++;
+                 if (decisions[i].isAgreed) agreeYesCount++;
+                 else agreeNoCount++;
+
+                 for (let j = i + 1; j < decisions.length; j++) {
+                     totalPairs++;
+                     if (decisions[i].isAgreed === decisions[j].isAgreed) {
+                         observedAgreements++;
+                     }
+                 }
+             }
+         }
+      });
+
+      if (totalPairs > 0) {
+         const p_o = observedAgreements / totalPairs;
+         const p_yes = agreeYesCount / totalDecisions;
+         const p_no = agreeNoCount / totalDecisions;
+         const p_e = (p_yes * p_yes) + (p_no * p_no);
+         if (p_e === 1) {
+             kappaScore = 1.0; // Perfect agreement, avoid division by zero
+         } else {
+             const k = (p_o - p_e) / (1 - p_e);
+             kappaScore = k.toFixed(3);
+         }
+      }
+
       // Calculate Derived Metrics
       const total = TP + FP + TN + FN;
       // Avoid division by zero
@@ -476,7 +563,8 @@ var QualityCheckController = (function() {
           precision: (precision * 100).toFixed(1),
           npv: (npv * 100).toFixed(1),
           f1: f1.toFixed(3),
-          accuracy: (accuracy * 100).toFixed(1)
+          accuracy: (accuracy * 100).toFixed(1),
+          kappa: kappaScore
         },
         quality: {
           reasonValidityRate: (safeDiv(validReasonCount, total) * 100).toFixed(1),
@@ -490,7 +578,7 @@ var QualityCheckController = (function() {
       template.data = stats;
       const html = template.evaluate()
         .setWidth(600)
-        .setHeight(600);
+        .setHeight(650);
 
       SpreadsheetApp.getUi().showModalDialog(html, 'Quality Check Score Report');
 
@@ -529,9 +617,9 @@ var QualityCheckController = (function() {
       }
 
       // 2. Get Source Data
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
       if (!sheet) {
-        return "Error: Sheet '02_fulltext_screening' not found.";
+        return "Error: Sheet '03_fulltext_screening' not found.";
       }
       const data = SheetUtils.getDataAsObjects(sheet);
 

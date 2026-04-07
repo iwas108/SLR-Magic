@@ -1,6 +1,6 @@
 /**
  * DataCollectionController.js
- * Handles the logic for syncing Included papers to 04_data_collection.
+ * Handles the logic for syncing Included papers to 05_data_collection.
  */
 
 var DataCollectionController = (function() {
@@ -17,12 +17,12 @@ var DataCollectionController = (function() {
   }
 
   /**
-   * Gets headers from 02_fulltext_screening for selection.
-   * Also returns headers from 04_data_collection to pre-select them.
+   * Gets headers from 03_fulltext_screening for selection.
+   * Also returns headers from 05_data_collection to pre-select them.
    */
   function getDataCollectionColumns() {
     // 1. Source Headers
-    const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+    const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
     const lastCol = sheet.getLastColumn();
     let sourceHeaders = [];
     if (lastCol > 0) {
@@ -33,7 +33,7 @@ var DataCollectionController = (function() {
     // 2. Destination Headers (for auto-check)
     let destHeaders = [];
     try {
-      const destSheet = SheetUtils.getSheetByName("04_data_collection");
+      const destSheet = SheetUtils.getSheetByName("05_data_collection");
       const destLastCol = destSheet.getLastColumn();
       if (destLastCol > 0) {
         destHeaders = destSheet.getRange(1, 1, 1, destLastCol).getValues()[0]
@@ -50,12 +50,12 @@ var DataCollectionController = (function() {
   }
 
   /**
-   * Syncs selected columns for "Included" papers to 04_data_collection.
+   * Syncs selected columns for "Included" papers to 05_data_collection.
    */
   function syncDataCollection(selectedColumns) {
     try {
-      const sourceSheet = SheetUtils.getSheetByName("02_fulltext_screening");
-      const destSheet = SheetUtils.getSheetByName("04_data_collection");
+      const sourceSheet = SheetUtils.getSheetByName("03_fulltext_screening");
+      const destSheet = SheetUtils.getSheetByName("05_data_collection");
 
       // 1. Get Source Data
       const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
@@ -64,14 +64,14 @@ var DataCollectionController = (function() {
       const headerMap = SheetUtils.getHeaderMap(sourceSheet); // Map of Header -> Col Index (1-based)
 
       // 2. Filter "Include" papers (decision = Include)
-      // "The source of truth is 02_fulltext_screening. Sync Included paper."
+      // "The source of truth is 03_fulltext_screening. Sync Included paper."
       const includedRows = sourceData.filter(row => {
           const decision = String(row["decision"] || "").trim().toUpperCase();
           return decision === "INCLUDE";
       });
 
       if (includedRows.length === 0) {
-          throw new Error("No papers found with decision = 'Include' in 02_fulltext_screening.");
+          throw new Error("No papers found with decision = 'Include' in 03_fulltext_screening.");
       }
 
       // 3. Prepare Destination Data

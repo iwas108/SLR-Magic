@@ -79,7 +79,7 @@ const ExtendedMinerController = (function() {
       }
 
       // 2. Get Data
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
       const allData = SheetUtils.getDataAsObjects(sheet);
 

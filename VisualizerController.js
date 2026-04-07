@@ -28,13 +28,13 @@ var VisualizerController = (function() {
   }
 
   /**
-   * Retrieves headers from 04_data_collection.
+   * Retrieves headers from 05_data_collection.
    */
   function getDataCollectionColumns() {
     try {
       // Check if sheet exists
       const ss = SheetUtils.getSpreadsheet();
-      const sheet = ss.getSheetByName("04_data_collection");
+      const sheet = ss.getSheetByName("05_data_collection");
 
       if (!sheet) {
         return [];
@@ -48,7 +48,7 @@ var VisualizerController = (function() {
 
       return headers;
     } catch (e) {
-      console.warn("Error fetching columns from 04_data_collection", e);
+      console.warn("Error fetching columns from 05_data_collection", e);
       return [];
     }
   }
@@ -59,7 +59,7 @@ var VisualizerController = (function() {
    */
   function processSankeyData(config) {
     try {
-      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const sheet = SheetUtils.getSheetByName("05_data_collection");
       const data = SheetUtils.getDataAsObjects(sheet);
 
       // Filter out rows that might be empty or invalid if necessary,
@@ -78,7 +78,7 @@ var VisualizerController = (function() {
    */
   function processPieChartData(config) {
     try {
-      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const sheet = SheetUtils.getSheetByName("05_data_collection");
       const data = SheetUtils.getDataAsObjects(sheet);
 
       return preparePieChartData(data, config.column);
@@ -220,7 +220,7 @@ var VisualizerController = (function() {
    */
   function processBarChartData(config) {
     try {
-      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const sheet = SheetUtils.getSheetByName("05_data_collection");
       const data = SheetUtils.getDataAsObjects(sheet);
 
       return prepareBarChartData(data, config);
@@ -512,7 +512,7 @@ var VisualizerController = (function() {
    */
   function processLineChartData(config) {
     try {
-      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const sheet = SheetUtils.getSheetByName("05_data_collection");
       const data = SheetUtils.getDataAsObjects(sheet);
 
       return prepareLineChartData(data, config);
@@ -657,7 +657,7 @@ var VisualizerController = (function() {
    */
   function processBarStackData(config) {
     try {
-      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const sheet = SheetUtils.getSheetByName("05_data_collection");
       const data = SheetUtils.getDataAsObjects(sheet);
 
       return prepareStackBarData(data, config);
@@ -806,7 +806,7 @@ var VisualizerController = (function() {
    */
   function processRadarChartData(config) {
     try {
-      const sheet = SheetUtils.getSheetByName("04_data_collection");
+      const sheet = SheetUtils.getSheetByName("05_data_collection");
       const data = SheetUtils.getDataAsObjects(sheet);
 
       return prepareRadarChartData(data, config);

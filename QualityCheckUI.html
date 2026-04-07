@@ -74,12 +74,15 @@
     </div>
 
     <script>
+      let allFetchedRows = [];
       let allRows = [];
       let currentIndex = 0;
       let currentPromptText = "";
+      let availableReviewers = [];
+      let selectedReviewer = "";
 
       // Internal columns to hide
-      const HIDDEN_COLUMNS = ["_rowIndex", "State"];
+      const HIDDEN_COLUMNS = ["_rowIndex", "State", "HUMAN_QC_Reviewer"];
 
       function init() {
         google.script.run.withSuccessHandler(onDataLoaded).getQualityCheckData();
@@ -87,18 +90,70 @@
 
       function onDataLoaded(response) {
         if (response && response.rows) {
-            allRows = response.rows;
+            allFetchedRows = response.rows;
         } else if (Array.isArray(response)) {
-            allRows = response;
+            allFetchedRows = response;
         }
 
-        if (allRows.length === 0) {
-          document.getElementById('app').innerHTML = '<div class="loading">No unprocessed rows found in 03_quality_check.</div>';
+        if (allFetchedRows.length === 0) {
+          document.getElementById('app').innerHTML = '<div class="loading">No unprocessed rows found.</div>';
           return;
         }
-        currentIndex = 0;
-        renderApp();
-        renderRow();
+
+        // Extract unique reviewers
+        const reviewersSet = new Set();
+        allFetchedRows.forEach(r => {
+            if (r.HUMAN_QC_Reviewer) reviewersSet.add(r.HUMAN_QC_Reviewer);
+        });
+        availableReviewers = Array.from(reviewersSet);
+
+        if (availableReviewers.length > 0) {
+            renderReviewerSelection();
+        } else {
+            selectedReviewer = "";
+            allRows = allFetchedRows;
+            currentIndex = 0;
+            renderApp();
+            renderRow();
+        }
+      }
+
+      function renderReviewerSelection() {
+          let html = `
+            <div class="container" style="max-width: 400px; margin-top: 50px;">
+               <h3>Select Reviewer</h3>
+               <p>Please select your name to continue:</p>
+               <select id="reviewerSelect" style="width: 100%; padding: 8px; margin-bottom: 20px;">
+                  <option value="">-- Select --</option>
+          `;
+          availableReviewers.forEach(r => {
+              html += `<option value="${r}">${r}</option>`;
+          });
+          html += `
+               </select>
+               <button class="finish-btn" style="width: 100%;" onclick="startReview()">Start Quality Check</button>
+            </div>
+          `;
+          document.getElementById('app').innerHTML = html;
+      }
+
+      function startReview() {
+          const select = document.getElementById('reviewerSelect');
+          if (!select.value) {
+              alert("Please select a reviewer.");
+              return;
+          }
+          selectedReviewer = select.value;
+          allRows = allFetchedRows.filter(r => r.HUMAN_QC_Reviewer === selectedReviewer);
+
+          if (allRows.length === 0) {
+             document.getElementById('app').innerHTML = `<div class="loading">No unprocessed rows found for reviewer: ${selectedReviewer}.</div>`;
+             return;
+          }
+
+          currentIndex = 0;
+          renderApp();
+          renderRow();
       }
 
       function renderApp() {
@@ -291,7 +346,7 @@
           HUMAN_QC_Critical_Correction: correction
         };
 
-        google.script.run.saveQualityCheckRow(row.Paper_ID, updateData);
+        google.script.run.saveQualityCheckRow(row.Paper_ID, updateData, selectedReviewer);
       }
 
       function finishRow() {
@@ -337,7 +392,7 @@
                btn.disabled = false;
                btn.textContent = "FINISH & NEXT";
            })
-           .saveQualityCheckRow(row.Paper_ID, updateData);
+           .saveQualityCheckRow(row.Paper_ID, updateData, selectedReviewer);
       }
 
       function nextRow() {

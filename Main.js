@@ -29,9 +29,14 @@ function onOpen() {
     .addItem('Start AI Extended Miner', 'runExtendedMiner')
     .addItem('Manage Background AI Extended Miner', 'manageExtendedMinerTrigger')
     .addSeparator()
-    .addItem('Generate Quality Check List', 'generateQualityCheck')
-    .addItem('Run Quality Check Assistant', 'runQualityCheck')
-    .addItem('Calculate QC Score', 'calculateQCScore')
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Title-Abstract Quality Check')
+        .addItem('Generate Quality Check List', 'generateTitleAbsQualityCheck')
+        .addItem('Run Quality Check Assistant', 'runTitleAbsQualityCheck')
+        .addItem('Calculate QC Score', 'calculateTitleAbsQCScore'))
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Full-Text Quality Check')
+        .addItem('Generate Quality Check List', 'generateQualityCheck')
+        .addItem('Run Quality Check Assistant', 'runQualityCheck')
+        .addItem('Calculate QC Score', 'calculateQCScore'))
     .addSeparator()
     .addItem('Umbrellanizer (Data Categorizer)', 'runUmbrellanizer')
     .addItem('Process Data Collection', 'runDataCollection')
@@ -202,24 +207,45 @@ function runFullTextScreening() {
 }
 
 /**
- * Generates the sample list for Quality Check.
+ * Generates the sample list for Full-Text Quality Check.
  */
 function generateQualityCheck() {
-  QualityCheckController.generateQualityCheck();
+  QualityCheckController.generateQualityCheck("full-text");
 }
 
 /**
- * Opens the Assistant UI.
+ * Opens the Assistant UI for Full-Text.
  */
 function runQualityCheck() {
-  QualityCheckController.runQualityCheck();
+  QualityCheckController.runQualityCheck("full-text");
 }
 
 /**
- * Calculates and summarizes the quality check score.
+ * Calculates and summarizes the full-text quality check score.
  */
 function calculateQCScore() {
-  QualityCheckController.calculateQCScore();
+  QualityCheckController.calculateQCScore("full-text");
+}
+
+/**
+ * Generates the sample list for Title-Abstract Quality Check.
+ */
+function generateTitleAbsQualityCheck() {
+  QualityCheckController.generateQualityCheck("title-abs");
+}
+
+/**
+ * Opens the Assistant UI for Title-Abstract.
+ */
+function runTitleAbsQualityCheck() {
+  QualityCheckController.runQualityCheck("title-abs");
+}
+
+/**
+ * Calculates and summarizes the title-abstract quality check score.
+ */
+function calculateTitleAbsQCScore() {
+  QualityCheckController.calculateQCScore("title-abs");
 }
 
 /**
@@ -251,7 +277,7 @@ function applyUmbrellanizerFormula(columnName, decisionColumn, decisionValue, is
 }
 
 /**
- * Processes data collection JSON in '04_data_collection'.
+ * Processes data collection JSON in '05_data_collection'.
  */
 function runDataCollection() {
   DataCollectionController.run();
@@ -268,14 +294,18 @@ function syncGoldMine() {
  * Server-side handler for getting data.
  */
 function getQualityCheckData() {
-  return QualityCheckController.getQualityCheckData();
+  const phase = PropertiesService.getScriptProperties().getProperty("QC_PHASE") || "full-text";
+  const targetSheetName = phase === "title-abs" ? "02_titleabs_quality_check" : "04_fulltext_quality_check";
+  return QualityCheckController.getQualityCheckData(targetSheetName);
 }
 
 /**
  * Server-side handler for saving data.
  */
-function saveQualityCheckRow(paperId, data) {
-  return QualityCheckController.saveQualityCheckRow(paperId, data);
+function saveQualityCheckRow(paperId, data, reviewerName) {
+  const phase = PropertiesService.getScriptProperties().getProperty("QC_PHASE") || "full-text";
+  const targetSheetName = phase === "title-abs" ? "02_titleabs_quality_check" : "04_fulltext_quality_check";
+  return QualityCheckController.saveQualityCheckRow(paperId, data, reviewerName, targetSheetName);
 }
 
 /**
@@ -485,6 +515,18 @@ function submitQualityCheckSetup(config) {
  */
 function getFullTextScreeningColumns() {
   return FullTextScreeningController.getFullTextScreeningColumns();
+}
+
+/**
+ * Server-side handler for getting columns for the Quality Check Setup UI based on the active phase.
+ */
+function getColumnsForQualityCheck() {
+  const phase = PropertiesService.getScriptProperties().getProperty("QC_PHASE") || "full-text";
+  if (phase === "title-abs") {
+    return FullTextScreeningController.getAbstractScreeningColumns();
+  } else {
+    return FullTextScreeningController.getFullTextScreeningColumns();
+  }
 }
 
 /**

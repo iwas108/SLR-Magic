@@ -59,6 +59,12 @@
     </div>
 
     <div class="form-group">
+      <label for="reviewerNames">Reviewers (Inter-Rater Reliability):</label>
+      <input type="text" id="reviewerNames" placeholder="e.g., Alice, Bob" value="">
+      <small>Comma-separated list of reviewer names. Leave blank to disable Inter-Rater mode.</small>
+    </div>
+
+    <div class="form-group">
       <label>Columns to Copy to Quality Check Sheet:</label>
       <div id="columnsContainer" class="checkbox-container">
         Loading...
@@ -74,7 +80,7 @@
         google.script.run
           .withSuccessHandler(populateForm)
           .withFailureHandler(showError)
-          .getFullTextScreeningColumns();
+          .getColumnsForQualityCheck();
       }
 
       function populateForm(columns) {
@@ -145,6 +151,7 @@
         const reasoning = document.getElementById('reasoningCol').value;
         const includePct = document.getElementById('samplePercentInclude').value;
         const excludePct = document.getElementById('samplePercentExclude').value;
+        const reviewersInput = document.getElementById('reviewerNames').value;
 
         // Get selected columns
         const checkboxes = document.querySelectorAll('input[name="columnsToCopy"]:checked');
@@ -153,6 +160,15 @@
         if (!decision) {
           showError("Please select the Decision column.");
           return;
+        }
+
+        let reviewers = [];
+        if (reviewersInput.trim() !== "") {
+            reviewers = reviewersInput.split(',').map(r => r.trim()).filter(r => r !== "");
+            if (reviewers.length < 2) {
+                showError("Please enter at least two reviewers for Inter-Rater Reliability.");
+                return;
+            }
         }
 
         if (!includePct || includePct <= 0 || includePct > 100) {
@@ -178,7 +194,8 @@
            reasoningColumn: reasoning,
            samplePercentInclude: parseInt(includePct),
            samplePercentExclude: parseInt(excludePct),
-           columnsToCopy: columnsToCopy
+           columnsToCopy: columnsToCopy,
+           reviewers: reviewers
         };
 
         google.script.run

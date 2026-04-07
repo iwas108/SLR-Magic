@@ -17,11 +17,11 @@ var UmbrellanizerController = (function() {
   }
 
   /**
-   * Retrieves headers from 02_fulltext_screening for selection.
+   * Retrieves headers from 03_fulltext_screening for selection.
    */
   function getColumnsAndValues() {
     try {
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
       const lastCol = sheet.getLastColumn();
       if (lastCol === 0) return [];
 
@@ -30,18 +30,18 @@ var UmbrellanizerController = (function() {
 
       return headers;
     } catch (e) {
-      console.warn("Error fetching columns from 02_fulltext_screening", e);
+      console.warn("Error fetching columns from 03_fulltext_screening", e);
       return [];
     }
   }
 
   /**
-   * Retrieves unique values for a given column from 02_fulltext_screening.
+   * Retrieves unique values for a given column from 03_fulltext_screening.
    * Splits by comma to ensure distinct tags.
    */
   function getUniqueValues(columnName) {
     try {
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
       const data = SheetUtils.getDataAsObjects(sheet);
 
       const uniqueSet = new Set();
@@ -73,7 +73,7 @@ var UmbrellanizerController = (function() {
    */
   function applyUmbrellanizer(columnName, decisionColumn, decisionValue, isMultiLabel, formulaText) {
     try {
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
 
       // Ensure source and decision columns exist

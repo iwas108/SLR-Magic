@@ -31,7 +31,7 @@
   <!-- Step 1: Configuration -->
   <div id="step1" class="step active">
     <div class="description">
-      Select a column from '02_fulltext_screening' to categorize (umbrellanify) similar values. Only rows matching your decision criteria will be processed.
+      Select a column from '03_fulltext_screening' to categorize (umbrellanify) similar values. Only rows matching your decision criteria will be processed.
     </div>
 
     <div class="form-group">
@@ -155,7 +155,7 @@
       decSelect.innerHTML = '<option value="">-- Select Decision Column --</option>';
 
       if (!columns || columns.length === 0) {
-        select.innerHTML = '<option value="">No columns found in 02_fulltext_screening</option>';
+        select.innerHTML = '<option value="">No columns found in 03_fulltext_screening</option>';
         return;
       }
 
