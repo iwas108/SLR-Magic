@@ -10,8 +10,8 @@ const ImportController = (function() {
    */
   function showImportDialog() {
     const html = HtmlService.createHtmlOutputFromFile('ImportCSVUI')
-      .setWidth(700)
-      .setHeight(600)
+      .setWidth(900)
+      .setHeight(700)
       .setTitle('Import Raw CSV');
     SpreadsheetApp.getUi().showModalDialog(html, 'Import Raw CSV');
   }

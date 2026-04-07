@@ -447,6 +447,7 @@
         const picker = new google.picker.PickerBuilder()
             .addView(view)
             .setOAuthToken(oauthToken)
+            .setOrigin(google.script.host.origin)
             .setDeveloperKey('') // API key is often not required when using OAuth token in Apps Script
             .setCallback(pickerCallback)
             .build();
