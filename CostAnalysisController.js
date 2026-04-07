@@ -175,7 +175,7 @@ var CostAnalysisController = (function() {
         }
 
         // --- Full-Text & Extended Miner ---
-        const ftSheet = SheetUtils.getSheetByName("02_fulltext_screening");
+        const ftSheet = SheetUtils.getSheetByName("03_fulltext_screening");
         const ftData = SheetUtils.getDataAsObjects(ftSheet);
 
         ftData.forEach(row => {

@@ -120,9 +120,11 @@ This project uses **clasp** (Command Line Apps Script Projects) to manage code l
 2.  Click **SLR Magic** > **Initialize Environment**.
 3.  This creates the necessary sheets:
     *   `01_abstract_screening`: For Title/Abstract data.
-    *   `02_fulltext_screening`: For PDF processing.
-    *   `03_quality_check`: For human validation.
-    *   `04_data_collection`: For final extracted data.
+    *   `02_titleabs_quality_check`: For human validation of Title/Abstract screening.
+    *   `03_fulltext_screening`: For PDF processing.
+    *   `04_fulltext_quality_check`: For human validation of full-text screening.
+    *   `05_data_collection`: For final extracted data.
+    *   `98_file_metadata`: For file metadata.
 
 ### Step 2: Configuration
 1.  Click **SLR Magic** > **Configuration**.
@@ -147,7 +149,7 @@ This project uses **clasp** (Command Line Apps Script Projects) to manage code l
     *   **The Miner** extracts data.
 
 ### Step 5: Analysis & Visualization
-1.  **SLR Magic** > **Process Data Collection** to sync extracted data to `04_data_collection`.
+1.  **SLR Magic** > **Process Data Collection** to sync extracted data to `05_data_collection`.
 2.  **SLR Magic** > **Visualizer** to create charts.
 
 ---

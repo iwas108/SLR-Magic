@@ -31,7 +31,7 @@ const FullTextScreeningController = (function() {
    * Helper: Get headers from Full-Text Screening sheet.
    */
   function getFullTextScreeningColumns() {
-    const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+    const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
     const lastCol = sheet.getLastColumn();
     if (lastCol === 0) return [];
     const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
@@ -65,7 +65,7 @@ const FullTextScreeningController = (function() {
   function processCopyScreenedPapers(columnName, includedValues, columnsToCopy) {
     try {
       const sourceSheet = SheetUtils.getSheetByName("01_abstract_screening");
-      const destSheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const destSheet = SheetUtils.getSheetByName("03_fulltext_screening");
 
       const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
       // Handle potential empty destination sheet
@@ -75,7 +75,7 @@ const FullTextScreeningController = (function() {
       }
 
       // Get existing Paper IDs in destination to avoid duplicates
-      // "always use the 02_fulltext_screening as the source of truth"
+      // "always use the 03_fulltext_screening as the source of truth"
       const existingIds = new Set(destData.map(row => row["Paper_ID"]));
 
       // Filter rows to copy
@@ -224,8 +224,8 @@ const FullTextScreeningController = (function() {
     }
 
     try {
-      // 0. Ensure target columns exist in 02_fulltext_screening
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      // 0. Ensure target columns exist in 03_fulltext_screening
+      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
 
       // Ensure columns required for import exist
@@ -399,7 +399,7 @@ const FullTextScreeningController = (function() {
       };
 
       // 2. Get Data
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
       const allData = SheetUtils.getDataAsObjects(sheet);
 
@@ -658,7 +658,7 @@ const FullTextScreeningController = (function() {
         return;
       }
 
-      const sheet = SheetUtils.getSheetByName("02_fulltext_screening");
+      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
       const headerMap = SheetUtils.getHeaderMap(sheet);
       const data = SheetUtils.getDataAsObjects(sheet);
       let updatedCount = 0;
