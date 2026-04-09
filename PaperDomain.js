@@ -5,19 +5,38 @@
 
 const PaperDomain = (function() {
 
+    /**
+   * Generates a stable MD5 hash string.
+   */
+  function md5(string) {
+    // A simple, pure JS MD5 implementation or we can use Apps Script Utilities.
+    // Apps Script Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, string)
+    // returns a byte array which we need to convert to hex.
+    const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, string);
+    let hexString = '';
+    for (let i = 0; i < digest.length; i++) {
+      let byte = digest[i];
+      if (byte < 0) {
+        byte += 256;
+      }
+      let hex = byte.toString(16);
+      if (hex.length === 1) {
+        hex = '0' + hex;
+      }
+      hexString += hex;
+    }
+    return hexString;
+  }
+
   /**
-   * Generates a meaningful Paper ID.
-   * Format: AuthorLastName_Year_TitleStart(First 15 chars)
-   * Sanitizes to be alphanumeric.
+   * Generates a meaningful, deterministic Paper ID.
+   * Format: AuthorLastName_Year_TitleStart(First 15 chars)_Hash(4 chars)
+   * The hash ensures uniqueness deterministically based on Title + DOI + Authors.
    * @param {Object} rawData
    * @returns {string}
    */
   function generatePaperId(rawData) {
-    // Scopus 'Authors' usually looks like "Smith J., Doe A." or "Smith, J."
-    // We want the first author's last name.
-
-    // 1. Find the authors field (handle variations)
-    // Updated to handle cleaned keys (spaces -> underscores)
+    // 1. Find the authors field
     const authorKeys = ['Authors', 'Author_full_names', 'Author(s)'];
     let authorsField = "";
     for (const key of authorKeys) {
@@ -28,44 +47,35 @@ const PaperDomain = (function() {
     }
 
     let author = "Unknown";
-
     if (authorsField) {
-      // 2. Scopus separates multiple authors with semicolons
-      // e.g., "Zhu, T.; Zhang, W." -> "Zhu, T."
       const firstAuthor = authorsField.split(';')[0].trim();
-
       if (firstAuthor) {
-        // 3. Extract Last Name
-        // Format is typically "Last, First" or "Last First"
         if (firstAuthor.includes(',')) {
-          // "Zhu, T." -> "Zhu"
-          // "Aranda Barrera, M.F." -> "Aranda Barrera"
           author = firstAuthor.split(',')[0].trim();
         } else {
-          // "Zhu T." or "Zhu"
-          // Take the first token
           author = firstAuthor.split(' ')[0].trim();
         }
-
-        // Sanitize
         author = author.replace(/[^a-zA-Z0-9]/g, "");
       }
     }
-
-    // Fallback if extraction failed but field existed
     if (!author) author = "Unknown";
 
     let year = rawData['Year'] || "NoYear";
 
     let title = rawData['Title'] || "";
-    // Take first 15 alphanumeric chars of title
     let shortTitle = title.replace(/[^a-zA-Z0-9]/g, "").substring(0, 15);
 
-    // Add a random suffix to ensure uniqueness in case of collisions (same author, year, similar title start)
-    // User requested "random four digid number".
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000).toString();
+    // 2. Generate a deterministic hash instead of a random number
+    const doi = rawData['DOI'] || "";
+    const stringToHash = (title + doi + authorsField).toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    return `${author}_${year}_${shortTitle}_${randomSuffix}`;
+    // Fallback if somehow empty
+    const finalStringToHash = stringToHash || (author + year + shortTitle);
+
+    // Get MD5 hash and take first 5 characters
+    const hashStr = md5(finalStringToHash).substring(0, 5);
+
+    return `${author}_${year}_${shortTitle}_${hashStr}`;
   }
 
   return {
