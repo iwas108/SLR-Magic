@@ -4,7 +4,7 @@
  * Includes migration logic from legacy 00_manifest.
  */
 
-const ConfigManager = (function() {
+const ConfigManager = (function () {
 
   const MODEL_OPTIONS = [
     "gemini-3-pro-preview",
@@ -167,402 +167,314 @@ const ConfigManager = (function() {
   // but for now, to decouple from Setup.js, I will copy them.
 
   function getAbstractScreeningPrompt() {
-    return `"Act as a strict Senior Editor conducting the first-pass screening for a Systematic Literature Review (SLR).
+    return `Act as a strictly literal, fast-filtering Research Assistant for a Systematic Literature Review. You operate like a highly optimized, sequential logic engine.
+--- SEQUENTIAL LOGIC GATES (FAIL-FAST) ---
+Evaluate sequentially using a strict [TRIGGERED / CLEAR] binary. 
+"TRIGGERED" means the paper violates the criteria and must be excluded. "CLEAR" means it passes that specific check.
 
-YOUR CONTEXT:
-PhD Topic: ""Digital Twin-Based Smart Prediction Analytics for Small-scale Precision Horticulture"".
+[ ] Gate 1: Is the text explicitly a Review, Survey, Bibliometric, Book chapter, or Conference summary? 
+    -> If TRIGGERED: Stop. Code = EC1_WrongDocType
+[ ] Gate 2: Does the text completely fail to mention a physical asset context, cyber-physical system, or system architecture? 
+    -> If TRIGGERED: Stop. Code = EC2_NoSystemContext
+[ ] Gate 3: Does the text completely fail to mention an AI/ML forecasting or predictive analytic model? 
+    -> If TRIGGERED: Stop. Code = EC3_NoPredictive
+[ ] Gate 4 (Architectural vs. Algorithmic Check): 
+    CRITICAL RULE: Do NOT exclude a paper simply because it uses "simulation", "synthetic data", or "datasets". 
+    EXCLUDE the paper ONLY IF it strictly focuses on pure algorithmic/mathematical performance benchmarking (e.g., solely comparing F1-scores, accuracy on a static dataset) WITHOUT proposing, evaluating, or explicitly discussing a system architecture, framework, or edge-cloud integration.
+    -> If TRIGGERED: Stop. Code = EC4_PureAlgorithmic
 
-YOUR TASK:
-Analyze the provided ""Title"" and ""Abstract"" to determine relevance based on strict logic gates.
-Return ONLY a valid JSON object.
+--- STRICT OUTPUT PROTOCOL ---
+1. NO QUOTING REQUIRED: Rely strictly on your internal semantic match.
+2. ABORT ON TRIGGER: Stop writing gates the exact moment one evaluates to TRIGGERED.
+3. EXACT MAPPING: Ensure the exclusion_code matches the code of the TRIGGERED Gate.
 
---- LOGIC GATES (Execute in Order) ---
-
-1. PRE-SCREENING (Context Check):
-   - The paper MUST be about **Horticulture** (Greenhouse, Hydroponics, Vertical Farm, or specific crops like Tomato, Chili, Cucumber, Flowers).
-   - EXCLUDE immediately if context is:
-     * Field Crops (Rice, Wheat, Corn, Soybean, Sugarcane).
-     * Forestry, Livestock, Fishery/Aquaculture.
-     * Post-harvest processing, Supply Chain, or Food Science (unless related to pre-harvest prediction).
-     * Energy Generation (Solar panels, Biofuel, P2G) or Waste Management (MSW).
-
-2. INTELLIGENCE CHECK (The ""Digital Twin"" Core):
-   - The system MUST involve **IT/Software Intelligence** (Digital Twin, IoT, AI, Edge Computing).
-   - **CRITICAL DISTINCTION (The ""PlaneSegNet"" Trap):**
-     * **INCLUDE:** AI used for *Cognition/Decision*: Prediction (Yield/Growth), Forecasting (Climate), Simulation (What-if), Optimization (Resources), or Closed-loop Control.
-     * **EXCLUDE:** AI used for *Pure Perception* only: Image segmentation, Leaf disease detection, or Counting, WITHOUT linking it to a prediction model, growth analysis, or control action. (Data processing is not Analytics).
-     * **EXCLUDE:** Passive Monitoring: ""IoT dashboard that just shows graphs"" (No decision support).
-
-3. EXCLUSION CODES (Assign specific code):
-   - **E101_WrongContext:** Field crops, Livestock, Energy, Waste, or purely mechanical robotics (designing a gripper) without smart control logic.
-   - **E102_NonTech:** Pure Agronomy/Biology (Genetics, nutrient formulas) with no sensor/software contribution.
-   - **E103_NoIntelligence:** Passive monitoring (Data logging only), Simple Automation (Threshold-based), or **Pure Computer Vision** (Segmentation/Detection only) with no predictive/control output.
-   - **E104_WrongType:** Review Papers, Surveys, Books, Conference Summaries.
-
-4. SCALE TAGGING (If Included):
-   - **Small-scale:** Explicit mentions of ""Low-cost"", ""Affordable"", ""Raspberry Pi"", ""Arduino"", ""ESP32"", ""DIY"", ""Smallholder"", ""Family farm"", or ""Developing countries"".
-   - **Industrial/Commercial:** Mentions of ""Plant Factory"", ""Large-scale"", ""High-throughput"", ""Commercial Greenhouse"", ""Robot Swarms"", or complex expensive infrastructure.
-   - **General/Unspecified:** If the scale is not explicitly defined.
-
---- OUTPUT FORMAT (JSON) ---
-This response will be parsed directly by a Google Apps Script JSON.parse() function. Any text other than valid JSON will cause a critical error. Strict adherence to RFC 8259 is required:
+REQUIRED FORMAT:
+<think>
+G1: [TRIGGERED / CLEAR]
+G2: [TRIGGERED / CLEAR]
+[... Stop writing immediately if a gate is TRIGGERED ...]
+</think>
 {
-  ""decision"": ""Include"" OR ""Exclude"",
-  ""exclusion_code"": ""E101_WrongContext"" OR ""E102_NonTech"" OR ""E103_NoIntelligence"" OR ""E104_WrongType"" OR null,
-  ""scale_tag"": ""Small-scale"" OR ""Industrial/Commercial"" OR ""General/Unspecified"" OR null,
-  ""reasoning"": ""Max 150 words. If Excluded E103, specify if it was 'Passive Monitoring' or 'Pure Perception'. If Included, state the specific 'Intelligence' found (e.g., Yield Prediction, Climate Control) in the reasoning.""
-}"`;
+  "decision": "Include" | "Exclude",
+  "exclusion_code": "[Insert exact code from triggered Gate, or null]",
+  "reasoning": "[Max 50 words. Exclude: State the exact disqualifying trigger. Include: List System, Predictive, and Architectural elements found.]"
+}
+`;
   }
 
   function getGatekeeperPrompt() {
-    return `"Act as a strict Scientific Reviewer conducting the STAGE 1 (RELEVANCE FILTER) for a PhD Systematic Literature Review.
-Context: ""Digital Twin-Based Smart Prediction Analytics for Small-scale Precision Horticulture"".
+    return `--- SYSTEM ROLE & READING PROTOCOL (CRITICAL) ---
+Act as a strictly literal Scientific Reviewer for an Information Technology Systematic Literature Review. Your task is to deeply analyze the FULL TEXT to verify the baseline architectural qualifications.
 
-YOUR SOLE TASK:
-Read the provided FULL TEXT and determine if this paper should be INCLUDED or EXCLUDED based on strict technical capability definitions.
-Do not extract data yet. Focus only on the Go/No-Go decision.
+To avoid "hallucinations" over a 10,000+ token context window or citing related work as the author's contribution, you MUST adhere to this reading protocol:
+1. IGNORE: Title, Abstract (already screened), Introduction (contains marketing/promises), Literature Review, and Future Work.
+2. FOCUS EXCLUSIVELY ON: Methodology / System Architecture / Experimental Setup / Results.
+3. THE CONFLICT RULE: If the Introduction claims "AI and Digital Twin" but the Methodology only describes "Static Threshold-based Control", ALWAYS TRUST THE METHODOLOGY.
 
---- PROTOCOL: READING SCOPE (CRITICAL) ---
-To avoid ""hallucinations"" or citing related work as the author's contribution, you must adhere to this reading protocol:
-1. **IGNORE:** Title, Abstract (already screened), Introduction (contains ""promises"" or general context), Literature Review / Related Work (describes *other* people's work), and Future Work.
-2. **FOCUS EXCLUSIVELY ON:**
-   - **Methodology / Materials & Methods:** To verify the actual algorithms and control logic implemented.
-   - **System Architecture / System Design:** To verify the hardware/software layers.
-   - **Results / Evaluation:** To verify valid data and actual performance.
-3. **CONFLICT RULE:** If the Introduction mentions ""AI/Digital Twin"" but the Methodology only describes ""Threshold-based control"", TRUST THE METHODOLOGY.
+--- THE 3-PILLAR DIGITAL TWIN ANCHOR ---
+To pass, the Methodology/Architecture sections MUST explicitly detail an integrated system comprising:
+1. Physical/Cyber-Physical Context: Real deployed hardware/testbeds, OR a rigorously defined distributed architecture/blueprint connecting physical and virtual spaces.
+2. Predictive Brain: Data-driven AI/ML/DL models forecasting future states.
+3. System Integration: Explicit technical topologies (data pipelines, IoT networks, edge-cloud communication).
 
---- DEFINITIONS: THE SOURCE OF TRUTH ---
+--- THE TRAP: REACTIVE AUTOMATION ---
+Standard IoT/WSN setups that merely log data to a dashboard, or "Smart" systems relying on hard-coded static thresholds (e.g., "If Humidity < 20%, Turn Pump ON") without adaptive learning are strictly EXCLUDED. This is reactive automation, not predictive intelligence.
 
-1. TARGET: TRUE DIGITAL TWIN / SMART ANALYTICS
-   - Must involve a **Computational Model** (AI/Physics-based) that mirrors the physical system.
-   - Must link **""Perception""** (Sensors) to **""Cognition""** (Prediction/Simulation).
-   - **Key Capability:** The system acts based on **Future States** (Prediction) or **What-If Scenarios** (Simulation).
-   - *Example:* ""Model predicts fungal infection in 2 days -> System preemptively adjusts humidity.""
+--- SEQUENTIAL LOGIC GATES (FAIL-FAST) ---
+Evaluate sequentially. "TRIGGERED" means the paper violates the criteria and must be excluded. "CLEAR" means it passes.
 
-2. TRAP: STANDARD IOT / WSN / AUTOMATION (EXCLUDE)
-   - **Characteristics:**
-     - Wireless Sensor Networks (WSN) that simply log data to a cloud/dashboard.
-     - ""Smart Irrigation"" that relies on **Static Thresholds** (e.g., ""If Soil Moisture < 20%, Turn Pump ON"").
-     - ""Model-based"" studies where the model is only used for manual validation or offline analysis, NOT for real-time control loop.
-   - **Why Exclude:** This is ""Reactive Automation"", not ""Cognitive Digital Twin Intelligence"".
+[ ] Gate 1 (Accessibility): Is the text not in English, heavily corrupted, garbled OCR, or just a table of contents?
+    -> If TRIGGERED: Stop. Code = EC7_Accessibility
+[ ] Gate 2 (The Trap / Static Rules): Does the methodology reveal that the control/decision-making system relies ENTIRELY on static, hard-coded rules WITHOUT employing data-driven predictive algorithms?
+    -> If TRIGGERED: Stop. Code = EC6_StaticRules
+[ ] Gate 3 (Architectural Integrity): Does the text FAIL to comprehensively detail all elements of the 3-Pillar Anchor?
+    CRITICAL RULE: Papers proposing reference architectures validated via system simulators (e.g., CloudSim, edge-emulators) are VALID (CLEAR). However, using simulation SOLELY to test algorithmic accuracy (e.g., isolating F1-scores on a static dataset) without defining the underlying cyber-physical integration architecture is INVALID (TRIGGERED).
+    -> If TRIGGERED: Stop. Code = EC5_FailedArchitecture
 
---- LOGIC GATES (CHECK IN ORDER) ---
+--- STRICT OUTPUT PROTOCOL (JSON PARSER SAFETY) ---
+This response will be directly consumed by a serverless JSON.parse() function. Any text outside the <think> block other than valid RFC 8259 JSON will cause a critical pipeline crash.
 
-1. GATE 0: LANGUAGE & INTEGRITY
-   - **EXCLUDE (E203_Language_Error):**
-     - Full text is NOT in English (e.g., Chinese, Spanish, etc.).
-     - File is corrupted, unreadable, mostly images without OCR, or contains only gibberish text.
-     - Content is just a placeholder, table of contents, or access denied page.
-
-2. GATE 1: CONTEXT SCOPE
-   - **EXCLUDE (E201_WrongContext):**
-     - Field Crops (Rice, Corn, Wheat, Soybean), Livestock, Fishery, Forestry.
-     - Energy Generation (Solar/Wind focus), Supply Chain, Post-Harvest, or Robotics Mechanics (designing grippers only).
-   - **INCLUDE:** Greenhouse, Vertical Farm, Hydroponics, Plant Factory, or specific horticultural crops (Tomato, Chili, etc.).
-
-3. GATE 2: INTELLIGENCE LEVEL (THE ""KILLER"" FILTER)
-   - **EXCLUDE (E205_TechMismatch):**
-     - **Passive Monitoring:** Dashboard/App for data visualization only.
-     - **Simple Automation:** Control logic is purely Rule-based/Threshold (If-Then). No learning/adaptive capability.
-     - **Pure Perception:** AI used ONLY for Computer Vision (Segmentation/Counting) without linking to a prediction/control loop.
-
-4. GATE 3: VALIDATION & QUALITY
-   - **EXCLUDE (E202_NoValidation):** Pure simulation (Matlab/Simulink) with NO real-world data or physical prototype.
-   - **EXCLUDE (E204_LowQuality):** No quantitative results, confusing methodology, or not a research paper.
-
---- OUTPUT FORMAT (JSON) ---
-This response will be parsed directly by a Google Apps Script JSON.parse() function. Any text other than valid JSON will cause a critical error. Strict adherence to RFC 8259 is required:
+<think>
+G1: [TRIGGERED / CLEAR]
+G2: [TRIGGERED / CLEAR]
+[... Stop writing immediately if a gate is TRIGGERED ...]
+</think>
 {
-  ""decision"": ""Include"" OR ""Exclude"",
-  ""exclusion_code"": ""E201_WrongContext"" OR ""E202_NoValidation"" OR ""E203_Language_Error"" OR ""E204_LowQuality"" OR ""E205_TechMismatch"" OR null,
-  ""reasoning"": ""Strict explanation (max 150 words). State clearly what was found in the METHODOLOGY section. IF E205, explicitly state: 'Methodology describes [Threshold/WSN/Passive] logic, lacking predictive analytics or adaptive control'.""
-}"`;
+  "decision": "Include" | "Exclude",
+  "exclusion_code": "[Insert exact code from triggered Gate, or null]",
+  "reasoning": "[Max 50 words. Exclude: State exactly what the METHODOLOGY section lacked. Include: Briefly summarize the physical context, predictive algorithm, and integration pipeline found in the methodology.]"
+}
+`;
   }
 
   function getScientistPrompt() {
-    return `"Act as a strict Scientific Reviewer conducting the STAGE 2 (QUALITY ASSESSMENT) for a PhD Systematic Literature Review.
-Context: ""Digital Twin-Based Smart Prediction Analytics for Small-scale Precision Horticulture"".
+    return `--- SYSTEM ROLE & READING PROTOCOL ---
+Act as an objective, highly rigorous Scientific Reviewer. Your task is to evaluate the scientific rigor and architectural engineering quality of a paper that has already passed baseline relevance checks.
+To avoid hallucinations:
+1. FOCUS EXCLUSIVELY ON: Methodology, System Architecture, Experimental Setup, and Results sections.
+2. IGNORE: Promises made in the Abstract, Introduction, or Future Work.
+3. THE EVIDENCE RULE: "No concrete metric or diagram = Score 0". Do not give the benefit of the doubt.
 
-YOUR INPUT:
-A research paper that has ALREADY PASSED the relevance filter.
+--- THE SCORING ENGINE ---
+Evaluate the paper against 8 Quality Assessment (QA) criteria. 
+Assign a strict numerical score for each:
+[ 1.0 ] = Yes (Fully satisfied with explicit evidence)
+[ 0.5 ] = Partially (Satisfied but with limitations or simulated/partial evidence)
+[ 0.0 ] = No (Fails to satisfy, vague, or no evidence)
 
-YOUR SOLE TASK:
-Evaluate the **Scientific Rigor** and **Completeness of Documentation**.
-You are the ""Quality Gatekeeper"". Do not let vague papers pass.
+QUALITY CRITERIA:
+[ ] QA1_Aims [CRITICAL]: Is there a clear statement of the specific aims regarding the predictive analytics within the system? 
+    (1.0: Explicit prediction targets / 0.0: Vague "smart system" claims).
+[ ] QA2_Context [CRITICAL]: Are the physical domain, operational scale, and hardware infrastructure precisely defined? 
+    (1.0: Specifies exact environment, e.g., "500kW Turbine" or "100m2 Greenhouse" / 0.0: Generic, undefined terms).
+[ ] QA3_Reliability [CRITICAL]: Is the data collection and physical-virtual integration reliably executed? 
+    (1.0: Uses physical hardware data / 0.5: Simulated but validated with real historical data / 0.0: Pure mathematical concept without physical validation).
+[ ] QA4_Architecture [CRITICAL]: Is the computational architecture (Edge, Fog, Cloud) and data pipeline explicitly described or illustrated? 
+    (1.0: Clear architectural topology / 0.0: Deployment environment is hidden/omitted).
+[ ] QA5_Answered: Do the reported results adequately answer the specific predictive research aims? 
+    (1.0: Directly addresses aims / 0.5: Addresses some aims / 0.0: Deviates completely).
+[ ] QA6_Limitations: Does the paper explicitly report technical limitations (e.g., computational cost, latency, bandwidth)? 
+    (1.0: Discusses technical constraints / 0.5: Mentions non-technical future work / 0.0: Presents a flawless system).
+[ ] QA7_Findings [CRITICAL]: Are BOTH predictive accuracy (e.g., RMSE) AND system performance metrics (e.g., network latency, inference time, memory footprint) empirically reported? 
+    (1.0: Metrics provided for BOTH model and system / 0.5: ONLY model accuracy reported / 0.0: Qualitative findings only).
+[ ] QA8_Conclusion: Do the conclusions explicitly relate back to the aims and are strictly supported by data? 
+    (1.0: Grounded in reported numbers / 0.5: Broad claims / 0.0: Overstated, unsupported claims).
 
---- PROTOCOL: READING SCOPE ---
-1. **FOCUS:** Methodology, System Architecture, Experimental Setup.
-2. **IGNORE:** Abstract promises. Look for explicit descriptions in the text/diagrams.
-3. **MINDSET:** ""No Diagram/Architecture = No Digital Twin"". Be harsh on vague descriptions.
+--- DECISION LOGIC (THE GATE) ---
+A paper is EXCLUDED if it hits EITHER of these two conditions:
+1. Critical Failure: It receives a score of [ 0.0 ] on ANY of the [CRITICAL] criteria (QA1, QA2, QA3, QA4, QA7). -> Code = EC8_CriticalFailure
+2. Low Quality Threshold: The total sum of QA1 to QA8 is strictly LESS THAN 4.5. -> Code = EC9_LowScoreThreshold
 
---- QUALITY CRITERIA (Rate each: ""Yes"", ""Partial"", ""No"") ---
+If it passes BOTH rules, it is INCLUDED. -> Code = Pass_Quality
 
-1. **QA1_Aims:** Is there a clear statement of the research goal?
-2. **QA2_Context:** Is the operational scale and crop context clearly defined?
-   - *YES:* Explicitly mentions ""Commercial Greenhouse"", ""Small-scale prototype"", or ""Laboratory setup"".
-   - *NO:* Vague terms like ""Agricultural environment"" without specifics.
-3. **QA3_System_Validity (CRITICAL):** Is the Digital Twin/IoT system actually built and valid?
-   - *YES:* Describes specific sensors, controllers, and data flow.
-   - *NO:* Conceptual framework only, or ""we propose a system"" without implementation.
-4. **QA4_Architecture_Doc (CRITICAL):** Is the IT/System Architecture clearly described or illustrated?
-   - *YES:* Explains the **Data Flow** (Physical -> Cloud/Model -> User). Mentions specific platforms (e.g., ""MQTT to AWS"", ""Raspberry Pi to Local Dashboard"").
-   - *NO:* No architecture diagram, no mention of how data is processed or visualized. **(Automatic Fail for DT papers).**
-5. **QA5_Answered:** Do the results answer the aims?
-6. **QA6_Negative:** Does it report limitations?
-7. **QA7_Quantitative_Results (CRITICAL):** Are there hard numbers?
-   - *YES:* RMSE, Accuracy, Latency (ms), Yield (kg), Water Savings (%).
-   - *NO:* Only ""The system works well"" or qualitative observations.
-8. **QA8_Conclusion:** Supported by data?
+--- STRICT OUTPUT PROTOCOL (JSON PARSER SAFETY) ---
+This response will be parsed directly by a serverless JSON.parse() function. Any text outside the <think> block other than valid RFC 8259 JSON will cause a critical crash.
 
---- DECISION LOGIC (THE QUALITY THRESHOLD) ---
-
-- **EXCLUDE (Code: E204_LowQuality):**
-  - IF **QA3_System_Validity** is ""No"".
-  - OR IF **QA4_Architecture_Doc** is ""No"" (Missing Architecture/Data Flow).
-  - OR IF **QA4_Architecture_Doc** is ""Partial"" AND **QA3_System_Validity** is ""Partial"" (Double weakness).
-  - OR IF **QA7_Quantitative_Results** is ""No"".
-  - OR IF there are more than 2 ""No"" ratings in total.
-
-- **PROCEED (Code: Pass_Quality):**
-  - Only if the paper describes a **Real, Documented System** with **Results**.
-
---- OUTPUT FORMAT (JSON) ---
-This response will be parsed directly by a Google Apps Script JSON.parse() function. Any text other than valid JSON will cause a critical error. Strict adherence to RFC 8259 is required:
+REQUIRED FORMAT:
+<think>
+Score Calculation:
+QA1: [1.0 | 0.5 | 0.0] - Reason...
+QA2: [1.0 | 0.5 | 0.0] - Reason...
+[... list all up to QA8 ...]
+Total Score: [Sum of QA1 to QA8]
+Gate Check 1 (Critical 0.0?): [Pass/Fail]
+Gate Check 2 (Total >= 4.5?): [Pass/Fail]
+</think>
 {
-  ""decision"": ""Include"" OR ""Exclude"",
-  ""exclusion_code"": ""E204_LowQuality"" OR null,
-  ""qa_scores"": {
-    ""qa1_aims"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""..."" },
-    ""qa2_context"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""..."" },
-    ""qa3_system_validity"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""..."" },
-    ""qa4_architecture_doc"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""State if architecture diagram/flow is present."" },
-    ""qa5_answered"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""..."" },
-    ""qa6_negative"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""..."" },
-    ""qa7_quantitative_results"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""Quote key metrics found."" },
-    ""qa8_conclusion"": { ""value"": ""Yes/Partial/No"", ""evidence"": ""..."" }
+  "decision": "Include" | "Exclude",
+  "exclusion_code": "EC8_CriticalFailure" | "EC9_LowScoreThreshold" | null,
+  "qa_scores": {
+    "qa1_aims": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Quote explicit evidence or state None]" },
+    "qa2_context": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Quote context/scale/hardware found]" },
+    "qa3_reliability": { "value": [1.0 | 0.5 | 0.0], "evidence": "[State data source: Physical / Simulated / None]" },
+    "qa4_architecture": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Describe architecture/data pipeline found]" },
+    "qa5_answered": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Brief justification]" },
+    "qa6_limitations": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Brief justification]" },
+    "qa7_findings": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Quote exact metrics, e.g., RMSE / Latency / None]" },
+    "qa8_conclusion": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Brief justification]" }
   },
-  ""reasoning"": ""Brief summary (max 150 words). If Excluded, explicitly state: 'Missing Architecture Details', 'No Quantitative Data', or 'Vague System Design'.""
-}"`;
+  "reasoning": "[Max 50 words. Provide a highly technical summary justifying the final decision. If excluded, state the critical failure or low total score.]"
+}
+`;
   }
 
   function getMinerPrompt() {
-    return `"Act as a meticulous Data Extraction Specialist for a PhD Systematic Literature Review.
-Context: ""Digital Twin-Based Smart Prediction Analytics for Small-scale Precision Horticulture"".
+    return `--- SYSTEM ROLE & EXTRACTION PROTOCOL ---
+Act as a meticulous, zero-hallucination Data Extraction Specialist for a Systematic Literature Review. 
+Your input is a full-text scientific paper that has PASSED all relevance and quality checks.
+Your SOLE TASK is to extract specific engineering, algorithmic, and architectural parameters strictly mapped to the 4 Research Questions (RQ).
 
-YOUR INPUT:
-A research paper that has PASSED all relevance and quality checks.
-Your job is NOT to judge the paper, but to **EXTRACT** specific data points with forensic precision.
-
---- PROTOCOL: EXTRACTION RULES ---
-1. **SOURCE OF TRUTH:** Focus on **Methodology**, **System Architecture**, and **Results**.
-2. **EFFORT LEVEL:** High. Do not be lazy. Search figure captions, table footnotes, and hardware specs.
-3. **HANDLING ""UNSPECIFIED"":**
-   - Only return ""Unspecified"" if the information is TRULY absent after a deep search.
-   - If the text implies a specific technology (e.g., ""802.11"" -> ""WiFi""), extract the standardized name.
-4. **SCALE INFERENCE RULE (CRITICAL):**
-   - Do NOT infer ""Small-scale"" solely because they use Arduino/STM32. Industrial systems use MCUs too.
-   - Look for context keywords: ""Commercial"", ""Large-scale"", ""Hectares"" (Industrial) VS ""Low-cost"", ""Affordable"", ""Smallholder"", ""Backyard"", ""Prototype"" (Small-scale).
-5. **MATURITY RULE:**
-   - Adhere to the strict ""Autonomous"" definition. No manual approval, no simple timer/threshold.
+--- PROTOCOL: EXTRACTION RULES (CRITICAL) ---
+1. SOURCE OF TRUTH: Focus exclusively on Methodology, System Architecture, Experimental Setup, and Results.
+2. EFFORT LEVEL: High. Search figure captions, architectural diagrams, table footnotes, and hardware specs.
+3. THE STRICT NULLING RULE: If a data point is TRULY absent, you MUST output "Not Reported" in the "value" field. Do not guess, infer, or assume industry standards.
+4. SCALE INFERENCE RULE (Cross-Domain): 
+   - Do NOT infer a system is "Small-scale" solely because it uses Raspberry Pi/Arduino; industrial IoT uses MCUs too.
+   - Look for context keywords: "Commercial", "Large-scale", "City-wide", "Industrial Plant" (Industrial) VS "Low-cost", "Affordable", "Prototype", "Bench-scale" (Small-scale).
+5. MATURITY DEFINITION:
+   - Autonomous: AI decides & acts automatically (Closed-loop) without human intervention.
+   - Prescriptive: Suggests actions to user (DSS) OR uses static hard-coded rules/thresholds.
+   - Predictive: Forecasts future states but does not act or suggest.
+   - Monitoring: Dashboard/Visualization only.
 
 --- EXTRACTION FIELDS (JSON) ---
 
-[METADATA]
-0. **meta_country**: Country of the First Author's affiliation? (Clean name, e.g., ""Netherlands"").
+[RQ1.1: DOMAIN & SCALE]
+- rq1_primary_domain: The specific industry (e.g., "Aerospace", "Manufacturing", "Smart Horticulture").
+- rq1_operational_scale: Extracted scale based on Rule 4 (e.g., "Industrial", "Laboratory Prototype", "Small-scale").
+- rq1_maturity_level: Extracted maturity based on Rule 5.
 
-[RQ1: CONTEXT & MATURITY]
-1. **rq1a_crop**: Specific crop tested? (e.g., ""Tomato"", ""Lettuce""). If general, write ""Generic Horticulture"".
-2. **rq1b_scale**: Target Scale?
-   - Options: [Small-scale (Low-cost/Smallholder/DIY), Industrial (Commercial/High-tech/Large), Laboratory_Prototype (Generic/Bench-scale), Unspecified].
-3. **rq1c_maturity**: Highest Control Level?
-   - **Autonomous:** System uses a Dynamic Model/AI to decide & act automatically (Closed-loop). *Note: Simple Threshold (If < 30% then On) is PRESCRIPTIVE, not Autonomous.*
-   - **Prescriptive:** Suggests actions to user (DSS) OR uses static automation rules/thresholds.
-   - **Predictive:** Forecasts future states (e.g., Yield) but does not act.
-   - **Monitoring:** Dashboard/Viz only.
+[RQ1.2: ARCHITECTURE]
+- rq2_topology: Where does computation happen? (e.g., "Edge-Cloud Distributed", "Monolithic Cloud", "Pure Edge").
+- rq2_protocols: Communication/IoT protocols (e.g., "MQTT, LoRaWAN, HTTP").
+- rq2_hardware: Explicit hardware/sensor names (e.g., "ESP32, DHT11, NVIDIA Jetson").
 
-[RQ2: ARCHITECTURE]
-4. **rq2a_platform**: Hardware Layers? (List ALL that apply).
-   - Options: [Cloud_Server, Edge_SBC, MCU, PLC (Industrial), PC_Workstation, Mobile_Device].
-5. **rq2b_connectivity**: Physical Protocols? (List ALL that apply).
-   - Options: [WiFi, LoRa/LoRaWAN, Zigbee, Bluetooth/BLE, 4G/5G/LTE, NB-IoT, Ethernet, RS485/Modbus, CAN_Bus, Not Reported].
+[RQ1.3: ALGORITHMS & PERFORMANCE]
+- rq3_predictive_models: Exact algorithm names (e.g., "LSTM", "Random Forest").
+- rq3_inference_node: Where the model is deployed (e.g., "Deployed on Edge TPU", "Running on AWS Cloud").
+- rq3_metrics_model: Predictive accuracy (e.g., "RMSE = 0.05", "98% Accuracy").
+- rq3_metrics_system: System performance metrics (e.g., "Inference latency 45ms", "Network delay 12ms").
 
-[RQ3: INTELLIGENCE CORE]
-6. **rq3a_ai_category**: Intelligence Type? (List ALL that apply).
-   - Options: [Deep_Learning, Traditional_ML, Hybrid_Physics_AI, Simulation_Model, Fuzzy_Logic, Rule_Based].
-7. **rq3b_algorithm**: Specific Algorithm Names?
-   - Examples: ""LSTM"", ""CNN"", ""Random Forest"", ""Penman-Monteith"", ""MPC"".
-8. **rq3c_target**: What is being Predicted/Optimized? (List ALL that apply).
-   - Options: [Yield/Growth, Water/Nutrient, Climate/Energy, Disease/Pest, Labor/Cost, System_Health].
+[RQ1.4: LIMITATIONS]
+- rq4_limitations: Explicit technical constraints, bottlenecks, or architectural flaws stated by the authors.
 
-[RQ4: INTERFACE & RESULTS]
-9. **rq4a_metric**: Best quantitative performance result?
-   - Example: ""95% Accuracy"", ""RMSE 0.2"", ""40% Water Saving"". Quote the number.
-10. **rq4b_interface**: User Interface Type?
-    - Options: [Dashboard_2D, 3D_Digital_Shadow (Must use 3D/WebGL/Virtual Entity), Mobile_App, VR/AR, Local_HMI_Screen, Chatbot/NLP/LLM, None].
+--- STRICT OUTPUT FORMAT (JSON PARSER SAFETY) ---
+EVERY field must be an object containing exactly two keys: "value" and "evidence". 
+- "value": The extracted concise data OR "Not Reported".
+- "evidence": A direct quote or highly specific pointer to where you found it (e.g., "Section 3.2: 'MQTT was used...'").
+This response will be parsed directly by a Google Apps Script JSON.parse() function. Any text outside the <think> block other than valid RFC 8259 JSON will cause a critical error.
 
---- OUTPUT FORMAT (JSON) ---
-EVERY field must be an object with ""value"" and ""evidence"".
-This response will be parsed directly by a Google Apps Script JSON.parse() function. Any text other than valid JSON will cause a critical error. Strict adherence to RFC 8259 is required:
-Example:
+REQUIRED FORMAT:
+<think>
+Scanning for RQ1.1 targets...
+Scanning for RQ1.2 targets...
+Scanning for RQ1.3 targets...
+Scanning for RQ1.4 targets...
+Validating all fields have 'value' and 'evidence'.
+Ensuring nulling rule is applied for missing data.
+</think>
 {
-  ""extracted_data"": {
-    ""meta_country"": { ""value"": ""Netherlands"", ""evidence"": ""Page 1: Wageningen University..."" },
-    ""rq1a_crop"": { ""value"": ""Tomato"", ""evidence"": ""Page 3: 'Experiment conducted on Solanum lycopersicum...'"" },
-    ""rq1b_scale"": { ""value"": ""Small-scale"", ""evidence"": ""Page 1: 'Proposed a low-cost system for smallholder farmers...'"" },
-    ""rq1c_maturity"": { ""value"": ""Prescriptive"", ""evidence"": ""Page 5: 'System suggests irrigation schedule based on predictions...'"" },
-    ""rq2a_platform"": { ""value"": ""MCU, Cloud_Server"", ""evidence"": ""Page 4: 'ESP32 sends data to AWS Cloud...'"" },
-    ""rq2b_connectivity"": { ""value"": ""WiFi"", ""evidence"": ""Page 4: '...via MQTT over WiFi network.'"" },
-    ""rq3a_ai_category"": { ""value"": ""Deep_Learning"", ""evidence"": ""Page 2: 'Used LSTM network...'"" },
-    ""rq3b_algorithm"": { ""value"": ""LSTM"", ""evidence"": ""Page 2: 'Used LSTM network...'"" },
-    ""rq3c_target"": { ""value"": ""Water/Nutrient"", ""evidence"": ""Page 1: 'optimize water usage...'"" },
-    ""rq4a_metric"": { ""value"": ""RMSE 0.05"", ""evidence"": ""Table 2: 'Soil moisture RMSE was 0.05...'"" },
-    ""rq4b_interface"": { ""value"": ""Dashboard_2D"", ""evidence"": ""Fig 5 shows a web dashboard."" }
+  "extracted_data": {
+    "rq1_primary_domain": { "value": "...", "evidence": "..." },
+    "rq1_operational_scale": { "value": "...", "evidence": "..." },
+    "rq1_maturity_level": { "value": "...", "evidence": "..." },
+    "rq2_topology": { "value": "...", "evidence": "..." },
+    "rq2_protocols": { "value": "...", "evidence": "..." },
+    "rq2_hardware": { "value": "...", "evidence": "..." },
+    "rq3_predictive_models": { "value": "...", "evidence": "..." },
+    "rq3_inference_node": { "value": "...", "evidence": "..." },
+    "rq3_metrics_model": { "value": "...", "evidence": "..." },
+    "rq3_metrics_system": { "value": "...", "evidence": "..." },
+    "rq4_limitations": { "value": "...", "evidence": "..." }
   }
-}"`;
+}
+`;
   }
 
   function getExtendedMinerPrompt() {
-    return `"Act as a Domain Expert and Senior Software Architect for a Systematic Literature Review.
-Study Topic: ""Democratizing the Digital Twin: Architectures and Predictive Analytics for Small-scale Horticulture"".
+    return `--- SYSTEM ROLE & EXTRACTION PROTOCOL ---
+Act as a meticulous, zero-hallucination Data Extraction Specialist for a Systematic Literature Review. 
+Your input is a full-text scientific paper that has PASSED all relevance and quality checks.
+Your SOLE TASK is to extract specific engineering, algorithmic, and architectural parameters strictly mapped to the 4 Research Questions (RQ).
 
-YOUR INPUT:
-The Full Text of a research paper.
+--- PROTOCOL: EXTRACTION RULES (CRITICAL) ---
+1. SOURCE OF TRUTH: Focus exclusively on Methodology, System Architecture, Experimental Setup, and Results.
+2. EFFORT LEVEL: High. Search figure captions, architectural diagrams, table footnotes, and hardware specs.
+3. THE STRICT NULLING RULE: If a data point is TRULY absent, you MUST output "Not Reported" in the "value" field. Do not guess, infer, or assume industry standards.
+4. SCALE INFERENCE RULE (Cross-Domain): 
+   - Do NOT infer a system is "Small-scale" solely because it uses Raspberry Pi/Arduino; industrial IoT uses MCUs too.
+   - Look for context keywords: "Commercial", "Large-scale", "City-wide", "Industrial Plant" (Industrial) VS "Low-cost", "Affordable", "Prototype", "Bench-scale" (Small-scale).
+5. MATURITY DEFINITION:
+   - Autonomous: AI decides & acts automatically (Closed-loop) without human intervention.
+   - Prescriptive: Suggests actions to user (DSS) OR uses static hard-coded rules/thresholds.
+   - Predictive: Forecasts future states but does not act or suggest.
+   - Monitoring: Dashboard/Visualization only.
 
-YOUR TASK:
-Scan the Methodology, System Design, Results, and Discussion sections to extract SPECIFIC technical and qualitative data points (RQ2, RQ3, RQ5, RQ6, RQ7).
+--- EXTRACTION FIELDS (JSON) ---
 
---- EXTRACTION RULES ---
-1. **Format**: Return a single valid JSON object.
-2. **Structure**: All keys must be inside ""extracted_data"".
-3. **Fields**: Every key must have ""value"" (the answer) and ""evidence"" (short quote/location in text).
-4. **Accuracy**: Do not hallucinate. If info is missing, set value to ""Unspecified"" or ""None_Reported"".
-5. **Separator**: For all lists, use a Comma (,) as the strict separator.
+[RQ1.1: DOMAIN & SCALE]
+- rq1_primary_domain: The specific industry (e.g., "Aerospace", "Manufacturing", "Smart Horticulture").
+- rq1_operational_scale: Extracted scale based on Rule 4 (e.g., "Industrial", "Laboratory Prototype", "Small-scale").
+- rq1_maturity_level: Extracted maturity based on Rule 5.
 
---- EXTRACTION FIELDS ---
+[RQ1.2: ARCHITECTURE]
+- rq2_topology: Where does computation happen? (e.g., "Edge-Cloud Distributed", "Monolithic Cloud", "Pure Edge").
+- rq2_protocols: Communication/IoT protocols (e.g., "MQTT, LoRaWAN, HTTP").
+- rq2_hardware: Explicit hardware/sensor names (e.g., "ESP32, DHT11, NVIDIA Jetson").
 
-// --- SOFTWARE & ARCHITECTURE (OPEN EXTRACTION) ---
+[RQ1.3: ALGORITHMS & PERFORMANCE]
+- rq3_predictive_models: Exact algorithm names (e.g., "LSTM", "Random Forest").
+- rq3_inference_node: Where the model is deployed (e.g., "Deployed on Edge TPU", "Running on AWS Cloud").
+- rq3_metrics_model: Predictive accuracy (e.g., "RMSE = 0.05", "98% Accuracy").
+- rq3_metrics_system: System performance metrics (e.g., "Inference latency 45ms", "Network delay 12ms").
 
-1. **rq2c_software_platforms**:
-   - List ALL Middleware, IoT Platforms, Cloud Providers, or Database Systems used.
-   - **Open Extraction**: Extract whatever is named.
-   - **Examples**: ""ThingsBoard, Blynk, AWS IoT, Firebase, Docker, Kubernetes, MySQL, InfluxDB, Node-RED"".
-   - If built from scratch using basic web tech, write ""Custom_Web_Stack"".
+[RQ1.4: LIMITATIONS]
+- rq4_limitations: Explicit technical constraints, bottlenecks, or architectural flaws stated by the authors.
 
-2. **rq2d_arch_patterns**:
-   - Does the paper explicitly cite a Reference Architecture or Design Pattern?
-   - **Priority 1 (Industrial)**: Look for ""5C CPS"", ""RAMI 4.0"", ""IIRA"", ""ISA-95"", ""IoT-A"".
-   - **Priority 2 (Software)**: Look for ""Layered Architecture"", ""SOA"", ""Microservices"", ""MVC"", ""Broker Pattern"", ""Master-Slave"".
-   - If no specific pattern is named but layers are described, write ""Layered_Architecture"".
+--- STRICT OUTPUT FORMAT (JSON PARSER SAFETY) ---
+EVERY field must be an object containing exactly two keys: "value" and "evidence". 
+- "value": The extracted concise data OR "Not Reported".
+- "evidence": A direct quote or highly specific pointer to where you found it (e.g., "Section 3.2: 'MQTT was used...'").
+This response will be parsed directly by a Google Apps Script JSON.parse() function. Any text outside the <think> block other than valid RFC 8259 JSON will cause a critical error.
 
-3. **rq3d_dev_stack**:
-   - List Programming Languages, AI Frameworks, and Libraries.
-   - **Open Extraction**: Extract exact names.
-   - **Examples**: ""Python, C++, TensorFlow, PyTorch, Scikit-learn, Pandas, TensorFlow Lite, Edge Impulse, Llama, Qwen"".
-
-// --- BARRIERS & LIMITATIONS ---
-
-4. **rq5a_challenge_category**:
-   - Primary barrier or limitation reported?
-   - Select ONE or MORE from: [Cost/Economic, Connectivity/Network, Hardware_Reliability, Model_Data_Issues, Skill_Gap/Adoption, Computational_Limit, None_Reported].
-   - **Constraint**: Return a comma-separated string if multiple apply.
-
-5. **rq5b_challenge_description**:
-   - Extract a DECLARATIVE statement summarizing the specific complaint/limitation.
-   - Example: ""The dependency on stable 4G connection caused data loss.""
-   - If None_Reported, value is ""No explicit limitations mentioned.""
-
-// --- PHYSICAL INTERFACE ---
-
-6. **rq6a_sensors**:
-   - List the specific physical parameters measured.
-   - **Constraint**: Use Standardized Naming (e.g., ""Air Temperature"" not ""Temp"", ""Soil Moisture"", ""pH"", ""EC"").
-
-7. **rq6b_actuators**:
-   - List the specific hardware actuators controlled.
-   - **Constraint**: List the Hardware, not the action (e.g., ""Water Pump"", ""Heater"", ""Window Motor"", ""Grow Lights"").
-   - If advisory only, value is ""None (Advisory Only)"".
-
-// --- DEMOCRATIZATION ---
-
-8. **rq7a_cost_reported**:
-   - Does the paper mention the specific cost?
-   - **Constraint**: Include CURRENCY symbol.
-   - Format Options: ""No"", ""Yes: $150"" (or other currency), ""Yes: Low-cost (unspecified)"".
-
-9. **rq7b_data_availability**:
-   - Is the code/data available?
-   - Select EXACTLY ONE from:
-     - ""Public_Open_Source"" (If GitHub/Zenodo/Drive link exists)
-     - ""Available_Upon_Request"" (If authors state availability on request)
-     - ""Proprietary_Closed"" (If not mentioned or explicitly closed)
-
---- OUTPUT FORMAT (JSON) ---
-Return ONLY a single valid JSON object. Do not include markdown formatting.
-
+REQUIRED FORMAT:
+<think>
+Scanning for RQ1.1 targets...
+Scanning for RQ1.2 targets...
+Scanning for RQ1.3 targets...
+Scanning for RQ1.4 targets...
+Validating all fields have 'value' and 'evidence'.
+Ensuring nulling rule is applied for missing data.
+</think>
 {
-  ""extracted_data"": {
-    ""rq2c_software_platforms"": {
-      ""value"": ""ThingsBoard, AWS IoT, PostgreSQL"",
-      ""evidence"": ""System Architecture section mentions ThingsBoard for visualization and AWS for storage.""
-    },
-    ""rq2d_arch_patterns"": {
-      ""value"": ""Layered_Architecture, MVC"",
-      ""evidence"": ""Section 3 describes a 3-layer architecture implementing MVC pattern.""
-    },
-    ""rq3d_dev_stack"": {
-      ""value"": ""Python, TensorFlow Lite, NumPy"",
-      ""evidence"": ""Model training used Python and TFLite for deployment.""
-    },
-    ""rq5a_challenge_category"": {
-      ""value"": ""Connectivity/Network, Computational_Limit"",
-      ""evidence"": ""Discussion: intermittent signal and Raspberry Pi overheating.""
-    },
-    ""rq5b_challenge_description"": {
-      ""value"": ""The edge device struggled to run the full model, causing overheating, and rural 4G was unstable."",
-      ""evidence"": ""Section 5 Limitations.""
-    },
-    ""rq6a_sensors"": {
-      ""value"": ""Air Temperature, Humidity, Soil Moisture, pH"",
-      ""evidence"": ""Methodology: DHT22, capacitive soil sensor, pH probe.""
-    },
-    ""rq6b_actuators"": {
-      ""value"": ""Water Pump, Ventilation Fan"",
-      ""evidence"": ""Fig 3 shows relay connections.""
-    },
-    ""rq7a_cost_reported"": {
-      ""value"": ""Yes: $120"",
-      ""evidence"": ""Conclusion: Total prototype cost is approx $120.""
-    },
-    ""rq7b_data_availability"": {
-      ""value"": ""Public_Open_Source"",
-      ""evidence"": ""GitHub link provided in footnote 3.""
-    }
+  "extracted_data": {
+    "rq1_primary_domain": { "value": "...", "evidence": "..." },
+    "rq1_operational_scale": { "value": "...", "evidence": "..." },
+    "rq1_maturity_level": { "value": "...", "evidence": "..." },
+    "rq2_topology": { "value": "...", "evidence": "..." },
+    "rq2_protocols": { "value": "...", "evidence": "..." },
+    "rq2_hardware": { "value": "...", "evidence": "..." },
+    "rq3_predictive_models": { "value": "...", "evidence": "..." },
+    "rq3_inference_node": { "value": "...", "evidence": "..." },
+    "rq3_metrics_model": { "value": "...", "evidence": "..." },
+    "rq3_metrics_system": { "value": "...", "evidence": "..." },
+    "rq4_limitations": { "value": "...", "evidence": "..." }
   }
-}"`;
+}
+`;
   }
 
   function getSearchString() {
-    return `"TITLE-ABS-KEY (
-  ( ""Greenhouse*"" OR ""Glasshouse*"" OR ""Polyhouse*"" OR ""Net house*"" OR ""Screen house*"" OR ""Protected cultivation"" OR ""Controlled environment agriculture"" OR ""Vertical farm*"" OR ""Plant factory"" OR ""Indoor farm*"" )
-  AND
-  ( ""Horticulture"" OR ""Crop*"" OR ""Plant*"" OR ""Vegetable*"" OR ""Fruit*"" OR ""Flower*"" OR ""Ornamental*"" OR ""Tomato*"" OR ""Pepper*"" OR ""Cucumber*"" OR ""Melon*"" OR ""Strawberry*"" OR ""Lettuce*"" )
-  AND
-  ( ""Digital Twin*"" OR ""Cyber-Physical System*"" OR ""CPS"" OR ""Decision Support System*"" OR ""DSS"" OR ""Internet of Things"" OR ""IoT"" OR ""Edge Computing"" OR ""TinyML"" OR ""AIoT"" OR ""Smart farm*"" OR ""Smart agricultur*"" )
-  AND
-  ( ""Predict*"" OR ""Forecast*"" OR ""Simulat*"" OR ""Artificial Intelligence"" OR ""Machine Learning"" OR ""Deep Learning"" OR ""Computer Vision"" OR ""Neural Network*"" OR ""Model-based control"" OR ""Optimization"" OR ""Data-driven"" )
-)
-AND NOT TITLE-ABS-KEY (
-  ""Greenhouse gas"" OR ""Carbon emission*"" OR ""Livestock"" OR ""Animal"" OR ""Dairy"" OR ""Fish"" OR ""Aquaculture""
-  OR ""Wheat"" OR ""Maize"" OR ""Rice"" OR ""Soybean"" OR ""Cotton"" OR ""Sugarcane"" OR ""Oil palm""
-  OR ""Heavy metal*"" OR ""Arsenic"" OR ""Soil contamination"" OR ""Wastewater"" OR ""Sewage""
-  OR ""Tissue culture"" OR ""In vitro"" OR ""Callus"" OR ""Biostimulant*"" OR ""Genomic*"" OR ""Metabolomics""
-  OR ""Satellite*"" OR ""Land use"" OR ""Land cover""
-  OR ""Power plant"" OR ""Desalination"" OR ""Hydrogen"" OR ""Carbon capture"" OR ""Biogas"" OR ""Biofuel""
-  OR ""Fabrication"" OR ""Synthesis"" OR ""Nanomaterial*"" OR ""Graphene"" OR ""Polymer"" OR ""Electrode""
-)
-AND ( LIMIT-TO ( DOCTYPE, ""ar"" ) OR LIMIT-TO ( DOCTYPE, ""cp"" ) )
-AND ( LIMIT-TO ( PUBYEAR, 2025 ) OR LIMIT-TO ( PUBYEAR, 2024 ) OR LIMIT-TO ( PUBYEAR, 2023 ) OR LIMIT-TO ( PUBYEAR, 2022 ) OR LIMIT-TO ( PUBYEAR, 2021 ) OR LIMIT-TO ( PUBYEAR, 2020 ) OR LIMIT-TO ( PUBYEAR, 2019 ) OR LIMIT-TO ( PUBYEAR, 2018 ) OR LIMIT-TO ( PUBYEAR, 2017 ) OR LIMIT-TO ( PUBYEAR, 2016 ) )
-AND ( LIMIT-TO ( LANGUAGE, ""English"" ) )"`;
+    return `TITLE-ABS-KEY ( "digital twin*" OR "digital-twin*" )
+AND
+TITLE-ABS-KEY ( "predictive analytic*" OR "machine learning" OR "deep learning" OR "forecasting" OR "prognostic*" )
+AND
+TITLE-ABS-KEY ( "architecture*" OR "cyber-physical" OR "edge computing" OR "fog computing" OR "system-of-systems" OR "framework" )
+AND NOT
+TITLE-ABS-KEY ( "genomic*" OR "molecular docking" OR "surgery" OR "patient*" OR "nanomaterial*" OR "pharmac*" OR "clinical" )
+AND
+( LIMIT-TO ( PUBYEAR, 2025 ) OR LIMIT-TO ( PUBYEAR, 2024 ) OR LIMIT-TO ( PUBYEAR, 2023 ) OR LIMIT-TO ( PUBYEAR, 2022 ) OR LIMIT-TO ( PUBYEAR, 2021 ) OR LIMIT-TO ( PUBYEAR, 2020 ) OR LIMIT-TO ( PUBYEAR, 2019 ) OR LIMIT-TO ( PUBYEAR, 2018 ) )
+`;
   }
 
   return {
