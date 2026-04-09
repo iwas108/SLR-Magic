@@ -210,15 +210,20 @@ async def get_stats():
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@web_api_router.post("/api/stats/label")
-async def set_endpoint_label(request: Request):
+@web_api_router.post("/api/stats/properties")
+async def set_endpoint_properties(request: Request):
     try:
         data = await request.json()
         endpoint_url = data.get("endpoint_url")
         label = data.get("label", "")
+        is_gpu = data.get("is_gpu", False)
+        gpu_model = data.get("gpu_model", "")
+        cpu_model = data.get("cpu_model", "")
+        ram_size = data.get("ram_size", "")
+
         if not endpoint_url:
             return JSONResponse(status_code=400, content={"error": "endpoint_url is required"})
-        cache_repo.set_endpoint_label(endpoint_url, label)
+        cache_repo.set_endpoint_properties(endpoint_url, label, is_gpu, gpu_model, cpu_model, ram_size)
         return {"status": "success"}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})

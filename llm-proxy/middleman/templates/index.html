@@ -300,6 +300,11 @@
                             <span><strong>Time:</strong> <span id="detail-time"></span></span>
                             <span><strong>Duration:</strong> <span id="detail-duration"></span></span>
                         </div>
+                        <div class="card-footer py-2 bg-light d-flex justify-content-between flex-wrap text-muted small border-top-0">
+                            <span><i class="bi bi-gpu-card"></i> <span id="detail-gpu">N/A</span></span>
+                            <span><i class="bi bi-cpu"></i> CPU: <span id="detail-cpu">N/A</span></span>
+                            <span><i class="bi bi-memory"></i> RAM: <span id="detail-ram">N/A</span></span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -450,10 +455,16 @@
                         <td class="text-start">
                             <div class="d-flex align-items-center">
                                 <span class="badge bg-info text-dark me-2 text-truncate" style="max-width:200px;" title="${s.endpoint_url}">${s.endpoint_url}</span>
-                                <input type="text" class="form-control form-control-sm border-secondary shadow-none" style="width: 150px"
-                                       value="${s.endpoint_label !== s.endpoint_url ? s.endpoint_label : ''}"
-                                       placeholder="Custom Label..."
-                                       onchange="saveEndpointLabel('${s.endpoint_url}', this.value)">
+                                ${s.raw_label ? `<span class="badge bg-secondary me-2">${s.raw_label}</span>` : ''}
+                                <button class="btn btn-sm btn-outline-secondary" onclick="openPropertiesModal(this.dataset.url, this.dataset.label, this.dataset.isGpu === 'true', this.dataset.gpuModel, this.dataset.cpuModel, this.dataset.ramSize)"
+                                        data-url="${s.endpoint_url}"
+                                        data-label="${s.raw_label || ''}"
+                                        data-is-gpu="${s.is_gpu}"
+                                        data-gpu-model="${s.gpu_model || ''}"
+                                        data-cpu-model="${s.cpu_model || ''}"
+                                        data-ram-size="${s.ram_size || ''}" title="Configure Properties">
+                                    <i class="bi bi-gear-fill"></i>
+                                </button>
                             </div>
                         </td>
                         <td><span class="badge bg-secondary fs-6 rounded-pill px-3">${s.request_count}</span></td>
@@ -470,17 +481,53 @@
             }
         }
 
-        async function saveEndpointLabel(url, label) {
+        function openPropertiesModal(url, label, isGpu, gpuModel, cpuModel, ramSize) {
+            document.getElementById('prop-endpoint-url').value = url;
+            document.getElementById('prop-label').value = label;
+            document.getElementById('prop-is-gpu').checked = isGpu;
+            document.getElementById('prop-gpu-model').value = gpuModel;
+            document.getElementById('prop-cpu-model').value = cpuModel;
+            document.getElementById('prop-ram-size').value = ramSize;
+
+            const modalEl = document.getElementById('endpointPropertiesModal');
+            let modal = bootstrap.Modal.getInstance(modalEl);
+            if (!modal) {
+                modal = new bootstrap.Modal(modalEl);
+            }
+            modal.show();
+        }
+
+        async function saveEndpointProperties() {
+            const url = document.getElementById('prop-endpoint-url').value;
+            const label = document.getElementById('prop-label').value;
+            const isGpu = document.getElementById('prop-is-gpu').checked;
+            const gpuModel = document.getElementById('prop-gpu-model').value;
+            const cpuModel = document.getElementById('prop-cpu-model').value;
+            const ramSize = document.getElementById('prop-ram-size').value;
+
             try {
-                await fetch('/api/stats/label', {
+                await fetch('/api/stats/properties', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ endpoint_url: url, label: label })
+                    body: JSON.stringify({
+                        endpoint_url: url,
+                        label: label,
+                        is_gpu: isGpu,
+                        gpu_model: gpuModel,
+                        cpu_model: cpuModel,
+                        ram_size: ramSize
+                    })
                 });
-                // Optionally visually indicate success
+
+                const modalEl = document.getElementById('endpointPropertiesModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                modal.hide();
+
+                loadStats();
+                fetchQueueStats();
             } catch(e) {
                 console.error(e);
-                alert("Failed to save label");
+                alert("Failed to save properties");
             }
         }
 
@@ -881,6 +928,7 @@
 --- SYSTEM CONTEXT ---
 Target Model: ${model}
 Execution Duration: ${duration}
+Machine Specs: ${document.getElementById('detail-gpu').textContent} | CPU: ${document.getElementById('detail-cpu').textContent} | RAM: ${document.getElementById('detail-ram').textContent}
 
 --- INPUT DATA ---
 1. ORIGINAL PROMPT & INPUT DATA:
@@ -941,6 +989,10 @@ Provide your response in two parts:
             document.getElementById('detail-endpoint').textContent = item.endpoint_url || 'N/A';
             document.getElementById('detail-duration').textContent = formatDuration(item.duration_ms);
             document.getElementById('detail-time').textContent = new Date(item.created_at).toLocaleString();
+
+            document.getElementById('detail-gpu').textContent = item.is_gpu ? (item.gpu_model || 'GPU Enabled') : 'No GPU';
+            document.getElementById('detail-cpu').textContent = item.cpu_model || 'N/A';
+            document.getElementById('detail-ram').textContent = item.ram_size || 'N/A';
 
             const promptContainer = document.getElementById('detail-prompt-container');
             try {
@@ -1501,5 +1553,45 @@ Provide your response in two parts:
             setupStream();
         };
     </script>
+
+    <!-- Endpoint Properties Modal -->
+    <div class="modal fade" id="endpointPropertiesModal" tabindex="-1" aria-labelledby="endpointPropertiesModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="endpointPropertiesModalLabel">Endpoint Properties</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="prop-endpoint-url">
+                    <div class="mb-3">
+                        <label for="prop-label" class="form-label">Custom Label</label>
+                        <input type="text" class="form-control" id="prop-label" placeholder="e.g., Node 1">
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="prop-is-gpu">
+                        <label class="form-check-label" for="prop-is-gpu">Has GPU</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="prop-gpu-model" class="form-label">GPU Model</label>
+                        <input type="text" class="form-control" id="prop-gpu-model" placeholder="e.g., RTX 4090">
+                    </div>
+                    <div class="mb-3">
+                        <label for="prop-cpu-model" class="form-label">CPU Model</label>
+                        <input type="text" class="form-control" id="prop-cpu-model" placeholder="e.g., i9-13900K">
+                    </div>
+                    <div class="mb-3">
+                        <label for="prop-ram-size" class="form-label">RAM Size</label>
+                        <input type="text" class="form-control" id="prop-ram-size" placeholder="e.g., 64GB">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveEndpointProperties()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
