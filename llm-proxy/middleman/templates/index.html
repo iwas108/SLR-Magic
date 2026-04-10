@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,36 +8,96 @@
     <link rel="stylesheet" href="/static/css/bootstrap.min.css">
     <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
     <style>
-        body { background: var(--bs-body-bg); color: var(--bs-body-color); }
-        .sidebar { height: 100vh; overflow-y: auto; border-right: 1px solid var(--bs-border-color); }
-        .history-item { cursor: pointer; transition: background 0.2s; }
-        .history-item:hover { background: var(--bs-tertiary-bg); }
-        .history-item.active { border-left: 4px solid var(--bs-primary); background: var(--bs-secondary-bg); }
-        .model-badge { font-size: 0.75rem; }
+        body {
+            background: var(--bs-body-bg);
+            color: var(--bs-body-color);
+        }
+
+        .sidebar {
+            height: 100vh;
+            overflow-y: auto;
+            border-right: 1px solid var(--bs-border-color);
+        }
+
+        .history-item {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .history-item:hover {
+            background: var(--bs-tertiary-bg);
+        }
+
+        .history-item.active {
+            border-left: 4px solid var(--bs-primary);
+            background: var(--bs-secondary-bg);
+        }
+
+        .model-badge {
+            font-size: 0.75rem;
+        }
 
         #live-stream-box {
-            background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 8px;
-            min-height: 100px; max-height: 300px; overflow-y: auto;
-            font-family: monospace; white-space: pre-wrap; word-wrap: break-word;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 8px;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
+
         #live-stream-box:fullscreen {
             max-height: 100vh;
             border-radius: 0;
             padding: 2rem;
             font-size: 1.1em;
         }
+
         #live-stream-box:-webkit-full-screen {
             max-height: 100vh;
             border-radius: 0;
             padding: 2rem;
             font-size: 1.1em;
         }
-        .stream-thinking { color: #858585; font-style: italic; }
-        .stream-final { color: #a6e22e; }
 
-        .prompt-box { font-size: 0.95em; white-space: pre-wrap; word-wrap: break-word; }
-        .thinking-box { background: var(--bs-tertiary-bg); font-style: italic; color: var(--bs-secondary-color); padding: 1rem; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; max-height: 400px; overflow-y: auto; }
-        .result-box { white-space: pre-wrap; word-wrap: break-word; padding: 1rem; background: var(--bs-light-bg-subtle); border-radius: 6px; }
+        .stream-thinking {
+            color: #858585;
+            font-style: italic;
+        }
+
+        .stream-final {
+            color: #a6e22e;
+        }
+
+        .prompt-box {
+            font-size: 0.95em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .thinking-box {
+            background: var(--bs-tertiary-bg);
+            font-style: italic;
+            color: var(--bs-secondary-color);
+            padding: 1rem;
+            border-radius: 6px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result-box {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding: 1rem;
+            background: var(--bs-light-bg-subtle);
+            border-radius: 6px;
+        }
 
         #in-progress-card {
             display: none;
@@ -44,6 +105,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container-fluid p-4 h-100 d-flex flex-column">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -59,17 +121,20 @@
         <!-- Navigation Tabs -->
         <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="realtime-tab" data-bs-toggle="tab" data-bs-target="#realtime-pane" type="button" role="tab" aria-controls="realtime-pane" aria-selected="true">
+                <button class="nav-link active" id="realtime-tab" data-bs-toggle="tab" data-bs-target="#realtime-pane"
+                    type="button" role="tab" aria-controls="realtime-pane" aria-selected="true">
                     <i class="bi bi-activity"></i> Realtime
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-tab-pane" type="button" role="tab" aria-controls="stats-tab-pane" aria-selected="false" onclick="loadStats()">
+                <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-tab-pane"
+                    type="button" role="tab" aria-controls="stats-tab-pane" aria-selected="false" onclick="loadStats()">
                     <i class="bi bi-bar-chart"></i> Stats
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane" type="button" role="tab" aria-controls="history-pane" aria-selected="false" onclick="loadHistory()">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane"
+                    type="button" role="tab" aria-controls="history-pane" aria-selected="false" onclick="loadHistory()">
                     <i class="bi bi-clock-history"></i> History
                 </button>
             </li>
@@ -77,14 +142,17 @@
 
         <div class="tab-content flex-grow-1 overflow-auto" id="mainTabsContent">
             <!-- Realtime Tab -->
-            <div class="tab-pane fade show active h-100" id="realtime-pane" role="tabpanel" aria-labelledby="realtime-tab" tabindex="0">
+            <div class="tab-pane fade show active h-100" id="realtime-pane" role="tabpanel"
+                aria-labelledby="realtime-tab" tabindex="0">
 
                 <!-- Queue Stats Card -->
                 <div class="card shadow-sm mb-3">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="card-title mb-0 fw-bold"><i class="bi bi-cpu me-2"></i>Queue Status</h6>
-                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#endpointManagerCollapse" aria-expanded="false" aria-controls="endpointManagerCollapse" onclick="loadEndpointConfigs()">
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse"
+                                data-bs-target="#endpointManagerCollapse" aria-expanded="false"
+                                aria-controls="endpointManagerCollapse" onclick="loadEndpointConfigs()">
                                 <i class="bi bi-sliders me-1"></i> Manage Endpoints
                             </button>
                         </div>
@@ -112,24 +180,32 @@
                                         <tfoot>
                                             <tr>
                                                 <td>
-                                                    <input type="text" id="newEndpointUrl" class="form-control form-control-sm" placeholder="http://192.168.1.x:11434/api/chat">
+                                                    <input type="text" id="newEndpointUrl"
+                                                        class="form-control form-control-sm"
+                                                        placeholder="http://192.168.1.x:11434/api/chat">
                                                 </td>
                                                 <td class="text-center">
                                                     <div class="form-check form-switch d-inline-block">
-                                                        <input class="form-check-input" type="checkbox" id="newEndpointEnabled" checked>
+                                                        <input class="form-check-input" type="checkbox"
+                                                            id="newEndpointEnabled" checked>
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <input type="text" id="newEndpointModel" class="form-control form-control-sm" placeholder="(Optional) e.g., qwen2.5:32b">
+                                                    <input type="text" id="newEndpointModel"
+                                                        class="form-control form-control-sm"
+                                                        placeholder="(Optional) e.g., qwen2.5:32b">
                                                 </td>
                                                 <td>
-                                                    <button class="btn btn-sm btn-success w-100" onclick="addEndpointConfig()">Add</button>
+                                                    <button class="btn btn-sm btn-success w-100"
+                                                        onclick="addEndpointConfig()">Add</button>
                                                 </td>
                                             </tr>
                                         </tfoot>
                                     </table>
                                 </div>
-                                <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Custom Model Override forces the specific endpoint to use a different model, bypassing the request payload. Leave blank to follow payload.</div>
+                                <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Custom Model
+                                    Override forces the specific endpoint to use a different model, bypassing the
+                                    request payload. Leave blank to follow payload.</div>
                             </div>
                         </div>
 
@@ -137,7 +213,8 @@
                             <span class="badge bg-secondary" id="queue-pending-badge">0 Pending</span>
                         </div>
                         <div class="progress mb-3" style="height: 10px;">
-                            <div id="queue-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                            <div id="queue-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                role="progressbar" style="width: 0%"></div>
                         </div>
                         <div class="d-flex flex-wrap gap-2" id="queue-workers-container">
                             <!-- Worker LEDs injected here -->
@@ -146,7 +223,8 @@
                 </div>
 
                 <div class="mb-3 d-flex align-items-center">
-                    <label for="activeEndpointSelect" class="form-label me-2 mb-0 fw-bold">Select Active Endpoint:</label>
+                    <label for="activeEndpointSelect" class="form-label me-2 mb-0 fw-bold">Select Active
+                        Endpoint:</label>
                     <select id="activeEndpointSelect" class="form-select" style="max-width: 300px;">
                         <option value="">-- No active streams --</option>
                     </select>
@@ -171,7 +249,8 @@
                         <div class="d-flex align-items-center">
                             <i class="bi bi-record-circle-fill me-2"></i> Live Stream
                         </div>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullScreen()" title="Full Screen">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullScreen()"
+                            title="Full Screen">
                             <i class="bi bi-arrows-fullscreen"></i>
                         </button>
                     </div>
@@ -185,8 +264,10 @@
             <!-- Stats Tab -->
             <div class="tab-pane fade" id="stats-tab-pane" role="tabpanel" aria-labelledby="stats-tab" tabindex="0">
                 <div class="card mt-4 shadow-sm border-0">
-                    <div class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center pb-3">
-                        <h5 class="mb-0 text-primary"><i class="bi bi-bar-chart-fill me-2"></i>Endpoint Performance Statistics</h5>
+                    <div
+                        class="card-header bg-transparent border-bottom d-flex justify-content-between align-items-center pb-3">
+                        <h5 class="mb-0 text-primary"><i class="bi bi-bar-chart-fill me-2"></i>Endpoint Performance
+                            Statistics</h5>
                         <button class="btn btn-primary" onclick="loadStats()">
                             <i class="bi bi-calculator"></i> Recalculate
                         </button>
@@ -220,11 +301,14 @@
             </div>
 
             <!-- History Tab -->
-            <div class="tab-pane fade h-100" id="history-pane" role="tabpanel" aria-labelledby="history-tab" tabindex="0">
+            <div class="tab-pane fade h-100" id="history-pane" role="tabpanel" aria-labelledby="history-tab"
+                tabindex="0">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div class="d-flex align-items-center">
-                        <input type="text" id="searchInput" class="form-control form-control-sm me-2" style="width: 250px;" placeholder="Search history..." onkeyup="handleSearch(event)">
-                        <select id="endpointFilter" class="form-select form-select-sm me-2" style="width: 150px;" onchange="loadHistory()">
+                        <input type="text" id="searchInput" class="form-control form-control-sm me-2"
+                            style="width: 250px;" placeholder="Search history..." onkeyup="handleSearch(event)">
+                        <select id="endpointFilter" class="form-select form-select-sm me-2" style="width: 150px;"
+                            onchange="loadHistory()">
                             <option value="">All Endpoints</option>
                         </select>
                         <button class="btn btn-sm btn-outline-primary me-1" onclick="loadHistory()" title="Refresh">
@@ -232,7 +316,8 @@
                         </button>
                     </div>
                     <div>
-                        <button class="btn btn-sm btn-outline-danger me-2" id="btnBulkDelete" onclick="deleteSelectedHistory()" disabled>
+                        <button class="btn btn-sm btn-outline-danger me-2" id="btnBulkDelete"
+                            onclick="deleteSelectedHistory()" disabled>
                             <i class="bi bi-trash-fill"></i> Delete Selected
                         </button>
                         <button class="btn btn-sm btn-outline-danger" onclick="clearHistory()" title="Clear All">
@@ -246,14 +331,20 @@
                         <thead class="table-light">
                             <tr>
                                 <th scope="col" style="width: 30px;">
-                                    <input type="checkbox" id="selectAllHistory" onchange="selectAllHistoryItems(this.checked)">
+                                    <input type="checkbox" id="selectAllHistory"
+                                        onchange="selectAllHistoryItems(this.checked)">
                                 </th>
                                 <th scope="col" style="width: 120px;">Actions</th>
-                                <th scope="col" style="cursor: pointer;" onclick="setSort('id')">ID <i id="sort-icon-id" class="bi bi-sort-down"></i></th>
-                                <th scope="col" style="cursor: pointer;" onclick="setSort('model_name')">Model <i id="sort-icon-model_name" class="bi bi-arrow-down-up text-muted"></i></th>
-                                <th scope="col" style="cursor: pointer;" onclick="setSort('endpoint_url')">Endpoint <i id="sort-icon-endpoint_url" class="bi bi-arrow-down-up text-muted"></i></th>
-                                <th scope="col" style="cursor: pointer;" onclick="setSort('created_at')">Time <i id="sort-icon-created_at" class="bi bi-arrow-down-up text-muted"></i></th>
-                                <th scope="col" style="cursor: pointer;" onclick="setSort('duration_ms')">Duration <i id="sort-icon-duration_ms" class="bi bi-arrow-down-up text-muted"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('id')">ID <i id="sort-icon-id"
+                                        class="bi bi-sort-down"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('model_name')">Model <i
+                                        id="sort-icon-model_name" class="bi bi-arrow-down-up text-muted"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('endpoint_url')">Endpoint <i
+                                        id="sort-icon-endpoint_url" class="bi bi-arrow-down-up text-muted"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('created_at')">Time <i
+                                        id="sort-icon-created_at" class="bi bi-arrow-down-up text-muted"></i></th>
+                                <th scope="col" style="cursor: pointer;" onclick="setSort('duration_ms')">Duration <i
+                                        id="sort-icon-duration_ms" class="bi bi-arrow-down-up text-muted"></i></th>
                             </tr>
                         </thead>
                         <tbody id="history-table-body">
@@ -273,74 +364,80 @@
     </div>
 
     <!-- History Detail Modal -->
-    <div class="modal fade" id="historyDetailModal" tabindex="-1" aria-labelledby="historyDetailModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable" id="historyDetailModalDialog">
-        <div class="modal-content">
-          <div class="modal-header bg-primary text-white">
-            <h5 class="modal-title" id="historyDetailModalLabel">Request Details</h5>
-            <div class="d-flex align-items-center ms-auto me-3 gap-2">
-                <button type="button" class="btn btn-sm btn-light text-primary fw-bold" onclick="copyPromptRefinement()" title="Copy Prompt Refinement">
-                    <i class="bi bi-clipboard"></i> Copy Refinement Prompt
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleModalFullScreen()" title="Toggle Full Screen">
-                    <i id="modal-fs-icon" class="bi bi-arrows-fullscreen"></i>
-                </button>
-            </div>
-            <button type="button" class="btn-close btn-close-white ms-0" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
+    <div class="modal fade" id="historyDetailModal" tabindex="-1" aria-labelledby="historyDetailModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable" id="historyDetailModalDialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="historyDetailModalLabel">Request Details</h5>
+                    <div class="d-flex align-items-center ms-auto me-3 gap-2">
+                        <button type="button" class="btn btn-sm btn-light text-primary fw-bold"
+                            onclick="copyPromptRefinement()" title="Copy Prompt Refinement">
+                            <i class="bi bi-clipboard"></i> Copy Refinement Prompt
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleModalFullScreen()"
+                            title="Toggle Full Screen">
+                            <i id="modal-fs-icon" class="bi bi-arrows-fullscreen"></i>
+                        </button>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white ms-0" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
 
-            <!-- Metadata Row -->
-            <div class="row mb-3">
-                <div class="col-12">
-                    <div class="card border-info">
-                        <div class="card-body py-2 d-flex justify-content-between flex-wrap">
-                            <span><strong>Model:</strong> <span id="detail-model"></span></span>
-                            <span><strong>Endpoint:</strong> <span id="detail-endpoint"></span></span>
-                            <span><strong>Time:</strong> <span id="detail-time"></span></span>
-                            <span><strong>Duration:</strong> <span id="detail-duration"></span></span>
+                    <!-- Metadata Row -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="card border-info">
+                                <div class="card-body py-2 d-flex justify-content-between flex-wrap">
+                                    <span><strong>Model:</strong> <span id="detail-model"></span></span>
+                                    <span><strong>Endpoint:</strong> <span id="detail-endpoint"></span></span>
+                                    <span><strong>Time:</strong> <span id="detail-time"></span></span>
+                                    <span><strong>Duration:</strong> <span id="detail-duration"></span></span>
+                                </div>
+                                <div
+                                    class="card-footer py-2 bg-light d-flex justify-content-between flex-wrap text-muted small border-top-0">
+                                    <span><i class="bi bi-gpu-card"></i> <span id="detail-gpu">N/A</span></span>
+                                    <span><i class="bi bi-cpu"></i> CPU: <span id="detail-cpu">N/A</span></span>
+                                    <span><i class="bi bi-memory"></i> RAM: <span id="detail-ram">N/A</span></span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-footer py-2 bg-light d-flex justify-content-between flex-wrap text-muted small border-top-0">
-                            <span><i class="bi bi-gpu-card"></i> <span id="detail-gpu">N/A</span></span>
-                            <span><i class="bi bi-cpu"></i> CPU: <span id="detail-cpu">N/A</span></span>
-                            <span><i class="bi bi-memory"></i> RAM: <span id="detail-ram">N/A</span></span>
+                    </div>
+
+                    <!-- Content Row Side-by-Side -->
+                    <div class="row">
+                        <!-- Input Column -->
+                        <div class="col-md-6 border-end">
+                            <h5 class="text-primary mb-3"><i class="bi bi-file-earmark-text me-2"></i>Input Context</h5>
+                            <div id="detail-prompt-container" class="pe-2">
+                                <!-- Prompt contents dynamically injected here -->
+                            </div>
+                        </div>
+
+                        <!-- Output Column -->
+                        <div class="col-md-6">
+                            <h5 class="text-success mb-3"><i class="bi bi-cpu me-2"></i>Reasoning & Result</h5>
+
+                            <div id="detail-thinking-container" class="mb-4" style="display:none;">
+                                <h6 class="text-secondary"><i class="bi bi-lightbulb"></i> Reasoning Trace (Thinking)
+                                </h6>
+                                <div class="thinking-box border" id="detail-thinking"></div>
+                            </div>
+
+                            <div>
+                                <h6 class="text-success"><i class="bi bi-check-circle"></i> Final Answer</h6>
+                                <div class="result-box border" id="detail-result"></div>
+                            </div>
                         </div>
                     </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
-
-            <!-- Content Row Side-by-Side -->
-            <div class="row">
-                <!-- Input Column -->
-                <div class="col-md-6 border-end">
-                    <h5 class="text-primary mb-3"><i class="bi bi-file-earmark-text me-2"></i>Input Context</h5>
-                    <div id="detail-prompt-container" class="pe-2">
-                        <!-- Prompt contents dynamically injected here -->
-                    </div>
-                </div>
-
-                <!-- Output Column -->
-                <div class="col-md-6">
-                    <h5 class="text-success mb-3"><i class="bi bi-cpu me-2"></i>Reasoning & Result</h5>
-
-                    <div id="detail-thinking-container" class="mb-4" style="display:none;">
-                        <h6 class="text-secondary"><i class="bi bi-lightbulb"></i> Reasoning Trace (Thinking)</h6>
-                        <div class="thinking-box border" id="detail-thinking"></div>
-                    </div>
-
-                    <div>
-                        <h6 class="text-success"><i class="bi bi-check-circle"></i> Final Answer</h6>
-                        <div class="result-box border" id="detail-result"></div>
-                    </div>
-                </div>
-            </div>
-
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          </div>
         </div>
-      </div>
     </div>
 
     <script src="/static/js/bootstrap.bundle.min.js"></script>
@@ -475,7 +572,7 @@
                     `;
                     tbody.appendChild(row);
                 });
-            } catch(e) {
+            } catch (e) {
                 console.error(e);
                 tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger">Failed to load stats</td></tr>';
             }
@@ -525,7 +622,7 @@
 
                 loadStats();
                 fetchQueueStats();
-            } catch(e) {
+            } catch (e) {
                 console.error(e);
                 alert("Failed to save properties");
             }
@@ -600,7 +697,7 @@
         }
 
         async function clearHistory() {
-            if(!confirm("Are you sure you want to delete all history?")) return;
+            if (!confirm("Are you sure you want to delete all history?")) return;
             try {
                 await fetch('/api/history', { method: 'DELETE' });
                 loadHistory();
@@ -612,7 +709,7 @@
 
         async function deleteHistory(id, event) {
             event.stopPropagation(); // prevent row click
-            if(!confirm(`Delete item ${id}?`)) return;
+            if (!confirm(`Delete item ${id}?`)) return;
             try {
                 await fetch(`/api/history/${id}`, { method: 'DELETE' });
                 loadHistory();
@@ -923,50 +1020,70 @@
             const thinking = document.getElementById('detail-thinking').textContent || "No thinking trace available.";
             const finalAnswer = document.getElementById('detail-result').textContent || "No final answer available.";
 
-            const template = `Act as an Elite AI Prompt Engineer and Latency Optimizer. Your objective is to analyze the execution trace of an LLM prompt and rewrite the prompt to eliminate hallucinations, prevent logic loops, and drastically reduce inference time.
+            const template = `<system>
+You are an Elite AI Prompt Engineer and Accuracy Optimizer. Your sole objective is to analyze the execution trace of an LLM prompt, diagnose inefficiencies or logical failures, and heavily optimize the original prompt to eliminate hallucinations, prevent logic loops, and drastically improve zero-shot accuracy and speed.
+</system>
 
---- SYSTEM CONTEXT ---
-Target Model: ${model}
-Execution Duration: ${duration}
-Machine Specs: ${document.getElementById('detail-gpu').textContent} | CPU: ${document.getElementById('detail-cpu').textContent} | RAM: ${document.getElementById('detail-ram').textContent}
+<execution_context>
+- Target Model: ${model}
+- Execution Duration: ${duration}
+- Machine Specs: GPU: ${document.getElementById('detail-gpu').textContent} | CPU: ${document.getElementById('detail-cpu').textContent} | RAM: ${document.getElementById('detail-ram').textContent}
+</execution_context>
 
---- INPUT DATA ---
-1. ORIGINAL PROMPT & INPUT DATA:
+<input_data>
+<original_prompt>
 ${fullPromptString}
+</original_prompt>
 
-
-2. MODEL'S REASONING TRACE (THINKING):
+<model_thinking_trace>
 ${thinking}
+</model_thinking_trace>
 
-
-3. FINAL OUTPUT (JSON):
+<final_output>
 ${finalAnswer}
+</final_output>
+</input_data>
 
-
---- DIAGNOSTIC & REFINEMENT TASKS ---
-Analyze the provided data and execute the following steps:
+<instructions>
+Analyze the provided <input_data> within the <execution_context>. Execute the following diagnostic and refinement steps strictly:
 
 STEP 1: LATENCY & OVERTHINKING AUDIT
-Check the Duration and Reasoning Trace. If the duration is high or the trace is excessively long:
-- Did the model debate the instructions? (e.g., arguing about markdown, definitions, or output formats).
-- Did it fall into a "Verification Loop" (e.g., "Wait, let me check again")?
+- Check the Execution Duration and <model_thinking_trace>.
+- Identify if the model debated instructions (e.g., arguing about formatting, markdown, or rules).
+- Identify if the model fell into a "Verification Loop" (e.g., over-apologizing, repeating "Wait, let me check again").
 
 STEP 2: SEMANTIC & TEMPLATE HALLUCINATION CHECK
-Compare the Final Output against the Reasoning Trace and the Original Prompt rules.
-- Did the model accurately analyze the text but output the wrong JSON because it mimicked a hardcoded example?
-- Did it suffer from "Semantic Blindness" (ignoring a literal keyword because of the surrounding context)?
+- Compare the <final_output> against the <original_prompt> constraints.
+- Detect "Template Blindness": Did the model output the wrong JSON because it blindly mimicked a hardcoded example in the prompt instead of processing the actual text?
+- Detect "Semantic Blindness": Did the model ignore explicit literal keywords due to surrounding semantic context?
 
-STEP 3: REWRITE THE PROMPT
-Based on your diagnosis, rewrite the "ORIGINAL PROMPT" using these advanced techniques:
-1. Constrained Output Generation: Force a strict, minimalist <think> template if the model is overthinking.
-2. Fail-Fast Execution: Ensure logic gates are strictly sequential and abort immediately upon a trigger.
-3. Literal vs. Semantic Targeting: Clarify if the model should act as a "RegEx Engine" (literal) or an "Analytical Scientist" (semantic).
-4. Template Sanitization: Remove highly specific examples from the JSON schema that the model might blindly copy.
+STEP 3: REWRITE STRATEGY (NEW)
+- Outline exactly *what* structural changes you will make to the prompt to fix the issues identified in Steps 1 and 2. 
 
---- OUTPUT FORMAT ---
-Provide your response in two parts:
-1. 🔍 DIAGNOSIS: A brief, punchy explanation of why the original prompt failed or was slow.
-2. 🚀 OPTIMIZED PROMPT: The complete, ready-to-use rewritten prompt enclosed in a markdown code block.`;
+STEP 4: PROMPT RECONSTRUCTION
+Rewrite the <original_prompt> applying these advanced principles based on your strategy:
+1. Constrained Output Generation: If overthinking was detected, inject a strict, minimalist <think> framework constraint.
+2. Fail-Fast Logic: Structure rules sequentially so the model processes abort/trigger conditions immediately.
+3. Explicit Directives: Clearly define if the task requires literal extraction (like a RegEx engine) or semantic analysis.
+4. Schema Sanitization: Strip highly specific data values from JSON examples in the prompt, replacing them with generic type indicators (e.g., "<string: user's exact quote>") to prevent mimicry.
+
+NEGATIVE CONSTRAINTS:
+- DO NOT invent errors. If the <model_thinking_trace> is efficient and accurate, state that no major rewrite is needed and only provide minor optimizations.
+- DO NOT include pleasantries in your final output.
+</instructions>
+
+<output_format>
+Provide your response strictly in the following format:
+
+### 1. 🔍 DIAGNOSIS
+[A brief, punchy, bulleted explanation of why the original prompt failed, was slow, or hallucinated.]
+
+### 2. 🧠 OPTIMIZATION STRATEGY
+[A short paragraph explaining the exact prompt engineering techniques you will apply to fix the diagnosis.]
+
+### 3. 🚀 OPTIMIZED PROMPT
+[Insert the complete, ready-to-use rewritten prompt here]
+</output_format>`;
 
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1011,8 +1128,8 @@ Provide your response in two parts:
             try {
                 const resObj = JSON.parse(item.response_json);
                 const msg = (resObj.choices && resObj.choices[0] && resObj.choices[0].message)
-                            ? resObj.choices[0].message
-                            : (resObj.message || {});
+                    ? resObj.choices[0].message
+                    : (resObj.message || {});
 
                 content = msg.content || "";
 
@@ -1027,11 +1144,11 @@ Provide your response in two parts:
                 }
 
                 if (!content) {
-                        if (resObj.error) {
-                            content = JSON.stringify(resObj.error, null, 2);
-                        } else {
-                            content = JSON.stringify(resObj, null, 2);
-                        }
+                    if (resObj.error) {
+                        content = JSON.stringify(resObj.error, null, 2);
+                    } else {
+                        content = JSON.stringify(resObj, null, 2);
+                    }
                 }
 
             } catch (e) {
@@ -1063,14 +1180,14 @@ Provide your response in two parts:
         function parseMarkdown(text) {
             // Escape HTML entities to prevent XSS
             let html = text.replace(/&/g, '&amp;')
-                           .replace(/</g, '&lt;')
-                           .replace(/>/g, '&gt;')
-                           .replace(/"/g, '&quot;')
-                           .replace(/'/g, '&#039;');
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
 
             // Temporarily replace code blocks to avoid messing with their newlines
             const codeBlocks = [];
-            html = html.replace(/```([\s\S]*?)```/g, function(match, p1) {
+            html = html.replace(/```([\s\S]*?)```/g, function (match, p1) {
                 codeBlocks.push(p1);
                 return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
             });
@@ -1087,7 +1204,7 @@ Provide your response in two parts:
             html = html.replace(/\n/g, '<br>');
 
             // Restore code blocks
-            html = html.replace(/__CODE_BLOCK_(\d+)__/g, function(match, index) {
+            html = html.replace(/__CODE_BLOCK_(\d+)__/g, function (match, index) {
                 return `<pre><code>${codeBlocks[index]}</code></pre>`;
             });
 
@@ -1226,11 +1343,11 @@ Provide your response in two parts:
             updateWsStatus('warning', 'Connecting...');
             ws = new WebSocket(wsUrl);
 
-            ws.onopen = function() {
+            ws.onopen = function () {
                 updateWsStatus('success', 'Connected');
             };
 
-            ws.onmessage = function(event) {
+            ws.onmessage = function (event) {
                 try {
                     const data = JSON.parse(event.data);
                     const streamId = data.stream_id || 'default';
@@ -1300,13 +1417,13 @@ Provide your response in two parts:
                 }
             };
 
-            ws.onclose = function() {
+            ws.onclose = function () {
                 updateWsStatus('danger', 'Disconnected');
                 console.warn('WebSocket disconnected. Attempting to reconnect in 3s...');
                 setTimeout(connectWebSocket, 3000);
             };
 
-            ws.onerror = function(err) {
+            ws.onerror = function (err) {
                 updateWsStatus('danger', 'Error');
                 console.error('WebSocket error:', err);
                 ws.close();
@@ -1555,7 +1672,8 @@ Provide your response in two parts:
     </script>
 
     <!-- Endpoint Properties Modal -->
-    <div class="modal fade" id="endpointPropertiesModal" tabindex="-1" aria-labelledby="endpointPropertiesModalLabel" aria-hidden="true">
+    <div class="modal fade" id="endpointPropertiesModal" tabindex="-1" aria-labelledby="endpointPropertiesModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -1594,4 +1712,5 @@ Provide your response in two parts:
     </div>
 
 </body>
+
 </html>

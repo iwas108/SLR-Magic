@@ -3,7 +3,7 @@
 README.md
 **/*.md
 node_modules/
-pdfhelper/
+pdfhelper/**
 ss/
 index.html
-ollama-middleman/**
+llm-proxy/**
