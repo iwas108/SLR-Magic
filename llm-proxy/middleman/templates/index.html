@@ -169,12 +169,13 @@
                                                 <th>Endpoint URL</th>
                                                 <th style="width: 100px;">Enabled</th>
                                                 <th>Custom Model Override</th>
+                                                <th>API Key (Optional)</th>
                                                 <th style="width: 80px;">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody id="endpointConfigTableBody">
                                             <tr>
-                                                <td colspan="4" class="text-center text-muted">Loading endpoints...</td>
+                                                <td colspan="5" class="text-center text-muted">Loading endpoints...</td>
                                             </tr>
                                         </tbody>
                                         <tfoot>
@@ -194,6 +195,12 @@
                                                     <input type="text" id="newEndpointModel"
                                                         class="form-control form-control-sm"
                                                         placeholder="(Optional) e.g., qwen2.5:32b">
+                                                </td>
+
+                                                <td>
+                                                    <input type="password" id="newEndpointApiKey"
+                                                        class="form-control form-control-sm"
+                                                        placeholder="sk-...">
                                                 </td>
                                                 <td>
                                                     <button class="btn btn-sm btn-success w-100"
@@ -1598,14 +1605,14 @@ Provide your response strictly in the following format:
 
         async function loadEndpointConfigs() {
             const tbody = document.getElementById('endpointConfigTableBody');
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>';
             try {
                 const res = await fetch('/api/endpoints/config');
                 const configs = await res.json();
 
                 tbody.innerHTML = '';
                 if (configs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No endpoints configured.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No endpoints configured.</td></tr>';
                     return;
                 }
 
@@ -1619,13 +1626,18 @@ Provide your response strictly in the following format:
                     enabledTd.className = 'text-center';
                     enabledTd.innerHTML = `
                         <div class="form-check form-switch d-inline-block">
-                            <input class="form-check-input" type="checkbox" ${c.enabled ? 'checked' : ''} onchange="updateEndpointConfig('${c.endpoint_url}', this.checked, '${c.custom_model || ''}')">
+                            <input class="form-check-input" type="checkbox" ${c.enabled ? 'checked' : ''} onchange="updateEndpointConfig('${c.endpoint_url}', this.checked, '${c.custom_model || ''}', '${c.api_key || ''}')">
                         </div>
                     `;
 
                     const modelTd = document.createElement('td');
                     modelTd.innerHTML = `
-                        <input type="text" class="form-control form-control-sm" value="${c.custom_model || ''}" placeholder="(Default)" onchange="updateEndpointConfig('${c.endpoint_url}', ${c.enabled}, this.value)">
+                        <input type="text" class="form-control form-control-sm" value="${c.custom_model || ''}" placeholder="(Default)" onchange="updateEndpointConfig('${c.endpoint_url}', ${c.enabled}, this.value, '${c.api_key || ''}')">
+                    `;
+
+                    const apiTd = document.createElement('td');
+                    apiTd.innerHTML = `
+                        <input type="password" class="form-control form-control-sm border-danger" value="${c.api_key || ''}" placeholder="(Optional) Default API Key" onchange="updateEndpointConfig('${c.endpoint_url}', ${c.enabled}, '${c.custom_model || ''}', this.value)">
                     `;
 
                     const actionsTd = document.createElement('td');
@@ -1636,12 +1648,13 @@ Provide your response strictly in the following format:
                     tr.appendChild(urlTd);
                     tr.appendChild(enabledTd);
                     tr.appendChild(modelTd);
+                    tr.appendChild(apiTd);
                     tr.appendChild(actionsTd);
                     tbody.appendChild(tr);
                 });
             } catch (e) {
                 console.error("Failed to load endpoint configs", e);
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Failed to load</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Failed to load</td></tr>';
             }
         }
 
@@ -1649,17 +1662,19 @@ Provide your response strictly in the following format:
             const url = document.getElementById('newEndpointUrl').value.trim();
             const enabled = document.getElementById('newEndpointEnabled').checked;
             const model = document.getElementById('newEndpointModel').value.trim();
+            const apiKey = document.getElementById('newEndpointApiKey').value.trim();
 
             if (!url) return alert("Endpoint URL is required");
 
-            await updateEndpointConfig(url, enabled, model);
+            await updateEndpointConfig(url, enabled, model, apiKey);
 
             document.getElementById('newEndpointUrl').value = '';
             document.getElementById('newEndpointEnabled').checked = true;
             document.getElementById('newEndpointModel').value = '';
+            document.getElementById('newEndpointApiKey').value = '';
         }
 
-        async function updateEndpointConfig(url, enabled, customModel) {
+        async function updateEndpointConfig(url, enabled, customModel, apiKey) {
             try {
                 await fetch('/api/endpoints/config', {
                     method: 'POST',
@@ -1667,7 +1682,8 @@ Provide your response strictly in the following format:
                     body: JSON.stringify({
                         endpoint_url: url,
                         enabled: enabled,
-                        custom_model: customModel
+                        custom_model: customModel,
+                        api_key: apiKey
                     })
                 });
                 loadEndpointConfigs(); // refresh list
