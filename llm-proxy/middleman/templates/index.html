@@ -169,13 +169,12 @@
                                                 <th>Endpoint URL</th>
                                                 <th style="width: 100px;">Enabled</th>
                                                 <th>Custom Model Override</th>
-                                                <th>API Key (Optional)</th>
                                                 <th style="width: 80px;">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody id="endpointConfigTableBody">
                                             <tr>
-                                                <td colspan="5" class="text-center text-muted">Loading endpoints...</td>
+                                                <td colspan="4" class="text-center text-muted">Loading endpoints...</td>
                                             </tr>
                                         </tbody>
                                         <tfoot>
@@ -196,12 +195,6 @@
                                                         class="form-control form-control-sm"
                                                         placeholder="(Optional) e.g., qwen2.5:32b">
                                                 </td>
-
-                                                <td>
-                                                    <input type="password" id="newEndpointApiKey"
-                                                        class="form-control form-control-sm"
-                                                        placeholder="sk-...">
-                                                </td>
                                                 <td>
                                                     <button class="btn btn-sm btn-success w-100"
                                                         onclick="addEndpointConfig()">Add</button>
@@ -210,9 +203,14 @@
                                         </tfoot>
                                     </table>
                                 </div>
-                                <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Custom Model
-                                    Override forces the specific endpoint to use a different model, bypassing the
-                                    request payload. Leave blank to follow payload.</div>
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Custom Model
+                                        Override forces the specific endpoint to use a different model, bypassing the
+                                        request payload. Leave blank to follow payload.</div>
+                                    <button class="btn btn-sm btn-outline-info text-dark" onclick="openGeminiConfigModal()">
+                                        <i class="bi bi-google me-1"></i> Configure Gemini API
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -865,19 +863,43 @@
             paginationEl.appendChild(nextLi);
         }
 
-        function renderPrompt(container, messages, rawFallback) {
+        function renderPrompt(container, messages, rawFallback, hasPdf, reqHash) {
             container.innerHTML = '';
+
+            // Optional PDF embed
+            if (hasPdf && reqHash) {
+                const embedDiv = document.createElement('div');
+                embedDiv.className = 'mb-3 border rounded shadow-sm';
+                embedDiv.style.overflow = 'hidden';
+                const iframe = document.createElement('iframe');
+                iframe.src = `/static/pdfs/${reqHash}.pdf`;
+                iframe.style.width = '100%';
+                iframe.style.height = '400px';
+                iframe.style.border = 'none';
+                embedDiv.appendChild(iframe);
+                container.appendChild(embedDiv);
+            }
 
             let userContent = "";
             if (Array.isArray(messages)) {
                 for (let i = messages.length - 1; i >= 0; i--) {
                     if (messages[i].role === 'user') {
-                        userContent = messages[i].content;
+                        // userContent can be an array of objects for multi-modal
+                        userContent = typeof messages[i].content === 'string'
+                            ? messages[i].content
+                            : JSON.stringify(messages[i].content, null, 2);
                         break;
                     }
                 }
             } else {
                 userContent = JSON.stringify(messages, null, 2);
+            }
+
+            if (typeof userContent === 'string') {
+                userContent = userContent.replace(/"data:application\/pdf;base64,[A-Za-z0-9+/=]+"/g, '"[PDF Attached]"');
+            }
+            if (typeof rawFallback === 'string') {
+                rawFallback = rawFallback.replace(/"data:application\/pdf;base64,[A-Za-z0-9+/=]+"/g, '"[PDF Attached]"');
             }
 
             if (typeof userContent === 'string') {
@@ -1152,12 +1174,14 @@ Provide your response strictly in the following format:
             const promptContainer = document.getElementById('detail-prompt-container');
             try {
                 const reqObj = JSON.parse(item.request_json);
-                renderPrompt(promptContainer, reqObj.messages || reqObj, item.request_json);
+                renderPrompt(promptContainer, reqObj.messages || reqObj, item.request_json, hasPdf, reqHash);
             } catch (e) {
                 promptContainer.innerHTML = '';
                 const pre = document.createElement('pre');
                 pre.className = 'p-3 bg-body-tertiary border rounded prompt-box';
-                pre.textContent = item.request_json;
+                pre.textContent = typeof item.request_json === 'string'
+                    ? item.request_json.replace(/"data:application\/pdf;base64,[A-Za-z0-9+/=]+"/g, '"[PDF Attached]"')
+                    : item.request_json;
                 promptContainer.appendChild(pre);
             }
 
@@ -1612,11 +1636,20 @@ Provide your response strictly in the following format:
 
                 tbody.innerHTML = '';
                 if (configs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No endpoints configured.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No endpoints configured.</td></tr>';
                     return;
                 }
 
+                window.currentGeminiApiKey = "";
+                window.currentGeminiExtraConfig = "";
+
                 configs.forEach(c => {
+                    if (c.endpoint_url === 'Gemini API') {
+                        window.currentGeminiApiKey = c.api_key || "";
+                        window.currentGeminiExtraConfig = c.extra_config || "";
+                        return; // Skip rendering Gemini API in the standard table
+                    }
+
                     const tr = document.createElement('tr');
 
                     const urlTd = document.createElement('td');
@@ -1626,18 +1659,13 @@ Provide your response strictly in the following format:
                     enabledTd.className = 'text-center';
                     enabledTd.innerHTML = `
                         <div class="form-check form-switch d-inline-block">
-                            <input class="form-check-input" type="checkbox" ${c.enabled ? 'checked' : ''} onchange="updateEndpointConfig('${c.endpoint_url}', this.checked, '${c.custom_model || ''}', '${c.api_key || ''}')">
+                            <input class="form-check-input" type="checkbox" ${c.enabled ? 'checked' : ''} onchange="updateEndpointConfig('${c.endpoint_url}', this.checked, '${c.custom_model || ''}', '')">
                         </div>
                     `;
 
                     const modelTd = document.createElement('td');
                     modelTd.innerHTML = `
-                        <input type="text" class="form-control form-control-sm" value="${c.custom_model || ''}" placeholder="(Default)" onchange="updateEndpointConfig('${c.endpoint_url}', ${c.enabled}, this.value, '${c.api_key || ''}')">
-                    `;
-
-                    const apiTd = document.createElement('td');
-                    apiTd.innerHTML = `
-                        <input type="password" class="form-control form-control-sm border-danger" value="${c.api_key || ''}" placeholder="(Optional) Default API Key" onchange="updateEndpointConfig('${c.endpoint_url}', ${c.enabled}, '${c.custom_model || ''}', this.value)">
+                        <input type="text" class="form-control form-control-sm" value="${c.custom_model || ''}" placeholder="(Default)" onchange="updateEndpointConfig('${c.endpoint_url}', ${c.enabled}, this.value, '')">
                     `;
 
                     const actionsTd = document.createElement('td');
@@ -1648,13 +1676,12 @@ Provide your response strictly in the following format:
                     tr.appendChild(urlTd);
                     tr.appendChild(enabledTd);
                     tr.appendChild(modelTd);
-                    tr.appendChild(apiTd);
                     tr.appendChild(actionsTd);
                     tbody.appendChild(tr);
                 });
             } catch (e) {
                 console.error("Failed to load endpoint configs", e);
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Failed to load</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Failed to load</td></tr>';
             }
         }
 
@@ -1662,19 +1689,64 @@ Provide your response strictly in the following format:
             const url = document.getElementById('newEndpointUrl').value.trim();
             const enabled = document.getElementById('newEndpointEnabled').checked;
             const model = document.getElementById('newEndpointModel').value.trim();
-            const apiKey = document.getElementById('newEndpointApiKey').value.trim();
 
             if (!url) return alert("Endpoint URL is required");
 
-            await updateEndpointConfig(url, enabled, model, apiKey);
+            await updateEndpointConfig(url, enabled, model, "");
 
             document.getElementById('newEndpointUrl').value = '';
             document.getElementById('newEndpointEnabled').checked = true;
             document.getElementById('newEndpointModel').value = '';
-            document.getElementById('newEndpointApiKey').value = '';
         }
 
-        async function updateEndpointConfig(url, enabled, customModel, apiKey) {
+        function openGeminiConfigModal() {
+            document.getElementById('geminiApiKeyInput').value = window.currentGeminiApiKey || "";
+
+            let extra = {};
+            if (window.currentGeminiExtraConfig) {
+                try {
+                    extra = JSON.parse(window.currentGeminiExtraConfig);
+                } catch(e) {}
+            }
+
+            document.getElementById('geminiTempInput').value = extra.temperature !== undefined ? extra.temperature : "0.6";
+            document.getElementById('geminiMaxTokensInput').value = extra.maxOutputTokens !== undefined ? extra.maxOutputTokens : "8192";
+            document.getElementById('geminiThinkingLevel').value = extra.thinkingLevel || "none";
+            document.getElementById('geminiThinkingBudget').value = extra.thinkingBudget !== undefined ? extra.thinkingBudget : "1024";
+
+            const modalEl = document.getElementById('geminiConfigModal');
+            let modal = bootstrap.Modal.getInstance(modalEl);
+            if (!modal) {
+                modal = new bootstrap.Modal(modalEl);
+            }
+            modal.show();
+        }
+
+        async function saveGeminiConfig() {
+            const apiKey = document.getElementById('geminiApiKeyInput').value.trim();
+            const temperature = document.getElementById('geminiTempInput').value.trim();
+            const maxOutputTokens = document.getElementById('geminiMaxTokensInput').value.trim();
+            const thinkingLevel = document.getElementById('geminiThinkingLevel').value;
+            const thinkingBudget = document.getElementById('geminiThinkingBudget').value.trim();
+
+            const extraConfig = JSON.stringify({
+                temperature: temperature ? parseFloat(temperature) : null,
+                maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens) : null,
+                thinkingLevel: thinkingLevel,
+                thinkingBudget: thinkingBudget ? parseInt(thinkingBudget) : 1024
+            });
+
+            await updateEndpointConfig('Gemini API', true, '', apiKey, extraConfig);
+
+            window.currentGeminiApiKey = apiKey;
+            window.currentGeminiExtraConfig = extraConfig;
+
+            const modalEl = document.getElementById('geminiConfigModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+
+        async function updateEndpointConfig(url, enabled, customModel, apiKey, extraConfig = "") {
             try {
                 await fetch('/api/endpoints/config', {
                     method: 'POST',
@@ -1683,7 +1755,7 @@ Provide your response strictly in the following format:
                         endpoint_url: url,
                         enabled: enabled,
                         custom_model: customModel,
-                        api_key: apiKey
+                        api_key: apiKey, extra_config: extraConfig
                     })
                 });
                 loadEndpointConfigs(); // refresh list
@@ -1765,6 +1837,55 @@ Provide your response strictly in the following format:
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" onclick="saveEndpointProperties()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gemini Config Modal -->
+    <div class="modal fade" id="geminiConfigModal" tabindex="-1" aria-labelledby="geminiConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="geminiConfigModalLabel"><i class="bi bi-google me-2"></i>Configure Gemini API</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="geminiApiKeyInput" class="form-label fw-bold">Gemini API Key</label>
+                        <input type="password" class="form-control border-danger" id="geminiApiKeyInput" placeholder="sk-...">
+                        <div class="form-text">This key will be used for all models with the `gemini` prefix.</div>
+                    </div>
+
+                    <hr>
+                    <h6 class="fw-bold mb-3">Model Tuning</h6>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="geminiTempInput" class="form-label">Temperature</label>
+                            <input type="number" step="0.1" min="0" max="2" class="form-control" id="geminiTempInput" placeholder="0.6">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="geminiMaxTokensInput" class="form-label">Max Output Tokens</label>
+                            <input type="number" class="form-control" id="geminiMaxTokensInput" placeholder="8192">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="geminiThinkingLevel" class="form-label">Thinking Mode (Gemini 2.0+)</label>
+                            <select class="form-select" id="geminiThinkingLevel">
+                                <option value="none">Disabled</option>
+                                <option value="default">Default</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="geminiThinkingBudget" class="form-label">Thinking Budget (Tokens)</label>
+                            <input type="number" class="form-control" id="geminiThinkingBudget" placeholder="1024">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveGeminiConfig()">Save</button>
                 </div>
             </div>
         </div>

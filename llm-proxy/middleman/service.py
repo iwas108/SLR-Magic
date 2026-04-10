@@ -158,6 +158,7 @@ class OllamaService:
         self.pending_requests = 0
         self.custom_models = {}  # endpoint_url -> custom_model string
         self.api_keys = {} # endpoint_url -> api_key string
+        self.extra_configs = {} # endpoint_url -> extra_config json string
 
         for url in self.urls:
             self.endpoint_queue.put_nowait(url)
@@ -167,6 +168,7 @@ class OllamaService:
         active_urls = [c["endpoint_url"] for c in configs if c.get("enabled")]
         self.custom_models = {c["endpoint_url"]: c.get("custom_model") for c in configs if c.get("enabled") and c.get("custom_model")}
         self.api_keys = {c["endpoint_url"]: c.get("api_key") for c in configs if c.get("enabled") and c.get("api_key")}
+        self.extra_configs = {c["endpoint_url"]: c.get("extra_config") for c in configs if c.get("enabled") and c.get("extra_config")}
 
         # Remove urls that are no longer active
         for url in self.urls:
@@ -365,6 +367,24 @@ class OllamaService:
             }
         }
 
+        extra_config_str = self.extra_configs.get(endpoint_url, "")
+        if extra_config_str:
+            try:
+                extra_conf = json.loads(extra_config_str)
+                if "temperature" in extra_conf and extra_conf["temperature"] is not None:
+                    gemini_payload["generationConfig"]["temperature"] = float(extra_conf["temperature"])
+                if "maxOutputTokens" in extra_conf and extra_conf["maxOutputTokens"] is not None:
+                    gemini_payload["generationConfig"]["maxOutputTokens"] = int(extra_conf["maxOutputTokens"])
+                if extra_conf.get("thinkingLevel") and extra_conf["thinkingLevel"] != "none":
+                    budget = int(extra_conf.get("thinkingBudget", 1024))
+                    if budget < 1024:
+                        budget = 1024
+                    gemini_payload["generationConfig"]["thinkingConfig"] = {
+                        "thinkingBudgetTokens": budget
+                    }
+            except Exception as e:
+                logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
+
         async with httpx.AsyncClient(timeout=900.0) as client:
             response = await client.post(url, json=gemini_payload)
             response.raise_for_status()
@@ -475,6 +495,24 @@ class OllamaService:
                 "maxOutputTokens": openai_payload.get("max_tokens", 8192)
             }
         }
+
+        extra_config_str = self.extra_configs.get(endpoint_url, "")
+        if extra_config_str:
+            try:
+                extra_conf = json.loads(extra_config_str)
+                if "temperature" in extra_conf and extra_conf["temperature"] is not None:
+                    gemini_payload["generationConfig"]["temperature"] = float(extra_conf["temperature"])
+                if "maxOutputTokens" in extra_conf and extra_conf["maxOutputTokens"] is not None:
+                    gemini_payload["generationConfig"]["maxOutputTokens"] = int(extra_conf["maxOutputTokens"])
+                if extra_conf.get("thinkingLevel") and extra_conf["thinkingLevel"] != "none":
+                    budget = int(extra_conf.get("thinkingBudget", 1024))
+                    if budget < 1024:
+                        budget = 1024
+                    gemini_payload["generationConfig"]["thinkingConfig"] = {
+                        "thinkingBudgetTokens": budget
+                    }
+            except Exception as e:
+                logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
 
         stream_id = str(uuid.uuid4())
 
