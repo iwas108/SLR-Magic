@@ -279,7 +279,11 @@ class OllamaService:
 
         self.endpoint_status[endpoint_url] = "active"
         short_hash = req_hash[:8] if req_hash else "Unknown"
-        logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: {endpoint_url} (Model: {model_name})")
+
+        if model_name.startswith("gemini"):
+            logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: Gemini API (Model: {model_name})")
+        else:
+            logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: {endpoint_url} (Model: {model_name})")
 
 
         start_time = datetime.now()
