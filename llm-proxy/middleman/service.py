@@ -282,7 +282,7 @@ class OllamaService:
         self.endpoint_status[endpoint_url] = "active"
         short_hash = req_hash[:8] if req_hash else "Unknown"
 
-        if model_name.startswith("gemini"):
+        if model_name.lower().startswith("gemini") or model_name.lower().startswith("gemma"):
             logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: Gemini API (Model: {model_name})")
         else:
             logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: {endpoint_url} (Model: {model_name})")
@@ -290,7 +290,7 @@ class OllamaService:
 
         start_time = datetime.now()
         try:
-            if model_name.startswith("gemini"):
+            if model_name.lower().startswith("gemini") or model_name.lower().startswith("gemma"):
                 api_key = self.api_keys.get(endpoint_url, "")
                 if not api_key:
                     # fallback to any available key
@@ -376,12 +376,22 @@ class OllamaService:
                 if "maxOutputTokens" in extra_conf and extra_conf["maxOutputTokens"] is not None:
                     gemini_payload["generationConfig"]["maxOutputTokens"] = int(extra_conf["maxOutputTokens"])
                 if extra_conf.get("thinkingLevel") and extra_conf["thinkingLevel"] != "none":
-                    budget = int(extra_conf.get("thinkingBudget", 1024))
-                    if budget < 1024:
-                        budget = 1024
-                    gemini_payload["generationConfig"]["thinkingConfig"] = {
-                        "thinkingBudgetTokens": budget
-                    }
+                    # Thinking is only supported in specific gemini models
+                    is_gemini_3 = "gemini-3" in model_name.lower()
+                    is_gemini_2_5 = "gemini-2.5" in model_name.lower()
+
+                    if is_gemini_3:
+                         gemini_payload["generationConfig"]["thinkingConfig"] = {
+                            "thinkingLevel": extra_conf.get("thinkingLevel", "low")
+                         }
+                    elif is_gemini_2_5:
+                        budget = int(extra_conf.get("thinkingBudget", 1024))
+                        if budget < 1024:
+                            budget = 1024
+                        gemini_payload["generationConfig"]["thinkingConfig"] = {
+                            "thinkingBudgetTokens": budget
+                        }
+                    # If neither 2.5 nor 3, thinking config is simply not attached
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
 
@@ -505,12 +515,22 @@ class OllamaService:
                 if "maxOutputTokens" in extra_conf and extra_conf["maxOutputTokens"] is not None:
                     gemini_payload["generationConfig"]["maxOutputTokens"] = int(extra_conf["maxOutputTokens"])
                 if extra_conf.get("thinkingLevel") and extra_conf["thinkingLevel"] != "none":
-                    budget = int(extra_conf.get("thinkingBudget", 1024))
-                    if budget < 1024:
-                        budget = 1024
-                    gemini_payload["generationConfig"]["thinkingConfig"] = {
-                        "thinkingBudgetTokens": budget
-                    }
+                    # Thinking is only supported in specific gemini models
+                    is_gemini_3 = "gemini-3" in model_name.lower()
+                    is_gemini_2_5 = "gemini-2.5" in model_name.lower()
+
+                    if is_gemini_3:
+                         gemini_payload["generationConfig"]["thinkingConfig"] = {
+                            "thinkingLevel": extra_conf.get("thinkingLevel", "low")
+                         }
+                    elif is_gemini_2_5:
+                        budget = int(extra_conf.get("thinkingBudget", 1024))
+                        if budget < 1024:
+                            budget = 1024
+                        gemini_payload["generationConfig"]["thinkingConfig"] = {
+                            "thinkingBudgetTokens": budget
+                        }
+                    # If neither 2.5 nor 3, thinking config is simply not attached
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
 
@@ -553,11 +573,12 @@ class OllamaService:
                                 text_piece = parts[0].get("text", "")
                                 full_content += text_piece
 
+                                is_thought = parts[0].get("thought", False)
                                 stream_broadcaster.broadcast(json.dumps({
                                     "type": "content",
                                     "stream_id": stream_id,
                                     "content": text_piece,
-                                    "in_thinking": False,
+                                    "in_thinking": is_thought,
                                     "endpoint_url": "Gemini API"
                                 }))
 
