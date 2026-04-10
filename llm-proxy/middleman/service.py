@@ -88,6 +88,9 @@ def extract_json_from_mixed_text(text: str) -> str:
 # Service Layer (The OpenAI -> Native Translator)
 # =====================================================================
 
+import base64
+import os
+
 class StreamBroadcaster:
     def __init__(self):
         self.listeners = []
@@ -154,6 +157,7 @@ class OllamaService:
         self.endpoint_status = {url: "idle" for url in self.urls}
         self.pending_requests = 0
         self.custom_models = {}  # endpoint_url -> custom_model string
+        self.api_keys = {} # endpoint_url -> api_key string
 
         for url in self.urls:
             self.endpoint_queue.put_nowait(url)
@@ -162,6 +166,7 @@ class OllamaService:
         # configs is a list of dicts: [{"endpoint_url": "...", "enabled": True/False, "custom_model": "..."}]
         active_urls = [c["endpoint_url"] for c in configs if c.get("enabled")]
         self.custom_models = {c["endpoint_url"]: c.get("custom_model") for c in configs if c.get("enabled") and c.get("custom_model")}
+        self.api_keys = {c["endpoint_url"]: c.get("api_key") for c in configs if c.get("enabled") and c.get("api_key")}
 
         # Remove urls that are no longer active
         for url in self.urls:
@@ -235,6 +240,27 @@ class OllamaService:
         finally:
             self.pending_requests -= 1
 
+
+        has_pdf = False
+        # PDF parsing logic
+        for msg in messages:
+            content = msg.get("content")
+            if isinstance(content, list):
+                for part in content:
+                    if part.get("type") == "image_url":
+                        url = part.get("image_url", {}).get("url", "")
+                        if url.startswith("data:application/pdf;base64,"):
+                            b64_data = url.split(",")[1]
+                            pdf_path = os.path.join(os.path.dirname(__file__), "static", "pdfs", f"{req_hash}.pdf")
+                            os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+                            with open(pdf_path, "wb") as pdf_file:
+                                pdf_file.write(base64.b64decode(b64_data))
+                            has_pdf = True
+
+        if has_pdf:
+            openai_payload["has_pdf"] = True
+            openai_payload["req_hash"] = req_hash
+
         # Use custom model if defined for this endpoint, else default
         base_model = openai_payload.get("model", "qwen3.5-slr")
         model_name = self.custom_models.get(endpoint_url) or base_model
@@ -255,14 +281,28 @@ class OllamaService:
         short_hash = req_hash[:8] if req_hash else "Unknown"
         logger.info(f"🚀 Dispatching request [{short_hash}] to endpoint: {endpoint_url} (Model: {model_name})")
 
+
         start_time = datetime.now()
         try:
-            if self.stream_mode:
+            if model_name.startswith("gemini"):
+                api_key = self.api_keys.get(endpoint_url, "")
+                if not api_key:
+                    # fallback to any available key
+                    for key in self.api_keys.values():
+                        if key:
+                            api_key = key
+                            break
+                if openai_payload.get("stream"):
+                    result = await self._fetch_via_stream_gemini(openai_payload, model_name, endpoint_url, req_hash, api_key)
+                else:
+                    result = await self._fetch_gemini(openai_payload, model_name, endpoint_url, req_hash, api_key)
+            elif self.stream_mode:
                 native_payload["stream"] = True
                 result = await self._fetch_via_stream(native_payload, model_name, messages, endpoint_url)
             else:
                 native_payload["stream"] = False
                 result = await self._fetch_standard(native_payload, model_name, endpoint_url)
+
 
             endpoint_duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
             result["endpoint_duration_ms"] = endpoint_duration_ms
@@ -272,6 +312,244 @@ class OllamaService:
                 self.endpoint_status[endpoint_url] = "idle"
             if endpoint_url in self.urls:
                 self.endpoint_queue.put_nowait(endpoint_url)
+
+
+    async def _fetch_gemini(self, openai_payload: dict, model_name: str, endpoint_url: str, req_hash: str, api_key: str) -> dict:
+        import httpx
+        import uuid
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+
+        contents = []
+        for msg in openai_payload.get("messages", []):
+            parts = []
+            if isinstance(msg.get("content"), str):
+                parts.append({"text": msg["content"]})
+            elif isinstance(msg.get("content"), list):
+                for part in msg["content"]:
+                    if part.get("type") == "text":
+                        parts.append({"text": part.get("text", "")})
+                    elif part.get("type") == "image_url":
+                        img_url = part.get("image_url", {}).get("url", "")
+                        if img_url.startswith("data:application/pdf;base64,"):
+                            b64_data = img_url.split(",")[1]
+                            parts.append({
+                                "inline_data": {
+                                    "mime_type": "application/pdf",
+                                    "data": b64_data
+                                }
+                            })
+                        elif img_url.startswith("data:image/"):
+                            mime = img_url.split(";")[0].split(":")[1]
+                            b64_data = img_url.split(",")[1]
+                            parts.append({
+                                "inline_data": {
+                                    "mime_type": mime,
+                                    "data": b64_data
+                                }
+                            })
+
+            # map system to user for now, gemini has system_instruction but standard chat api mixes it
+            role = "user" if msg.get("role") in ["user", "system"] else "model"
+            contents.append({"role": role, "parts": parts})
+
+        gemini_payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": openai_payload.get("temperature", 0.6),
+                "maxOutputTokens": openai_payload.get("max_tokens", 8192)
+            }
+        }
+
+        async with httpx.AsyncClient(timeout=900.0) as client:
+            response = await client.post(url, json=gemini_payload)
+            response.raise_for_status()
+            data = response.json()
+
+            candidates = data.get("candidates", [])
+            if not candidates:
+                raise Exception("No candidates returned from Gemini API")
+
+            content_text = ""
+            parts = candidates[0].get("content", {}).get("parts", [])
+            if parts:
+                content_text = parts[0].get("text", "")
+
+            usage_metadata = data.get("usageMetadata", {})
+            usage = {
+                "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
+                "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
+                "total_tokens": usage_metadata.get("totalTokenCount", 0)
+            }
+
+            cleaned_content = extract_json_from_mixed_text(content_text)
+
+            res = {
+                "id": f"chatcmpl-{int(datetime.now().timestamp())}",
+                "object": "chat.completion",
+                "created": int(datetime.now().timestamp()),
+                "model": model_name,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": cleaned_content}, "finish_reason": "stop"}],
+                "usage": usage,
+                "endpoint_url": "Gemini API"
+            }
+            if openai_payload.get("has_pdf"):
+                res["has_pdf"] = True
+                res["req_hash"] = req_hash
+            return res
+
+    async def _fetch_via_stream_gemini(self, openai_payload: dict, model_name: str, endpoint_url: str, req_hash: str, api_key: str) -> dict:
+        import httpx
+        import uuid
+        import re
+
+        # We will just reuse _fetch_gemini logic for now but fake the streaming via broadcaster
+        # True streaming could be implemented with streamGenerateContent?alt=sse
+        # but let's implement standard streaming for now.
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:streamGenerateContent?alt=sse&key={api_key}"
+
+        contents = []
+        paper_title = "Unknown Paper"
+        paper_abstract = "No abstract available."
+
+        for msg in openai_payload.get("messages", []):
+            parts = []
+
+            # Extract title abstract
+            if msg.get("role") == "user":
+                txt_content = ""
+                if isinstance(msg.get("content"), str):
+                    txt_content = msg.get("content", "")
+                elif isinstance(msg.get("content"), list):
+                    for part in msg.get("content"):
+                        if part.get("type") == "text":
+                            txt_content += part.get("text", "")
+
+                title_match = re.search(r"(?i)Title:\s*(.*?)(?=\nAbstract:|\Z)", txt_content, re.DOTALL)
+                abstract_match = re.search(r"(?i)Abstract:\s*(.*?)(?=\n[A-Za-z0-9_-]+:|\n\n|\Z)", txt_content, re.DOTALL)
+
+                if title_match:
+                    paper_title = title_match.group(1).replace('**', '').strip()
+                if abstract_match:
+                    paper_abstract = abstract_match.group(1).replace('**', '').strip()
+
+
+            if isinstance(msg.get("content"), str):
+                parts.append({"text": msg["content"]})
+            elif isinstance(msg.get("content"), list):
+                for part in msg["content"]:
+                    if part.get("type") == "text":
+                        parts.append({"text": part.get("text", "")})
+                    elif part.get("type") == "image_url":
+                        img_url = part.get("image_url", {}).get("url", "")
+                        if img_url.startswith("data:application/pdf;base64,"):
+                            b64_data = img_url.split(",")[1]
+                            parts.append({
+                                "inline_data": {
+                                    "mime_type": "application/pdf",
+                                    "data": b64_data
+                                }
+                            })
+                        elif img_url.startswith("data:image/"):
+                            mime = img_url.split(";")[0].split(":")[1]
+                            b64_data = img_url.split(",")[1]
+                            parts.append({
+                                "inline_data": {
+                                    "mime_type": mime,
+                                    "data": b64_data
+                                }
+                            })
+
+            role = "user" if msg.get("role") in ["user", "system"] else "model"
+            contents.append({"role": role, "parts": parts})
+
+        gemini_payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": openai_payload.get("temperature", 0.6),
+                "maxOutputTokens": openai_payload.get("max_tokens", 8192)
+            }
+        }
+
+        stream_id = str(uuid.uuid4())
+
+        start_payload = {
+            "type": "start",
+            "stream_id": stream_id,
+            "title": paper_title,
+            "abstract": paper_abstract,
+            "endpoint_url": "Gemini API"
+        }
+        if openai_payload.get("has_pdf"):
+            start_payload["has_pdf"] = True
+            start_payload["req_hash"] = req_hash
+
+        stream_broadcaster.broadcast(json.dumps(start_payload))
+
+        full_content = ""
+        usage = {}
+
+        async with httpx.AsyncClient(timeout=900.0) as client:
+            async with client.stream("POST", url, json=gemini_payload) as response:
+                response.raise_for_status()
+
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        continue
+
+                    try:
+                        chunk = json.loads(data_str)
+                        candidates = chunk.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            if parts:
+                                text_piece = parts[0].get("text", "")
+                                full_content += text_piece
+
+                                stream_broadcaster.broadcast(json.dumps({
+                                    "type": "content",
+                                    "stream_id": stream_id,
+                                    "content": text_piece,
+                                    "in_thinking": False,
+                                    "endpoint_url": "Gemini API"
+                                }))
+
+                        if "usageMetadata" in chunk:
+                            usage_metadata = chunk["usageMetadata"]
+                            usage = {
+                                "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
+                                "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
+                                "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                            }
+                    except json.JSONDecodeError:
+                        continue
+
+        stream_broadcaster.broadcast(json.dumps({
+            "type": "end",
+            "stream_id": stream_id,
+            "endpoint_url": "Gemini API"
+        }))
+
+        final_content = extract_json_from_mixed_text(full_content)
+
+        res = {
+            "id": f"chatcmpl-{int(datetime.now().timestamp())}",
+            "object": "chat.completion",
+            "created": int(datetime.now().timestamp()),
+            "model": model_name,
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}],
+            "usage": usage,
+            "endpoint_url": "Gemini API"
+        }
+        if openai_payload.get("has_pdf"):
+            res["has_pdf"] = True
+            res["req_hash"] = req_hash
+        return res
 
     async def _fetch_standard(self, native_payload: dict, model_name: str, endpoint_url: str) -> dict:
         async with httpx.AsyncClient(timeout=900.0) as client:

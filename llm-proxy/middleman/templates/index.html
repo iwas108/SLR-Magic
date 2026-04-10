@@ -1111,6 +1111,37 @@ Provide your response strictly in the following format:
             document.getElementById('detail-cpu').textContent = item.cpu_model || 'N/A';
             document.getElementById('detail-ram').textContent = item.ram_size || 'N/A';
 
+            // PDF Link inject
+            const headerActions = document.querySelector("#historyDetailModal .modal-header .d-flex");
+            // Clean up old
+            const oldPdfBtn = document.getElementById("detail-pdf-btn");
+            if (oldPdfBtn) oldPdfBtn.remove();
+
+            let hasPdf = false;
+            let reqHash = "";
+            try {
+                const reqObj = JSON.parse(item.request_json);
+                hasPdf = reqObj.has_pdf === true;
+                reqHash = reqObj.req_hash || "";
+
+                if (!hasPdf) {
+                    const resObj = JSON.parse(item.response_json);
+                    hasPdf = resObj.has_pdf === true;
+                    reqHash = resObj.req_hash || "";
+                }
+            } catch(e) {}
+
+            if (hasPdf && reqHash) {
+                const pdfBtn = document.createElement("a");
+                pdfBtn.id = "detail-pdf-btn";
+                pdfBtn.className = "btn btn-sm btn-warning text-white fw-bold ms-2";
+                pdfBtn.href = `/static/pdfs/${reqHash}.pdf`;
+                pdfBtn.target = "_blank";
+                pdfBtn.innerHTML = `<i class="bi bi-file-earmark-pdf"></i> View PDF`;
+                // Insert before the fullscreen button
+                headerActions.insertBefore(pdfBtn, headerActions.lastElementChild);
+            }
+
             const promptContainer = document.getElementById('detail-prompt-container');
             try {
                 const reqObj = JSON.parse(item.request_json);
@@ -1368,7 +1399,13 @@ Provide your response strictly in the following format:
                         state.container.className = 'mb-4 border-bottom pb-3';
 
                         const sep = document.createElement('div');
-                        sep.innerHTML = `<div class="text-secondary small mb-2"><i class="bi bi-clock"></i> Stream Started: ${new Date().toLocaleTimeString()} <span class="badge bg-info ms-2">${endpointUrl}</span></div>`;
+
+                        let pdfLink = "";
+                        if (data.has_pdf && data.req_hash) {
+                            pdfLink = `<a href="/static/pdfs/${data.req_hash}.pdf" target="_blank" class="btn btn-sm btn-outline-danger ms-2"><i class="bi bi-file-earmark-pdf"></i> View PDF</a>`;
+                        }
+                        sep.innerHTML = `<div class="text-secondary small mb-2"><i class="bi bi-clock"></i> Stream Started: ${new Date().toLocaleTimeString()} <span class="badge bg-info ms-2">${endpointUrl}</span>${pdfLink}</div>`;
+
                         state.container.appendChild(sep);
 
                         state.currentStreamElement = document.createElement('div');
@@ -1452,7 +1489,13 @@ Provide your response strictly in the following format:
                     state.container.className = 'mb-4 border-bottom pb-3';
 
                     const sep = document.createElement('div');
-                    sep.innerHTML = `<div class="text-secondary small mb-2"><i class="bi bi-clock"></i> Stream Started: ${new Date().toLocaleTimeString()} <span class="badge bg-info ms-2">${data.endpointUrl}</span></div>`;
+
+                    let pdfLink = "";
+                    if (data.has_pdf && data.req_hash) {
+                        pdfLink = `<a href="/static/pdfs/${data.req_hash}.pdf" target="_blank" class="btn btn-sm btn-outline-danger ms-2"><i class="bi bi-file-earmark-pdf"></i> View PDF</a>`;
+                    }
+                    sep.innerHTML = `<div class="text-secondary small mb-2"><i class="bi bi-clock"></i> Stream Started: ${new Date().toLocaleTimeString()} <span class="badge bg-info ms-2">${data.endpointUrl}</span>${pdfLink}</div>`;
+
                     state.container.appendChild(sep);
 
                     // Reconstruct chunks
