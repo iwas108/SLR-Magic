@@ -46,6 +46,18 @@ class CacheRepository:
                 )
             ''')
 
+            # Ensure new columns exist in endpoint_labels
+            cursor.execute("PRAGMA table_info(endpoint_labels)")
+            labels_columns = [column[1] for column in cursor.fetchall()]
+            if "is_gpu" not in labels_columns:
+                conn.execute("ALTER TABLE endpoint_labels ADD COLUMN is_gpu BOOLEAN DEFAULT 0")
+            if "gpu_model" not in labels_columns:
+                conn.execute("ALTER TABLE endpoint_labels ADD COLUMN gpu_model TEXT DEFAULT ''")
+            if "cpu_model" not in labels_columns:
+                conn.execute("ALTER TABLE endpoint_labels ADD COLUMN cpu_model TEXT DEFAULT ''")
+            if "ram_size" not in labels_columns:
+                conn.execute("ALTER TABLE endpoint_labels ADD COLUMN ram_size TEXT DEFAULT ''")
+
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS endpoints_config (
                     endpoint_url TEXT PRIMARY KEY,
@@ -101,6 +113,11 @@ class CacheRepository:
                     h.model_name,
                     h.endpoint_url,
                     COALESCE(l.label, h.endpoint_url) as endpoint_label,
+                    l.label as raw_label,
+                    l.is_gpu,
+                    l.gpu_model,
+                    l.cpu_model,
+                    l.ram_size,
                     COUNT(*) as request_count,
                     SUM(h.duration_ms) as total_duration_ms,
                     AVG(h.duration_ms) as avg_duration_ms,
@@ -114,11 +131,11 @@ class CacheRepository:
             """)
             return [dict(row) for row in c.fetchall()]
 
-    def set_endpoint_label(self, endpoint_url: str, label: str):
+    def set_endpoint_properties(self, endpoint_url: str, label: str, is_gpu: bool, gpu_model: str, cpu_model: str, ram_size: str):
         with sqlite3.connect(self.db_file) as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO endpoint_labels (endpoint_url, label) VALUES (?, ?)",
-                (endpoint_url, label)
+                "INSERT OR REPLACE INTO endpoint_labels (endpoint_url, label, is_gpu, gpu_model, cpu_model, ram_size) VALUES (?, ?, ?, ?, ?, ?)",
+                (endpoint_url, label, 1 if is_gpu else 0, gpu_model, cpu_model, ram_size)
             )
 
     def get_all_endpoint_configs(self) -> list:
@@ -152,18 +169,18 @@ class CacheRepository:
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
 
-            count_query = "SELECT COUNT(*) FROM history"
-            select_query = "SELECT * FROM history"
+            count_query = "SELECT COUNT(*) FROM history h"
+            select_query = "SELECT h.*, l.is_gpu, l.gpu_model, l.cpu_model, l.ram_size FROM history h LEFT JOIN endpoint_labels l ON h.endpoint_url = l.endpoint_url"
             params = []
             conditions = []
 
             if search:
-                conditions.append("(model_name LIKE ? OR request_json LIKE ? OR response_json LIKE ?)")
+                conditions.append("(h.model_name LIKE ? OR h.request_json LIKE ? OR h.response_json LIKE ?)")
                 like_term = f"%{search}%"
                 params.extend([like_term, like_term, like_term])
 
             if endpoint:
-                conditions.append("endpoint_url = ?")
+                conditions.append("h.endpoint_url = ?")
                 params.append(endpoint)
 
             if conditions:
@@ -174,7 +191,7 @@ class CacheRepository:
             c.execute(count_query, params)
             total = c.fetchone()[0]
 
-            select_query += f" ORDER BY {sort_by} {sort_order} LIMIT ? OFFSET ?"
+            select_query += f" ORDER BY h.{sort_by} {sort_order} LIMIT ? OFFSET ?"
             params.extend([limit, offset])
 
             c.execute(select_query, params)
