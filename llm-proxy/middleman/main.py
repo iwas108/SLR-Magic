@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
     db_configs = cache_repo.get_all_endpoint_configs()
     if not db_configs:
         for url in Config.OLLAMA_URLS:
-            cache_repo.upsert_endpoint_config(url, True, "")
+            cache_repo.upsert_endpoint_config(url, True, "", "")
         db_configs = cache_repo.get_all_endpoint_configs()
 
     ollama_service.sync_endpoints(db_configs)

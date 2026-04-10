@@ -62,9 +62,17 @@ class CacheRepository:
                 CREATE TABLE IF NOT EXISTS endpoints_config (
                     endpoint_url TEXT PRIMARY KEY,
                     enabled BOOLEAN DEFAULT 1,
-                    custom_model TEXT
+                    custom_model TEXT,
+                    api_key TEXT
                 )
             ''')
+
+            # Ensure api_key column exists
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(endpoints_config)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if "api_key" not in columns:
+                conn.execute("ALTER TABLE endpoints_config ADD COLUMN api_key TEXT")
 
     @staticmethod
     def generate_hash(messages: list) -> str:
@@ -142,14 +150,14 @@ class CacheRepository:
         with sqlite3.connect(self.db_file) as conn:
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
-            c.execute("SELECT endpoint_url, enabled, custom_model FROM endpoints_config")
+            c.execute("SELECT endpoint_url, enabled, custom_model, api_key FROM endpoints_config")
             return [dict(row) for row in c.fetchall()]
 
-    def upsert_endpoint_config(self, endpoint_url: str, enabled: bool, custom_model: str):
+    def upsert_endpoint_config(self, endpoint_url: str, enabled: bool, custom_model: str, api_key: str = ""):
         with sqlite3.connect(self.db_file) as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO endpoints_config (endpoint_url, enabled, custom_model) VALUES (?, ?, ?)",
-                (endpoint_url, 1 if enabled else 0, custom_model)
+                "INSERT OR REPLACE INTO endpoints_config (endpoint_url, enabled, custom_model, api_key) VALUES (?, ?, ?, ?)",
+                (endpoint_url, 1 if enabled else 0, custom_model, api_key)
             )
 
     def delete_endpoint_config(self, endpoint_url: str):
