@@ -254,8 +254,9 @@ async def upsert_endpoint_config(request: Request):
         enabled = data.get("enabled", True)
         custom_model = data.get("custom_model", "")
         api_key = data.get("api_key", "")
+        extra_config = data.get("extra_config", "")
 
-        cache_repo.upsert_endpoint_config(endpoint_url, enabled, custom_model, api_key)
+        cache_repo.upsert_endpoint_config(endpoint_url, enabled, custom_model, api_key, extra_config)
 
         # Sync with service
         configs = cache_repo.get_all_endpoint_configs()

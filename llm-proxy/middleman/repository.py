@@ -63,7 +63,8 @@ class CacheRepository:
                     endpoint_url TEXT PRIMARY KEY,
                     enabled BOOLEAN DEFAULT 1,
                     custom_model TEXT,
-                    api_key TEXT
+                    api_key TEXT,
+                    extra_config TEXT
                 )
             ''')
 
@@ -73,6 +74,8 @@ class CacheRepository:
             columns = [column[1] for column in cursor.fetchall()]
             if "api_key" not in columns:
                 conn.execute("ALTER TABLE endpoints_config ADD COLUMN api_key TEXT")
+            if "extra_config" not in columns:
+                conn.execute("ALTER TABLE endpoints_config ADD COLUMN extra_config TEXT")
 
     @staticmethod
     def generate_hash(messages: list) -> str:
@@ -150,14 +153,14 @@ class CacheRepository:
         with sqlite3.connect(self.db_file) as conn:
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
-            c.execute("SELECT endpoint_url, enabled, custom_model, api_key FROM endpoints_config")
+            c.execute("SELECT endpoint_url, enabled, custom_model, api_key, extra_config FROM endpoints_config")
             return [dict(row) for row in c.fetchall()]
 
-    def upsert_endpoint_config(self, endpoint_url: str, enabled: bool, custom_model: str, api_key: str = ""):
+    def upsert_endpoint_config(self, endpoint_url: str, enabled: bool, custom_model: str, api_key: str = "", extra_config: str = ""):
         with sqlite3.connect(self.db_file) as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO endpoints_config (endpoint_url, enabled, custom_model, api_key) VALUES (?, ?, ?, ?)",
-                (endpoint_url, 1 if enabled else 0, custom_model, api_key)
+                "INSERT OR REPLACE INTO endpoints_config (endpoint_url, enabled, custom_model, api_key, extra_config) VALUES (?, ?, ?, ?, ?)",
+                (endpoint_url, 1 if enabled else 0, custom_model, api_key, extra_config)
             )
 
     def delete_endpoint_config(self, endpoint_url: str):
