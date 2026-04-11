@@ -375,6 +375,14 @@
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title" id="historyDetailModalLabel">Request Details</h5>
+                    <div class="ms-3">
+                        <button type="button" class="btn btn-sm btn-outline-light me-1" id="btnPrevDetail" onclick="showPrevDetail()">
+                            <i class="bi bi-chevron-left"></i> Prev
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-light" id="btnNextDetail" onclick="showNextDetail()">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
                     <div class="d-flex align-items-center ms-auto me-3 gap-2">
                         <button type="button" class="btn btn-sm btn-light text-primary fw-bold"
                             onclick="copyPromptRefinement()" title="Copy Prompt Refinement">
@@ -1128,8 +1136,26 @@ Provide your response strictly in the following format:
             }
         }
 
+        function showPrevDetail() {
+            if (currentDetailIndex > 0) {
+                showDetails(currentDetailIndex - 1);
+            }
+        }
+
+        function showNextDetail() {
+            if (currentDetailIndex >= 0 && currentDetailIndex < historyData.length - 1) {
+                showDetails(currentDetailIndex + 1);
+            }
+        }
+
         function showDetails(index) {
+            currentDetailIndex = index;
             const item = historyData[index];
+
+            const btnPrev = document.getElementById('btnPrevDetail');
+            const btnNext = document.getElementById('btnNextDetail');
+            if (btnPrev) btnPrev.disabled = index === 0;
+            if (btnNext) btnNext.disabled = index === historyData.length - 1;
 
             document.getElementById('detail-model').textContent = item.model_name;
             document.getElementById('detail-endpoint').textContent = item.endpoint_url || 'N/A';
@@ -1147,24 +1173,24 @@ Provide your response strictly in the following format:
             if (oldPdfBtn) oldPdfBtn.remove();
 
             let hasPdf = false;
-            let reqHash = "";
+            let pdfHash = "";
             try {
                 const reqObj = JSON.parse(item.request_json);
                 hasPdf = reqObj.has_pdf === true;
-                reqHash = reqObj.req_hash || "";
+                pdfHash = reqObj.pdf_hash || reqObj.req_hash || "";
 
                 if (!hasPdf) {
                     const resObj = JSON.parse(item.response_json);
                     hasPdf = resObj.has_pdf === true;
-                    reqHash = resObj.req_hash || "";
+                    pdfHash = resObj.pdf_hash || resObj.req_hash || "";
                 }
             } catch(e) {}
 
-            if (hasPdf && reqHash) {
+            if (hasPdf && pdfHash) {
                 const pdfBtn = document.createElement("a");
                 pdfBtn.id = "detail-pdf-btn";
                 pdfBtn.className = "btn btn-sm btn-warning text-white fw-bold ms-2";
-                pdfBtn.href = `/static/pdfs/${reqHash}.pdf`;
+                pdfBtn.href = `/static/pdfs/${pdfHash}.pdf`;
                 pdfBtn.target = "_blank";
                 pdfBtn.innerHTML = `<i class="bi bi-file-earmark-pdf"></i> View PDF`;
                 // Insert before the fullscreen button
@@ -1174,7 +1200,7 @@ Provide your response strictly in the following format:
             const promptContainer = document.getElementById('detail-prompt-container');
             try {
                 const reqObj = JSON.parse(item.request_json);
-                renderPrompt(promptContainer, reqObj.messages || reqObj, item.request_json, hasPdf, reqHash);
+                renderPrompt(promptContainer, reqObj.messages || reqObj, item.request_json, hasPdf, pdfHash);
             } catch (e) {
                 promptContainer.innerHTML = '';
                 const pre = document.createElement('pre');

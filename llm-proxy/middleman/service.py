@@ -4,6 +4,9 @@ import httpx
 import re
 import itertools
 from datetime import datetime
+import hashlib
+import os
+import base64
 
 from middleman.config import logger
 
@@ -244,6 +247,7 @@ class OllamaService:
 
 
         has_pdf = False
+        pdf_hash = ""
         # PDF parsing logic
         for msg in messages:
             content = msg.get("content")
@@ -253,15 +257,19 @@ class OllamaService:
                         url = part.get("image_url", {}).get("url", "")
                         if url.startswith("data:application/pdf;base64,"):
                             b64_data = url.split(",")[1]
-                            pdf_path = os.path.join(os.path.dirname(__file__), "static", "pdfs", f"{req_hash}.pdf")
+                            raw_pdf_data = base64.b64decode(b64_data)
+                            pdf_hash = hashlib.md5(raw_pdf_data).hexdigest()
+                            pdf_path = os.path.join(os.path.dirname(__file__), "static", "pdfs", f"{pdf_hash}.pdf")
                             os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-                            with open(pdf_path, "wb") as pdf_file:
-                                pdf_file.write(base64.b64decode(b64_data))
+                            if not os.path.exists(pdf_path):
+                                with open(pdf_path, "wb") as pdf_file:
+                                    pdf_file.write(raw_pdf_data)
                             has_pdf = True
 
         if has_pdf:
             openai_payload["has_pdf"] = True
             openai_payload["req_hash"] = req_hash
+            openai_payload["pdf_hash"] = pdf_hash
 
         # Use custom model if defined for this endpoint, else default
         base_model = openai_payload.get("model", "qwen3.5-slr")
@@ -304,6 +312,11 @@ class OllamaService:
                     result = await self._fetch_gemini(openai_payload, model_name, endpoint_url, req_hash, api_key)
             elif self.stream_mode:
                 native_payload["stream"] = True
+                if openai_payload.get("has_pdf"):
+                    native_payload["has_pdf"] = True
+                    native_payload["req_hash"] = req_hash
+                    if openai_payload.get("pdf_hash"):
+                        native_payload["pdf_hash"] = openai_payload.get("pdf_hash")
                 result = await self._fetch_via_stream(native_payload, model_name, messages, endpoint_url)
             else:
                 native_payload["stream"] = False
@@ -430,6 +443,8 @@ class OllamaService:
             if openai_payload.get("has_pdf"):
                 res["has_pdf"] = True
                 res["req_hash"] = req_hash
+                if openai_payload.get("pdf_hash"):
+                    res["pdf_hash"] = openai_payload.get("pdf_hash")
             return res
 
     async def _fetch_via_stream_gemini(self, openai_payload: dict, model_name: str, endpoint_url: str, req_hash: str, api_key: str) -> dict:
@@ -546,6 +561,8 @@ class OllamaService:
         if openai_payload.get("has_pdf"):
             start_payload["has_pdf"] = True
             start_payload["req_hash"] = req_hash
+            if openai_payload.get("pdf_hash"):
+                start_payload["pdf_hash"] = openai_payload.get("pdf_hash")
 
         stream_broadcaster.broadcast(json.dumps(start_payload))
 
@@ -612,6 +629,8 @@ class OllamaService:
         if openai_payload.get("has_pdf"):
             res["has_pdf"] = True
             res["req_hash"] = req_hash
+            if openai_payload.get("pdf_hash"):
+                res["pdf_hash"] = openai_payload.get("pdf_hash")
         return res
 
     async def _fetch_standard(self, native_payload: dict, model_name: str, endpoint_url: str) -> dict:
@@ -673,13 +692,20 @@ class OllamaService:
 
                     if title_match or abstract_match:
                         break
-        stream_broadcaster.broadcast(json.dumps({
+        start_payload = {
             "type": "start",
             "stream_id": stream_id,
             "title": paper_title,
             "abstract": paper_abstract,
             "endpoint_url": endpoint_url
-        }))
+        }
+        if native_payload.get("has_pdf"):
+            start_payload["has_pdf"] = True
+            start_payload["req_hash"] = native_payload.get("req_hash", "")
+            if native_payload.get("pdf_hash"):
+                start_payload["pdf_hash"] = native_payload.get("pdf_hash")
+
+        stream_broadcaster.broadcast(json.dumps(start_payload))
 
         # Prefill detection
         is_prefilled = False
