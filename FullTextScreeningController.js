@@ -3,7 +3,7 @@
  * Orchestrates the AI Full-Text Screening process.
  */
 
-const FullTextScreeningController = (function() {
+const FullTextScreeningController = (function () {
 
   /**
    * Shows the Copy Screened Papers dialog.
@@ -71,7 +71,7 @@ const FullTextScreeningController = (function() {
       // Handle potential empty destination sheet
       let destData = [];
       if (destSheet.getLastRow() > 1) {
-          destData = SheetUtils.getDataAsObjects(destSheet);
+        destData = SheetUtils.getDataAsObjects(destSheet);
       }
 
       // Get existing Paper IDs in destination to avoid duplicates
@@ -126,7 +126,7 @@ const FullTextScreeningController = (function() {
         // We use all columnsToCopy to ensure structure, plus Paper_ID and AI_Status
         const sampleRow = newRows[0];
         Object.keys(sampleRow).forEach(key => {
-            SheetUtils.ensureColumn(destSheet, key, destHeaderMap);
+          SheetUtils.ensureColumn(destSheet, key, destHeaderMap);
         });
 
         // Re-fetch header map to ensure we have the correct indices for the newly created columns
@@ -149,7 +149,7 @@ const FullTextScreeningController = (function() {
    * Keeps the name runCopyScreenedPapers for compatibility with existing menu.
    */
   function runCopyScreenedPapers() {
-      showCopyScreenedPapersDialog();
+    showCopyScreenedPapersDialog();
   }
 
   /**
@@ -219,8 +219,8 @@ const FullTextScreeningController = (function() {
     const lock = LockService.getScriptLock();
     // Try to acquire lock for 30 seconds
     if (!lock.tryLock(30000)) {
-        console.log("Could not acquire lock. Another instance of PDF Import is likely running.");
-        return;
+      console.log("Could not acquire lock. Another instance of PDF Import is likely running.");
+      return;
     }
 
     try {
@@ -320,14 +320,14 @@ const FullTextScreeningController = (function() {
 
         // 2. Search PDF if missing
         if (!row["PDF"] || row["PDF"].toString().trim() === "") {
-            try {
-                const pdfUrl = DriveUtils.searchFile(pdfRepoUrl, paperId);
-                if (pdfUrl) {
-                    updateData["PDF"] = pdfUrl;
-                }
-            } catch (err) {
-                console.error(`Error searching PDF for ${paperId}: ${err.message}`);
+          try {
+            const pdfUrl = DriveUtils.searchFile(pdfRepoUrl, paperId);
+            if (pdfUrl) {
+              updateData["PDF"] = pdfUrl;
             }
+          } catch (err) {
+            console.error(`Error searching PDF for ${paperId}: ${err.message}`);
+          }
         }
 
         // 3. Update Sheet if we have data to write
@@ -358,8 +358,8 @@ const FullTextScreeningController = (function() {
     // Acquire Lock
     const lock = LockService.getScriptLock();
     if (!lock.tryLock(10000)) {
-        console.log("Could not acquire lock. Another instance of Full Text Screening is likely running.");
-        return;
+      console.log("Could not acquire lock. Another instance of Full Text Screening is likely running.");
+      return;
     }
 
     try {
@@ -380,22 +380,22 @@ const FullTextScreeningController = (function() {
       const minerPrompt = config["THE_MINER_PROMPT"];
       const batchSize = parseInt(config["BATCH_SIZE"] || "3");
 
-            if (!gatekeeperPrompt) throw new Error("THE_GATEKEEPER_PROMPT is missing in Configuration.");
+      if (!gatekeeperPrompt) throw new Error("THE_GATEKEEPER_PROMPT is missing in Configuration.");
       if (!scientistPrompt) throw new Error("THE_SCIENTIST_PROMPT is missing in Configuration.");
       if (!minerPrompt) throw new Error("THE_MINER_PROMPT is missing in Configuration.");
 
       // Reasoning Config Helper
       const getReasoningConfig = (model) => {
-          const lowerModel = (model || "").toLowerCase();
-          let level = undefined;
-          let budget = undefined;
+        const lowerModel = (model || "").toLowerCase();
+        let level = undefined;
+        let budget = undefined;
 
-          if (lowerModel.includes("gemini-2.5") || lowerModel.includes("flash-thinking")) {
-              budget = config["THINKING_BUDGET"];
-          } else if (lowerModel.includes("gemini-3")) {
-              level = config["THINKING_LEVEL"];
-          }
-          return { level, budget };
+        if (lowerModel.includes("gemini-2.5") || lowerModel.includes("flash-thinking")) {
+          budget = config["THINKING_BUDGET"];
+        } else if (lowerModel.includes("gemini-3")) {
+          level = config["THINKING_LEVEL"];
+        }
+        return { level, budget };
       };
 
       // 2. Get Data
@@ -422,33 +422,33 @@ const FullTextScreeningController = (function() {
 
       // Helper function to accumulate usage metadata per stage
       const accumulateTokens = (usageMap, stageName, newUsage) => {
-          if (!newUsage) return;
-          if (!usageMap[stageName]) {
-              usageMap[stageName] = { thinking: 0, candidate: 0, input: 0, total: 0 };
-          }
-          const current = usageMap[stageName];
-          current.thinking += (newUsage.thoughtsTokenCount || 0);
-          current.candidate += (newUsage.candidatesTokenCount || 0);
-          current.input += (newUsage.promptTokenCount || 0);
-          current.total += (newUsage.totalTokenCount || 0);
+        if (!newUsage) return;
+        if (!usageMap[stageName]) {
+          usageMap[stageName] = { thinking: 0, candidate: 0, input: 0, total: 0 };
+        }
+        const current = usageMap[stageName];
+        current.thinking += (newUsage.thoughtsTokenCount || 0);
+        current.candidate += (newUsage.candidatesTokenCount || 0);
+        current.input += (newUsage.promptTokenCount || 0);
+        current.total += (newUsage.totalTokenCount || 0);
       };
 
       // Helper to process fields (flattening and value/evidence)
       const processContent = (content, targetData, targetNotes) => {
-          for (const [key, value] of Object.entries(content)) {
-               if (value && typeof value === 'object' && value.hasOwnProperty('value')) {
-                   targetData[key] = value.value;
-                   if (value.hasOwnProperty('evidence')) {
-                      targetNotes[key] = value.evidence;
-                   }
-               } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-                   // Recursive flatten for nested objects that are NOT value/evidence pairs
-                   processContent(value, targetData, targetNotes);
-               } else {
-                   // Primitive or Array
-                   targetData[key] = value;
-               }
+        for (const [key, value] of Object.entries(content)) {
+          if (value && typeof value === 'object' && value.hasOwnProperty('value')) {
+            targetData[key] = value.value;
+            if (value.hasOwnProperty('evidence')) {
+              targetNotes[key] = value.evidence;
+            }
+          } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Recursive flatten for nested objects that are NOT value/evidence pairs
+            processContent(value, targetData, targetNotes);
+          } else {
+            // Primitive or Array
+            targetData[key] = value;
           }
+        }
       };
 
       for (let i = 0; i < batch.length; i += parallelRequestSize) {
@@ -467,19 +467,18 @@ const FullTextScreeningController = (function() {
           };
 
           if (!row["PDF_Validity"]) {
-              context.rowUpdateData["AI_Recommendation"] = "Exclude";
-              context.rowUpdateData["Exclusion_Reason"] = "EC5_WrongDoc";
-              context.rowUpdateData["AI_Reasoning"] = "No PDF file linked.";
-              context.skip = true;
+            context.rowUpdateData["AI_Recommendation"] = "Pending";
+            context.rowUpdateData["AI_Reasoning"] = "No PDF file linked.";
+            context.skip = true;
           } else {
-              try {
-                  context.pdfBlob = DriveUtils.getFileBlob(row["PDF"]);
-              } catch(e) {
-                  context.rowUpdateData["AI_Status"] = "Error";
-                  context.rowUpdateData["Notes"] = `PDF Error: ${e.message}`;
-                  context.skip = true;
-                  errorCount++;
-              }
+            try {
+              context.pdfBlob = DriveUtils.getFileBlob(row["PDF"]);
+            } catch (e) {
+              context.rowUpdateData["AI_Status"] = "Error";
+              context.rowUpdateData["Notes"] = `PDF Error: ${e.message}`;
+              context.skip = true;
+              errorCount++;
+            }
           }
           subBatchContexts.push(context);
         });
@@ -487,149 +486,149 @@ const FullTextScreeningController = (function() {
         // Stage 1: Gatekeeper
         let activeContexts = subBatchContexts.filter(c => !c.skip);
         if (activeContexts.length > 0) {
-            const gkReasoning = getReasoningConfig(gatekeeperModel);
-            const gkPrompts = activeContexts.map(c => ({ prompt: gatekeeperPrompt, fileBlob: c.pdfBlob }));
-            try {
-                const gkResponses = LlmService.callLlmParallel(gkPrompts, gatekeeperModel, temperature, maxTokens, gkReasoning.level, gkReasoning.budget);
-                activeContexts.forEach((ctx, idx) => {
-                    const resp = gkResponses[idx];
-                    if (resp.error) {
-                        ctx.rowUpdateData["AI_Status"] = "Error";
-                        ctx.rowUpdateData["Notes"] = `Gatekeeper Mapping Error: ${resp.message}`;
-                        ctx.skip = true;
-                        errorCount++;
-                        return;
-                    }
-                    try {
-                        accumulateTokens(ctx.tokenUsageByStage, "The_Gatekeeper", resp.usageMetadata);
-                        processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
-                        const decision = String(ctx.rowUpdateData["decision"] || "").trim().toUpperCase();
-                        if (decision !== "INCLUDE") {
-                            ctx.skip = true; // Excluded or malformed
-                        }
-                    } catch(e) {
-                        ctx.rowUpdateData["AI_Status"] = "Error";
-                        ctx.rowUpdateData["Notes"] = `Gatekeeper Mapping Error: ${e.message}`;
-                        ctx.skip = true;
-                        errorCount++;
-                    }
-                });
-            } catch(e) {
-                activeContexts.forEach(ctx => {
-                    ctx.rowUpdateData["AI_Status"] = "Error";
-                    ctx.rowUpdateData["Notes"] = `Gatekeeper Batch Error: ${e.message}`;
-                    ctx.skip = true;
-                    errorCount++;
-                });
-            }
+          const gkReasoning = getReasoningConfig(gatekeeperModel);
+          const gkPrompts = activeContexts.map(c => ({ prompt: gatekeeperPrompt, fileBlob: c.pdfBlob }));
+          try {
+            const gkResponses = LlmService.callLlmParallel(gkPrompts, gatekeeperModel, temperature, maxTokens, gkReasoning.level, gkReasoning.budget);
+            activeContexts.forEach((ctx, idx) => {
+              const resp = gkResponses[idx];
+              if (resp.error) {
+                ctx.rowUpdateData["AI_Status"] = "Error";
+                ctx.rowUpdateData["Notes"] = `Gatekeeper Mapping Error: ${resp.message}`;
+                ctx.skip = true;
+                errorCount++;
+                return;
+              }
+              try {
+                accumulateTokens(ctx.tokenUsageByStage, "The_Gatekeeper", resp.usageMetadata);
+                processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
+                const decision = String(ctx.rowUpdateData["decision"] || "").trim().toUpperCase();
+                if (decision !== "INCLUDE") {
+                  ctx.skip = true; // Excluded or malformed
+                }
+              } catch (e) {
+                ctx.rowUpdateData["AI_Status"] = "Error";
+                ctx.rowUpdateData["Notes"] = `Gatekeeper Mapping Error: ${e.message}`;
+                ctx.skip = true;
+                errorCount++;
+              }
+            });
+          } catch (e) {
+            activeContexts.forEach(ctx => {
+              ctx.rowUpdateData["AI_Status"] = "Error";
+              ctx.rowUpdateData["Notes"] = `Gatekeeper Batch Error: ${e.message}`;
+              ctx.skip = true;
+              errorCount++;
+            });
+          }
         }
 
         // Stage 2: Scientist
         activeContexts = subBatchContexts.filter(c => !c.skip);
         if (activeContexts.length > 0) {
-            const sciReasoning = getReasoningConfig(scientistModel);
-            const sciPrompts = activeContexts.map(c => ({ prompt: scientistPrompt, fileBlob: c.pdfBlob }));
-            try {
-                const sciResponses = LlmService.callLlmParallel(sciPrompts, scientistModel, temperature, maxTokens, sciReasoning.level, sciReasoning.budget);
-                activeContexts.forEach((ctx, idx) => {
-                    const resp = sciResponses[idx];
-                    if (resp.error) {
-                        ctx.rowUpdateData["AI_Status"] = "Error";
-                        ctx.rowUpdateData["Notes"] = `Scientist Mapping Error: ${resp.message}`;
-                        ctx.skip = true;
-                        errorCount++;
-                        return;
-                    }
-                    try {
-                        accumulateTokens(ctx.tokenUsageByStage, "The_Scientist", resp.usageMetadata);
-                        processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
-                        const decision = String(ctx.rowUpdateData["decision"] || "").trim().toUpperCase();
-                        if (decision !== "INCLUDE") {
-                            ctx.skip = true;
-                        }
-                    } catch(e) {
-                        ctx.rowUpdateData["AI_Status"] = "Error";
-                        ctx.rowUpdateData["Notes"] = `Scientist Mapping Error: ${e.message}`;
-                        ctx.skip = true;
-                        errorCount++;
-                    }
-                });
-            } catch(e) {
-                activeContexts.forEach(ctx => {
-                    ctx.rowUpdateData["AI_Status"] = "Error";
-                    ctx.rowUpdateData["Notes"] = `Scientist Batch Error: ${e.message}`;
-                    ctx.skip = true;
-                    errorCount++;
-                });
-            }
+          const sciReasoning = getReasoningConfig(scientistModel);
+          const sciPrompts = activeContexts.map(c => ({ prompt: scientistPrompt, fileBlob: c.pdfBlob }));
+          try {
+            const sciResponses = LlmService.callLlmParallel(sciPrompts, scientistModel, temperature, maxTokens, sciReasoning.level, sciReasoning.budget);
+            activeContexts.forEach((ctx, idx) => {
+              const resp = sciResponses[idx];
+              if (resp.error) {
+                ctx.rowUpdateData["AI_Status"] = "Error";
+                ctx.rowUpdateData["Notes"] = `Scientist Mapping Error: ${resp.message}`;
+                ctx.skip = true;
+                errorCount++;
+                return;
+              }
+              try {
+                accumulateTokens(ctx.tokenUsageByStage, "The_Scientist", resp.usageMetadata);
+                processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
+                const decision = String(ctx.rowUpdateData["decision"] || "").trim().toUpperCase();
+                if (decision !== "INCLUDE") {
+                  ctx.skip = true;
+                }
+              } catch (e) {
+                ctx.rowUpdateData["AI_Status"] = "Error";
+                ctx.rowUpdateData["Notes"] = `Scientist Mapping Error: ${e.message}`;
+                ctx.skip = true;
+                errorCount++;
+              }
+            });
+          } catch (e) {
+            activeContexts.forEach(ctx => {
+              ctx.rowUpdateData["AI_Status"] = "Error";
+              ctx.rowUpdateData["Notes"] = `Scientist Batch Error: ${e.message}`;
+              ctx.skip = true;
+              errorCount++;
+            });
+          }
         }
 
         // Stage 3: Miner
         activeContexts = subBatchContexts.filter(c => !c.skip);
         if (activeContexts.length > 0) {
-            const minerReasoning = getReasoningConfig(minerModel);
-            const minerPrompts = activeContexts.map(c => ({ prompt: minerPrompt, fileBlob: c.pdfBlob }));
-            try {
-                const minerResponses = LlmService.callLlmParallel(minerPrompts, minerModel, temperature, maxTokens, minerReasoning.level, minerReasoning.budget);
-                activeContexts.forEach((ctx, idx) => {
-                    const resp = minerResponses[idx];
-                    if (resp.error) {
-                        ctx.rowUpdateData["AI_Status"] = "Error";
-                        ctx.rowUpdateData["Notes"] = `Miner Mapping Error: ${resp.message}`;
-                        ctx.skip = true;
-                        errorCount++;
-                        return;
-                    }
-                    try {
-                        accumulateTokens(ctx.tokenUsageByStage, "The_Miner", resp.usageMetadata);
-                        processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
-                    } catch(e) {
-                        ctx.rowUpdateData["AI_Status"] = "Error";
-                        ctx.rowUpdateData["Notes"] = `Miner Mapping Error: ${e.message}`;
-                        ctx.skip = true; // Not strictly necessary since it's the last stage, but good for consistency
-                        errorCount++;
-                    }
-                });
-            } catch(e) {
-                activeContexts.forEach(ctx => {
-                    ctx.rowUpdateData["AI_Status"] = "Error";
-                    ctx.rowUpdateData["Notes"] = `Miner Batch Error: ${e.message}`;
-                    ctx.skip = true;
-                    errorCount++;
-                });
-            }
+          const minerReasoning = getReasoningConfig(minerModel);
+          const minerPrompts = activeContexts.map(c => ({ prompt: minerPrompt, fileBlob: c.pdfBlob }));
+          try {
+            const minerResponses = LlmService.callLlmParallel(minerPrompts, minerModel, temperature, maxTokens, minerReasoning.level, minerReasoning.budget);
+            activeContexts.forEach((ctx, idx) => {
+              const resp = minerResponses[idx];
+              if (resp.error) {
+                ctx.rowUpdateData["AI_Status"] = "Error";
+                ctx.rowUpdateData["Notes"] = `Miner Mapping Error: ${resp.message}`;
+                ctx.skip = true;
+                errorCount++;
+                return;
+              }
+              try {
+                accumulateTokens(ctx.tokenUsageByStage, "The_Miner", resp.usageMetadata);
+                processContent(resp.content, ctx.rowUpdateData, ctx.rowUpdateNotes);
+              } catch (e) {
+                ctx.rowUpdateData["AI_Status"] = "Error";
+                ctx.rowUpdateData["Notes"] = `Miner Mapping Error: ${e.message}`;
+                ctx.skip = true; // Not strictly necessary since it's the last stage, but good for consistency
+                errorCount++;
+              }
+            });
+          } catch (e) {
+            activeContexts.forEach(ctx => {
+              ctx.rowUpdateData["AI_Status"] = "Error";
+              ctx.rowUpdateData["Notes"] = `Miner Batch Error: ${e.message}`;
+              ctx.skip = true;
+              errorCount++;
+            });
+          }
         }
 
         // Finalize sub-batch
         subBatchContexts.forEach(ctx => {
-            const updateData = ctx.rowUpdateData;
+          const updateData = ctx.rowUpdateData;
 
-            Object.keys(ctx.tokenUsageByStage).forEach(stageName => {
-                const usage = ctx.tokenUsageByStage[stageName];
-                updateData[`Thinking_Token_${stageName}`] = usage.thinking;
-                updateData[`Candidate_Token_${stageName}`] = usage.candidate;
-                updateData[`Input_Token_${stageName}`] = usage.input;
-                updateData[`Total_Token_${stageName}`] = usage.total;
-            });
+          Object.keys(ctx.tokenUsageByStage).forEach(stageName => {
+            const usage = ctx.tokenUsageByStage[stageName];
+            updateData[`Thinking_Token_${stageName}`] = usage.thinking;
+            updateData[`Candidate_Token_${stageName}`] = usage.candidate;
+            updateData[`Input_Token_${stageName}`] = usage.input;
+            updateData[`Total_Token_${stageName}`] = usage.total;
+          });
 
-            for (const key of Object.keys(updateData)) {
-                SheetUtils.ensureColumn(sheet, key, headerMap);
+          for (const key of Object.keys(updateData)) {
+            SheetUtils.ensureColumn(sheet, key, headerMap);
+          }
+
+          try {
+            SheetUtils.updateRow(sheet, ctx.row._rowIndex, updateData, headerMap);
+            if (Object.keys(ctx.rowUpdateNotes).length > 0) {
+              SheetUtils.updateRowNotes(sheet, ctx.row._rowIndex, ctx.rowUpdateNotes, headerMap);
             }
-
-            try {
-                SheetUtils.updateRow(sheet, ctx.row._rowIndex, updateData, headerMap);
-                if (Object.keys(ctx.rowUpdateNotes).length > 0) {
-                    SheetUtils.updateRowNotes(sheet, ctx.row._rowIndex, ctx.rowUpdateNotes, headerMap);
-                }
-                if (updateData["AI_Status"] !== "Error") processedCount++;
-            } catch(e) {
-                console.error(`Error saving row ${ctx.row._rowIndex}:`, e);
-                errorCount++;
-            }
+            if (updateData["AI_Status"] !== "Error") processedCount++;
+          } catch (e) {
+            console.error(`Error saving row ${ctx.row._rowIndex}:`, e);
+            errorCount++;
+          }
         });
 
         if (i + parallelRequestSize < batch.length) {
-            Utilities.sleep(3000);
+          Utilities.sleep(3000);
         }
       }
 
@@ -639,7 +638,7 @@ const FullTextScreeningController = (function() {
       console.error(e);
       SheetUtils.alert(`An unexpected error occurred: ${e.message}`);
     } finally {
-        lock.releaseLock();
+      lock.releaseLock();
     }
   }
 
@@ -664,11 +663,11 @@ const FullTextScreeningController = (function() {
       let updatedCount = 0;
 
       const rowsToProcess = data.filter(row => {
-          const pdf = row["PDF"];
-          const doi = row["DOI_Link"];
-          const isPdfMissing = !pdf || pdf.toString().trim() === "";
-          const isDoiPresent = doi && doi.toString().trim() !== "";
-          return isPdfMissing && isDoiPresent;
+        const pdf = row["PDF"];
+        const doi = row["DOI_Link"];
+        const isPdfMissing = !pdf || pdf.toString().trim() === "";
+        const isDoiPresent = doi && doi.toString().trim() !== "";
+        return isPdfMissing && isDoiPresent;
       });
 
       if (rowsToProcess.length === 0) {
@@ -697,7 +696,7 @@ const FullTextScreeningController = (function() {
           updatedCount++;
 
         } catch (err) {
-            console.warn(`Could not transform URL for row ${row._rowIndex}: ${originalUrl}`, err);
+          console.warn(`Could not transform URL for row ${row._rowIndex}: ${originalUrl}`, err);
         }
       });
 
