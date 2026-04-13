@@ -207,7 +207,8 @@
                                     <div class="text-muted small"><i class="bi bi-info-circle me-1"></i> Custom Model
                                         Override forces the specific endpoint to use a different model, bypassing the
                                         request payload. Leave blank to follow payload.</div>
-                                    <button class="btn btn-sm btn-outline-info text-dark" onclick="openGeminiConfigModal()">
+                                    <button class="btn btn-sm btn-outline-info text-dark"
+                                        onclick="openGeminiConfigModal()">
                                         <i class="bi bi-google me-1"></i> Configure Gemini API
                                     </button>
                                 </div>
@@ -376,10 +377,12 @@
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title" id="historyDetailModalLabel">Request Details</h5>
                     <div class="ms-3">
-                        <button type="button" class="btn btn-sm btn-outline-light me-1" id="btnPrevDetail" onclick="showPrevDetail()">
+                        <button type="button" class="btn btn-sm btn-outline-light me-1" id="btnPrevDetail"
+                            onclick="showPrevDetail()">
                             <i class="bi bi-chevron-left"></i> Prev
                         </button>
-                        <button type="button" class="btn btn-sm btn-outline-light" id="btnNextDetail" onclick="showNextDetail()">
+                        <button type="button" class="btn btn-sm btn-outline-light" id="btnNextDetail"
+                            onclick="showNextDetail()">
                             Next <i class="bi bi-chevron-right"></i>
                         </button>
                     </div>
@@ -1158,6 +1161,10 @@
 You are an Elite AI Prompt Engineer and Accuracy Optimizer. Your sole objective is to analyze the execution trace of an LLM prompt, diagnose inefficiencies or logical failures, and heavily optimize the original prompt to eliminate hallucinations, prevent logic loops, and drastically improve zero-shot accuracy and speed.
 </system>
 
+<research_context>
+${researchContext}
+</research_context>
+
 <execution_context>
 - Target Model: ${model}
 - Execution Duration: ${duration}
@@ -1165,10 +1172,6 @@ You are an Elite AI Prompt Engineer and Accuracy Optimizer. Your sole objective 
 </execution_context>
 
 <input_data>
-<research_context>
-${researchContext}
-</research_context>
-
 <original_prompt>
 ${fullPromptString}
 </original_prompt>
@@ -1183,7 +1186,7 @@ ${finalAnswer}
 </input_data>
 
 <instructions>
-Analyze the provided <input_data> within the <execution_context>. Execute the following diagnostic and refinement steps strictly:
+Analyze the provided <input_data> within the <research_context> and <execution_context>. Execute the following diagnostic and refinement steps strictly:
 
 STEP 1: LATENCY & OVERTHINKING AUDIT
 - Check the Execution Duration and <model_thinking_trace>.
@@ -1191,7 +1194,7 @@ STEP 1: LATENCY & OVERTHINKING AUDIT
 - Identify if the model fell into a "Verification Loop" (e.g., over-apologizing, repeating "Wait, let me check again").
 
 STEP 2: SEMANTIC & TEMPLATE HALLUCINATION CHECK
-- Compare the <final_output> against the <original_prompt> constraints.
+- Compare the <final_output> against the <original_prompt> and <research_context> constraints.
 - Detect "Template Blindness": Did the model output the wrong JSON because it blindly mimicked a hardcoded example in the prompt instead of processing the actual text?
 - Detect "Semantic Blindness": Did the model ignore explicit literal keywords due to surrounding semantic context?
 
@@ -1206,6 +1209,7 @@ Rewrite the <original_prompt> applying these advanced principles based on your s
 4. Schema Sanitization: Strip highly specific data values from JSON examples in the prompt, replacing them with generic type indicators (e.g., "<string: user's exact quote>") to prevent mimicry.
 
 NEGATIVE CONSTRAINTS:
+- DO NOT change the original EC code terminology in the <original_prompt>.
 - DO NOT invent errors. If the <model_thinking_trace> is efficient and accurate, state that no major rewrite is needed and only provide minor optimizations.
 - DO NOT include pleasantries in your final output.
 </instructions>
@@ -1285,7 +1289,7 @@ Provide your response strictly in the following format:
                     hasPdf = resObj.has_pdf === true;
                     pdfHash = resObj.pdf_hash || resObj.req_hash || "";
                 }
-            } catch(e) {}
+            } catch (e) { }
 
             if (hasPdf && pdfHash) {
                 const pdfBtn = document.createElement("a");
@@ -1833,7 +1837,7 @@ Provide your response strictly in the following format:
             if (window.currentGeminiExtraConfig) {
                 try {
                     extra = JSON.parse(window.currentGeminiExtraConfig);
-                } catch(e) {}
+                } catch (e) { }
             }
 
             document.getElementById('geminiTempInput').value = extra.temperature !== undefined ? extra.temperature : "0.6";
@@ -1970,42 +1974,55 @@ Provide your response strictly in the following format:
     </div>
 
     <!-- Copy Refinement Context Modal -->
-    <div class="modal fade" id="copyRefinementModal" tabindex="-1" aria-labelledby="copyRefinementModalLabel" aria-hidden="true">
+    <div class="modal fade" id="copyRefinementModal" tabindex="-1" aria-labelledby="copyRefinementModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="copyRefinementModalLabel"><i class="bi bi-journal-text me-2"></i>Research Context</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title" id="copyRefinementModalLabel"><i
+                            class="bi bi-journal-text me-2"></i>Research Context</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small mb-3">Please provide the main context or goal of your research to help the AI refine the prompt better. This will be saved for future use.</p>
+                    <p class="text-muted small mb-3">Please provide the main context or goal of your research to help
+                        the AI refine the prompt better. This will be saved for future use.</p>
                     <div class="d-flex mb-3">
-                        <select id="researchCategorySelect" class="form-select me-2" onchange="changeResearchCategory()"></select>
-                        <button type="button" class="btn btn-outline-primary me-2" onclick="addResearchCategory()" title="Add Category"><i class="bi bi-plus-lg"></i></button>
-                        <button type="button" id="deleteResearchCategoryBtn" class="btn btn-outline-danger" onclick="deleteResearchCategory()" title="Delete Category"><i class="bi bi-trash"></i></button>
+                        <select id="researchCategorySelect" class="form-select me-2"
+                            onchange="changeResearchCategory()"></select>
+                        <button type="button" class="btn btn-outline-primary me-2" onclick="addResearchCategory()"
+                            title="Add Category"><i class="bi bi-plus-lg"></i></button>
+                        <button type="button" id="deleteResearchCategoryBtn" class="btn btn-outline-danger"
+                            onclick="deleteResearchCategory()" title="Delete Category"><i
+                                class="bi bi-trash"></i></button>
                     </div>
-                    <textarea id="researchContextInput" class="form-control" rows="5" placeholder="e.g., I am researching the application of Large Language Models in healthcare diagnostics..."></textarea>
+                    <textarea id="researchContextInput" class="form-control" rows="5"
+                        placeholder="e.g., I am researching the application of Large Language Models in healthcare diagnostics..."></textarea>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="proceedCopyPromptRefinement()">Next <i class="bi bi-arrow-right"></i></button>
+                    <button type="button" class="btn btn-primary" onclick="proceedCopyPromptRefinement()">Next <i
+                            class="bi bi-arrow-right"></i></button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Gemini Config Modal -->
-    <div class="modal fade" id="geminiConfigModal" tabindex="-1" aria-labelledby="geminiConfigModalLabel" aria-hidden="true">
+    <div class="modal fade" id="geminiConfigModal" tabindex="-1" aria-labelledby="geminiConfigModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="geminiConfigModalLabel"><i class="bi bi-google me-2"></i>Configure Gemini API</h5>
+                    <h5 class="modal-title" id="geminiConfigModalLabel"><i class="bi bi-google me-2"></i>Configure
+                        Gemini API</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="geminiApiKeyInput" class="form-label fw-bold">Gemini API Key</label>
-                        <input type="password" class="form-control border-danger" id="geminiApiKeyInput" placeholder="sk-...">
+                        <input type="password" class="form-control border-danger" id="geminiApiKeyInput"
+                            placeholder="sk-...">
                         <div class="form-text">This key will be used for all models with the `gemini` prefix.</div>
                     </div>
 
@@ -2015,7 +2032,8 @@ Provide your response strictly in the following format:
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="geminiTempInput" class="form-label">Temperature</label>
-                            <input type="number" step="0.1" min="0" max="2" class="form-control" id="geminiTempInput" placeholder="0.6">
+                            <input type="number" step="0.1" min="0" max="2" class="form-control" id="geminiTempInput"
+                                placeholder="0.6">
                         </div>
                         <div class="col-md-6">
                             <label for="geminiMaxTokensInput" class="form-label">Max Output Tokens</label>
