@@ -341,3 +341,15 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}")
     finally:
         stream_broadcaster.remove_listener(q)
+
+@web_api_router.get("/api/config/{key}")
+async def get_config(key: str):
+    val = cache_repo.get_config(key)
+    return {"value": val if val is not None else ""}
+
+@web_api_router.post("/api/config/{key}")
+async def set_config(key: str, request: Request):
+    data = await request.json()
+    value = data.get("value", "")
+    cache_repo.set_config(key, value)
+    return {"status": "ok"}

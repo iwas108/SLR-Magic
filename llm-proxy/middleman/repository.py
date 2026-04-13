@@ -68,6 +68,13 @@ class CacheRepository:
                 )
             ''')
 
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS general_config (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            ''')
+
             # Ensure api_key column exists
             cursor = conn.cursor()
             cursor.execute("PRAGMA table_info(endpoints_config)")
@@ -252,3 +259,18 @@ class CacheRepository:
         with sqlite3.connect(self.db_file) as conn:
             conn.execute("DELETE FROM history")
             conn.execute("DELETE FROM cache")
+
+
+    def get_config(self, key: str) -> str | None:
+        with sqlite3.connect(self.db_file) as conn:
+            c = conn.cursor()
+            c.execute("SELECT value FROM general_config WHERE key = ?", (key,))
+            row = c.fetchone()
+            return row[0] if row else None
+
+    def set_config(self, key: str, value: str):
+        with sqlite3.connect(self.db_file) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO general_config (key, value) VALUES (?, ?)",
+                (key, value)
+            )
