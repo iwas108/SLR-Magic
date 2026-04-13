@@ -1037,15 +1037,72 @@
             });
         }
 
+        let researchContextsData = { activeCategory: 'Default', categories: { 'Default': '' } };
+
+        function updateResearchCategorySelect() {
+            const select = document.getElementById('researchCategorySelect');
+            select.innerHTML = '';
+            for (const cat in researchContextsData.categories) {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                if (cat === researchContextsData.activeCategory) opt.selected = true;
+                select.appendChild(opt);
+            }
+            document.getElementById('researchContextInput').value = researchContextsData.categories[researchContextsData.activeCategory];
+            document.getElementById('deleteResearchCategoryBtn').disabled = Object.keys(researchContextsData.categories).length <= 1;
+        }
+
+        function changeResearchCategory() {
+            // Save current textarea value before switching
+            researchContextsData.categories[researchContextsData.activeCategory] = document.getElementById('researchContextInput').value;
+
+            const select = document.getElementById('researchCategorySelect');
+            researchContextsData.activeCategory = select.value;
+            document.getElementById('researchContextInput').value = researchContextsData.categories[researchContextsData.activeCategory];
+        }
+
+        function addResearchCategory() {
+            const newCat = prompt("Enter new category name:");
+            if (newCat && newCat.trim() && !researchContextsData.categories[newCat.trim()]) {
+                // Save current
+                researchContextsData.categories[researchContextsData.activeCategory] = document.getElementById('researchContextInput').value;
+
+                researchContextsData.categories[newCat.trim()] = "";
+                researchContextsData.activeCategory = newCat.trim();
+                updateResearchCategorySelect();
+            }
+        }
+
+        function deleteResearchCategory() {
+            if (Object.keys(researchContextsData.categories).length <= 1) return;
+            const current = researchContextsData.activeCategory;
+            if (confirm(`Are you sure you want to delete the "${current}" category?`)) {
+                delete researchContextsData.categories[current];
+                researchContextsData.activeCategory = Object.keys(researchContextsData.categories)[0];
+                updateResearchCategorySelect();
+            }
+        }
+
         async function openCopyRefinementModal() {
             try {
-                const res = await fetch('/api/config/research_context');
+                const res = await fetch('/api/config/research_contexts');
                 const data = await res.json();
-                document.getElementById('researchContextInput').value = data.value || "";
+                if (data.value) {
+                    researchContextsData = JSON.parse(data.value);
+                } else {
+                    // Fallback to legacy single context
+                    const legacyRes = await fetch('/api/config/research_context');
+                    const legacyData = await legacyRes.json();
+                    if (legacyData.value) {
+                        researchContextsData.categories['Default'] = legacyData.value;
+                    }
+                }
             } catch (e) {
-                console.error("Failed to fetch research context", e);
-                document.getElementById('researchContextInput').value = "";
+                console.error("Failed to fetch research contexts", e);
             }
+
+            updateResearchCategorySelect();
 
             const modalEl = document.getElementById('copyRefinementModal');
             let modal = bootstrap.Modal.getInstance(modalEl);
@@ -1056,24 +1113,25 @@
         }
 
         async function proceedCopyPromptRefinement() {
-            const contextText = document.getElementById('researchContextInput').value;
+            // Update active before saving
+            researchContextsData.categories[researchContextsData.activeCategory] = document.getElementById('researchContextInput').value;
 
             // Save to backend
             try {
-                await fetch('/api/config/research_context', {
+                await fetch('/api/config/research_contexts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ value: contextText })
+                    body: JSON.stringify({ value: JSON.stringify(researchContextsData) })
                 });
             } catch (e) {
-                console.error("Failed to save research context", e);
+                console.error("Failed to save research contexts", e);
             }
 
             const modalEl = document.getElementById('copyRefinementModal');
             const modal = bootstrap.Modal.getInstance(modalEl);
             if (modal) modal.hide();
 
-            doCopyPromptRefinement(contextText);
+            doCopyPromptRefinement(researchContextsData.categories[researchContextsData.activeCategory]);
         }
 
         async function doCopyPromptRefinement(researchContext) {
@@ -1921,6 +1979,11 @@ Provide your response strictly in the following format:
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small mb-3">Please provide the main context or goal of your research to help the AI refine the prompt better. This will be saved for future use.</p>
+                    <div class="d-flex mb-3">
+                        <select id="researchCategorySelect" class="form-select me-2" onchange="changeResearchCategory()"></select>
+                        <button type="button" class="btn btn-outline-primary me-2" onclick="addResearchCategory()" title="Add Category"><i class="bi bi-plus-lg"></i></button>
+                        <button type="button" id="deleteResearchCategoryBtn" class="btn btn-outline-danger" onclick="deleteResearchCategory()" title="Delete Category"><i class="bi bi-trash"></i></button>
+                    </div>
                     <textarea id="researchContextInput" class="form-control" rows="5" placeholder="e.g., I am researching the application of Large Language Models in healthcare diagnostics..."></textarea>
                 </div>
                 <div class="modal-footer">
