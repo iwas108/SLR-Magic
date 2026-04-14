@@ -38,12 +38,10 @@
         }
 
         #live-stream-box {
-            background: #1e1e1e;
-            color: #d4d4d4;
+            /*background: #1e1e1e;
+            color: #d4d4d4;*/
             padding: 1rem;
             border-radius: 8px;
-            min-height: 100px;
-            max-height: 300px;
             overflow-y: auto;
             font-family: monospace;
             white-space: pre-wrap;
@@ -101,7 +99,7 @@
 
         #in-progress-card {
             display: none;
-            margin-bottom: 1rem;
+            /*margin-bottom: 1rem;*/
         }
     </style>
 </head>
@@ -231,37 +229,41 @@
                 <div class="mb-3 d-flex align-items-center">
                     <label for="activeEndpointSelect" class="form-label me-2 mb-0 fw-bold">Select Active
                         Endpoint:</label>
-                    <select id="activeEndpointSelect" class="form-select" style="max-width: 300px;">
+                    <select id="activeEndpointSelect" class="form-select" style="max-width: 500px;">
                         <option value="">-- No active streams --</option>
                     </select>
                 </div>
 
-                <div id="in-progress-card" class="card border-primary shadow-sm mb-3" style="display: none;">
-                    <div class="card-header bg-primary text-white d-flex align-items-center">
-                        <div class="spinner-border spinner-border-sm me-2" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                <div class="d-flex flex-column flex-lg-row gap-3 mb-4">
+                    <div id="in-progress-card" class="card border-primary shadow-sm"
+                        style="display: none; flex: 1 1 50%; min-width: 0;">
+                        <div class="card-header bg-primary text-white d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <strong>Processing Paper</strong>
                         </div>
-                        <strong>Processing Paper</strong>
+                        <div class="card-body" style="min-height: 500px; max-height: 500px; overflow-y: auto;">
+                            <p class="card-text mb-1 fw-bold" id="in-progress-title">Title will appear here</p>
+                            <p class="card-text small text-muted mb-0" id="in-progress-abstract" style="display: none;">
+                            </p>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <p class="card-text mb-1 fw-bold" id="in-progress-title">Title will appear here</p>
-                        <p class="card-text small text-muted mb-0" id="in-progress-abstract" style="display: none;"></p>
-                    </div>
-                </div>
 
-                <!-- Live Stream Box -->
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header fw-bold text-danger d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-record-circle-fill me-2"></i> Live Stream
+                    <!-- Live Stream Box -->
+                    <div class="card shadow-sm" style="flex: 1 1 50%; min-width: 0;">
+                        <div class="card-header fw-bold text-danger d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-record-circle-fill me-2"></i> Live Stream
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullScreen()"
+                                title="Full Screen">
+                                <i class="bi bi-arrows-fullscreen"></i>
+                            </button>
                         </div>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleFullScreen()"
-                            title="Full Screen">
-                            <i class="bi bi-arrows-fullscreen"></i>
-                        </button>
-                    </div>
-                    <div class="card-body p-0">
-                        <div id="live-stream-box" class="m-3">Select an active endpoint to view the stream...</div>
+                        <div class="card-body p-0" style="min-height: 500px; max-height: 500px; overflow-y: auto;">
+                            <div id="live-stream-box" class="m-3">Select an active endpoint to view the stream...</div>
+                        </div>
                     </div>
                 </div>
             </div>
