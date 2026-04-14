@@ -85,7 +85,7 @@ const GeminiAdapter = (function() {
    * @param {GoogleAppsScript.Base.Blob} [fileBlob] Optional file blob (PDF, image) to include.
    * @returns {Object} The JSON object parsed from the response.
    */
-  function callGemini(prompt, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob) {
+  function callGemini(prompt, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, serviceTier, fileBlob) {
     // --- FIX 1: Safety Default ---
     // If model is undefined/null, default to Flash-Lite to prevent crash
     if (!model) {
@@ -136,6 +136,10 @@ const GeminiAdapter = (function() {
         thinkingConfig: myThinkingConfig
       }
     };
+
+    if (serviceTier === "flex") {
+        payload.service_tier = "FLEX";
+    }
 
     const options = {
       method: 'post',
@@ -242,7 +246,7 @@ const GeminiAdapter = (function() {
    * @param {Array<Object>} promptsData Array of { prompt, fileBlob }
    * @returns {Array<Object>} Array of results { content, usageMetadata }
    */
-  function callGeminiParallel(promptsData, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget) {
+  function callGeminiParallel(promptsData, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, serviceTier) {
     if (!promptsData || promptsData.length === 0) return [];
     if (!model) {
        console.warn("Model was undefined! Defaulting to 'gemini-2.5-flash-lite'");
@@ -278,6 +282,10 @@ const GeminiAdapter = (function() {
           thinkingConfig: myThinkingConfig
         }
       };
+
+      if (serviceTier === "flex") {
+          payload.service_tier = "FLEX";
+      }
 
       return {
         url: url,

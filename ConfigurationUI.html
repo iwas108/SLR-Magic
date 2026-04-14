@@ -122,6 +122,13 @@
             <input type="text" id="API_KEY" name="API_KEY" placeholder="Enter your API Key">
             <div id="vllm_api_key_hint" class="hint" style="display:none;">For vLLM, this will be used as the Bearer Token (if your server requires authentication).</div>
           </div>
+          <div class="form-group" id="gemini_service_tier_group">
+            <label for="GEMINI_SERVICE_TIER">Gemini Service Tier</label>
+            <select id="GEMINI_SERVICE_TIER" name="GEMINI_SERVICE_TIER">
+              <option value="standard">Standard</option>
+              <option value="flex">Flex (Cheaper, Best-Effort)</option>
+            </select>
+          </div>
           <div class="form-group" id="vllm_url_group" style="display:none;">
             <label for="VLLM_API_URL">vLLM API URL</label>
             <input type="text" id="VLLM_API_URL" name="VLLM_API_URL" placeholder="e.g., https://api.runpod.ai/v2/YOUR_POD_ID/openai/v1/chat/completions">
@@ -316,11 +323,13 @@
         const ollamaUrlGroup = document.getElementById("ollama_url_group");
         const apiKeyLabel = document.getElementById("API_KEY_LABEL");
         const vllmApiKeyHint = document.getElementById("vllm_api_key_hint");
+        const geminiTierGroup = document.getElementById("gemini_service_tier_group");
 
         // Reset visibility
         vllmUrlGroup.style.display = "none";
         ollamaUrlGroup.style.display = "none";
         vllmApiKeyHint.style.display = "none";
+        geminiTierGroup.style.display = "none";
 
         if (provider === "vLLM") {
           vllmUrlGroup.style.display = "block";
@@ -335,6 +344,7 @@
         } else {
           // Gemini
           apiKeyLabel.innerText = "Google Generative AI API Key";
+          geminiTierGroup.style.display = "block";
         }
       }
 

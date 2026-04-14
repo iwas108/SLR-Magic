@@ -24,6 +24,7 @@ const ConfigManager = (function () {
     "API_KEY": "",
     "VLLM_API_URL": "",
     "OLLAMA_API_URL": "",
+    "GEMINI_SERVICE_TIER": "standard",
     "ABSTRACT_SCREENING_MODEL": "gemini-2.5-flash",
     "THE_GATEKEEPER_MODEL": "gemini-2.5-flash",
     "THE_SCIENTIST_MODEL": "gemini-2.5-pro",

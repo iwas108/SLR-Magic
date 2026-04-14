@@ -405,6 +405,8 @@ class OllamaService:
                             "thinkingBudgetTokens": budget
                         }
                     # If neither 2.5 nor 3, thinking config is simply not attached
+                if extra_conf.get("serviceTier") == "flex":
+                    gemini_payload["service_tier"] = "FLEX"
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
 
@@ -546,6 +548,8 @@ class OllamaService:
                             "thinkingBudgetTokens": budget
                         }
                     # If neither 2.5 nor 3, thinking config is simply not attached
+                if extra_conf.get("serviceTier") == "flex":
+                    gemini_payload["service_tier"] = "FLEX"
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
 
