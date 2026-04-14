@@ -273,7 +273,11 @@ class OllamaService:
 
         # Use custom model if defined for this endpoint, else default
         base_model = openai_payload.get("model", "qwen3.5-slr")
-        model_name = self.custom_models.get(endpoint_url) or base_model
+
+        if base_model.lower().startswith("gemini") or base_model.lower().startswith("gemma"):
+            model_name = base_model
+        else:
+            model_name = self.custom_models.get(endpoint_url) or base_model
 
         native_payload = {
             "model": model_name,

@@ -138,7 +138,7 @@ const GeminiAdapter = (function() {
     };
 
     if (serviceTier === "flex") {
-        payload.service_tier = "FLEX";
+        payload.serviceTier = "flex";
     }
 
     const options = {
@@ -284,7 +284,7 @@ const GeminiAdapter = (function() {
       };
 
       if (serviceTier === "flex") {
-          payload.service_tier = "FLEX";
+          payload.serviceTier = "flex";
       }
 
       return {
