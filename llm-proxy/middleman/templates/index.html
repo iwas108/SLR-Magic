@@ -1463,7 +1463,8 @@ Provide your response strictly in the following format:
                 const data = activeEndpoints[id];
                 if (!seenEndpoints.has(data.endpointUrl)) {
                     seenEndpoints.add(data.endpointUrl);
-                    const displayUrl = endpointLabelsMap[data.endpointUrl] || data.endpointUrl;
+                    let displayUrl = endpointLabelsMap[data.endpointUrl] || data.endpointUrl;
+                    if (data.endpointUrl === 'Gemini API') displayUrl = 'Gemini API';
                     const option = document.createElement('option');
                     option.value = id;
                     option.textContent = displayUrl;
@@ -1725,7 +1726,34 @@ Provide your response strictly in the following format:
 
                 let labelsChanged = false;
 
+                // Add Gemini API indicator manually if there's an active stream
+                let geminiActive = Object.values(activeEndpoints).some(e => e.endpointUrl === 'Gemini API');
+                if (window.currentGeminiApiKey) {
+                    const el = document.createElement('div');
+                    el.className = 'd-flex align-items-center border rounded px-2 py-1 bg-body-tertiary';
+                    el.style.fontSize = '0.85rem';
+
+                    const led = document.createElement('span');
+                    led.className = geminiActive ? 'spinner-grow spinner-grow-sm text-success me-2' : 'badge bg-secondary rounded-circle p-1 me-2';
+                    if (!geminiActive) {
+                        led.style.width = '10px';
+                        led.style.height = '10px';
+                        led.style.display = 'inline-block';
+                    }
+
+                    const label = document.createElement('span');
+                    label.textContent = "Gemini API";
+                    label.title = "Gemini API";
+
+                    el.appendChild(led);
+                    el.appendChild(label);
+                    workersContainer.appendChild(el);
+                }
+
+
                 stats.endpoints.forEach(ep => {
+                    if (ep.url === 'Gemini API') return;
+
                     if (endpointLabelsMap[ep.url] !== ep.label) {
                         endpointLabelsMap[ep.url] = ep.label;
                         labelsChanged = true;
@@ -1847,6 +1875,7 @@ Provide your response strictly in the following format:
             document.getElementById('geminiThinkingLevel').value = extra.thinkingLevel || "none";
             document.getElementById('geminiThinkingBudget').value = extra.thinkingBudget !== undefined ? extra.thinkingBudget : "1024";
             document.getElementById('geminiServiceTier').value = extra.serviceTier || "standard";
+            document.getElementById('geminiStreamingMode').checked = extra.streamingMode === true;
 
             const modalEl = document.getElementById('geminiConfigModal');
             let modal = bootstrap.Modal.getInstance(modalEl);
@@ -1863,13 +1892,15 @@ Provide your response strictly in the following format:
             const thinkingLevel = document.getElementById('geminiThinkingLevel').value;
             const thinkingBudget = document.getElementById('geminiThinkingBudget').value.trim();
             const serviceTier = document.getElementById('geminiServiceTier').value;
+            const streamingMode = document.getElementById('geminiStreamingMode').checked;
 
             const extraConfig = JSON.stringify({
                 temperature: temperature ? parseFloat(temperature) : null,
                 maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens) : null,
                 thinkingLevel: thinkingLevel,
                 thinkingBudget: thinkingBudget ? parseInt(thinkingBudget) : 1024,
-                serviceTier: serviceTier
+                serviceTier: serviceTier,
+                streamingMode: streamingMode
             });
 
             await updateEndpointConfig('Gemini API', true, '', apiKey, extraConfig);
@@ -2063,6 +2094,13 @@ Provide your response strictly in the following format:
                                 <option value="flex">Flex (Cheaper, Best-Effort)</option>
                             </select>
                         </div>
+                        <div class="col-md-6 mt-3">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="geminiStreamingMode">
+                                <label class="form-check-label" for="geminiStreamingMode">Enable Real-Time Streaming (`streamGenerateContent`)</label>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
                 <div class="modal-footer">

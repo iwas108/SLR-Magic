@@ -462,7 +462,21 @@ class OllamaService:
         # True streaming could be implemented with streamGenerateContent?alt=sse
         # but let's implement standard streaming for now.
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:streamGenerateContent?alt=sse&key={api_key}"
+
+        is_streaming_enabled = False
+        extra_config_str = self.extra_configs.get(endpoint_url, "")
+        if extra_config_str:
+            try:
+                extra_conf = json.loads(extra_config_str)
+                is_streaming_enabled = extra_conf.get("streamingMode", False)
+            except Exception as e:
+                pass
+
+        if is_streaming_enabled:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:streamGenerateContent?alt=sse&key={api_key}"
+        else:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+
 
         contents = []
         paper_title = "Unknown Paper"
@@ -576,46 +590,97 @@ class OllamaService:
 
         full_content = ""
         usage = {}
+        in_thinking = False
 
         async with httpx.AsyncClient(timeout=900.0) as client:
-            async with client.stream("POST", url, json=gemini_payload) as response:
+            if is_streaming_enabled:
+                async with client.stream("POST", url, json=gemini_payload) as response:
+                    response.raise_for_status()
+
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+
+                        data_str = line[6:].strip()
+                        if data_str == "[DONE]":
+                            continue
+
+                        try:
+                            chunk = json.loads(data_str)
+                            candidates = chunk.get("candidates", [])
+                            if candidates:
+                                parts = candidates[0].get("content", {}).get("parts", [])
+                                if parts:
+                                    text_piece = parts[0].get("text", "")
+                                    is_thought = parts[0].get("thought", False)
+
+                                    if is_thought:
+                                        if not in_thinking:
+                                            full_content += "<think>\n"
+                                            in_thinking = True
+                                        full_content += text_piece
+                                    else:
+                                        if in_thinking:
+                                            full_content += "\n</think>\n\n"
+                                            in_thinking = False
+                                        full_content += text_piece
+
+                                    stream_broadcaster.broadcast(json.dumps({
+                                        "type": "content",
+                                        "stream_id": stream_id,
+                                        "content": text_piece,
+                                        "in_thinking": is_thought,
+                                        "endpoint_url": "Gemini API"
+                                    }))
+
+                            if "usageMetadata" in chunk:
+                                usage_metadata = chunk["usageMetadata"]
+                                usage = {
+                                    "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
+                                    "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
+                                    "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                                }
+                        except json.JSONDecodeError:
+                            continue
+            else:
+                response = await client.post(url, json=gemini_payload)
                 response.raise_for_status()
+                data = response.json()
 
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    for part in parts:
+                        text_piece = part.get("text", "")
+                        is_thought = part.get("thought", False)
 
-                    data_str = line[6:].strip()
-                    if data_str == "[DONE]":
-                        continue
+                        if is_thought:
+                            if not in_thinking:
+                                full_content += "<think>\n"
+                                in_thinking = True
+                            full_content += text_piece
+                        else:
+                            if in_thinking:
+                                full_content += "\n</think>\n\n"
+                                in_thinking = False
+                            full_content += text_piece
 
-                    try:
-                        chunk = json.loads(data_str)
-                        candidates = chunk.get("candidates", [])
-                        if candidates:
-                            parts = candidates[0].get("content", {}).get("parts", [])
-                            if parts:
-                                text_piece = parts[0].get("text", "")
-                                full_content += text_piece
+                        stream_broadcaster.broadcast(json.dumps({
+                            "type": "content",
+                            "stream_id": stream_id,
+                            "content": text_piece,
+                            "in_thinking": is_thought,
+                            "endpoint_url": "Gemini API"
+                        }))
 
-                                is_thought = parts[0].get("thought", False)
-                                stream_broadcaster.broadcast(json.dumps({
-                                    "type": "content",
-                                    "stream_id": stream_id,
-                                    "content": text_piece,
-                                    "in_thinking": is_thought,
-                                    "endpoint_url": "Gemini API"
-                                }))
-
-                        if "usageMetadata" in chunk:
-                            usage_metadata = chunk["usageMetadata"]
-                            usage = {
-                                "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
-                                "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
-                                "total_tokens": usage_metadata.get("totalTokenCount", 0)
-                            }
-                    except json.JSONDecodeError:
-                        continue
+                usage_metadata = data.get("usageMetadata", {})
+                usage = {
+                    "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
+                    "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
+                    "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                }
+        if in_thinking:
+            full_content += "\n</think>\n\n"
 
         stream_broadcaster.broadcast(json.dumps({
             "type": "end",
@@ -623,7 +688,16 @@ class OllamaService:
             "endpoint_url": "Gemini API"
         }))
 
-        final_content = extract_json_from_mixed_text(full_content)
+        final_content = full_content
+        if "<think>" in full_content:
+            think_part = ""
+            think_match = re.search(r"(<think>.*?</think>)", full_content, re.DOTALL)
+            if think_match:
+                think_part = think_match.group(1) + "\n\n"
+            cleaned_json = extract_json_from_mixed_text(full_content)
+            final_content = think_part + cleaned_json
+        else:
+            final_content = extract_json_from_mixed_text(full_content)
 
         res = {
             "id": f"chatcmpl-{int(datetime.now().timestamp())}",
