@@ -1846,6 +1846,7 @@ Provide your response strictly in the following format:
             document.getElementById('geminiMaxTokensInput').value = extra.maxOutputTokens !== undefined ? extra.maxOutputTokens : "8192";
             document.getElementById('geminiThinkingLevel').value = extra.thinkingLevel || "none";
             document.getElementById('geminiThinkingBudget').value = extra.thinkingBudget !== undefined ? extra.thinkingBudget : "1024";
+            document.getElementById('geminiServiceTier').value = extra.serviceTier || "standard";
 
             const modalEl = document.getElementById('geminiConfigModal');
             let modal = bootstrap.Modal.getInstance(modalEl);
@@ -1861,12 +1862,14 @@ Provide your response strictly in the following format:
             const maxOutputTokens = document.getElementById('geminiMaxTokensInput').value.trim();
             const thinkingLevel = document.getElementById('geminiThinkingLevel').value;
             const thinkingBudget = document.getElementById('geminiThinkingBudget').value.trim();
+            const serviceTier = document.getElementById('geminiServiceTier').value;
 
             const extraConfig = JSON.stringify({
                 temperature: temperature ? parseFloat(temperature) : null,
                 maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens) : null,
                 thinkingLevel: thinkingLevel,
-                thinkingBudget: thinkingBudget ? parseInt(thinkingBudget) : 1024
+                thinkingBudget: thinkingBudget ? parseInt(thinkingBudget) : 1024,
+                serviceTier: serviceTier
             });
 
             await updateEndpointConfig('Gemini API', true, '', apiKey, extraConfig);
@@ -2052,6 +2055,13 @@ Provide your response strictly in the following format:
                         <div class="col-md-6">
                             <label for="geminiThinkingBudget" class="form-label">Thinking Budget (Tokens)</label>
                             <input type="number" class="form-control" id="geminiThinkingBudget" placeholder="1024">
+                        </div>
+                        <div class="col-md-6 mt-3">
+                            <label for="geminiServiceTier" class="form-label">Service Tier</label>
+                            <select class="form-select" id="geminiServiceTier">
+                                <option value="standard">Standard</option>
+                                <option value="flex">Flex (Cheaper, Best-Effort)</option>
+                            </select>
                         </div>
                     </div>
                 </div>

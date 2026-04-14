@@ -22,12 +22,13 @@ const LlmService = (function() {
     const provider = config["LLM_API_PROVIDER"] || "Gemini";
     const apiKey = config["API_KEY"];
     const enableGenericThinking = config["ENABLE_GENERIC_THINKING"] === "TRUE";
+    const geminiServiceTier = config["GEMINI_SERVICE_TIER"] || "standard";
 
     if (provider === "Gemini") {
       if (!apiKey) {
         throw new Error("API_KEY is missing in Configuration for Gemini.");
       }
-      return GeminiAdapter.callGemini(prompt, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, fileBlob);
+      return GeminiAdapter.callGemini(prompt, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, geminiServiceTier, fileBlob);
     } else if (provider === "vLLM") {
       const apiUrl = config["VLLM_API_URL"];
       if (!apiUrl) {
@@ -61,10 +62,11 @@ const LlmService = (function() {
     const provider = config["LLM_API_PROVIDER"] || "Gemini";
     const apiKey = config["API_KEY"];
     const enableGenericThinking = config["ENABLE_GENERIC_THINKING"] === "TRUE";
+    const geminiServiceTier = config["GEMINI_SERVICE_TIER"] || "standard";
 
     if (provider === "Gemini") {
       if (!apiKey) throw new Error("API_KEY is missing in Configuration for Gemini.");
-      return GeminiAdapter.callGeminiParallel(promptsData, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget);
+      return GeminiAdapter.callGeminiParallel(promptsData, apiKey, model, temperature, maxTokens, thinkingLevel, thinkingBudget, geminiServiceTier);
     } else if (provider === "vLLM") {
       const apiUrl = config["VLLM_API_URL"];
       if (!apiUrl) throw new Error("VLLM_API_URL is missing in Configuration for vLLM.");
