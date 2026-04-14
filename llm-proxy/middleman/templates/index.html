@@ -378,16 +378,7 @@
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title" id="historyDetailModalLabel">Request Details</h5>
-                    <div class="ms-3">
-                        <button type="button" class="btn btn-sm btn-outline-light me-1" id="btnPrevDetail"
-                            onclick="showPrevDetail()">
-                            <i class="bi bi-chevron-left"></i> Prev
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-light" id="btnNextDetail"
-                            onclick="showNextDetail()">
-                            Next <i class="bi bi-chevron-right"></i>
-                        </button>
-                    </div>
+
                     <div class="d-flex align-items-center ms-auto me-3 gap-2">
                         <button type="button" class="btn btn-sm btn-light text-primary fw-bold"
                             onclick="openCopyRefinementModal()" title="Copy Prompt Refinement">
@@ -451,7 +442,15 @@
                     </div>
 
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer d-flex justify-content-between">
+                    <div>
+                        <button type="button" class="btn btn-outline-secondary me-1" id="btnPrevDetail" onclick="showPrevDetail()">
+                            <i class="bi bi-chevron-left"></i> Prev
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="btnNextDetail" onclick="showNextDetail()">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
@@ -947,9 +946,32 @@
                     // Raw Prompt
                     const details = document.createElement('details');
                     const summary = document.createElement('summary');
-                    summary.textContent = 'View Full Prompt String';
-                    summary.className = "text-muted small";
-                    summary.style.cursor = "pointer";
+
+                    const summaryContainer = document.createElement('div');
+                    summaryContainer.className = "d-flex justify-content-between align-items-center mt-2";
+
+                    const summaryText = document.createElement('span');
+                    summaryText.textContent = 'View Full Prompt String';
+                    summaryText.className = "text-muted small";
+                    summaryText.style.cursor = "pointer";
+
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = "btn btn-sm btn-outline-secondary";
+                    copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy';
+                    copyBtn.onclick = function(e) {
+                        e.preventDefault();
+                        navigator.clipboard.writeText(userContent).then(() => {
+                            copyBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+                            setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy'; }, 2000);
+                        }).catch(err => {
+                            console.error("Failed to copy text: ", err);
+                        });
+                    };
+
+                    summaryContainer.appendChild(summaryText);
+                    summaryContainer.appendChild(copyBtn);
+                    summary.appendChild(summaryContainer);
+
                     details.appendChild(summary);
 
                     const pre = document.createElement('pre');
@@ -1447,11 +1469,21 @@ Provide your response strictly in the following format:
 
             select.innerHTML = '';
 
-            const streamIds = Object.keys(activeEndpoints);
-            if (streamIds.length === 0) {
+            // Generate list of all available endpoints
+            // We use endpointLabelsMap keys which are populated from queue_stats (local endpoints)
+            const availableEndpoints = Object.keys(endpointLabelsMap);
+
+            // Add Gemini API if it's configured
+            if (window.currentGeminiApiKey) {
+                if (!availableEndpoints.includes('Gemini API')) {
+                    availableEndpoints.push('Gemini API');
+                }
+            }
+
+            if (availableEndpoints.length === 0) {
                 const option = document.createElement('option');
                 option.value = "";
-                option.textContent = "-- No active streams --";
+                option.textContent = "-- No endpoints configured --";
                 select.appendChild(option);
                 updateDisplayForSelectedEndpoint();
                 return;
@@ -1491,7 +1523,7 @@ Provide your response strictly in the following format:
 
         function updateDisplayForSelectedEndpoint() {
             const select = document.getElementById('activeEndpointSelect');
-            const selectedStreamId = select.value;
+            const selectedEndpointUrl = select.value; // Now this is an endpointUrl
             const inProgressCard = document.getElementById('in-progress-card');
             const inProgressTitle = document.getElementById('in-progress-title');
             const inProgressAbstract = document.getElementById('in-progress-abstract');
@@ -1499,27 +1531,41 @@ Provide your response strictly in the following format:
 
             liveStreamBox.innerHTML = '';
 
-            if (!selectedStreamId || !activeEndpoints[selectedStreamId]) {
+            if (!selectedEndpointUrl) {
                 inProgressCard.style.display = 'none';
-                liveStreamBox.textContent = "Select an active stream to view...";
+                liveStreamBox.textContent = "Select an endpoint to view...";
                 return;
             }
 
-            const endpointData = activeEndpoints[selectedStreamId];
-
-            // Update Card
-            inProgressTitle.textContent = endpointData.title || "Unknown Paper";
-            if (endpointData.abstract) {
-                inProgressAbstract.textContent = endpointData.abstract;
-                inProgressAbstract.style.display = 'block';
-            } else {
-                inProgressAbstract.style.display = 'none';
+            // Find an active stream for this endpoint
+            let activeStreamId = null;
+            let endpointData = null;
+            for (const [streamId, data] of Object.entries(activeEndpoints)) {
+                if (data.endpointUrl === selectedEndpointUrl) {
+                    activeStreamId = streamId;
+                    endpointData = data;
+                    break;
+                }
             }
-            inProgressCard.style.display = 'block';
 
-            // Show stream for this endpoint
-            if (streamState[selectedStreamId]) {
-                liveStreamBox.appendChild(streamState[selectedStreamId].container);
+            if (activeStreamId && endpointData) {
+                // Update Card
+                inProgressTitle.textContent = endpointData.title || "Unknown Paper";
+                if (endpointData.abstract) {
+                    inProgressAbstract.textContent = endpointData.abstract;
+                    inProgressAbstract.style.display = 'block';
+                } else {
+                    inProgressAbstract.style.display = 'none';
+                }
+                inProgressCard.style.display = 'block';
+
+                // Show stream for this endpoint
+                if (streamState[activeStreamId]) {
+                    liveStreamBox.appendChild(streamState[activeStreamId].container);
+                }
+            } else {
+                inProgressCard.style.display = 'none';
+                liveStreamBox.innerHTML = '<div class="text-muted fst-italic">Waiting for stream to start on this endpoint...</div>';
             }
         }
 
