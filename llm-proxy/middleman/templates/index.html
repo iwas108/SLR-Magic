@@ -1489,19 +1489,12 @@ Provide your response strictly in the following format:
                 return;
             }
 
-            const seenEndpoints = new Set();
-
-            streamIds.forEach(id => {
-                const data = activeEndpoints[id];
-                if (!seenEndpoints.has(data.endpointUrl)) {
-                    seenEndpoints.add(data.endpointUrl);
-                    let displayUrl = endpointLabelsMap[data.endpointUrl] || data.endpointUrl;
-                    if (data.endpointUrl === 'Gemini API') displayUrl = 'Gemini API';
-                    const option = document.createElement('option');
-                    option.value = id;
-                    option.textContent = displayUrl;
-                    select.appendChild(option);
-                }
+            availableEndpoints.forEach(url => {
+                const displayUrl = endpointLabelsMap[url] || url;
+                const option = document.createElement('option');
+                option.value = url;
+                option.textContent = displayUrl;
+                select.appendChild(option);
             });
 
             let foundCurrent = false;
