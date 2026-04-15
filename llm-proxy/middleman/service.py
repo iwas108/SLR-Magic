@@ -310,7 +310,7 @@ class OllamaService:
                         if key:
                             api_key = key
                             break
-                if openai_payload.get("stream"):
+                if openai_payload.get("stream") or self.stream_mode:
                     result = await self._fetch_via_stream_gemini(openai_payload, model_name, endpoint_url, req_hash, api_key)
                 else:
                     result = await self._fetch_gemini(openai_payload, model_name, endpoint_url, req_hash, api_key)
