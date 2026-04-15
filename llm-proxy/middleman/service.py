@@ -422,11 +422,14 @@ class OllamaService:
             candidates = data.get("candidates", [])
             if not candidates:
                 raise Exception("No candidates returned from Gemini API")
-
             content_text = ""
+            thinking_text = ""
             parts = candidates[0].get("content", {}).get("parts", [])
-            if parts:
-                content_text = parts[0].get("text", "")
+            for part in parts:
+                if part.get("thought", False):
+                    thinking_text += part.get("text", "")
+                else:
+                    content_text += part.get("text", "")
 
             usage_metadata = data.get("usageMetadata", {})
             usage = {
@@ -437,12 +440,17 @@ class OllamaService:
 
             cleaned_content = extract_json_from_mixed_text(content_text)
 
+            final_content = cleaned_content
+            if thinking_text:
+                final_content = f"<think>\n{thinking_text}\n</think>\n\n{cleaned_content}"
+
             res = {
                 "id": f"chatcmpl-{int(datetime.now().timestamp())}",
                 "object": "chat.completion",
                 "created": int(datetime.now().timestamp()),
                 "model": model_name,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": cleaned_content}, "finish_reason": "stop"}],
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}],
+
                 "usage": usage,
                 "endpoint_url": "Gemini API"
             }
