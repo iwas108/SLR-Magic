@@ -603,6 +603,9 @@ class OllamaService:
         async with httpx.AsyncClient(timeout=900.0) as client:
             if is_streaming_enabled:
                 async with client.stream("POST", url, json=gemini_payload) as response:
+                    if response.status_code != 200:
+                        err_text = await response.aread()
+                        logger.error(f"Gemini API stream error: {err_text}")
                     response.raise_for_status()
 
                     async for line in response.aiter_lines():
@@ -618,9 +621,9 @@ class OllamaService:
                             candidates = chunk.get("candidates", [])
                             if candidates:
                                 parts = candidates[0].get("content", {}).get("parts", [])
-                                if parts:
-                                    text_piece = parts[0].get("text", "")
-                                    is_thought = parts[0].get("thought", False)
+                                for part in parts:
+                                    text_piece = part.get("text", "")
+                                    is_thought = part.get("thought", False)
 
                                     if is_thought:
                                         if not in_thinking:
@@ -642,6 +645,7 @@ class OllamaService:
                                     }))
 
                             if "usageMetadata" in chunk:
+
                                 usage_metadata = chunk["usageMetadata"]
                                 usage = {
                                     "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
