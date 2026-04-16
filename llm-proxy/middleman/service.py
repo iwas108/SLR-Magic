@@ -2,7 +2,6 @@ import json
 import asyncio
 import httpx
 import re
-import itertools
 from datetime import datetime
 import hashlib
 import os
@@ -14,10 +13,10 @@ def optimistic_repair_json(text: str) -> str:
     # A robust regex to find JSON string values and escape unescaped double quotes and newlines
     pattern = re.compile(r'("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))', re.DOTALL)
 
-    def replacer(match):
-        start = match.group(1)
-        content = match.group(2)
-        end = match.group(3)
+    def replacer(m):
+        start = m.group(1)
+        content = m.group(2)
+        end = m.group(3)
 
         # Escape double quotes by unescaping first to avoid double-escaping, then escape all
         content = content.replace('\\"', '"').replace('"', '\\"')
@@ -90,9 +89,6 @@ def extract_json_from_mixed_text(text: str) -> str:
 # =====================================================================
 # Service Layer (The OpenAI -> Native Translator)
 # =====================================================================
-
-import base64
-import os
 
 class StreamBroadcaster:
     def __init__(self):
@@ -262,8 +258,8 @@ class OllamaService:
                             pdf_path = os.path.join(os.path.dirname(__file__), "static", "pdfs", f"{pdf_hash}.pdf")
                             os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
                             if not os.path.exists(pdf_path):
-                                with open(pdf_path, "wb") as pdf_file:
-                                    pdf_file.write(raw_pdf_data)
+                                with open(pdf_path, "wb") as pdf_file_obj:
+                                    pdf_file_obj.write(raw_pdf_data)
                             has_pdf = True
 
         if has_pdf:
@@ -338,10 +334,7 @@ class OllamaService:
 
 
     async def _fetch_gemini(self, openai_payload: dict, model_name: str, endpoint_url: str, req_hash: str, api_key: str) -> dict:
-        import httpx
-        import uuid
-
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
 
         contents = []
         for msg in openai_payload.get("messages", []):
@@ -411,11 +404,12 @@ class OllamaService:
                     # If neither 2.5 nor 3, thinking config is simply not attached
                 if extra_conf.get("serviceTier") == "flex":
                     gemini_payload["serviceTier"] = "flex"
-            except Exception as e:
-                logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
+            except Exception as e_conf:
+                logger.error(f"Failed to parse or apply Gemini extra_config: {e_conf}")
 
+        headers = {"x-goog-api-key": api_key}
         async with httpx.AsyncClient(timeout=900.0) as client:
-            response = await client.post(url, json=gemini_payload)
+            response = await client.post(url, json=gemini_payload, headers=headers)
             response.raise_for_status()
             data = response.json()
 
@@ -463,14 +457,7 @@ class OllamaService:
             return res
 
     async def _fetch_via_stream_gemini(self, openai_payload: dict, model_name: str, endpoint_url: str, req_hash: str, api_key: str) -> dict:
-        import httpx
         import uuid
-        import re
-
-        # We will just reuse _fetch_gemini logic for now but fake the streaming via broadcaster
-        # True streaming could be implemented with streamGenerateContent?alt=sse
-        # but let's implement standard streaming for now.
-
 
         is_streaming_enabled = False
         extra_config_str = self.extra_configs.get(endpoint_url, "")
@@ -478,14 +465,13 @@ class OllamaService:
             try:
                 extra_conf = json.loads(extra_config_str)
                 is_streaming_enabled = extra_conf.get("streamingMode", False)
-            except Exception as e:
+            except Exception:
                 pass
 
         if is_streaming_enabled:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:streamGenerateContent?alt=sse&key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:streamGenerateContent?alt=sse"
         else:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
 
         contents = []
         paper_title = "Unknown Paper"
@@ -511,7 +497,6 @@ class OllamaService:
                     paper_title = title_match.group(1).replace('**', '').strip()
                 if abstract_match:
                     paper_abstract = abstract_match.group(1).replace('**', '').strip()
-
 
             if isinstance(msg.get("content"), str):
                 parts.append({"text": msg["content"]})
@@ -550,7 +535,6 @@ class OllamaService:
             }
         }
 
-        extra_config_str = self.extra_configs.get(endpoint_url, "")
         if extra_config_str:
             try:
                 extra_conf = json.loads(extra_config_str)
@@ -559,7 +543,6 @@ class OllamaService:
                 if "maxOutputTokens" in extra_conf and extra_conf["maxOutputTokens"] is not None:
                     gemini_payload["generationConfig"]["maxOutputTokens"] = int(extra_conf["maxOutputTokens"])
                 if extra_conf.get("thinkingLevel") and extra_conf["thinkingLevel"] != "none":
-                    # Thinking is only supported in specific gemini models
                     is_gemini_3 = "gemini-3" in model_name.lower()
                     is_gemini_2_5 = "gemini-2.5" in model_name.lower()
 
@@ -574,11 +557,10 @@ class OllamaService:
                         gemini_payload["generationConfig"]["thinkingConfig"] = {
                             "thinkingBudgetTokens": budget
                         }
-                    # If neither 2.5 nor 3, thinking config is simply not attached
                 if extra_conf.get("serviceTier") == "flex":
                     gemini_payload["serviceTier"] = "flex"
-            except Exception as e:
-                logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
+            except Exception as e_conf:
+                logger.error(f"Failed to parse or apply Gemini extra_config: {e_conf}")
 
         stream_id = str(uuid.uuid4())
 
@@ -601,9 +583,10 @@ class OllamaService:
         usage = {}
         in_thinking = False
 
+        headers = {"x-goog-api-key": api_key}
         async with httpx.AsyncClient(timeout=900.0) as client:
             if is_streaming_enabled:
-                async with client.stream("POST", url, json=gemini_payload) as response:
+                async with client.stream("POST", url, json=gemini_payload, headers=headers) as response:
                     if response.status_code != 200:
                         err_text = await response.aread()
                         logger.error(f"Gemini API stream error: {err_text}")
@@ -656,7 +639,7 @@ class OllamaService:
                         except json.JSONDecodeError:
                             continue
             else:
-                response = await client.post(url, json=gemini_payload)
+                response = await client.post(url, json=gemini_payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
 
