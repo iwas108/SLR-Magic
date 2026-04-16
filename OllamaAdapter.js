@@ -217,7 +217,7 @@ const OllamaAdapter = (function() {
                   promptTokenCount: usage.prompt_tokens || 0,
                   candidatesTokenCount: usage.completion_tokens || 0,
                   totalTokenCount: usage.total_tokens || 0,
-                  thoughtsTokenCount: 0 
+                  thoughtsTokenCount: usage.thoughts_tokens || 0
               };
 
               return {
@@ -344,7 +344,7 @@ const OllamaAdapter = (function() {
                   promptTokenCount: usage.prompt_tokens || 0,
                   candidatesTokenCount: usage.completion_tokens || 0,
                   totalTokenCount: usage.total_tokens || 0,
-                  thoughtsTokenCount: 0
+                  thoughtsTokenCount: usage.thoughts_tokens || 0
               };
 
               return {

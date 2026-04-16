@@ -435,7 +435,8 @@ class OllamaService:
             usage = {
                 "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                 "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
-                "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                "total_tokens": usage_metadata.get("totalTokenCount", 0),
+                "thoughts_tokens": usage_metadata.get("thoughtsTokenCount", 0)
             }
 
             cleaned_content = extract_json_from_mixed_text(content_text)
@@ -645,12 +646,12 @@ class OllamaService:
                                     }))
 
                             if "usageMetadata" in chunk:
-
                                 usage_metadata = chunk["usageMetadata"]
                                 usage = {
                                     "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                                     "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
-                                    "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                                    "total_tokens": usage_metadata.get("totalTokenCount", 0),
+                                    "thoughts_tokens": usage_metadata.get("thoughtsTokenCount", 0)
                                 }
                         except json.JSONDecodeError:
                             continue
@@ -689,7 +690,8 @@ class OllamaService:
                 usage = {
                     "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                     "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
-                    "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                    "total_tokens": usage_metadata.get("totalTokenCount", 0),
+                    "thoughts_tokens": usage_metadata.get("thoughtsTokenCount", 0)
                 }
         if in_thinking:
             full_content += "\n</think>\n\n"
