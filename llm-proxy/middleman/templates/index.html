@@ -1373,6 +1373,13 @@ Provide your response strictly in the following format:
                     if (thinkMatch) {
                         thinking = thinkMatch[1].trim();
                         content = content.replace(/<think>.*?<\/think>/s, '').trim();
+                    } else {
+                        // fallback if unclosed <think>
+                        const parts = content.split('<think>');
+                        if (parts.length > 1) {
+                            thinking = parts[1].trim();
+                            content = parts[0].trim();
+                        }
                     }
                 } else if (msg.thinking) {
                     thinking = msg.thinking;
