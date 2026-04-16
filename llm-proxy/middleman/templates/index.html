@@ -409,6 +409,10 @@
                                     <span><i class="bi bi-gpu-card"></i> <span id="detail-gpu">N/A</span></span>
                                     <span><i class="bi bi-cpu"></i> CPU: <span id="detail-cpu">N/A</span></span>
                                     <span><i class="bi bi-memory"></i> RAM: <span id="detail-ram">N/A</span></span>
+                                    <span><i class="bi bi-123"></i> Prompt Tokens: <span id="detail-tokens-prompt">N/A</span></span>
+                                    <span><i class="bi bi-123"></i> Completion Tokens: <span id="detail-tokens-completion">N/A</span></span>
+                                    <span><i class="bi bi-123"></i> Thoughts Tokens: <span id="detail-tokens-thoughts">N/A</span></span>
+                                    <span><strong class="text-dark">Total Tokens:</strong> <span id="detail-tokens-total" class="fw-bold">N/A</span></span>
                                 </div>
                             </div>
                         </div>
@@ -1294,6 +1298,20 @@ Provide your response strictly in the following format:
             document.getElementById('detail-gpu').textContent = item.is_gpu ? (item.gpu_model || 'GPU Enabled') : 'No GPU';
             document.getElementById('detail-cpu').textContent = item.cpu_model || 'N/A';
             document.getElementById('detail-ram').textContent = item.ram_size || 'N/A';
+
+            try {
+                const resObj = JSON.parse(item.response_json);
+                const usage = resObj.usage || {};
+                document.getElementById('detail-tokens-prompt').textContent = usage.prompt_tokens !== undefined ? usage.prompt_tokens : 'N/A';
+                document.getElementById('detail-tokens-completion').textContent = usage.completion_tokens !== undefined ? usage.completion_tokens : 'N/A';
+                document.getElementById('detail-tokens-thoughts').textContent = usage.thoughts_tokens !== undefined ? usage.thoughts_tokens : 'N/A';
+                document.getElementById('detail-tokens-total').textContent = usage.total_tokens !== undefined ? usage.total_tokens : 'N/A';
+            } catch(e) {
+                document.getElementById('detail-tokens-prompt').textContent = 'N/A';
+                document.getElementById('detail-tokens-completion').textContent = 'N/A';
+                document.getElementById('detail-tokens-thoughts').textContent = 'N/A';
+                document.getElementById('detail-tokens-total').textContent = 'N/A';
+            }
 
             // PDF Link inject
             const headerActions = document.querySelector("#historyDetailModal .modal-header .d-flex");

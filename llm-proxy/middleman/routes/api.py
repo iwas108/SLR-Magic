@@ -164,8 +164,9 @@ async def proxy_to_ollama(request: Request):
         return response_data
 
     except httpx.HTTPError as e:
-        logger.error(f"❌ HTTP Error [{short_hash}] connecting to Ollama: {str(e)}")
-        return JSONResponse(status_code=502, content={"error": f"Ollama connection error: {str(e)}"})
+        sanitized_err = re.sub(r'key=[^&]*', 'key=***', str(e))
+        logger.error(f"❌ HTTP Error [{short_hash}] connecting to Ollama: {sanitized_err}")
+        return JSONResponse(status_code=502, content={"error": f"Ollama connection error: {sanitized_err}"})
     except Exception as e:
         logger.error(f"❌ Internal Server Error [{short_hash}]: {str(e)}")
         return JSONResponse(status_code=500, content={"error": str(e)})
