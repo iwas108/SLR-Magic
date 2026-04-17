@@ -151,9 +151,15 @@ async def proxy_to_ollama(request: Request):
                     break
                 else:
                     logger.warning(f"⚠️ Invalid JSON detected for [{short_hash}] on attempt {attempt + 1}/{max_retries}. Retrying...")
+                    
+                    # Log EVERY failed attempt to history so the user can inspect it
+                    error_res = response_data.copy()
+                    error_res["error"] = f"Failed to produce valid JSON (Attempt {attempt + 1}/{max_retries})"
+                    cache_repo.log_history(model_name, payload, error_res, duration_ms, endpoint_url)
+
                     if attempt == max_retries - 1:
                         logger.error(f"❌ Failed to get valid JSON after {max_retries} attempts for [{short_hash}]. Returning error.")
-                        return JSONResponse(status_code=502, content={"error": "LLM failed to produce valid JSON after retries."})
+                        return JSONResponse(status_code=502, content={"error": "LLM failed to produce valid JSON after retries.", "raw_content": content})
             else:
                 break
 

@@ -259,6 +259,8 @@ class CacheRepository:
         with sqlite3.connect(self.db_file) as conn:
             conn.execute("DELETE FROM history")
             conn.execute("DELETE FROM cache")
+            # Reset the AUTOINCREMENT counter for the history table so IDs start at 1 again
+            conn.execute("DELETE FROM sqlite_sequence WHERE name='history'")
 
 
     def get_config(self, key: str) -> str | None:

@@ -3,7 +3,7 @@
  * Adapter to interact with a Ollama server via an OpenAI-compatible API.
  */
 
-const OllamaAdapter = (function() {
+const OllamaAdapter = (function () {
 
   function extractAndParseJSON(text) {
     let originalText = text;
@@ -14,11 +14,11 @@ const OllamaAdapter = (function() {
     const jsonBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
     const match = text.match(jsonBlockRegex);
     if (match) {
-        try {
-            return JSON.parse(match[1]);
-        } catch (e) {
-            // Ignore and fall through to manual extraction
-        }
+      try {
+        return JSON.parse(match[1]);
+      } catch (e) {
+        // Ignore and fall through to manual extraction
+      }
     }
 
     // 3. Fallback to finding outermost {} or []
@@ -31,47 +31,47 @@ const OllamaAdapter = (function() {
     let endIndex = -1;
 
     if (firstCurly !== -1 && (firstSquare === -1 || firstCurly < firstSquare)) {
-        startIndex = firstCurly;
-        endIndex = lastCurly;
+      startIndex = firstCurly;
+      endIndex = lastCurly;
     } else if (firstSquare !== -1) {
-        startIndex = firstSquare;
-        endIndex = lastSquare;
+      startIndex = firstSquare;
+      endIndex = lastSquare;
     }
 
     if (startIndex !== -1 && endIndex !== -1 && endIndex >= startIndex) {
-        const extracted = text.substring(startIndex, endIndex + 1);
+      const extracted = text.substring(startIndex, endIndex + 1);
+      try {
+        return JSON.parse(extracted);
+      } catch (e) {
+        // Try to fix common JSON errors (like trailing commas) or let it throw
         try {
-            return JSON.parse(extracted);
-        } catch (e) {
-            // Try to fix common JSON errors (like trailing commas) or let it throw
-            try {
-                // Very basic repair: remove trailing commas before } or ]
-                let repaired = extracted.replace(/,\s*([}\]])/g, '$1');
+          // Very basic repair: remove trailing commas before } or ]
+          let repaired = extracted.replace(/,\s*([}\]])/g, '$1');
 
-                // Optimistic repair: escape unescaped double quotes and newlines inside string values
-                repaired = repaired.replace(/("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))/gs, function(match, start, content, end) {
-                    let fixedContent = content.replace(/\\"/g, '"').replace(/"/g, '\\"');
-                    fixedContent = fixedContent.replace(/\n/g, '\\n').replace(/\r/g, '');
-                    return start + fixedContent + end;
-                });
+          // Optimistic repair: escape unescaped double quotes and newlines inside string values
+          repaired = repaired.replace(/("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))/gs, function (match, start, content, end) {
+            let fixedContent = content.replace(/\\"/g, '"').replace(/"/g, '\\"');
+            fixedContent = fixedContent.replace(/\n/g, '\\n').replace(/\r/g, '');
+            return start + fixedContent + end;
+          });
 
-                return JSON.parse(repaired);
-            } catch (e2) {
-                throw new Error("Extracted string is not valid JSON.");
-            }
+          return JSON.parse(repaired);
+        } catch (e2) {
+          throw new Error("Extracted string is not valid JSON.");
         }
+      }
     }
 
     // 4. If all else fails, attempt optimistic repair on the original text before giving up
     try {
-        let repairedOriginal = originalText.replace(/("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))/gs, function(match, start, content, end) {
-            let fixedContent = content.replace(/\\"/g, '"').replace(/"/g, '\\"');
-            fixedContent = fixedContent.replace(/\n/g, '\\n').replace(/\r/g, '');
-            return start + fixedContent + end;
-        });
-        return JSON.parse(repairedOriginal);
+      let repairedOriginal = originalText.replace(/("\w+"\s*:\s*")(.*?)("\s*(?:,|}|]))/gs, function (match, start, content, end) {
+        let fixedContent = content.replace(/\\"/g, '"').replace(/"/g, '\\"');
+        fixedContent = fixedContent.replace(/\n/g, '\\n').replace(/\r/g, '');
+        return start + fixedContent + end;
+      });
+      return JSON.parse(repairedOriginal);
     } catch (finalError) {
-        throw new Error("Extracted string is not valid JSON and could not be repaired.");
+      throw new Error("Extracted string is not valid JSON and could not be repaired.");
     }
   }
 
@@ -95,7 +95,7 @@ const OllamaAdapter = (function() {
     }
 
     if (!model) {
-       console.warn("Model was undefined! The Ollama server might require a specific model name.");
+      console.warn("Model was undefined! The Ollama server might require a specific model name.");
     }
 
     let messages = [];
@@ -180,17 +180,17 @@ const OllamaAdapter = (function() {
         const responseText = response.getContentText();
 
         if (responseCode === 429 || responseCode >= 500) {
-           if (attempt < MAX_RETRIES) {
-             const delay = (BASE_DELAY_MS * Math.pow(2, attempt)) + (Math.random() * 500);
-             const errorType = responseCode === 429 ? "Rate Limit (429)" : `Server Error (${responseCode})`;
-             console.warn(`[OllamaAdapter] ${errorType} hit. Waiting ${Math.round(delay)}ms before retry...`);
+          if (attempt < MAX_RETRIES) {
+            const delay = (BASE_DELAY_MS * Math.pow(2, attempt)) + (Math.random() * 500);
+            const errorType = responseCode === 429 ? "Rate Limit (429)" : `Server Error (${responseCode})`;
+            console.warn(`[OllamaAdapter] ${errorType} hit. Waiting ${Math.round(delay)}ms before retry...`);
 
-             Utilities.sleep(delay);
-             attempt++;
-             continue;
-           } else {
-             throw new Error(`Ollama API Error (${responseCode}): Failed after ${MAX_RETRIES + 1} attempts. Response: ${responseText}`);
-           }
+            Utilities.sleep(delay);
+            attempt++;
+            continue;
+          } else {
+            throw new Error(`Ollama API Error (${responseCode}): Failed after ${MAX_RETRIES + 1} attempts. Response: ${responseText}`);
+          }
         }
 
         if (responseCode !== 200) {
@@ -209,23 +209,23 @@ const OllamaAdapter = (function() {
           }
 
           try {
-              const parsedContent = extractAndParseJSON(contentText);
+            const parsedContent = extractAndParseJSON(contentText);
 
-              // Standardize usage metadata mapping
-              const usage = jsonResponse.usage || {};
-              const mappedUsage = {
-                  promptTokenCount: usage.prompt_tokens || 0,
-                  candidatesTokenCount: usage.completion_tokens || 0,
-                  totalTokenCount: usage.total_tokens || 0,
-                  thoughtsTokenCount: usage.thoughts_tokens || 0
-              };
+            // Standardize usage metadata mapping
+            const usage = jsonResponse.usage || {};
+            const mappedUsage = {
+              promptTokenCount: usage.prompt_tokens || 0,
+              candidatesTokenCount: usage.completion_tokens || 0,
+              totalTokenCount: usage.total_tokens || 0,
+              thoughtsTokenCount: usage.thoughts_tokens || 0
+            };
 
-              return {
-                  content: parsedContent,
-                  usageMetadata: mappedUsage
-              };
+            return {
+              content: parsedContent,
+              usageMetadata: mappedUsage
+            };
           } catch (e) {
-              throw new Error(`Failed to parse JSON from Ollama response: ${e.message}\nContent Attempted: ${contentText}`);
+            throw new Error(`Failed to parse JSON from Ollama response: ${e.message}\nContent Attempted: ${contentText}`);
           }
         } else {
           throw new Error("No choices returned from Ollama API.");
@@ -233,17 +233,17 @@ const OllamaAdapter = (function() {
 
       } catch (e) {
         if (e.message.includes("Ollama API Error") || e.message.includes("Ollama response missing")) {
-            throw e;
+          throw e;
         }
 
         console.error(`[OllamaAdapter] Unexpected error: ${e.message}`);
         if (attempt < MAX_RETRIES) {
-            const delay = (BASE_DELAY_MS * Math.pow(2, attempt));
-            console.warn(`[OllamaAdapter] Retrying after unexpected error in ${Math.round(delay)}ms...`);
-            Utilities.sleep(delay);
-            attempt++;
+          const delay = (BASE_DELAY_MS * Math.pow(2, attempt));
+          console.warn(`[OllamaAdapter] Retrying after unexpected error in ${Math.round(delay)}ms...`);
+          Utilities.sleep(delay);
+          attempt++;
         } else {
-            throw e;
+          throw e;
         }
       }
     }
@@ -325,7 +325,7 @@ const OllamaAdapter = (function() {
         console.log(`[OllamaAdapter] Response ${idx} Content: ${responseText.substring(0, 200)}...`);
 
         if (responseCode !== 200) {
-           return { error: true, message: `Ollama API Error (${responseCode}) on request ${idx}: ${responseText}` };
+          return { error: true, message: `Ollama API Error (${responseCode}) on request ${idx}: ${responseText}` };
         }
 
         const jsonResponse = JSON.parse(responseText);
@@ -338,21 +338,21 @@ const OllamaAdapter = (function() {
           }
 
           try {
-              const parsedContent = extractAndParseJSON(contentText);
-              const usage = jsonResponse.usage || {};
-              const mappedUsage = {
-                  promptTokenCount: usage.prompt_tokens || 0,
-                  candidatesTokenCount: usage.completion_tokens || 0,
-                  totalTokenCount: usage.total_tokens || 0,
-                  thoughtsTokenCount: usage.thoughts_tokens || 0
-              };
+            const parsedContent = extractAndParseJSON(contentText);
+            const usage = jsonResponse.usage || {};
+            const mappedUsage = {
+              promptTokenCount: usage.prompt_tokens || 0,
+              candidatesTokenCount: usage.completion_tokens || 0,
+              totalTokenCount: usage.total_tokens || 0,
+              thoughtsTokenCount: usage.thoughts_tokens || 0
+            };
 
-              return {
-                  content: parsedContent,
-                  usageMetadata: mappedUsage
-              };
+            return {
+              content: parsedContent,
+              usageMetadata: mappedUsage
+            };
           } catch (e) {
-              return { error: true, message: `Failed to parse JSON from Ollama response on request ${idx}: ${e.message}` };
+            return { error: true, message: `Failed to parse JSON from Ollama response on request ${idx}: ${e.message}` };
           }
         } else {
           return { error: true, message: `No choices returned from Ollama API on request ${idx}.` };

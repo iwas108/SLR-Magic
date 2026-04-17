@@ -402,20 +402,25 @@ class OllamaService:
 
                     if is_gemini_3:
                          gemini_payload["generationConfig"]["thinkingConfig"] = {
-                            "thinkingLevel": extra_conf.get("thinkingLevel", "low")
+                            "thinkingLevel": extra_conf.get("thinkingLevel", "low"),
+                            "includeThoughts": True
                          }
                     elif is_gemini_2_5:
                         budget = int(extra_conf.get("thinkingBudget", 1024))
                         if budget < 1024:
                             budget = 1024
                         gemini_payload["generationConfig"]["thinkingConfig"] = {
-                            "thinkingBudgetTokens": budget
+                            "thinkingBudgetTokens": budget,
+                            "includeThoughts": True
                         }
                     # If neither 2.5 nor 3, thinking config is simply not attached
                 if extra_conf.get("serviceTier") == "flex":
                     gemini_payload["serviceTier"] = "flex"
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
+
+        if "thinking" in model_name.lower() and "thinkingConfig" not in gemini_payload["generationConfig"]:
+            gemini_payload["generationConfig"]["thinkingConfig"] = {"includeThoughts": True}
 
         async with httpx.AsyncClient(timeout=900.0) as client:
             response = await client.post(url, json=gemini_payload)
@@ -435,6 +440,7 @@ class OllamaService:
                     content_text += part.get("text", "")
 
             usage_metadata = data.get("usageMetadata", {})
+            #logger.info(f"Gemini API usageMetadata (non-stream): {json.dumps(usage_metadata)}")
             usage = {
                 "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                 "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
@@ -561,20 +567,25 @@ class OllamaService:
 
                     if is_gemini_3:
                          gemini_payload["generationConfig"]["thinkingConfig"] = {
-                            "thinkingLevel": extra_conf.get("thinkingLevel", "low")
+                            "thinkingLevel": extra_conf.get("thinkingLevel", "low"),
+                            "includeThoughts": True
                          }
                     elif is_gemini_2_5:
                         budget = int(extra_conf.get("thinkingBudget", 1024))
                         if budget < 1024:
                             budget = 1024
                         gemini_payload["generationConfig"]["thinkingConfig"] = {
-                            "thinkingBudgetTokens": budget
+                            "thinkingBudgetTokens": budget,
+                            "includeThoughts": True
                         }
                     # If neither 2.5 nor 3, thinking config is simply not attached
                 if extra_conf.get("serviceTier") == "flex":
                     gemini_payload["serviceTier"] = "flex"
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
+
+        if "thinking" in model_name.lower() and "thinkingConfig" not in gemini_payload["generationConfig"]:
+            gemini_payload["generationConfig"]["thinkingConfig"] = {"includeThoughts": True}
 
         stream_id = str(uuid.uuid4())
 
@@ -644,6 +655,7 @@ class OllamaService:
 
                             if "usageMetadata" in chunk:
                                 usage_metadata = chunk["usageMetadata"]
+                                #logger.info(f"Gemini API usageMetadata (stream chunk): {json.dumps(usage_metadata)}")
                                 usage = {
                                     "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                                     "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
@@ -684,6 +696,7 @@ class OllamaService:
                         }))
 
                 usage_metadata = data.get("usageMetadata", {})
+                #logger.info(f"Gemini API usageMetadata (stream fallback): {json.dumps(usage_metadata)}")
                 usage = {
                     "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                     "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
