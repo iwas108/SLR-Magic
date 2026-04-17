@@ -409,6 +409,14 @@
                                     <span><i class="bi bi-gpu-card"></i> <span id="detail-gpu">N/A</span></span>
                                     <span><i class="bi bi-cpu"></i> CPU: <span id="detail-cpu">N/A</span></span>
                                     <span><i class="bi bi-memory"></i> RAM: <span id="detail-ram">N/A</span></span>
+                                    <span><i class="bi bi-123"></i> Prompt Tokens: <span
+                                            id="detail-tokens-prompt">N/A</span></span>
+                                    <span><i class="bi bi-123"></i> Completion Tokens: <span
+                                            id="detail-tokens-completion">N/A</span></span>
+                                    <span><i class="bi bi-123"></i> Thoughts Tokens: <span
+                                            id="detail-tokens-thoughts">N/A</span></span>
+                                    <span><strong class="text-dark">Total Tokens:</strong> <span
+                                            id="detail-tokens-total" class="fw-bold">N/A</span></span>
                                 </div>
                             </div>
                         </div>
@@ -444,10 +452,12 @@
                 </div>
                 <div class="modal-footer d-flex justify-content-between">
                     <div>
-                        <button type="button" class="btn btn-outline-secondary me-1" id="btnPrevDetail" onclick="showPrevDetail()">
+                        <button type="button" class="btn btn-outline-secondary me-1" id="btnPrevDetail"
+                            onclick="showPrevDetail()">
                             <i class="bi bi-chevron-left"></i> Prev
                         </button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnNextDetail" onclick="showNextDetail()">
+                        <button type="button" class="btn btn-outline-secondary" id="btnNextDetail"
+                            onclick="showNextDetail()">
                             Next <i class="bi bi-chevron-right"></i>
                         </button>
                     </div>
@@ -958,7 +968,7 @@
                     const copyBtn = document.createElement('button');
                     copyBtn.className = "btn btn-sm btn-outline-secondary";
                     copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy';
-                    copyBtn.onclick = function(e) {
+                    copyBtn.onclick = function (e) {
                         e.preventDefault();
                         navigator.clipboard.writeText(userContent).then(() => {
                             copyBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
@@ -1248,7 +1258,7 @@ Provide your response strictly in the following format:
 [A short paragraph explaining the exact prompt engineering techniques you will apply to fix the diagnosis.]
 
 ### 3. 🚀 OPTIMIZED PROMPT
-[Insert the complete, ready-to-use rewritten prompt here]
+[Insert the complete, ready-to-use rewritten prompt here, but replace the input with placeholders]
 </output_format>`;
 
             try {
@@ -1294,6 +1304,20 @@ Provide your response strictly in the following format:
             document.getElementById('detail-gpu').textContent = item.is_gpu ? (item.gpu_model || 'GPU Enabled') : 'No GPU';
             document.getElementById('detail-cpu').textContent = item.cpu_model || 'N/A';
             document.getElementById('detail-ram').textContent = item.ram_size || 'N/A';
+
+            try {
+                const resObj = JSON.parse(item.response_json);
+                const usage = resObj.usage || {};
+                document.getElementById('detail-tokens-prompt').textContent = usage.prompt_tokens !== undefined ? usage.prompt_tokens : 'N/A';
+                document.getElementById('detail-tokens-completion').textContent = usage.completion_tokens !== undefined ? usage.completion_tokens : 'N/A';
+                document.getElementById('detail-tokens-thoughts').textContent = usage.thoughts_tokens !== undefined ? usage.thoughts_tokens : 'N/A';
+                document.getElementById('detail-tokens-total').textContent = usage.total_tokens !== undefined ? usage.total_tokens : 'N/A';
+            } catch (e) {
+                document.getElementById('detail-tokens-prompt').textContent = 'N/A';
+                document.getElementById('detail-tokens-completion').textContent = 'N/A';
+                document.getElementById('detail-tokens-thoughts').textContent = 'N/A';
+                document.getElementById('detail-tokens-total').textContent = 'N/A';
+            }
 
             // PDF Link inject
             const headerActions = document.querySelector("#historyDetailModal .modal-header .d-flex");
@@ -1355,6 +1379,13 @@ Provide your response strictly in the following format:
                     if (thinkMatch) {
                         thinking = thinkMatch[1].trim();
                         content = content.replace(/<think>.*?<\/think>/s, '').trim();
+                    } else {
+                        // fallback if unclosed <think>
+                        const parts = content.split('<think>');
+                        if (parts.length > 1) {
+                            thinking = parts[1].trim();
+                            content = parts[0].trim();
+                        }
                     }
                 } else if (msg.thinking) {
                     thinking = msg.thinking;
@@ -2136,7 +2167,8 @@ Provide your response strictly in the following format:
                         <div class="col-md-6 mt-3">
                             <div class="form-check form-switch mt-4">
                                 <input class="form-check-input" type="checkbox" id="geminiStreamingMode">
-                                <label class="form-check-label" for="geminiStreamingMode">Enable Real-Time Streaming (`streamGenerateContent`)</label>
+                                <label class="form-check-label" for="geminiStreamingMode">Enable Real-Time Streaming
+                                    (`streamGenerateContent`)</label>
                             </div>
                         </div>
 

@@ -1,4 +1,5 @@
 import json
+import uuid
 import asyncio
 import httpx
 import re
@@ -306,10 +307,14 @@ class OllamaService:
                 api_key = self.api_keys.get(endpoint_url, "")
                 if not api_key:
                     # fallback to any available key
-                    for key in self.api_keys.values():
-                        if key:
-                            api_key = key
+                    for available_key in self.api_keys.values():
+                        if available_key:
+                            api_key = available_key
                             break
+
+                if not api_key:
+                    raise ValueError(f"No valid Gemini API key found for endpoint {endpoint_url}")
+
                 if openai_payload.get("stream") or self.stream_mode:
                     result = await self._fetch_via_stream_gemini(openai_payload, model_name, endpoint_url, req_hash, api_key)
                 else:
@@ -338,8 +343,6 @@ class OllamaService:
 
 
     async def _fetch_gemini(self, openai_payload: dict, model_name: str, endpoint_url: str, req_hash: str, api_key: str) -> dict:
-        import httpx
-        import uuid
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
 
@@ -399,20 +402,25 @@ class OllamaService:
 
                     if is_gemini_3:
                          gemini_payload["generationConfig"]["thinkingConfig"] = {
-                            "thinkingLevel": extra_conf.get("thinkingLevel", "low")
+                            "thinkingLevel": extra_conf.get("thinkingLevel", "low"),
+                            "includeThoughts": True
                          }
                     elif is_gemini_2_5:
                         budget = int(extra_conf.get("thinkingBudget", 1024))
                         if budget < 1024:
                             budget = 1024
                         gemini_payload["generationConfig"]["thinkingConfig"] = {
-                            "thinkingBudgetTokens": budget
+                            "thinkingBudgetTokens": budget,
+                            "includeThoughts": True
                         }
                     # If neither 2.5 nor 3, thinking config is simply not attached
                 if extra_conf.get("serviceTier") == "flex":
                     gemini_payload["serviceTier"] = "flex"
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
+
+        if "thinking" in model_name.lower() and "thinkingConfig" not in gemini_payload["generationConfig"]:
+            gemini_payload["generationConfig"]["thinkingConfig"] = {"includeThoughts": True}
 
         async with httpx.AsyncClient(timeout=900.0) as client:
             response = await client.post(url, json=gemini_payload)
@@ -432,6 +440,7 @@ class OllamaService:
                     content_text += part.get("text", "")
 
             usage_metadata = data.get("usageMetadata", {})
+            #logger.info(f"Gemini API usageMetadata (non-stream): {json.dumps(usage_metadata)}")
             usage = {
                 "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                 "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
@@ -463,21 +472,14 @@ class OllamaService:
             return res
 
     async def _fetch_via_stream_gemini(self, openai_payload: dict, model_name: str, endpoint_url: str, req_hash: str, api_key: str) -> dict:
-        import httpx
-        import uuid
-        import re
 
-        # We will just reuse _fetch_gemini logic for now but fake the streaming via broadcaster
-        # True streaming could be implemented with streamGenerateContent?alt=sse
-        # but let's implement standard streaming for now.
-
-
-        is_streaming_enabled = False
+        is_streaming_enabled = True
         extra_config_str = self.extra_configs.get(endpoint_url, "")
         if extra_config_str:
             try:
                 extra_conf = json.loads(extra_config_str)
-                is_streaming_enabled = extra_conf.get("streamingMode", False)
+                if "streamingMode" in extra_conf:
+                    is_streaming_enabled = extra_conf["streamingMode"]
             except Exception as e:
                 pass
 
@@ -565,20 +567,25 @@ class OllamaService:
 
                     if is_gemini_3:
                          gemini_payload["generationConfig"]["thinkingConfig"] = {
-                            "thinkingLevel": extra_conf.get("thinkingLevel", "low")
+                            "thinkingLevel": extra_conf.get("thinkingLevel", "low"),
+                            "includeThoughts": True
                          }
                     elif is_gemini_2_5:
                         budget = int(extra_conf.get("thinkingBudget", 1024))
                         if budget < 1024:
                             budget = 1024
                         gemini_payload["generationConfig"]["thinkingConfig"] = {
-                            "thinkingBudgetTokens": budget
+                            "thinkingBudgetTokens": budget,
+                            "includeThoughts": True
                         }
                     # If neither 2.5 nor 3, thinking config is simply not attached
                 if extra_conf.get("serviceTier") == "flex":
                     gemini_payload["serviceTier"] = "flex"
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
+
+        if "thinking" in model_name.lower() and "thinkingConfig" not in gemini_payload["generationConfig"]:
+            gemini_payload["generationConfig"]["thinkingConfig"] = {"includeThoughts": True}
 
         stream_id = str(uuid.uuid4())
 
@@ -606,7 +613,8 @@ class OllamaService:
                 async with client.stream("POST", url, json=gemini_payload) as response:
                     if response.status_code != 200:
                         err_text = await response.aread()
-                        logger.error(f"Gemini API stream error: {err_text}")
+                        sanitized_err_text = re.sub(r'key=[^&"\']*', 'key=***', str(err_text))
+                        logger.error(f"Gemini API stream error: {sanitized_err_text}")
                     response.raise_for_status()
 
                     async for line in response.aiter_lines():
@@ -647,6 +655,7 @@ class OllamaService:
 
                             if "usageMetadata" in chunk:
                                 usage_metadata = chunk["usageMetadata"]
+                                #logger.info(f"Gemini API usageMetadata (stream chunk): {json.dumps(usage_metadata)}")
                                 usage = {
                                     "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                                     "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
@@ -687,6 +696,7 @@ class OllamaService:
                         }))
 
                 usage_metadata = data.get("usageMetadata", {})
+                #logger.info(f"Gemini API usageMetadata (stream fallback): {json.dumps(usage_metadata)}")
                 usage = {
                     "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                     "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
@@ -767,8 +777,6 @@ class OllamaService:
             }
 
     async def _fetch_via_stream(self, native_payload: dict, model_name: str, messages: list, endpoint_url: str) -> dict:
-        import re
-        import uuid
 
         stream_id = str(uuid.uuid4())
         paper_title = "Unknown Paper"
