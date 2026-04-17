@@ -410,6 +410,17 @@
                                     <span><i class="bi bi-cpu"></i> CPU: <span id="detail-cpu">N/A</span></span>
                                     <span><i class="bi bi-memory"></i> RAM: <span id="detail-ram">N/A</span></span>
                                 </div>
+                                <div class="card-footer py-2 bg-info-subtle d-flex justify-content-between flex-wrap small border-top-0"
+                                    id="detail-tokens-row" style="display:none !important;">
+                                    <span><i class="bi bi-box-arrow-in-right"></i> Prompt: <span
+                                            id="detail-tokens-prompt" class="fw-bold">0</span></span>
+                                    <span><i class="bi bi-box-arrow-right"></i> Output: <span
+                                            id="detail-tokens-completion" class="fw-bold">0</span></span>
+                                    <span><i class="bi bi-lightbulb"></i> Thinking: <span id="detail-tokens-thinking"
+                                            class="fw-bold">0</span></span>
+                                    <span class="text-dark"><i class="bi bi-calculator"></i> Total: <span
+                                            id="detail-tokens-total" class="fw-bold">0</span></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -444,10 +455,12 @@
                 </div>
                 <div class="modal-footer d-flex justify-content-between">
                     <div>
-                        <button type="button" class="btn btn-outline-secondary me-1" id="btnPrevDetail" onclick="showPrevDetail()">
+                        <button type="button" class="btn btn-outline-secondary me-1" id="btnPrevDetail"
+                            onclick="showPrevDetail()">
                             <i class="bi bi-chevron-left"></i> Prev
                         </button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnNextDetail" onclick="showNextDetail()">
+                        <button type="button" class="btn btn-outline-secondary" id="btnNextDetail"
+                            onclick="showNextDetail()">
                             Next <i class="bi bi-chevron-right"></i>
                         </button>
                     </div>
@@ -717,8 +730,12 @@
             if (!confirm("Are you sure you want to delete all history?")) return;
             try {
                 await fetch('/api/history', { method: 'DELETE' });
+                currentPage = 1;
                 loadHistory();
-                document.getElementById('details-card').style.display = 'none';
+                const detailsCard = document.getElementById('details-card');
+                if (detailsCard) {
+                    detailsCard.style.display = 'none';
+                }
             } catch (e) {
                 console.error("Failed to clear history", e);
             }
@@ -958,7 +975,7 @@
                     const copyBtn = document.createElement('button');
                     copyBtn.className = "btn btn-sm btn-outline-secondary";
                     copyBtn.innerHTML = '<i class="bi bi-clipboard"></i> Copy';
-                    copyBtn.onclick = function(e) {
+                    copyBtn.onclick = function (e) {
                         e.preventDefault();
                         navigator.clipboard.writeText(userContent).then(() => {
                             copyBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
@@ -1182,7 +1199,7 @@
             const finalAnswer = document.getElementById('detail-result').textContent || "No final answer available.";
 
             const template = `<system>
-You are an Elite AI Prompt Engineer and Accuracy Optimizer. Your sole objective is to analyze the execution trace of an LLM prompt, diagnose inefficiencies or logical failures, and heavily optimize the original prompt to eliminate hallucinations, prevent logic loops, and drastically improve zero-shot accuracy and speed.
+You are an Elite AI Prompt Engineer and Accuracy Optimizer. Your sole objective is to analyze the execution trace of an LLM prompt, diagnose inefficiencies or logical failures, and heavily optimize the original prompt to achieve 99% deterministic reproducibility, eliminate hallucinations, eradicate semantic ambiguity, and drastically improve zero-shot accuracy and speed.
 </system>
 
 <research_context>
@@ -1217,24 +1234,25 @@ STEP 1: LATENCY & OVERTHINKING AUDIT
 - Identify if the model debated instructions (e.g., arguing about formatting, markdown, or rules).
 - Identify if the model fell into a "Verification Loop" (e.g., over-apologizing, repeating "Wait, let me check again").
 
-STEP 2: SEMANTIC & TEMPLATE HALLUCINATION CHECK
+STEP 2: SEMANTIC AMBIGUITY & HALLUCINATION CHECK
 - Compare the <final_output> against the <original_prompt> and <research_context> constraints.
+- Detect "Subjectivity & Wavering": Did the model struggle with borderline definitions or use free-form reasoning that could lead to inconsistent conclusions (latent space drift) across multiple runs?
 - Detect "Template Blindness": Did the model output the wrong JSON because it blindly mimicked a hardcoded example in the prompt instead of processing the actual text?
 - Detect "Semantic Blindness": Did the model ignore explicit literal keywords due to surrounding semantic context?
 
 STEP 3: REWRITE STRATEGY (NEW)
 - Outline exactly *what* structural changes you will make to the prompt to fix the issues identified in Steps 1 and 2. 
 
-STEP 4: PROMPT RECONSTRUCTION
-Rewrite the <original_prompt> applying these advanced principles based on your strategy:
-1. Constrained Output Generation: If overthinking was detected, inject a strict, minimalist <think> framework constraint.
-2. Fail-Fast Logic: Structure rules sequentially so the model processes abort/trigger conditions immediately.
-3. Explicit Directives: Clearly define if the task requires literal extraction (like a RegEx engine) or semantic analysis.
+STEP 4: PROMPT RECONSTRUCTION (CRITICAL FOR 99% REPRODUCIBILITY)
+Rewrite the <original_prompt> applying these advanced principles based on your strategy to guarantee deterministic outputs:
+1. Deterministic Boolean Logic: If wavering or latent space drift is detected, replace free-form `< think > ` instructions with strict, mandatory `[YES / NO]` sub-checklists. Force the model to answer concrete questions to lock in its reasoning before allowing it to trigger a gate.
+2. Anti-Hallucination Edge-Case Rules: Inject explicit definitions directly into the gate triggers to handle ambiguous boundary cases (e.g., explicitly stating that certain domain buzzwords do or do NOT clear a gate).
+3. Fail-Fast Logic: Structure rules sequentially so the model processes abort/trigger conditions immediately.
 4. Schema Sanitization: Strip highly specific data values from JSON examples in the prompt, replacing them with generic type indicators (e.g., "<string: user's exact quote>") to prevent mimicry.
 
 NEGATIVE CONSTRAINTS:
 - DO NOT change the original EC code terminology in the <original_prompt>.
-- DO NOT invent errors. If the <model_thinking_trace> is efficient and accurate, state that no major rewrite is needed and only provide minor optimizations.
+- DO NOT invent errors. If the <model_thinking_trace> is efficient and highly deterministic, state that no major rewrite is needed and only provide minor optimizations.
 - DO NOT include pleasantries in your final output.
 </instructions>
 
@@ -1242,7 +1260,7 @@ NEGATIVE CONSTRAINTS:
 Provide your response strictly in the following format:
 
 ### 1. 🔍 DIAGNOSIS
-[A brief, punchy, bulleted explanation of why the original prompt failed, was slow, or hallucinated.]
+[A brief, punchy, bulleted explanation of why the original prompt failed, was slow, hallucinated, or lacked deterministic rigidity.]
 
 ### 2. 🧠 OPTIMIZATION STRATEGY
 [A short paragraph explaining the exact prompt engineering techniques you will apply to fix the diagnosis.]
@@ -1350,15 +1368,25 @@ Provide your response strictly in the following format:
 
                 content = msg.content || "";
 
+                let nativeThinking = msg.thinking ? msg.thinking.trim() : "";
+                let tagThinking = "";
+
                 if (content.includes("<think>")) {
-                    const thinkMatch = content.match(/<think>(.*?)<\/think>/s);
+                    const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
                     if (thinkMatch) {
-                        thinking = thinkMatch[1].trim();
-                        content = content.replace(/<think>.*?<\/think>/s, '').trim();
+                        tagThinking = thinkMatch[1].trim();
+                        content = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
                     }
-                } else if (msg.thinking) {
-                    thinking = msg.thinking;
                 }
+
+                let combinedThinking = [];
+                if (nativeThinking) {
+                    combinedThinking.push("=== Native Thinking ===\n" + nativeThinking);
+                }
+                if (tagThinking) {
+                    combinedThinking.push("=== <think> Tag ===\n" + tagThinking);
+                }
+                thinking = combinedThinking.join("\n\n");
 
                 if (!content) {
                     if (resObj.error) {
@@ -1366,6 +1394,23 @@ Provide your response strictly in the following format:
                     } else {
                         content = JSON.stringify(resObj, null, 2);
                     }
+                }
+
+                let usage = resObj.usage || {};
+                let promptTokens = usage.prompt_tokens || resObj.prompt_eval_count || 0;
+                let completionTokens = usage.completion_tokens || resObj.eval_count || 0;
+                let thoughtsTokens = usage.thoughts_tokens || 0;
+                let totalTokens = usage.total_tokens || (promptTokens + completionTokens);
+
+                const tokensRow = document.getElementById('detail-tokens-row');
+                if (totalTokens > 0 || promptTokens > 0 || completionTokens > 0) {
+                    tokensRow.style.setProperty('display', 'flex', 'important');
+                    document.getElementById('detail-tokens-prompt').textContent = promptTokens;
+                    document.getElementById('detail-tokens-completion').textContent = completionTokens;
+                    document.getElementById('detail-tokens-thinking').textContent = thoughtsTokens;
+                    document.getElementById('detail-tokens-total').textContent = totalTokens;
+                } else {
+                    tokensRow.style.setProperty('display', 'none', 'important');
                 }
 
             } catch (e) {
@@ -1887,6 +1932,7 @@ Provide your response strictly in the following format:
             document.getElementById('geminiThinkingLevel').value = extra.thinkingLevel || "none";
             document.getElementById('geminiThinkingBudget').value = extra.thinkingBudget !== undefined ? extra.thinkingBudget : "1024";
             document.getElementById('geminiServiceTier').value = extra.serviceTier || "standard";
+            document.getElementById('geminiStreamMode').value = extra.streamMode === true ? "true" : "false";
 
             const modalEl = document.getElementById('geminiConfigModal');
             let modal = bootstrap.Modal.getInstance(modalEl);
@@ -1903,13 +1949,15 @@ Provide your response strictly in the following format:
             const thinkingLevel = document.getElementById('geminiThinkingLevel').value;
             const thinkingBudget = document.getElementById('geminiThinkingBudget').value.trim();
             const serviceTier = document.getElementById('geminiServiceTier').value;
+            const streamMode = document.getElementById('geminiStreamMode').value === "true";
 
             const extraConfig = JSON.stringify({
                 temperature: temperature ? parseFloat(temperature) : null,
                 maxOutputTokens: maxOutputTokens ? parseInt(maxOutputTokens) : null,
                 thinkingLevel: thinkingLevel,
                 thinkingBudget: thinkingBudget ? parseInt(thinkingBudget) : 1024,
-                serviceTier: serviceTier
+                serviceTier: serviceTier,
+                streamMode: streamMode
             });
 
             await updateEndpointConfig('Gemini API', true, '', apiKey, extraConfig);
@@ -2101,6 +2149,13 @@ Provide your response strictly in the following format:
                             <select class="form-select" id="geminiServiceTier">
                                 <option value="standard">Standard</option>
                                 <option value="flex">Flex (Cheaper, Best-Effort)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mt-3">
+                            <label for="geminiStreamMode" class="form-label">Streaming Mode</label>
+                            <select class="form-select" id="geminiStreamMode">
+                                <option value="false">generateContent (Standard)</option>
+                                <option value="true">streamGenerateContent (Streaming)</option>
                             </select>
                         </div>
                     </div>

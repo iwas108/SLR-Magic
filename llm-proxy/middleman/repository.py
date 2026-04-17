@@ -258,6 +258,7 @@ class CacheRepository:
     def clear_history(self):
         with sqlite3.connect(self.db_file) as conn:
             conn.execute("DELETE FROM history")
+            conn.execute("DELETE FROM sqlite_sequence WHERE name='history'")
             conn.execute("DELETE FROM cache")
 
 

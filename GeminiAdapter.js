@@ -210,9 +210,17 @@ const GeminiAdapter = (function() {
           try {
               const parsedContent = extractAndParseJSON(contentText);
 
+              const usage = jsonResponse.usageMetadata || {};
+              const promptTokens = usage.promptTokenCount || 0;
+              const completionTokens = usage.candidatesTokenCount || 0;
               return {
                   content: parsedContent,
-                  usageMetadata: jsonResponse.usageMetadata || {}
+                  usageMetadata: {
+                      promptTokenCount: promptTokens,
+                      candidatesTokenCount: completionTokens,
+                      totalTokenCount: usage.totalTokenCount || (promptTokens + completionTokens),
+                      thoughtsTokenCount: usage.thoughtsTokenCount || 0
+                  }
               };
           } catch (e) {
               throw new Error(`Failed to parse JSON from Gemini response: ${e.message}\nContent Attempted: ${contentText}`);
@@ -326,9 +334,17 @@ const GeminiAdapter = (function() {
           const contentText = candidate.content.parts[0].text;
           try {
               const parsedContent = extractAndParseJSON(contentText);
+              const usage = jsonResponse.usageMetadata || {};
+              const promptTokens = usage.promptTokenCount || 0;
+              const completionTokens = usage.candidatesTokenCount || 0;
               return {
                   content: parsedContent,
-                  usageMetadata: jsonResponse.usageMetadata || {}
+                  usageMetadata: {
+                      promptTokenCount: promptTokens,
+                      candidatesTokenCount: completionTokens,
+                      totalTokenCount: usage.totalTokenCount || (promptTokens + completionTokens),
+                      thoughtsTokenCount: usage.thoughtsTokenCount || 0
+                  }
               };
           } catch (e) {
               return { error: true, message: `Failed to parse JSON from Gemini response on request ${idx}: ${e.message}` };

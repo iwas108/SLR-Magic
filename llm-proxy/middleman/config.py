@@ -11,6 +11,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("middleman")
 
+# Disable httpx INFO logging to prevent leaking API keys in URLs
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 class Config:
     OLLAMA_URLS = ["http://127.0.0.1:11434/api/chat"]
     DB_FILE = "slr_cache.db"
