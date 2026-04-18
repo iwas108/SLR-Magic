@@ -1245,7 +1245,7 @@ STEP 3: REWRITE STRATEGY (NEW)
 
 STEP 4: PROMPT RECONSTRUCTION (CRITICAL FOR 99% REPRODUCIBILITY)
 Rewrite the <original_prompt> applying these advanced principles based on your strategy to guarantee deterministic outputs:
-1. Deterministic Boolean Logic: If wavering or latent space drift is detected, replace free-form `< think > ` instructions with strict, mandatory `[YES / NO]` sub-checklists. Force the model to answer concrete questions to lock in its reasoning before allowing it to trigger a gate.
+1. Deterministic Boolean Logic: If wavering or latent space drift is detected, replace free-form < think >  instructions with strict, mandatory [YES / NO] sub-checklists. Force the model to answer concrete questions to lock in its reasoning before allowing it to trigger a gate.
 2. Anti-Hallucination Edge-Case Rules: Inject explicit definitions directly into the gate triggers to handle ambiguous boundary cases (e.g., explicitly stating that certain domain buzzwords do or do NOT clear a gate).
 3. Fail-Fast Logic: Structure rules sequentially so the model processes abort/trigger conditions immediately.
 4. Schema Sanitization: Strip highly specific data values from JSON examples in the prompt, replacing them with generic type indicators (e.g., "<string: user's exact quote>") to prevent mimicry.
