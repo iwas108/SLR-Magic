@@ -30,6 +30,7 @@ def optimistic_repair_json(text: str) -> str:
 def extract_json_from_mixed_text(text: str) -> str:
     # First, strip valid think blocks
     text_no_think = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    text_no_think = re.sub(r"### LOGIC TRACE.*?### FINAL DECISION", "", text_no_think, flags=re.DOTALL)
 
     # Check if it has markdown json block
     match = re.search(r"```(?:json)?\s*(.*?)\s*```", text_no_think, re.DOTALL | re.IGNORECASE)
@@ -310,7 +311,16 @@ class OllamaService:
                         if key:
                             api_key = key
                             break
-                if openai_payload.get("stream"):
+                force_stream = False
+                extra_config_str = self.extra_configs.get(endpoint_url, "")
+                if extra_config_str:
+                    try:
+                        extra_conf = json.loads(extra_config_str)
+                        force_stream = extra_conf.get("streamMode", False)
+                    except:
+                        pass
+
+                if openai_payload.get("stream") or force_stream:
                     result = await self._fetch_via_stream_gemini(openai_payload, model_name, endpoint_url, req_hash, api_key)
                 else:
                     result = await self._fetch_gemini(openai_payload, model_name, endpoint_url, req_hash, api_key)
@@ -410,7 +420,7 @@ class OllamaService:
                         }
                     # If neither 2.5 nor 3, thinking config is simply not attached
                 if extra_conf.get("serviceTier") == "flex":
-                    gemini_payload["service_tier"] = "FLEX"
+                    gemini_payload["service_tier"] = "flex"
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
 
@@ -424,25 +434,43 @@ class OllamaService:
                 raise Exception("No candidates returned from Gemini API")
 
             content_text = ""
+            native_thinking_text = ""
             parts = candidates[0].get("content", {}).get("parts", [])
-            if parts:
-                content_text = parts[0].get("text", "")
+            for part in parts:
+                if part.get("thought", False):
+                    native_thinking_text += part.get("text", "")
+                else:
+                    content_text += part.get("text", "")
 
             usage_metadata = data.get("usageMetadata", {})
             usage = {
                 "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                 "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
-                "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                "total_tokens": usage_metadata.get("totalTokenCount", 0),
+                "thoughts_tokens": usage_metadata.get("thoughtsTokenCount", 0)
             }
 
             cleaned_content = extract_json_from_mixed_text(content_text)
+            
+            if "<think>" in content_text:
+                think_match = re.search(r"(<think>.*?</think>)", content_text, re.DOTALL)
+                if think_match:
+                    cleaned_content = f"{think_match.group(1)}\n\n{cleaned_content}"
+            elif "### LOGIC TRACE" in content_text:
+                logic_match = re.search(r"(### LOGIC TRACE.*?(?=### FINAL DECISION|\{))", content_text, re.DOTALL)
+                if logic_match:
+                    cleaned_content = f"<think>\n{logic_match.group(1).strip()}\n</think>\n\n{cleaned_content}"
+
+            msg = {"role": "assistant", "content": cleaned_content}
+            if native_thinking_text:
+                msg["thinking"] = native_thinking_text
 
             res = {
                 "id": f"chatcmpl-{int(datetime.now().timestamp())}",
                 "object": "chat.completion",
                 "created": int(datetime.now().timestamp()),
                 "model": model_name,
-                "choices": [{"index": 0, "message": {"role": "assistant", "content": cleaned_content}, "finish_reason": "stop"}],
+                "choices": [{"index": 0, "message": msg, "finish_reason": "stop"}],
                 "usage": usage,
                 "endpoint_url": "Gemini API"
             }
@@ -553,7 +581,7 @@ class OllamaService:
                         }
                     # If neither 2.5 nor 3, thinking config is simply not attached
                 if extra_conf.get("serviceTier") == "flex":
-                    gemini_payload["service_tier"] = "FLEX"
+                    gemini_payload["service_tier"] = "flex"
             except Exception as e:
                 logger.error(f"Failed to parse or apply Gemini extra_config: {e}")
 
@@ -575,6 +603,7 @@ class OllamaService:
         stream_broadcaster.broadcast(json.dumps(start_payload))
 
         full_content = ""
+        native_thinking_text = ""
         usage = {}
 
         async with httpx.AsyncClient(timeout=900.0) as client:
@@ -594,11 +623,15 @@ class OllamaService:
                         candidates = chunk.get("candidates", [])
                         if candidates:
                             parts = candidates[0].get("content", {}).get("parts", [])
-                            if parts:
-                                text_piece = parts[0].get("text", "")
-                                full_content += text_piece
+                            for part in parts:
+                                text_piece = part.get("text", "")
+                                is_thought = part.get("thought", False)
 
-                                is_thought = parts[0].get("thought", False)
+                                if is_thought:
+                                    native_thinking_text += text_piece
+                                else:
+                                    full_content += text_piece
+
                                 stream_broadcaster.broadcast(json.dumps({
                                     "type": "content",
                                     "stream_id": stream_id,
@@ -612,7 +645,8 @@ class OllamaService:
                             usage = {
                                 "prompt_tokens": usage_metadata.get("promptTokenCount", 0),
                                 "completion_tokens": usage_metadata.get("candidatesTokenCount", 0),
-                                "total_tokens": usage_metadata.get("totalTokenCount", 0)
+                                "total_tokens": usage_metadata.get("totalTokenCount", 0),
+                                "thoughts_tokens": usage_metadata.get("thoughtsTokenCount", 0)
                             }
                     except json.JSONDecodeError:
                         continue
@@ -623,14 +657,26 @@ class OllamaService:
             "endpoint_url": "Gemini API"
         }))
 
-        final_content = extract_json_from_mixed_text(full_content)
+        cleaned_content = extract_json_from_mixed_text(full_content)
+        if "<think>" in full_content:
+            think_match = re.search(r"(<think>.*?</think>)", full_content, re.DOTALL)
+            if think_match:
+                cleaned_content = f"{think_match.group(1)}\n\n{cleaned_content}"
+        elif "### LOGIC TRACE" in full_content:
+            logic_match = re.search(r"(### LOGIC TRACE.*?(?=### FINAL DECISION|\{))", full_content, re.DOTALL)
+            if logic_match:
+                cleaned_content = f"<think>\n{logic_match.group(1).strip()}\n</think>\n\n{cleaned_content}"
+
+        msg = {"role": "assistant", "content": cleaned_content}
+        if native_thinking_text:
+            msg["thinking"] = native_thinking_text
 
         res = {
             "id": f"chatcmpl-{int(datetime.now().timestamp())}",
             "object": "chat.completion",
             "created": int(datetime.now().timestamp()),
             "model": model_name,
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": final_content}, "finish_reason": "stop"}],
+            "choices": [{"index": 0, "message": msg, "finish_reason": "stop"}],
             "usage": usage,
             "endpoint_url": "Gemini API"
         }
@@ -667,6 +713,10 @@ class OllamaService:
                 think_match = re.search(r"(<think>.*?</think>)", raw_content, re.DOTALL)
                 if think_match:
                     final_content = f"{think_match.group(1)}\n\n{cleaned_content}"
+            elif "### LOGIC TRACE" in raw_content:
+                logic_match = re.search(r"(### LOGIC TRACE.*?(?=### FINAL DECISION|\{))", raw_content, re.DOTALL)
+                if logic_match:
+                    final_content = f"<think>\n{logic_match.group(1).strip()}\n</think>\n\n{cleaned_content}"
 
             return {
                 "id": f"chatcmpl-{int(datetime.now().timestamp())}",
@@ -799,12 +849,16 @@ class OllamaService:
         # 2. TRANSLATE BACK TO OPENAI FORMAT
         # Attempt to cleanly extract JSON from the final assembled content
         final_content = full_content
-        if is_prefilled or "<think>" in full_content:
+        if is_prefilled or "<think>" in full_content or "### LOGIC TRACE" in full_content:
             # If thinking is present, we still want to return it but we ensure the non-thinking part is clean JSON
             think_part = ""
             think_match = re.search(r"(<think>.*?</think>)", full_content, re.DOTALL)
             if think_match:
                 think_part = think_match.group(1) + "\n\n"
+            else:
+                logic_match = re.search(r"(### LOGIC TRACE.*?(?=### FINAL DECISION|\{))", full_content, re.DOTALL)
+                if logic_match:
+                    think_part = f"<think>\n{logic_match.group(1).strip()}\n</think>\n\n"
             cleaned_json = extract_json_from_mixed_text(full_content)
             final_content = think_part + cleaned_json
         else:

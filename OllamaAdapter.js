@@ -213,11 +213,13 @@ const OllamaAdapter = (function() {
 
               // Standardize usage metadata mapping
               const usage = jsonResponse.usage || {};
+              const promptTokens = usage.prompt_tokens || jsonResponse.prompt_eval_count || 0;
+              const completionTokens = usage.completion_tokens || jsonResponse.eval_count || 0;
               const mappedUsage = {
-                  promptTokenCount: usage.prompt_tokens || 0,
-                  candidatesTokenCount: usage.completion_tokens || 0,
-                  totalTokenCount: usage.total_tokens || 0,
-                  thoughtsTokenCount: 0 
+                  promptTokenCount: promptTokens,
+                  candidatesTokenCount: completionTokens,
+                  totalTokenCount: usage.total_tokens || (promptTokens + completionTokens),
+                  thoughtsTokenCount: usage.thoughts_tokens || 0
               };
 
               return {
@@ -340,11 +342,13 @@ const OllamaAdapter = (function() {
           try {
               const parsedContent = extractAndParseJSON(contentText);
               const usage = jsonResponse.usage || {};
+              const promptTokens = usage.prompt_tokens || jsonResponse.prompt_eval_count || 0;
+              const completionTokens = usage.completion_tokens || jsonResponse.eval_count || 0;
               const mappedUsage = {
-                  promptTokenCount: usage.prompt_tokens || 0,
-                  candidatesTokenCount: usage.completion_tokens || 0,
-                  totalTokenCount: usage.total_tokens || 0,
-                  thoughtsTokenCount: 0
+                  promptTokenCount: promptTokens,
+                  candidatesTokenCount: completionTokens,
+                  totalTokenCount: usage.total_tokens || (promptTokens + completionTokens),
+                  thoughtsTokenCount: usage.thoughts_tokens || 0
               };
 
               return {
