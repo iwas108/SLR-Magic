@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        text-align: center;
+        background-color: #f4f4f9;
+        color: #333;
+      }
+      a.btn {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #3498db;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+        margin-top: 20px;
+      }
+      a.btn:hover {
+        background-color: #2980b9;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>Your CSV is ready</h3>
+    <p>Click the button below to download the CSV file.</p>
+    <a id="downloadBtn" class="btn" href="#" download="<?= filename ?>">Download CSV</a>
+
+    <script>
+      // The backend provides csvContent as a base64 encoded string to avoid string escaping issues
+      // when passing long string containing quotes/newlines to HTML.
+      const base64Data = "<?= csvContent ?>";
+
+      // Convert base64 to Blob
+      function b64toBlob(b64Data, contentType='', sliceSize=512) {
+        const byteCharacters = atob(b64Data);
+        const byteArrays = [];
+
+        for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+          const slice = byteCharacters.slice(offset, offset + sliceSize);
+
+          const byteNumbers = new Array(slice.length);
+          for (let i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
+          }
+
+          const byteArray = new Uint8Array(byteNumbers);
+          byteArrays.push(byteArray);
+        }
+
+        const blob = new Blob(byteArrays, {type: contentType});
+        return blob;
+      }
+
+      const blob = b64toBlob(base64Data, 'text/csv');
+      const blobUrl = URL.createObjectURL(blob);
+      const downloadBtn = document.getElementById('downloadBtn');
+      downloadBtn.href = blobUrl;
+    </script>
+  </body>
+</html>
