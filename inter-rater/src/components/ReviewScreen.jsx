@@ -171,7 +171,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
         </button>
 
         <button
-          className="btn btn-outline-dark"
+          className="btn btn-infobtn btn-sm btn-outline-primary"
           onClick={() => onNavigate('dashboard')}
         >
           Dashboard
