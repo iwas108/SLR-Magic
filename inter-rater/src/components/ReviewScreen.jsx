@@ -92,7 +92,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
               </h2>
               <div id="collapseAI" className="accordion-collapse collapse show" data-bs-parent="#paperAccordion">
                 <div className="accordion-body">
-                  <p><strong>Decision:</strong> <span className="badge bg-info">{currentRow.decision || 'N/A'}</span></p>
+                  <p><strong>Decision:</strong> <span className={`badge ${currentRow.decision === 'Exclude' ? 'bg-danger' : currentRow.decision === 'Include' ? 'bg-success' : 'bg-info'}`}>{currentRow.decision || 'N/A'}</span></p>
                   <p><strong>Reasoning:</strong> {currentRow.reasoning || 'N/A'}</p>
                 </div>
               </div>
