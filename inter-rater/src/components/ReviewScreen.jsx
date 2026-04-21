@@ -59,7 +59,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
 
   return (
     <div className="container mt-3 mb-5 pb-5">
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      <div className="d-flex justify-content-between align-items-left mb-3">
         <h4>Reviewing: {session.filename}</h4>
         <span className="badge bg-secondary">
           {currentIndex + 1} of {session.data.length}
