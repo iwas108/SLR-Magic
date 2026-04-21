@@ -31,6 +31,11 @@ SLR Magic follows **Clean Code Architecture** principles to ensure maintainabili
 *   **Services/Adapters**: specialized modules for external services (e.g., `GeminiAdapter` for AI calls).
 *   **Utils**: Shared helper functions (`SheetUtils`, `DriveUtils`, `ConfigManager`).
 
+### Microservices
+*   **`llm-proxy`**: A backend proxy handling local endpoints (Ollama/vLLM) and Gemini API bridging, ensuring proper caching, request multiplexing, and cost tracking.
+*   **`pdfhelper`**: A FastAPI service that automates PDF downloading via dummy proxy (EzProxy) authentication and applies PDF compression.
+*   **`inter-rater`**: A standalone React Single-Page Application (SPA) for human-in-the-loop validation of AI decisions. Play with the live version here: [https://iwas108.github.io/SLR-Magic/inter-rater/dist/](https://iwas108.github.io/SLR-Magic/inter-rater/dist/)
+
 ---
 
 ## 📸 Screenshots

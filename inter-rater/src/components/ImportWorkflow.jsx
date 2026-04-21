@@ -56,7 +56,7 @@ const ImportWorkflow = ({ onNavigate }) => {
 
   return (
     <div className="container mt-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex justify-content-between align-items-left mb-4">
         <h2>Import New Review</h2>
         <button className="btn btn-outline-secondary" onClick={() => onNavigate('dashboard')}>
           Back to Dashboard

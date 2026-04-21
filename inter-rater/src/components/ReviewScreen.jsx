@@ -59,7 +59,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
 
   return (
     <div className="container mt-3 mb-5 pb-5">
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      <div className="d-flex justify-content-between align-items-left mb-3">
         <h4>Reviewing: {session.filename}</h4>
         <span className="badge bg-secondary">
           {currentIndex + 1} of {session.data.length}
@@ -92,7 +92,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
               </h2>
               <div id="collapseAI" className="accordion-collapse collapse show" data-bs-parent="#paperAccordion">
                 <div className="accordion-body">
-                  <p><strong>Decision:</strong> <span className="badge bg-info">{currentRow.decision || 'N/A'}</span></p>
+                  <p><strong>Decision:</strong> <span className={`badge ${currentRow.decision === 'Exclude' ? 'bg-danger' : currentRow.decision === 'Include' ? 'bg-success' : 'bg-info'}`}>{currentRow.decision || 'N/A'}</span></p>
                   <p><strong>Reasoning:</strong> {currentRow.reasoning || 'N/A'}</p>
                 </div>
               </div>
@@ -161,7 +161,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
       </div>
 
       {/* Fixed bottom navigation for mobile */}
-      <div className="fixed-bottom bg-light border-top p-3 d-flex justify-content-between align-items-center shadow-lg">
+      <div className="fixed-bottom bg-body-tertiary border-top p-3 d-flex justify-content-between align-items-center shadow-lg">
         <button
           className="btn btn-secondary"
           onClick={handlePrevious}
@@ -171,7 +171,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
         </button>
 
         <button
-          className="btn btn-outline-dark"
+          className="btn btn-sm btn-outline-primary"
           onClick={() => onNavigate('dashboard')}
         >
           Dashboard
