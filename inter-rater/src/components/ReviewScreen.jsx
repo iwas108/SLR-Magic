@@ -161,7 +161,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
       </div>
 
       {/* Fixed bottom navigation for mobile */}
-      <div className="fixed-bottom bg-light border-top p-3 d-flex justify-content-between align-items-center shadow-lg">
+      <div className="fixed-bottom bg-body-tertiary border-top p-3 d-flex justify-content-between align-items-center shadow-lg">
         <button
           className="btn btn-secondary"
           onClick={handlePrevious}
