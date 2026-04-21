@@ -22,7 +22,8 @@ function onOpen() {
         .addItem('Import PDF Files', 'presentPDFImportUI')
         .addItem('Import PDF Metadata (CSV)', 'runImportFileMetadata')
         .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
-        .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks'))
+        .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks')
+        .addItem('Import Quality Check from CSV', 'presentImportQCUI'))
     .addSeparator()
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
     .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
@@ -32,11 +33,13 @@ function onOpen() {
     .addSubMenu(SpreadsheetApp.getUi().createMenu('Title-Abstract Quality Check')
         .addItem('Generate Quality Check List', 'generateTitleAbsQualityCheck')
         .addItem('Run Quality Check Assistant', 'runTitleAbsQualityCheck')
-        .addItem('Calculate QC Score', 'calculateTitleAbsQCScore'))
+        .addItem('Calculate QC Score', 'calculateTitleAbsQCScore')
+        .addItem('Export Quality Check to CSV', 'exportTitleAbsQualityCheckCSV'))
     .addSubMenu(SpreadsheetApp.getUi().createMenu('Full-Text Quality Check')
         .addItem('Generate Quality Check List', 'generateQualityCheck')
         .addItem('Run Quality Check Assistant', 'runQualityCheck')
-        .addItem('Calculate QC Score', 'calculateQCScore'))
+        .addItem('Calculate QC Score', 'calculateQCScore')
+        .addItem('Export Quality Check to CSV', 'exportFullTextQualityCheckCSV'))
     .addSeparator()
     .addItem('Umbrellanizer (Data Categorizer)', 'runUmbrellanizer')
     .addItem('Process Data Collection', 'runDataCollection')
@@ -246,6 +249,48 @@ function runTitleAbsQualityCheck() {
  */
 function calculateTitleAbsQCScore() {
   QualityCheckController.calculateQCScore("title-abs");
+}
+
+/**
+ * Exports Title-Abstract Quality Check to CSV.
+ */
+function exportTitleAbsQualityCheckCSV() {
+  const csvContent = QualityCheckController.exportQualityCheckCSV("title-abs");
+  const html = HtmlService.createTemplateFromFile('ExportCSVUI');
+  html.csvContent = Utilities.base64Encode(csvContent, Utilities.Charset.UTF_8);
+  html.filename = "TitleAbs_QualityCheck.csv";
+  const ui = html.evaluate().setWidth(400).setHeight(200).setTitle('Export CSV');
+  SpreadsheetApp.getUi().showModalDialog(ui, 'Download CSV');
+}
+
+/**
+ * Exports Full-Text Quality Check to CSV.
+ */
+function exportFullTextQualityCheckCSV() {
+  const csvContent = QualityCheckController.exportQualityCheckCSV("full-text");
+  const html = HtmlService.createTemplateFromFile('ExportCSVUI');
+  html.csvContent = Utilities.base64Encode(csvContent, Utilities.Charset.UTF_8);
+  html.filename = "FullText_QualityCheck.csv";
+  const ui = html.evaluate().setWidth(400).setHeight(200).setTitle('Export CSV');
+  SpreadsheetApp.getUi().showModalDialog(ui, 'Download CSV');
+}
+
+/**
+ * Shows the UI to import Quality Check data from a CSV file.
+ */
+function presentImportQCUI() {
+  const html = HtmlService.createHtmlOutputFromFile('ImportQCUI')
+    .setWidth(400)
+    .setHeight(300)
+    .setTitle('Import Quality Check CSV');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Import CSV');
+}
+
+/**
+ * Server-side handler to process the imported CSV data.
+ */
+function processImportQC(csvContent, phase) {
+  return QualityCheckController.syncQualityCheck(csvContent, phase);
 }
 
 /**

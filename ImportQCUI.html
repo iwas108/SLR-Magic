@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        background-color: #f4f4f9;
+        color: #333;
+      }
+      h2 {
+        color: #2c3e50;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+        margin-top: 0;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+      select, input[type="file"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #3498db;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-weight: bold;
+        width: 100%;
+      }
+      button:hover {
+        background-color: #2980b9;
+      }
+      button:disabled {
+        background-color: #95a5a6;
+        cursor: not-allowed;
+      }
+      #statusMessage {
+        margin-top: 15px;
+        font-weight: bold;
+        padding: 10px;
+        border-radius: 4px;
+        display: none;
+      }
+      .success {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .error {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      .info {
+        background-color: #cce5ff;
+        color: #004085;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Import Quality Check CSV</h2>
+
+    <div class="form-group">
+      <label for="phaseSelect">Quality Check Phase</label>
+      <select id="phaseSelect">
+        <option value="title-abs">Title-Abstract (02_titleabs_quality_check)</option>
+        <option value="full-text">Full-Text (04_fulltext_quality_check)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="csvFileInput">Select CSV File</label>
+      <input type="file" id="csvFileInput" accept=".csv" />
+    </div>
+
+    <button id="importBtn" onclick="handleImport()">Import CSV</button>
+
+    <div id="statusMessage"></div>
+
+    <script>
+      function showStatus(message, type) {
+        const statusDiv = document.getElementById('statusMessage');
+        statusDiv.textContent = message;
+        statusDiv.className = type;
+        statusDiv.style.display = 'block';
+      }
+
+      function handleImport() {
+        const fileInput = document.getElementById('csvFileInput');
+        const phase = document.getElementById('phaseSelect').value;
+        const btn = document.getElementById('importBtn');
+
+        if (fileInput.files.length === 0) {
+          showStatus("Please select a CSV file.", "error");
+          return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+          const content = e.target.result;
+
+          btn.disabled = true;
+          showStatus("Importing data... Please wait.", "info");
+
+          google.script.run
+            .withSuccessHandler(function(result) {
+              btn.disabled = false;
+              showStatus(result, "success");
+            })
+            .withFailureHandler(function(error) {
+              btn.disabled = false;
+              showStatus("Error: " + error.message, "error");
+            })
+            .processImportQC(content, phase);
+        };
+
+        reader.onerror = function() {
+          showStatus("Error reading file.", "error");
+        };
+
+        reader.readAsText(file);
+      }
+    </script>
+  </body>
+</html>

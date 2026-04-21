@@ -589,6 +589,135 @@ var QualityCheckController = (function() {
   }
 
   /**
+   * Exports Quality Check Data to CSV string.
+   */
+  function exportQualityCheckCSV(phase) {
+    console.log(`[QualityCheck] Exporting CSV for phase: ${phase}`);
+    let targetSheetName = phase === "title-abs" ? "02_titleabs_quality_check" : "04_fulltext_quality_check";
+    const sheet = SheetUtils.getSheetByName(targetSheetName);
+    if (!sheet) {
+      throw new Error(`Sheet "${targetSheetName}" not found.`);
+    }
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length === 0) {
+      throw new Error("No data to export.");
+    }
+
+    // Convert 2D array to CSV string
+    // Escape quotes and fields containing commas or newlines
+    const csvContent = data.map(row => {
+      return row.map(cell => {
+        let cellStr = String(cell);
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n') || cellStr.includes('\r')) {
+          cellStr = cellStr.replace(/"/g, '""');
+          return `"${cellStr}"`;
+        }
+        return cellStr;
+      }).join(',');
+    }).join('\n');
+
+    return csvContent;
+  }
+
+  /**
+   * Imports and syncs Quality Check Data from CSV.
+   * Updates only the HUMAN_QC_ columns based on Paper_ID.
+   */
+  function syncQualityCheck(csvContent, phase) {
+    console.log(`[QualityCheck] Syncing CSV for phase: ${phase}`);
+    let targetSheetName = phase === "title-abs" ? "02_titleabs_quality_check" : "04_fulltext_quality_check";
+    const sheet = SheetUtils.getSheetByName(targetSheetName);
+    if (!sheet) {
+      throw new Error(`Sheet "${targetSheetName}" not found.`);
+    }
+
+    const csvData = CsvParser.parseCsvToObjects(csvContent);
+    if (csvData.length === 0) {
+      throw new Error("No data found in the CSV.");
+    }
+
+    // Validate Paper_ID column
+    const sampleRow = csvData[0];
+    if (!("Paper_ID" in sampleRow)) {
+      throw new Error("Validation Error: CSV must contain a 'Paper_ID' column.");
+    }
+
+    const sheetDataRange = sheet.getDataRange();
+    const sheetValues = sheetDataRange.getValues();
+    if (sheetValues.length < 2) {
+      throw new Error("Target sheet has no data rows to update.");
+    }
+
+    const headers = sheetValues[0];
+    const headerMap = {};
+    headers.forEach((h, i) => headerMap[h] = i);
+
+    if (!("Paper_ID" in headerMap)) {
+      throw new Error("Target sheet missing 'Paper_ID' header.");
+    }
+
+    const paperIdIdx = headerMap["Paper_ID"];
+
+    // HUMAN_QC_ columns to update
+    const qcColumns = [
+      "HUMAN_QC_Reviewer",
+      "HUMAN_QC_Decision_Agree",
+      "HUMAN_QC_Reason_Valid",
+      "HUMAN_QC_Data_Extraction_Score",
+      "HUMAN_QC_Critical_Correction"
+    ];
+
+    // Build map of Paper_ID -> row index for fast lookup
+    const paperIdToRowIdx = {};
+    for (let i = 1; i < sheetValues.length; i++) {
+      let pid = String(sheetValues[i][paperIdIdx]).trim();
+      if (pid) {
+        paperIdToRowIdx[pid] = i;
+      }
+    }
+
+    let updatedCount = 0;
+    let missingCount = 0;
+
+    csvData.forEach(csvRow => {
+      let pid = String(csvRow["Paper_ID"]).trim();
+      if (!pid) return;
+
+      if (pid in paperIdToRowIdx) {
+        let rowIdx = paperIdToRowIdx[pid];
+        let rowUpdated = false;
+
+        qcColumns.forEach(col => {
+          if (col in csvRow && col in headerMap) {
+            let colIdx = headerMap[col];
+            // Only update if there's a difference to avoid unnecessary writes,
+            // or just overwrite since we batch write anyway
+            sheetValues[rowIdx][colIdx] = csvRow[col];
+            rowUpdated = true;
+          }
+        });
+
+        if (rowUpdated) updatedCount++;
+      } else {
+        missingCount++;
+        console.warn(`[QualityCheck] Paper_ID not found in sheet: ${pid}`);
+      }
+    });
+
+    if (updatedCount > 0) {
+      // Write back all values
+      sheetDataRange.setValues(sheetValues);
+    }
+
+    let summary = `Successfully updated ${updatedCount} rows.`;
+    if (missingCount > 0) {
+      summary += `\nWarning: ${missingCount} Paper_IDs from CSV were not found in the sheet.`;
+    }
+    return summary;
+  }
+
+  /**
    * Syncs included PDFs to the Gold Mine folder.
    */
   function syncGoldMine() {
@@ -699,6 +828,8 @@ var QualityCheckController = (function() {
     getQualityCheckData,
     saveQualityCheckRow,
     calculateQCScore,
+    exportQualityCheckCSV,
+    syncQualityCheck,
     syncGoldMine,
     showQualityCheckSetupDialog,
     saveQualityCheckConfig
