@@ -101,6 +101,7 @@
     <div id="main-content" style="display:none;">
       <div class="tabs">
         <div class="tab active" onclick="openTab('general')">General & Models</div>
+        <div class="tab" onclick="openTab('metadata')">Research Metadata</div>
         <div class="tab" onclick="openTab('prompts')">Prompts</div>
         <div class="tab" onclick="openTab('files')">Files & Folders</div>
         <div class="tab" onclick="openTab('advanced')">Advanced</div>
@@ -160,6 +161,26 @@
           <div class="form-group">
             <label for="THE_EXTENDED_MINER_MODEL">The Extended Miner Model</label>
             <input type="text" id="THE_EXTENDED_MINER_MODEL" name="THE_EXTENDED_MINER_MODEL">
+          </div>
+        </div>
+
+        <!-- Research Metadata -->
+        <div id="metadata" class="tab-content">
+          <div class="form-group">
+            <label for="PROJECT_NAME">Project Name</label>
+            <input type="text" id="PROJECT_NAME" name="PROJECT_NAME">
+          </div>
+          <div class="form-group">
+            <label for="RESEARCH_QUESTIONS">Research Questions</label>
+            <textarea id="RESEARCH_QUESTIONS" name="RESEARCH_QUESTIONS" style="height: 100px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="INCLUSION_CRITERIA">Inclusion Criteria</label>
+            <textarea id="INCLUSION_CRITERIA" name="INCLUSION_CRITERIA" style="height: 100px;"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="EXCLUSION_CRITERIA">Exclusion Criteria</label>
+            <textarea id="EXCLUSION_CRITERIA" name="EXCLUSION_CRITERIA" style="height: 100px;"></textarea>
           </div>
         </div>
 
