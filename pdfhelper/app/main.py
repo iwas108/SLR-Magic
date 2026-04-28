@@ -27,6 +27,9 @@ async def startup_event():
 # Templates setup
 templates = Jinja2Templates(directory="app/templates")
 
+# Static files setup
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
 # API Router
 api_router = APIRouter()
 
