@@ -7,9 +7,9 @@ const Setup = (function() {
 
   const SHEETS_TO_CREATE = [
     "01_abstract_screening",
-    "02_titleabs_quality_check",
+    "02_titleabs_inter_rater",
     "03_fulltext_screening",
-    "04_fulltext_quality_check",
+    "04_fulltext_inter_rater",
     "05_data_collection",
     "98_file_metadata"
   ];

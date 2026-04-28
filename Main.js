@@ -22,24 +22,21 @@ function onOpen() {
         .addItem('Import PDF Files', 'presentPDFImportUI')
         .addItem('Import PDF Metadata (CSV)', 'runImportFileMetadata')
         .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
-        .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks')
-        .addItem('Import Quality Check from CSV', 'presentImportQCUI'))
+        .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks'))
     .addSeparator()
     .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
     .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
     .addItem('Start AI Extended Miner', 'runExtendedMiner')
     .addItem('Manage Background AI Extended Miner', 'manageExtendedMinerTrigger')
     .addSeparator()
-    .addSubMenu(SpreadsheetApp.getUi().createMenu('Title-Abstract Quality Check')
-        .addItem('Generate Quality Check List', 'generateTitleAbsQualityCheck')
-        .addItem('Run Quality Check Assistant', 'runTitleAbsQualityCheck')
-        .addItem('Calculate QC Score', 'calculateTitleAbsQCScore')
-        .addItem('Export Quality Check to CSV', 'exportTitleAbsQualityCheckCSV'))
-    .addSubMenu(SpreadsheetApp.getUi().createMenu('Full-Text Quality Check')
-        .addItem('Generate Quality Check List', 'generateQualityCheck')
-        .addItem('Run Quality Check Assistant', 'runQualityCheck')
-        .addItem('Calculate QC Score', 'calculateQCScore')
-        .addItem('Export Quality Check to CSV', 'exportFullTextQualityCheckCSV'))
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Title-Abstract Inter-Rater')
+        .addItem('Export Blinded Review (.slr)', 'exportTitleAbsInterRater')
+        .addItem('Import Blinded Results (.slr)', 'importTitleAbsInterRater')
+        .addItem('Calculate Inter-Rater Score', 'calculateTitleAbsInterRaterScore'))
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('Full-Text Inter-Rater')
+        .addItem('Export Blinded Review (.slr)', 'exportFullTextInterRater')
+        .addItem('Import Blinded Results (.slr)', 'importFullTextInterRater')
+        .addItem('Calculate Inter-Rater Score', 'calculateFullTextInterRaterScore'))
     .addSeparator()
     .addItem('Umbrellanizer (Data Categorizer)', 'runUmbrellanizer')
     .addItem('Process Data Collection', 'runDataCollection')
@@ -210,90 +207,6 @@ function runFullTextScreening() {
 }
 
 /**
- * Generates the sample list for Full-Text Quality Check.
- */
-function generateQualityCheck() {
-  QualityCheckController.generateQualityCheck("full-text");
-}
-
-/**
- * Opens the Assistant UI for Full-Text.
- */
-function runQualityCheck() {
-  QualityCheckController.runQualityCheck("full-text");
-}
-
-/**
- * Calculates and summarizes the full-text quality check score.
- */
-function calculateQCScore() {
-  QualityCheckController.calculateQCScore("full-text");
-}
-
-/**
- * Generates the sample list for Title-Abstract Quality Check.
- */
-function generateTitleAbsQualityCheck() {
-  QualityCheckController.generateQualityCheck("title-abs");
-}
-
-/**
- * Opens the Assistant UI for Title-Abstract.
- */
-function runTitleAbsQualityCheck() {
-  QualityCheckController.runQualityCheck("title-abs");
-}
-
-/**
- * Calculates and summarizes the title-abstract quality check score.
- */
-function calculateTitleAbsQCScore() {
-  QualityCheckController.calculateQCScore("title-abs");
-}
-
-/**
- * Exports Title-Abstract Quality Check to CSV.
- */
-function exportTitleAbsQualityCheckCSV() {
-  const csvContent = QualityCheckController.exportQualityCheckCSV("title-abs");
-  const html = HtmlService.createTemplateFromFile('ExportCSVUI');
-  html.csvContent = Utilities.base64Encode(csvContent, Utilities.Charset.UTF_8);
-  html.filename = "TitleAbs_QualityCheck.csv";
-  const ui = html.evaluate().setWidth(400).setHeight(200).setTitle('Export CSV');
-  SpreadsheetApp.getUi().showModalDialog(ui, 'Download CSV');
-}
-
-/**
- * Exports Full-Text Quality Check to CSV.
- */
-function exportFullTextQualityCheckCSV() {
-  const csvContent = QualityCheckController.exportQualityCheckCSV("full-text");
-  const html = HtmlService.createTemplateFromFile('ExportCSVUI');
-  html.csvContent = Utilities.base64Encode(csvContent, Utilities.Charset.UTF_8);
-  html.filename = "FullText_QualityCheck.csv";
-  const ui = html.evaluate().setWidth(400).setHeight(200).setTitle('Export CSV');
-  SpreadsheetApp.getUi().showModalDialog(ui, 'Download CSV');
-}
-
-/**
- * Shows the UI to import Quality Check data from a CSV file.
- */
-function presentImportQCUI() {
-  const html = HtmlService.createHtmlOutputFromFile('ImportQCUI')
-    .setWidth(400)
-    .setHeight(300)
-    .setTitle('Import Quality Check CSV');
-  SpreadsheetApp.getUi().showModalDialog(html, 'Import CSV');
-}
-
-/**
- * Server-side handler to process the imported CSV data.
- */
-function processImportQC(csvContent, phase) {
-  return QualityCheckController.syncQualityCheck(csvContent, phase);
-}
-
-/**
  * Opens the Umbrellanizer (Data Categorizer) UI.
  */
 function runUmbrellanizer() {
@@ -329,29 +242,40 @@ function runDataCollection() {
 }
 
 /**
- * Wrapper for syncing PDFs to Gold Mine.
+ * Inter-Rater endpoints
  */
-function syncGoldMine() {
-  return QualityCheckController.syncGoldMine();
+function exportTitleAbsInterRater() {
+  InterRaterController.showExportDialog("title-abs");
 }
 
-/**
- * Server-side handler for getting data.
- */
-function getQualityCheckData() {
-  const phase = PropertiesService.getScriptProperties().getProperty("QC_PHASE") || "full-text";
-  const targetSheetName = phase === "title-abs" ? "02_titleabs_quality_check" : "04_fulltext_quality_check";
-  return QualityCheckController.getQualityCheckData(targetSheetName);
+function importTitleAbsInterRater() {
+  InterRaterController.showImportDialog("title-abs");
 }
 
-/**
- * Server-side handler for saving data.
- */
-function saveQualityCheckRow(paperId, data, reviewerName) {
-  const phase = PropertiesService.getScriptProperties().getProperty("QC_PHASE") || "full-text";
-  const targetSheetName = phase === "title-abs" ? "02_titleabs_quality_check" : "04_fulltext_quality_check";
-  return QualityCheckController.saveQualityCheckRow(paperId, data, reviewerName, targetSheetName);
+function calculateTitleAbsInterRaterScore() {
+  InterRaterController.calculateScore("title-abs");
 }
+
+function exportFullTextInterRater() {
+  InterRaterController.showExportDialog("full-text");
+}
+
+function importFullTextInterRater() {
+  InterRaterController.showImportDialog("full-text");
+}
+
+function calculateFullTextInterRaterScore() {
+  InterRaterController.calculateScore("full-text");
+}
+
+function processInterRaterExport(phase, sampleType, sampleValue) {
+  return InterRaterController.processExport(phase, sampleType, sampleValue);
+}
+
+function processInterRaterImport(phase, jsonData) {
+  return InterRaterController.processImport(phase, jsonData);
+}
+
 
 /**
  * Manages the background screening trigger for Abstract Screening.
@@ -542,36 +466,10 @@ function processCopyScreenedPapers(columnName, includedValues, columnsToCopy) {
 }
 
 /**
- * Server-side handler for saving Quality Check Configuration.
- */
-function saveQualityCheckConfig(config) {
-  return QualityCheckController.saveQualityCheckConfig(config);
-}
-
-/**
- * Server-side handler for submitting setup and generating check list.
- */
-function submitQualityCheckSetup(config) {
-  return QualityCheckController.submitQualityCheckSetup(config);
-}
-
-/**
  * Server-side handler for getting full-text screening columns.
  */
 function getFullTextScreeningColumns() {
   return FullTextScreeningController.getFullTextScreeningColumns();
-}
-
-/**
- * Server-side handler for getting columns for the Quality Check Setup UI based on the active phase.
- */
-function getColumnsForQualityCheck() {
-  const phase = PropertiesService.getScriptProperties().getProperty("QC_PHASE") || "full-text";
-  if (phase === "title-abs") {
-    return FullTextScreeningController.getAbstractScreeningColumns();
-  } else {
-    return FullTextScreeningController.getFullTextScreeningColumns();
-  }
 }
 
 /**
