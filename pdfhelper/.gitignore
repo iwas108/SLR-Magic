@@ -6,10 +6,14 @@ zotero_chrome_profile\*
 chrome_profile
 temp_pdfs
 "Manual Download"
-*.json
+
 Downloaded_PDFs
 *.log
 database.csv
 .venv
 .venv\**
 *.db
+# Ignore specific JSON files instead of all of them
+database.json
+settings.json
+node_modules
