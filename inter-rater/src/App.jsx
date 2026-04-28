@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap/dist/js/bootstrap.bundle.min.js';
-
 import Dashboard from './components/Dashboard';
 import ImportWorkflow from './components/ImportWorkflow';
 import ReviewScreen from './components/ReviewScreen';
@@ -14,7 +11,11 @@ function App() {
   });
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-bs-theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
     localStorage.setItem('theme', theme);
   }, [theme]);
 
@@ -32,14 +33,17 @@ function App() {
   };
 
   return (
-    <div className="App bg-body min-vh-100 pb-5">
-      <nav className="navbar navbar-expand-lg bg-body-tertiary mb-4">
-        <div className="container">
-          <span className="navbar-brand mb-0 h1 cursor-pointer" onClick={() => handleNavigate('dashboard')} style={{cursor: 'pointer'}}>
+    <div className="App bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen pb-12 transition-colors duration-200">
+      <nav className="bg-gray-100 dark:bg-gray-800 mb-8 py-4 shadow-sm transition-colors duration-200">
+        <div className="container mx-auto px-4 flex justify-between items-center">
+          <span className="text-xl font-bold cursor-pointer" onClick={() => handleNavigate('dashboard')}>
             SLR Magic Inter-Rater
           </span>
 
-          <button className="btn btn-outline-secondary" onClick={toggleTheme}>
+          <button
+            className="px-4 py-2 border border-gray-400 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            onClick={toggleTheme}
+          >
             {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
           </button>
         </div>
