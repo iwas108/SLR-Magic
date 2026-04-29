@@ -1,19 +1,24 @@
-import { useState } from 'react'
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Layout from './components/Layout';
+import Realtime from './pages/Realtime';
+import History from './pages/History';
+import Stats from './pages/Stats';
+import Configuration from './pages/Configuration';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
-      <h1 className="text-4xl font-bold text-blue-600 mb-4">llm-proxy Frontend</h1>
-      <button
-        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-        onClick={() => setCount((count) => count + 1)}
-      >
-        count is {count}
-      </button>
-    </div>
-  )
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Realtime />} />
+          <Route path="history" element={<History />} />
+          <Route path="stats" element={<Stats />} />
+          <Route path="configuration" element={<Configuration />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
