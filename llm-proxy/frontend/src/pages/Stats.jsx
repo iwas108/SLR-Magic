@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchStats, fetchQueueStats } from '../services/api';
 import { BarChart2, Server, List } from 'lucide-react';
 
@@ -6,13 +6,6 @@ const Stats = () => {
     const [stats, setStats] = useState(null);
     const [queueStats, setQueueStats] = useState(null);
     const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        loadData();
-        // Refresh every 5 seconds
-        const interval = setInterval(loadData, 5000);
-        return () => clearInterval(interval);
-    }, []);
 
     const loadData = async () => {
         try {
@@ -28,6 +21,13 @@ const Stats = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadData();
+        // Refresh every 5 seconds
+        const interval = setInterval(loadData, 5000);
+        return () => clearInterval(interval);
+    }, []);
 
     if (loading && !stats) {
         return (

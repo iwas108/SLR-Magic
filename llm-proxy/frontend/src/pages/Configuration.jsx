@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig } from '../services/api';
 import { Plus, Trash2, Power, PowerOff } from 'lucide-react';
 
@@ -12,10 +12,6 @@ const Configuration = () => {
     const [isActive, setIsActive] = useState(true);
     const [extraConfig, setExtraConfig] = useState('');
 
-    useEffect(() => {
-        loadEndpoints();
-    }, []);
-
     const loadEndpoints = async () => {
         try {
             setLoading(true);
@@ -27,6 +23,10 @@ const Configuration = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadEndpoints();
+    }, []);
 
     const handleAddOrUpdate = async (e) => {
         e.preventDefault();
