@@ -48,7 +48,7 @@ const ImportWorkflow = ({ onNavigate }) => {
 
         // Create the session
         const session = StorageService.createSession(file.name, reviewerName.trim(), data, metadata);
-        onNavigate('review', { sessionId: session.sessionId });
+        onNavigate('prescreen', { sessionId: session.sessionId });
 
       } catch (err) {
         setError(`Error parsing JSON: ${err.message}`);
