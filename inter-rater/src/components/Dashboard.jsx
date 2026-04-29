@@ -24,9 +24,15 @@ const Dashboard = ({ onNavigate }) => {
     if (!session) return;
 
     // Export the data as a JSON file matching the import format
+    // Inject Reviewer_Name from the session state
+    const exportedPapers = session.data.map(paper => ({
+      ...paper,
+      Reviewer_Name: session.reviewerName || 'Unknown'
+    }));
+
     const exportPayload = {
       metadata: session.metadata || {},
-      papers: session.data
+      papers: exportedPapers
     };
 
     const jsonString = JSON.stringify(exportPayload, null, 2);
