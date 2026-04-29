@@ -9,7 +9,7 @@ const Dashboard = ({ onNavigate }) => {
   }, []);
 
   const handleResume = (sessionId) => {
-    onNavigate('review', { sessionId });
+    onNavigate('prescreen', { sessionId });
   };
 
   const handleDelete = (sessionId) => {

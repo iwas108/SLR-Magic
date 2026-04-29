@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Dashboard from './components/Dashboard';
 import ImportWorkflow from './components/ImportWorkflow';
 import ReviewScreen from './components/ReviewScreen';
+import PreScreen from './components/PreScreen';
 
 function App() {
   const [theme, setTheme] = useState(() => {
@@ -51,6 +52,7 @@ function App() {
 
       {currentView === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
       {currentView === 'import' && <ImportWorkflow onNavigate={handleNavigate} />}
+      {currentView === 'prescreen' && <PreScreen sessionId={viewParams.sessionId} onNavigate={handleNavigate} />}
       {currentView === 'review' && <ReviewScreen sessionId={viewParams.sessionId} onNavigate={handleNavigate} />}
     </div>
   );
