@@ -1,0 +1,209 @@
+const { cacheRepo, ollamaService, inFlightRequests } = require('../di');
+const { extractJsonFromMixedText } = require('../utils/parsers');
+
+async function proxyToOllama(req, res) {
+    let payload;
+    try {
+        payload = req.body;
+    } catch (e) {
+        return res.status(400).json({ error: "Invalid JSON payload" });
+    }
+
+    const messages = payload.messages || [];
+    if (!messages || messages.length === 0) {
+        return res.status(400).json({ error: "No messages found in payload" });
+    }
+
+    // `CacheRepository.generateHash` must be used from DI/repo instance.
+    // In our implementation `generateHash` is a static method of CacheRepository.
+    const CacheRepository = require('../repositories/CacheRepository');
+    const reqHash = CacheRepository.generateHash(messages);
+    const shortHash = reqHash.substring(0, 8);
+
+    console.log(`📥 Received request [${shortHash}] for model: ${payload.model || 'unknown'}`);
+
+    const startTime = Date.now();
+
+    // UPDATE_CACHE logic from config
+    const config = require('../config');
+    if (!config.UPDATE_CACHE) {
+        const cachedResponse = await cacheRepo.get(reqHash);
+        if (cachedResponse) {
+            const durationMs = Date.now() - startTime;
+            const modelName = cachedResponse.model || "unknown";
+
+            const endpointUrl = cachedResponse.endpoint_url || "cache";
+            delete cachedResponse.endpoint_url;
+            console.log(`⚡ Cache Hit [${shortHash}] - Fulfilled instantly`);
+
+            // Intercept cached response to repair previously saved bad JSON
+            const expectsJson = (payload.response_format && payload.response_format.type === "json_object") ||
+                messages.some(msg => msg.content && msg.content.toLowerCase().includes("json"));
+
+            if (expectsJson) {
+                const choices = cachedResponse.choices || [{}];
+                let content = choices[0].message ? (choices[0].message.content || "") : "";
+                const extracted = extractJsonFromMixedText(content);
+
+                if (extracted && extracted !== content) {
+                    try {
+                        const parsed = JSON.parse(extracted);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            cachedResponse.choices[0].message.content = extracted;
+                            const cachedResponseCopy = { ...cachedResponse };
+                            cachedResponseCopy.endpoint_url = endpointUrl;
+                            await cacheRepo.set(reqHash, cachedResponseCopy);
+                            console.log(`🔧 Repaired previously malformed JSON from cache for [${shortHash}]`);
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+            }
+
+            return res.json(cachedResponse);
+        }
+    }
+
+    // Coalescing in-flight requests
+    if (inFlightRequests[reqHash]) {
+        console.log(`⏳ Coalescing [${shortHash}] - Waiting for an identical in-flight request...`);
+        try {
+            await new Promise((resolve) => {
+                inFlightRequests[reqHash].push(resolve);
+            });
+        } catch (e) {
+            console.error(`Error waiting for in-flight request: ${e}`);
+        }
+
+        const cachedResponse = await cacheRepo.get(reqHash);
+        if (cachedResponse) {
+            const durationMs = Date.now() - startTime;
+            const modelName = cachedResponse.model || "unknown";
+
+            const endpointUrl = cachedResponse.endpoint_url || "cache";
+            delete cachedResponse.endpoint_url;
+            console.log(`⚡ Cache Hit [${shortHash}] - Fulfilled after waiting ${durationMs}ms`);
+
+            // Intercept cached response to repair previously saved bad JSON
+            const expectsJson = (payload.response_format && payload.response_format.type === "json_object") ||
+                messages.some(msg => msg.content && msg.content.toLowerCase().includes("json"));
+
+            if (expectsJson) {
+                const choices = cachedResponse.choices || [{}];
+                let content = choices[0].message ? (choices[0].message.content || "") : "";
+                const extracted = extractJsonFromMixedText(content);
+
+                if (extracted && extracted !== content) {
+                    try {
+                        const parsed = JSON.parse(extracted);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            cachedResponse.choices[0].message.content = extracted;
+                            const cachedResponseCopy = { ...cachedResponse };
+                            cachedResponseCopy.endpoint_url = endpointUrl;
+                            await cacheRepo.set(reqHash, cachedResponseCopy);
+                            console.log(`🔧 Repaired previously malformed JSON from coalesced cache for [${shortHash}]`);
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+            }
+
+            return res.json(cachedResponse);
+        } else {
+            console.warn(`⚠️ Coalescing [${shortHash}] - Woke up but cache was empty. This shouldn't happen.`);
+        }
+    }
+
+    // First request, register it in inFlightRequests
+    inFlightRequests[reqHash] = [];
+
+    try {
+        let expectsJson = false;
+        if (payload.response_format && payload.response_format.type === "json_object") {
+            expectsJson = true;
+        } else {
+            for (const msg of messages) {
+                if (msg.content && msg.content.toLowerCase().includes("json")) {
+                    expectsJson = true;
+                    break;
+                }
+            }
+        }
+
+        const maxRetries = expectsJson ? 3 : 1;
+        let responseData = null;
+        let durationMs = 0;
+        let endpointUrl = "unknown";
+        let modelName = "unknown";
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            // OllamaService fetchCompletion
+            responseData = await ollamaService.fetchCompletion(payload, reqHash);
+
+            modelName = responseData.model || "unknown";
+            endpointUrl = responseData.endpoint_url || "unknown";
+            delete responseData.endpoint_url;
+
+            durationMs = responseData.endpoint_duration_ms !== undefined ? responseData.endpoint_duration_ms : (Date.now() - startTime);
+            delete responseData.endpoint_duration_ms;
+
+            if (expectsJson) {
+                const choices = responseData.choices || [{}];
+                let content = choices[0].message ? (choices[0].message.content || "") : "";
+
+                const extracted = extractJsonFromMixedText(content);
+
+                let isValidJson = false;
+                if (extracted) {
+                    try {
+                        const parsed = JSON.parse(extracted);
+                        if (typeof parsed === 'object' && parsed !== null) {
+                            isValidJson = true;
+                        }
+                    } catch (e) {
+                        // pass
+                    }
+                }
+
+                if (isValidJson) {
+                    break;
+                } else {
+                    console.warn(`⚠️ Invalid JSON detected for [${shortHash}] on attempt ${attempt + 1}/${maxRetries}. Retrying...`);
+                    if (attempt === maxRetries - 1) {
+                        console.error(`❌ Failed to get valid JSON after ${maxRetries} attempts for [${shortHash}]. Returning error.`);
+                        return res.status(502).json({ error: "LLM failed to produce valid JSON after retries." });
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        await cacheRepo.set(reqHash, responseData);
+        await cacheRepo.logHistory(modelName, payload, responseData, durationMs, endpointUrl);
+
+        console.log(`✅ Completed [${shortHash}] - Duration: ${durationMs}ms, Endpoint: ${endpointUrl}`);
+        return res.json(responseData);
+
+    } catch (e) {
+        console.error(`❌ Internal Server Error [${shortHash}]: ${e.message || e}`);
+        if (e.message && e.message.includes('fetch')) {
+            return res.status(502).json({ error: `Ollama connection error: ${e.message}` });
+        }
+        return res.status(500).json({ error: e.message || String(e) });
+    } finally {
+        // Resolve all waiting requests
+        if (inFlightRequests[reqHash]) {
+            for (const resolve of inFlightRequests[reqHash]) {
+                resolve();
+            }
+            delete inFlightRequests[reqHash];
+        }
+    }
+}
+
+module.exports = {
+    proxyToOllama
+};
