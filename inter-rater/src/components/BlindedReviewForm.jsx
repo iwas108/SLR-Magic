@@ -1,6 +1,6 @@
 import React from 'react';
 
-const BlindedReviewForm = ({ currentRow, handleInputChange }) => {
+const BlindedReviewForm = ({ currentRow, handleInputChange, ecRules }) => {
   return (
     <>
       <div className="mb-6">
@@ -30,6 +30,26 @@ const BlindedReviewForm = ({ currentRow, handleInputChange }) => {
           </label>
         </div>
       </div>
+
+      {currentRow.Reviewer_Decision === 'Exclude' && ecRules && ecRules.length > 0 && (
+        <div className="mb-6">
+          <label htmlFor="reviewerECCode" className="block text-sm font-medium mb-2">Exclusion Code (EC Rule) <span className="text-red-500">*</span></label>
+          <select
+            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            id="reviewerECCode"
+            value={currentRow.Reviewer_EC_Code || ''}
+            onChange={(e) => handleInputChange('Reviewer_EC_Code', e.target.value)}
+            required
+          >
+            <option value="" disabled>Select an EC Code...</option>
+            {ecRules.map((rule, idx) => (
+              <option key={idx} value={rule.code}>
+                {rule.code} - {rule.description}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="mb-6">
         <label htmlFor="reviewerReasoning" className="block text-sm font-medium mb-2">Reviewer Reasoning <span className="text-red-500">*</span></label>

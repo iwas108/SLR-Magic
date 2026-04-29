@@ -50,9 +50,9 @@ var InterRaterController = (function() {
   /**
    * Processes the generation of the blinded .slr JSON export.
    */
-  function processExport(phase, sampleType, sampleValue) {
+  function processExport(phase, sampleType, sampleValue, ecRules = []) {
     try {
-      console.log(`[InterRater] Starting Export for phase: ${phase}, Type: ${sampleType}, Value: ${sampleValue}`);
+      console.log(`[InterRater] Starting Export for phase: ${phase}, Type: ${sampleType}, Value: ${sampleValue}, EC Rules count: ${ecRules.length}`);
 
       // 1. Identify Source Sheet
       let sourceSheetName = phase === "title-abs" ? "01_abstract_screening" : "03_fulltext_screening";
@@ -151,7 +151,8 @@ var InterRaterController = (function() {
         inclusionCriteria: config["INCLUSION_CRITERIA"] || "",
         exclusionCriteria: config["EXCLUSION_CRITERIA"] || "",
         phase: phase,
-        exportDate: new Date().toISOString()
+        exportDate: new Date().toISOString(),
+        ecRules: ecRules
       };
 
       const payload = {
@@ -194,7 +195,7 @@ var InterRaterController = (function() {
       }
 
       // Ensure minimal Headers
-      const headersToEnsure = ["Paper_ID", "Reviewer", "Decision", "Reason", "Timestamp"];
+      const headersToEnsure = ["Paper_ID", "Reviewer", "Decision", "Reason", "EC_Code", "Timestamp"];
       const targetHeaderMap = SheetUtils.getHeaderMap(targetSheet);
       headersToEnsure.forEach(h => SheetUtils.ensureColumn(targetSheet, h, targetHeaderMap));
 
@@ -213,6 +214,7 @@ var InterRaterController = (function() {
              "Reviewer": paper.Reviewer_Name || "Unknown",
              "Decision": paper.Reviewer_Decision,
              "Reason": paper.Reviewer_Reasoning || "",
+             "EC_Code": paper.Reviewer_EC_Code || "",
              "Timestamp": timestamp
            };
            newRows.push(row);

@@ -2,8 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  // Tambahkan /dist/ di akhir path
-  base: '/SLR-Magic/inter-rater/dist/',
-})
+  base: mode === 'production' ? '/SLR-Magic/inter-rater/dist/' : './',
+}))

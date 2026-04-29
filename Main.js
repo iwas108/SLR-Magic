@@ -268,8 +268,8 @@ function calculateFullTextInterRaterScore() {
   InterRaterController.calculateScore("full-text");
 }
 
-function processInterRaterExport(phase, sampleType, sampleValue) {
-  return InterRaterController.processExport(phase, sampleType, sampleValue);
+function processInterRaterExport(phase, sampleType, sampleValue, ecRules) {
+  return InterRaterController.processExport(phase, sampleType, sampleValue, ecRules);
 }
 
 function processInterRaterImport(phase, jsonData) {

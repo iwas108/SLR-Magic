@@ -59,6 +59,19 @@ const PreScreen = ({ sessionId, onNavigate }) => {
           <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">Exclusion Criteria</h3>
           <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{metadata.EXCLUSION_CRITERIA || 'Not specified'}</p>
         </div>
+
+        {metadata.ecRules && metadata.ecRules.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">EC Rules (Exclusion Codes)</h3>
+            <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300">
+              {metadata.ecRules.map((rule, idx) => (
+                <li key={idx}>
+                  <strong>{rule.code}</strong>: {rule.description}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">

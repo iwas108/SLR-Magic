@@ -27,6 +27,18 @@
         <input type="number" class="form-control" id="sampleValue" min="1" max="100" value="10">
       </div>
 
+      <hr class="my-4">
+      <h6>Exclusion Criteria (EC) Rules</h6>
+      <p class="text-muted small">Define EC codes and descriptions to be used during the blinded review.</p>
+
+      <div id="ec-rules-container">
+        <!-- EC Rule rows will be added here -->
+      </div>
+
+      <button class="btn btn-sm btn-outline-secondary mb-4" onclick="addEcRule()">+ Add EC Rule</button>
+
+      <hr class="my-4">
+
       <button id="exportBtn" class="btn btn-primary" onclick="startExport()">
         <span class="spinner-border spinner-border-sm" id="loadingSpinner" role="status" aria-hidden="true"></span>
         Generate Export
@@ -41,6 +53,68 @@
 
     <script>
       const phase = "<?= phase ?>"; // Passed from server
+
+      // Load saved EC Rules from localStorage
+      document.addEventListener('DOMContentLoaded', () => {
+        const savedRulesStr = localStorage.getItem('slr_magic_ec_rules');
+        if (savedRulesStr) {
+          try {
+            const savedRules = JSON.parse(savedRulesStr);
+            if (Array.isArray(savedRules) && savedRules.length > 0) {
+              savedRules.forEach(rule => addEcRule(rule.code, rule.description));
+              return;
+            }
+          } catch (e) {
+            console.error("Failed to parse saved EC rules", e);
+          }
+        }
+        // Add one empty rule by default if none are saved
+        addEcRule();
+      });
+
+      function addEcRule(code = '', description = '') {
+        const container = document.getElementById('ec-rules-container');
+        const row = document.createElement('div');
+        row.className = 'row mb-2 ec-rule-row';
+        row.innerHTML = `
+          <div class="col-4">
+            <input type="text" class="form-control ec-code" placeholder="EC Code (e.g., EC1)" value="${code}">
+          </div>
+          <div class="col-6">
+            <input type="text" class="form-control ec-description" placeholder="Description" value="${description}">
+          </div>
+          <div class="col-2">
+            <button class="btn btn-danger w-100" onclick="this.parentElement.parentElement.remove(); saveEcRules();">X</button>
+          </div>
+        `;
+
+        // Add event listeners to inputs to save changes automatically
+        const inputs = row.querySelectorAll('input');
+        inputs.forEach(input => {
+          input.addEventListener('input', saveEcRules);
+        });
+
+        container.appendChild(row);
+        saveEcRules();
+      }
+
+      function getEcRules() {
+        const rows = document.querySelectorAll('.ec-rule-row');
+        const rules = [];
+        rows.forEach(row => {
+          const code = row.querySelector('.ec-code').value.trim();
+          const description = row.querySelector('.ec-description').value.trim();
+          if (code || description) {
+            rules.push({ code, description });
+          }
+        });
+        return rules;
+      }
+
+      function saveEcRules() {
+        const rules = getEcRules();
+        localStorage.setItem('slr_magic_ec_rules', JSON.stringify(rules));
+      }
 
       document.getElementById('sampleType').addEventListener('change', function(e) {
         const val = e.target.value;
@@ -66,13 +140,15 @@
           return;
         }
 
+        const ecRules = getEcRules();
+
         document.getElementById('exportBtn').disabled = true;
         document.getElementById('loadingSpinner').style.display = 'inline-block';
 
         google.script.run
           .withSuccessHandler(onSuccess)
           .withFailureHandler(onFailure)
-          .processInterRaterExport(phase, sampleType, Number(sampleValue));
+          .processInterRaterExport(phase, sampleType, Number(sampleValue), ecRules);
       }
 
       function onSuccess(response) {
