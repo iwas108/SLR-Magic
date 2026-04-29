@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import Papa from 'papaparse';
 import { StorageService } from '../StorageService';
 
 const ImportWorkflow = ({ onNavigate }) => {
@@ -15,7 +14,7 @@ const ImportWorkflow = ({ onNavigate }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!file) {
-      setError('Please select a CSV file.');
+      setError('Please select a .slr (JSON) file.');
       return;
     }
     if (!reviewerName.trim()) {
@@ -23,35 +22,43 @@ const ImportWorkflow = ({ onNavigate }) => {
       return;
     }
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (results.errors.length) {
-          setError('Error parsing CSV file. Please ensure it is a valid CSV.');
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsedData = JSON.parse(event.target.result);
+
+        if (!parsedData.papers || !Array.isArray(parsedData.papers)) {
+          setError('Invalid file format. The file must contain a "papers" array.');
           return;
         }
 
-        const data = results.data;
+        const data = parsedData.papers;
         if (data.length === 0) {
-          setError('The CSV file is empty.');
+          setError('The file contains no papers to review.');
           return;
         }
 
         // Validate Paper_ID presence
         if (!Object.keys(data[0]).includes('Paper_ID')) {
-          setError('The CSV must contain a "Paper_ID" column.');
+          setError('The papers must contain a "Paper_ID" attribute.');
           return;
         }
 
+        const metadata = parsedData.metadata || {};
+
         // Create the session
-        const session = StorageService.createSession(file.name, reviewerName.trim(), data);
+        const session = StorageService.createSession(file.name, reviewerName.trim(), data, metadata);
         onNavigate('review', { sessionId: session.sessionId });
-      },
-      error: (err) => {
-        setError(`Error parsing CSV: ${err.message}`);
+
+      } catch (err) {
+        setError(`Error parsing JSON: ${err.message}`);
       }
-    });
+    };
+    reader.onerror = () => {
+      setError('Error reading file.');
+    };
+
+    reader.readAsText(file);
   };
 
   return (
@@ -70,7 +77,7 @@ const ImportWorkflow = ({ onNavigate }) => {
         {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="mb-6">
-            <label htmlFor="csvFile" className="block text-sm font-medium mb-2">Select Quality Check CSV</label>
+            <label htmlFor="slrFile" className="block text-sm font-medium mb-2">Select SLR Magic Export (.slr)</label>
             <input
               type="file"
               className="block w-full text-sm text-gray-500 dark:text-gray-400
@@ -81,12 +88,12 @@ const ImportWorkflow = ({ onNavigate }) => {
                 dark:file:bg-blue-900 dark:file:text-blue-200
                 hover:file:bg-blue-100 dark:hover:file:bg-blue-800
                 border border-gray-300 dark:border-gray-600 rounded-md"
-              id="csvFile"
-              accept=".csv"
+              id="slrFile"
+              accept=".slr,application/json"
               onChange={handleFileChange}
             />
             <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              File must be exported from SLR Magic and contain a "Paper_ID" column.
+              File must be exported from SLR Magic (.slr) and contain papers with a "Paper_ID".
             </div>
           </div>
 

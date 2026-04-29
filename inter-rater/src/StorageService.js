@@ -12,7 +12,7 @@ export const StorageService = {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
   },
 
-  createSession: (filename, reviewerName, data) => {
+  createSession: (filename, reviewerName, data, metadata = {}) => {
     const sessions = StorageService.getSessions();
     const newSession = {
       sessionId: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
@@ -21,6 +21,7 @@ export const StorageService = {
       status: 'in-progress',
       lastModified: Date.now(),
       data,
+      metadata,
       currentIndex: 0,
     };
     sessions.push(newSession);

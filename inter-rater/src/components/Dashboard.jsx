@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { StorageService } from '../StorageService';
-import Papa from 'papaparse';
 
 const Dashboard = ({ onNavigate }) => {
   const [sessions, setSessions] = useState([]);
@@ -24,13 +23,27 @@ const Dashboard = ({ onNavigate }) => {
     const session = StorageService.getSession(sessionId);
     if (!session) return;
 
-    // We export only the data array back to CSV
-    const csv = Papa.unparse(session.data);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    // Export the data as a JSON file matching the import format
+    const exportPayload = {
+      metadata: session.metadata || {},
+      papers: session.data
+    };
+
+    const jsonString = JSON.stringify(exportPayload, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `reviewed_${session.filename}`);
+
+    // Ensure the downloaded file has a .slr extension (if original didn't have one) or append correctly.
+    let outName = session.filename;
+    if (outName.toLowerCase().endsWith('.slr')) {
+      outName = `reviewed_${outName}`;
+    } else {
+      outName = `reviewed_${outName}.slr`;
+    }
+
+    link.setAttribute("download", outName);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -45,14 +58,14 @@ const Dashboard = ({ onNavigate }) => {
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           onClick={() => onNavigate('import')}
         >
-          Import New Review (CSV)
+          Import New Review (.slr)
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {sessions.length === 0 ? (
           <div className="col-span-full">
-            <p className="text-gray-500 dark:text-gray-400">No review sessions found. Import a CSV to get started.</p>
+            <p className="text-gray-500 dark:text-gray-400">No review sessions found. Import a .slr file to get started.</p>
           </div>
         ) : (
           sessions.map(session => (
@@ -80,7 +93,7 @@ const Dashboard = ({ onNavigate }) => {
                   className="px-3 py-1.5 text-sm border border-green-600 text-green-600 hover:bg-green-600 hover:text-white dark:border-green-400 dark:text-green-400 dark:hover:bg-green-600 dark:hover:text-white rounded transition-colors"
                   onClick={() => handleExport(session.sessionId)}
                 >
-                  Export CSV
+                  Export Results
                 </button>
                 <button
                   className="px-3 py-1.5 text-sm border border-red-600 text-red-600 hover:bg-red-600 hover:text-white dark:border-red-400 dark:text-red-400 dark:hover:bg-red-600 dark:hover:text-white rounded transition-colors"

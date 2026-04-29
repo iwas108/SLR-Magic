@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "papaparse": "^5.5.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
