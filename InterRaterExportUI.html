@@ -27,20 +27,37 @@
         <input type="number" class="form-control" id="sampleValue" min="1" max="100" value="10">
       </div>
 
-      <button id="exportBtn" class="btn btn-primary" onclick="startExport()">
-        <span class="spinner-border spinner-border-sm" id="loadingSpinner" role="status" aria-hidden="true"></span>
-        Generate Export
-      </button>
-    </div>
+      <hr class="my-4">
+      <h6>Exclusion Criteria (EC) Rules</h6>
+      <p class="text-muted small">Define EC codes and descriptions to be used during the blinded review.</p>
 
-    <div id="result-container" class="hidden">
-      <div class="alert alert-success" id="resultMessage"></div>
-      <a id="downloadLink" class="btn btn-success" download="blinded_review.slr" href="#">Download .slr File</a>
-      <button class="btn btn-secondary mt-2 d-block" onclick="google.script.host.close()">Close</button>
-    </div>
+        // Add event listeners to inputs to save changes automatically
+        const inputs = row.querySelectorAll('input');
+        inputs.forEach(input => {
+          input.addEventListener('input', saveEcRules);
+        });
 
-    <script>
-      const phase = "<?= phase ?>"; // Passed from server
+        container.appendChild(row);
+        saveEcRules();
+      }
+
+      function getEcRules() {
+        const rows = document.querySelectorAll('.ec-rule-row');
+        const rules = [];
+        rows.forEach(row => {
+          const code = row.querySelector('.ec-code').value.trim();
+          const description = row.querySelector('.ec-description').value.trim();
+          if (code || description) {
+            rules.push({ code, description });
+          }
+        });
+        return rules;
+      }
+
+      function saveEcRules() {
+        const rules = getEcRules();
+        localStorage.setItem('slr_magic_ec_rules', JSON.stringify(rules));
+      }
 
       document.getElementById('sampleType').addEventListener('change', function(e) {
         const val = e.target.value;
@@ -66,13 +83,15 @@
           return;
         }
 
+        const ecRules = getEcRules();
+
         document.getElementById('exportBtn').disabled = true;
         document.getElementById('loadingSpinner').style.display = 'inline-block';
 
         google.script.run
           .withSuccessHandler(onSuccess)
           .withFailureHandler(onFailure)
-          .processInterRaterExport(phase, sampleType, Number(sampleValue));
+          .processInterRaterExport(phase, sampleType, Number(sampleValue), ecRules);
       }
 
       function onSuccess(response) {

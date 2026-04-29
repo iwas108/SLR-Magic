@@ -57,13 +57,21 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
   };
 
   const isCurrentRowValid = () => {
-    return (
-      currentRow &&
+    if (!currentRow) return false;
+let isValid =
       currentRow.Reviewer_Decision &&
       currentRow.Reviewer_Reasoning &&
       currentRow.Reviewer_Reasoning.trim() !== '' &&
-      currentRow.Reviewer_Confidence
-    );
+      currentRow.Reviewer_Confidence;
+
+    // Validate EC Code if decision is Exclude and EC rules exist
+    if (currentRow.Reviewer_Decision === 'Exclude' && session.metadata?.ecRules?.length > 0) {
+      if (!currentRow.Reviewer_EC_Code) {
+        isValid = false;
+      }
+    }
+
+    return isValid;
   };
 
   if (!session || !currentRow) return <div className="p-4">Loading...</div>;
@@ -97,6 +105,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
           <BlindedReviewForm
             currentRow={currentRow}
             handleInputChange={handleInputChange}
+            ecRules={session.metadata?.ecRules || []}
           />
 
         </div>
