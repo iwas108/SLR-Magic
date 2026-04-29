@@ -58,8 +58,7 @@ const ReviewScreen = ({ sessionId, onNavigate }) => {
 
   const isCurrentRowValid = () => {
     if (!currentRow) return false;
-
-    let isValid =
+let isValid =
       currentRow.Reviewer_Decision &&
       currentRow.Reviewer_Reasoning &&
       currentRow.Reviewer_Reasoning.trim() !== '' &&

@@ -42,22 +42,22 @@ const PreScreen = ({ sessionId, onNavigate }) => {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">Project Name</h3>
-          <p className="text-gray-700 dark:text-gray-300">{metadata.PROJECT_NAME || 'Not specified'}</p>
+          <p className="text-gray-700 dark:text-gray-300">{metadata.projectName || 'Not specified'}</p>
         </div>
 
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">Research Questions</h3>
-          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{metadata.RESEARCH_QUESTIONS || 'Not specified'}</p>
+          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{metadata.researchQuestions || 'Not specified'}</p>
         </div>
 
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">Inclusion Criteria</h3>
-          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{metadata.INCLUSION_CRITERIA || 'Not specified'}</p>
+          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{metadata.inclusionCriteria || 'Not specified'}</p>
         </div>
 
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-2">Exclusion Criteria</h3>
-          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{metadata.EXCLUSION_CRITERIA || 'Not specified'}</p>
+          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{metadata.exclusionCriteria || 'Not specified'}</p>
         </div>
 
         {metadata.ecRules && metadata.ecRules.length > 0 && (

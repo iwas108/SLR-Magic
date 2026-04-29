@@ -44,10 +44,15 @@ const BlindedReviewForm = ({ currentRow, handleInputChange, ecRules }) => {
             <option value="" disabled>Select an EC Code...</option>
             {ecRules.map((rule, idx) => (
               <option key={idx} value={rule.code}>
-                {rule.code} - {rule.description}
+                {rule.code}
               </option>
             ))}
           </select>
+          {currentRow.Reviewer_EC_Code && (
+            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md text-sm text-gray-700 dark:text-gray-300">
+              {ecRules.find((r) => r.code === currentRow.Reviewer_EC_Code)?.description}
+            </div>
+          )}
         </div>
       )}
 

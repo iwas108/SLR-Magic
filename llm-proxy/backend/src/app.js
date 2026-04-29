@@ -13,9 +13,18 @@ app.use('/', apiRouter);
 // Web API
 app.use('/', webApiRouter);
 
-// Placeholder route to verify app is working
-app.get('/', (req, res) => {
-  res.send('LLM-Proxy Backend is running');
+// Serve static frontend files
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Catch-all route to serve the React SPA
+// Using fallback middleware instead of `*` wildcard since express 5 path-to-regexp syntax changed
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    res.sendFile(path.join(__dirname, '../public', 'index.html'));
+  } else {
+    next();
+  }
 });
 
 module.exports = app;

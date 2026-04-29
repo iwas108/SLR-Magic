@@ -1,16 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchHistory } from '../services/api';
-import { Search, ChevronLeft, ChevronRight, Copy, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, X } from 'lucide-react';
 
 const History = () => {
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [selectedIndex, setSelectedIndex] = useState(-1);
-
-    useEffect(() => {
-        loadHistory();
-    }, []);
 
     const loadHistory = async () => {
         try {
@@ -23,6 +19,10 @@ const History = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        loadHistory();
+    }, []);
 
     const openModal = (request, index) => {
         setSelectedRequest(request);
