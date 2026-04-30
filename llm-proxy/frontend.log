@@ -1,0 +1,11 @@
+
+> frontend@0.0.0 dev
+> vite
+
+
+  VITE v8.0.10  ready in 995 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+8:14:09 PM [vite] (client) [optimizer] scanning dependencies...
+8:14:10 PM [vite] (client) [optimizer] bundling dependencies...

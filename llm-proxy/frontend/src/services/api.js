@@ -2,9 +2,46 @@ const API_BASE_URL = import.meta.env.DEV
     ? `http://${window.location.hostname}:8899/api`
     : `${window.location.origin}/api`;
 
-export const fetchHistory = async () => {
-    const response = await fetch(`${API_BASE_URL}/history`);
+export const fetchHistory = async (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', params.page);
+    if (params.limit) query.append('limit', params.limit);
+    if (params.search) query.append('search', params.search);
+    if (params.endpoint) query.append('endpoint', params.endpoint);
+    if (params.sort_by) query.append('sort_by', params.sort_by);
+    if (params.sort_desc !== undefined) query.append('sort_desc', params.sort_desc);
+    if (params.time_start) query.append('time_start', params.time_start);
+    if (params.time_end) query.append('time_end', params.time_end);
+
+    const url = `${API_BASE_URL}/history?${query.toString()}`;
+    const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch history');
+    return response.json();
+};
+
+export const deleteHistoryItem = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/history/${id}`, {
+        method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to delete history item');
+    return response.json();
+};
+
+export const bulkDeleteHistory = async (ids) => {
+    const response = await fetch(`${API_BASE_URL}/history/bulk_delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+    });
+    if (!response.ok) throw new Error('Failed to bulk delete history');
+    return response.json();
+};
+
+export const clearHistory = async () => {
+    const response = await fetch(`${API_BASE_URL}/history`, {
+        method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to clear history');
     return response.json();
 };
 
