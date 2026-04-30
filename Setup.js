@@ -6,6 +6,7 @@
 const Setup = (function() {
 
   const SHEETS_TO_CREATE = [
+    "00_snowballeds",
     "01_abstract_screening",
     "02_titleabs_inter_rater",
     "03_fulltext_screening",
@@ -27,7 +28,14 @@ const Setup = (function() {
 
     // 2. Create sheets
     SHEETS_TO_CREATE.forEach(sheetName => {
-      createSheetIfNotExists(ss, sheetName);
+      const isNew = !ss.getSheetByName(sheetName);
+      const sheet = createSheetIfNotExists(ss, sheetName);
+
+      // Initialize headers for 00_snowballeds if it was just created
+      if (isNew && sheetName === "00_snowballeds") {
+        const headers = ['Title', 'Authors', 'Year', 'DOI', 'Abstract'];
+        sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      }
     });
 
     // 3. Inform user

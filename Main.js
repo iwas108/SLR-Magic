@@ -13,6 +13,7 @@ function onOpen() {
     .addItem('Configuration', 'showConfigurationDialog')
     .addSeparator()
     .addItem('Import Raw CSV', 'runImportRawCSV')
+    .addItem('Import Snowballed(s)', 'runImportSnowballed')
     .addSeparator()
     .addItem('Start AI Title-Abstract Screening', 'runScreening')
     .addItem('Manage Background Screening (Abstract)', 'manageScreeningTrigger')
@@ -159,6 +160,13 @@ function calculateProjectCosts(priceMap) {
  */
 function runImportRawCSV() {
   ImportController.showImportDialog();
+}
+
+/**
+ * Runs the Snowballed(s) Import workflow.
+ */
+function runImportSnowballed() {
+  ImportController.runImportSnowballed();
 }
 
 /**
