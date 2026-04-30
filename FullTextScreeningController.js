@@ -102,10 +102,17 @@ const FullTextScreeningController = (function () {
 
           // Copy selected columns
           if (columnsToCopy && Array.isArray(columnsToCopy)) {
+            const renameMap = {
+              "AI_Recommendation": "decision",
+              "Exclusion_Reason": "exclusion_code",
+              "AI_Reasoning": "reasoning"
+            };
+
             columnsToCopy.forEach(col => {
               // Exclude AI_Status to prevent overwriting "Pending"
               if (row[col] !== undefined && col !== 'AI_Status') {
-                newRow[col] = row[col];
+                const destCol = renameMap[col] || col;
+                newRow[destCol] = row[col];
               }
             });
           }

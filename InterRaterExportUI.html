@@ -31,6 +31,69 @@
       <h6>Exclusion Criteria (EC) Rules</h6>
       <p class="text-muted small">Define EC codes and descriptions to be used during the blinded review.</p>
 
+      <div id="ec-rules-container">
+        <!-- EC Rules will be injected here -->
+      </div>
+
+      <button class="btn btn-sm btn-outline-secondary mb-4" onclick="addEcRule()">+ Add EC Rule</button>
+
+      <hr class="my-4">
+
+      <button class="btn btn-primary w-100" id="exportBtn" onclick="startExport()">
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" id="loadingSpinner"></span>
+        Export
+      </button>
+    </div>
+
+    <div id="result-container" class="hidden text-center mt-5">
+      <h5 class="text-success">Export Successful!</h5>
+      <p id="resultMessage"></p>
+      <a id="downloadLink" class="btn btn-success mt-3" href="#">Download .slr File</a>
+    </div>
+
+    <script>
+      // Passed from Apps Script
+      const phase = "<?= phase ?>";
+      const storageKey = `slr_magic_ec_rules_${phase}`;
+
+      document.addEventListener('DOMContentLoaded', () => {
+        loadEcRules();
+      });
+
+      function loadEcRules() {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          try {
+            const rules = JSON.parse(saved);
+            rules.forEach(rule => addEcRule(rule.code, rule.description));
+          } catch (e) {
+            console.error('Error parsing EC rules', e);
+          }
+        }
+
+        // Ensure at least one empty row if none
+        const container = document.getElementById('ec-rules-container');
+        if (container.children.length === 0) {
+          addEcRule();
+        }
+      }
+
+      function addEcRule(code = '', description = '') {
+        const container = document.getElementById('ec-rules-container');
+        const row = document.createElement('div');
+        row.className = 'row mb-2 ec-rule-row';
+        row.innerHTML = `
+          <div class="col-4">
+            <input type="text" class="form-control form-control-sm ec-code" placeholder="Code (e.g., EC1)" value="${code}">
+          </div>
+          <div class="col-6">
+            <input type="text" class="form-control form-control-sm ec-description" placeholder="Description" value="${description}">
+          </div>
+          <div class="col-2">
+            <button class="btn btn-sm btn-danger w-100" onclick="this.parentElement.parentElement.remove(); saveEcRules();">X</button>
+          </div>
+        `;
+
         // Add event listeners to inputs to save changes automatically
         const inputs = row.querySelectorAll('input');
         inputs.forEach(input => {
@@ -56,7 +119,7 @@
 
       function saveEcRules() {
         const rules = getEcRules();
-        localStorage.setItem('slr_magic_ec_rules', JSON.stringify(rules));
+        localStorage.setItem(storageKey, JSON.stringify(rules));
       }
 
       document.getElementById('sampleType').addEventListener('change', function(e) {
