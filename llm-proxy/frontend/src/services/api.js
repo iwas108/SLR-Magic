@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:8899/api';
+const API_BASE_URL = import.meta.env.DEV
+    ? `http://${window.location.hostname}:8899/api`
+    : `${window.location.origin}/api`;
 
 export const fetchHistory = async () => {
     const response = await fetch(`${API_BASE_URL}/history`);

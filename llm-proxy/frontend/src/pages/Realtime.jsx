@@ -2,8 +2,17 @@ import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { Activity, XCircle, CheckCircle2, Clock } from 'lucide-react';
 
+const getWebSocketUrl = () => {
+    if (import.meta.env.DEV) {
+        return `ws://${window.location.hostname}:8899`;
+    }
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}`;
+};
+
 const Realtime = () => {
-    const { messages, status, clearMessages } = useWebSocket('ws://localhost:8899');
+    const wsUrl = getWebSocketUrl();
+    const { messages, status, clearMessages } = useWebSocket(wsUrl);
     const [streams, setStreams] = useState({});
     const streamsEndRef = useRef(null);
 
