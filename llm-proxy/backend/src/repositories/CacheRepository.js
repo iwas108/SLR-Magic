@@ -83,7 +83,17 @@ class CacheRepository {
   }
 
   async getAllEndpointConfigs() {
-    const stmt = this.db.prepare('SELECT endpoint_url, enabled, custom_model, api_key, extra_config FROM endpoints_config');
+    const stmt = this.db.prepare(`
+      SELECT
+        c.endpoint_url,
+        c.enabled,
+        c.custom_model,
+        c.api_key,
+        c.extra_config,
+        l.label
+      FROM endpoints_config c
+      LEFT JOIN endpoint_labels l ON c.endpoint_url = l.endpoint_url
+    `);
     return stmt.all();
   }
 

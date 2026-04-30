@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig } from '../services/api';
+import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties } from '../services/api';
 import { Plus, Trash2, Power, PowerOff } from 'lucide-react';
 
 const Configuration = () => {
@@ -16,7 +16,8 @@ const Configuration = () => {
         try {
             setLoading(true);
             const data = await fetchEndpointsConfig();
-            setEndpoints(data.endpoints || []);
+            // The API returns an array directly, not an object with an `endpoints` key
+            setEndpoints(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Error loading endpoints:', error);
         } finally {
@@ -42,11 +43,18 @@ const Configuration = () => {
             }
 
             await upsertEndpointConfig({
-                url,
-                label,
-                is_active: isActive ? 1 : 0,
+                endpoint_url: url,
+                enabled: isActive,
                 extra_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
             });
+
+            // Also set label in properties if provided
+            if (label) {
+                await setEndpointProperties({
+                    endpoint_url: url,
+                    label
+                });
+            }
 
             // Reset form
             setUrl('');
@@ -65,7 +73,7 @@ const Configuration = () => {
         try {
             await upsertEndpointConfig({
                 ...endpoint,
-                is_active: endpoint.is_active ? 0 : 1
+                enabled: !endpoint.enabled
             });
             loadEndpoints();
         } catch (error) {
@@ -156,17 +164,17 @@ const Configuration = () => {
                     ) : (
                         <div className="space-y-4">
                             {endpoints.map((ep) => (
-                                <div key={ep.url} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border rounded-lg shadow-sm">
+                                <div key={ep.endpoint_url} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border rounded-lg shadow-sm">
                                     <div className="mb-4 sm:mb-0">
                                         <div className="flex items-center space-x-2 mb-1">
-                                            <span className="font-semibold text-lg">{ep.label}</span>
-                                            {ep.is_active ? (
+                                            <span className="font-semibold text-lg">{ep.label || 'Unlabeled'}</span>
+                                            {ep.enabled ? (
                                                 <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">Active</span>
                                             ) : (
                                                 <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Inactive</span>
                                             )}
                                         </div>
-                                        <div className="text-sm text-gray-500 font-mono">{ep.url}</div>
+                                        <div className="text-sm text-gray-500 font-mono">{ep.endpoint_url}</div>
                                         {ep.extra_config && (
                                             <div className="mt-2 text-xs font-mono bg-gray-50 p-2 rounded border">
                                                 {ep.extra_config}
@@ -177,16 +185,16 @@ const Configuration = () => {
                                         <button
                                             onClick={() => handleToggleActive(ep)}
                                             className={`p-2 rounded-md border ${
-                                                ep.is_active
+                                                ep.enabled
                                                     ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100'
                                                     : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'
                                             }`}
-                                            title={ep.is_active ? "Deactivate" : "Activate"}
+                                            title={ep.enabled ? "Deactivate" : "Activate"}
                                         >
-                                            {ep.is_active ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                                            {ep.enabled ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
                                         </button>
                                         <button
-                                            onClick={() => handleDelete(ep.url)}
+                                            onClick={() => handleDelete(ep.endpoint_url)}
                                             className="p-2 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
                                             title="Delete"
                                         >
