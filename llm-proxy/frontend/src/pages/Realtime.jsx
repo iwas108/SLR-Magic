@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { fetchActiveStreams } from '../services/api';
 import { Activity, XCircle, CheckCircle2, Clock } from 'lucide-react';
 
 const getWebSocketUrl = () => {
@@ -15,6 +16,46 @@ const Realtime = () => {
     const { messages, status, clearMessages } = useWebSocket(wsUrl);
     const [streams, setStreams] = useState({});
     const streamsEndRef = useRef(null);
+
+    useEffect(() => {
+        const initStreams = async () => {
+            try {
+                const activeStreamsData = await fetchActiveStreams();
+                if (activeStreamsData && Object.keys(activeStreamsData).length > 0) {
+                    const mappedStreams = {};
+                    for (const [id, data] of Object.entries(activeStreamsData)) {
+                        let fullContent = '';
+                        let fullThinking = '';
+                        for (const chunk of (data.content_chunks || [])) {
+                            if (chunk.in_thinking) {
+                                fullThinking += chunk.content;
+                            } else {
+                                fullContent += chunk.content;
+                            }
+                        }
+
+                        mappedStreams[id] = {
+                            id: id,
+                            prompt: data.prompt || 'Unknown Prompt',
+                            label: data.label || 'Unknown Endpoint',
+                            status: 'active',
+                            content: fullContent,
+                            thinking: fullThinking,
+                            startTime: data.startTime || Date.now(),
+                            endTime: null,
+                            error: null,
+                            summary: null
+                        };
+                    }
+                    setStreams(mappedStreams);
+                }
+            } catch (err) {
+                console.error("Failed to fetch active streams on mount:", err);
+            }
+        };
+
+        initStreams();
+    }, []);
 
     useEffect(() => {
         // Process new messages

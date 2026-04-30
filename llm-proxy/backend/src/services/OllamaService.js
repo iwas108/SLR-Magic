@@ -33,10 +33,13 @@ class StreamBroadcaster extends EventEmitter {
             if (msgType === "start") {
                 this.activeStreams[streamId] = {
                     endpointUrl: data.endpoint_url,
+                    label: data.label,
+                    prompt: data.prompt,
                     title: data.title,
                     abstract: data.abstract,
                     content_chunks: [],
-                    current_chunk: null
+                    current_chunk: null,
+                    startTime: Date.now()
                 };
             } else if (msgType === "content") {
                 if (this.activeStreams[streamId]) {

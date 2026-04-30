@@ -20,6 +20,13 @@ async function initDependencies() {
         }
 
         ollamaService.syncEndpoints(dbConfigs);
+
+        // Seed initial UPDATE_CACHE from config if it doesn't exist
+        const currentUpdateCache = await cacheRepo.getConfig('UPDATE_CACHE');
+        if (currentUpdateCache === null || currentUpdateCache === undefined) {
+            await cacheRepo.setConfig('UPDATE_CACHE', config.UPDATE_CACHE ? 'true' : 'false');
+        }
+
         console.log(`[DI] Dependencies initialized and synchronized.`);
     } catch (e) {
         console.error(`[DI] Error initializing dependencies:`, e);
