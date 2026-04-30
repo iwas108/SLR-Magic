@@ -90,6 +90,7 @@ class CacheRepository {
         c.custom_model,
         c.api_key,
         c.extra_config,
+        c.stream_mode,
         l.label
       FROM endpoints_config c
       LEFT JOIN endpoint_labels l ON c.endpoint_url = l.endpoint_url
@@ -97,13 +98,13 @@ class CacheRepository {
     return stmt.all();
   }
 
-  async upsertEndpointConfig(endpointUrl, enabled, customModel, apiKey = "", extraConfig = "") {
+  async upsertEndpointConfig(endpointUrl, enabled, customModel, apiKey = "", extraConfig = "", streamMode = false) {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO endpoints_config
-      (endpoint_url, enabled, custom_model, api_key, extra_config)
-      VALUES (?, ?, ?, ?, ?)
+      (endpoint_url, enabled, custom_model, api_key, extra_config, stream_mode)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(endpointUrl, enabled ? 1 : 0, customModel, apiKey, extraConfig);
+    stmt.run(endpointUrl, enabled ? 1 : 0, customModel, apiKey, extraConfig, streamMode ? 1 : 0);
   }
 
   async deleteEndpointConfig(endpointUrl) {
@@ -284,13 +285,16 @@ class CacheRepository {
       )
     `);
 
-    // Ensure api_key and extra_config columns exist in endpoints_config
+    // Ensure api_key, extra_config, and stream_mode columns exist in endpoints_config
     const endpointsConfigCols = this.db.pragma('table_info(endpoints_config)');
     if (!endpointsConfigCols.find(col => col.name === 'api_key')) {
       this.db.exec('ALTER TABLE endpoints_config ADD COLUMN api_key TEXT');
     }
     if (!endpointsConfigCols.find(col => col.name === 'extra_config')) {
       this.db.exec('ALTER TABLE endpoints_config ADD COLUMN extra_config TEXT');
+    }
+    if (!endpointsConfigCols.find(col => col.name === 'stream_mode')) {
+      this.db.exec('ALTER TABLE endpoints_config ADD COLUMN stream_mode BOOLEAN DEFAULT 0');
     }
 
     this.db.exec(`

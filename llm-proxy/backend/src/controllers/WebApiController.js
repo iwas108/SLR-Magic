@@ -75,12 +75,12 @@ async function getEndpointsConfig(req, res) {
 
 async function upsertEndpointConfig(req, res) {
     try {
-        const { endpoint_url, enabled = true, custom_model = "", api_key = "", extra_config = "" } = req.body;
+        const { endpoint_url, enabled = true, custom_model = "", api_key = "", extra_config = "", stream_mode = false } = req.body;
         if (!endpoint_url) {
             return res.status(400).json({ error: "endpoint_url is required" });
         }
 
-        await cacheRepo.upsertEndpointConfig(endpoint_url, enabled, custom_model, api_key, extra_config);
+        await cacheRepo.upsertEndpointConfig(endpoint_url, enabled, custom_model, api_key, extra_config, stream_mode);
 
         // Sync with service
         const configs = await cacheRepo.getAllEndpointConfigs();

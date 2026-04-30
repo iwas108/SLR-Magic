@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties } from '../services/api';
-import { Plus, Trash2, Power, PowerOff } from 'lucide-react';
+import { Plus, Trash2, Power, PowerOff, Pencil } from 'lucide-react';
 
 const Configuration = () => {
     const [endpoints, setEndpoints] = useState([]);
@@ -10,6 +10,7 @@ const Configuration = () => {
     const [url, setUrl] = useState('');
     const [label, setLabel] = useState('');
     const [isActive, setIsActive] = useState(true);
+    const [streamMode, setStreamMode] = useState(false);
     const [extraConfig, setExtraConfig] = useState('');
 
     const loadEndpoints = async () => {
@@ -45,6 +46,7 @@ const Configuration = () => {
             await upsertEndpointConfig({
                 endpoint_url: url,
                 enabled: isActive,
+                stream_mode: streamMode,
                 extra_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
             });
 
@@ -60,6 +62,7 @@ const Configuration = () => {
             setUrl('');
             setLabel('');
             setIsActive(true);
+            setStreamMode(false);
             setExtraConfig('');
 
             loadEndpoints();
@@ -122,7 +125,7 @@ const Configuration = () => {
                                 className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
-                        <div>
+                        <div className="flex space-x-6">
                             <label className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"
@@ -131,6 +134,15 @@ const Configuration = () => {
                                     className="rounded text-blue-600 focus:ring-blue-500"
                                 />
                                 <span className="text-sm font-medium text-gray-700">Is Active</span>
+                            </label>
+                            <label className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    checked={streamMode}
+                                    onChange={(e) => setStreamMode(e.target.checked)}
+                                    className="rounded text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-medium text-gray-700">Stream Mode</span>
                             </label>
                         </div>
                         <div>
@@ -173,6 +185,9 @@ const Configuration = () => {
                                             ) : (
                                                 <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Inactive</span>
                                             )}
+                                            {ep.stream_mode ? (
+                                                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Stream</span>
+                                            ) : null}
                                         </div>
                                         <div className="text-sm text-gray-500 font-mono">{ep.endpoint_url}</div>
                                         {ep.extra_config && (
@@ -182,6 +197,19 @@ const Configuration = () => {
                                         )}
                                     </div>
                                     <div className="flex items-center space-x-2">
+                                        <button
+                                            onClick={() => {
+                                                setUrl(ep.endpoint_url);
+                                                setLabel(ep.label || '');
+                                                setIsActive(ep.enabled);
+                                                setStreamMode(ep.stream_mode === 1 || ep.stream_mode === true);
+                                                setExtraConfig(ep.extra_config || '');
+                                            }}
+                                            className="p-2 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                            title="Edit"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
                                         <button
                                             onClick={() => handleToggleActive(ep)}
                                             className={`p-2 rounded-md border ${

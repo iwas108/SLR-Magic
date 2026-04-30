@@ -65,9 +65,8 @@ class StreamBroadcaster extends EventEmitter {
 const streamBroadcaster = new StreamBroadcaster();
 
 class OllamaService {
-    constructor(urls = [], streamMode = false) {
+    constructor(urls = []) {
         this.urls = urls;
-        this.streamMode = streamMode;
         this.endpointQueue = new AsyncQueue();
         this.endpointStatus = {};
         this.pendingRequests = 0;
@@ -75,6 +74,8 @@ class OllamaService {
         this.customModels = {}; // endpoint_url -> custom_model string
         this.apiKeys = {};      // endpoint_url -> api_key string
         this.extraConfigs = {}; // endpoint_url -> extra_config json string
+        this.streamModes = {};  // endpoint_url -> boolean
+        this.endpointLabels = {}; // endpoint_url -> string label
 
         for (const url of this.urls) {
             this.endpointStatus[url] = "idle";
@@ -83,17 +84,21 @@ class OllamaService {
     }
 
     syncEndpoints(configs) {
-        // configs is a list of objects: [{endpoint_url: "...", enabled: true/false, custom_model: "...", api_key: "...", extra_config: "..."}]
+        // configs is a list of objects: [{endpoint_url: "...", enabled: true/false, custom_model: "...", api_key: "...", extra_config: "...", stream_mode: true/false, label: "..."}]
         const activeUrls = configs.filter(c => c.enabled).map(c => c.endpoint_url);
 
         this.customModels = {};
         this.apiKeys = {};
         this.extraConfigs = {};
+        this.streamModes = {};
+        this.endpointLabels = {};
 
         configs.filter(c => c.enabled).forEach(c => {
             if (c.custom_model) this.customModels[c.endpoint_url] = c.custom_model;
             if (c.api_key) this.apiKeys[c.endpoint_url] = c.api_key;
             if (c.extra_config) this.extraConfigs[c.endpoint_url] = c.extra_config;
+            this.streamModes[c.endpoint_url] = c.stream_mode ? true : false;
+            if (c.label) this.endpointLabels[c.endpoint_url] = c.label;
         });
 
         // Remove urls that are no longer active from status
@@ -263,7 +268,7 @@ class OllamaService {
                 } else {
                     result = await this._fetchGemini(openaiPayload, modelName, endpointUrl, reqHash, apiKey);
                 }
-            } else if (this.streamMode) {
+            } else if (this.streamModes[endpointUrl]) {
                 nativePayload.stream = true;
                 if (openaiPayload.has_pdf) {
                     nativePayload.has_pdf = true;
@@ -354,12 +359,21 @@ class OllamaService {
         const streamId = crypto.randomUUID();
         let paperTitle = "Unknown Paper";
         let paperAbstract = "No abstract available.";
+        let promptText = "Unknown Prompt";
 
         for (let i = messages.length - 1; i >= 0; i--) {
             const msg = messages[i];
             if (msg.role === "user") {
                 let content = msg.content || "";
                 if (typeof content === 'string') {
+                    if (promptText === "Unknown Prompt") {
+                        promptText = content;
+                        // Truncate if very long
+                        if (promptText.length > 500) {
+                            promptText = promptText.substring(0, 500) + "...";
+                        }
+                    }
+
                     const titleMatch = content.match(/Title:\s*([\s\S]*?)(?=\nAbstract:|$)/i);
                     const abstractMatch = content.match(/Abstract:\s*([\s\S]*?)(?=\n[A-Za-z0-9_-]+:|\n\n|$)/i);
 
@@ -376,7 +390,9 @@ class OllamaService {
             stream_id: streamId,
             title: paperTitle,
             abstract: paperAbstract,
-            endpoint_url: endpointUrl
+            endpoint_url: endpointUrl,
+            label: this.endpointLabels[endpointUrl] || endpointUrl,
+            prompt: promptText
         };
 
         if (nativePayload.has_pdf) {
@@ -680,7 +696,7 @@ class OllamaService {
                 finish_reason: "stop"
             }],
             usage: usage,
-            endpoint_url: "Gemini API"
+            endpoint_url: endpointUrl
         };
 
         if (openaiPayload.has_pdf) {
@@ -698,6 +714,7 @@ class OllamaService {
         const contents = [];
         let paperTitle = "Unknown Paper";
         let paperAbstract = "No abstract available.";
+        let promptText = "Unknown Prompt";
 
         for (const msg of (openaiPayload.messages || [])) {
             const parts = [];
@@ -710,6 +727,11 @@ class OllamaService {
                     for (const part of msg.content) {
                         if (part.type === "text") txtContent += (part.text || "");
                     }
+                }
+
+                promptText = txtContent;
+                if (promptText.length > 500) {
+                    promptText = promptText.substring(0, 500) + "...";
                 }
 
                 const titleMatch = txtContent.match(/Title:\s*([\s\S]*?)(?=\nAbstract:|$)/i);
@@ -802,7 +824,9 @@ class OllamaService {
             stream_id: streamId,
             title: paperTitle,
             abstract: paperAbstract,
-            endpoint_url: "Gemini API"
+            endpoint_url: endpointUrl,
+            label: this.endpointLabels[endpointUrl] || endpointUrl,
+            prompt: promptText
         };
         if (openaiPayload.has_pdf) {
             startPayload.has_pdf = true;
@@ -864,7 +888,7 @@ class OllamaService {
                                 stream_id: streamId,
                                 content: textPiece,
                                 in_thinking: isThought,
-                                endpoint_url: "Gemini API"
+                                endpoint_url: endpointUrl
                             }));
                         }
                     }
@@ -887,7 +911,7 @@ class OllamaService {
         streamBroadcaster.broadcast(JSON.stringify({
             type: "end",
             stream_id: streamId,
-            endpoint_url: "Gemini API"
+            endpoint_url: endpointUrl
         }));
 
         let cleanedContent = extractJsonFromMixedText(fullContent);
@@ -919,7 +943,7 @@ class OllamaService {
                 finish_reason: "stop"
             }],
             usage: usage,
-            endpoint_url: "Gemini API"
+            endpoint_url: endpointUrl
         };
 
         if (openaiPayload.has_pdf) {

@@ -4,7 +4,7 @@ const { OllamaService, streamBroadcaster } = require('../services/OllamaService'
 
 // Initialize dependencies
 const cacheRepo = new CacheRepository(config.DB_FILE);
-const ollamaService = new OllamaService(config.OLLAMA_URLS, config.STREAM_OLLAMA);
+const ollamaService = new OllamaService(config.OLLAMA_URLS);
 
 // Synchronize endpoint configurations from DB on startup
 async function initDependencies() {
