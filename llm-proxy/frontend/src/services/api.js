@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:8899/api';
+const API_BASE_URL = import.meta.env.DEV
+    ? `http://${window.location.hostname}:8899/api`
+    : `${window.location.origin}/api`;
 
 export const fetchHistory = async () => {
     const response = await fetch(`${API_BASE_URL}/history`);
@@ -28,13 +30,23 @@ export const upsertEndpointConfig = async (config) => {
     return response.json();
 };
 
-export const deleteEndpointConfig = async (url) => {
+export const deleteEndpointConfig = async (endpoint_url) => {
     const response = await fetch(`${API_BASE_URL}/endpoints/config`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ endpoint_url })
     });
     if (!response.ok) throw new Error('Failed to delete endpoint config');
+    return response.json();
+};
+
+export const setEndpointProperties = async (properties) => {
+    const response = await fetch(`${API_BASE_URL}/stats/properties`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(properties)
+    });
+    if (!response.ok) throw new Error('Failed to set endpoint properties');
     return response.json();
 };
 
