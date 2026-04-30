@@ -199,11 +199,124 @@ const ImportController = (function() {
       showImportDialog();
   }
 
+  /**
+   * Reads data from 00_snowballeds and imports it into 01_abstract_screening.
+   */
+  function runImportSnowballed() {
+    const ui = SpreadsheetApp.getUi();
+
+    // 1. Ask for Source Name
+    const response = ui.prompt("Import Snowballed(s)", "Enter the Source Name for these papers:", ui.ButtonSet.OK_CANCEL);
+    if (response.getSelectedButton() !== ui.Button.OK) {
+      return; // User canceled
+    }
+    const sourceName = response.getResponseText().trim() || "Snowballed";
+
+    try {
+      // 2. Read from 00_snowballeds
+      const snowballedSheet = SheetUtils.getSheetByName("00_snowballeds");
+      const snowballedData = SheetUtils.getDataAsObjects(snowballedSheet);
+
+      if (!snowballedData || snowballedData.length === 0) {
+        ui.alert("No data found in 00_snowballeds sheet.");
+        return;
+      }
+
+      // 3. Load Existing Data for Duplicate Check
+      const targetSheet = SheetUtils.getSheetByName("01_abstract_screening");
+      const existingData = SheetUtils.getDataAsObjects(targetSheet);
+
+      // Build Set for DOIs (normalized) and Titles (normalized)
+      const existingDois = new Set();
+      const existingTitles = new Set();
+
+      existingData.forEach(row => {
+        if (row["DOI"]) existingDois.add(normalize(row["DOI"]));
+        if (row["DOI_Link"] && row["DOI_Link"].includes("doi.org/")) {
+             const parts = row["DOI_Link"].split("doi.org/");
+             if (parts.length > 1) existingDois.add(normalize(parts[1]));
+        }
+        if (row["Title"]) existingTitles.add(normalize(row["Title"]));
+      });
+
+      // 4. Process Records
+      const recordsToAppend = [];
+      let duplicateCount = 0;
+
+      const headerMap = SheetUtils.getHeaderMap(targetSheet);
+      // Ensure basic columns exist
+      SheetUtils.ensureColumn(targetSheet, "Title", headerMap);
+      SheetUtils.ensureColumn(targetSheet, "Authors", headerMap);
+      SheetUtils.ensureColumn(targetSheet, "Year", headerMap);
+      SheetUtils.ensureColumn(targetSheet, "DOI", headerMap);
+      SheetUtils.ensureColumn(targetSheet, "Abstract", headerMap);
+      SheetUtils.ensureColumn(targetSheet, "Source", headerMap);
+      SheetUtils.ensureColumn(targetSheet, "Paper_ID", headerMap);
+      SheetUtils.ensureColumn(targetSheet, "AI_Status", headerMap);
+      SheetUtils.ensureColumn(targetSheet, "DOI_Link", headerMap);
+
+      snowballedData.forEach(rowObj => {
+        const titleVal = rowObj["Title"] || "";
+        const doiVal = rowObj["DOI"] || "";
+
+        // Check Duplicates
+        if (doiVal && existingDois.has(normalize(doiVal))) {
+            duplicateCount++;
+            return;
+        }
+        if (!doiVal && titleVal && existingTitles.has(normalize(titleVal))) {
+            duplicateCount++;
+            return;
+        }
+
+        // Map to System Object
+        const newRow = {
+            "Title": titleVal,
+            "Authors": rowObj["Authors"] || "",
+            "Year": rowObj["Year"] || "",
+            "DOI": doiVal,
+            "Abstract": rowObj["Abstract"] || "",
+            "Source": sourceName,
+            "AI_Status": "Pending"
+        };
+
+        // Generate Paper ID
+        newRow["Paper_ID"] = PaperDomain.generatePaperId(newRow);
+
+        // Handle DOI Link
+        if (newRow["DOI"]) {
+             newRow["DOI_Link"] = "https://doi.org/" + newRow["DOI"];
+        } else {
+             newRow["DOI_Link"] = "";
+        }
+
+        recordsToAppend.push(newRow);
+      });
+
+      // 5. Write to Sheet
+      if (recordsToAppend.length > 0) {
+          SheetUtils.appendDataMapped(targetSheet, recordsToAppend, headerMap);
+      }
+
+      // 6. Sort final columns (left to right)
+      const desiredOrder = ["Paper_ID", "AI_Status", "Year", "Title", "Authors", "Abstract", "DOI_Link"];
+      SheetUtils.reorderColumns(targetSheet, desiredOrder);
+
+      // 7. Alert Result
+      ui.alert(`Import Complete!\n\nSource: ${sourceName}\nTotal Processed: ${snowballedData.length}\nDuplicates Skipped: ${duplicateCount}\nSuccessfully Imported: ${recordsToAppend.length}`);
+
+    } catch (e) {
+      console.error(e);
+      ui.alert("Import failed: " + e.message);
+    }
+  }
+
   return {
     run,
     showImportDialog,
     getCSVHeaders,
-    processImport
+    processImport,
+    runImportSnowballed
   };
 
 })();
