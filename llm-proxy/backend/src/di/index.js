@@ -4,7 +4,7 @@ const { OllamaService, streamBroadcaster } = require('../services/OllamaService'
 
 // Initialize dependencies
 const cacheRepo = new CacheRepository(config.DB_FILE);
-const ollamaService = new OllamaService(config.OLLAMA_URLS, config.STREAM_OLLAMA);
+const ollamaService = new OllamaService(config.OLLAMA_URLS);
 
 // Synchronize endpoint configurations from DB on startup
 async function initDependencies() {
@@ -20,6 +20,13 @@ async function initDependencies() {
         }
 
         ollamaService.syncEndpoints(dbConfigs);
+
+        // Seed initial UPDATE_CACHE from config if it doesn't exist
+        const currentUpdateCache = await cacheRepo.getConfig('UPDATE_CACHE');
+        if (currentUpdateCache === null || currentUpdateCache === undefined) {
+            await cacheRepo.setConfig('UPDATE_CACHE', config.UPDATE_CACHE ? 'true' : 'false');
+        }
+
         console.log(`[DI] Dependencies initialized and synchronized.`);
     } catch (e) {
         console.error(`[DI] Error initializing dependencies:`, e);

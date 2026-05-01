@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react';
-import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties } from '../services/api';
-import { Plus, Trash2, Power, PowerOff } from 'lucide-react';
+import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig } from '../services/api';
+import { Plus, Trash2, Power, PowerOff, Pencil, Settings } from 'lucide-react';
 
 const Configuration = () => {
     const [endpoints, setEndpoints] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [globalUpdateCache, setGlobalUpdateCache] = useState(false);
+    const [savingGlobal, setSavingGlobal] = useState(false);
 
     // Form state
     const [url, setUrl] = useState('');
     const [label, setLabel] = useState('');
     const [isActive, setIsActive] = useState(true);
+    const [streamMode, setStreamMode] = useState(false);
     const [extraConfig, setExtraConfig] = useState('');
 
-    const loadEndpoints = async () => {
+    const loadEndpointsAndConfig = async () => {
         try {
             setLoading(true);
-            const data = await fetchEndpointsConfig();
+            const [data, updateCacheRes] = await Promise.all([
+                fetchEndpointsConfig(),
+                getConfig('UPDATE_CACHE')
+            ]);
+
+            setGlobalUpdateCache(updateCacheRes.value === 'true');
             // The API returns an array directly, not an object with an `endpoints` key
             setEndpoints(Array.isArray(data) ? data : []);
         } catch (error) {
@@ -26,8 +34,20 @@ const Configuration = () => {
     };
 
     useEffect(() => {
-        loadEndpoints();
+        loadEndpointsAndConfig();
     }, []);
+
+    const handleSaveGlobalConfig = async () => {
+        setSavingGlobal(true);
+        try {
+            await setConfig('UPDATE_CACHE', globalUpdateCache ? 'true' : 'false');
+        } catch (e) {
+            console.error('Failed to save global config', e);
+            alert('Failed to save global configuration');
+        } finally {
+            setSavingGlobal(false);
+        }
+    };
 
     const handleAddOrUpdate = async (e) => {
         e.preventDefault();
@@ -45,6 +65,7 @@ const Configuration = () => {
             await upsertEndpointConfig({
                 endpoint_url: url,
                 enabled: isActive,
+                stream_mode: streamMode,
                 extra_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
             });
 
@@ -60,9 +81,10 @@ const Configuration = () => {
             setUrl('');
             setLabel('');
             setIsActive(true);
+            setStreamMode(false);
             setExtraConfig('');
 
-            loadEndpoints();
+            loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error adding endpoint:', error);
             alert('Failed to add endpoint');
@@ -75,7 +97,7 @@ const Configuration = () => {
                 ...endpoint,
                 enabled: !endpoint.enabled
             });
-            loadEndpoints();
+            loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error toggling endpoint:', error);
         }
@@ -85,18 +107,54 @@ const Configuration = () => {
         if (!window.confirm(`Are you sure you want to delete ${endpointUrl}?`)) return;
         try {
             await deleteEndpointConfig(endpointUrl);
-            loadEndpoints();
+            loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error deleting endpoint:', error);
         }
     };
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h2 className="text-2xl font-bold mb-6">Smart Endpoint Manager</h2>
+        <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div className="flex items-center space-x-2 mb-6">
+                    <Settings className="w-6 h-6 text-gray-700" />
+                    <h2 className="text-2xl font-bold">Global Configuration</h2>
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Form Column */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 border rounded-lg max-w-lg">
+                        <div>
+                            <div className="font-semibold text-gray-800">Update Cache</div>
+                            <div className="text-sm text-gray-500">
+                                Bypass the cache entirely and force endpoints to generate new responses for all requests.
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-4 ml-4">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={globalUpdateCache}
+                                    onChange={(e) => setGlobalUpdateCache(e.target.checked)}
+                                    className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                                />
+                            </label>
+                            <button
+                                onClick={handleSaveGlobalConfig}
+                                disabled={savingGlobal}
+                                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {savingGlobal ? 'Saving...' : 'Save'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 className="text-2xl font-bold mb-6">Smart Endpoint Manager</h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Form Column */}
                 <div className="col-span-1 bg-gray-50 p-4 rounded-lg border border-gray-200 h-fit">
                     <h3 className="text-lg font-semibold mb-4">Add / Update Endpoint</h3>
                     <form onSubmit={handleAddOrUpdate} className="space-y-4">
@@ -122,7 +180,7 @@ const Configuration = () => {
                                 className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
-                        <div>
+                        <div className="flex space-x-6">
                             <label className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"
@@ -131,6 +189,15 @@ const Configuration = () => {
                                     className="rounded text-blue-600 focus:ring-blue-500"
                                 />
                                 <span className="text-sm font-medium text-gray-700">Is Active</span>
+                            </label>
+                            <label className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    checked={streamMode}
+                                    onChange={(e) => setStreamMode(e.target.checked)}
+                                    className="rounded text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-medium text-gray-700">Stream Mode</span>
                             </label>
                         </div>
                         <div>
@@ -173,6 +240,9 @@ const Configuration = () => {
                                             ) : (
                                                 <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Inactive</span>
                                             )}
+                                            {ep.stream_mode ? (
+                                                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Stream</span>
+                                            ) : null}
                                         </div>
                                         <div className="text-sm text-gray-500 font-mono">{ep.endpoint_url}</div>
                                         {ep.extra_config && (
@@ -182,6 +252,19 @@ const Configuration = () => {
                                         )}
                                     </div>
                                     <div className="flex items-center space-x-2">
+                                        <button
+                                            onClick={() => {
+                                                setUrl(ep.endpoint_url);
+                                                setLabel(ep.label || '');
+                                                setIsActive(ep.enabled);
+                                                setStreamMode(ep.stream_mode === 1 || ep.stream_mode === true);
+                                                setExtraConfig(ep.extra_config || '');
+                                            }}
+                                            className="p-2 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                            title="Edit"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
                                         <button
                                             onClick={() => handleToggleActive(ep)}
                                             className={`p-2 rounded-md border ${
@@ -207,6 +290,7 @@ const Configuration = () => {
                     )}
                 </div>
             </div>
+        </div>
         </div>
     );
 };

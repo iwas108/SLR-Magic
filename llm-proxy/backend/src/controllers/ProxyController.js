@@ -24,9 +24,11 @@ async function proxyToOllama(req, res) {
 
     const startTime = Date.now();
 
-    // UPDATE_CACHE logic from config
-    const config = require('../config');
-    if (!config.UPDATE_CACHE) {
+    // UPDATE_CACHE logic from general_config
+    const updateCacheStr = await cacheRepo.getConfig('UPDATE_CACHE');
+    const updateCache = updateCacheStr === 'true';
+
+    if (!updateCache) {
         const cachedResponse = await cacheRepo.get(reqHash);
         if (cachedResponse) {
             const durationMs = Date.now() - startTime;

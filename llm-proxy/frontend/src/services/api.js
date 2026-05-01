@@ -62,6 +62,12 @@ export const fetchQueueStats = async () => {
     return response.json();
 };
 
+export const fetchActiveStreams = async () => {
+    const response = await fetch(`${API_BASE_URL}/streams/active`);
+    if (!response.ok) throw new Error('Failed to fetch active streams');
+    return response.json();
+};
+
 export const getConfig = async (key) => {
     const response = await fetch(`${API_BASE_URL}/config/${key}`);
     if (!response.ok) throw new Error(`Failed to fetch config for ${key}`);
