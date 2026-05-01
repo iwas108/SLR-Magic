@@ -219,7 +219,7 @@ const Realtime = () => {
                                             </button>
                                             {expandedPrompts[stream.id] && (
                                                 <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-900 p-2 border dark:border-gray-600 rounded whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">
-                                                    {stream.prompt}
+                                                    {stream.prompt_json?.messages?.[0]?.content || stream.prompt}
                                                 </div>
                                             )}
                                         </div>
