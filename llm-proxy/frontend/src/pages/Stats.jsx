@@ -52,53 +52,53 @@ const Stats = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Queue Stats Card */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                     <div className="flex items-center mb-4">
                         <List className="w-5 h-5 text-gray-500 mr-2" />
                         <h3 className="text-lg font-semibold">Queue Activity</h3>
                     </div>
                     {queueStats ? (
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center py-2 border-b">
-                                <span className="text-gray-600">Active Requests</span>
+                            <div className="flex justify-between items-center py-2 border-b dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-400">Active Requests</span>
                                 <span className="font-bold text-xl">{queueStats.active_requests}</span>
                             </div>
-                            <div className="flex justify-between items-center py-2 border-b">
-                                <span className="text-gray-600">Pending in Queue</span>
+                            <div className="flex justify-between items-center py-2 border-b dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-400">Pending in Queue</span>
                                 <span className="font-bold text-xl">{queueStats.pending_in_queue}</span>
                             </div>
-                            <div className="flex justify-between items-center py-2 border-b">
-                                <span className="text-gray-600">Total Processed</span>
+                            <div className="flex justify-between items-center py-2 border-b dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-400">Total Processed</span>
                                 <span className="font-bold text-xl">{queueStats.total_processed}</span>
                             </div>
                             <div className="flex justify-between items-center py-2">
-                                <span className="text-gray-600">Max Concurrent</span>
+                                <span className="text-gray-600 dark:text-gray-400">Max Concurrent</span>
                                 <span className="font-bold text-xl">{queueStats.max_concurrent_requests}</span>
                             </div>
                         </div>
                     ) : (
-                        <div className="text-gray-500 italic">No queue stats available</div>
+                        <div className="text-gray-500 dark:text-gray-400 italic">No queue stats available</div>
                     )}
                 </div>
 
                 {/* DB Stats Card */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                     <div className="flex items-center mb-4">
                         <Server className="w-5 h-5 text-gray-500 mr-2" />
                         <h3 className="text-lg font-semibold">Proxy Metrics</h3>
                     </div>
                     {stats ? (
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center py-2 border-b">
-                                <span className="text-gray-600">Cache Hits</span>
+                            <div className="flex justify-between items-center py-2 border-b dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-400">Cache Hits</span>
                                 <span className="font-bold text-xl text-green-600">{stats.cache_hits || 0}</span>
                             </div>
-                            <div className="flex justify-between items-center py-2 border-b">
-                                <span className="text-gray-600">Total Requests Logged</span>
+                            <div className="flex justify-between items-center py-2 border-b dark:border-gray-700">
+                                <span className="text-gray-600 dark:text-gray-400">Total Requests Logged</span>
                                 <span className="font-bold text-xl">{stats.total_requests || 0}</span>
                             </div>
                             <div className="flex justify-between items-center py-2">
-                                <span className="text-gray-600">Cache Hit Ratio</span>
+                                <span className="text-gray-600 dark:text-gray-400">Cache Hit Ratio</span>
                                 <span className="font-bold text-xl">
                                     {stats.total_requests ?
                                         ((stats.cache_hits / stats.total_requests) * 100).toFixed(1) + '%'
@@ -107,7 +107,7 @@ const Stats = () => {
                             </div>
                         </div>
                     ) : (
-                        <div className="text-gray-500 italic">No DB stats available</div>
+                        <div className="text-gray-500 dark:text-gray-400 italic">No DB stats available</div>
                     )}
                 </div>
             </div>
