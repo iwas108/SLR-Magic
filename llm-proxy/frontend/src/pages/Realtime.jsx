@@ -25,6 +25,12 @@ const Realtime = () => {
         setExpandedPrompts(prev => ({ ...prev, [id]: !prev[id] }));
     };
     const streamsEndRef = useRef(null);
+    const [now, setNow] = useState(Date.now());
+
+    useEffect(() => {
+        const interval = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         const initStreams = async () => {
@@ -193,6 +199,7 @@ const Realtime = () => {
                                 </div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400">
                                     Started: {new Date(stream.startTime).toLocaleTimeString()}
+                                    {stream.status === 'active' && ` • Elapsed: ${Math.floor((now - stream.startTime) / 1000)}s`}
                                     {stream.endTime && ` • Ended: ${new Date(stream.endTime).toLocaleTimeString()}`}
                                 </div>
                             </div>
@@ -211,7 +218,7 @@ const Realtime = () => {
                                                 Raw Prompt Content
                                             </button>
                                             {expandedPrompts[stream.id] && (
-                                                <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-900 p-2 border dark:border-gray-600 rounded whitespace-pre-wrap break-words">
+                                                <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-900 p-2 border dark:border-gray-600 rounded whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">
                                                     {stream.prompt}
                                                 </div>
                                             )}
