@@ -31,20 +31,20 @@ const Stats = () => {
 
     if (loading && !stats) {
         return (
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <div className="text-center py-8 text-gray-500">Loading stats...</div>
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading stats...</div>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center mb-6">
+        <div className="space-y-6 text-gray-900 dark:text-gray-100">
+            <div className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                 <h2 className="text-2xl font-bold flex items-center">
-                    <BarChart2 className="w-6 h-6 mr-2 text-blue-500" />
+                    <BarChart2 className="w-6 h-6 mr-2 text-blue-500 dark:text-blue-400" />
                     Performance & Metrics
                 </h2>
-                <span className="text-sm text-gray-500 flex items-center">
+                <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
                     <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
                     Auto-updating
                 </span>
