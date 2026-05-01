@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig } from '../services/api';
-import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Monitor, Moon, Sun } from 'lucide-react';
+import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Pencil, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 const ThemeSetting = () => {
