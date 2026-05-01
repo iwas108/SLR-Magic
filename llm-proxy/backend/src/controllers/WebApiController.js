@@ -113,13 +113,73 @@ async function deleteEndpointConfig(req, res) {
 
 async function getHistory(req, res) {
     try {
-        const { search = null, endpoint = null, page = 1, limit = 50, sort_by = "id", sort_desc = "true" } = req.query;
+        const { search = null, endpoint = null, page = 1, limit = 50, sort_by = "id", sort_desc = "true", time_start = null, time_end = null } = req.query;
         const isDesc = String(sort_desc).toLowerCase() === "true";
         const pageNum = parseInt(page) || 1;
         const limitNum = parseInt(limit) || 50;
 
-        const history = await cacheRepo.getHistory(search, endpoint, pageNum, limitNum, sort_by, isDesc);
-        return res.json(history);
+        let sortByFixed = sort_by;
+        if (sort_by === 'timestamp') {
+            sortByFixed = 'created_at';
+        } else if (sort_by === 'model') {
+            sortByFixed = 'model_name';
+        }
+
+        const result = await cacheRepo.getHistory(search, endpoint, pageNum, limitNum, sortByFixed, isDesc, time_start, time_end);
+
+        // Format history to match frontend expectations
+        const formattedHistory = result.data.map(item => {
+            let prompt = "";
+            let response = "";
+            let prompt_tokens = 0;
+            let completion_tokens = 0;
+
+            try {
+                const reqJson = JSON.parse(item.request_json);
+                const resJson = JSON.parse(item.response_json);
+
+                if (reqJson.messages && reqJson.messages.length > 0) {
+                    // Usually the last user message or a concatenation
+                    prompt = reqJson.messages[reqJson.messages.length - 1].content;
+                } else if (reqJson.prompt) {
+                    prompt = reqJson.prompt;
+                }
+
+                if (resJson.choices && resJson.choices.length > 0) {
+                    response = resJson.choices[0].message?.content || "";
+                } else if (resJson.response) {
+                    response = resJson.response;
+                }
+
+                if (resJson.usage) {
+                    prompt_tokens = resJson.usage.prompt_tokens || 0;
+                    completion_tokens = resJson.usage.completion_tokens || 0;
+                }
+            } catch (e) {
+                // ignore parsing errors
+            }
+
+            return {
+                id: item.id,
+                timestamp: item.created_at,
+                model: item.model_name,
+                endpoint: item.endpoint_url,
+                prompt: prompt,
+                response: response,
+                prompt_tokens: prompt_tokens,
+                completion_tokens: completion_tokens,
+                total_duration: item.duration_ms,
+                is_cached: false, // Could infer if needed
+                thinking: null // Or extract if available
+            };
+        });
+
+        return res.json({
+            history: formattedHistory,
+            total: result.total,
+            page: result.page,
+            limit: result.limit
+        });
     } catch (e) {
         return res.status(500).json({ error: e.message || String(e) });
     }

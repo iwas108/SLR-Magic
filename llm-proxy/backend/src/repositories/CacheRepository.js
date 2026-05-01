@@ -112,7 +112,7 @@ class CacheRepository {
     stmt.run(endpointUrl);
   }
 
-  async getHistory(search = null, endpoint = null, page = 1, limit = 50, sortBy = "id", sortDesc = true) {
+  async getHistory(search = null, endpoint = null, page = 1, limit = 50, sortBy = "id", sortDesc = true, timeStart = null, timeEnd = null) {
     const offset = (page - 1) * limit;
 
     const validSortColumns = new Set(["id", "model_name", "endpoint_url", "created_at", "duration_ms"]);
@@ -137,6 +137,16 @@ class CacheRepository {
     if (endpoint) {
       conditions.push("h.endpoint_url = ?");
       params.push(endpoint);
+    }
+
+    if (timeStart) {
+      conditions.push("h.created_at >= ?");
+      params.push(timeStart);
+    }
+
+    if (timeEnd) {
+      conditions.push("h.created_at <= ?");
+      params.push(timeEnd);
     }
 
     if (conditions.length > 0) {
