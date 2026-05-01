@@ -115,8 +115,18 @@ const Realtime = () => {
         // We handle messages, now clear them so we don't re-process
         clearMessages();
 
-        // Auto-scroll to bottom of active streams
-        streamsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // Auto-scroll all thinking containers to bottom
+        setTimeout(() => {
+            const thinkingContainers = document.querySelectorAll('.thinking-container-active');
+            thinkingContainers.forEach(container => {
+                // Only auto-scroll if the user hasn't significantly scrolled up manually
+                const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+                // Only force scroll on top if content is very small to avoid snapping while reading
+                if (isNearBottom || (container.scrollTop === 0 && container.scrollHeight < 300)) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
+        }, 0);
     }, [messages, clearMessages, streams]);
 
     const activeStreamCount = Object.values(streams).filter(s => s.status === 'active').length;
