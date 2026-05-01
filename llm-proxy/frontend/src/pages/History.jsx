@@ -185,7 +185,7 @@ const History = () => {
     const totalPages = Math.ceil(total / limit);
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">History</h2>
                 <div className="flex gap-2">
@@ -306,7 +306,7 @@ const History = () => {
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             {history.length === 0 ? (
                                 <tr>
                                     <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
@@ -318,7 +318,7 @@ const History = () => {
                                     <tr
                                         key={item.id}
                                         onClick={() => openModal(item, index)}
-                                        className="hover:bg-gray-50 cursor-pointer"
+                                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
                                     >
                                         <td className="px-6 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                             <input
@@ -362,26 +362,26 @@ const History = () => {
 
             {/* Pagination Controls */}
             {!loading && total > 0 && (
-                <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
+                <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 sm:px-6 mt-4">
                     <div className="flex flex-1 justify-between sm:hidden">
                         <button
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page === 1}
-                            className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            className="relative inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
                         >
                             Previous
                         </button>
                         <button
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                             disabled={page === totalPages}
-                            className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
                         >
                             Next
                         </button>
                     </div>
                     <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                         <div>
-                            <p className="text-sm text-gray-700">
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
                                 Showing <span className="font-medium">{((page - 1) * limit) + 1}</span> to <span className="font-medium">{Math.min(page * limit, total)}</span> of{' '}
                                 <span className="font-medium">{total}</span> results
                             </p>
@@ -394,7 +394,7 @@ const History = () => {
                                         setLimit(Number(e.target.value));
                                         setPage(1);
                                     }}
-                                    className="border-gray-300 rounded-md text-sm p-1 border mr-2"
+                                    className="border-gray-300 dark:border-gray-600 rounded-md text-sm py-1 dark:bg-gray-700 dark:text-gray-200"
                                 >
                                     <option value={10}>10 per page</option>
                                     <option value={25}>25 per page</option>
@@ -405,18 +405,18 @@ const History = () => {
                                     <button
                                         onClick={() => setPage(p => Math.max(1, p - 1))}
                                         disabled={page === 1}
-                                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 dark:text-gray-500 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
                                     >
                                         <span className="sr-only">Previous</span>
                                         <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                                     </button>
-                                    <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300">
+                                    <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 ring-1 ring-inset ring-gray-300 dark:ring-gray-600">
                                         Page {page} of {totalPages}
                                     </span>
                                     <button
                                         onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                                         disabled={page === totalPages}
-                                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 dark:text-gray-500 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
                                     >
                                         <span className="sr-only">Next</span>
                                         <ChevronRight className="h-5 w-5" aria-hidden="true" />
@@ -430,28 +430,28 @@ const History = () => {
 
             {/* Modal */}
             {selectedRequest && (
-                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-                        <div className="flex justify-between items-center p-4 border-b">
-                            <h3 className="text-lg font-semibold">Request Details</h3>
-                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-500">
+                <div className="fixed inset-0 bg-gray-500/75 dark:bg-gray-900/80 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Request Details</h3>
+                            <button onClick={closeModal} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <div className="p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex justify-between items-center">
                             <div className="flex gap-2">
                                 <button
                                     onClick={navigatePrev}
                                     disabled={selectedIndex === 0}
-                                    className="px-3 py-1 bg-white border rounded shadow-sm disabled:opacity-50 flex items-center"
+                                    className="px-3 py-1 bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded shadow-sm disabled:opacity-50 flex items-center hover:bg-gray-50 dark:hover:bg-gray-700"
                                 >
                                     <ChevronLeft className="w-4 h-4 mr-1" /> Prev
                                 </button>
                                 <button
                                     onClick={navigateNext}
                                     disabled={selectedIndex === history.length - 1}
-                                    className="px-3 py-1 bg-white border rounded shadow-sm disabled:opacity-50 flex items-center"
+                                    className="px-3 py-1 bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded shadow-sm disabled:opacity-50 flex items-center hover:bg-gray-50 dark:hover:bg-gray-700"
                                 >
                                     Next <ChevronRight className="w-4 h-4 ml-1" />
                                 </button>
@@ -466,45 +466,45 @@ const History = () => {
 
                         <div className="p-6 overflow-y-auto flex-1">
                             <div className="grid grid-cols-2 gap-4 mb-6">
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <span className="text-xs text-gray-500 font-bold uppercase">Model</span>
-                                    <div className="font-mono text-sm">{selectedRequest.model}</div>
+                                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">Model</span>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-200">{selectedRequest.model}</div>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <span className="text-xs text-gray-500 font-bold uppercase">Endpoint</span>
-                                    <div className="font-mono text-sm">{selectedRequest.endpoint || 'N/A'}</div>
+                                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">Endpoint</span>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-200">{selectedRequest.endpoint || 'N/A'}</div>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <span className="text-xs text-gray-500 font-bold uppercase">Tokens (Prompt/Completion)</span>
-                                    <div className="font-mono text-sm">
+                                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">Tokens (Prompt/Completion)</span>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
                                         {selectedRequest.prompt_tokens} / {selectedRequest.completion_tokens}
                                     </div>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded">
-                                    <span className="text-xs text-gray-500 font-bold uppercase">Total Duration</span>
-                                    <div className="font-mono text-sm">{formatTime(selectedRequest.total_duration)}</div>
+                                <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">Total Duration</span>
+                                    <div className="font-mono text-sm text-gray-900 dark:text-gray-200">{formatTime(selectedRequest.total_duration)}</div>
                                 </div>
                             </div>
 
                             <div className="mb-6">
-                                <h4 className="text-sm font-bold text-gray-700 mb-2">Prompt</h4>
-                                <pre className="bg-gray-100 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-gray-200">
+                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Prompt</h4>
+                                <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200">
                                     {selectedRequest.prompt}
                                 </pre>
                             </div>
 
                             {selectedRequest.thinking && (
                                 <div className="mb-6">
-                                    <h4 className="text-sm font-bold text-gray-700 mb-2">Thinking Process</h4>
-                                    <pre className="bg-yellow-50 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-yellow-200 text-gray-600 italic">
+                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Thinking Process</h4>
+                                    <pre className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-yellow-200 dark:border-yellow-900/50 text-gray-600 dark:text-gray-400 italic">
                                         {selectedRequest.thinking}
                                     </pre>
                                 </div>
                             )}
 
                             <div>
-                                <h4 className="text-sm font-bold text-gray-700 mb-2">Response</h4>
-                                <pre className="bg-blue-50 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-blue-200">
+                                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Response</h4>
+                                <pre className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-blue-200 dark:border-blue-900/50 text-gray-900 dark:text-gray-200">
                                     {selectedRequest.response}
                                 </pre>
                             </div>

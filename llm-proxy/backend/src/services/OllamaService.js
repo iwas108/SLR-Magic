@@ -35,6 +35,7 @@ class StreamBroadcaster extends EventEmitter {
                     endpointUrl: data.endpoint_url,
                     label: data.label,
                     prompt: data.prompt,
+                    prompt_json: data.prompt_json,
                     title: data.title,
                     abstract: data.abstract,
                     content_chunks: [],
@@ -395,7 +396,8 @@ class OllamaService {
             abstract: paperAbstract,
             endpoint_url: endpointUrl,
             label: this.endpointLabels[endpointUrl] || endpointUrl,
-            prompt: promptText
+            prompt: promptText,
+            prompt_json: nativePayload
         };
 
         if (nativePayload.has_pdf) {
@@ -829,7 +831,8 @@ class OllamaService {
             abstract: paperAbstract,
             endpoint_url: endpointUrl,
             label: this.endpointLabels[endpointUrl] || endpointUrl,
-            prompt: promptText
+            prompt: promptText,
+            prompt_json: openaiPayload
         };
         if (openaiPayload.has_pdf) {
             startPayload.has_pdf = true;

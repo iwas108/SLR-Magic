@@ -1,6 +1,45 @@
 import { useEffect, useState } from 'react';
 import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig } from '../services/api';
-import { Plus, Trash2, Power, PowerOff, Pencil, Settings } from 'lucide-react';
+import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Monitor, Moon, Sun } from 'lucide-react';
+import { useTheme } from '../hooks/useTheme';
+
+const ThemeSetting = () => {
+    const { theme, setTheme } = useTheme();
+
+    return (
+        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 border dark:border-gray-700 rounded-lg max-w-lg">
+            <div>
+                <div className="font-semibold text-gray-800 dark:text-gray-200">Theme Preference</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Choose your preferred application appearance.
+                </div>
+            </div>
+            <div className="flex items-center space-x-2 ml-4 bg-white dark:bg-gray-900 border dark:border-gray-600 rounded-lg p-1">
+                <button
+                    onClick={() => setTheme('light')}
+                    className={`p-2 rounded-md flex items-center justify-center transition-colors ${theme === 'light' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                    title="Light Theme"
+                >
+                    <Sun className="w-5 h-5" />
+                </button>
+                <button
+                    onClick={() => setTheme('dark')}
+                    className={`p-2 rounded-md flex items-center justify-center transition-colors ${theme === 'dark' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                    title="Dark Theme"
+                >
+                    <Moon className="w-5 h-5" />
+                </button>
+                <button
+                    onClick={() => setTheme('system')}
+                    className={`p-2 rounded-md flex items-center justify-center transition-colors ${theme === 'system' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                    title="System Theme"
+                >
+                    <Monitor className="w-5 h-5" />
+                </button>
+            </div>
+        </div>
+    );
+};
 
 const Configuration = () => {
     const [endpoints, setEndpoints] = useState([]);
@@ -114,18 +153,19 @@ const Configuration = () => {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <div className="space-y-6 text-gray-900 dark:text-gray-100">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center space-x-2 mb-6">
-                    <Settings className="w-6 h-6 text-gray-700" />
+                    <Settings className="w-6 h-6 text-gray-700 dark:text-gray-300" />
                     <h2 className="text-2xl font-bold">Global Configuration</h2>
                 </div>
 
                 <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 border rounded-lg max-w-lg">
+                    {/* Update Cache Setting */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 border dark:border-gray-700 rounded-lg max-w-lg">
                         <div>
-                            <div className="font-semibold text-gray-800">Update Cache</div>
-                            <div className="text-sm text-gray-500">
+                            <div className="font-semibold text-gray-800 dark:text-gray-200">Update Cache</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
                                 Bypass the cache entirely and force endpoints to generate new responses for all requests.
                             </div>
                         </div>
@@ -147,37 +187,40 @@ const Configuration = () => {
                             </button>
                         </div>
                     </div>
+
+                    {/* Theme Setting */}
+                    <ThemeSetting />
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                 <h2 className="text-2xl font-bold mb-6">Smart Endpoint Manager</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Form Column */}
-                <div className="col-span-1 bg-gray-50 p-4 rounded-lg border border-gray-200 h-fit">
+                    <div className="col-span-1 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 h-fit">
                     <h3 className="text-lg font-semibold mb-4">Add / Update Endpoint</h3>
                     <form onSubmit={handleAddOrUpdate} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">URL (Primary Key)</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL (Primary Key)</label>
                             <input
                                 type="text"
                                 required
                                 value={url}
                                 onChange={(e) => setUrl(e.target.value)}
                                 placeholder="http://127.0.0.1:11434/api/chat"
-                                className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label</label>
                             <input
                                 type="text"
                                 required
                                 value={label}
                                 onChange={(e) => setLabel(e.target.value)}
                                 placeholder="Local Ollama"
-                                className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
                             />
                         </div>
                         <div className="flex space-x-6">
@@ -186,28 +229,28 @@ const Configuration = () => {
                                     type="checkbox"
                                     checked={isActive}
                                     onChange={(e) => setIsActive(e.target.checked)}
-                                    className="rounded text-blue-600 focus:ring-blue-500"
+                                        className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
                                 />
-                                <span className="text-sm font-medium text-gray-700">Is Active</span>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Is Active</span>
                             </label>
                             <label className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"
                                     checked={streamMode}
                                     onChange={(e) => setStreamMode(e.target.checked)}
-                                    className="rounded text-blue-600 focus:ring-blue-500"
+                                        className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
                                 />
-                                <span className="text-sm font-medium text-gray-700">Stream Mode</span>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream Mode</span>
                             </label>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Extra Config (JSON)</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Extra Config (JSON)</label>
                             <textarea
                                 value={extraConfig}
                                 onChange={(e) => setExtraConfig(e.target.value)}
                                 placeholder='{"temperature": 0.7}'
                                 rows={3}
-                                className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm dark:bg-gray-700"
                             />
                         </div>
                         <button
@@ -223,30 +266,30 @@ const Configuration = () => {
                 <div className="col-span-1 md:col-span-2">
                     <h3 className="text-lg font-semibold mb-4">Configured Endpoints</h3>
                     {loading ? (
-                        <div className="text-center py-8 text-gray-500">Loading endpoints...</div>
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading endpoints...</div>
                     ) : endpoints.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500 border-2 border-dashed rounded-lg">
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400 border-2 border-dashed dark:border-gray-600 rounded-lg">
                             No endpoints configured. Add one to get started.
                         </div>
                     ) : (
                         <div className="space-y-4">
                             {endpoints.map((ep) => (
-                                <div key={ep.endpoint_url} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border rounded-lg shadow-sm">
+                                <div key={ep.endpoint_url} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-sm">
                                     <div className="mb-4 sm:mb-0">
                                         <div className="flex items-center space-x-2 mb-1">
                                             <span className="font-semibold text-lg">{ep.label || 'Unlabeled'}</span>
                                             {ep.enabled ? (
-                                                <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">Active</span>
+                                                <span className="px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full">Active</span>
                                             ) : (
-                                                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Inactive</span>
+                                                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-full">Inactive</span>
                                             )}
                                             {ep.stream_mode ? (
-                                                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Stream</span>
+                                                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">Stream</span>
                                             ) : null}
                                         </div>
-                                        <div className="text-sm text-gray-500 font-mono">{ep.endpoint_url}</div>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">{ep.endpoint_url}</div>
                                         {ep.extra_config && (
-                                            <div className="mt-2 text-xs font-mono bg-gray-50 p-2 rounded border">
+                                            <div className="mt-2 text-xs font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded border dark:border-gray-700">
                                                 {ep.extra_config}
                                             </div>
                                         )}
@@ -260,7 +303,7 @@ const Configuration = () => {
                                                 setStreamMode(ep.stream_mode === 1 || ep.stream_mode === true);
                                                 setExtraConfig(ep.extra_config || '');
                                             }}
-                                            className="p-2 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100"
+                                            className="p-2 rounded-md bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900"
                                             title="Edit"
                                         >
                                             <Pencil className="w-4 h-4" />
@@ -269,8 +312,8 @@ const Configuration = () => {
                                             onClick={() => handleToggleActive(ep)}
                                             className={`p-2 rounded-md border ${
                                                 ep.enabled
-                                                    ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100'
-                                                    : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'
+                                                    ? 'bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900'
+                                                    : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900'
                                             }`}
                                             title={ep.enabled ? "Deactivate" : "Activate"}
                                         >
@@ -278,7 +321,7 @@ const Configuration = () => {
                                         </button>
                                         <button
                                             onClick={() => handleDelete(ep.endpoint_url)}
-                                            className="p-2 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
+                                            className="p-2 rounded-md bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900"
                                             title="Delete"
                                         >
                                             <Trash2 className="w-4 h-4" />
