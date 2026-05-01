@@ -3,6 +3,9 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { fetchActiveStreams } from '../services/api';
 import { Activity, XCircle, CheckCircle2, Clock } from 'lucide-react';
 import JsonView from '@uiw/react-json-view';
+import { lightTheme } from '@uiw/react-json-view/light';
+import { darkTheme } from '@uiw/react-json-view/dark';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 const getWebSocketUrl = () => {
     if (import.meta.env.DEV) {
@@ -16,6 +19,11 @@ const Realtime = () => {
     const wsUrl = getWebSocketUrl();
     const { messages, status, clearMessages } = useWebSocket(wsUrl);
     const [streams, setStreams] = useState({});
+    const [expandedPrompts, setExpandedPrompts] = useState({});
+
+    const togglePrompt = (id) => {
+        setExpandedPrompts(prev => ({ ...prev, [id]: !prev[id] }));
+    };
     const streamsEndRef = useRef(null);
 
     useEffect(() => {
@@ -193,17 +201,31 @@ const Realtime = () => {
                                 {/* Prompt (Left on Desktop, Top on Mobile) */}
                                 <div className="p-4 border-b md:border-b-0 md:border-r dark:border-gray-700 bg-gray-50 dark:bg-gray-800 md:w-1/2 flex flex-col max-h-[500px]">
                                     <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Prompt</div>
-                                    <div className="text-sm text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-900 p-2 border dark:border-gray-600 rounded overflow-y-auto flex-1">
-                                        {stream.prompt_json ? (
-                                            <JsonView
-                                                value={stream.prompt_json}
-                                                displayDataTypes={false}
-                                                displayObjectSize={false}
-                                                collapsed={1}
-                                                style={document.documentElement.classList.contains('dark') ? { backgroundColor: 'transparent' } : {}}
-                                            />
-                                        ) : (
-                                            <div className="whitespace-pre-wrap break-words">{stream.prompt}</div>
+                                    <div className="flex flex-col flex-1 overflow-y-auto">
+                                        <div className="mb-2">
+                                            <button
+                                                onClick={() => togglePrompt(stream.id)}
+                                                className="flex items-center text-xs font-semibold text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                                            >
+                                                {expandedPrompts[stream.id] ? <ChevronDown className="w-4 h-4 mr-1" /> : <ChevronRight className="w-4 h-4 mr-1" />}
+                                                Raw Prompt Content
+                                            </button>
+                                            {expandedPrompts[stream.id] && (
+                                                <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-900 p-2 border dark:border-gray-600 rounded whitespace-pre-wrap break-words">
+                                                    {stream.prompt}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {stream.prompt_json && (
+                                            <div className="text-sm text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-900 p-2 border dark:border-gray-600 rounded overflow-y-auto flex-1">
+                                                <JsonView
+                                                    value={stream.prompt_json}
+                                                    displayDataTypes={false}
+                                                    displayObjectSize={false}
+                                                    collapsed={1}
+                                                    style={document.documentElement.classList.contains('dark') ? darkTheme : lightTheme}
+                                                />
+                                            </div>
                                         )}
                                     </div>
                                 </div>

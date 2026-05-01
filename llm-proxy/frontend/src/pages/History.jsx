@@ -214,7 +214,7 @@ const History = () => {
                         placeholder="Search payload..."
                         value={search}
                         onChange={handleSearchChange}
-                        className="pl-10 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
+                        className="pl-10 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
                     />
                 </div>
 
@@ -222,7 +222,7 @@ const History = () => {
                     <select
                         value={endpointFilter}
                         onChange={handleEndpointChange}
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
                     >
                         <option value="">All Endpoints</option>
                         {endpoints.map(ep => (
@@ -236,7 +236,7 @@ const History = () => {
                         type="datetime-local"
                         value={timeStart}
                         onChange={(e) => { setTimeStart(e.target.value); setPage(1); }}
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
                         title="Start Time"
                     />
                 </div>
@@ -245,7 +245,7 @@ const History = () => {
                         type="datetime-local"
                         value={timeEnd}
                         onChange={(e) => { setTimeEnd(e.target.value); setPage(1); }}
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
+                        className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
                         title="End Time"
                     />
                 </div>
@@ -264,11 +264,11 @@ const History = () => {
             )}
 
             {loading ? (
-                <div className="text-center py-8 text-gray-500">Loading history...</div>
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading history...</div>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-700">
                             <tr>
                                 <th className="px-6 py-3 text-left">
                                     <input
@@ -279,31 +279,31 @@ const History = () => {
                                     />
                                 </th>
                                 <th
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                                     onClick={() => handleSort('timestamp')}
                                 >
                                     Timestamp {renderSortIcon('timestamp')}
                                 </th>
                                 <th
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                                     onClick={() => handleSort('endpoint_url')}
                                 >
                                     Endpoint {renderSortIcon('endpoint_url')}
                                 </th>
                                 <th
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                                     onClick={() => handleSort('model')}
                                 >
                                     Model {renderSortIcon('model')}
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prompt (Truncated)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Prompt (Truncated)</th>
                                 <th
-                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                                     onClick={() => handleSort('duration_ms')}
                                 >
                                     Duration {renderSortIcon('duration_ms')}
                                 </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -318,7 +318,7 @@ const History = () => {
                                     <tr
                                         key={item.id}
                                         onClick={() => openModal(item, index)}
-                                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer text-gray-900 dark:text-gray-100"
                                     >
                                         <td className="px-6 py-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                                             <input
@@ -328,19 +328,19 @@ const History = () => {
                                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                             />
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                             {format(new Date(item.timestamp), 'yyyy-MM-dd HH:mm:ss')}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate max-w-[150px]" title={item.endpoint}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 truncate max-w-[150px]" title={item.endpoint}>
                                             {item.endpoint || '-'}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate max-w-[150px]" title={item.model}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100 truncate max-w-[150px]" title={item.model}>
                                             {item.model}
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={item.prompt}>
+                                        <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title={item.prompt}>
                                             {item.prompt}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                             {formatTime(item.total_duration)}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={e => e.stopPropagation()}>

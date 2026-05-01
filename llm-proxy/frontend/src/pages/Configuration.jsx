@@ -175,7 +175,7 @@ const Configuration = () => {
                                     type="checkbox"
                                     checked={globalUpdateCache}
                                     onChange={(e) => setGlobalUpdateCache(e.target.checked)}
-                                    className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500"
+                                    className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
                                 />
                             </label>
                             <button
