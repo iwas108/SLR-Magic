@@ -64,7 +64,7 @@ const Realtime = () => {
         const newStreams = { ...streams };
 
         messages.forEach((msg) => {
-            const { stream_id, type, chunk, error, summary, timestamp, prompt, label } = msg;
+            const { stream_id, type, content, in_thinking, error, summary, timestamp, prompt, label } = msg;
 
             if (!stream_id) return;
 
@@ -86,11 +86,12 @@ const Realtime = () => {
             const stream = newStreams[stream_id];
 
             switch (type) {
-                case 'chunk':
-                    stream.content += chunk;
-                    break;
-                case 'thinking':
-                    stream.thinking += chunk;
+                case 'content':
+                    if (in_thinking) {
+                        stream.thinking += (content || '');
+                    } else {
+                        stream.content += (content || '');
+                    }
                     break;
                 case 'error':
                     stream.status = 'error';
