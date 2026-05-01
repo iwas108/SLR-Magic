@@ -114,6 +114,18 @@ const Realtime = () => {
 
         // Auto-scroll to bottom of active streams
         streamsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+        // Auto-scroll all thinking containers to bottom
+        setTimeout(() => {
+            const thinkingContainers = document.querySelectorAll('.thinking-container-active');
+            thinkingContainers.forEach(container => {
+                // Only auto-scroll if the user hasn't significantly scrolled up manually
+                const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+                if (isNearBottom || container.scrollTop === 0) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
+        }, 0);
     }, [messages, clearMessages, streams]);
 
     const activeStreamCount = Object.values(streams).filter(s => s.status === 'active').length;
@@ -188,8 +200,9 @@ const Realtime = () => {
                             {stream.thinking && (
                                 <div className="p-4 border-b bg-yellow-50">
                                     <div className="text-xs font-bold text-yellow-700 uppercase mb-1">Thinking Process</div>
-                                    <div className="text-sm text-gray-600 font-mono whitespace-pre-wrap italic max-h-48 overflow-y-auto">
+                                    <div className={`text-sm text-gray-600 font-mono whitespace-pre-wrap italic max-h-48 overflow-y-auto ${stream.status === 'active' ? 'thinking-container-active' : ''}`}>
                                         {stream.thinking}
+                                        {stream.status === 'active' && <span className="inline-block w-2 h-4 bg-blue-500 ml-1 animate-pulse opacity-50"></span>}
                                     </div>
                                 </div>
                             )}
