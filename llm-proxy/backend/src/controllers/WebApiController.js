@@ -170,7 +170,12 @@ async function getHistory(req, res) {
                 completion_tokens: completion_tokens,
                 total_duration: item.duration_ms,
                 is_cached: false, // Could infer if needed
-                thinking: null // Or extract if available
+                thinking: null, // Or extract if available
+                hardware: {
+                    gpu_model: item.gpu_model || null,
+                    cpu_model: item.cpu_model || null,
+                    ram_size: item.ram_size || null
+                }
             };
         });
 
@@ -249,7 +254,99 @@ async function setConfig(req, res) {
     }
 }
 
+
+// Meta Prompting Controllers
+async function getResearchContexts(req, res) {
+    try {
+        const data = await cacheRepo.getResearchContexts();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
+async function createResearchContext(req, res) {
+    try {
+        const { name, content } = req.body;
+        const id = await cacheRepo.createResearchContext(name, content);
+        res.json({ id, name, content });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
+async function updateResearchContext(req, res) {
+    try {
+        const { id } = req.params;
+        const { name, content } = req.body;
+        await cacheRepo.updateResearchContext(id, name, content);
+        res.json({ id, name, content });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
+async function deleteResearchContext(req, res) {
+    try {
+        const { id } = req.params;
+        await cacheRepo.deleteResearchContext(id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
+async function getMetaPromptTemplates(req, res) {
+    try {
+        const data = await cacheRepo.getMetaPromptTemplates();
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
+async function createMetaPromptTemplate(req, res) {
+    try {
+        const { name, content } = req.body;
+        const id = await cacheRepo.createMetaPromptTemplate(name, content);
+        res.json({ id, name, content });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
+async function updateMetaPromptTemplate(req, res) {
+    try {
+        const { id } = req.params;
+        const { name, content } = req.body;
+        await cacheRepo.updateMetaPromptTemplate(id, name, content);
+        res.json({ id, name, content });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
+async function deleteMetaPromptTemplate(req, res) {
+    try {
+        const { id } = req.params;
+        await cacheRepo.deleteMetaPromptTemplate(id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}
+
 module.exports = {
+
+    getResearchContexts,
+    createResearchContext,
+    updateResearchContext,
+    deleteResearchContext,
+    getMetaPromptTemplates,
+    createMetaPromptTemplate,
+    updateMetaPromptTemplate,
+    deleteMetaPromptTemplate,
+
     getQueueStats,
     getStats,
     setEndpointProperties,

@@ -120,3 +120,71 @@ export const setConfig = async (key, value) => {
     if (!response.ok) throw new Error(`Failed to set config for ${key}`);
     return response.json();
 };
+
+export const fetchResearchContexts = async () => {
+    const response = await fetch(`${API_BASE_URL}/research_contexts`);
+    if (!response.ok) throw new Error('Failed to fetch research contexts');
+    return response.json();
+};
+
+export const addResearchContext = async (data) => {
+    const response = await fetch(`${API_BASE_URL}/research_contexts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Failed to add research context');
+    return response.json();
+};
+
+export const updateResearchContext = async (id, data) => {
+    const response = await fetch(`${API_BASE_URL}/research_contexts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Failed to update research context');
+    return response.json();
+};
+
+export const deleteResearchContext = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/research_contexts/${id}`, {
+        method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to delete research context');
+    return response.json();
+};
+
+export const fetchMetaPromptTemplates = async () => {
+    const response = await fetch(`${API_BASE_URL}/meta_prompt_templates`);
+    if (!response.ok) throw new Error('Failed to fetch meta prompt templates');
+    return response.json();
+};
+
+export const addMetaPromptTemplate = async (data) => {
+    const response = await fetch(`${API_BASE_URL}/meta_prompt_templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Failed to add meta prompt template');
+    return response.json();
+};
+
+export const updateMetaPromptTemplate = async (id, data) => {
+    const response = await fetch(`${API_BASE_URL}/meta_prompt_templates/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Failed to update meta prompt template');
+    return response.json();
+};
+
+export const deleteMetaPromptTemplate = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/meta_prompt_templates/${id}`, {
+        method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to delete meta prompt template');
+    return response.json();
+};

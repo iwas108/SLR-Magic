@@ -313,7 +313,65 @@ class CacheRepository {
         value TEXT
       )
     `);
-  }
-}
 
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS research_contexts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS meta_prompt_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+  // Meta Prompting
+  async getResearchContexts() {
+    return this.db.prepare('SELECT * FROM research_contexts ORDER BY id ASC').all();
+  }
+
+  async createResearchContext(name, content) {
+    const stmt = this.db.prepare('INSERT INTO research_contexts (name, content) VALUES (?, ?)');
+    const info = stmt.run(name, content);
+    return info.lastInsertRowid;
+  }
+
+  async updateResearchContext(id, name, content) {
+    const stmt = this.db.prepare('UPDATE research_contexts SET name = ?, content = ? WHERE id = ?');
+    stmt.run(name, content, id);
+  }
+
+  async deleteResearchContext(id) {
+    const stmt = this.db.prepare('DELETE FROM research_contexts WHERE id = ?');
+    stmt.run(id);
+  }
+
+  async getMetaPromptTemplates() {
+    return this.db.prepare('SELECT * FROM meta_prompt_templates ORDER BY id ASC').all();
+  }
+
+  async createMetaPromptTemplate(name, content) {
+    const stmt = this.db.prepare('INSERT INTO meta_prompt_templates (name, content) VALUES (?, ?)');
+    const info = stmt.run(name, content);
+    return info.lastInsertRowid;
+  }
+
+  async updateMetaPromptTemplate(id, name, content) {
+    const stmt = this.db.prepare('UPDATE meta_prompt_templates SET name = ?, content = ? WHERE id = ?');
+    stmt.run(name, content, id);
+  }
+
+  async deleteMetaPromptTemplate(id) {
+    const stmt = this.db.prepare('DELETE FROM meta_prompt_templates WHERE id = ?');
+    stmt.run(id);
+  }
+
+}
 module.exports = CacheRepository;
