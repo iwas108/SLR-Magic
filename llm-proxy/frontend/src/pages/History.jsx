@@ -70,27 +70,28 @@ const History = () => {
     }
 
     let result = mpt.content;
-    result = result.replace(/\{\{Research Context\}\}/g, rc.content);
-    result = result.replace(/\{\{prompt\}\}/g, selectedRequest.prompt || "");
+    result = result.replace(/\{\{Research Context\}\}/gi, rc.content);
+    result = result.replace(/\{\{Input Prompt\}\}/gi, selectedRequest.prompt || "");
     result = result.replace(
-      /\{\{thinking trace\}\}/g,
+      /\{\{Thinking Trace\}\}/gi,
       selectedRequest.thinking || "None",
     );
-    result = result.replace(/\{\{output\}\}/g, selectedRequest.response || "");
+    result = result.replace(/\{\{Output\}\}/gi, selectedRequest.response || "");
     result = result.replace(
-      /\{\{execution duration\}\}/g,
-      `${selectedRequest.total_duration}ms`,
+      /\{\{Execution Duration\}\}/gi,
+      `${selectedRequest.total_duration}s`,
     );
+
     result = result.replace(
-      /\{\{GPU\}\}/g,
+      /\{\{GPU\}\}/gi,
       selectedRequest.hardware?.gpu_model || "Unknown GPU",
     );
     result = result.replace(
-      /\{\{CPU\}\}/g,
+      /\{\{CPU\}\}/gi,
       selectedRequest.hardware?.cpu_model || "Unknown CPU",
     );
     result = result.replace(
-      /\{\{RAM\}\}/g,
+      /\{\{RAM\}\}/gi,
       selectedRequest.hardware?.ram_size || "Unknown RAM",
     );
 
@@ -605,7 +606,7 @@ const History = () => {
                   onClick={closeModal}
                   className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 dark:text-gray-300" />
                 </button>
               </div>
 
@@ -638,7 +639,7 @@ const History = () => {
               </div>
 
               <div className="p-6 overflow-y-auto flex-1">
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
                     <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
                       Model
@@ -672,35 +673,36 @@ const History = () => {
                       {formatTime(selectedRequest.total_duration)}
                     </div>
                   </div>
-                  {selectedRequest.hardware && (
-                    <>
-                      <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                          GPU
-                        </span>
-                        <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                          {selectedRequest.hardware.gpu_model || "N/A"}
-                        </div>
-                      </div>
-                      <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                          CPU
-                        </span>
-                        <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                          {selectedRequest.hardware.cpu_model || "N/A"}
-                        </div>
-                      </div>
-                      <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                          RAM
-                        </span>
-                        <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                          {selectedRequest.hardware.ram_size || "N/A"}
-                        </div>
-                      </div>
-                    </>
-                  )}
                 </div>
+
+                {selectedRequest.hardware && (
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
+                        GPU
+                      </span>
+                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                        {selectedRequest.hardware.gpu_model || "N/A"}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
+                        CPU
+                      </span>
+                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                        {selectedRequest.hardware.cpu_model || "N/A"}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
+                        RAM
+                      </span>
+                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                        {selectedRequest.hardware.ram_size || "N/A"}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mb-6">
                   <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
@@ -741,12 +743,12 @@ const History = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-11/12 max-w-4xl flex flex-col max-h-[90vh]">
             <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
-              <h2 className="text-xl font-bold">Copy Refinement Prompt</h2>
+              <h2 className="text-xl font-bold dark:text-white">Copy Refinement Prompt</h2>
               <button
                 onClick={() => setShowRefinementModal(false)}
                 className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 dark:text-gray-300" />
               </button>
             </div>
             <div className="p-4 flex-1 overflow-y-auto space-y-4">
@@ -758,7 +760,7 @@ const History = () => {
                   <select
                     value={selectedRcId}
                     onChange={(e) => setSelectedRcId(e.target.value)}
-                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                   >
                     {researchContexts.map((rc) => (
                       <option key={rc.id} value={rc.id}>
@@ -774,7 +776,7 @@ const History = () => {
                   <select
                     value={selectedMptId}
                     onChange={(e) => setSelectedMptId(e.target.value)}
-                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                   >
                     {metaPromptTemplates.map((mpt) => (
                       <option key={mpt.id} value={mpt.id}>
@@ -793,14 +795,14 @@ const History = () => {
                   readOnly
                   value={generatedPrompt}
                   rows={15}
-                  className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 font-mono text-sm resize-y"
+                  className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white font-mono text-sm resize-y"
                 />
               </div>
             </div>
             <div className="p-4 border-t dark:border-gray-700 flex justify-end space-x-2">
               <button
                 onClick={() => setShowRefinementModal(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
               >
                 Close
               </button>

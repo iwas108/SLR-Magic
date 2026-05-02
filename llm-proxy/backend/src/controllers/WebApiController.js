@@ -170,7 +170,12 @@ async function getHistory(req, res) {
                 completion_tokens: completion_tokens,
                 total_duration: item.duration_ms,
                 is_cached: false, // Could infer if needed
-                thinking: null // Or extract if available
+                thinking: null, // Or extract if available
+                hardware: {
+                    gpu_model: item.gpu_model || null,
+                    cpu_model: item.cpu_model || null,
+                    ram_size: item.ram_size || null
+                }
             };
         });
 

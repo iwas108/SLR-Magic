@@ -184,7 +184,7 @@ const Configuration = () => {
     };
 
     const handleSaveRc = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         try {
             if (editingRcId) {
                 await updateResearchContext(editingRcId, { name: rcName, content: rcContent });
@@ -200,7 +200,7 @@ const Configuration = () => {
     const handleCancelEditRc = () => { setEditingRcId(null); setRcName(''); setRcContent(''); };
 
     const handleSaveMpt = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         try {
             if (editingMptId) {
                 await updateMetaPromptTemplate(editingMptId, { name: mptName, content: mptContent });
@@ -430,7 +430,7 @@ const Configuration = () => {
                             <input className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500" value={rcName} onChange={e=>setRcName(e.target.value)} placeholder="Context Name" required />
                             <textarea className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500" rows="3" value={rcContent} onChange={e=>setRcContent(e.target.value)} placeholder="Context Content" required></textarea>
                             <div className="flex gap-2">
-                                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingRcId ? 'Update' : 'Add'}</button>
+                                <button type="button" onClick={handleSaveRc} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingRcId ? 'Update' : 'Add'}</button>
                                 {editingRcId && <button type="button" onClick={handleCancelEditRc} className="bg-gray-200 text-black px-4 py-2 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600">Cancel</button>}
                             </div>
                         </form>
@@ -452,9 +452,22 @@ const Configuration = () => {
                         <h3 className="text-lg font-semibold mb-4">Meta Prompt Templates</h3>
                         <form onSubmit={handleSaveMpt} className="mb-4 space-y-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border dark:border-gray-700">
                             <input className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500" value={mptName} onChange={e=>setMptName(e.target.value)} placeholder="Template Name" required />
-                            <textarea className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500" rows="3" value={mptContent} onChange={e=>setMptContent(e.target.value)} placeholder="Template Content e.g. Context: {{Research Context}}" required></textarea>
-                            <div className="flex gap-2">
-                                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingMptId ? 'Update' : 'Add'}</button>
+                            <textarea className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500" rows="4" value={mptContent} onChange={e=>setMptContent(e.target.value)} placeholder="Template Content e.g. Context: {{Research Context}}" required></textarea>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-2">
+                                <span className="font-semibold block mb-1">Available placeholders:</span>
+                                <div className="flex flex-wrap gap-1">
+                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Research Context}}"}</code>
+                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Input Prompt}}"}</code>
+                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Thinking Trace}}"}</code>
+                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Output}}"}</code>
+                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Execution Duration}}"}</code>
+                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{GPU}}"}</code>
+                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{CPU}}"}</code>
+                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{RAM}}"}</code>
+                                </div>
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                                <button type="button" onClick={handleSaveMpt} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingMptId ? 'Update' : 'Add'}</button>
                                 {editingMptId && <button type="button" onClick={handleCancelEditMpt} className="bg-gray-200 text-black px-4 py-2 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600">Cancel</button>}
                             </div>
                         </form>

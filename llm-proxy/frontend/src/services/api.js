@@ -127,21 +127,21 @@ export const fetchResearchContexts = async () => {
     return response.json();
 };
 
-export const addResearchContext = async (name, content) => {
+export const addResearchContext = async (data) => {
     const response = await fetch(`${API_BASE_URL}/research_contexts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, content })
+        body: JSON.stringify(data)
     });
     if (!response.ok) throw new Error('Failed to add research context');
     return response.json();
 };
 
-export const updateResearchContext = async (id, name, content) => {
+export const updateResearchContext = async (id, data) => {
     const response = await fetch(`${API_BASE_URL}/research_contexts/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, content })
+        body: JSON.stringify(data)
     });
     if (!response.ok) throw new Error('Failed to update research context');
     return response.json();
@@ -161,21 +161,21 @@ export const fetchMetaPromptTemplates = async () => {
     return response.json();
 };
 
-export const addMetaPromptTemplate = async (name, content) => {
+export const addMetaPromptTemplate = async (data) => {
     const response = await fetch(`${API_BASE_URL}/meta_prompt_templates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, content })
+        body: JSON.stringify(data)
     });
     if (!response.ok) throw new Error('Failed to add meta prompt template');
     return response.json();
 };
 
-export const updateMetaPromptTemplate = async (id, name, content) => {
+export const updateMetaPromptTemplate = async (id, data) => {
     const response = await fetch(`${API_BASE_URL}/meta_prompt_templates/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, content })
+        body: JSON.stringify(data)
     });
     if (!response.ok) throw new Error('Failed to update meta prompt template');
     return response.json();
