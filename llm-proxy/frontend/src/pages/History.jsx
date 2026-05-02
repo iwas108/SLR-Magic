@@ -83,6 +83,11 @@ const History = () => {
     );
 
     result = result.replace(
+      /\{\{Model\}\}/gi,
+      selectedRequest.model || "Unknown Model",
+    );
+
+    result = result.replace(
       /\{\{GPU\}\}/gi,
       selectedRequest.hardware?.gpu_model || "Unknown GPU",
     );
