@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig } from '../services/api';
+import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
 import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Pencil, Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
@@ -53,6 +53,19 @@ const Configuration = () => {
     const [isActive, setIsActive] = useState(true);
     const [streamMode, setStreamMode] = useState(false);
     const [extraConfig, setExtraConfig] = useState('');
+    const [gpuModel, setGpuModel] = useState('');
+    const [cpuModel, setCpuModel] = useState('');
+    const [ramSize, setRamSize] = useState('');
+
+    // Meta Prompting states
+    const [researchContexts, setResearchContexts] = useState([]);
+    const [metaPromptTemplates, setMetaPromptTemplates] = useState([]);
+    const [rcName, setRcName] = useState('');
+    const [rcContent, setRcContent] = useState('');
+    const [editingRcId, setEditingRcId] = useState(null);
+    const [mptName, setMptName] = useState('');
+    const [mptContent, setMptContent] = useState('');
+    const [editingMptId, setEditingMptId] = useState(null);
 
     const loadEndpointsAndConfig = async () => {
         try {
@@ -72,8 +85,22 @@ const Configuration = () => {
         }
     };
 
+    const loadMetaPromptingData = async () => {
+        try {
+            const [rcs, mpts] = await Promise.all([
+                fetchResearchContexts(),
+                fetchMetaPromptTemplates()
+            ]);
+            setResearchContexts(rcs);
+            setMetaPromptTemplates(mpts);
+        } catch (err) {
+            console.error('Failed to load meta prompting data:', err);
+        }
+    };
+
     useEffect(() => {
         loadEndpointsAndConfig();
+        loadMetaPromptingData();
     }, []);
 
     const handleSaveGlobalConfig = async () => {
@@ -108,13 +135,14 @@ const Configuration = () => {
                 extra_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
             });
 
-            // Also set label in properties if provided
-            if (label) {
-                await setEndpointProperties({
-                    endpoint_url: url,
-                    label
-                });
-            }
+            // Also set label and properties
+            await setEndpointProperties({
+                endpoint_url: url,
+                label,
+                gpu_model: gpuModel,
+                cpu_model: cpuModel,
+                ram_size: ramSize
+            });
 
             // Reset form
             setUrl('');
@@ -122,6 +150,9 @@ const Configuration = () => {
             setIsActive(true);
             setStreamMode(false);
             setExtraConfig('');
+            setGpuModel('');
+            setCpuModel('');
+            setRamSize('');
 
             loadEndpointsAndConfig();
         } catch (error) {
@@ -151,6 +182,38 @@ const Configuration = () => {
             console.error('Error deleting endpoint:', error);
         }
     };
+
+    const handleSaveRc = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingRcId) {
+                await updateResearchContext(editingRcId, { name: rcName, content: rcContent });
+            } else {
+                await addResearchContext({ name: rcName, content: rcContent });
+            }
+            setRcName(''); setRcContent(''); setEditingRcId(null);
+            loadMetaPromptingData();
+        } catch (err) { console.error(err); }
+    };
+    const handleEditRc = (rc) => { setEditingRcId(rc.id); setRcName(rc.name); setRcContent(rc.content); };
+    const handleDeleteRc = async (id) => { if(confirm('Delete context?')) { await deleteResearchContext(id); loadMetaPromptingData(); } };
+    const handleCancelEditRc = () => { setEditingRcId(null); setRcName(''); setRcContent(''); };
+
+    const handleSaveMpt = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingMptId) {
+                await updateMetaPromptTemplate(editingMptId, { name: mptName, content: mptContent });
+            } else {
+                await addMetaPromptTemplate({ name: mptName, content: mptContent });
+            }
+            setMptName(''); setMptContent(''); setEditingMptId(null);
+            loadMetaPromptingData();
+        } catch (err) { console.error(err); }
+    };
+    const handleEditMpt = (mpt) => { setEditingMptId(mpt.id); setMptName(mpt.name); setMptContent(mpt.content); };
+    const handleDeleteMpt = async (id) => { if(confirm('Delete template?')) { await deleteMetaPromptTemplate(id); loadMetaPromptingData(); } };
+    const handleCancelEditMpt = () => { setEditingMptId(null); setMptName(''); setMptContent(''); };
 
     return (
         <div className="space-y-6 text-gray-900 dark:text-gray-100">
@@ -244,14 +307,26 @@ const Configuration = () => {
                             </label>
                         </div>
                         <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Extra Config (JSON)</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Extra Config (JSON)</label>
                             <textarea
                                 value={extraConfig}
                                 onChange={(e) => setExtraConfig(e.target.value)}
                                 placeholder='{"temperature": 0.7}'
                                 rows={3}
-                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm dark:bg-gray-700"
+                                className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm dark:bg-gray-700"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GPU Model</label>
+                            <input type="text" value={gpuModel} onChange={(e) => setGpuModel(e.target.value)} placeholder="e.g. RTX 3090" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CPU Model</label>
+                            <input type="text" value={cpuModel} onChange={(e) => setCpuModel(e.target.value)} placeholder="e.g. i9-13900K" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RAM Size</label>
+                            <input type="text" value={ramSize} onChange={(e) => setRamSize(e.target.value)} placeholder="e.g. 64GB" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
                         </div>
                         <button
                             type="submit"
@@ -288,6 +363,13 @@ const Configuration = () => {
                                             ) : null}
                                         </div>
                                         <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">{ep.endpoint_url}</div>
+                                        {(ep.gpu_model || ep.cpu_model || ep.ram_size) && (
+                                            <div className="mt-2 text-xs font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded border dark:border-gray-700 flex gap-2">
+                                                {ep.gpu_model && <span>GPU: {ep.gpu_model}</span>}
+                                                {ep.cpu_model && <span>CPU: {ep.cpu_model}</span>}
+                                                {ep.ram_size && <span>RAM: {ep.ram_size}</span>}
+                                            </div>
+                                        )}
                                         {ep.extra_config && (
                                             <div className="mt-2 text-xs font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded border dark:border-gray-700">
                                                 {ep.extra_config}
@@ -302,6 +384,9 @@ const Configuration = () => {
                                                 setIsActive(ep.enabled);
                                                 setStreamMode(ep.stream_mode === 1 || ep.stream_mode === true);
                                                 setExtraConfig(ep.extra_config || '');
+                                                setGpuModel(ep.gpu_model || '');
+                                                setCpuModel(ep.cpu_model || '');
+                                                setRamSize(ep.ram_size || '');
                                             }}
                                             className="p-2 rounded-md bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900"
                                             title="Edit"
@@ -333,6 +418,62 @@ const Configuration = () => {
                     )}
                 </div>
             </div>
+
+            {/* Meta Prompting Section */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mt-8 text-gray-900 dark:text-gray-100">
+                <h2 className="text-xl font-bold mb-6">Meta Prompting</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Research Contexts */}
+                    <div>
+                        <h3 className="text-lg font-semibold mb-4">Research Contexts</h3>
+                        <form onSubmit={handleSaveRc} className="mb-4 space-y-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border dark:border-gray-700">
+                            <input className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500" value={rcName} onChange={e=>setRcName(e.target.value)} placeholder="Context Name" required />
+                            <textarea className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500" rows="3" value={rcContent} onChange={e=>setRcContent(e.target.value)} placeholder="Context Content" required></textarea>
+                            <div className="flex gap-2">
+                                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingRcId ? 'Update' : 'Add'}</button>
+                                {editingRcId && <button type="button" onClick={handleCancelEditRc} className="bg-gray-200 text-black px-4 py-2 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600">Cancel</button>}
+                            </div>
+                        </form>
+                        <div className="space-y-2">
+                            {researchContexts.map(rc => (
+                                <div key={rc.id} className="p-3 border rounded bg-white dark:bg-gray-800 dark:border-gray-700">
+                                    <div className="flex justify-between font-bold"><span>{rc.name}</span>
+                                    <div>
+                                        <button onClick={()=>handleEditRc(rc)} className="text-blue-500 hover:text-blue-600 mr-2"><Pencil className="w-4 h-4 inline"/></button>
+                                        <button onClick={()=>handleDeleteRc(rc.id)} className="text-red-500 hover:text-red-600"><Trash2 className="w-4 h-4 inline"/></button>
+                                    </div></div>
+                                    <div className="text-sm mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{rc.content}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    {/* Templates */}
+                    <div>
+                        <h3 className="text-lg font-semibold mb-4">Meta Prompt Templates</h3>
+                        <form onSubmit={handleSaveMpt} className="mb-4 space-y-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border dark:border-gray-700">
+                            <input className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500" value={mptName} onChange={e=>setMptName(e.target.value)} placeholder="Template Name" required />
+                            <textarea className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500" rows="3" value={mptContent} onChange={e=>setMptContent(e.target.value)} placeholder="Template Content e.g. Context: {{Research Context}}" required></textarea>
+                            <div className="flex gap-2">
+                                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingMptId ? 'Update' : 'Add'}</button>
+                                {editingMptId && <button type="button" onClick={handleCancelEditMpt} className="bg-gray-200 text-black px-4 py-2 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600">Cancel</button>}
+                            </div>
+                        </form>
+                        <div className="space-y-2">
+                            {metaPromptTemplates.map(mpt => (
+                                <div key={mpt.id} className="p-3 border rounded bg-white dark:bg-gray-800 dark:border-gray-700">
+                                    <div className="flex justify-between font-bold"><span>{mpt.name}</span>
+                                    <div>
+                                        <button onClick={()=>handleEditMpt(mpt)} className="text-blue-500 hover:text-blue-600 mr-2"><Pencil className="w-4 h-4 inline"/></button>
+                                        <button onClick={()=>handleDeleteMpt(mpt.id)} className="text-red-500 hover:text-red-600"><Trash2 className="w-4 h-4 inline"/></button>
+                                    </div></div>
+                                    <div className="text-sm mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{mpt.content}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
         </div>
     );

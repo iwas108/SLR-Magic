@@ -28,6 +28,18 @@ webApiRouter.get('/api/streams/active', WebApiController.getActiveStreams);
 webApiRouter.get('/api/config/:key', WebApiController.getConfig);
 webApiRouter.post('/api/config/:key', WebApiController.setConfig);
 
+
+// Meta Prompting Routes
+webApiRouter.get('/api/research_contexts', WebApiController.getResearchContexts);
+webApiRouter.post('/api/research_contexts', WebApiController.createResearchContext);
+webApiRouter.put('/api/research_contexts/:id', WebApiController.updateResearchContext);
+webApiRouter.delete('/api/research_contexts/:id', WebApiController.deleteResearchContext);
+
+webApiRouter.get('/api/meta_prompt_templates', WebApiController.getMetaPromptTemplates);
+webApiRouter.post('/api/meta_prompt_templates', WebApiController.createMetaPromptTemplate);
+webApiRouter.put('/api/meta_prompt_templates/:id', WebApiController.updateMetaPromptTemplate);
+webApiRouter.delete('/api/meta_prompt_templates/:id', WebApiController.deleteMetaPromptTemplate);
+
 module.exports = {
     apiRouter,
     webApiRouter
