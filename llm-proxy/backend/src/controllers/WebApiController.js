@@ -22,10 +22,16 @@ async function getQueueStats(req, res) {
             };
         });
 
+        let pendingInQueue = ollamaService.pendingRequests - activeCount;
+        if (pendingInQueue < 0) pendingInQueue = 0;
+
         return res.json({
             total_endpoints: totalCount,
             active_requests: activeCount,
             pending_requests: ollamaService.pendingRequests,
+            pending_in_queue: pendingInQueue,
+            total_processed: ollamaService.totalProcessed,
+            max_concurrent_requests: ollamaService.maxConcurrentRequests,
             endpoints: endpointsData
         });
     } catch (e) {

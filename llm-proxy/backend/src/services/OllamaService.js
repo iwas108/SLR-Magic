@@ -5,12 +5,7 @@ const path = require('path');
 const AsyncQueue = require('../utils/AsyncQueue');
 const { extractJsonFromMixedText } = require('../utils/parsers');
 
-// Simple logger mock until true logger is implemented or we use console
-const logger = {
-    info: console.log,
-    debug: console.log,
-    error: console.error
-};
+const logger = require('../utils/logger');
 
 class StreamBroadcaster extends EventEmitter {
     constructor() {
@@ -74,6 +69,8 @@ class OllamaService {
         this.endpointQueue = new AsyncQueue();
         this.endpointStatus = {};
         this.pendingRequests = 0;
+        this.totalProcessed = 0;
+        this.maxConcurrentRequests = 0;
 
         this.customModels = {}; // endpoint_url -> custom_model string
         this.apiKeys = {};      // endpoint_url -> api_key string
@@ -233,7 +230,7 @@ class OllamaService {
             nativePayload.think = thinkParam;
         }
 
-        // logger.debug(`Translated Native Payload: ${JSON.stringify(nativePayload)}`);
+
 
         this.endpointStatus[endpointUrl] = "active";
         const shortHash = reqHash ? reqHash.substring(0, 8) : "Unknown";
@@ -297,6 +294,8 @@ class OllamaService {
             if (this.urls.includes(endpointUrl)) {
                 this.endpointQueue.enqueue(endpointUrl);
             }
+            this.totalProcessed += 1;
+            this.maxConcurrentRequests = Math.max(this.maxConcurrentRequests, this.pendingRequests);
         }
     }
 

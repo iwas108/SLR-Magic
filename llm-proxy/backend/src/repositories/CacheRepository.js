@@ -70,7 +70,21 @@ class CacheRepository {
       GROUP BY h.model_name, h.endpoint_url
       ORDER BY h.model_name ASC, request_count DESC
     `);
-    return stmt.all();
+    const metrics = stmt.all();
+
+    const totalRequestsStmt = this.db.prepare('SELECT COUNT(*) as count FROM history');
+    const totalRequestsRow = totalRequestsStmt.get();
+    const totalRequests = totalRequestsRow ? totalRequestsRow.count : 0;
+
+    const cacheHitsStmt = this.db.prepare('SELECT COUNT(*) as count FROM cache');
+    const cacheHitsRow = cacheHitsStmt.get();
+    const cacheHits = cacheHitsRow ? cacheHitsRow.count : 0;
+
+    return {
+      metrics,
+      total_requests: totalRequests,
+      cache_hits: cacheHits
+    };
   }
 
   async setEndpointProperties(endpointUrl, label, isGpu, gpuModel, cpuModel, ramSize) {

@@ -151,7 +151,9 @@ const Stats = () => {
                                     { key: 'model_name', label: 'Model' },
                                     { key: 'endpoint_label', label: 'Endpoint' },
                                     { key: 'request_count', label: 'Requests' },
-                                    { key: 'avg_duration_ms', label: 'Avg Duration (ms)' }
+                                    { key: 'avg_duration_ms', label: 'Avg Duration (ms)' },
+                                    { key: 'min_duration_ms', label: 'Min Duration (ms)' },
+                                    { key: 'max_duration_ms', label: 'Max Duration (ms)' }
                                 ].map(({ key, label }) => (
                                     <th
                                         key={key}
@@ -170,7 +172,7 @@ const Stats = () => {
                         </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             {getSortedMetrics().map((metric, idx) => (
-                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-800">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                                         {metric.model_name}
                                     </td>
@@ -183,11 +185,17 @@ const Stats = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                         {Math.round(metric.avg_duration_ms)} ms
                                     </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        {Math.round(metric.min_duration_ms)} ms
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        {Math.round(metric.max_duration_ms)} ms
+                                    </td>
                                 </tr>
                             ))}
                             {(!stats || !stats.metrics || stats.metrics.length === 0) && (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400 italic">
+                                    <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400 italic">
                                         No data available for leaderboard
                                     </td>
                                 </tr>
