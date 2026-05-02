@@ -79,7 +79,7 @@ const History = () => {
     result = result.replace(/\{\{Output\}\}/gi, selectedRequest.response || "");
     result = result.replace(
       /\{\{Execution Duration\}\}/gi,
-      `${selectedRequest.total_duration}s`,
+      formatTime(selectedRequest.total_duration),
     );
 
     result = result.replace(
@@ -290,7 +290,13 @@ const History = () => {
 
   const formatTime = (ms) => {
     if (!ms) return "-";
-    return (ms / 1000).toFixed(2) + " s";
+    const totalSeconds = ms / 1000;
+    if (totalSeconds < 60) {
+      return totalSeconds.toFixed(2) + " s";
+    }
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = (totalSeconds % 60).toFixed(0);
+    return `${minutes} m ${seconds} s`;
   };
 
   const renderSortIcon = (column) => {
