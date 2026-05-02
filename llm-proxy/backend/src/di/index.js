@@ -1,3 +1,4 @@
+const logger = require("../utils/logger");
 const config = require('../config');
 const CacheRepository = require('../repositories/CacheRepository');
 const { OllamaService, streamBroadcaster } = require('../services/OllamaService');
@@ -27,9 +28,9 @@ async function initDependencies() {
             await cacheRepo.setConfig('UPDATE_CACHE', config.UPDATE_CACHE ? 'true' : 'false');
         }
 
-        console.log(`[DI] Dependencies initialized and synchronized.`);
+        logger.info(`[DI] Dependencies initialized and synchronized.`);
     } catch (e) {
-        console.error(`[DI] Error initializing dependencies:`, e);
+        logger.error(`[DI] Error initializing dependencies:`, e);
     }
 }
 

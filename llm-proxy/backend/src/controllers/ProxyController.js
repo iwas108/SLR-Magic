@@ -1,3 +1,4 @@
+const logger = require("../utils/logger");
 const { cacheRepo, ollamaService, inFlightRequests } = require('../di');
 const { extractJsonFromMixedText } = require('../utils/parsers');
 
@@ -20,7 +21,7 @@ async function proxyToOllama(req, res) {
     const reqHash = CacheRepository.generateHash(messages);
     const shortHash = reqHash.substring(0, 8);
 
-    console.log(`📥 Received request [${shortHash}] for model: ${payload.model || 'unknown'}`);
+    logger.info(`📥 Received request [${shortHash}] for model: ${payload.model || 'unknown'}`);
 
     const startTime = Date.now();
 
@@ -36,7 +37,7 @@ async function proxyToOllama(req, res) {
 
             const endpointUrl = cachedResponse.endpoint_url || "cache";
             delete cachedResponse.endpoint_url;
-            console.log(`⚡ Cache Hit [${shortHash}] - Fulfilled instantly`);
+            logger.info(`⚡ Cache Hit [${shortHash}] - Fulfilled instantly`);
 
             // Intercept cached response to repair previously saved bad JSON
             const expectsJson = (payload.response_format && payload.response_format.type === "json_object") ||
@@ -55,7 +56,7 @@ async function proxyToOllama(req, res) {
                             const cachedResponseCopy = { ...cachedResponse };
                             cachedResponseCopy.endpoint_url = endpointUrl;
                             await cacheRepo.set(reqHash, cachedResponseCopy);
-                            console.log(`🔧 Repaired previously malformed JSON from cache for [${shortHash}]`);
+                            logger.info(`🔧 Repaired previously malformed JSON from cache for [${shortHash}]`);
                         }
                     } catch (e) {
                         // ignore
@@ -69,13 +70,13 @@ async function proxyToOllama(req, res) {
 
     // Coalescing in-flight requests
     if (inFlightRequests[reqHash]) {
-        console.log(`⏳ Coalescing [${shortHash}] - Waiting for an identical in-flight request...`);
+        logger.info(`⏳ Coalescing [${shortHash}] - Waiting for an identical in-flight request...`);
         try {
             await new Promise((resolve) => {
                 inFlightRequests[reqHash].push(resolve);
             });
         } catch (e) {
-            console.error(`Error waiting for in-flight request: ${e}`);
+            logger.error(`Error waiting for in-flight request: ${e}`);
         }
 
         const cachedResponse = await cacheRepo.get(reqHash);
@@ -85,7 +86,7 @@ async function proxyToOllama(req, res) {
 
             const endpointUrl = cachedResponse.endpoint_url || "cache";
             delete cachedResponse.endpoint_url;
-            console.log(`⚡ Cache Hit [${shortHash}] - Fulfilled after waiting ${durationMs}ms`);
+            logger.info(`⚡ Cache Hit [${shortHash}] - Fulfilled after waiting ${durationMs}ms`);
 
             // Intercept cached response to repair previously saved bad JSON
             const expectsJson = (payload.response_format && payload.response_format.type === "json_object") ||
@@ -104,7 +105,7 @@ async function proxyToOllama(req, res) {
                             const cachedResponseCopy = { ...cachedResponse };
                             cachedResponseCopy.endpoint_url = endpointUrl;
                             await cacheRepo.set(reqHash, cachedResponseCopy);
-                            console.log(`🔧 Repaired previously malformed JSON from coalesced cache for [${shortHash}]`);
+                            logger.info(`🔧 Repaired previously malformed JSON from coalesced cache for [${shortHash}]`);
                         }
                     } catch (e) {
                         // ignore
@@ -174,7 +175,7 @@ async function proxyToOllama(req, res) {
                 } else {
                     console.warn(`⚠️ Invalid JSON detected for [${shortHash}] on attempt ${attempt + 1}/${maxRetries}. Retrying...`);
                     if (attempt === maxRetries - 1) {
-                        console.error(`❌ Failed to get valid JSON after ${maxRetries} attempts for [${shortHash}]. Returning error.`);
+                        logger.error(`❌ Failed to get valid JSON after ${maxRetries} attempts for [${shortHash}]. Returning error.`);
                         return res.status(502).json({ error: "LLM failed to produce valid JSON after retries." });
                     }
                 }
@@ -186,11 +187,11 @@ async function proxyToOllama(req, res) {
         await cacheRepo.set(reqHash, responseData);
         await cacheRepo.logHistory(modelName, payload, responseData, durationMs, endpointUrl);
 
-        console.log(`✅ Completed [${shortHash}] - Duration: ${durationMs}ms, Endpoint: ${endpointUrl}`);
+        logger.info(`✅ Completed [${shortHash}] - Duration: ${durationMs}ms, Endpoint: ${endpointUrl}`);
         return res.json(responseData);
 
     } catch (e) {
-        console.error(`❌ Internal Server Error [${shortHash}]: ${e.message || e}`);
+        logger.error(`❌ Internal Server Error [${shortHash}]: ${e.message || e}`);
         if (e.message && e.message.includes('fetch')) {
             return res.status(502).json({ error: `Ollama connection error: ${e.message}` });
         }
