@@ -1,3 +1,4 @@
+const logger = require("../utils/logger");
 const { WebSocketServer, WebSocket } = require('ws');
 const { streamBroadcaster } = require('../di');
 
@@ -5,14 +6,14 @@ function initWebSocket(server) {
     const wss = new WebSocketServer({ server });
 
     wss.on('connection', (ws) => {
-        console.log('[WS] New client connected');
+        logger.info('[WS] New client connected');
 
         ws.on('close', () => {
-            console.log('[WS] Client disconnected');
+            logger.info('[WS] Client disconnected');
         });
 
         ws.on('error', (err) => {
-            console.error('[WS] Client error:', err);
+            logger.error('[WS] Client error:', err);
         });
     });
 
@@ -23,13 +24,13 @@ function initWebSocket(server) {
                 try {
                     client.send(messageStr);
                 } catch (e) {
-                    console.error('[WS] Error sending message to client:', e);
+                    logger.error('[WS] Error sending message to client:', e);
                 }
             }
         });
     });
 
-    console.log('[WS] WebSocket server initialized');
+    logger.info('[WS] WebSocket server initialized');
     return wss;
 }
 
