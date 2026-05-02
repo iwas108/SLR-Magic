@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { fetchStats, fetchQueueStats } from '../services/api';
-import { BarChart2, Server, List } from 'lucide-react';
+import { BarChart2, Server, List, ArrowDown, ArrowUp } from 'lucide-react';
 
 const Stats = () => {
     const [stats, setStats] = useState(null);
     const [queueStats, setQueueStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [sortField, setSortField] = useState('request_count');
+    const [sortDesc, setSortDesc] = useState(true);
 
     const loadData = async () => {
         try {
@@ -28,6 +30,30 @@ const Stats = () => {
         const interval = setInterval(loadData, 5000);
         return () => clearInterval(interval);
     }, []);
+
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDesc(!sortDesc);
+        } else {
+            setSortField(field);
+            setSortDesc(true);
+        }
+    };
+
+    const getSortedMetrics = () => {
+        if (!stats || !stats.metrics) return [];
+        return [...stats.metrics].sort((a, b) => {
+            let valA = a[sortField];
+            let valB = b[sortField];
+
+            if (typeof valA === 'string') valA = valA.toLowerCase();
+            if (typeof valB === 'string') valB = valB.toLowerCase();
+
+            if (valA < valB) return sortDesc ? 1 : -1;
+            if (valA > valB) return sortDesc ? -1 : 1;
+            return 0;
+        });
+    };
 
     if (loading && !stats) {
         return (
@@ -109,6 +135,65 @@ const Stats = () => {
                     ) : (
                         <div className="text-gray-500 dark:text-gray-400 italic">No DB stats available</div>
                     )}
+                </div>
+            </div>
+
+            {/* Leaderboard Table */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-lg font-semibold">Model & Endpoint Leaderboard</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                                {[
+                                    { key: 'model_name', label: 'Model' },
+                                    { key: 'endpoint_label', label: 'Endpoint' },
+                                    { key: 'request_count', label: 'Requests' },
+                                    { key: 'avg_duration_ms', label: 'Avg Duration (ms)' }
+                                ].map(({ key, label }) => (
+                                    <th
+                                        key={key}
+                                        onClick={() => handleSort(key)}
+                                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                                    >
+                                        <div className="flex items-center">
+                                            {label}
+                                            {sortField === key && (
+                                                sortDesc ? <ArrowDown className="w-4 h-4 ml-1" /> : <ArrowUp className="w-4 h-4 ml-1" />
+                                            )}
+                                        </div>
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            {getSortedMetrics().map((metric, idx) => (
+                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        {metric.model_name}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        {metric.endpoint_label}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        {metric.request_count}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                        {Math.round(metric.avg_duration_ms)} ms
+                                    </td>
+                                </tr>
+                            ))}
+                            {(!stats || !stats.metrics || stats.metrics.length === 0) && (
+                                <tr>
+                                    <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400 italic">
+                                        No data available for leaderboard
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
