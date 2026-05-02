@@ -230,7 +230,7 @@ class OllamaService {
             nativePayload.think = thinkParam;
         }
 
-        // logger.debug(`Translated Native Payload: ${JSON.stringify(nativePayload)}`);
+
 
         this.endpointStatus[endpointUrl] = "active";
         const shortHash = reqHash ? reqHash.substring(0, 8) : "Unknown";
