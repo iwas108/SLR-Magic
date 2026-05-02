@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
-import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Pencil, Monitor, Moon, Sun } from 'lucide-react';
+import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Pencil, Monitor, Moon, Sun, X } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 const ThemeSetting = () => {
@@ -63,9 +63,11 @@ const Configuration = () => {
     const [rcName, setRcName] = useState('');
     const [rcContent, setRcContent] = useState('');
     const [editingRcId, setEditingRcId] = useState(null);
+    const [showRcModal, setShowRcModal] = useState(false);
     const [mptName, setMptName] = useState('');
     const [mptContent, setMptContent] = useState('');
     const [editingMptId, setEditingMptId] = useState(null);
+    const [showMptModal, setShowMptModal] = useState(false);
 
     const loadEndpointsAndConfig = async () => {
         try {
@@ -191,13 +193,14 @@ const Configuration = () => {
             } else {
                 await addResearchContext({ name: rcName, content: rcContent });
             }
-            setRcName(''); setRcContent(''); setEditingRcId(null);
+            setRcName(''); setRcContent(''); setEditingRcId(null); setShowRcModal(false);
             loadMetaPromptingData();
         } catch (err) { console.error(err); }
     };
-    const handleEditRc = (rc) => { setEditingRcId(rc.id); setRcName(rc.name); setRcContent(rc.content); };
+    const handleEditRc = (rc) => { setEditingRcId(rc.id); setRcName(rc.name); setRcContent(rc.content); setShowRcModal(true); };
     const handleDeleteRc = async (id) => { if(confirm('Delete context?')) { await deleteResearchContext(id); loadMetaPromptingData(); } };
-    const handleCancelEditRc = () => { setEditingRcId(null); setRcName(''); setRcContent(''); };
+    const handleCancelEditRc = () => { setEditingRcId(null); setRcName(''); setRcContent(''); setShowRcModal(false); };
+    const handleOpenAddRc = () => { setEditingRcId(null); setRcName(''); setRcContent(''); setShowRcModal(true); };
 
     const handleSaveMpt = async (e) => {
         if (e && e.preventDefault) e.preventDefault();
@@ -207,13 +210,14 @@ const Configuration = () => {
             } else {
                 await addMetaPromptTemplate({ name: mptName, content: mptContent });
             }
-            setMptName(''); setMptContent(''); setEditingMptId(null);
+            setMptName(''); setMptContent(''); setEditingMptId(null); setShowMptModal(false);
             loadMetaPromptingData();
         } catch (err) { console.error(err); }
     };
-    const handleEditMpt = (mpt) => { setEditingMptId(mpt.id); setMptName(mpt.name); setMptContent(mpt.content); };
+    const handleEditMpt = (mpt) => { setEditingMptId(mpt.id); setMptName(mpt.name); setMptContent(mpt.content); setShowMptModal(true); };
     const handleDeleteMpt = async (id) => { if(confirm('Delete template?')) { await deleteMetaPromptTemplate(id); loadMetaPromptingData(); } };
-    const handleCancelEditMpt = () => { setEditingMptId(null); setMptName(''); setMptContent(''); };
+    const handleCancelEditMpt = () => { setEditingMptId(null); setMptName(''); setMptContent(''); setShowMptModal(false); };
+    const handleOpenAddMpt = () => { setEditingMptId(null); setMptName(''); setMptContent(''); setShowMptModal(true); };
 
     return (
         <div className="space-y-6 text-gray-900 dark:text-gray-100">
@@ -419,75 +423,160 @@ const Configuration = () => {
                 </div>
             </div>
 
-            {/* Meta Prompting Section */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mt-8 text-gray-900 dark:text-gray-100">
-                <h2 className="text-xl font-bold mb-6">Meta Prompting</h2>
+        </div>
+
+            {/* Meta Prompting Section - Separated completely from Smart Endpoint Manager */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
+                <h2 className="text-2xl font-bold mb-6">Meta Prompting</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Research Contexts */}
+                    {/* Research Contexts Table */}
                     <div>
-                        <h3 className="text-lg font-semibold mb-4">Research Contexts</h3>
-                        <form onSubmit={handleSaveRc} className="mb-4 space-y-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border dark:border-gray-700">
-                            <input className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500" value={rcName} onChange={e=>setRcName(e.target.value)} placeholder="Context Name" required />
-                            <textarea className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500" rows="3" value={rcContent} onChange={e=>setRcContent(e.target.value)} placeholder="Context Content" required></textarea>
-                            <div className="flex gap-2">
-                                <button type="button" onClick={handleSaveRc} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingRcId ? 'Update' : 'Add'}</button>
-                                {editingRcId && <button type="button" onClick={handleCancelEditRc} className="bg-gray-200 text-black px-4 py-2 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600">Cancel</button>}
-                            </div>
-                        </form>
-                        <div className="space-y-2">
-                            {researchContexts.map(rc => (
-                                <div key={rc.id} className="p-3 border rounded bg-white dark:bg-gray-800 dark:border-gray-700">
-                                    <div className="flex justify-between font-bold"><span>{rc.name}</span>
-                                    <div>
-                                        <button onClick={()=>handleEditRc(rc)} className="text-blue-500 hover:text-blue-600 mr-2"><Pencil className="w-4 h-4 inline"/></button>
-                                        <button onClick={()=>handleDeleteRc(rc.id)} className="text-red-500 hover:text-red-600"><Trash2 className="w-4 h-4 inline"/></button>
-                                    </div></div>
-                                    <div className="text-sm mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{rc.content}</div>
-                                </div>
-                            ))}
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold">Research Contexts</h3>
+                            <button onClick={handleOpenAddRc} className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center">
+                                <Plus className="w-4 h-4 mr-1" /> Add
+                            </button>
+                        </div>
+                        <div className="overflow-x-auto border rounded-lg dark:border-gray-700">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead className="bg-gray-50 dark:bg-gray-900">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Content</th>
+                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    {researchContexts.map(rc => (
+                                        <tr key={rc.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                            <td className="px-4 py-2 text-sm font-medium whitespace-nowrap">{rc.name}</td>
+                                            <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs" title={rc.content}>{rc.content}</td>
+                                            <td className="px-4 py-2 text-right text-sm font-medium whitespace-nowrap">
+                                                <button onClick={()=>handleEditRc(rc)} className="text-blue-500 hover:text-blue-600 mr-3" title="Edit"><Pencil className="w-4 h-4 inline"/></button>
+                                                <button onClick={()=>handleDeleteRc(rc.id)} className="text-red-500 hover:text-red-600" title="Delete"><Trash2 className="w-4 h-4 inline"/></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {researchContexts.length === 0 && (
+                                        <tr><td colSpan="3" className="px-4 py-4 text-center text-gray-500 text-sm">No Research Contexts added.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                    {/* Templates */}
+
+                    {/* Meta Prompt Templates Table */}
                     <div>
-                        <h3 className="text-lg font-semibold mb-4">Meta Prompt Templates</h3>
-                        <form onSubmit={handleSaveMpt} className="mb-4 space-y-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border dark:border-gray-700">
-                            <input className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500" value={mptName} onChange={e=>setMptName(e.target.value)} placeholder="Template Name" required />
-                            <textarea className="w-full px-3 py-2 border rounded dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500" rows="4" value={mptContent} onChange={e=>setMptContent(e.target.value)} placeholder="Template Content e.g. Context: {{Research Context}}" required></textarea>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-2">
-                                <span className="font-semibold block mb-1">Available placeholders:</span>
-                                <div className="flex flex-wrap gap-1">
-                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Research Context}}"}</code>
-                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Input Prompt}}"}</code>
-                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Thinking Trace}}"}</code>
-                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Output}}"}</code>
-                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{Execution Duration}}"}</code>
-                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{GPU}}"}</code>
-                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{CPU}}"}</code>
-                                    <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded">{"{{RAM}}"}</code>
-                                </div>
-                            </div>
-                            <div className="flex gap-2 mt-2">
-                                <button type="button" onClick={handleSaveMpt} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">{editingMptId ? 'Update' : 'Add'}</button>
-                                {editingMptId && <button type="button" onClick={handleCancelEditMpt} className="bg-gray-200 text-black px-4 py-2 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600">Cancel</button>}
-                            </div>
-                        </form>
-                        <div className="space-y-2">
-                            {metaPromptTemplates.map(mpt => (
-                                <div key={mpt.id} className="p-3 border rounded bg-white dark:bg-gray-800 dark:border-gray-700">
-                                    <div className="flex justify-between font-bold"><span>{mpt.name}</span>
-                                    <div>
-                                        <button onClick={()=>handleEditMpt(mpt)} className="text-blue-500 hover:text-blue-600 mr-2"><Pencil className="w-4 h-4 inline"/></button>
-                                        <button onClick={()=>handleDeleteMpt(mpt.id)} className="text-red-500 hover:text-red-600"><Trash2 className="w-4 h-4 inline"/></button>
-                                    </div></div>
-                                    <div className="text-sm mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{mpt.content}</div>
-                                </div>
-                            ))}
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold">Meta Prompt Templates</h3>
+                            <button onClick={handleOpenAddMpt} className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center">
+                                <Plus className="w-4 h-4 mr-1" /> Add
+                            </button>
+                        </div>
+                        <div className="overflow-x-auto border rounded-lg dark:border-gray-700">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead className="bg-gray-50 dark:bg-gray-900">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Content</th>
+                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    {metaPromptTemplates.map(mpt => (
+                                        <tr key={mpt.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                            <td className="px-4 py-2 text-sm font-medium whitespace-nowrap">{mpt.name}</td>
+                                            <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs" title={mpt.content}>{mpt.content}</td>
+                                            <td className="px-4 py-2 text-right text-sm font-medium whitespace-nowrap">
+                                                <button onClick={()=>handleEditMpt(mpt)} className="text-blue-500 hover:text-blue-600 mr-3" title="Edit"><Pencil className="w-4 h-4 inline"/></button>
+                                                <button onClick={()=>handleDeleteMpt(mpt.id)} className="text-red-500 hover:text-red-600" title="Delete"><Trash2 className="w-4 h-4 inline"/></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {metaPromptTemplates.length === 0 && (
+                                        <tr><td colSpan="3" className="px-4 py-4 text-center text-gray-500 text-sm">No Meta Prompt Templates added.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
             </div>
 
-        </div>
+            {/* Research Context Modal */}
+            {showRcModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingRcId ? 'Edit Research Context' : 'Add Research Context'}</h3>
+                            <button onClick={handleCancelEditRc} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <form id="rcForm" onSubmit={handleSaveRc} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Name</label>
+                                    <input className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" value={rcName} onChange={e=>setRcName(e.target.value)} placeholder="Context Name" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Content</label>
+                                    <textarea className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" rows="10" value={rcContent} onChange={e=>setRcContent(e.target.value)} placeholder="Context Content" required></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
+                            <button type="button" onClick={handleCancelEditRc} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
+                            <button type="submit" form="rcForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{editingRcId ? 'Update' : 'Save'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Meta Prompt Template Modal */}
+            {showMptModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingMptId ? 'Edit Meta Prompt Template' : 'Add Meta Prompt Template'}</h3>
+                            <button onClick={handleCancelEditMpt} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <form id="mptForm" onSubmit={handleSaveMpt} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template Name</label>
+                                    <input className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" value={mptName} onChange={e=>setMptName(e.target.value)} placeholder="Template Name" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template Content</label>
+                                    <textarea className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" rows="10" value={mptContent} onChange={e=>setMptContent(e.target.value)} placeholder="Template Content e.g. Context: {{Research Context}}" required></textarea>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                    <span className="font-semibold block mb-1">Available placeholders:</span>
+                                    <div className="flex flex-wrap gap-1">
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Research Context}}"}</code>
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Input Prompt}}"}</code>
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Thinking Trace}}"}</code>
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Output}}"}</code>
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Model}}"}</code>
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Execution Duration}}"}</code>
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{GPU}}"}</code>
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{CPU}}"}</code>
+                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{RAM}}"}</code>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
+                            <button type="button" onClick={handleCancelEditMpt} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
+                            <button type="submit" form="mptForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{editingMptId ? 'Update' : 'Save'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

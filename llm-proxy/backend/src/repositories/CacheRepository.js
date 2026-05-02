@@ -91,7 +91,10 @@ class CacheRepository {
         c.api_key,
         c.extra_config,
         c.stream_mode,
-        l.label
+        l.label,
+        l.gpu_model,
+        l.cpu_model,
+        l.ram_size
       FROM endpoints_config c
       LEFT JOIN endpoint_labels l ON c.endpoint_url = l.endpoint_url
     `);
