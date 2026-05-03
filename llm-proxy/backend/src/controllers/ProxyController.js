@@ -221,6 +221,10 @@ async function proxyTags(req, res) {
                     baseUrl = baseUrl.replace('/v1/chat/completions', '');
                 } else if (baseUrl.endsWith('/v1/completions')) {
                     baseUrl = baseUrl.replace('/v1/completions', '');
+                } else if (baseUrl.endsWith('/api/chat')) {
+                    baseUrl = baseUrl.replace('/api/chat', '');
+                } else if (baseUrl.endsWith('/api/generate')) {
+                    baseUrl = baseUrl.replace('/api/generate', '');
                 }
                 if (baseUrl.endsWith('/')) {
                     baseUrl = baseUrl.slice(0, -1);
