@@ -280,6 +280,7 @@ const History = () => {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const copyRefinementPrompt = () => {
     if (!selectedRequest) return;
     const prompt = `<research_context>\n</research_context>\n\n<task>\n</task>\n\n<original_prompt>\n${selectedRequest.prompt}\n</original_prompt>\n\n<model_response>\n${selectedRequest.response}\n</model_response>\n\n<critique>\n</critique>\n\n<refinement>\n</refinement>`;

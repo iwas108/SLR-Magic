@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchCloudEndpoints, upsertCloudEndpoint, syncCloudModels, fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
-import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Pencil, Monitor, Moon, Sun, X, Cloud } from 'lucide-react';
+import { Settings, Plus, Trash2, Power, PowerOff, Pencil, Monitor, Moon, Sun, X, Cloud } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
 const ToggleSwitch = ({ checked, onChange, disabled }) => (
@@ -80,18 +80,68 @@ const Configuration = () => {
     const [isCloudConfigSaving, setIsCloudConfigSaving] = useState(false);
 
     const handleCloudToggle = (id) => {
+        setCloudEndpoints(prev => prev.map(ce =>
+            ce.id === id ? { ...ce, enabled: !ce.enabled } : ce
+        ));
     };
 
     const handleCloudFieldChange = (id, field, value) => {
+        setCloudEndpoints(prev => prev.map(ce =>
+            ce.id === id ? { ...ce, [field]: value } : ce
+        ));
     };
 
     const handleCloudFeatureToggle = (id, feature, value) => {
+        setCloudEndpoints(prev => prev.map(ce =>
+            ce.id === id ? { ...ce, features: { ...ce.features, [feature]: value } } : ce
+        ));
     };
 
     const fetchCloudModels = async (id) => {
+        handleCloudFieldChange(id, 'fetchStatus', 'fetching');
+        try {
+            await saveCloudEndpoint(id);
+            const data = await syncCloudModels({ id });
+            const models = data.map(m => m.name);
+            handleCloudFieldChange(id, 'modelsList', models);
+            handleCloudFieldChange(id, 'model', models.length > 0 ? models[0] : '');
+            handleCloudFieldChange(id, 'fetchStatus', 'idle');
+        } catch (error) {
+            console.error('Error fetching cloud models:', error);
+            alert('Failed to fetch cloud models. Check your API key.');
+            handleCloudFieldChange(id, 'fetchStatus', 'error');
+        }
     };
 
     const saveCloudEndpoint = async (id) => {
+        const ce = cloudEndpoints.find(c => c.id === id);
+        if (!ce) return;
+
+        setIsCloudConfigSaving(true);
+        try {
+            const payload = {
+                id: ce.id,
+                name: ce.name,
+                enabled: ce.enabled,
+                model_prefix: ce.modelPrefix,
+                api_key: ce.apiKey,
+                model: ce.model,
+                models_cache: JSON.stringify(ce.modelsList),
+                thinking_mode: ce.features.thinking,
+                structured_output: ce.features.structuredOutput,
+                stream_mode: ce.features.streaming,
+                flex_inference: ce.features.flexInference,
+                thinking_type: ce.features.thinkingType,
+                thinking_level: ce.features.thinkingLevel,
+                thinking_budget: ce.features.thinkingBudget
+            };
+            await upsertCloudEndpoint(payload);
+        } catch (error) {
+            console.error('Error saving cloud endpoint:', error);
+            alert('Failed to save cloud endpoint configuration.');
+        } finally {
+            setIsCloudConfigSaving(false);
+        }
     };
 
     // Meta Prompting states
@@ -105,6 +155,56 @@ const Configuration = () => {
     const [mptContent, setMptContent] = useState('');
     const [editingMptId, setEditingMptId] = useState(null);
     const [showMptModal, setShowMptModal] = useState(false);
+
+    const loadCloudEndpoints = async () => {
+        try {
+            const data = await fetchCloudEndpoints();
+            const mappedData = data.map(dbEndpoint => ({
+                id: dbEndpoint.id,
+                name: dbEndpoint.name,
+                enabled: dbEndpoint.enabled === 1 || dbEndpoint.enabled === true,
+                modelPrefix: dbEndpoint.model_prefix || '',
+                apiKey: dbEndpoint.api_key || '',
+                model: dbEndpoint.model || '',
+                modelsList: dbEndpoint.models_cache ? JSON.parse(dbEndpoint.models_cache) : [],
+                fetchStatus: 'idle',
+                features: {
+                    thinking: dbEndpoint.thinking_mode === 1 || dbEndpoint.thinking_mode === true,
+                    structuredOutput: dbEndpoint.structured_output === 1 || dbEndpoint.structured_output === true,
+                    streaming: dbEndpoint.stream_mode === 1 || dbEndpoint.stream_mode === true,
+                    flexInference: dbEndpoint.flex_inference === 1 || dbEndpoint.flex_inference === true,
+                    thinkingType: dbEndpoint.thinking_type || 'level',
+                    thinkingLevel: dbEndpoint.thinking_level || 'low',
+                    thinkingBudget: dbEndpoint.thinking_budget || 1024
+                }
+            }));
+
+            if (mappedData.length === 0) {
+                mappedData.push({
+                    id: 'gemini',
+                    name: 'gemini',
+                    enabled: false,
+                    modelPrefix: 'gemini',
+                    apiKey: '',
+                    model: '',
+                    modelsList: [],
+                    fetchStatus: 'idle',
+                    features: {
+                        thinking: false,
+                        structuredOutput: false,
+                        streaming: false,
+                        flexInference: false,
+                        thinkingType: 'level',
+                        thinkingLevel: 'low',
+                        thinkingBudget: 1024
+                    }
+                });
+            }
+            setCloudEndpoints(mappedData);
+        } catch (error) {
+            console.error('Error loading cloud endpoints:', error);
+        }
+    };
 
     const loadEndpointsAndConfig = async () => {
         try {
@@ -139,6 +239,7 @@ const Configuration = () => {
 
     useEffect(() => {
         loadEndpointsAndConfig();
+        loadCloudEndpoints();
         loadMetaPromptingData();
     }, []);
 
@@ -192,7 +293,7 @@ const Configuration = () => {
             if (extraConfig) {
                 try {
                     parsedExtraConfig = JSON.parse(extraConfig);
-                } catch (err) {
+                } catch {
                     alert('Extra config must be valid JSON');
                     return;
                 }
