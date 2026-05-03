@@ -121,6 +121,7 @@ const Configuration = () => {
         try {
             const payload = {
                 id: ce.id,
+                provider: ce.id,
                 name: ce.name,
                 enabled: ce.enabled,
                 model_prefix: ce.modelPrefix,
@@ -129,7 +130,7 @@ const Configuration = () => {
                 models_cache: JSON.stringify(ce.modelsList),
                 thinking_mode: ce.features.thinking,
                 structured_output: ce.features.structuredOutput,
-                stream_mode: ce.features.streaming,
+                streaming: ce.features.streaming,
                 flex_inference: ce.features.flexInference,
                 thinking_type: ce.features.thinkingType,
                 thinking_level: ce.features.thinkingLevel,
