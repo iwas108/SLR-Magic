@@ -113,6 +113,35 @@ function getConfiguration() {
 }
 
 /**
+ * Proxy function to fetch available Ollama models.
+ */
+function fetchOllamaModelsProxy(baseUrl) {
+  try {
+    let apiUrl = baseUrl;
+    if (apiUrl.endsWith('/v1/chat/completions')) {
+      apiUrl = apiUrl.replace('/v1/chat/completions', '/api/tags');
+    } else if (apiUrl.endsWith('/')) {
+      apiUrl += 'api/tags';
+    } else {
+      apiUrl += '/api/tags';
+    }
+
+    var response = UrlFetchApp.fetch(apiUrl, {
+      method: "get",
+      muteHttpExceptions: true
+    });
+
+    if (response.getResponseCode() === 200) {
+      return JSON.parse(response.getContentText());
+    } else {
+      throw new Error("HTTP Error: " + response.getResponseCode());
+    }
+  } catch (e) {
+    throw new Error("Failed to fetch models: " + e.message);
+  }
+}
+
+/**
  * Server-side handler for saving configuration (called from ConfigurationUI).
  */
 function saveConfiguration(config) {

@@ -139,6 +139,12 @@
             <label for="OLLAMA_API_URL">Ollama API URL</label>
             <input type="text" id="OLLAMA_API_URL" name="OLLAMA_API_URL" placeholder="e.g., https://your-ngrok-url.app/v1/chat/completions">
             <div class="hint">The full endpoint URL for your Ollama server. Apps Script cannot access localhost, so you must use a public proxy like ngrok or Cloudflare Tunnels exposing the OpenAI-compatible endpoint.</div>
+            <button type="button" onclick="fetchOllamaModels()" style="margin-top: 10px; padding: 5px 10px; font-size: 14px; background-color: #2ecc71;">Fetch Available Models</button>
+            <div id="ollama_models_container" style="margin-top: 10px; display: none;">
+              <strong>Available Models:</strong>
+              <div id="ollama_models_list" style="margin-top: 5px; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: #f9f9f9;"></div>
+            </div>
+            <div id="ollama_models_loading" style="margin-top: 10px; display: none; font-style: italic; color: #666;">Fetching models...</div>
           </div>
 
           <h3>Model Selection</h3>
@@ -332,6 +338,75 @@
                 tabs[i].classList.add("active");
             }
         }
+      }
+
+      function fetchOllamaModels() {
+        const ollamaUrl = document.getElementById("OLLAMA_API_URL").value;
+        if (!ollamaUrl) {
+          alert("Please enter the Ollama API URL first.");
+          return;
+        }
+
+        const btn = document.querySelector('button[onclick="fetchOllamaModels()"]');
+        const loadingDiv = document.getElementById("ollama_models_loading");
+        const containerDiv = document.getElementById("ollama_models_container");
+        const listDiv = document.getElementById("ollama_models_list");
+
+        btn.disabled = true;
+        loadingDiv.style.display = "block";
+        containerDiv.style.display = "none";
+        listDiv.innerHTML = "";
+
+        google.script.run.withSuccessHandler(function(response) {
+          btn.disabled = false;
+          loadingDiv.style.display = "none";
+          containerDiv.style.display = "block";
+
+          if (response && response.models && response.models.length > 0) {
+            response.models.forEach(model => {
+              const itemDiv = document.createElement("div");
+              itemDiv.style.display = "flex";
+              itemDiv.style.justifyContent = "space-between";
+              itemDiv.style.alignItems = "center";
+              itemDiv.style.marginBottom = "5px";
+              itemDiv.style.paddingBottom = "5px";
+              itemDiv.style.borderBottom = "1px solid #eee";
+
+              const nameSpan = document.createElement("span");
+              nameSpan.innerText = model.name;
+
+              const copyBtn = document.createElement("button");
+              copyBtn.type = "button";
+              copyBtn.innerText = "Copy";
+              copyBtn.style.padding = "2px 8px";
+              copyBtn.style.fontSize = "12px";
+              copyBtn.style.backgroundColor = "#95a5a6";
+              copyBtn.onclick = function() {
+                navigator.clipboard.writeText(model.name).then(function() {
+                  const originalText = copyBtn.innerText;
+                  copyBtn.innerText = "Copied!";
+                  copyBtn.style.backgroundColor = "#2ecc71";
+                  setTimeout(() => {
+                    copyBtn.innerText = originalText;
+                    copyBtn.style.backgroundColor = "#95a5a6";
+                  }, 1500);
+                }).catch(function(err) {
+                  console.error("Could not copy text: ", err);
+                });
+              };
+
+              itemDiv.appendChild(nameSpan);
+              itemDiv.appendChild(copyBtn);
+              listDiv.appendChild(itemDiv);
+            });
+          } else {
+            listDiv.innerText = "No models found or invalid response.";
+          }
+        }).withFailureHandler(function(error) {
+          btn.disabled = false;
+          loadingDiv.style.display = "none";
+          alert("Error fetching models: " + error.message);
+        }).fetchOllamaModelsProxy(ollamaUrl);
       }
 
       function loadConfig() {

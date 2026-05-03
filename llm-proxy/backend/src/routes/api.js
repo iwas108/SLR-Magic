@@ -7,6 +7,7 @@ const webApiRouter = express.Router();
 
 // Proxy API Route
 apiRouter.post('/v1/chat/completions', ProxyController.proxyToOllama);
+apiRouter.get('/api/tags', ProxyController.proxyTags);
 
 // Web API Routes
 webApiRouter.get('/api/queue_stats', WebApiController.getQueueStats);

@@ -207,6 +207,53 @@ async function proxyToOllama(req, res) {
     }
 }
 
+async function proxyTags(req, res) {
+    try {
+        const uniqueModelsMap = new Map();
+
+        // Fetch models from all configured URLs
+        const activeUrls = ollamaService.urls || [];
+
+        const fetchPromises = activeUrls.map(async (endpointUrl) => {
+            try {
+                let baseUrl = endpointUrl;
+                if (baseUrl.endsWith('/v1/chat/completions')) {
+                    baseUrl = baseUrl.replace('/v1/chat/completions', '');
+                } else if (baseUrl.endsWith('/v1/completions')) {
+                    baseUrl = baseUrl.replace('/v1/completions', '');
+                }
+                if (baseUrl.endsWith('/')) {
+                    baseUrl = baseUrl.slice(0, -1);
+                }
+
+                const tagsUrl = `${baseUrl}/api/tags`;
+                const response = await fetch(tagsUrl, { timeout: 5000 });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.models && Array.isArray(data.models)) {
+                        data.models.forEach(model => {
+                            if (model && model.name && !uniqueModelsMap.has(model.name)) {
+                                uniqueModelsMap.set(model.name, model);
+                            }
+                        });
+                    }
+                }
+            } catch (err) {
+                logger.error(`Failed to fetch tags from ${endpointUrl}: ${err.message}`);
+            }
+        });
+
+        await Promise.allSettled(fetchPromises);
+
+        const models = Array.from(uniqueModelsMap.values());
+        return res.json({ models });
+    } catch (e) {
+        logger.error(`❌ Internal Server Error [proxyTags]: ${e.message || e}`);
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
 module.exports = {
-    proxyToOllama
+    proxyToOllama,
+    proxyTags
 };
