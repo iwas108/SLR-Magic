@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
+import { fetchCloudEndpoints, upsertCloudEndpoint, syncCloudModels, fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
 import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Pencil, Monitor, Moon, Sun, X, Cloud } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 
@@ -76,65 +76,22 @@ const Configuration = () => {
     const [ramSize, setRamSize] = useState('');
 
     // Cloud-based Endpoint State (Mock)
-    const [cloudEndpoints, setCloudEndpoints] = useState([
-        {
-            id: 'gemini',
-            name: 'Gemini API (Google)',
-            enabled: false,
-            modelPrefix: '',
-            apiKey: '',
-            model: '',
-            fetchStatus: 'idle',
-            modelsList: [],
-            features: {
-                thinking: true,
-                thinkingType: 'level', // 'level' or 'budget'
-                thinkingLevel: 'low',
-                thinkingBudget: 1024,
-                structuredOutput: true,
-                streaming: true,
-                flexInference: false
-            }
-        }
-    ]);
+    const [cloudEndpoints, setCloudEndpoints] = useState([]);
     const [isCloudConfigSaving, setIsCloudConfigSaving] = useState(false);
 
     const handleCloudToggle = (id) => {
-        setCloudEndpoints(prev => prev.map(ce => ce.id === id ? { ...ce, enabled: !ce.enabled } : ce));
     };
 
     const handleCloudFieldChange = (id, field, value) => {
-        setCloudEndpoints(prev => prev.map(ce => ce.id === id ? { ...ce, [field]: value } : ce));
     };
 
     const handleCloudFeatureToggle = (id, feature, value) => {
-        setCloudEndpoints(prev => prev.map(ce => {
-            if (ce.id === id) {
-                return { ...ce, features: { ...ce.features, [feature]: value } };
-            }
-            return ce;
-        }));
     };
 
     const fetchCloudModels = async (id) => {
-        handleCloudFieldChange(id, 'fetchStatus', 'fetching');
-        // Mock fetch available models
-        setTimeout(() => {
-            if (id === 'gemini') {
-                handleCloudFieldChange(id, 'modelsList', ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro']);
-                handleCloudFieldChange(id, 'model', 'gemini-1.5-pro'); // set default
-            }
-            handleCloudFieldChange(id, 'fetchStatus', 'success');
-        }, 1000);
     };
 
     const saveCloudEndpoint = async (id) => {
-        setIsCloudConfigSaving(true);
-        // Mock saving
-        setTimeout(() => {
-            setIsCloudConfigSaving(false);
-            alert('Cloud endpoint config saved! (Mock)');
-        }, 800);
     };
 
     // Meta Prompting states
