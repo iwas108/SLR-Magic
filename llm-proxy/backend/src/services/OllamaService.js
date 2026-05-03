@@ -50,6 +50,20 @@ class StreamBroadcaster extends EventEmitter {
 
                     streamState.current_chunk.content += content;
                 }
+            } else if (msgType === "error") {
+                if (this.activeStreams[streamId]) {
+                    this.activeStreams[streamId].status = "error";
+                    this.activeStreams[streamId].error = data.error;
+                    this.activeStreams[streamId].endTime = data.endTime || Date.now();
+
+                    // Cleanup memory after a brief delay to let frontend fetch it if needed,
+                    // or immediately. Frontend relies on live WS events so we can delete it shortly.
+                    setTimeout(() => {
+                        if (this.activeStreams[streamId]) {
+                            delete this.activeStreams[streamId];
+                        }
+                    }, 60000);
+                }
             } else if (msgType === "end") {
                 if (this.activeStreams[streamId]) {
                     delete this.activeStreams[streamId];
@@ -426,14 +440,39 @@ class OllamaService {
         let inThinking = isPrefilled;
         let nativeThinkingMode = false;
 
-        const response = await fetch(endpointUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(nativePayload),
-        });
+        let response;
+        try {
+            response = await fetch(endpointUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(nativePayload),
+            });
+        } catch (err) {
+            const errorMsg = `Fetch error: ${err.message}`;
+            streamBroadcaster.broadcast(JSON.stringify({
+                type: "error",
+                stream_id: streamId,
+                endpoint_url: endpointUrl,
+                error: errorMsg,
+                endTime: Date.now()
+            }));
+            throw err;
+        }
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            let errorText = "";
+            try {
+                errorText = await response.text();
+            } catch (e) {}
+            const errorMsg = `HTTP error! status: ${response.status} ${errorText}`;
+            streamBroadcaster.broadcast(JSON.stringify({
+                type: "error",
+                stream_id: streamId,
+                endpoint_url: endpointUrl,
+                error: errorMsg,
+                endTime: Date.now()
+            }));
+            throw new Error(errorMsg);
         }
 
         const reader = response.body.getReader();
@@ -849,14 +888,39 @@ class OllamaService {
         let nativeThinkingText = "";
         let usage = {};
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(geminiPayload),
-        });
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(geminiPayload),
+            });
+        } catch (err) {
+            const errorMsg = `Fetch error: ${err.message}`;
+            streamBroadcaster.broadcast(JSON.stringify({
+                type: "error",
+                stream_id: streamId,
+                endpoint_url: endpointUrl,
+                error: errorMsg,
+                endTime: Date.now()
+            }));
+            throw err;
+        }
 
         if (!response.ok) {
-            throw new Error(`Gemini API HTTP error! status: ${response.status}`);
+            let errorText = "";
+            try {
+                errorText = await response.text();
+            } catch (e) {}
+            const errorMsg = `Gemini API HTTP error! status: ${response.status} ${errorText}`;
+            streamBroadcaster.broadcast(JSON.stringify({
+                type: "error",
+                stream_id: streamId,
+                endpoint_url: endpointUrl,
+                error: errorMsg,
+                endTime: Date.now()
+            }));
+            throw new Error(errorMsg);
         }
 
         const reader = response.body.getReader();
