@@ -81,6 +81,7 @@ const Configuration = () => {
             id: 'gemini',
             name: 'Gemini API (Google)',
             enabled: false,
+            modelPrefix: '',
             apiKey: '',
             model: '',
             fetchStatus: 'idle',
@@ -387,6 +388,17 @@ const Configuration = () => {
 
                             {ce.enabled && (
                                 <div className="space-y-4 border-t dark:border-gray-700 pt-4 mt-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model Prefix</label>
+                                        <input
+                                            type="text"
+                                            value={ce.modelPrefix}
+                                            onChange={(e) => handleCloudFieldChange(ce.id, 'modelPrefix', e.target.value)}
+                                            placeholder="gemini,gemma"
+                                            className="w-full max-w-lg px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 mb-4"
+                                        />
+                                    </div>
+
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Key</label>
                                         <input
