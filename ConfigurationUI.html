@@ -342,6 +342,8 @@
 
       function fetchOllamaModels() {
         const ollamaUrl = document.getElementById("OLLAMA_API_URL").value;
+        const apiKey = document.getElementById("API_KEY").value;
+
         if (!ollamaUrl) {
           alert("Please enter the Ollama API URL first.");
           return;
@@ -406,7 +408,7 @@
           btn.disabled = false;
           loadingDiv.style.display = "none";
           alert("Error fetching models: " + error.message);
-        }).fetchOllamaModelsProxy(ollamaUrl);
+        }).fetchOllamaModelsProxy(ollamaUrl, apiKey);
       }
 
       function loadConfig() {

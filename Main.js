@@ -115,7 +115,7 @@ function getConfiguration() {
 /**
  * Proxy function to fetch available Ollama models.
  */
-function fetchOllamaModelsProxy(baseUrl) {
+function fetchOllamaModelsProxy(baseUrl, apiKey) {
   try {
     let apiUrl = baseUrl;
     if (apiUrl.endsWith('/v1/chat/completions')) {
@@ -126,10 +126,18 @@ function fetchOllamaModelsProxy(baseUrl) {
       apiUrl += '/api/tags';
     }
 
-    var response = UrlFetchApp.fetch(apiUrl, {
+    let options = {
       method: "get",
       muteHttpExceptions: true
-    });
+    };
+
+    if (apiKey) {
+      options.headers = {
+        "Authorization": "Bearer " + apiKey
+      };
+    }
+
+    var response = UrlFetchApp.fetch(apiUrl, options);
 
     if (response.getResponseCode() === 200) {
       return JSON.parse(response.getContentText());
