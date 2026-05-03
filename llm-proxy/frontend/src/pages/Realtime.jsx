@@ -28,7 +28,27 @@ const Realtime = () => {
     const [now, setNow] = useState(Date.now());
 
     useEffect(() => {
-        const interval = setInterval(() => setNow(Date.now()), 1000);
+        const interval = setInterval(() => {
+            const currentTime = Date.now();
+            setNow(currentTime);
+
+            setStreams(prevStreams => {
+                let hasChanges = false;
+                const newStreams = { ...prevStreams };
+
+                Object.keys(newStreams).forEach(id => {
+                    const stream = newStreams[id];
+                    if (stream.status === 'error' && stream.endTime) {
+                        if (currentTime - stream.endTime > 60000) {
+                            delete newStreams[id];
+                            hasChanges = true;
+                        }
+                    }
+                });
+
+                return hasChanges ? newStreams : prevStreams;
+            });
+        }, 1000);
         return () => clearInterval(interval);
     }, []);
 
@@ -54,12 +74,12 @@ const Realtime = () => {
                             prompt: data.prompt || 'Unknown Prompt',
                             prompt_json: data.prompt_json || null,
                             label: data.label || 'Unknown Endpoint',
-                            status: 'active',
+                            status: data.status || 'active',
                             content: fullContent,
                             thinking: fullThinking,
                             startTime: data.startTime || Date.now(),
-                            endTime: null,
-                            error: null,
+                            endTime: data.endTime || null,
+                            error: data.error || null,
                             summary: null
                         };
                     }
@@ -90,12 +110,12 @@ const Realtime = () => {
                     prompt: prompt || 'Unknown Prompt',
                     prompt_json: msg.prompt_json || null,
                     label: label || 'Unknown Endpoint',
-                    status: 'active',
+                    status: type === 'error' ? 'error' : (msg.status || 'active'),
                     content: '',
                     thinking: '',
                     startTime: timestamp || Date.now(),
-                    endTime: null,
-                    error: null,
+                    endTime: msg.endTime || null,
+                    error: msg.error || null,
                     summary: null
                 };
             }
