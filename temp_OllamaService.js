@@ -197,9 +197,12 @@ class OllamaService {
                 endpointUrl = await this.endpointQueue.dequeue();
                 attempts++;
 
-                let modelName = this.customModels[endpointUrl] || baseModel;
+                let modelName;
+                    modelName = this.customModels[endpointUrl] || baseModel;
+                }
 
-                // Check if model is available on this endpoint
+                } else {
+                    // Check if model is available on this endpoint
                     let availableModels = [];
                     const cacheEntry = this.endpointModelsCache[endpointUrl];
                     // Cache for 5 minutes
@@ -236,6 +239,7 @@ class OllamaService {
                         // Found it or couldn't verify (assume it might have it)
                         break;
                     }
+                }
             }
 
             // Re-enqueue skipped endpoints so they aren't lost
@@ -290,7 +294,9 @@ class OllamaService {
             openaiPayload.pdf_hash = pdfHash;
         }
 
-        let modelName = this.customModels[endpointUrl] || baseModel;
+        let modelName;
+            modelName = this.customModels[endpointUrl] || baseModel;
+        }
 
         const nativePayload = {
             model: modelName,
@@ -308,12 +314,41 @@ class OllamaService {
         this.endpointStatus[endpointUrl] = "active";
         const shortHash = reqHash ? reqHash.substring(0, 8) : "Unknown";
 
-        logger.info(`🚀 Dispatching request [${shortHash}] to endpoint: ${endpointUrl} (Model: ${modelName})`);
+        if (modelName.toLowerCase().startsWith("gemini") || modelName.toLowerCase().startsWith("gemma")) {
+            logger.info(`🚀 Dispatching request [${shortHash}] to endpoint: Gemini API (Model: ${modelName})`);
+        } else {
+            logger.info(`🚀 Dispatching request [${shortHash}] to endpoint: ${endpointUrl} (Model: ${modelName})`);
+        }
 
         const startTime = Date.now();
         try {
             let result;
-            if (this.streamModes[endpointUrl]) {
+            if (modelName.toLowerCase().startsWith("gemini") || modelName.toLowerCase().startsWith("gemma")) {
+                let apiKey = this.apiKeys[endpointUrl] || "";
+                if (!apiKey) {
+                    for (const key of Object.values(this.apiKeys)) {
+                        if (key) {
+                            apiKey = key;
+                            break;
+                        }
+                    }
+                }
+
+                let forceStream = false;
+                const extraConfigStr = this.extraConfigs[endpointUrl] || "";
+                if (extraConfigStr) {
+                    try {
+                        const extraConf = JSON.parse(extraConfigStr);
+                        forceStream = extraConf.streamMode || false;
+                    } catch (e) {}
+                }
+
+                if (openaiPayload.stream || forceStream) {
+                    result = await this._fetchViaStreamGemini(openaiPayload, modelName, endpointUrl, reqHash, apiKey);
+                } else {
+                    result = await this._fetchGemini(openaiPayload, modelName, endpointUrl, reqHash, apiKey);
+                }
+            } else if (this.streamModes[endpointUrl]) {
                 nativePayload.stream = true;
                 if (openaiPayload.has_pdf) {
                     nativePayload.has_pdf = true;
@@ -622,6 +657,437 @@ class OllamaService {
         };
     }
 
+    async _fetchGemini(openaiPayload, modelName, endpointUrl, reqHash, apiKey) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+        const contents = [];
+        for (const msg of (openaiPayload.messages || [])) {
+            const parts = [];
+            if (typeof msg.content === 'string') {
+                parts.push({ text: msg.content });
+            } else if (Array.isArray(msg.content)) {
+                for (const part of msg.content) {
+                    if (part.type === "text") {
+                        parts.push({ text: part.text || "" });
+                    } else if (part.type === "image_url") {
+                        const imgUrl = (part.image_url && part.image_url.url) ? part.image_url.url : "";
+                        if (imgUrl.startsWith("data:application/pdf;base64,")) {
+                            const b64Data = imgUrl.split(",")[1];
+                            parts.push({
+                                inline_data: {
+                                    mime_type: "application/pdf",
+                                    data: b64Data
+                                }
+                            });
+                        } else if (imgUrl.startsWith("data:image/")) {
+                            const mime = imgUrl.split(";")[0].split(":")[1];
+                            const b64Data = imgUrl.split(",")[1];
+                            parts.push({
+                                inline_data: {
+                                    mime_type: mime,
+                                    data: b64Data
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
+            const role = ["user", "system"].includes(msg.role) ? "user" : "model";
+            contents.push({ role: role, parts: parts });
+        }
+
+        const geminiPayload = {
+            contents: contents,
+            generationConfig: {
+                temperature: openaiPayload.temperature !== undefined ? openaiPayload.temperature : 0.6,
+                maxOutputTokens: openaiPayload.max_tokens !== undefined ? openaiPayload.max_tokens : 8192
+            }
+        };
+
+        const extraConfigStr = this.extraConfigs[endpointUrl] || "";
+        if (extraConfigStr) {
+            try {
+                const extraConf = JSON.parse(extraConfigStr);
+                if (extraConf.temperature !== undefined && extraConf.temperature !== null) {
+                    geminiPayload.generationConfig.temperature = parseFloat(extraConf.temperature);
+                }
+                if (extraConf.maxOutputTokens !== undefined && extraConf.maxOutputTokens !== null) {
+                    geminiPayload.generationConfig.maxOutputTokens = parseInt(extraConf.maxOutputTokens);
+                }
+                if (extraConf.thinkingLevel && extraConf.thinkingLevel !== "none") {
+                    const isGemini3 = modelName.toLowerCase().includes("gemini-3");
+                    const isGemini25 = modelName.toLowerCase().includes("gemini-2.5");
+
+                    if (isGemini3) {
+                        geminiPayload.generationConfig.thinkingConfig = {
+                            thinkingLevel: extraConf.thinkingLevel || "low"
+                        };
+                    } else if (isGemini25) {
+                        let budget = parseInt(extraConf.thinkingBudget || 1024);
+                        if (budget < 1024) budget = 1024;
+                        geminiPayload.generationConfig.thinkingConfig = {
+                            thinkingBudgetTokens: budget
+                        };
+                    }
+                }
+                if (extraConf.serviceTier === "flex") {
+                    geminiPayload.service_tier = "flex";
+                }
+            } catch (e) {
+                logger.error(`Failed to parse or apply Gemini extra_config: ${e.message}`);
+            }
+        }
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(geminiPayload),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Gemini API HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const candidates = data.candidates || [];
+        if (candidates.length === 0) {
+            throw new Error("No candidates returned from Gemini API");
+        }
+
+        let contentText = "";
+        let nativeThinkingText = "";
+        const parts = candidates[0].content ? (candidates[0].content.parts || []) : [];
+        for (const part of parts) {
+            if (part.thought) {
+                nativeThinkingText += part.text || "";
+            } else {
+                contentText += part.text || "";
+            }
+        }
+
+        const usageMetadata = data.usageMetadata || {};
+        const usage = {
+            prompt_tokens: usageMetadata.promptTokenCount || 0,
+            completion_tokens: usageMetadata.candidatesTokenCount || 0,
+            total_tokens: usageMetadata.totalTokenCount || 0,
+            thoughts_tokens: usageMetadata.thoughtsTokenCount || 0
+        };
+
+        let cleanedContent = extractJsonFromMixedText(contentText);
+
+        if (contentText.includes("<think>")) {
+            const thinkMatch = contentText.match(/(<think>[\s\S]*?<\/think>)/);
+            if (thinkMatch) {
+                cleanedContent = `${thinkMatch[1]}\n\n${cleanedContent}`;
+            }
+        } else if (contentText.includes("### LOGIC TRACE")) {
+            const logicMatch = contentText.match(/(### LOGIC TRACE[\s\S]*?(?=### FINAL DECISION|\{))/);
+            if (logicMatch) {
+                cleanedContent = `<think>\n${logicMatch[1].trim()}\n</think>\n\n${cleanedContent}`;
+            }
+        }
+
+        const msg = { role: "assistant", content: cleanedContent };
+        if (nativeThinkingText) {
+            msg.thinking = nativeThinkingText;
+        }
+
+        const res = {
+            id: `chatcmpl-${Math.floor(Date.now() / 1000)}`,
+            object: "chat.completion",
+            created: Math.floor(Date.now() / 1000),
+            model: modelName,
+            choices: [{
+                index: 0,
+                message: msg,
+                finish_reason: "stop"
+            }],
+            usage: usage,
+            endpoint_url: endpointUrl
+        };
+
+        if (openaiPayload.has_pdf) {
+            res.has_pdf = true;
+            res.req_hash = reqHash;
+            if (openaiPayload.pdf_hash) res.pdf_hash = openaiPayload.pdf_hash;
+        }
+
+        return res;
+    }
+
+    async _fetchViaStreamGemini(openaiPayload, modelName, endpointUrl, reqHash, apiKey) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${apiKey}`;
+
+        const contents = [];
+        let paperTitle = "Unknown Paper";
+        let paperAbstract = "No abstract available.";
+        let promptText = "Unknown Prompt";
+
+        for (const msg of (openaiPayload.messages || [])) {
+            const parts = [];
+
+            if (msg.role === "user") {
+                let txtContent = "";
+                if (typeof msg.content === 'string') {
+                    txtContent = msg.content;
+                } else if (Array.isArray(msg.content)) {
+                    for (const part of msg.content) {
+                        if (part.type === "text") txtContent += (part.text || "");
+                    }
+                }
+
+                promptText = txtContent;
+                if (promptText.length > 500) {
+                    promptText = promptText.substring(0, 500) + "...";
+                }
+
+                const titleMatch = txtContent.match(/Title:\s*([\s\S]*?)(?=\nAbstract:|$)/i);
+                const abstractMatch = txtContent.match(/Abstract:\s*([\s\S]*?)(?=\n[A-Za-z0-9_-]+:|\n\n|$)/i);
+
+                if (titleMatch) paperTitle = titleMatch[1].replace(/\*\*/g, '').trim();
+                if (abstractMatch) paperAbstract = abstractMatch[1].replace(/\*\*/g, '').trim();
+            }
+
+            if (typeof msg.content === 'string') {
+                parts.push({ text: msg.content });
+            } else if (Array.isArray(msg.content)) {
+                for (const part of msg.content) {
+                    if (part.type === "text") {
+                        parts.push({ text: part.text || "" });
+                    } else if (part.type === "image_url") {
+                        const imgUrl = (part.image_url && part.image_url.url) ? part.image_url.url : "";
+                        if (imgUrl.startsWith("data:application/pdf;base64,")) {
+                            const b64Data = imgUrl.split(",")[1];
+                            parts.push({
+                                inline_data: {
+                                    mime_type: "application/pdf",
+                                    data: b64Data
+                                }
+                            });
+                        } else if (imgUrl.startsWith("data:image/")) {
+                            const mime = imgUrl.split(";")[0].split(":")[1];
+                            const b64Data = imgUrl.split(",")[1];
+                            parts.push({
+                                inline_data: {
+                                    mime_type: mime,
+                                    data: b64Data
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+
+            const role = ["user", "system"].includes(msg.role) ? "user" : "model";
+            contents.push({ role: role, parts: parts });
+        }
+
+        const geminiPayload = {
+            contents: contents,
+            generationConfig: {
+                temperature: openaiPayload.temperature !== undefined ? openaiPayload.temperature : 0.6,
+                maxOutputTokens: openaiPayload.max_tokens !== undefined ? openaiPayload.max_tokens : 8192
+            }
+        };
+
+        const extraConfigStr = this.extraConfigs[endpointUrl] || "";
+        if (extraConfigStr) {
+            try {
+                const extraConf = JSON.parse(extraConfigStr);
+                if (extraConf.temperature !== undefined && extraConf.temperature !== null) {
+                    geminiPayload.generationConfig.temperature = parseFloat(extraConf.temperature);
+                }
+                if (extraConf.maxOutputTokens !== undefined && extraConf.maxOutputTokens !== null) {
+                    geminiPayload.generationConfig.maxOutputTokens = parseInt(extraConf.maxOutputTokens);
+                }
+                if (extraConf.thinkingLevel && extraConf.thinkingLevel !== "none") {
+                    const isGemini3 = modelName.toLowerCase().includes("gemini-3");
+                    const isGemini25 = modelName.toLowerCase().includes("gemini-2.5");
+
+                    if (isGemini3) {
+                        geminiPayload.generationConfig.thinkingConfig = {
+                            thinkingLevel: extraConf.thinkingLevel || "low"
+                        };
+                    } else if (isGemini25) {
+                        let budget = parseInt(extraConf.thinkingBudget || 1024);
+                        if (budget < 1024) budget = 1024;
+                        geminiPayload.generationConfig.thinkingConfig = {
+                            thinkingBudgetTokens: budget
+                        };
+                    }
+                }
+                if (extraConf.serviceTier === "flex") {
+                    geminiPayload.service_tier = "flex";
+                }
+            } catch (e) {
+                logger.error(`Failed to parse or apply Gemini extra_config: ${e.message}`);
+            }
+        }
+
+        const streamId = crypto.randomUUID();
+
+        const startPayload = {
+            type: "start",
+            stream_id: streamId,
+            title: paperTitle,
+            abstract: paperAbstract,
+            endpoint_url: endpointUrl,
+            label: this.endpointLabels[endpointUrl] || endpointUrl,
+            prompt: promptText,
+            prompt_json: openaiPayload
+        };
+        if (openaiPayload.has_pdf) {
+            startPayload.has_pdf = true;
+            startPayload.req_hash = reqHash;
+            if (openaiPayload.pdf_hash) startPayload.pdf_hash = openaiPayload.pdf_hash;
+        }
+
+        streamBroadcaster.broadcast(JSON.stringify(startPayload));
+
+        let fullContent = "";
+        let nativeThinkingText = "";
+        let usage = {};
+
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(geminiPayload),
+            });
+        } catch (err) {
+            const errorMsg = `Fetch error: ${err.message}`;
+            streamBroadcaster.broadcast(JSON.stringify({
+                type: "error",
+                stream_id: streamId,
+                endpoint_url: endpointUrl,
+                error: errorMsg,
+                endTime: Date.now()
+            }));
+            throw err;
+        }
+
+        if (!response.ok) {
+            let errorText = "";
+            try {
+                errorText = await response.text();
+            } catch (e) {}
+            const errorMsg = `Gemini API HTTP error! status: ${response.status} ${errorText}`;
+            streamBroadcaster.broadcast(JSON.stringify({
+                type: "error",
+                stream_id: streamId,
+                endpoint_url: endpointUrl,
+                error: errorMsg,
+                endTime: Date.now()
+            }));
+            throw new Error(errorMsg);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+
+                const dataStr = line.substring(6).trim();
+                if (dataStr === "[DONE]") continue;
+
+                try {
+                    const chunk = JSON.parse(dataStr);
+                    const candidates = chunk.candidates || [];
+                    if (candidates.length > 0) {
+                        const parts = candidates[0].content ? (candidates[0].content.parts || []) : [];
+                        for (const part of parts) {
+                            const textPiece = part.text || "";
+                            const isThought = part.thought || false;
+
+                            if (isThought) {
+                                nativeThinkingText += textPiece;
+                            } else {
+                                fullContent += textPiece;
+                            }
+
+                            streamBroadcaster.broadcast(JSON.stringify({
+                                type: "content",
+                                stream_id: streamId,
+                                content: textPiece,
+                                in_thinking: isThought,
+                                endpoint_url: endpointUrl
+                            }));
+                        }
+                    }
+
+                    if (chunk.usageMetadata) {
+                        const usageMetadata = chunk.usageMetadata;
+                        usage = {
+                            prompt_tokens: usageMetadata.promptTokenCount || 0,
+                            completion_tokens: usageMetadata.candidatesTokenCount || 0,
+                            total_tokens: usageMetadata.totalTokenCount || 0,
+                            thoughts_tokens: usageMetadata.thoughtsTokenCount || 0
+                        };
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+        }
+
+        streamBroadcaster.broadcast(JSON.stringify({
+            type: "end",
+            stream_id: streamId,
+            endpoint_url: endpointUrl
+        }));
+
+        let cleanedContent = extractJsonFromMixedText(fullContent);
+        if (fullContent.includes("<think>")) {
+            const thinkMatch = fullContent.match(/(<think>[\s\S]*?<\/think>)/);
+            if (thinkMatch) {
+                cleanedContent = `${thinkMatch[1]}\n\n${cleanedContent}`;
+            }
+        } else if (fullContent.includes("### LOGIC TRACE")) {
+            const logicMatch = fullContent.match(/(### LOGIC TRACE[\s\S]*?(?=### FINAL DECISION|\{))/);
+            if (logicMatch) {
+                cleanedContent = `<think>\n${logicMatch[1].trim()}\n</think>\n\n${cleanedContent}`;
+            }
+        }
+
+        const msg = { role: "assistant", content: cleanedContent };
+        if (nativeThinkingText) {
+            msg.thinking = nativeThinkingText;
+        }
+
+        const res = {
+            id: `chatcmpl-${Math.floor(Date.now() / 1000)}`,
+            object: "chat.completion",
+            created: Math.floor(Date.now() / 1000),
+            model: modelName,
+            choices: [{
+                index: 0,
+                message: msg,
+                finish_reason: "stop"
+            }],
+            usage: usage,
+            endpoint_url: endpointUrl
+        };
+
+        if (openaiPayload.has_pdf) {
+            res.has_pdf = true;
+            res.req_hash = reqHash;
+            if (openaiPayload.pdf_hash) res.pdf_hash = openaiPayload.pdf_hash;
+        }
+
+        return res;
+    }
 }
 
 module.exports = { OllamaService, streamBroadcaster };
