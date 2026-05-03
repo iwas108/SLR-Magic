@@ -104,7 +104,7 @@ async function syncCloudModels(req, res) {
         const endpoint = await cacheRepo.getCloudEndpointById(id);
         if (!endpoint) return res.status(404).json({ error: "Endpoint not found" });
 
-        if (endpoint.provider === 'google') {
+        if (endpoint.provider === 'google' || endpoint.provider === 'gemini') {
             const { GoogleGenAI } = require('@google/genai');
             const ai = new GoogleGenAI({ apiKey: endpoint.api_key });
             const response = await ai.models.list();
