@@ -101,8 +101,8 @@ const Configuration = () => {
         handleCloudFieldChange(id, 'fetchStatus', 'fetching');
         try {
             await saveCloudEndpoint(id);
-            const data = await syncCloudModels({ id });
-            const models = data.map(m => m.name);
+            const response = await syncCloudModels(id);
+            const models = response.models.map(m => m.name);
             handleCloudFieldChange(id, 'modelsList', models);
             handleCloudFieldChange(id, 'model', models.length > 0 ? models[0] : '');
             handleCloudFieldChange(id, 'fetchStatus', 'idle');

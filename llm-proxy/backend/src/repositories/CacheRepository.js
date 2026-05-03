@@ -120,6 +120,7 @@ class CacheRepository {
     const rows = stmt.all();
     return rows.map(row => ({
       ...row,
+      enabled: !!row.enabled,
       thinking_mode: !!row.thinking_mode,
       streaming: !!row.streaming,
       structured_output: !!row.structured_output,
@@ -131,16 +132,16 @@ class CacheRepository {
     }));
   }
 
-  async upsertCloudEndpoint(id, provider, name, apiKey, modelPrefix, thinkingMode, streaming, structuredOutput, flexInference, thinkingType, thinkingLevel, thinkingBudget) {
+  async upsertCloudEndpoint(id, provider, name, enabled, apiKey, modelPrefix, thinkingMode, streaming, structuredOutput, flexInference, thinkingType, thinkingLevel, thinkingBudget) {
     if (!id) {
       id = crypto.randomUUID();
     }
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO cloud_endpoints
-      (id, provider, name, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, thinking_type, thinking_level, thinking_budget, models_cache)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT models_cache FROM cloud_endpoints WHERE id = ?), '[]'))
+      (id, provider, name, enabled, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, thinking_type, thinking_level, thinking_budget, models_cache)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT models_cache FROM cloud_endpoints WHERE id = ?), '[]'))
     `);
-    stmt.run(id, provider, name, apiKey, modelPrefix, thinkingMode ? 1 : 0, streaming ? 1 : 0, structuredOutput ? 1 : 0, flexInference ? 1 : 0, thinkingType || 'level', thinkingLevel || 'low', thinkingBudget || 1024, id);
+    stmt.run(id, provider, name, enabled ? 1 : 0, apiKey, modelPrefix, thinkingMode ? 1 : 0, streaming ? 1 : 0, structuredOutput ? 1 : 0, flexInference ? 1 : 0, thinkingType || 'level', thinkingLevel || 'low', thinkingBudget || 1024, id);
     return id;
   }
 
@@ -160,6 +161,7 @@ class CacheRepository {
     if (!row) return null;
     return {
       ...row,
+      enabled: !!row.enabled,
       thinking_mode: !!row.thinking_mode,
       streaming: !!row.streaming,
       structured_output: !!row.structured_output,
@@ -363,6 +365,7 @@ class CacheRepository {
         id TEXT PRIMARY KEY,
         provider TEXT NOT NULL,
         name TEXT NOT NULL,
+        enabled BOOLEAN DEFAULT 0,
         api_key TEXT,
         model_prefix TEXT NOT NULL,
         thinking_mode BOOLEAN DEFAULT 0,
@@ -376,8 +379,11 @@ class CacheRepository {
       )
     `);
 
-    // Ensure thinking columns exist in cloud_endpoints for backwards compatibility
+    // Ensure backwards compatibility for newer columns
     const cloudEndpointsCols = this.db.pragma('table_info(cloud_endpoints)');
+    if (!cloudEndpointsCols.find(col => col.name === 'enabled')) {
+      this.db.exec("ALTER TABLE cloud_endpoints ADD COLUMN enabled BOOLEAN DEFAULT 0");
+    }
     if (!cloudEndpointsCols.find(col => col.name === 'thinking_type')) {
       this.db.exec("ALTER TABLE cloud_endpoints ADD COLUMN thinking_type TEXT DEFAULT 'level'");
     }
