@@ -48,6 +48,8 @@ const Configuration = () => {
     const [savingGlobal, setSavingGlobal] = useState(false);
 
     // Form state
+    const [showEndpointModal, setShowEndpointModal] = useState(false);
+    const [isEditingEndpoint, setIsEditingEndpoint] = useState(false);
     const [url, setUrl] = useState('');
     const [label, setLabel] = useState('');
     const [isActive, setIsActive] = useState(true);
@@ -105,6 +107,37 @@ const Configuration = () => {
         loadMetaPromptingData();
     }, []);
 
+    const clearEndpointForm = () => {
+        setUrl('');
+        setLabel('');
+        setIsActive(true);
+        setStreamMode(false);
+        setExtraConfig('');
+        setGpuModel('');
+        setCpuModel('');
+        setRamSize('');
+        setIsEditingEndpoint(false);
+        setShowEndpointModal(false);
+    };
+
+    const handleOpenAddEndpoint = () => {
+        clearEndpointForm();
+        setShowEndpointModal(true);
+    };
+
+    const handleEditEndpoint = (ep) => {
+        setUrl(ep.endpoint_url);
+        setLabel(ep.label || '');
+        setIsActive(ep.enabled);
+        setStreamMode(ep.stream_mode === 1 || ep.stream_mode === true);
+        setExtraConfig(ep.extra_config || '');
+        setGpuModel(ep.gpu_model || '');
+        setCpuModel(ep.cpu_model || '');
+        setRamSize(ep.ram_size || '');
+        setIsEditingEndpoint(true);
+        setShowEndpointModal(true);
+    };
+
     const handleSaveGlobalConfig = async () => {
         setSavingGlobal(true);
         try {
@@ -146,15 +179,8 @@ const Configuration = () => {
                 ram_size: ramSize
             });
 
-            // Reset form
-            setUrl('');
-            setLabel('');
-            setIsActive(true);
-            setStreamMode(false);
-            setExtraConfig('');
-            setGpuModel('');
-            setCpuModel('');
-            setRamSize('');
+            // Reset form and close modal
+            clearEndpointForm();
 
             loadEndpointsAndConfig();
         } catch (error) {
@@ -263,87 +289,17 @@ const Configuration = () => {
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                 <h2 className="text-2xl font-bold mb-6">Smart Endpoint Manager</h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Form Column */}
-                    <div className="col-span-1 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 h-fit">
-                    <h3 className="text-lg font-semibold mb-4">Add / Update Endpoint</h3>
-                    <form onSubmit={handleAddOrUpdate} className="space-y-4">
-                        <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL (Primary Key)</label>
-                            <input
-                                type="text"
-                                required
-                                value={url}
-                                onChange={(e) => setUrl(e.target.value)}
-                                placeholder="http://127.0.0.1:11434/api/chat"
-                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
-                            />
-                        </div>
-                        <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label</label>
-                            <input
-                                type="text"
-                                required
-                                value={label}
-                                onChange={(e) => setLabel(e.target.value)}
-                                placeholder="Local Ollama"
-                                    className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
-                            />
-                        </div>
-                        <div className="flex space-x-6">
-                            <label className="flex items-center space-x-2">
-                                <input
-                                    type="checkbox"
-                                    checked={isActive}
-                                    onChange={(e) => setIsActive(e.target.checked)}
-                                        className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                />
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Is Active</span>
-                            </label>
-                            <label className="flex items-center space-x-2">
-                                <input
-                                    type="checkbox"
-                                    checked={streamMode}
-                                    onChange={(e) => setStreamMode(e.target.checked)}
-                                        className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                />
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream Mode</span>
-                            </label>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Extra Config (JSON)</label>
-                            <textarea
-                                value={extraConfig}
-                                onChange={(e) => setExtraConfig(e.target.value)}
-                                placeholder='{"temperature": 0.7}'
-                                rows={3}
-                                className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm dark:bg-gray-700"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GPU Model</label>
-                            <input type="text" value={gpuModel} onChange={(e) => setGpuModel(e.target.value)} placeholder="e.g. RTX 3090" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CPU Model</label>
-                            <input type="text" value={cpuModel} onChange={(e) => setCpuModel(e.target.value)} placeholder="e.g. i9-13900K" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RAM Size</label>
-                            <input type="text" value={ramSize} onChange={(e) => setRamSize(e.target.value)} placeholder="e.g. 64GB" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
-                        </div>
-                        <button
-                            type="submit"
-                            className="w-full flex justify-center items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                        >
-                            <Plus className="w-4 h-4 mr-2" /> Save Endpoint
-                        </button>
-                    </form>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Configured Endpoints</h3>
+                    <button
+                        onClick={handleOpenAddEndpoint}
+                        className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center"
+                    >
+                        <Plus className="w-4 h-4 mr-1" /> Add
+                    </button>
                 </div>
 
-                {/* List Column */}
-                <div className="col-span-1 md:col-span-2">
-                    <h3 className="text-lg font-semibold mb-4">Configured Endpoints</h3>
+                <div>
                     {loading ? (
                         <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading endpoints...</div>
                     ) : endpoints.length === 0 ? (
@@ -382,16 +338,7 @@ const Configuration = () => {
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <button
-                                            onClick={() => {
-                                                setUrl(ep.endpoint_url);
-                                                setLabel(ep.label || '');
-                                                setIsActive(ep.enabled);
-                                                setStreamMode(ep.stream_mode === 1 || ep.stream_mode === true);
-                                                setExtraConfig(ep.extra_config || '');
-                                                setGpuModel(ep.gpu_model || '');
-                                                setCpuModel(ep.cpu_model || '');
-                                                setRamSize(ep.ram_size || '');
-                                            }}
+                                            onClick={() => handleEditEndpoint(ep)}
                                             className="p-2 rounded-md bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900"
                                             title="Edit"
                                         >
@@ -422,8 +369,6 @@ const Configuration = () => {
                     )}
                 </div>
             </div>
-
-        </div>
 
             {/* Meta Prompting Section - Separated completely from Smart Endpoint Manager */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
@@ -528,6 +473,93 @@ const Configuration = () => {
                         <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
                             <button type="button" onClick={handleCancelEditRc} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
                             <button type="submit" form="rcForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{editingRcId ? 'Update' : 'Save'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Endpoint Modal */}
+            {showEndpointModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{isEditingEndpoint ? 'Edit Endpoint' : 'Add Endpoint'}</h3>
+                            <button onClick={clearEndpointForm} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <form id="endpointForm" onSubmit={handleAddOrUpdate} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL (Primary Key)</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={url}
+                                        onChange={(e) => setUrl(e.target.value)}
+                                        placeholder="http://127.0.0.1:11434/api/chat"
+                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                                        disabled={isEditingEndpoint}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={label}
+                                        onChange={(e) => setLabel(e.target.value)}
+                                        placeholder="Local Ollama"
+                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                                    />
+                                </div>
+                                <div className="flex space-x-6">
+                                    <label className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={isActive}
+                                            onChange={(e) => setIsActive(e.target.checked)}
+                                            className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Is Active</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={streamMode}
+                                            onChange={(e) => setStreamMode(e.target.checked)}
+                                            className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream Mode</span>
+                                    </label>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Extra Config (JSON)</label>
+                                    <textarea
+                                        value={extraConfig}
+                                        onChange={(e) => setExtraConfig(e.target.value)}
+                                        placeholder='{"temperature": 0.7}'
+                                        rows={3}
+                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm dark:bg-gray-700"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GPU Model</label>
+                                    <input type="text" value={gpuModel} onChange={(e) => setGpuModel(e.target.value)} placeholder="e.g. RTX 3090" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CPU Model</label>
+                                    <input type="text" value={cpuModel} onChange={(e) => setCpuModel(e.target.value)} placeholder="e.g. i9-13900K" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RAM Size</label>
+                                    <input type="text" value={ramSize} onChange={(e) => setRamSize(e.target.value)} placeholder="e.g. 64GB" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
+                                </div>
+                            </form>
+                        </div>
+                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
+                            <button type="button" onClick={clearEndpointForm} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
+                            <button type="submit" form="endpointForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{isEditingEndpoint ? 'Update' : 'Save'}</button>
                         </div>
                     </div>
                 </div>
