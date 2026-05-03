@@ -157,6 +157,19 @@ async function getHistory(req, res) {
                 // ignore parsing errors
             }
 
+            let thinking = null;
+            const thinkMatch = response.match(/<think>([\s\S]*?)<\/think>/);
+            if (thinkMatch) {
+                thinking = thinkMatch[1].trim();
+                response = response.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+            } else {
+                const logicMatch = response.match(/### LOGIC TRACE([\s\S]*?)(?:### FINAL DECISION|$)/);
+                if (logicMatch) {
+                    thinking = logicMatch[1].trim();
+                    response = response.replace(/### LOGIC TRACE[\s\S]*?(?:### FINAL DECISION|$)/, '').trim();
+                }
+            }
+
             return {
                 id: item.id,
                 timestamp: item.created_at,
@@ -168,7 +181,7 @@ async function getHistory(req, res) {
                 completion_tokens: completion_tokens,
                 total_duration: item.duration_ms,
                 is_cached: false, // Could infer if needed
-                thinking: null, // Or extract if available
+                thinking: thinking,
                 hardware: {
                     gpu_model: item.gpu_model || null,
                     cpu_model: item.cpu_model || null,
