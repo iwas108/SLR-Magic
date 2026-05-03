@@ -68,7 +68,8 @@ class OllamaService {
         this.urls = urls;
         this.endpointQueue = new AsyncQueue();
         this.endpointStatus = {};
-        this.pendingRequests = 0;
+        this.queuedRequests = 0;
+        this.activeRequests = 0;
         this.totalProcessed = 0;
         this.maxConcurrentRequests = 0;
 
@@ -167,13 +168,16 @@ class OllamaService {
 
         Object.assign(nativeOptions, customOptions);
 
-        this.pendingRequests += 1;
+        this.queuedRequests += 1;
         let endpointUrl;
         try {
             endpointUrl = await this.endpointQueue.dequeue();
         } finally {
-            this.pendingRequests -= 1;
+            this.queuedRequests -= 1;
         }
+
+        this.activeRequests += 1;
+        this.maxConcurrentRequests = Math.max(this.maxConcurrentRequests, this.activeRequests);
 
         let hasPdf = false;
         let pdfHash = "";
@@ -288,6 +292,7 @@ class OllamaService {
             result.endpoint_duration_ms = endpointDurationMs;
             return result;
         } finally {
+            this.activeRequests -= 1;
             if (this.endpointStatus[endpointUrl] !== undefined) {
                 this.endpointStatus[endpointUrl] = "idle";
             }
@@ -295,7 +300,6 @@ class OllamaService {
                 this.endpointQueue.enqueue(endpointUrl);
             }
             this.totalProcessed += 1;
-            this.maxConcurrentRequests = Math.max(this.maxConcurrentRequests, this.pendingRequests);
         }
     }
 
