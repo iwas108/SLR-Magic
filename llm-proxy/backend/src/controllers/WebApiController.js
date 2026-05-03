@@ -2,13 +2,6 @@ const { cacheRepo, ollamaService, streamBroadcaster } = require('../di');
 
 async function getQueueStats(req, res) {
     try {
-        let activeCount = 0;
-        for (const url in ollamaService.endpointStatus) {
-            if (ollamaService.endpointStatus[url] === "active") {
-                activeCount++;
-            }
-        }
-
         const totalCount = ollamaService.urls.length;
         const labels = await cacheRepo.getEndpointLabels();
 
@@ -22,13 +15,12 @@ async function getQueueStats(req, res) {
             };
         });
 
-        let pendingInQueue = ollamaService.pendingRequests - activeCount;
-        if (pendingInQueue < 0) pendingInQueue = 0;
+        let pendingInQueue = ollamaService.queuedRequests;
 
         return res.json({
             total_endpoints: totalCount,
-            active_requests: activeCount,
-            pending_requests: ollamaService.pendingRequests,
+            active_requests: ollamaService.activeRequests,
+            pending_requests: pendingInQueue + ollamaService.activeRequests,
             pending_in_queue: pendingInQueue,
             total_processed: ollamaService.totalProcessed,
             max_concurrent_requests: ollamaService.maxConcurrentRequests,
