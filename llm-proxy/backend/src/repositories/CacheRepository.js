@@ -115,6 +115,56 @@ class CacheRepository {
     return stmt.all();
   }
 
+  async getCloudEndpoints() {
+    const stmt = this.db.prepare('SELECT * FROM cloud_endpoints');
+    const rows = stmt.all();
+    return rows.map(row => ({
+      ...row,
+      thinking_mode: !!row.thinking_mode,
+      streaming: !!row.streaming,
+      structured_output: !!row.structured_output,
+      flex_inference: !!row.flex_inference,
+      models_cache: row.models_cache ? JSON.parse(row.models_cache) : null
+    }));
+  }
+
+  async upsertCloudEndpoint(id, provider, name, apiKey, modelPrefix, thinkingMode, streaming, structuredOutput, flexInference) {
+    if (!id) {
+      id = crypto.randomUUID();
+    }
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO cloud_endpoints
+      (id, provider, name, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, models_cache)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT models_cache FROM cloud_endpoints WHERE id = ?), '[]'))
+    `);
+    stmt.run(id, provider, name, apiKey, modelPrefix, thinkingMode ? 1 : 0, streaming ? 1 : 0, structuredOutput ? 1 : 0, flexInference ? 1 : 0, id);
+    return id;
+  }
+
+  async deleteCloudEndpoint(id) {
+    const stmt = this.db.prepare('DELETE FROM cloud_endpoints WHERE id = ?');
+    stmt.run(id);
+  }
+
+  async updateCloudModelsCache(id, modelsCache) {
+    const stmt = this.db.prepare('UPDATE cloud_endpoints SET models_cache = ? WHERE id = ?');
+    stmt.run(JSON.stringify(modelsCache), id);
+  }
+
+  async getCloudEndpointById(id) {
+    const stmt = this.db.prepare('SELECT * FROM cloud_endpoints WHERE id = ?');
+    const row = stmt.get(id);
+    if (!row) return null;
+    return {
+      ...row,
+      thinking_mode: !!row.thinking_mode,
+      streaming: !!row.streaming,
+      structured_output: !!row.structured_output,
+      flex_inference: !!row.flex_inference,
+      models_cache: row.models_cache ? JSON.parse(row.models_cache) : null
+    };
+  }
+
   async upsertEndpointConfig(endpointUrl, enabled, customModel, apiKey = "", extraConfig = "", streamMode = false) {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO endpoints_config
@@ -301,6 +351,21 @@ class CacheRepository {
     if (!labelsCols.find(col => col.name === 'ram_size')) {
       this.db.exec("ALTER TABLE endpoint_labels ADD COLUMN ram_size TEXT DEFAULT ''");
     }
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS cloud_endpoints (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        name TEXT NOT NULL,
+        api_key TEXT,
+        model_prefix TEXT NOT NULL,
+        thinking_mode BOOLEAN DEFAULT 0,
+        streaming BOOLEAN DEFAULT 0,
+        structured_output BOOLEAN DEFAULT 0,
+        flex_inference BOOLEAN DEFAULT 0,
+        models_cache TEXT
+      )
+    `);
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS endpoints_config (

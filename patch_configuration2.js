@@ -3,13 +3,9 @@ const fs = require('fs');
 const file = 'llm-proxy/frontend/src/pages/Configuration.jsx';
 let content = fs.readFileSync(file, 'utf8');
 
-// Imports
-content = content.replace(
-    /import \{ fetchEndpointsConfig/,
-    "import { fetchCloudEndpoints, upsertCloudEndpoint, deleteCloudEndpoint, syncCloudModels, fetchEndpointsConfig"
-);
+// The file doesn't have an `EndpointManager` component, it has one large `Configuration` component.
+// So let's extract the `CloudEndpointsManager` code into a standalone component string and inject it before `const Configuration = () => {`
 
-// CloudEndpointsManager component
 const cloudManagerComponent = `
 const CloudEndpointsManager = () => {
     const [endpoints, setEndpoints] = useState([]);
@@ -306,18 +302,16 @@ const CloudEndpointsManager = () => {
         </div>
     );
 };
-`
+`;
 
-// Insert the new component just before `const EndpointManager = () => {`
 content = content.replace(
-    /const EndpointManager = \(\) => \{/,
-    `${cloudManagerComponent}\n\nconst EndpointManager = () => {`
+    /const Configuration = \(\) => \{/,
+    `${cloudManagerComponent}\n\nconst Configuration = () => {`
 );
 
-// Add the CloudEndpointsManager to the render just before EndpointManager
 content = content.replace(
-    /<EndpointManager \/>/,
-    `<CloudEndpointsManager />\n            <EndpointManager />`
+    /<div className="bg-white dark:bg-gray-800 rounded-lg shadow mt-8 p-6 mb-8">/,
+    `<CloudEndpointsManager />\n            <div className="bg-white dark:bg-gray-800 rounded-lg shadow mt-8 p-6 mb-8">`
 );
 
 fs.writeFileSync(file, content, 'utf8');

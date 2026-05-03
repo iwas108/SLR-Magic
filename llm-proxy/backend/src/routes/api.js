@@ -15,6 +15,13 @@ webApiRouter.get('/api/stats', WebApiController.getStats);
 webApiRouter.post('/api/stats/properties', WebApiController.setEndpointProperties);
 
 webApiRouter.get('/api/endpoints', WebApiController.getEndpoints);
+
+// Cloud endpoints
+webApiRouter.get('/api/cloud_endpoints', WebApiController.getCloudEndpoints);
+webApiRouter.post('/api/cloud_endpoints', WebApiController.upsertCloudEndpoint);
+webApiRouter.delete('/api/cloud_endpoints', WebApiController.deleteCloudEndpoint);
+webApiRouter.post('/api/cloud_endpoints/sync_models', WebApiController.syncCloudModels);
+
 webApiRouter.get('/api/endpoints/config', WebApiController.getEndpointsConfig);
 webApiRouter.post('/api/endpoints/config', WebApiController.upsertEndpointConfig);
 webApiRouter.delete('/api/endpoints/config', WebApiController.deleteEndpointConfig);

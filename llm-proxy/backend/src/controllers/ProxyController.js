@@ -1,5 +1,5 @@
 const logger = require("../utils/logger");
-const { cacheRepo, ollamaService, inFlightRequests } = require('../di');
+const { cacheRepo, ollamaService, cloudService, inFlightRequests } = require('../di');
 const { extractJsonFromMixedText } = require('../utils/parsers');
 
 async function proxyToOllama(req, res) {
@@ -141,9 +141,25 @@ async function proxyToOllama(req, res) {
         let endpointUrl = "unknown";
         let modelName = "unknown";
 
+        // Check if model routes to cloud endpoint
+        let matchingCloudEndpoint = null;
+        const requestedModel = payload.model || "";
+        const cloudEndpoints = await cacheRepo.getCloudEndpoints();
+        for (const ce of cloudEndpoints) {
+            if (requestedModel.startsWith(ce.model_prefix) || requestedModel.includes(ce.model_prefix)) {
+                matchingCloudEndpoint = ce;
+                break;
+            }
+        }
+
         for (let attempt = 0; attempt < maxRetries; attempt++) {
-            // OllamaService fetchCompletion
-            responseData = await ollamaService.fetchCompletion(payload, reqHash);
+            if (matchingCloudEndpoint) {
+                logger.info(`☁️ Routing [${shortHash}] to Cloud Endpoint (${matchingCloudEndpoint.provider}): ${matchingCloudEndpoint.name}`);
+                responseData = await cloudService.fetchCompletion(matchingCloudEndpoint, payload, reqHash);
+            } else {
+                // OllamaService fetchCompletion
+                responseData = await ollamaService.fetchCompletion(payload, reqHash);
+            }
 
             modelName = responseData.model || "unknown";
             endpointUrl = responseData.endpoint_url || "unknown";
@@ -248,6 +264,18 @@ async function proxyTags(req, res) {
         });
 
         await Promise.allSettled(fetchPromises);
+
+        // Inject cloud models
+        const cloudEndpoints = await cacheRepo.getCloudEndpoints();
+        for (const ce of cloudEndpoints) {
+            if (ce.models_cache && Array.isArray(ce.models_cache)) {
+                for (const model of ce.models_cache) {
+                    if (!uniqueModelsMap.has(model.name)) {
+                        uniqueModelsMap.set(model.name, model);
+                    }
+                }
+            }
+        }
 
         const models = Array.from(uniqueModelsMap.values());
         return res.json({ models });

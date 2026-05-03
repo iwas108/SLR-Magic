@@ -62,6 +62,80 @@ async function getEndpoints(req, res) {
     }
 }
 
+async function getCloudEndpoints(req, res) {
+    try {
+        const configs = await cacheRepo.getCloudEndpoints();
+        return res.json(configs);
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
+async function upsertCloudEndpoint(req, res) {
+    try {
+        const { id, provider, name, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference } = req.body;
+        const resultId = await cacheRepo.upsertCloudEndpoint(
+            id, provider, name, api_key, model_prefix,
+            thinking_mode, streaming, structured_output, flex_inference
+        );
+        return res.json({ status: "success", id: resultId });
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
+async function deleteCloudEndpoint(req, res) {
+    try {
+        const id = req.query.id;
+        if (!id) return res.status(400).json({ error: "id is required" });
+        await cacheRepo.deleteCloudEndpoint(id);
+        return res.json({ status: "success" });
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
+async function syncCloudModels(req, res) {
+    try {
+        const id = req.body.id;
+        if (!id) return res.status(400).json({ error: "id is required" });
+
+        const endpoint = await cacheRepo.getCloudEndpointById(id);
+        if (!endpoint) return res.status(404).json({ error: "Endpoint not found" });
+
+        if (endpoint.provider === 'google') {
+            const { GoogleGenAI } = require('@google/genai');
+            const ai = new GoogleGenAI({ apiKey: endpoint.api_key });
+            const response = await ai.models.list();
+
+            const models = [];
+            for await (const model of response) {
+                if (model.name.includes(endpoint.model_prefix) || model.name.replace('models/', '').includes(endpoint.model_prefix)) {
+                    models.push({
+                        name: model.name.replace('models/', ''),
+                        modified_at: new Date().toISOString(),
+                        size: 0,
+                        digest: model.name,
+                        details: {
+                            format: 'cloud',
+                            family: 'gemini',
+                            parameter_size: 'unknown',
+                            quantization_level: 'none'
+                        }
+                    });
+                }
+            }
+
+            await cacheRepo.updateCloudModelsCache(id, models);
+            return res.json({ status: "success", models });
+        } else {
+            return res.status(400).json({ error: `Provider ${endpoint.provider} not supported for model sync` });
+        }
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
 async function getEndpointsConfig(req, res) {
     try {
         const configs = await cacheRepo.getAllEndpointConfigs();
@@ -362,6 +436,10 @@ module.exports = {
     getStats,
     setEndpointProperties,
     getEndpoints,
+    getCloudEndpoints,
+    upsertCloudEndpoint,
+    deleteCloudEndpoint,
+    syncCloudModels,
     getEndpointsConfig,
     upsertEndpointConfig,
     deleteEndpointConfig,

@@ -45,6 +45,40 @@ export const clearHistory = async () => {
     return response.json();
 };
 
+export const fetchCloudEndpoints = async () => {
+    const response = await fetch(`${API_BASE_URL}/cloud_endpoints`);
+    if (!response.ok) throw new Error('Failed to fetch cloud endpoints');
+    return response.json();
+};
+
+export const upsertCloudEndpoint = async (payload) => {
+    const response = await fetch(`${API_BASE_URL}/cloud_endpoints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error('Failed to upsert cloud endpoint');
+    return response.json();
+};
+
+export const deleteCloudEndpoint = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/cloud_endpoints?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to delete cloud endpoint');
+    return response.json();
+};
+
+export const syncCloudModels = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/cloud_endpoints/sync_models`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+    });
+    if (!response.ok) throw new Error('Failed to sync cloud models');
+    return response.json();
+};
+
 export const fetchEndpointsConfig = async () => {
     const response = await fetch(`${API_BASE_URL}/endpoints/config`);
     if (!response.ok) throw new Error('Failed to fetch endpoint config');

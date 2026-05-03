@@ -2,10 +2,12 @@ const logger = require("../utils/logger");
 const config = require('../config');
 const CacheRepository = require('../repositories/CacheRepository');
 const { OllamaService, streamBroadcaster } = require('../services/OllamaService');
+const CloudService = require('../services/CloudService');
 
 // Initialize dependencies
 const cacheRepo = new CacheRepository(config.DB_FILE);
 const ollamaService = new OllamaService(config.OLLAMA_URLS);
+const cloudService = new CloudService(cacheRepo, streamBroadcaster);
 
 // Synchronize endpoint configurations from DB on startup
 async function initDependencies() {
@@ -40,6 +42,7 @@ const inFlightRequests = {};
 module.exports = {
     cacheRepo,
     ollamaService,
+    cloudService,
     streamBroadcaster,
     initDependencies,
     inFlightRequests
