@@ -73,10 +73,11 @@ async function getCloudEndpoints(req, res) {
 
 async function upsertCloudEndpoint(req, res) {
     try {
-        const { id, provider, name, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference } = req.body;
+        const { id, provider, name, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, thinking_type, thinking_level, thinking_budget } = req.body;
         const resultId = await cacheRepo.upsertCloudEndpoint(
             id, provider, name, api_key, model_prefix,
-            thinking_mode, streaming, structured_output, flex_inference
+            thinking_mode, streaming, structured_output, flex_inference,
+            thinking_type, thinking_level, thinking_budget
         );
         return res.json({ status: "success", id: resultId });
     } catch (e) {

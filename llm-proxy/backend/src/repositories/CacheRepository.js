@@ -124,20 +124,23 @@ class CacheRepository {
       streaming: !!row.streaming,
       structured_output: !!row.structured_output,
       flex_inference: !!row.flex_inference,
+      thinking_type: row.thinking_type || 'level',
+      thinking_level: row.thinking_level || 'low',
+      thinking_budget: row.thinking_budget || 1024,
       models_cache: row.models_cache ? JSON.parse(row.models_cache) : null
     }));
   }
 
-  async upsertCloudEndpoint(id, provider, name, apiKey, modelPrefix, thinkingMode, streaming, structuredOutput, flexInference) {
+  async upsertCloudEndpoint(id, provider, name, apiKey, modelPrefix, thinkingMode, streaming, structuredOutput, flexInference, thinkingType, thinkingLevel, thinkingBudget) {
     if (!id) {
       id = crypto.randomUUID();
     }
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO cloud_endpoints
-      (id, provider, name, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, models_cache)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT models_cache FROM cloud_endpoints WHERE id = ?), '[]'))
+      (id, provider, name, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, thinking_type, thinking_level, thinking_budget, models_cache)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT models_cache FROM cloud_endpoints WHERE id = ?), '[]'))
     `);
-    stmt.run(id, provider, name, apiKey, modelPrefix, thinkingMode ? 1 : 0, streaming ? 1 : 0, structuredOutput ? 1 : 0, flexInference ? 1 : 0, id);
+    stmt.run(id, provider, name, apiKey, modelPrefix, thinkingMode ? 1 : 0, streaming ? 1 : 0, structuredOutput ? 1 : 0, flexInference ? 1 : 0, thinkingType || 'level', thinkingLevel || 'low', thinkingBudget || 1024, id);
     return id;
   }
 
@@ -161,6 +164,9 @@ class CacheRepository {
       streaming: !!row.streaming,
       structured_output: !!row.structured_output,
       flex_inference: !!row.flex_inference,
+      thinking_type: row.thinking_type || 'level',
+      thinking_level: row.thinking_level || 'low',
+      thinking_budget: row.thinking_budget || 1024,
       models_cache: row.models_cache ? JSON.parse(row.models_cache) : null
     };
   }
@@ -363,9 +369,24 @@ class CacheRepository {
         streaming BOOLEAN DEFAULT 0,
         structured_output BOOLEAN DEFAULT 0,
         flex_inference BOOLEAN DEFAULT 0,
-        models_cache TEXT
+        models_cache TEXT,
+        thinking_type TEXT DEFAULT 'level',
+        thinking_level TEXT DEFAULT 'low',
+        thinking_budget INTEGER DEFAULT 1024
       )
     `);
+
+    // Ensure thinking columns exist in cloud_endpoints for backwards compatibility
+    const cloudEndpointsCols = this.db.pragma('table_info(cloud_endpoints)');
+    if (!cloudEndpointsCols.find(col => col.name === 'thinking_type')) {
+      this.db.exec("ALTER TABLE cloud_endpoints ADD COLUMN thinking_type TEXT DEFAULT 'level'");
+    }
+    if (!cloudEndpointsCols.find(col => col.name === 'thinking_level')) {
+      this.db.exec("ALTER TABLE cloud_endpoints ADD COLUMN thinking_level TEXT DEFAULT 'low'");
+    }
+    if (!cloudEndpointsCols.find(col => col.name === 'thinking_budget')) {
+      this.db.exec('ALTER TABLE cloud_endpoints ADD COLUMN thinking_budget INTEGER DEFAULT 1024');
+    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS endpoints_config (
