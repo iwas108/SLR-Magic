@@ -93,6 +93,8 @@ class OllamaService {
         this.streamModes = {};  // endpoint_url -> boolean
         this.endpointLabels = {}; // endpoint_url -> string label
 
+        this.endpointModelsCache = {}; // endpoint_url -> { models: [...], timestamp: Date.now() }
+
         for (const url of this.urls) {
             this.endpointStatus[url] = "idle";
             this.endpointQueue.enqueue(url);
@@ -182,10 +184,80 @@ class OllamaService {
 
         Object.assign(nativeOptions, customOptions);
 
+        const baseModel = openaiPayload.model || "qwen3.5-slr";
+        const isGeminiOrGemma = baseModel.toLowerCase().startsWith("gemini") || baseModel.toLowerCase().startsWith("gemma");
+
         this.queuedRequests += 1;
         let endpointUrl;
+        let attempts = 0;
+        const maxAttempts = this.urls.length;
+        let skippedEndpoints = [];
+
         try {
-            endpointUrl = await this.endpointQueue.dequeue();
+            while (attempts < maxAttempts) {
+                endpointUrl = await this.endpointQueue.dequeue();
+                attempts++;
+
+                let modelName;
+                if (isGeminiOrGemma) {
+                    modelName = baseModel;
+                } else {
+                    modelName = this.customModels[endpointUrl] || baseModel;
+                }
+
+                if (isGeminiOrGemma) {
+                    // Skip model checking for Gemini
+                    break;
+                } else {
+                    // Check if model is available on this endpoint
+                    let availableModels = [];
+                    const cacheEntry = this.endpointModelsCache[endpointUrl];
+                    // Cache for 5 minutes
+                    if (cacheEntry && (Date.now() - cacheEntry.timestamp < 300000)) {
+                        availableModels = cacheEntry.models;
+                    } else {
+                        try {
+                            let baseUrl = endpointUrl;
+                            if (baseUrl.endsWith('/v1/chat/completions')) baseUrl = baseUrl.replace('/v1/chat/completions', '');
+                            else if (baseUrl.endsWith('/v1/completions')) baseUrl = baseUrl.replace('/v1/completions', '');
+                            else if (baseUrl.endsWith('/api/chat')) baseUrl = baseUrl.replace('/api/chat', '');
+                            else if (baseUrl.endsWith('/api/generate')) baseUrl = baseUrl.replace('/api/generate', '');
+                            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+                            const tagsResponse = await fetch(`${baseUrl}/api/tags`, { timeout: 3000 });
+                            if (tagsResponse.ok) {
+                                const data = await tagsResponse.json();
+                                if (data && data.models) {
+                                    availableModels = data.models.map(m => m.name);
+                                    this.endpointModelsCache[endpointUrl] = { models: availableModels, timestamp: Date.now() };
+                                }
+                            }
+                        } catch (err) {
+                            logger.warn(`Failed to fetch models for endpoint ${endpointUrl} during fallback check: ${err.message}`);
+                        }
+                    }
+
+                    if (availableModels.length > 0 && !availableModels.includes(modelName)) {
+                        logger.info(`Model ${modelName} not found on ${endpointUrl}, trying next endpoint...`);
+                        skippedEndpoints.push(endpointUrl);
+                        endpointUrl = null;
+                        continue;
+                    } else {
+                        // Found it or couldn't verify (assume it might have it)
+                        break;
+                    }
+                }
+            }
+
+            // Re-enqueue skipped endpoints so they aren't lost
+            for (const skippedUrl of skippedEndpoints) {
+                this.endpointQueue.enqueue(skippedUrl);
+            }
+
+            if (!endpointUrl) {
+                throw new Error(`None of the available endpoints have the requested model: ${baseModel}`);
+            }
+
         } finally {
             this.queuedRequests -= 1;
         }
@@ -229,9 +301,8 @@ class OllamaService {
             openaiPayload.pdf_hash = pdfHash;
         }
 
-        const baseModel = openaiPayload.model || "qwen3.5-slr";
         let modelName;
-        if (baseModel.toLowerCase().startsWith("gemini") || baseModel.toLowerCase().startsWith("gemma")) {
+        if (isGeminiOrGemma) {
             modelName = baseModel;
         } else {
             modelName = this.customModels[endpointUrl] || baseModel;
