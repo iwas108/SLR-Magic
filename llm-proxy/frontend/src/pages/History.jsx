@@ -650,70 +650,72 @@ const History = () => {
               </div>
 
               <div className="p-6 overflow-y-auto flex-1">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                      Model
-                    </span>
-                    <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                      {selectedRequest.model}
+                <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded border dark:border-gray-700 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase block mb-1">
+                        Model
+                      </span>
+                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                        {selectedRequest.model}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase block mb-1">
+                        Endpoint
+                      </span>
+                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                        {selectedRequest.endpoint || "N/A"}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase block mb-1">
+                        Tokens (Prompt/Completion)
+                      </span>
+                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                        {selectedRequest.prompt_tokens} /{" "}
+                        {selectedRequest.completion_tokens}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase block mb-1">
+                        Total Duration
+                      </span>
+                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                        {formatTime(selectedRequest.total_duration)}
+                      </div>
                     </div>
                   </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                      Endpoint
-                    </span>
-                    <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                      {selectedRequest.endpoint || "N/A"}
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                      Tokens (Prompt/Completion)
-                    </span>
-                    <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                      {selectedRequest.prompt_tokens} /{" "}
-                      {selectedRequest.completion_tokens}
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                      Total Duration
-                    </span>
-                    <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                      {formatTime(selectedRequest.total_duration)}
-                    </div>
-                  </div>
-                </div>
 
-                {selectedRequest.hardware && (
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                        GPU
-                      </span>
-                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                        {selectedRequest.hardware.gpu_model || "N/A"}
+                  {selectedRequest.hardware && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t dark:border-gray-700">
+                      <div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase block mb-1">
+                          GPU
+                        </span>
+                        <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                          {selectedRequest.hardware.gpu_model || "N/A"}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase block mb-1">
+                          CPU
+                        </span>
+                        <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                          {selectedRequest.hardware.cpu_model || "N/A"}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase block mb-1">
+                          RAM
+                        </span>
+                        <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
+                          {selectedRequest.hardware.ram_size || "N/A"}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                        CPU
-                      </span>
-                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                        {selectedRequest.hardware.cpu_model || "N/A"}
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded border dark:border-gray-700">
-                      <span className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">
-                        RAM
-                      </span>
-                      <div className="font-mono text-sm text-gray-900 dark:text-gray-200">
-                        {selectedRequest.hardware.ram_size || "N/A"}
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div className="mb-6">
                   <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
