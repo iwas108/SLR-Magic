@@ -448,6 +448,17 @@ class CacheRepository {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Ensure there is at least one default cloud endpoint
+    const cloudEndpointCount = this.db.prepare('SELECT COUNT(*) as count FROM cloud_endpoints').get().count;
+    if (cloudEndpointCount === 0) {
+      const defaultId = crypto.randomUUID();
+      this.db.prepare(`
+        INSERT INTO cloud_endpoints
+        (id, provider, name, enabled, api_key, model_prefix, models_cache)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(defaultId, 'gemini', 'Google Gemini API', 0, '', 'gemini,gemma', '[]');
+    }
   }
   // Meta Prompting
   async getResearchContexts() {
