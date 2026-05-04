@@ -168,7 +168,7 @@ const Configuration = () => {
                 modelPrefix: dbEndpoint.model_prefix || '',
                 apiKey: dbEndpoint.api_key || '',
                 model: dbEndpoint.model || '',
-                modelsList: Array.isArray(dbEndpoint.models_cache) ? dbEndpoint.models_cache : [],
+                modelsList: Array.isArray(dbEndpoint.models_cache) ? dbEndpoint.models_cache.map(m => typeof m === 'object' ? m.name : m) : [],
                 fetchStatus: 'idle',
                 features: {
                     thinking: dbEndpoint.thinking_mode === 1 || dbEndpoint.thinking_mode === true,
