@@ -111,10 +111,15 @@ async function syncCloudModels(req, res) {
             const response = await ai.models.list();
 
             const models = [];
+            const prefixes = endpoint.model_prefix.split(',').map(p => p.trim()).filter(p => p);
+
             for await (const model of response) {
-                if (model.name.includes(endpoint.model_prefix) || model.name.replace('models/', '').includes(endpoint.model_prefix)) {
+                const modelName = model.name.replace('models/', '');
+                const matchesPrefix = prefixes.some(prefix => modelName.includes(prefix));
+
+                if (matchesPrefix || prefixes.length === 0) {
                     models.push({
-                        name: model.name.replace('models/', ''),
+                        name: modelName,
                         modified_at: new Date().toISOString(),
                         size: 0,
                         digest: model.name,
