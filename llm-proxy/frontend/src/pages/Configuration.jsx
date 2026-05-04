@@ -108,7 +108,7 @@ const Configuration = () => {
             handleCloudFieldChange(id, 'fetchStatus', 'idle');
         } catch (error) {
             console.error('Error fetching cloud models:', error);
-            alert('Failed to fetch cloud models. Check your API key.');
+            alert(`Failed to fetch cloud models: ${error.message}`);
             handleCloudFieldChange(id, 'fetchStatus', 'error');
         }
     };
@@ -172,7 +172,7 @@ const Configuration = () => {
                 features: {
                     thinking: dbEndpoint.thinking_mode === 1 || dbEndpoint.thinking_mode === true,
                     structuredOutput: dbEndpoint.structured_output === 1 || dbEndpoint.structured_output === true,
-                    streaming: dbEndpoint.stream_mode === 1 || dbEndpoint.stream_mode === true,
+                    streaming: dbEndpoint.streaming === 1 || dbEndpoint.streaming === true,
                     flexInference: dbEndpoint.flex_inference === 1 || dbEndpoint.flex_inference === true,
                     thinkingType: dbEndpoint.thinking_type || 'level',
                     thinkingLevel: dbEndpoint.thinking_level || 'low',

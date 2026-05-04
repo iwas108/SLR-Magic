@@ -75,7 +75,10 @@ export const syncCloudModels = async (id) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
     });
-    if (!response.ok) throw new Error('Failed to sync cloud models');
+    if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to sync cloud models');
+    }
     return response.json();
 };
 

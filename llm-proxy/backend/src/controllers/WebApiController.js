@@ -98,8 +98,9 @@ async function deleteCloudEndpoint(req, res) {
 
 async function syncCloudModels(req, res) {
     try {
+        console.log("syncCloudModels req.body:", req.body);
         const id = req.body.id;
-        if (!id) return res.status(400).json({ error: "id is required" });
+        if (!id) return res.status(400).json({ error: "id is required. Received body: " + JSON.stringify(req.body) });
 
         const endpoint = await cacheRepo.getCloudEndpointById(id);
         if (!endpoint) return res.status(404).json({ error: "Endpoint not found" });
@@ -133,7 +134,8 @@ async function syncCloudModels(req, res) {
             return res.status(400).json({ error: `Provider ${endpoint.provider} not supported for model sync` });
         }
     } catch (e) {
-        return res.status(500).json({ error: e.message || String(e) });
+        console.error("Error in syncCloudModels:", e);
+        return res.status(e.status || 500).json({ error: e.message || String(e) });
     }
 }
 
