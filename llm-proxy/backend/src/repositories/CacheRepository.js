@@ -132,16 +132,24 @@ class CacheRepository {
     }));
   }
 
-  async upsertCloudEndpoint(id, provider, name, enabled, apiKey, modelPrefix, thinkingMode, streaming, structuredOutput, flexInference, thinkingType, thinkingLevel, thinkingBudget) {
+  async upsertCloudEndpoint(id, provider, name, enabled, apiKey, modelPrefix, thinkingMode, streaming, structuredOutput, flexInference, thinkingType, thinkingLevel, thinkingBudget, modelsCache) {
     if (!id) {
       id = crypto.randomUUID();
     }
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO cloud_endpoints
       (id, provider, name, enabled, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, thinking_type, thinking_level, thinking_budget, models_cache)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT models_cache FROM cloud_endpoints WHERE id = ?), '[]'))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(id, provider, name, enabled ? 1 : 0, apiKey, modelPrefix, thinkingMode ? 1 : 0, streaming ? 1 : 0, structuredOutput ? 1 : 0, flexInference ? 1 : 0, thinkingType || 'level', thinkingLevel || 'low', thinkingBudget || 1024, id);
+
+    // If modelsCache is explicitly passed (even '[]'), use it. Otherwise attempt to preserve existing.
+    let cacheToSave = modelsCache;
+    if (cacheToSave === undefined) {
+      const existing = this.db.prepare('SELECT models_cache FROM cloud_endpoints WHERE id = ?').get(id);
+      cacheToSave = existing && existing.models_cache ? existing.models_cache : '[]';
+    }
+
+    stmt.run(id, provider, name, enabled ? 1 : 0, apiKey, modelPrefix, thinkingMode ? 1 : 0, streaming ? 1 : 0, structuredOutput ? 1 : 0, flexInference ? 1 : 0, thinkingType || 'level', thinkingLevel || 'low', thinkingBudget || 1024, cacheToSave);
     return id;
   }
 

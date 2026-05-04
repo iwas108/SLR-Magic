@@ -79,10 +79,18 @@ const Configuration = () => {
     const [cloudEndpoints, setCloudEndpoints] = useState([]);
     const [isCloudConfigSaving, setIsCloudConfigSaving] = useState(false);
 
-    const handleCloudToggle = (id) => {
+    const handleCloudToggle = async (id) => {
+        // First update local state
         setCloudEndpoints(prev => prev.map(ce =>
             ce.id === id ? { ...ce, enabled: !ce.enabled } : ce
         ));
+
+        // Wait for state to be updated and then save to DB
+        // We use the current state, but flip the enabled value explicitly
+        const ce = cloudEndpoints.find(c => c.id === id);
+        if (ce) {
+            await saveCloudEndpointWithData({ ...ce, enabled: !ce.enabled });
+        }
     };
 
     const handleCloudFieldChange = (id, field, value) => {
@@ -113,10 +121,7 @@ const Configuration = () => {
         }
     };
 
-    const saveCloudEndpoint = async (id) => {
-        const ce = cloudEndpoints.find(c => c.id === id);
-        if (!ce) return;
-
+    const saveCloudEndpointWithData = async (ce) => {
         setIsCloudConfigSaving(true);
         try {
             const payload = {
@@ -143,6 +148,12 @@ const Configuration = () => {
         } finally {
             setIsCloudConfigSaving(false);
         }
+    };
+
+    const saveCloudEndpoint = async (id) => {
+        const ce = cloudEndpoints.find(c => c.id === id);
+        if (!ce) return;
+        await saveCloudEndpointWithData(ce);
     };
 
     // Meta Prompting states
@@ -183,10 +194,11 @@ const Configuration = () => {
 
             if (mappedData.length === 0) {
                 mappedData.push({
-                    id: 'gemini',
-                    name: 'gemini',
+                    id: crypto.randomUUID(),
+                    provider: 'gemini',
+                    name: 'Google Gemini API',
                     enabled: false,
-                    modelPrefix: 'gemini',
+                    modelPrefix: 'gemini,gemma',
                     apiKey: '',
                     model: '',
                     modelsList: [],
@@ -437,8 +449,14 @@ const Configuration = () => {
                         <div key={ce.id} className="border dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">{ce.name}</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Configure connection to {ce.name} services.</p>
+                                    <input
+                                        type="text"
+                                        value={ce.name}
+                                        onChange={(e) => handleCloudFieldChange(ce.id, 'name', e.target.value)}
+                                        className="text-lg font-semibold text-gray-800 dark:text-gray-200 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 focus:ring-0 px-0 py-1 transition-colors w-full max-w-md"
+                                        placeholder="Endpoint Name"
+                                    />
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure connection to {ce.name || 'this provider\'s'} services.</p>
                                 </div>
                                 <div className="flex items-center space-x-3">
                                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ce.enabled ? 'Enabled' : 'Disabled'}</span>
