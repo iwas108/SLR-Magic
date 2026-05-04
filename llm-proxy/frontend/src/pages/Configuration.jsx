@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { fetchCloudEndpoints, upsertCloudEndpoint, syncCloudModels, fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
+import { fetchCloudEndpoints, upsertCloudEndpoint, syncCloudModels, fetchLocalEndpoints, upsertLocalEndpoint, deleteLocalEndpoint, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
 import { Settings, Plus, Trash2, Power, PowerOff, Pencil, Monitor, Moon, Sun, X, Cloud } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
+import ReactJson from '@uiw/react-json-view';
 
 const ToggleSwitch = ({ checked, onChange, disabled }) => (
     <button
@@ -224,7 +225,7 @@ const Configuration = () => {
         try {
             setLoading(true);
             const [data, updateCacheRes] = await Promise.all([
-                fetchEndpointsConfig(),
+                fetchLocalEndpoints(),
                 getConfig('UPDATE_CACHE')
             ]);
 
@@ -313,7 +314,7 @@ const Configuration = () => {
                 }
             }
 
-            await upsertEndpointConfig({
+            await upsertLocalEndpoint({
                 endpoint_url: url,
                 enabled: isActive,
                 stream_mode: streamMode,
@@ -341,7 +342,7 @@ const Configuration = () => {
 
     const handleToggleActive = async (endpoint) => {
         try {
-            await upsertEndpointConfig({
+            await upsertLocalEndpoint({
                 ...endpoint,
                 enabled: !endpoint.enabled
             });
@@ -354,7 +355,7 @@ const Configuration = () => {
     const handleDelete = async (endpointUrl) => {
         if (!window.confirm(`Are you sure you want to delete ${endpointUrl}?`)) return;
         try {
-            await deleteEndpointConfig(endpointUrl);
+            await deleteLocalEndpoint(endpointUrl);
             loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error deleting endpoint:', error);
@@ -465,6 +466,7 @@ const Configuration = () => {
                             </div>
 
                             {ce.enabled && (
+
                                 <div className="space-y-4 border-t dark:border-gray-700 pt-4 mt-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model Prefix</label>
@@ -493,7 +495,7 @@ const Configuration = () => {
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Model</label>
                                             <select
                                                 value={ce.model}
-                                                onChange={(e) => handleCloudFieldChange(ce.id, 'model', e.target.value)}
+                                                onChange={(e) => handleCloudModelChange(ce.id, e.target.value)}
                                                 className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
                                                 disabled={ce.modelsList.length === 0}
                                             >
@@ -512,79 +514,46 @@ const Configuration = () => {
                                         </button>
                                     </div>
 
-                                    <div className="max-w-2xl mt-4 bg-white dark:bg-gray-900 p-4 border dark:border-gray-700 rounded-lg space-y-4">
-                                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-2">Features Configuration</h4>
+                                    <div className="flex items-center justify-between max-w-lg mt-4">
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Streaming</span>
+                                        <ToggleSwitch checked={ce.isStreaming} onChange={(val) => handleCloudFieldChange(ce.id, 'isStreaming', val)} />
+                                    </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Enable Thinking</span>
-                                                <ToggleSwitch checked={ce.features.thinking} onChange={(val) => handleCloudFeatureToggle(ce.id, 'thinking', val)} />
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Structured Output</span>
-                                                <ToggleSwitch checked={ce.features.structuredOutput} onChange={(val) => handleCloudFeatureToggle(ce.id, 'structuredOutput', val)} />
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Enable Streaming</span>
-                                                <ToggleSwitch checked={ce.features.streaming} onChange={(val) => handleCloudFeatureToggle(ce.id, 'streaming', val)} />
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Flex Inference Tier</span>
-                                                <ToggleSwitch checked={ce.features.flexInference} onChange={(val) => handleCloudFeatureToggle(ce.id, 'flexInference', val)} />
+                                    {ce.model && (
+                                        <div className="mt-4 bg-white dark:bg-gray-900 p-4 border dark:border-gray-700 rounded-lg space-y-4 max-w-4xl">
+                                            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-2">Features Configuration</h4>
+                                            <div className="flex flex-col md:flex-row gap-4 h-64">
+                                                <div className="w-full md:w-1/2 flex flex-col">
+                                                    <label className="text-xs text-gray-500 mb-1">JSON Input</label>
+                                                    <textarea
+                                                        className="w-full flex-grow p-3 font-mono text-sm border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
+                                                        value={ce.modelConfig}
+                                                        onChange={(e) => handleCloudFieldChange(ce.id, 'modelConfig', e.target.value)}
+                                                        placeholder='{
+  "temperature": 0.7
+}'
+                                                    />
+                                                </div>
+                                                <div className="w-full md:w-1/2 flex flex-col">
+                                                    <label className="text-xs text-gray-500 mb-1">JSON Validation</label>
+                                                    <div className="flex-grow overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
+                                                        <ReactJson
+                                                            src={(() => {
+                                                                try {
+                                                                    return JSON.parse(ce.modelConfig || '{}');
+                                                                } catch (e) {
+                                                                    return { error: "Invalid JSON" };
+                                                                }
+                                                            })()}
+                                                            theme="rjv-default"
+                                                            displayDataTypes={false}
+                                                            enableClipboard={false}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-
-                                        {ce.features.thinking && (
-                                            <div className="mt-4 pt-4 border-t dark:border-gray-800 bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded border dark:border-blue-900/30">
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Thinking Configuration</span>
-                                                    <select
-                                                        value={ce.features.thinkingType}
-                                                        onChange={(e) => handleCloudFeatureToggle(ce.id, 'thinkingType', e.target.value)}
-                                                        className="text-xs px-2 py-1 border dark:border-gray-600 rounded focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                                                    >
-                                                        <option value="level">Thinking Level (v3 Models)</option>
-                                                        <option value="budget">Thinking Budget (v2.5 Models)</option>
-                                                    </select>
-                                                </div>
-
-                                                {ce.features.thinkingType === 'level' ? (
-                                                    <div>
-                                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-2">Level of logical reasoning effort applied to the prompt.</label>
-                                                        <div className="flex space-x-4">
-                                                            {['low', 'medium', 'high'].map(level => (
-                                                                <label key={level} className="flex items-center space-x-2 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`thinking-level-${ce.id}`}
-                                                                        value={level}
-                                                                        checked={ce.features.thinkingLevel === level}
-                                                                        onChange={() => handleCloudFeatureToggle(ce.id, 'thinkingLevel', level)}
-                                                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                                                    />
-                                                                    <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">{level}</span>
-                                                                </label>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Budget allocated for thinking operations (minimum 1024).</label>
-                                                        <div className="flex items-center space-x-2">
-                                                            <input
-                                                                type="number"
-                                                                min="1024"
-                                                                value={ce.features.thinkingBudget}
-                                                                onChange={(e) => handleCloudFeatureToggle(ce.id, 'thinkingBudget', parseInt(e.target.value) || 1024)}
-                                                                className="w-32 px-3 py-1.5 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-sm"
-                                                            />
-                                                            <span className="text-xs font-mono text-gray-500">tokens</span>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
+                                    )}
 
                                     <div className="pt-2">
                                         <button
@@ -765,6 +734,148 @@ const Configuration = () => {
                 </div>
             </div>
 
+            {/* Research Context Modal */}
+            {showRcModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingRcId ? 'Edit Research Context' : 'Add Research Context'}</h3>
+                            <button onClick={handleCancelEditRc} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <form id="rcForm" onSubmit={handleSaveRc} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Name</label>
+                                    <input className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" value={rcName} onChange={e=>setRcName(e.target.value)} placeholder="Context Name" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Content</label>
+                                    <textarea className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" rows="10" value={rcContent} onChange={e=>setRcContent(e.target.value)} placeholder="Context Content" required></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
+                            <button type="button" onClick={handleCancelEditRc} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
+                            <button type="submit" form="rcForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{editingRcId ? 'Update' : 'Save'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
+            {/* Endpoint Modal */}
+            {showEndpointModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{isEditingEndpoint ? 'Edit Local Endpoint' : 'Add Local Endpoint'}</h3>
+                            <button onClick={clearEndpointForm} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <form id="endpointForm" onSubmit={handleAddOrUpdate} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Provider</label>
+                                        <input
+                                            type="text"
+                                            value={label}
+                                            onChange={(e) => setLabel(e.target.value)}
+                                            placeholder="e.g. Local Ollama"
+                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={url}
+                                            onChange={(e) => setUrl(e.target.value)}
+                                            placeholder="http://127.0.0.1:11434"
+                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                                            disabled={isEditingEndpoint}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex space-x-6">
+                                    <label className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={isActive}
+                                            onChange={(e) => setIsActive(e.target.checked)}
+                                            className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Is Active</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={streamMode}
+                                            onChange={(e) => setStreamMode(e.target.checked)}
+                                            className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream Mode</span>
+                                    </label>
+                                </div>
+                                <div className="border-t dark:border-gray-700 pt-4">
+                                    <h4 className="text-md font-semibold mb-2">Model Hardware Config</h4>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">CPU Model</label>
+                                            <input type="text" value={cpuModel} onChange={e=>setCpuModel(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. i9" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">GPU Model</label>
+                                            <input type="text" value={gpuModel} onChange={e=>setGpuModel(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. RTX 4090" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">RAM Size</label>
+                                            <input type="text" value={ramSize} onChange={e=>setRamSize(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. 64GB" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <label className="block text-xs text-gray-500 mb-1">Running Environment</label>
+                                        <input type="text" value={apiKey} onChange={e=>setApiKey(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. Docker, WSL" />
+                                    </div>
+                                </div>
+                                <div className="border-t dark:border-gray-700 pt-4">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Config (JSON)</label>
+                                    <div className="flex flex-col md:flex-row gap-4 h-48">
+                                        <textarea
+                                            className="w-full md:w-1/2 p-3 font-mono text-sm border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                                            value={extraConfig}
+                                            onChange={(e) => setExtraConfig(e.target.value)}
+                                            placeholder='{\n  "temperature": 0.7\n}'
+                                        />
+                                        <div className="w-full md:w-1/2 overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
+                                            <ReactJson
+                                                src={(() => {
+                                                    try {
+                                                        return JSON.parse(extraConfig || '{}');
+                                                    } catch (e) {
+                                                        return { error: "Invalid JSON" };
+                                                    }
+                                                })()}
+                                                theme="rjv-default"
+                                                displayDataTypes={false}
+                                                enableClipboard={false}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
+                            <button type="button" onClick={clearEndpointForm} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
+                            <button type="submit" form="endpointForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{isEditingEndpoint ? 'Update' : 'Save'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Research Context Modal */}
             {showRcModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

@@ -82,9 +82,9 @@ export const syncCloudModels = async (id) => {
     return response.json();
 };
 
-export const fetchEndpointsConfig = async () => {
-    const response = await fetch(`${API_BASE_URL}/endpoints/config`);
-    if (!response.ok) throw new Error('Failed to fetch endpoint config');
+export const fetchLocalEndpoints = async () => {
+    const response = await fetch(`${API_BASE_URL}/local_endpoints`);
+    if (!response.ok) throw new Error('Failed to fetch local endpoints');
     return response.json();
 };
 
@@ -94,8 +94,8 @@ export const fetchEndpoints = async () => {
     return response.json();
 };
 
-export const upsertEndpointConfig = async (config) => {
-    const response = await fetch(`${API_BASE_URL}/endpoints/config`, {
+export const upsertLocalEndpoint = async (config) => {
+    const response = await fetch(`${API_BASE_URL}/local_endpoints?id=${encodeURIComponent(id)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -104,11 +104,11 @@ export const upsertEndpointConfig = async (config) => {
     return response.json();
 };
 
-export const deleteEndpointConfig = async (endpoint_url) => {
-    const response = await fetch(`${API_BASE_URL}/endpoints/config`, {
+export const deleteLocalEndpoint = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/local_endpoints`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint_url })
+
     });
     if (!response.ok) throw new Error('Failed to delete endpoint config');
     return response.json();

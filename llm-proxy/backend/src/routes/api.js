@@ -22,9 +22,9 @@ webApiRouter.post('/api/cloud_endpoints', WebApiController.upsertCloudEndpoint);
 webApiRouter.delete('/api/cloud_endpoints', WebApiController.deleteCloudEndpoint);
 webApiRouter.post('/api/cloud_endpoints/sync_models', WebApiController.syncCloudModels);
 
-webApiRouter.get('/api/endpoints/config', WebApiController.getEndpointsConfig);
-webApiRouter.post('/api/endpoints/config', WebApiController.upsertEndpointConfig);
-webApiRouter.delete('/api/endpoints/config', WebApiController.deleteEndpointConfig);
+webApiRouter.get('/api/local_endpoints', WebApiController.getLocalEndpoints);
+webApiRouter.post('/api/local_endpoints', WebApiController.upsertLocalEndpoint);
+webApiRouter.delete('/api/local_endpoints', WebApiController.deleteLocalEndpoint);
 
 webApiRouter.get('/api/history', WebApiController.getHistory);
 webApiRouter.delete('/api/history/bulk_delete', WebApiController.bulkDeleteHistory);

@@ -39,7 +39,7 @@ class CacheRepository {
   }
 
   async getEndpointLabels() {
-    const stmt = this.db.prepare('SELECT endpoint_url, label FROM endpoint_labels');
+    const stmt = this.db.prepare('SELECT endpoint_url, provider as label FROM local_endpoints');
     const rows = stmt.all();
     const result = {};
     for (const row of rows) {
@@ -53,19 +53,19 @@ class CacheRepository {
       SELECT
           h.model_name,
           h.endpoint_url,
-          COALESCE(l.label, h.endpoint_url) as endpoint_label,
-          l.label as raw_label,
-          l.is_gpu,
-          l.gpu_model,
-          l.cpu_model,
-          l.ram_size,
+          COALESCE(e.id, h.endpoint_url) as endpoint_label,
+          e.id as raw_label,
+          CASE WHEN m.gpu_model IS NOT NULL AND m.gpu_model != '' THEN 1 ELSE 0 END as is_gpu,
+          m.gpu_model,
+          m.cpu_model,
+          m.ram_size,
           COUNT(*) as request_count,
           SUM(h.duration_ms) as total_duration_ms,
           AVG(h.duration_ms) as avg_duration_ms,
           MIN(h.duration_ms) as min_duration_ms,
           MAX(h.duration_ms) as max_duration_ms
       FROM history h
-      LEFT JOIN endpoint_labels l ON h.endpoint_url = l.endpoint_url
+      LEFT JOIN local_endpoints e ON h.endpoint_url = e.endpoint_url LEFT JOIN local_models m ON e.id = m.local_endpoint_id AND h.model_name = m.name
       WHERE h.endpoint_url IS NOT NULL
       GROUP BY h.model_name, h.endpoint_url
       ORDER BY h.model_name ASC, request_count DESC
@@ -87,113 +87,9 @@ class CacheRepository {
     };
   }
 
-  async setEndpointProperties(endpointUrl, label, isGpu, gpuModel, cpuModel, ramSize) {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO endpoint_labels
-      (endpoint_url, label, is_gpu, gpu_model, cpu_model, ram_size)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(endpointUrl, label, isGpu ? 1 : 0, gpuModel, cpuModel, ramSize);
-  }
 
-  async getAllEndpointConfigs() {
-    const stmt = this.db.prepare(`
-      SELECT
-        c.endpoint_url,
-        c.enabled,
-        c.custom_model,
-        c.api_key,
-        c.extra_config,
-        c.stream_mode,
-        l.label,
-        l.gpu_model,
-        l.cpu_model,
-        l.ram_size
-      FROM endpoints_config c
-      LEFT JOIN endpoint_labels l ON c.endpoint_url = l.endpoint_url
-    `);
-    return stmt.all();
-  }
 
-  async getCloudEndpoints() {
-    const stmt = this.db.prepare('SELECT * FROM cloud_endpoints');
-    const rows = stmt.all();
-    return rows.map(row => ({
-      ...row,
-      enabled: !!row.enabled,
-      thinking_mode: !!row.thinking_mode,
-      streaming: !!row.streaming,
-      structured_output: !!row.structured_output,
-      flex_inference: !!row.flex_inference,
-      thinking_type: row.thinking_type || 'level',
-      thinking_level: row.thinking_level || 'low',
-      thinking_budget: row.thinking_budget || 1024,
-      models_cache: row.models_cache ? JSON.parse(row.models_cache) : null
-    }));
-  }
 
-  async upsertCloudEndpoint(id, provider, name, enabled, apiKey, modelPrefix, thinkingMode, streaming, structuredOutput, flexInference, thinkingType, thinkingLevel, thinkingBudget, modelsCache) {
-    if (!id) {
-      id = crypto.randomUUID();
-    }
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO cloud_endpoints
-      (id, provider, name, enabled, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, thinking_type, thinking_level, thinking_budget, models_cache)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    // If modelsCache is explicitly passed (even '[]'), use it. Otherwise attempt to preserve existing.
-    let cacheToSave = modelsCache;
-    if (cacheToSave === undefined) {
-      const existing = this.db.prepare('SELECT models_cache FROM cloud_endpoints WHERE id = ?').get(id);
-      cacheToSave = existing && existing.models_cache ? existing.models_cache : '[]';
-    }
-
-    stmt.run(id, provider, name, enabled ? 1 : 0, apiKey, modelPrefix, thinkingMode ? 1 : 0, streaming ? 1 : 0, structuredOutput ? 1 : 0, flexInference ? 1 : 0, thinkingType || 'level', thinkingLevel || 'low', thinkingBudget || 1024, cacheToSave);
-    return id;
-  }
-
-  async deleteCloudEndpoint(id) {
-    const stmt = this.db.prepare('DELETE FROM cloud_endpoints WHERE id = ?');
-    stmt.run(id);
-  }
-
-  async updateCloudModelsCache(id, modelsCache) {
-    const stmt = this.db.prepare('UPDATE cloud_endpoints SET models_cache = ? WHERE id = ?');
-    stmt.run(JSON.stringify(modelsCache), id);
-  }
-
-  async getCloudEndpointById(id) {
-    const stmt = this.db.prepare('SELECT * FROM cloud_endpoints WHERE id = ?');
-    const row = stmt.get(id);
-    if (!row) return null;
-    return {
-      ...row,
-      enabled: !!row.enabled,
-      thinking_mode: !!row.thinking_mode,
-      streaming: !!row.streaming,
-      structured_output: !!row.structured_output,
-      flex_inference: !!row.flex_inference,
-      thinking_type: row.thinking_type || 'level',
-      thinking_level: row.thinking_level || 'low',
-      thinking_budget: row.thinking_budget || 1024,
-      models_cache: row.models_cache ? JSON.parse(row.models_cache) : null
-    };
-  }
-
-  async upsertEndpointConfig(endpointUrl, enabled, customModel, apiKey = "", extraConfig = "", streamMode = false) {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO endpoints_config
-      (endpoint_url, enabled, custom_model, api_key, extra_config, stream_mode)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(endpointUrl, enabled ? 1 : 0, customModel, apiKey, extraConfig, streamMode ? 1 : 0);
-  }
-
-  async deleteEndpointConfig(endpointUrl) {
-    const stmt = this.db.prepare('DELETE FROM endpoints_config WHERE endpoint_url = ?');
-    stmt.run(endpointUrl);
-  }
 
   async getHistory(search = null, endpoint = null, page = 1, limit = 50, sortBy = "id", sortDesc = true, timeStart = null, timeEnd = null) {
     const offset = (page - 1) * limit;
@@ -206,7 +102,7 @@ class CacheRepository {
     const sortOrder = sortDesc ? "DESC" : "ASC";
 
     let countQuery = "SELECT COUNT(*) as count FROM history h";
-    let selectQuery = "SELECT h.*, l.is_gpu, l.gpu_model, l.cpu_model, l.ram_size FROM history h LEFT JOIN endpoint_labels l ON h.endpoint_url = l.endpoint_url";
+    let selectQuery = "SELECT h.*, CASE WHEN m.gpu_model IS NOT NULL AND m.gpu_model != '' THEN 1 ELSE 0 END as is_gpu, l.gpu_model, l.cpu_model, l.ram_size FROM history h LEFT JOIN local_endpoints e ON h.endpoint_url = e.endpoint_url LEFT JOIN local_models m ON e.id = m.local_endpoint_id AND h.model_name = m.name";
 
     const params = [];
     const conditions = [];
@@ -346,62 +242,6 @@ class CacheRepository {
       this.db.exec('ALTER TABLE history ADD COLUMN endpoint_url TEXT');
     }
 
-    // Drop old deprecated tables
-    this.db.exec(`DROP TABLE IF EXISTS endpoint_labels`);
-    this.db.exec(`DROP TABLE IF EXISTS endpoints_config`);
-
-    // Check if cloud_endpoints has old columns, if so, drop it to start fresh
-    const cloudEndpointsCols = this.db.pragma('table_info(cloud_endpoints)');
-    if (cloudEndpointsCols.find(col => col.name === 'thinking_mode')) {
-      this.db.exec(`DROP TABLE IF EXISTS cloud_endpoints`);
-    }
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS local_endpoints (
-        id TEXT PRIMARY KEY,
-        provider TEXT NOT NULL,
-        endpoint_url TEXT NOT NULL,
-        is_enabled BOOLEAN DEFAULT 0,
-        is_streaming BOOLEAN DEFAULT 0
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS local_models (
-        id TEXT PRIMARY KEY,
-        local_endpoint_id TEXT,
-        name TEXT NOT NULL,
-        cpu_model TEXT DEFAULT '',
-        gpu_model TEXT DEFAULT '',
-        ram_size TEXT DEFAULT '',
-        running_environment TEXT DEFAULT '',
-        default_config TEXT,
-        FOREIGN KEY (local_endpoint_id) REFERENCES local_endpoints(id) ON DELETE CASCADE
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS cloud_endpoints (
-        id TEXT PRIMARY KEY,
-        provider TEXT NOT NULL,
-        model_prefix TEXT NOT NULL,
-        api_key TEXT,
-        is_enabled BOOLEAN DEFAULT 0,
-        is_streaming BOOLEAN DEFAULT 0,
-        models_list_cache TEXT
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS cloud_models (
-        id TEXT PRIMARY KEY,
-        cloud_endpoint_id TEXT,
-        name TEXT NOT NULL,
-        default_config TEXT,
-        FOREIGN KEY (cloud_endpoint_id) REFERENCES cloud_endpoints(id) ON DELETE CASCADE
-      )
-    `);
-
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS general_config (
         key TEXT PRIMARY KEY,
@@ -427,16 +267,52 @@ class CacheRepository {
       )
     `);
 
-    // Ensure there is at least one default cloud endpoint for gemini
-    const geminiEndpointCount = this.db.prepare("SELECT COUNT(*) as count FROM cloud_endpoints WHERE provider = 'gemini'").get().count;
-    if (geminiEndpointCount === 0) {
-      const defaultId = crypto.randomUUID();
-      this.db.prepare(`
-        INSERT INTO cloud_endpoints
-        (id, provider, model_prefix, api_key, is_enabled, is_streaming, models_list_cache)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(defaultId, 'gemini', '', '', 1, 0, '');
-    }
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS cloud_endpoints (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        provider TEXT,
+        model_prefix TEXT,
+        api_key TEXT,
+        is_enabled BOOLEAN DEFAULT 1,
+        is_streaming BOOLEAN DEFAULT 0,
+        models_list_cache TEXT DEFAULT '[]'
+      )
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS cloud_models (
+        id TEXT PRIMARY KEY,
+        cloud_endpoint_id TEXT,
+        name TEXT,
+        default_config TEXT,
+        FOREIGN KEY(cloud_endpoint_id) REFERENCES cloud_endpoints(id) ON DELETE CASCADE
+      )
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS local_endpoints (
+        id TEXT PRIMARY KEY,
+        provider TEXT,
+        endpoint_url TEXT,
+        is_enabled BOOLEAN DEFAULT 1,
+        is_streaming BOOLEAN DEFAULT 0
+      )
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS local_models (
+        id TEXT PRIMARY KEY,
+        local_endpoint_id TEXT,
+        name TEXT,
+        cpu_model TEXT,
+        gpu_model TEXT,
+        ram_size TEXT,
+        running_environment TEXT,
+        default_config TEXT,
+        FOREIGN KEY(local_endpoint_id) REFERENCES local_endpoints(id) ON DELETE CASCADE
+      )
+    `);
   }
   // Meta Prompting
   async getResearchContexts() {
@@ -481,3 +357,205 @@ class CacheRepository {
 
 }
 module.exports = CacheRepository;
+
+// Appending missing endpoints
+
+CacheRepository.prototype.getCloudEndpoints = async function() {
+    const stmt = this.db.prepare(`
+      SELECT
+        e.id, e.provider, e.model_prefix, e.api_key, e.is_enabled, e.is_streaming, e.models_list_cache,
+        m.id as model_id, m.name as model_name, m.default_config
+      FROM cloud_endpoints e
+      LEFT JOIN cloud_models m ON e.id = m.cloud_endpoint_id
+    `);
+    const rows = stmt.all();
+
+    const endpointsMap = new Map();
+    for (const row of rows) {
+      if (!endpointsMap.has(row.id)) {
+        endpointsMap.set(row.id, {
+          id: row.id,
+          provider: row.provider,
+          model_prefix: row.model_prefix,
+          api_key: row.api_key,
+          is_enabled: !!row.is_enabled,
+          is_streaming: !!row.is_streaming,
+          models_list_cache: row.models_list_cache ? JSON.parse(row.models_list_cache) : [],
+          models: []
+        });
+      }
+
+      if (row.model_id) {
+        endpointsMap.get(row.id).models.push({
+          id: row.model_id,
+          name: row.model_name,
+          default_config: row.default_config
+        });
+      }
+    }
+
+    return Array.from(endpointsMap.values());
+  };
+
+CacheRepository.prototype.getCloudEndpointById = async function(id) {
+    const stmt = this.db.prepare('SELECT * FROM cloud_endpoints WHERE id = ?');
+    const row = stmt.get(id);
+    if (!row) return null;
+
+    const modelsStmt = this.db.prepare('SELECT * FROM cloud_models WHERE cloud_endpoint_id = ?');
+    const models = modelsStmt.all(id);
+
+    return {
+      id: row.id,
+      provider: row.provider,
+      model_prefix: row.model_prefix,
+      api_key: row.api_key,
+      is_enabled: !!row.is_enabled,
+      is_streaming: !!row.is_streaming,
+      models_list_cache: row.models_list_cache ? JSON.parse(row.models_list_cache) : [],
+      models: models
+    };
+  };
+
+CacheRepository.prototype.upsertCloudEndpoint = async function(id, provider, modelPrefix, apiKey, isEnabled, isStreaming, modelsListCache) {
+    if (!id) {
+      id = crypto.randomUUID();
+    }
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO cloud_endpoints
+      (id, provider, model_prefix, api_key, is_enabled, is_streaming, models_list_cache)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    let cacheToSave = modelsListCache;
+    if (cacheToSave === undefined) {
+      const existing = this.db.prepare('SELECT models_list_cache FROM cloud_endpoints WHERE id = ?').get(id);
+      cacheToSave = existing && existing.models_list_cache ? existing.models_list_cache : '[]';
+    } else if (typeof cacheToSave !== 'string') {
+      cacheToSave = JSON.stringify(cacheToSave);
+    }
+
+    stmt.run(id, provider, modelPrefix, apiKey, isEnabled ? 1 : 0, isStreaming ? 1 : 0, cacheToSave);
+    return id;
+  };
+
+CacheRepository.prototype.upsertCloudModel = async function(id, cloudEndpointId, name, defaultConfig) {
+    if (!id) {
+      id = crypto.randomUUID();
+    }
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO cloud_models
+      (id, cloud_endpoint_id, name, default_config)
+      VALUES (?, ?, ?, ?)
+    `);
+    stmt.run(id, cloudEndpointId, name, defaultConfig);
+    return id;
+  };
+
+CacheRepository.prototype.deleteCloudEndpoint = async function(id) {
+    const stmt = this.db.prepare('DELETE FROM cloud_endpoints WHERE id = ?');
+    stmt.run(id);
+  };
+
+CacheRepository.prototype.deleteCloudModel = async function(id) {
+    const stmt = this.db.prepare('DELETE FROM cloud_models WHERE id = ?');
+    stmt.run(id);
+  };
+
+CacheRepository.prototype.updateCloudModelsCache = async function(id, modelsListCache) {
+    const stmt = this.db.prepare('UPDATE cloud_endpoints SET models_list_cache = ? WHERE id = ?');
+    stmt.run(typeof modelsListCache === 'string' ? modelsListCache : JSON.stringify(modelsListCache), id);
+  };
+
+CacheRepository.prototype.getLocalEndpoints = async function() {
+    const stmt = this.db.prepare(`
+      SELECT
+        e.id, e.provider, e.endpoint_url, e.is_enabled, e.is_streaming,
+        m.id as model_id, m.name as model_name, m.cpu_model, m.gpu_model, m.ram_size, m.running_environment, m.default_config
+      FROM local_endpoints e
+      LEFT JOIN local_models m ON e.id = m.local_endpoint_id
+    `);
+    const rows = stmt.all();
+
+    const endpointsMap = new Map();
+    for (const row of rows) {
+      if (!endpointsMap.has(row.id)) {
+        endpointsMap.set(row.id, {
+          id: row.id,
+          provider: row.provider,
+          endpoint_url: row.endpoint_url,
+          is_enabled: !!row.is_enabled,
+          is_streaming: !!row.is_streaming,
+          models: []
+        });
+      }
+
+      if (row.model_id) {
+        endpointsMap.get(row.id).models.push({
+          id: row.model_id,
+          name: row.model_name,
+          cpu_model: row.cpu_model,
+          gpu_model: row.gpu_model,
+          ram_size: row.ram_size,
+          running_environment: row.running_environment,
+          default_config: row.default_config
+        });
+      }
+    }
+
+    return Array.from(endpointsMap.values());
+  };
+
+CacheRepository.prototype.getLocalEndpointById = async function(id) {
+    const stmt = this.db.prepare('SELECT * FROM local_endpoints WHERE id = ?');
+    const row = stmt.get(id);
+    if (!row) return null;
+
+    const modelsStmt = this.db.prepare('SELECT * FROM local_models WHERE local_endpoint_id = ?');
+    const models = modelsStmt.all(id);
+
+    return {
+      id: row.id,
+      provider: row.provider,
+      endpoint_url: row.endpoint_url,
+      is_enabled: !!row.is_enabled,
+      is_streaming: !!row.is_streaming,
+      models: models
+    };
+  };
+
+CacheRepository.prototype.upsertLocalEndpoint = async function(id, provider, endpointUrl, isEnabled, isStreaming) {
+    if (!id) {
+      id = crypto.randomUUID();
+    }
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO local_endpoints
+      (id, provider, endpoint_url, is_enabled, is_streaming)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    stmt.run(id, provider, endpointUrl, isEnabled ? 1 : 0, isStreaming ? 1 : 0);
+    return id;
+  };
+
+CacheRepository.prototype.upsertLocalModel = async function(id, localEndpointId, name, cpuModel, gpuModel, ramSize, runningEnvironment, defaultConfig) {
+    if (!id) {
+      id = crypto.randomUUID();
+    }
+    const stmt = this.db.prepare(`
+      INSERT OR REPLACE INTO local_models
+      (id, local_endpoint_id, name, cpu_model, gpu_model, ram_size, running_environment, default_config)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(id, localEndpointId, name, cpuModel, gpuModel, ramSize, runningEnvironment, defaultConfig);
+    return id;
+  };
+
+CacheRepository.prototype.deleteLocalEndpoint = async function(id) {
+    const stmt = this.db.prepare('DELETE FROM local_endpoints WHERE id = ?');
+    stmt.run(id);
+  };
+
+CacheRepository.prototype.deleteLocalModel = async function(id) {
+    const stmt = this.db.prepare('DELETE FROM local_models WHERE id = ?');
+    stmt.run(id);
+  };

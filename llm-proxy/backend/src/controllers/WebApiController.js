@@ -144,46 +144,59 @@ async function syncCloudModels(req, res) {
     }
 }
 
-async function getEndpointsConfig(req, res) {
+
+async function getLocalEndpoints(req, res) {
     try {
-        const configs = await cacheRepo.getAllEndpointConfigs();
+        const configs = await cacheRepo.getLocalEndpoints();
         return res.json(configs);
     } catch (e) {
         return res.status(500).json({ error: e.message || String(e) });
     }
 }
 
-async function upsertEndpointConfig(req, res) {
+async function upsertLocalEndpoint(req, res) {
     try {
-        const { endpoint_url, enabled = true, custom_model = "", api_key = "", extra_config = "", stream_mode = false } = req.body;
+        const { id, provider, endpoint_url, is_enabled, is_streaming, models } = req.body;
         if (!endpoint_url) {
             return res.status(400).json({ error: "endpoint_url is required" });
         }
 
-        await cacheRepo.upsertEndpointConfig(endpoint_url, enabled, custom_model, api_key, extra_config, stream_mode);
+        const resultId = await cacheRepo.upsertLocalEndpoint(id, provider, endpoint_url, is_enabled, is_streaming);
 
-        // Sync with service
-        const configs = await cacheRepo.getAllEndpointConfigs();
-        ollamaService.syncEndpoints(configs);
+        if (models && Array.isArray(models)) {
+            // Delete all current models and re-insert to keep in sync
+            const currentEndpoint = await cacheRepo.getLocalEndpointById(resultId);
+            if (currentEndpoint && currentEndpoint.models) {
+                 for (let m of currentEndpoint.models) {
+                     await cacheRepo.deleteLocalModel(m.id);
+                 }
+            }
+            for (let model of models) {
+                await cacheRepo.upsertLocalModel(model.id, resultId, model.name, model.cpu_model, model.gpu_model, model.ram_size, model.running_environment, model.default_config);
+            }
+        }
 
-        return res.json({ status: "success" });
+        // Ensure to tell Ollama Service to refresh tags cache so it picks up endpoint additions.
+        if (ollamaService && typeof ollamaService.refreshTags === 'function') {
+            await ollamaService.refreshTags();
+        }
+
+        return res.json({ status: "success", id: resultId });
     } catch (e) {
         return res.status(500).json({ error: e.message || String(e) });
     }
 }
 
-async function deleteEndpointConfig(req, res) {
+async function deleteLocalEndpoint(req, res) {
     try {
-        const { endpoint_url } = req.body;
-        if (!endpoint_url) {
-            return res.status(400).json({ error: "endpoint_url is required" });
+        const id = req.query.id;
+        if (!id) return res.status(400).json({ error: "id is required" });
+        await cacheRepo.deleteLocalEndpoint(id);
+
+        // Ensure to tell Ollama Service to refresh tags cache.
+        if (ollamaService && typeof ollamaService.refreshTags === 'function') {
+             await ollamaService.refreshTags();
         }
-
-        await cacheRepo.deleteEndpointConfig(endpoint_url);
-
-        // Sync with service
-        const configs = await cacheRepo.getAllEndpointConfigs();
-        ollamaService.syncEndpoints(configs);
 
         return res.json({ status: "success" });
     } catch (e) {
@@ -448,9 +461,9 @@ module.exports = {
     upsertCloudEndpoint,
     deleteCloudEndpoint,
     syncCloudModels,
-    getEndpointsConfig,
-    upsertEndpointConfig,
-    deleteEndpointConfig,
+    getLocalEndpoints,
+    upsertLocalEndpoint,
+    deleteLocalEndpoint,
     getHistory,
     bulkDeleteHistory,
     deleteHistoryItem,
