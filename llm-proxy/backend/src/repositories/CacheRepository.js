@@ -346,83 +346,61 @@ class CacheRepository {
       this.db.exec('ALTER TABLE history ADD COLUMN endpoint_url TEXT');
     }
 
+    // Drop old deprecated tables
+    this.db.exec(`DROP TABLE IF EXISTS endpoint_labels`);
+    this.db.exec(`DROP TABLE IF EXISTS endpoints_config`);
+
+    // Check if cloud_endpoints has old columns, if so, drop it to start fresh
+    const cloudEndpointsCols = this.db.pragma('table_info(cloud_endpoints)');
+    if (cloudEndpointsCols.find(col => col.name === 'thinking_mode')) {
+      this.db.exec(`DROP TABLE IF EXISTS cloud_endpoints`);
+    }
+
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS endpoint_labels (
-        endpoint_url TEXT PRIMARY KEY,
-        label TEXT
+      CREATE TABLE IF NOT EXISTS local_endpoints (
+        id TEXT PRIMARY KEY,
+        provider TEXT NOT NULL,
+        endpoint_url TEXT NOT NULL,
+        is_enabled BOOLEAN DEFAULT 0,
+        is_streaming BOOLEAN DEFAULT 0
       )
     `);
 
-    // Ensure new columns exist in endpoint_labels
-    const labelsCols = this.db.pragma('table_info(endpoint_labels)');
-    if (!labelsCols.find(col => col.name === 'is_gpu')) {
-      this.db.exec('ALTER TABLE endpoint_labels ADD COLUMN is_gpu BOOLEAN DEFAULT 0');
-    }
-    if (!labelsCols.find(col => col.name === 'gpu_model')) {
-      this.db.exec("ALTER TABLE endpoint_labels ADD COLUMN gpu_model TEXT DEFAULT ''");
-    }
-    if (!labelsCols.find(col => col.name === 'cpu_model')) {
-      this.db.exec("ALTER TABLE endpoint_labels ADD COLUMN cpu_model TEXT DEFAULT ''");
-    }
-    if (!labelsCols.find(col => col.name === 'ram_size')) {
-      this.db.exec("ALTER TABLE endpoint_labels ADD COLUMN ram_size TEXT DEFAULT ''");
-    }
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS local_models (
+        id TEXT PRIMARY KEY,
+        local_endpoint_id TEXT,
+        name TEXT NOT NULL,
+        cpu_model TEXT DEFAULT '',
+        gpu_model TEXT DEFAULT '',
+        ram_size TEXT DEFAULT '',
+        running_environment TEXT DEFAULT '',
+        default_config TEXT,
+        FOREIGN KEY (local_endpoint_id) REFERENCES local_endpoints(id) ON DELETE CASCADE
+      )
+    `);
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS cloud_endpoints (
         id TEXT PRIMARY KEY,
         provider TEXT NOT NULL,
-        name TEXT NOT NULL,
-        enabled BOOLEAN DEFAULT 0,
-        api_key TEXT,
         model_prefix TEXT NOT NULL,
-        thinking_mode BOOLEAN DEFAULT 0,
-        streaming BOOLEAN DEFAULT 0,
-        structured_output BOOLEAN DEFAULT 0,
-        flex_inference BOOLEAN DEFAULT 0,
-        models_cache TEXT,
-        thinking_type TEXT DEFAULT 'level',
-        thinking_level TEXT DEFAULT 'low',
-        thinking_budget INTEGER DEFAULT 1024
+        api_key TEXT,
+        is_enabled BOOLEAN DEFAULT 0,
+        is_streaming BOOLEAN DEFAULT 0,
+        models_list_cache TEXT
       )
     `);
-
-    // Ensure backwards compatibility for newer columns
-    const cloudEndpointsCols = this.db.pragma('table_info(cloud_endpoints)');
-    if (!cloudEndpointsCols.find(col => col.name === 'enabled')) {
-      this.db.exec("ALTER TABLE cloud_endpoints ADD COLUMN enabled BOOLEAN DEFAULT 0");
-    }
-    if (!cloudEndpointsCols.find(col => col.name === 'thinking_type')) {
-      this.db.exec("ALTER TABLE cloud_endpoints ADD COLUMN thinking_type TEXT DEFAULT 'level'");
-    }
-    if (!cloudEndpointsCols.find(col => col.name === 'thinking_level')) {
-      this.db.exec("ALTER TABLE cloud_endpoints ADD COLUMN thinking_level TEXT DEFAULT 'low'");
-    }
-    if (!cloudEndpointsCols.find(col => col.name === 'thinking_budget')) {
-      this.db.exec('ALTER TABLE cloud_endpoints ADD COLUMN thinking_budget INTEGER DEFAULT 1024');
-    }
 
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS endpoints_config (
-        endpoint_url TEXT PRIMARY KEY,
-        enabled BOOLEAN DEFAULT 1,
-        custom_model TEXT,
-        api_key TEXT,
-        extra_config TEXT
+      CREATE TABLE IF NOT EXISTS cloud_models (
+        id TEXT PRIMARY KEY,
+        cloud_endpoint_id TEXT,
+        name TEXT NOT NULL,
+        default_config TEXT,
+        FOREIGN KEY (cloud_endpoint_id) REFERENCES cloud_endpoints(id) ON DELETE CASCADE
       )
     `);
-
-    // Ensure api_key, extra_config, and stream_mode columns exist in endpoints_config
-    const endpointsConfigCols = this.db.pragma('table_info(endpoints_config)');
-    if (!endpointsConfigCols.find(col => col.name === 'api_key')) {
-      this.db.exec('ALTER TABLE endpoints_config ADD COLUMN api_key TEXT');
-    }
-    if (!endpointsConfigCols.find(col => col.name === 'extra_config')) {
-      this.db.exec('ALTER TABLE endpoints_config ADD COLUMN extra_config TEXT');
-    }
-    if (!endpointsConfigCols.find(col => col.name === 'stream_mode')) {
-      this.db.exec('ALTER TABLE endpoints_config ADD COLUMN stream_mode BOOLEAN DEFAULT 0');
-    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS general_config (
@@ -449,15 +427,15 @@ class CacheRepository {
       )
     `);
 
-    // Ensure there is at least one default cloud endpoint
-    const cloudEndpointCount = this.db.prepare('SELECT COUNT(*) as count FROM cloud_endpoints').get().count;
-    if (cloudEndpointCount === 0) {
+    // Ensure there is at least one default cloud endpoint for gemini
+    const geminiEndpointCount = this.db.prepare("SELECT COUNT(*) as count FROM cloud_endpoints WHERE provider = 'gemini'").get().count;
+    if (geminiEndpointCount === 0) {
       const defaultId = crypto.randomUUID();
       this.db.prepare(`
         INSERT INTO cloud_endpoints
-        (id, provider, name, enabled, api_key, model_prefix, models_cache)
+        (id, provider, model_prefix, api_key, is_enabled, is_streaming, models_list_cache)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(defaultId, 'gemini', 'Google Gemini API', 0, '', 'gemini,gemma', '[]');
+      `).run(defaultId, 'gemini', '', '', 1, 0, '');
     }
   }
   // Meta Prompting
