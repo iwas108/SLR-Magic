@@ -121,7 +121,7 @@ const Configuration = () => {
         try {
             const payload = {
                 id: ce.id,
-                provider: ce.id,
+                provider: ce.provider || 'gemini',
                 name: ce.name,
                 enabled: ce.enabled,
                 model_prefix: ce.modelPrefix,
@@ -162,6 +162,7 @@ const Configuration = () => {
             const data = await fetchCloudEndpoints();
             const mappedData = data.map(dbEndpoint => ({
                 id: dbEndpoint.id,
+                provider: dbEndpoint.provider,
                 name: dbEndpoint.name,
                 enabled: dbEndpoint.enabled === 1 || dbEndpoint.enabled === true,
                 modelPrefix: dbEndpoint.model_prefix || '',
