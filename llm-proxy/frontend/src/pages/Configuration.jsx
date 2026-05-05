@@ -179,7 +179,7 @@ const Configuration = () => {
                 modelPrefix: dbEndpoint.model_prefix || '',
                 apiKey: dbEndpoint.api_key || '',
                 model: dbEndpoint.models?.[0]?.name || '',
-                modelsList: Array.isArray(dbEndpoint.models_list_cache) ? dbEndpoint.models_list_cache.map(m => typeof m === 'object' ? m.name : m) : [],
+                modelsList: Array.isArray(dbEndpoint.models_list_cache) ? dbEndpoint.models_list_cache.map(m => (typeof m === 'object' && m !== null) ? m.name : m) : [],
                 fetchStatus: 'idle',
                 isStreaming: dbEndpoint.is_streaming === 1 || dbEndpoint.is_streaming === true,
                 modelConfig: typeof dbEndpoint.models?.[0]?.default_config === 'string' ? dbEndpoint.models[0].default_config : JSON.stringify(dbEndpoint.models?.[0]?.default_config || {}, null, 2)
