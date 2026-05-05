@@ -105,12 +105,6 @@ const Configuration = () => {
         ));
     };
 
-    const handleCloudFeatureToggle = (id, feature, value) => {
-        setCloudEndpoints(prev => prev.map(ce =>
-            ce.id === id ? { ...ce, features: { ...ce.features, [feature]: value } } : ce
-        ));
-    };
-
     const fetchCloudModels = async (id) => {
         handleCloudFieldChange(id, 'fetchStatus', 'fetching');
         try {
@@ -133,7 +127,7 @@ const Configuration = () => {
             const modelsPayload = ce.model ? [{
                 id: null,
                 name: ce.model,
-                default_config: ce.features.defaultConfig
+                default_config: ce.modelConfig
             }] : [];
 
             const payload = {
@@ -144,7 +138,7 @@ const Configuration = () => {
                 model_prefix: ce.modelPrefix,
                 api_key: ce.apiKey,
                 models_cache: JSON.stringify(ce.modelsList),
-                streaming: ce.features.streaming,
+                streaming: ce.isStreaming,
                 models: modelsPayload
             };
             await upsertCloudEndpoint(payload);
@@ -181,16 +175,14 @@ const Configuration = () => {
                 id: dbEndpoint.id,
                 provider: dbEndpoint.provider,
                 name: dbEndpoint.name,
-                enabled: dbEndpoint.enabled === 1 || dbEndpoint.enabled === true,
+                enabled: dbEndpoint.is_enabled === 1 || dbEndpoint.is_enabled === true,
                 modelPrefix: dbEndpoint.model_prefix || '',
                 apiKey: dbEndpoint.api_key || '',
                 model: dbEndpoint.models?.[0]?.name || '',
                 modelsList: Array.isArray(dbEndpoint.models_list_cache) ? dbEndpoint.models_list_cache.map(m => typeof m === 'object' ? m.name : m) : [],
                 fetchStatus: 'idle',
-                features: {
-                    streaming: dbEndpoint.is_streaming === 1 || dbEndpoint.is_streaming === true,
-                    defaultConfig: typeof dbEndpoint.models?.[0]?.default_config === 'string' ? dbEndpoint.models[0].default_config : JSON.stringify(dbEndpoint.models?.[0]?.default_config || {}, null, 2)
-                }
+                isStreaming: dbEndpoint.is_streaming === 1 || dbEndpoint.is_streaming === true,
+                modelConfig: typeof dbEndpoint.models?.[0]?.default_config === 'string' ? dbEndpoint.models[0].default_config : JSON.stringify(dbEndpoint.models?.[0]?.default_config || {}, null, 2)
             }));
 
 
@@ -495,7 +487,7 @@ const Configuration = () => {
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Model</label>
                                             <select
                                                 value={ce.model}
-                                                onChange={(e) => handleCloudModelChange(ce.id, e.target.value)}
+                                                onChange={(e) => handleCloudFieldChange(ce.id, 'model', e.target.value)}
                                                 className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
                                                 disabled={ce.modelsList.length === 0}
                                             >
@@ -540,7 +532,8 @@ const Configuration = () => {
                                                         <ReactJson
                                                             src={(() => {
                                                                 try {
-                                                                    return JSON.parse(ce.modelConfig || '{}');
+                                                                    const parsed = JSON.parse(ce.modelConfig || '{}');
+                                                                    return (parsed && typeof parsed === 'object') ? parsed : { error: "Invalid JSON (must be an object)" };
                                                                 } catch (e) {
                                                                     return { error: "Invalid JSON" };
                                                                 }
@@ -859,7 +852,8 @@ const Configuration = () => {
                                             <ReactJson
                                                 src={(() => {
                                                     try {
-                                                        return JSON.parse(extraConfig || '{}');
+                                                        const parsed = JSON.parse(extraConfig || '{}');
+                                                        return (parsed && typeof parsed === 'object') ? parsed : { error: "Invalid JSON (must be an object)" };
                                                     } catch (e) {
                                                         return { error: "Invalid JSON" };
                                                     }
