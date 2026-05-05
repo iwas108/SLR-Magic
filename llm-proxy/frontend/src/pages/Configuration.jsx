@@ -533,7 +533,7 @@ const Configuration = () => {
                                                             src={(() => {
                                                                 try {
                                                                     const parsed = JSON.parse(ce.modelConfig || '{}');
-                                                                    return (parsed && typeof parsed === 'object') ? parsed : { error: "Invalid JSON (must be an object)" };
+                                                                    return (parsed !== null && typeof parsed === 'object') ? parsed : { error: "Invalid JSON (must be an object)" };
                                                                 } catch (e) {
                                                                     return { error: "Invalid JSON" };
                                                                 }
@@ -853,7 +853,7 @@ const Configuration = () => {
                                                 src={(() => {
                                                     try {
                                                         const parsed = JSON.parse(extraConfig || '{}');
-                                                        return (parsed && typeof parsed === 'object') ? parsed : { error: "Invalid JSON (must be an object)" };
+                                                        return (parsed !== null && typeof parsed === 'object') ? parsed : { error: "Invalid JSON (must be an object)" };
                                                     } catch (e) {
                                                         return { error: "Invalid JSON" };
                                                     }
