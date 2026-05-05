@@ -280,6 +280,14 @@ class CacheRepository {
       )
     `);
 
+    const cloudEndpointsCount = this.db.prepare('SELECT COUNT(*) as count FROM cloud_endpoints').get();
+    if (cloudEndpointsCount && cloudEndpointsCount.count === 0) {
+      this.db.prepare(`
+        INSERT INTO cloud_endpoints (id, name, provider, model_prefix, api_key, is_enabled, is_streaming, models_list_cache)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(crypto.randomUUID(), 'Google Gemini API', 'gemini', 'gemini,gemma', '', 0, 0, '[]');
+    }
+
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS cloud_models (
         id TEXT PRIMARY KEY,

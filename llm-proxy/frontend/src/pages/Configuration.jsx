@@ -193,23 +193,7 @@ const Configuration = () => {
                 }
             }));
 
-            if (mappedData.length === 0) {
-                mappedData.push({
-                    id: crypto.randomUUID(),
-                    provider: 'gemini',
-                    name: 'Google Gemini API',
-                    enabled: false,
-                    modelPrefix: 'gemini,gemma',
-                    apiKey: '',
-                    model: '',
-                    modelsList: [],
-                    fetchStatus: 'idle',
-                    features: {
-                        streaming: false,
-                        defaultConfig: '{}'
-                    }
-                });
-            }
+
             setCloudEndpoints(mappedData);
         } catch (error) {
             console.error('Error loading cloud endpoints:', error);
