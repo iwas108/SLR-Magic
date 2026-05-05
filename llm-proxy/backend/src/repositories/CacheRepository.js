@@ -376,7 +376,7 @@ module.exports = CacheRepository;
 CacheRepository.prototype.getCloudEndpoints = async function() {
     const stmt = this.db.prepare(`
       SELECT
-        e.id, e.provider, e.model_prefix, e.api_key, e.is_enabled, e.is_streaming, e.models_list_cache,
+        e.id, e.name as endpoint_name, e.provider, e.model_prefix, e.api_key, e.is_enabled, e.is_streaming, e.models_list_cache,
         m.id as model_id, m.name as model_name, m.default_config
       FROM cloud_endpoints e
       LEFT JOIN cloud_models m ON e.id = m.cloud_endpoint_id
@@ -388,6 +388,7 @@ CacheRepository.prototype.getCloudEndpoints = async function() {
       if (!endpointsMap.has(row.id)) {
         endpointsMap.set(row.id, {
           id: row.id,
+          name: row.endpoint_name,
           provider: row.provider,
           model_prefix: row.model_prefix,
           api_key: row.api_key,
@@ -420,6 +421,7 @@ CacheRepository.prototype.getCloudEndpointById = async function(id) {
 
     return {
       id: row.id,
+      name: row.name,
       provider: row.provider,
       model_prefix: row.model_prefix,
       api_key: row.api_key,
@@ -430,14 +432,14 @@ CacheRepository.prototype.getCloudEndpointById = async function(id) {
     };
   };
 
-CacheRepository.prototype.upsertCloudEndpoint = async function(id, provider, modelPrefix, apiKey, isEnabled, isStreaming, modelsListCache) {
+CacheRepository.prototype.upsertCloudEndpoint = async function(id, name, provider, modelPrefix, apiKey, isEnabled, isStreaming, modelsListCache) {
     if (!id) {
       id = crypto.randomUUID();
     }
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO cloud_endpoints
-      (id, provider, model_prefix, api_key, is_enabled, is_streaming, models_list_cache)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      (id, name, provider, model_prefix, api_key, is_enabled, is_streaming, models_list_cache)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     let cacheToSave = modelsListCache;
@@ -448,7 +450,7 @@ CacheRepository.prototype.upsertCloudEndpoint = async function(id, provider, mod
       cacheToSave = JSON.stringify(cacheToSave);
     }
 
-    stmt.run(id, provider, modelPrefix, apiKey, isEnabled ? 1 : 0, isStreaming ? 1 : 0, cacheToSave);
+    stmt.run(id, name, provider, modelPrefix, apiKey, isEnabled ? 1 : 0, isStreaming ? 1 : 0, cacheToSave);
     return id;
   };
 
@@ -473,6 +475,11 @@ CacheRepository.prototype.deleteCloudEndpoint = async function(id) {
 CacheRepository.prototype.deleteCloudModel = async function(id) {
     const stmt = this.db.prepare('DELETE FROM cloud_models WHERE id = ?');
     stmt.run(id);
+  };
+
+CacheRepository.prototype.deleteCloudModelsByEndpointId = async function(cloudEndpointId) {
+    const stmt = this.db.prepare('DELETE FROM cloud_models WHERE cloud_endpoint_id = ?');
+    stmt.run(cloudEndpointId);
   };
 
 CacheRepository.prototype.updateCloudModelsCache = async function(id, modelsListCache) {

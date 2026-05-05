@@ -73,12 +73,19 @@ async function getCloudEndpoints(req, res) {
 
 async function upsertCloudEndpoint(req, res) {
     try {
-        const { id, provider, name, enabled, api_key, model_prefix, thinking_mode, streaming, structured_output, flex_inference, thinking_type, thinking_level, thinking_budget, models_cache } = req.body;
+        const { id, name, provider, model_prefix, api_key, enabled, streaming, models_cache, models } = req.body;
         const resultId = await cacheRepo.upsertCloudEndpoint(
-            id, provider, name, enabled, api_key, model_prefix,
-            thinking_mode, streaming, structured_output, flex_inference,
-            thinking_type, thinking_level, thinking_budget, models_cache
+            id, name, provider, model_prefix, api_key, enabled, streaming, models_cache
         );
+
+        if (models && Array.isArray(models)) {
+            // Delete all current models and re-insert to keep in sync
+            await cacheRepo.deleteCloudModelsByEndpointId(resultId);
+            for (let model of models) {
+                await cacheRepo.upsertCloudModel(model.id, resultId, model.name, model.default_config);
+            }
+        }
+
         return res.json({ status: "success", id: resultId });
     } catch (e) {
         return res.status(500).json({ error: e.message || String(e) });
