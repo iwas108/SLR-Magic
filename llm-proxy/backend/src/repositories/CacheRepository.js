@@ -291,6 +291,11 @@ class CacheRepository {
     `);
 
     this.db.exec(`
+      DROP TABLE IF EXISTS endpoint_labels;
+      DROP TABLE IF EXISTS endpoints_config;
+    `);
+
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS local_endpoints (
         id TEXT PRIMARY KEY,
         provider TEXT,

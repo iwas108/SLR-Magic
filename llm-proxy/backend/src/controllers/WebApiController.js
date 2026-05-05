@@ -442,7 +442,42 @@ async function deleteMetaPromptTemplate(req, res) {
     }
 }
 
+
+async function fetchLocalModels(req, res) {
+    try {
+        const { endpoint_url } = req.body;
+        if (!endpoint_url) return res.status(400).json({ error: "endpoint_url is required" });
+
+        let baseUrl = endpoint_url;
+        if (baseUrl.endsWith('/v1/chat/completions')) {
+            baseUrl = baseUrl.replace('/v1/chat/completions', '');
+        } else if (baseUrl.endsWith('/v1/completions')) {
+            baseUrl = baseUrl.replace('/v1/completions', '');
+        } else if (baseUrl.endsWith('/api/chat')) {
+            baseUrl = baseUrl.replace('/api/chat', '');
+        } else if (baseUrl.endsWith('/api/generate')) {
+            baseUrl = baseUrl.replace('/api/generate', '');
+        }
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+
+        const tagsUrl = `${baseUrl}/api/tags`;
+
+        const fetch = require('node-fetch');
+        const response = await fetch(tagsUrl, { timeout: 10000 });
+        if (!response.ok) {
+            return res.status(response.status).json({ error: `Failed to fetch models: ${response.statusText}` });
+        }
+        const data = await response.json();
+        return res.json(data);
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
 module.exports = {
+    fetchLocalModels,
 
     getResearchContexts,
     createResearchContext,

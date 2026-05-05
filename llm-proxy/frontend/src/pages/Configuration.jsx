@@ -75,6 +75,11 @@ const Configuration = () => {
     const [gpuModel, setGpuModel] = useState('');
     const [cpuModel, setCpuModel] = useState('');
     const [ramSize, setRamSize] = useState('');
+    const [localModelsList, setLocalModelsList] = useState([]);
+    const [selectedModel, setSelectedModel] = useState('');
+    const [runningEnvironment, setRunningEnvironment] = useState('');
+    const [isFetchingLocalModels, setIsFetchingLocalModels] = useState(false);
+
 
     // Cloud-based Endpoint State (Mock)
     const [cloudEndpoints, setCloudEndpoints] = useState([]);
@@ -183,13 +188,8 @@ const Configuration = () => {
                 modelsList: Array.isArray(dbEndpoint.models_cache) ? dbEndpoint.models_cache.map(m => typeof m === 'object' ? m.name : m) : [],
                 fetchStatus: 'idle',
                 features: {
-                    thinking: dbEndpoint.thinking_mode === 1 || dbEndpoint.thinking_mode === true,
-                    structuredOutput: dbEndpoint.structured_output === 1 || dbEndpoint.structured_output === true,
-                    streaming: dbEndpoint.streaming === 1 || dbEndpoint.streaming === true,
-                    flexInference: dbEndpoint.flex_inference === 1 || dbEndpoint.flex_inference === true,
-                    thinkingType: dbEndpoint.thinking_type || 'level',
-                    thinkingLevel: dbEndpoint.thinking_level || 'low',
-                    thinkingBudget: dbEndpoint.thinking_budget || 1024
+                    streaming: dbEndpoint.is_streaming === 1 || dbEndpoint.is_streaming === true,
+                    defaultConfig: typeof dbEndpoint.models[0]?.default_config === 'string' ? dbEndpoint.models[0].default_config : JSON.stringify(dbEndpoint.models[0]?.default_config || {}, null, 2)
                 }
             }));
 
@@ -205,13 +205,8 @@ const Configuration = () => {
                     modelsList: [],
                     fetchStatus: 'idle',
                     features: {
-                        thinking: false,
-                        structuredOutput: false,
                         streaming: false,
-                        flexInference: false,
-                        thinkingType: 'level',
-                        thinkingLevel: 'low',
-                        thinkingBudget: 1024
+                        defaultConfig: '{}'
                     }
                 });
             }
@@ -264,6 +259,12 @@ const Configuration = () => {
         setIsActive(true);
         setStreamMode(false);
         setExtraConfig('');
+        setGpuModel('');
+        setCpuModel('');
+        setRamSize('');
+        setRunningEnvironment('');
+        setLocalModelsList([]);
+        setSelectedModel('');
         setGpuModel('');
         setCpuModel('');
         setRamSize('');
@@ -992,56 +993,6 @@ const Configuration = () => {
                     </div>
                 </div>
             )}
-
-            {/* Meta Prompt Template Modal */}
-            {showMptModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingMptId ? 'Edit Meta Prompt Template' : 'Add Meta Prompt Template'}</h3>
-                            <button onClick={handleCancelEditMpt} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-4 overflow-y-auto">
-                            <form id="mptForm" onSubmit={handleSaveMpt} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template Name</label>
-                                    <input className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" value={mptName} onChange={e=>setMptName(e.target.value)} placeholder="Template Name" required />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template Content</label>
-                                    <textarea className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" rows="10" value={mptContent} onChange={e=>setMptContent(e.target.value)} placeholder="Template Content e.g. Context: {{Research Context}}" required></textarea>
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                    <span className="font-semibold block mb-1">Available placeholders:</span>
-                                    <div className="flex flex-wrap gap-1">
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Research Context}}"}</code>
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Input Prompt}}"}</code>
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Thinking Trace}}"}</code>
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Output}}"}</code>
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Model}}"}</code>
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{Execution Duration}}"}</code>
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{GPU}}"}</code>
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{CPU}}"}</code>
-                                        <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded border dark:border-gray-700">{"{{RAM}}"}</code>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
-                            <button type="button" onClick={handleCancelEditMpt} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
-                            <button type="submit" form="mptForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{editingMptId ? 'Update' : 'Save'}</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-        </div>
-    );
-};
-
-export default Configuration;
 
             {/* Meta Prompt Template Modal */}
             {showMptModal && (
