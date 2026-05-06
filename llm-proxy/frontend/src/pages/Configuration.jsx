@@ -530,10 +530,16 @@ const Configuration = () => {
                                                     <label className="text-xs text-gray-500 mb-1">JSON Validation</label>
                                                     <div className="flex-grow overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
                                                         <ReactJson
-                                                            src={(() => {
+                                                            value={(() => {
                                                                 try {
                                                                     const parsed = JSON.parse(ce.modelConfig || '{}');
-                                                                    return (parsed !== null && typeof parsed === 'object') ? parsed : { error: "Invalid JSON (must be an object)" };
+                                                                    if (parsed === null || typeof parsed !== 'object') {
+                                                                        return { error: "Invalid JSON (must be an object)" };
+                                                                    }
+                                                                    if (Array.isArray(parsed)) {
+                                                                        return parsed;
+                                                                    }
+                                                                    return parsed;
                                                                 } catch (e) {
                                                                     return { error: "Invalid JSON" };
                                                                 }
@@ -850,10 +856,16 @@ const Configuration = () => {
                                         />
                                         <div className="w-full md:w-1/2 overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
                                             <ReactJson
-                                                src={(() => {
+                                                value={(() => {
                                                     try {
                                                         const parsed = JSON.parse(extraConfig || '{}');
-                                                        return (parsed !== null && typeof parsed === 'object') ? parsed : { error: "Invalid JSON (must be an object)" };
+                                                        if (parsed === null || typeof parsed !== 'object') {
+                                                            return { error: "Invalid JSON (must be an object)" };
+                                                        }
+                                                        if (Array.isArray(parsed)) {
+                                                            return parsed;
+                                                        }
+                                                        return parsed;
                                                     } catch (e) {
                                                         return { error: "Invalid JSON" };
                                                     }
