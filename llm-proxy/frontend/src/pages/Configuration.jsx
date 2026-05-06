@@ -3,6 +3,8 @@ import { fetchCloudEndpoints, upsertCloudEndpoint, syncCloudModels, fetchLocalEn
 import { Settings, Plus, Trash2, Power, PowerOff, Pencil, Monitor, Moon, Sun, X, Cloud } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import ReactJson from '@uiw/react-json-view';
+import { lightTheme } from '@uiw/react-json-view/light';
+import { darkTheme } from '@uiw/react-json-view/dark';
 
 const ToggleSwitch = ({ checked, onChange, disabled }) => (
     <button
@@ -544,7 +546,7 @@ const Configuration = () => {
                                                                     return { error: "Invalid JSON" };
                                                                 }
                                                             })()}
-                                                            theme="rjv-default"
+                                                            style={document.documentElement.classList.contains('dark') ? darkTheme : lightTheme}
                                                             displayDataTypes={false}
                                                             enableClipboard={false}
                                                         />
@@ -572,7 +574,7 @@ const Configuration = () => {
 
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <h2 className="text-2xl font-bold mb-6">Smart Endpoint Manager</h2>
+                <h2 className="text-2xl font-bold mb-6">Local Endpoint Manager</h2>
 
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold">Configured Endpoints</h3>
@@ -655,7 +657,7 @@ const Configuration = () => {
                 </div>
             </div>
 
-            {/* Meta Prompting Section - Separated completely from Smart Endpoint Manager */}
+            {/* Meta Prompting Section - Separated completely from Local Endpoint Manager */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                 <h2 className="text-2xl font-bold mb-6">Meta Prompting</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -870,7 +872,7 @@ const Configuration = () => {
                                                         return { error: "Invalid JSON" };
                                                     }
                                                 })()}
-                                                theme="rjv-default"
+                                                style={document.documentElement.classList.contains('dark') ? darkTheme : lightTheme}
                                                 displayDataTypes={false}
                                                 enableClipboard={false}
                                             />
