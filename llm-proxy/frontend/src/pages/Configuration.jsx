@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { fetchEndpointsConfig, upsertEndpointConfig, deleteEndpointConfig, setEndpointProperties, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
-import { Settings, Save, Plus, Trash2, Power, PowerOff, Edit, Pencil, Monitor, Moon, Sun, X } from 'lucide-react';
-import { Cloud } from 'lucide-react';
+import { fetchCloudEndpoints, upsertCloudEndpoint, syncCloudModels, fetchLocalEndpoints, upsertLocalEndpoint, deleteLocalEndpoint, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
+import { Settings, Plus, Trash2, Power, PowerOff, Pencil, Monitor, Moon, Sun, X, Cloud } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
+import ReactJson from '@uiw/react-json-view';
+import { lightTheme } from '@uiw/react-json-view/light';
+import { darkTheme } from '@uiw/react-json-view/dark';
 
 const ToggleSwitch = ({ checked, onChange, disabled }) => (
     <button
@@ -57,6 +59,7 @@ const ThemeSetting = () => {
     );
 };
 
+
 const Configuration = () => {
     const [endpoints, setEndpoints] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -74,67 +77,85 @@ const Configuration = () => {
     const [gpuModel, setGpuModel] = useState('');
     const [cpuModel, setCpuModel] = useState('');
     const [ramSize, setRamSize] = useState('');
+    const [localModelsList, setLocalModelsList] = useState([]);
+    const [selectedModel, setSelectedModel] = useState('');
+    const [runningEnvironment, setRunningEnvironment] = useState('');
+    const [isFetchingLocalModels, setIsFetchingLocalModels] = useState(false);
+
 
     // Cloud-based Endpoint State (Mock)
-    const [cloudEndpoints, setCloudEndpoints] = useState([
-        {
-            id: 'gemini',
-            name: 'Gemini API (Google)',
-            enabled: false,
-            modelPrefix: '',
-            apiKey: '',
-            model: '',
-            fetchStatus: 'idle',
-            modelsList: [],
-            features: {
-                thinking: true,
-                thinkingType: 'level', // 'level' or 'budget'
-                thinkingLevel: 'low',
-                thinkingBudget: 1024,
-                structuredOutput: true,
-                streaming: true,
-                flexInference: false
-            }
-        }
-    ]);
+    const [cloudEndpoints, setCloudEndpoints] = useState([]);
     const [isCloudConfigSaving, setIsCloudConfigSaving] = useState(false);
 
-    const handleCloudToggle = (id) => {
-        setCloudEndpoints(prev => prev.map(ce => ce.id === id ? { ...ce, enabled: !ce.enabled } : ce));
+    const handleCloudToggle = async (id) => {
+        // First update local state
+        setCloudEndpoints(prev => prev.map(ce =>
+            ce.id === id ? { ...ce, enabled: !ce.enabled } : ce
+        ));
+
+        // Wait for state to be updated and then save to DB
+        // We use the current state, but flip the enabled value explicitly
+        const ce = cloudEndpoints.find(c => c.id === id);
+        if (ce) {
+            await saveCloudEndpointWithData({ ...ce, enabled: !ce.enabled });
+        }
     };
 
     const handleCloudFieldChange = (id, field, value) => {
-        setCloudEndpoints(prev => prev.map(ce => ce.id === id ? { ...ce, [field]: value } : ce));
-    };
-
-    const handleCloudFeatureToggle = (id, feature, value) => {
-        setCloudEndpoints(prev => prev.map(ce => {
-            if (ce.id === id) {
-                return { ...ce, features: { ...ce.features, [feature]: value } };
-            }
-            return ce;
-        }));
+        setCloudEndpoints(prev => prev.map(ce =>
+            ce.id === id ? { ...ce, [field]: value } : ce
+        ));
     };
 
     const fetchCloudModels = async (id) => {
         handleCloudFieldChange(id, 'fetchStatus', 'fetching');
-        // Mock fetch available models
-        setTimeout(() => {
-            if (id === 'gemini') {
-                handleCloudFieldChange(id, 'modelsList', ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro']);
-                handleCloudFieldChange(id, 'model', 'gemini-1.5-pro'); // set default
-            }
-            handleCloudFieldChange(id, 'fetchStatus', 'success');
-        }, 1000);
+        try {
+            await saveCloudEndpoint(id);
+            const response = await syncCloudModels(id);
+            const models = response.models.map(m => m.name);
+            handleCloudFieldChange(id, 'modelsList', models);
+            handleCloudFieldChange(id, 'model', models.length > 0 ? models[0] : '');
+            handleCloudFieldChange(id, 'fetchStatus', 'idle');
+        } catch (error) {
+            console.error('Error fetching cloud models:', error);
+            alert(`Failed to fetch cloud models: ${error.message}`);
+            handleCloudFieldChange(id, 'fetchStatus', 'error');
+        }
+    };
+
+    const saveCloudEndpointWithData = async (ce) => {
+        setIsCloudConfigSaving(true);
+        try {
+            const modelsPayload = ce.model ? [{
+                id: null,
+                name: ce.model,
+                default_config: ce.modelConfig
+            }] : [];
+
+            const payload = {
+                id: ce.id,
+                provider: ce.provider || 'gemini',
+                name: ce.name,
+                enabled: ce.enabled,
+                model_prefix: ce.modelPrefix,
+                api_key: ce.apiKey,
+                models_cache: JSON.stringify(ce.modelsList),
+                streaming: ce.isStreaming,
+                models: modelsPayload
+            };
+            await upsertCloudEndpoint(payload);
+        } catch (error) {
+            console.error('Error saving cloud endpoint:', error);
+            alert('Failed to save cloud endpoint configuration.');
+        } finally {
+            setIsCloudConfigSaving(false);
+        }
     };
 
     const saveCloudEndpoint = async (id) => {
-        setIsCloudConfigSaving(true);
-        // Mock saving
-        setTimeout(() => {
-            setIsCloudConfigSaving(false);
-            alert('Cloud endpoint config saved! (Mock)');
-        }, 800);
+        const ce = cloudEndpoints.find(c => c.id === id);
+        if (!ce) return;
+        await saveCloudEndpointWithData(ce);
     };
 
     // Meta Prompting states
@@ -149,11 +170,35 @@ const Configuration = () => {
     const [editingMptId, setEditingMptId] = useState(null);
     const [showMptModal, setShowMptModal] = useState(false);
 
+    const loadCloudEndpoints = async () => {
+        try {
+            const data = await fetchCloudEndpoints();
+            const mappedData = data.map(dbEndpoint => ({
+                id: dbEndpoint.id,
+                provider: dbEndpoint.provider,
+                name: dbEndpoint.name,
+                enabled: dbEndpoint.is_enabled === 1 || dbEndpoint.is_enabled === true,
+                modelPrefix: dbEndpoint.model_prefix || '',
+                apiKey: dbEndpoint.api_key || '',
+                model: dbEndpoint.models?.[0]?.name || '',
+                modelsList: Array.isArray(dbEndpoint.models_list_cache) ? dbEndpoint.models_list_cache.map(m => (typeof m === 'object' && m !== null) ? m.name : m) : [],
+                fetchStatus: 'idle',
+                isStreaming: dbEndpoint.is_streaming === 1 || dbEndpoint.is_streaming === true,
+                modelConfig: typeof dbEndpoint.models?.[0]?.default_config === 'string' ? dbEndpoint.models[0].default_config : JSON.stringify(dbEndpoint.models?.[0]?.default_config || {}, null, 2)
+            }));
+
+
+            setCloudEndpoints(mappedData);
+        } catch (error) {
+            console.error('Error loading cloud endpoints:', error);
+        }
+    };
+
     const loadEndpointsAndConfig = async () => {
         try {
             setLoading(true);
             const [data, updateCacheRes] = await Promise.all([
-                fetchEndpointsConfig(),
+                fetchLocalEndpoints(),
                 getConfig('UPDATE_CACHE')
             ]);
 
@@ -182,6 +227,7 @@ const Configuration = () => {
 
     useEffect(() => {
         loadEndpointsAndConfig();
+        loadCloudEndpoints();
         loadMetaPromptingData();
     }, []);
 
@@ -191,6 +237,12 @@ const Configuration = () => {
         setIsActive(true);
         setStreamMode(false);
         setExtraConfig('');
+        setGpuModel('');
+        setCpuModel('');
+        setRamSize('');
+        setRunningEnvironment('');
+        setLocalModelsList([]);
+        setSelectedModel('');
         setGpuModel('');
         setCpuModel('');
         setRamSize('');
@@ -206,12 +258,17 @@ const Configuration = () => {
     const handleEditEndpoint = (ep) => {
         setUrl(ep.endpoint_url);
         setLabel(ep.label || '');
-        setIsActive(ep.enabled);
-        setStreamMode(ep.stream_mode === 1 || ep.stream_mode === true);
-        setExtraConfig(ep.extra_config || '');
-        setGpuModel(ep.gpu_model || '');
-        setCpuModel(ep.cpu_model || '');
-        setRamSize(ep.ram_size || '');
+        setIsActive(ep.is_enabled || ep.enabled);
+        setStreamMode(ep.is_streaming === 1 || ep.is_streaming === true);
+
+        const firstModel = ep.models && ep.models.length > 0 ? ep.models[0] : null;
+        setGpuModel(firstModel?.gpu_model || '');
+        setCpuModel(firstModel?.cpu_model || '');
+        setRamSize(firstModel?.ram_size || '');
+        setRunningEnvironment(firstModel?.running_environment || '');
+        setExtraConfig(firstModel?.default_config || '');
+        setSelectedModel(firstModel?.name || '');
+
         setIsEditingEndpoint(true);
         setShowEndpointModal(true);
     };
@@ -235,26 +292,32 @@ const Configuration = () => {
             if (extraConfig) {
                 try {
                     parsedExtraConfig = JSON.parse(extraConfig);
-                } catch (err) {
+                } catch {
                     alert('Extra config must be valid JSON');
                     return;
                 }
             }
 
-            await upsertEndpointConfig({
-                endpoint_url: url,
-                enabled: isActive,
-                stream_mode: streamMode,
-                extra_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
-            });
-
-            // Also set label and properties
-            await setEndpointProperties({
-                endpoint_url: url,
-                label,
-                gpu_model: gpuModel,
+            const localModelsPayload = selectedModel ? [{
+                id: null,
+                name: selectedModel,
                 cpu_model: cpuModel,
-                ram_size: ramSize
+                gpu_model: gpuModel,
+                ram_size: ramSize,
+                running_environment: runningEnvironment,
+                default_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
+            }] : [];
+
+            // Find existing endpoint id if we are editing
+            const existingEp = endpoints.find(e => e.endpoint_url === url);
+
+            await upsertLocalEndpoint({
+                id: existingEp ? existingEp.id : null,
+                provider: label || 'ollama', // Use label as provider or fallback
+                endpoint_url: url,
+                is_enabled: isActive,
+                is_streaming: streamMode,
+                models: localModelsPayload
             });
 
             // Reset form and close modal
@@ -269,9 +332,13 @@ const Configuration = () => {
 
     const handleToggleActive = async (endpoint) => {
         try {
-            await upsertEndpointConfig({
-                ...endpoint,
-                enabled: !endpoint.enabled
+            await upsertLocalEndpoint({
+                id: endpoint.id,
+                provider: endpoint.provider,
+                endpoint_url: endpoint.endpoint_url,
+                is_enabled: !endpoint.is_enabled,
+                is_streaming: endpoint.is_streaming,
+                models: endpoint.models
             });
             loadEndpointsAndConfig();
         } catch (error) {
@@ -282,7 +349,7 @@ const Configuration = () => {
     const handleDelete = async (endpointUrl) => {
         if (!window.confirm(`Are you sure you want to delete ${endpointUrl}?`)) return;
         try {
-            await deleteEndpointConfig(endpointUrl);
+            await deleteLocalEndpoint(endpointUrl);
             loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error deleting endpoint:', error);
@@ -377,8 +444,14 @@ const Configuration = () => {
                         <div key={ce.id} className="border dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
                             <div className="flex items-center justify-between mb-4">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">{ce.name}</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Configure connection to {ce.name} services.</p>
+                                    <input
+                                        type="text"
+                                        value={ce.name}
+                                        onChange={(e) => handleCloudFieldChange(ce.id, 'name', e.target.value)}
+                                        className="text-lg font-semibold text-gray-800 dark:text-gray-200 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 focus:ring-0 px-0 py-1 transition-colors w-full max-w-md"
+                                        placeholder="Endpoint Name"
+                                    />
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure connection to {ce.name || 'this provider\'s'} services.</p>
                                 </div>
                                 <div className="flex items-center space-x-3">
                                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ce.enabled ? 'Enabled' : 'Disabled'}</span>
@@ -387,6 +460,7 @@ const Configuration = () => {
                             </div>
 
                             {ce.enabled && (
+
                                 <div className="space-y-4 border-t dark:border-gray-700 pt-4 mt-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model Prefix</label>
@@ -434,79 +508,53 @@ const Configuration = () => {
                                         </button>
                                     </div>
 
-                                    <div className="max-w-2xl mt-4 bg-white dark:bg-gray-900 p-4 border dark:border-gray-700 rounded-lg space-y-4">
-                                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-2">Features Configuration</h4>
+                                    <div className="flex items-center justify-between max-w-lg mt-4">
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Streaming</span>
+                                        <ToggleSwitch checked={ce.isStreaming} onChange={(val) => handleCloudFieldChange(ce.id, 'isStreaming', val)} />
+                                    </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Enable Thinking</span>
-                                                <ToggleSwitch checked={ce.features.thinking} onChange={(val) => handleCloudFeatureToggle(ce.id, 'thinking', val)} />
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Structured Output</span>
-                                                <ToggleSwitch checked={ce.features.structuredOutput} onChange={(val) => handleCloudFeatureToggle(ce.id, 'structuredOutput', val)} />
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Enable Streaming</span>
-                                                <ToggleSwitch checked={ce.features.streaming} onChange={(val) => handleCloudFeatureToggle(ce.id, 'streaming', val)} />
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Flex Inference Tier</span>
-                                                <ToggleSwitch checked={ce.features.flexInference} onChange={(val) => handleCloudFeatureToggle(ce.id, 'flexInference', val)} />
+                                    {ce.model && (
+                                        <div className="mt-4 bg-white dark:bg-gray-900 p-4 border dark:border-gray-700 rounded-lg space-y-4 max-w-4xl">
+                                            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 border-b dark:border-gray-700 pb-2">Features Configuration</h4>
+                                            <div className="flex flex-col md:flex-row gap-4 h-64">
+                                                <div className="w-full md:w-1/2 flex flex-col">
+                                                    <label className="text-xs text-gray-500 mb-1">JSON Input</label>
+                                                    <textarea
+                                                        className="w-full flex-grow p-3 font-mono text-sm border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
+                                                        value={ce.modelConfig}
+                                                        onChange={(e) => handleCloudFieldChange(ce.id, 'modelConfig', e.target.value)}
+                                                        placeholder='{
+  "temperature": 0.7
+}'
+                                                    />
+                                                </div>
+                                                <div className="w-full md:w-1/2 flex flex-col">
+                                                    <label className="text-xs text-gray-500 mb-1">JSON Validation</label>
+                                                    <div className="flex-grow overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
+                                                        <ReactJson
+                                                            value={(() => {
+                                                                try {
+                                                                    const parsed = JSON.parse(ce.modelConfig || '{}');
+                                                                    if (parsed === null || typeof parsed !== 'object') {
+                                                                        return { error: "Invalid JSON (must be an object)" };
+                                                                    }
+                                                                    if (Array.isArray(parsed)) {
+                                                                        return parsed;
+                                                                    }
+                                                                    return parsed;
+                                                                } catch (e) {
+                                                                    return { error: "Invalid JSON" };
+                                                                }
+                                                            })()}
+                                                            style={document.documentElement.classList.contains('dark') ? darkTheme : lightTheme}
+                                                            displayDataTypes={false}
+                                                            enableClipboard={false}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-
-                                        {ce.features.thinking && (
-                                            <div className="mt-4 pt-4 border-t dark:border-gray-800 bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded border dark:border-blue-900/30">
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Thinking Configuration</span>
-                                                    <select
-                                                        value={ce.features.thinkingType}
-                                                        onChange={(e) => handleCloudFeatureToggle(ce.id, 'thinkingType', e.target.value)}
-                                                        className="text-xs px-2 py-1 border dark:border-gray-600 rounded focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                                                    >
-                                                        <option value="level">Thinking Level (v3 Models)</option>
-                                                        <option value="budget">Thinking Budget (v2.5 Models)</option>
-                                                    </select>
-                                                </div>
-
-                                                {ce.features.thinkingType === 'level' ? (
-                                                    <div>
-                                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-2">Level of logical reasoning effort applied to the prompt.</label>
-                                                        <div className="flex space-x-4">
-                                                            {['low', 'medium', 'high'].map(level => (
-                                                                <label key={level} className="flex items-center space-x-2 cursor-pointer">
-                                                                    <input
-                                                                        type="radio"
-                                                                        name={`thinking-level-${ce.id}`}
-                                                                        value={level}
-                                                                        checked={ce.features.thinkingLevel === level}
-                                                                        onChange={() => handleCloudFeatureToggle(ce.id, 'thinkingLevel', level)}
-                                                                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                                                    />
-                                                                    <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">{level}</span>
-                                                                </label>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Budget allocated for thinking operations (minimum 1024).</label>
-                                                        <div className="flex items-center space-x-2">
-                                                            <input
-                                                                type="number"
-                                                                min="1024"
-                                                                value={ce.features.thinkingBudget}
-                                                                onChange={(e) => handleCloudFeatureToggle(ce.id, 'thinkingBudget', parseInt(e.target.value) || 1024)}
-                                                                className="w-32 px-3 py-1.5 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-sm"
-                                                            />
-                                                            <span className="text-xs font-mono text-gray-500">tokens</span>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
+                                    )}
 
                                     <div className="pt-2">
                                         <button
@@ -526,7 +574,7 @@ const Configuration = () => {
 
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <h2 className="text-2xl font-bold mb-6">Smart Endpoint Manager</h2>
+                <h2 className="text-2xl font-bold mb-6">Local Endpoint Manager</h2>
 
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold">Configured Endpoints</h3>
@@ -609,7 +657,7 @@ const Configuration = () => {
                 </div>
             </div>
 
-            {/* Meta Prompting Section - Separated completely from Smart Endpoint Manager */}
+            {/* Meta Prompting Section - Separated completely from Local Endpoint Manager */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                 <h2 className="text-2xl font-bold mb-6">Meta Prompting</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -717,40 +765,42 @@ const Configuration = () => {
                 </div>
             )}
 
+
             {/* Endpoint Modal */}
             {showEndpointModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
                         <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{isEditingEndpoint ? 'Edit Endpoint' : 'Add Endpoint'}</h3>
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{isEditingEndpoint ? 'Edit Local Endpoint' : 'Add Local Endpoint'}</h3>
                             <button onClick={clearEndpointForm} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
                         <div className="p-4 overflow-y-auto">
                             <form id="endpointForm" onSubmit={handleAddOrUpdate} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL (Primary Key)</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={url}
-                                        onChange={(e) => setUrl(e.target.value)}
-                                        placeholder="http://127.0.0.1:11434/api/chat"
-                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-800"
-                                        disabled={isEditingEndpoint}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={label}
-                                        onChange={(e) => setLabel(e.target.value)}
-                                        placeholder="Local Ollama"
-                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
-                                    />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Provider</label>
+                                        <input
+                                            type="text"
+                                            value={label}
+                                            onChange={(e) => setLabel(e.target.value)}
+                                            placeholder="e.g. Local Ollama"
+                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={url}
+                                            onChange={(e) => setUrl(e.target.value)}
+                                            placeholder="http://127.0.0.1:11434"
+                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                                            disabled={isEditingEndpoint}
+                                        />
+                                    </div>
                                 </div>
                                 <div className="flex space-x-6">
                                     <label className="flex items-center space-x-2">
@@ -772,27 +822,62 @@ const Configuration = () => {
                                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream Mode</span>
                                     </label>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Extra Config (JSON)</label>
-                                    <textarea
-                                        value={extraConfig}
-                                        onChange={(e) => setExtraConfig(e.target.value)}
-                                        placeholder='{"temperature": 0.7}'
-                                        rows={3}
-                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm dark:bg-gray-700"
-                                    />
+                                <div className="border-t dark:border-gray-700 pt-4">
+                                    <h4 className="text-md font-semibold mb-2">Model Hardware Config</h4>
+                                    <div className="mb-4">
+                                        <label className="block text-xs text-gray-500 mb-1">Model Name</label>
+                                        <input type="text" value={selectedModel} onChange={e=>setSelectedModel(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. llama3.1" />
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">CPU Model</label>
+                                            <input type="text" value={cpuModel} onChange={e=>setCpuModel(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. i9" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">GPU Model</label>
+                                            <input type="text" value={gpuModel} onChange={e=>setGpuModel(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. RTX 4090" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 mb-1">RAM Size</label>
+                                            <input type="text" value={ramSize} onChange={e=>setRamSize(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. 64GB" />
+                                        </div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <label className="block text-xs text-gray-500 mb-1">Running Environment</label>
+                                        <input type="text" value={runningEnvironment} onChange={e=>setRunningEnvironment(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. Docker, WSL" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GPU Model</label>
-                                    <input type="text" value={gpuModel} onChange={(e) => setGpuModel(e.target.value)} placeholder="e.g. RTX 3090" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CPU Model</label>
-                                    <input type="text" value={cpuModel} onChange={(e) => setCpuModel(e.target.value)} placeholder="e.g. i9-13900K" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">RAM Size</label>
-                                    <input type="text" value={ramSize} onChange={(e) => setRamSize(e.target.value)} placeholder="e.g. 64GB" className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700" />
+                                <div className="border-t dark:border-gray-700 pt-4">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Config (JSON)</label>
+                                    <div className="flex flex-col md:flex-row gap-4 h-48">
+                                        <textarea
+                                            className="w-full md:w-1/2 p-3 font-mono text-sm border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                                            value={extraConfig}
+                                            onChange={(e) => setExtraConfig(e.target.value)}
+                                            placeholder='{\n  "temperature": 0.7\n}'
+                                        />
+                                        <div className="w-full md:w-1/2 overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
+                                            <ReactJson
+                                                value={(() => {
+                                                    try {
+                                                        const parsed = JSON.parse(extraConfig || '{}');
+                                                        if (parsed === null || typeof parsed !== 'object') {
+                                                            return { error: "Invalid JSON (must be an object)" };
+                                                        }
+                                                        if (Array.isArray(parsed)) {
+                                                            return parsed;
+                                                        }
+                                                        return parsed;
+                                                    } catch (e) {
+                                                        return { error: "Invalid JSON" };
+                                                    }
+                                                })()}
+                                                style={document.documentElement.classList.contains('dark') ? darkTheme : lightTheme}
+                                                displayDataTypes={false}
+                                                enableClipboard={false}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </form>
                         </div>
@@ -803,6 +888,36 @@ const Configuration = () => {
                     </div>
                 </div>
             )}
+            {/* Research Context Modal */}
+            {showRcModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingRcId ? 'Edit Research Context' : 'Add Research Context'}</h3>
+                            <button onClick={handleCancelEditRc} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            <form id="rcForm" onSubmit={handleSaveRc} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Name</label>
+                                    <input className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" value={rcName} onChange={e=>setRcName(e.target.value)} placeholder="Context Name" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Content</label>
+                                    <textarea className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" rows="10" value={rcContent} onChange={e=>setRcContent(e.target.value)} placeholder="Context Content" required></textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
+                            <button type="button" onClick={handleCancelEditRc} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
+                            <button type="submit" form="rcForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{editingRcId ? 'Update' : 'Save'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             {/* Meta Prompt Template Modal */}
             {showMptModal && (

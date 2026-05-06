@@ -62,46 +62,148 @@ async function getEndpoints(req, res) {
     }
 }
 
-async function getEndpointsConfig(req, res) {
+async function getCloudEndpoints(req, res) {
     try {
-        const configs = await cacheRepo.getAllEndpointConfigs();
+        const configs = await cacheRepo.getCloudEndpoints();
         return res.json(configs);
     } catch (e) {
         return res.status(500).json({ error: e.message || String(e) });
     }
 }
 
-async function upsertEndpointConfig(req, res) {
+async function upsertCloudEndpoint(req, res) {
     try {
-        const { endpoint_url, enabled = true, custom_model = "", api_key = "", extra_config = "", stream_mode = false } = req.body;
-        if (!endpoint_url) {
-            return res.status(400).json({ error: "endpoint_url is required" });
+        const { id, name, provider, model_prefix, api_key, enabled, streaming, models_cache, models } = req.body;
+        const resultId = await cacheRepo.upsertCloudEndpoint(
+            id, name, provider, model_prefix, api_key, enabled, streaming, models_cache
+        );
+
+        if (models && Array.isArray(models)) {
+            // Delete all current models and re-insert to keep in sync
+            await cacheRepo.deleteCloudModelsByEndpointId(resultId);
+            for (let model of models) {
+                await cacheRepo.upsertCloudModel(model.id, resultId, model.name, model.default_config);
+            }
         }
 
-        await cacheRepo.upsertEndpointConfig(endpoint_url, enabled, custom_model, api_key, extra_config, stream_mode);
+        return res.json({ status: "success", id: resultId });
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
 
-        // Sync with service
-        const configs = await cacheRepo.getAllEndpointConfigs();
-        ollamaService.syncEndpoints(configs);
-
+async function deleteCloudEndpoint(req, res) {
+    try {
+        const id = req.query.id;
+        if (!id) return res.status(400).json({ error: "id is required" });
+        await cacheRepo.deleteCloudEndpoint(id);
         return res.json({ status: "success" });
     } catch (e) {
         return res.status(500).json({ error: e.message || String(e) });
     }
 }
 
-async function deleteEndpointConfig(req, res) {
+async function syncCloudModels(req, res) {
     try {
-        const { endpoint_url } = req.body;
+        console.log("syncCloudModels req.body:", req.body);
+        const id = req.body.id;
+        if (!id) return res.status(400).json({ error: "id is required. Received body: " + JSON.stringify(req.body) });
+
+        const endpoint = await cacheRepo.getCloudEndpointById(id);
+        if (!endpoint) return res.status(404).json({ error: "Endpoint not found" });
+
+        if (endpoint.provider === 'google' || endpoint.provider === 'gemini') {
+            const { GoogleGenAI } = require('@google/genai');
+            const ai = new GoogleGenAI({ apiKey: endpoint.api_key });
+            const response = await ai.models.list();
+
+            const models = [];
+            const prefixes = endpoint.model_prefix.split(',').map(p => p.trim()).filter(p => p);
+
+            for await (const model of response) {
+                const modelName = model.name.replace('models/', '');
+                const matchesPrefix = prefixes.some(prefix => modelName.includes(prefix));
+
+                if (matchesPrefix || prefixes.length === 0) {
+                    models.push({
+                        name: modelName,
+                        modified_at: new Date().toISOString(),
+                        size: 0,
+                        digest: model.name,
+                        details: {
+                            format: 'cloud',
+                            family: 'gemini',
+                            parameter_size: 'unknown',
+                            quantization_level: 'none'
+                        }
+                    });
+                }
+            }
+
+            await cacheRepo.updateCloudModelsCache(id, models);
+            return res.json({ status: "success", models });
+        } else {
+            return res.status(400).json({ error: `Provider ${endpoint.provider} not supported for model sync` });
+        }
+    } catch (e) {
+        console.error("Error in syncCloudModels:", e);
+        return res.status(e.status || 500).json({ error: e.message || String(e) });
+    }
+}
+
+
+async function getLocalEndpoints(req, res) {
+    try {
+        const configs = await cacheRepo.getLocalEndpoints();
+        return res.json(configs);
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
+async function upsertLocalEndpoint(req, res) {
+    try {
+        const { id, provider, endpoint_url, is_enabled, is_streaming, models } = req.body;
         if (!endpoint_url) {
             return res.status(400).json({ error: "endpoint_url is required" });
         }
 
-        await cacheRepo.deleteEndpointConfig(endpoint_url);
+        const resultId = await cacheRepo.upsertLocalEndpoint(id, provider, endpoint_url, is_enabled, is_streaming);
 
-        // Sync with service
-        const configs = await cacheRepo.getAllEndpointConfigs();
-        ollamaService.syncEndpoints(configs);
+        if (models && Array.isArray(models)) {
+            // Delete all current models and re-insert to keep in sync
+            const currentEndpoint = await cacheRepo.getLocalEndpointById(resultId);
+            if (currentEndpoint && currentEndpoint.models) {
+                 for (let m of currentEndpoint.models) {
+                     await cacheRepo.deleteLocalModel(m.id);
+                 }
+            }
+            for (let model of models) {
+                await cacheRepo.upsertLocalModel(model.id, resultId, model.name, model.cpu_model, model.gpu_model, model.ram_size, model.running_environment, model.default_config);
+            }
+        }
+
+        // Ensure to tell Ollama Service to refresh tags cache so it picks up endpoint additions.
+        if (ollamaService && typeof ollamaService.refreshTags === 'function') {
+            await ollamaService.refreshTags();
+        }
+
+        return res.json({ status: "success", id: resultId });
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
+async function deleteLocalEndpoint(req, res) {
+    try {
+        const id = req.query.id;
+        if (!id) return res.status(400).json({ error: "id is required" });
+        await cacheRepo.deleteLocalEndpoint(id);
+
+        // Ensure to tell Ollama Service to refresh tags cache.
+        if (ollamaService && typeof ollamaService.refreshTags === 'function') {
+             await ollamaService.refreshTags();
+        }
 
         return res.json({ status: "success" });
     } catch (e) {
@@ -347,7 +449,42 @@ async function deleteMetaPromptTemplate(req, res) {
     }
 }
 
+
+async function fetchLocalModels(req, res) {
+    try {
+        const { endpoint_url } = req.body;
+        if (!endpoint_url) return res.status(400).json({ error: "endpoint_url is required" });
+
+        let baseUrl = endpoint_url;
+        if (baseUrl.endsWith('/v1/chat/completions')) {
+            baseUrl = baseUrl.replace('/v1/chat/completions', '');
+        } else if (baseUrl.endsWith('/v1/completions')) {
+            baseUrl = baseUrl.replace('/v1/completions', '');
+        } else if (baseUrl.endsWith('/api/chat')) {
+            baseUrl = baseUrl.replace('/api/chat', '');
+        } else if (baseUrl.endsWith('/api/generate')) {
+            baseUrl = baseUrl.replace('/api/generate', '');
+        }
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+
+        const tagsUrl = `${baseUrl}/api/tags`;
+
+        const fetch = require('node-fetch');
+        const response = await fetch(tagsUrl, { timeout: 10000 });
+        if (!response.ok) {
+            return res.status(response.status).json({ error: `Failed to fetch models: ${response.statusText}` });
+        }
+        const data = await response.json();
+        return res.json(data);
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
 module.exports = {
+    fetchLocalModels,
 
     getResearchContexts,
     createResearchContext,
@@ -362,9 +499,13 @@ module.exports = {
     getStats,
     setEndpointProperties,
     getEndpoints,
-    getEndpointsConfig,
-    upsertEndpointConfig,
-    deleteEndpointConfig,
+    getCloudEndpoints,
+    upsertCloudEndpoint,
+    deleteCloudEndpoint,
+    syncCloudModels,
+    getLocalEndpoints,
+    upsertLocalEndpoint,
+    deleteLocalEndpoint,
     getHistory,
     bulkDeleteHistory,
     deleteHistoryItem,

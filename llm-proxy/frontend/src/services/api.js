@@ -45,9 +45,46 @@ export const clearHistory = async () => {
     return response.json();
 };
 
-export const fetchEndpointsConfig = async () => {
-    const response = await fetch(`${API_BASE_URL}/endpoints/config`);
-    if (!response.ok) throw new Error('Failed to fetch endpoint config');
+export const fetchCloudEndpoints = async () => {
+    const response = await fetch(`${API_BASE_URL}/cloud_endpoints`);
+    if (!response.ok) throw new Error('Failed to fetch cloud endpoints');
+    return response.json();
+};
+
+export const upsertCloudEndpoint = async (payload) => {
+    const response = await fetch(`${API_BASE_URL}/cloud_endpoints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok) throw new Error('Failed to upsert cloud endpoint');
+    return response.json();
+};
+
+export const deleteCloudEndpoint = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/cloud_endpoints?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to delete cloud endpoint');
+    return response.json();
+};
+
+export const syncCloudModels = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/cloud_endpoints/sync_models`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+    });
+    if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to sync cloud models');
+    }
+    return response.json();
+};
+
+export const fetchLocalEndpoints = async () => {
+    const response = await fetch(`${API_BASE_URL}/local_endpoints`);
+    if (!response.ok) throw new Error('Failed to fetch local endpoints');
     return response.json();
 };
 
@@ -57,8 +94,8 @@ export const fetchEndpoints = async () => {
     return response.json();
 };
 
-export const upsertEndpointConfig = async (config) => {
-    const response = await fetch(`${API_BASE_URL}/endpoints/config`, {
+export const upsertLocalEndpoint = async (config) => {
+    const response = await fetch(`${API_BASE_URL}/local_endpoints`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -67,11 +104,9 @@ export const upsertEndpointConfig = async (config) => {
     return response.json();
 };
 
-export const deleteEndpointConfig = async (endpoint_url) => {
-    const response = await fetch(`${API_BASE_URL}/endpoints/config`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint_url })
+export const deleteLocalEndpoint = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/local_endpoints?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
     });
     if (!response.ok) throw new Error('Failed to delete endpoint config');
     return response.json();
@@ -186,5 +221,15 @@ export const deleteMetaPromptTemplate = async (id) => {
         method: 'DELETE'
     });
     if (!response.ok) throw new Error('Failed to delete meta prompt template');
+    return response.json();
+};
+
+export const fetchLocalModelsFromEndpoint = async (endpoint_url) => {
+    const response = await fetch(`${API_BASE_URL}/local_endpoints/fetch_models`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint_url })
+    });
+    if (!response.ok) throw new Error('Failed to fetch local models');
     return response.json();
 };

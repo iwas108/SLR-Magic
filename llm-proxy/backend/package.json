@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/genai": "^1.51.0",
     "axios": "^1.15.2",
     "better-sqlite3": "^12.9.0",
     "cors": "^2.8.6",
