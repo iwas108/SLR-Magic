@@ -163,12 +163,37 @@ async function getLocalEndpoints(req, res) {
 
 async function upsertLocalEndpoint(req, res) {
     try {
-        const { id, provider, endpoint_url, is_enabled, is_streaming, models_list_cache, models } = req.body;
+        const {
+            id,
+            provider,
+            endpoint_url,
+            is_enabled,
+            is_streaming,
+            models_list_cache,
+            models,
+            cpu_model,
+            gpu_model,
+            ram_size,
+            running_environment
+        } = req.body;
+
         if (!endpoint_url) {
             return res.status(400).json({ error: "endpoint_url is required" });
         }
 
-        const resultId = await cacheRepo.upsertLocalEndpoint(id, provider, endpoint_url, is_enabled, is_streaming, models_list_cache, models);
+        const resultId = await cacheRepo.upsertLocalEndpoint(
+            id,
+            provider,
+            endpoint_url,
+            is_enabled,
+            is_streaming,
+            models_list_cache,
+            cpu_model || '',
+            gpu_model || '',
+            ram_size || '',
+            running_environment || '',
+            models
+        );
 
         if (models && Array.isArray(models)) {
             // Delete all current models and re-insert to keep in sync
@@ -179,7 +204,7 @@ async function upsertLocalEndpoint(req, res) {
                  }
             }
             for (let model of models) {
-                await cacheRepo.upsertLocalModel(model.id, resultId, model.name, model.cpu_model, model.gpu_model, model.ram_size, model.running_environment, model.default_config);
+                await cacheRepo.upsertLocalModel(model.id, resultId, model.name, model.default_config);
             }
         }
 
