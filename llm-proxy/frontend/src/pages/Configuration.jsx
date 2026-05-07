@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchCloudEndpoints, upsertCloudEndpoint, syncCloudModels, fetchLocalEndpoints, upsertLocalEndpoint, deleteLocalEndpoint, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate } from '../services/api';
+import { fetchCloudEndpoints, upsertCloudEndpoint, syncCloudModels, fetchLocalEndpoints, upsertLocalEndpoint, deleteLocalEndpoint, getConfig, setConfig, fetchResearchContexts, addResearchContext, updateResearchContext, deleteResearchContext, fetchMetaPromptTemplates, addMetaPromptTemplate, updateMetaPromptTemplate, deleteMetaPromptTemplate, syncLocalModels } from '../services/api';
 import { Settings, Plus, Trash2, Power, PowerOff, Pencil, Monitor, Moon, Sun, X, Cloud } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import ReactJson from '@uiw/react-json-view';
@@ -73,13 +73,17 @@ const Configuration = () => {
     const [label, setLabel] = useState('');
     const [isActive, setIsActive] = useState(true);
     const [streamMode, setStreamMode] = useState(false);
-    const [extraConfig, setExtraConfig] = useState('');
-    const [gpuModel, setGpuModel] = useState('');
-    const [cpuModel, setCpuModel] = useState('');
-    const [ramSize, setRamSize] = useState('');
+    const [endpointId, setEndpointId] = useState('');
     const [localModelsList, setLocalModelsList] = useState([]);
     const [selectedModel, setSelectedModel] = useState('');
-    const [runningEnvironment, setRunningEnvironment] = useState('');
+    const [configuredModels, setConfiguredModels] = useState([]);
+    const [currentModelConfig, setCurrentModelConfig] = useState({
+        cpu_model: '',
+        gpu_model: '',
+        ram_size: '',
+        running_environment: '',
+        default_config: ''
+    });
     const [isFetchingLocalModels, setIsFetchingLocalModels] = useState(false);
 
 
@@ -203,8 +207,13 @@ const Configuration = () => {
             ]);
 
             setGlobalUpdateCache(updateCacheRes.value === 'true');
-            // The API returns an array directly, not an object with an `endpoints` key
-            setEndpoints(Array.isArray(data) ? data : []);
+
+            const mappedLocalData = (Array.isArray(data) ? data : []).map(dbEndpoint => ({
+                ...dbEndpoint,
+                modelsList: Array.isArray(dbEndpoint.models_list_cache) ? dbEndpoint.models_list_cache.map(m => (typeof m === 'object' && m !== null) ? m.name : m) : []
+            }));
+
+            setEndpoints(mappedLocalData);
         } catch (error) {
             console.error('Error loading endpoints:', error);
         } finally {
@@ -236,41 +245,117 @@ const Configuration = () => {
         setLabel('');
         setIsActive(true);
         setStreamMode(false);
-        setExtraConfig('');
-        setGpuModel('');
-        setCpuModel('');
-        setRamSize('');
-        setRunningEnvironment('');
         setLocalModelsList([]);
         setSelectedModel('');
-        setGpuModel('');
-        setCpuModel('');
-        setRamSize('');
+        setConfiguredModels([]);
+        setCurrentModelConfig({
+            cpu_model: '',
+            gpu_model: '',
+            ram_size: '',
+            running_environment: '',
+            default_config: ''
+        });
+        setEndpointId('');
         setIsEditingEndpoint(false);
         setShowEndpointModal(false);
     };
 
     const handleOpenAddEndpoint = () => {
         clearEndpointForm();
+        setEndpointId(`temp-${Date.now()}`);
         setShowEndpointModal(true);
     };
 
     const handleEditEndpoint = (ep) => {
+        setEndpointId(ep.id);
         setUrl(ep.endpoint_url);
         setLabel(ep.label || '');
         setIsActive(ep.is_enabled || ep.enabled);
         setStreamMode(ep.is_streaming === 1 || ep.is_streaming === true);
+        setLocalModelsList(ep.modelsList || []);
+        setConfiguredModels(ep.models || []);
 
         const firstModel = ep.models && ep.models.length > 0 ? ep.models[0] : null;
-        setGpuModel(firstModel?.gpu_model || '');
-        setCpuModel(firstModel?.cpu_model || '');
-        setRamSize(firstModel?.ram_size || '');
-        setRunningEnvironment(firstModel?.running_environment || '');
-        setExtraConfig(firstModel?.default_config || '');
-        setSelectedModel(firstModel?.name || '');
+        if (firstModel) {
+            setSelectedModel(firstModel.name);
+            setCurrentModelConfig({
+                cpu_model: firstModel.cpu_model || '',
+                gpu_model: firstModel.gpu_model || '',
+                ram_size: firstModel.ram_size || '',
+                running_environment: firstModel.running_environment || '',
+                default_config: firstModel.default_config || ''
+            });
+        } else {
+            setSelectedModel('');
+            setCurrentModelConfig({
+                cpu_model: '',
+                gpu_model: '',
+                ram_size: '',
+                running_environment: '',
+                default_config: ''
+            });
+        }
 
         setIsEditingEndpoint(true);
         setShowEndpointModal(true);
+    };
+
+    const handleModelSelect = (e) => {
+        const modelName = e.target.value;
+        setSelectedModel(modelName);
+        const existingConfig = configuredModels.find(m => m.name === modelName);
+        if (existingConfig) {
+            setCurrentModelConfig({
+                cpu_model: existingConfig.cpu_model || '',
+                gpu_model: existingConfig.gpu_model || '',
+                ram_size: existingConfig.ram_size || '',
+                running_environment: existingConfig.running_environment || '',
+                default_config: existingConfig.default_config || ''
+            });
+        } else {
+            setCurrentModelConfig({
+                cpu_model: '',
+                gpu_model: '',
+                ram_size: '',
+                running_environment: '',
+                default_config: ''
+            });
+        }
+    };
+
+    const handleConfigChange = (field, value) => {
+        setCurrentModelConfig(prev => ({ ...prev, [field]: value }));
+        if (selectedModel) {
+            setConfiguredModels(prev => {
+                const existingIndex = prev.findIndex(m => m.name === selectedModel);
+                if (existingIndex >= 0) {
+                    const newModels = [...prev];
+                    newModels[existingIndex] = { ...newModels[existingIndex], [field]: value };
+                    return newModels;
+                } else {
+                    return [...prev, { name: selectedModel, [field]: value }];
+                }
+            });
+        }
+    };
+
+    const handleFetchLocalModels = async () => {
+        if (!endpointId || String(endpointId).startsWith('temp-')) {
+            alert('Please save the endpoint first before fetching models.');
+            return;
+        }
+        setIsFetchingLocalModels(true);
+        try {
+            const response = await syncLocalModels(endpointId);
+            setLocalModelsList(response.models.map(m => m.name));
+            // Reload endpoints to get overall state sync
+            await loadEndpointsAndConfig();
+        } catch (error) {
+            console.error('Error fetching local models:', error);
+            alert(`Failed to fetch models: ${error.message}`);
+        } finally {
+            setIsFetchingLocalModels(false);
+        }
     };
 
     const handleSaveGlobalConfig = async () => {
@@ -288,31 +373,31 @@ const Configuration = () => {
     const handleAddOrUpdate = async (e) => {
         e.preventDefault();
         try {
-            let parsedExtraConfig = null;
-            if (extraConfig) {
-                try {
-                    parsedExtraConfig = JSON.parse(extraConfig);
-                } catch {
-                    alert('Extra config must be valid JSON');
-                    return;
+            const localModelsPayload = configuredModels.map(model => {
+                let parsedExtraConfig = null;
+                if (model.default_config) {
+                    try {
+                        parsedExtraConfig = typeof model.default_config === 'string' ? JSON.parse(model.default_config) : model.default_config;
+                    } catch {
+                        throw new Error(`Default config for model ${model.name} must be valid JSON`);
+                    }
                 }
-            }
 
-            const localModelsPayload = selectedModel ? [{
-                id: null,
-                name: selectedModel,
-                cpu_model: cpuModel,
-                gpu_model: gpuModel,
-                ram_size: ramSize,
-                running_environment: runningEnvironment,
-                default_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
-            }] : [];
+                return {
+                    id: model.id || null,
+                    name: model.name,
+                    cpu_model: model.cpu_model || '',
+                    gpu_model: model.gpu_model || '',
+                    ram_size: model.ram_size || '',
+                    running_environment: model.running_environment || '',
+                    default_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
+                };
+            });
 
-            // Find existing endpoint id if we are editing
-            const existingEp = endpoints.find(e => e.endpoint_url === url);
+            const submitId = String(endpointId).startsWith('temp-') ? null : endpointId;
 
             await upsertLocalEndpoint({
-                id: existingEp ? existingEp.id : null,
+                id: submitId,
                 provider: label || 'ollama', // Use label as provider or fallback
                 endpoint_url: url,
                 is_enabled: isActive,
@@ -326,7 +411,7 @@ const Configuration = () => {
             loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error adding endpoint:', error);
-            alert('Failed to add endpoint');
+            alert(`Failed to save endpoint: ${error.message}`);
         }
     };
 
@@ -824,27 +909,54 @@ const Configuration = () => {
                                 </div>
                                 <div className="border-t dark:border-gray-700 pt-4">
                                     <h4 className="text-md font-semibold mb-2">Model Hardware Config</h4>
-                                    <div className="mb-4">
-                                        <label className="block text-xs text-gray-500 mb-1">Model Name</label>
-                                        <input type="text" value={selectedModel} onChange={e=>setSelectedModel(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. llama3.1" />
+                                    <div className="mb-4 flex gap-2 items-end">
+                                        <div className="flex-1">
+                                            <label className="block text-xs text-gray-500 mb-1">Select Model</label>
+                                            <select
+                                                value={selectedModel}
+                                                onChange={handleModelSelect}
+                                                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
+                                            >
+                                                <option value="">-- Select a model --</option>
+                                                {localModelsList.map(m => (
+                                                    <option key={m} value={m}>{m}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="relative group">
+                                            <button
+                                                type="button"
+                                                onClick={handleFetchLocalModels}
+                                                disabled={isFetchingLocalModels || String(endpointId).startsWith('temp-')}
+                                                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:pointer-events-none flex items-center whitespace-nowrap"
+                                            >
+                                                {isFetchingLocalModels ? 'Fetching...' : 'Fetch Models'}
+                                            </button>
+                                            {String(endpointId).startsWith('temp-') && (
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max bg-gray-900 text-white text-xs rounded py-1 px-2 pointer-events-none z-50">
+                                                    Please save the endpoint first
+                                                    <svg className="absolute text-gray-900 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xmlSpace="preserve"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-3 gap-4">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">CPU Model</label>
-                                            <input type="text" value={cpuModel} onChange={e=>setCpuModel(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. i9" />
+                                            <input type="text" value={currentModelConfig.cpu_model} onChange={e=>handleConfigChange('cpu_model', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. i9" />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">GPU Model</label>
-                                            <input type="text" value={gpuModel} onChange={e=>setGpuModel(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. RTX 4090" />
+                                            <input type="text" value={currentModelConfig.gpu_model} onChange={e=>handleConfigChange('gpu_model', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. RTX 4090" />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">RAM Size</label>
-                                            <input type="text" value={ramSize} onChange={e=>setRamSize(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. 64GB" />
+                                            <input type="text" value={currentModelConfig.ram_size} onChange={e=>handleConfigChange('ram_size', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. 64GB" />
                                         </div>
                                     </div>
                                     <div className="mt-4">
                                         <label className="block text-xs text-gray-500 mb-1">Running Environment</label>
-                                        <input type="text" value={runningEnvironment} onChange={e=>setRunningEnvironment(e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. Docker, WSL" />
+                                        <input type="text" value={currentModelConfig.running_environment} onChange={e=>handleConfigChange('running_environment', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. Docker, WSL" />
                                     </div>
                                 </div>
                                 <div className="border-t dark:border-gray-700 pt-4">
@@ -852,15 +964,15 @@ const Configuration = () => {
                                     <div className="flex flex-col md:flex-row gap-4 h-48">
                                         <textarea
                                             className="w-full md:w-1/2 p-3 font-mono text-sm border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                                            value={extraConfig}
-                                            onChange={(e) => setExtraConfig(e.target.value)}
+                                            value={currentModelConfig.default_config}
+                                            onChange={(e) => handleConfigChange('default_config', e.target.value)}
                                             placeholder='{\n  "temperature": 0.7\n}'
                                         />
                                         <div className="w-full md:w-1/2 overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
                                             <ReactJson
                                                 value={(() => {
                                                     try {
-                                                        const parsed = JSON.parse(extraConfig || '{}');
+                                                        const parsed = JSON.parse(currentModelConfig.default_config || '{}');
                                                         if (parsed === null || typeof parsed !== 'object') {
                                                             return { error: "Invalid JSON (must be an object)" };
                                                         }
