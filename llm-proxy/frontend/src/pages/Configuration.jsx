@@ -66,39 +66,29 @@ const Configuration = () => {
     const [globalUpdateCache, setGlobalUpdateCache] = useState(false);
     const [savingGlobal, setSavingGlobal] = useState(false);
 
-    // Form state
-    const [showEndpointModal, setShowEndpointModal] = useState(false);
-    const [isEditingEndpoint, setIsEditingEndpoint] = useState(false);
-    const [url, setUrl] = useState('');
-    const [label, setLabel] = useState('');
-    const [isActive, setIsActive] = useState(true);
-    const [streamMode, setStreamMode] = useState(false);
-    const [endpointId, setEndpointId] = useState('');
-    const [localModelsList, setLocalModelsList] = useState([]);
-    const [selectedModel, setSelectedModel] = useState('');
-    const [configuredModels, setConfiguredModels] = useState([]);
-    const [currentModelConfig, setCurrentModelConfig] = useState({
-        cpu_model: '',
-        gpu_model: '',
-        ram_size: '',
-        running_environment: '',
-        default_config: ''
-    });
-    const [isFetchingLocalModels, setIsFetchingLocalModels] = useState(false);
-
-
-    // Cloud-based Endpoint State (Mock)
+    // Cloud-based Endpoint State
     const [cloudEndpoints, setCloudEndpoints] = useState([]);
     const [isCloudConfigSaving, setIsCloudConfigSaving] = useState(false);
 
+    // Meta Prompting states
+    const [researchContexts, setResearchContexts] = useState([]);
+    const [metaPromptTemplates, setMetaPromptTemplates] = useState([]);
+    const [rcName, setRcName] = useState('');
+    const [rcContent, setRcContent] = useState('');
+    const [editingRcId, setEditingRcId] = useState(null);
+    const [showRcModal, setShowRcModal] = useState(false);
+    const [mptName, setMptName] = useState('');
+    const [mptContent, setMptContent] = useState('');
+    const [editingMptId, setEditingMptId] = useState(null);
+    const [showMptModal, setShowMptModal] = useState(false);
+
+    // UI states
+    const [isFetchingLocalModels, setIsFetchingLocalModels] = useState({});
+
     const handleCloudToggle = async (id) => {
-        // First update local state
         setCloudEndpoints(prev => prev.map(ce =>
             ce.id === id ? { ...ce, enabled: !ce.enabled } : ce
         ));
-
-        // Wait for state to be updated and then save to DB
-        // We use the current state, but flip the enabled value explicitly
         const ce = cloudEndpoints.find(c => c.id === id);
         if (ce) {
             await saveCloudEndpointWithData({ ...ce, enabled: !ce.enabled });
@@ -162,18 +152,6 @@ const Configuration = () => {
         await saveCloudEndpointWithData(ce);
     };
 
-    // Meta Prompting states
-    const [researchContexts, setResearchContexts] = useState([]);
-    const [metaPromptTemplates, setMetaPromptTemplates] = useState([]);
-    const [rcName, setRcName] = useState('');
-    const [rcContent, setRcContent] = useState('');
-    const [editingRcId, setEditingRcId] = useState(null);
-    const [showRcModal, setShowRcModal] = useState(false);
-    const [mptName, setMptName] = useState('');
-    const [mptContent, setMptContent] = useState('');
-    const [editingMptId, setEditingMptId] = useState(null);
-    const [showMptModal, setShowMptModal] = useState(false);
-
     const loadCloudEndpoints = async () => {
         try {
             const data = await fetchCloudEndpoints();
@@ -190,8 +168,6 @@ const Configuration = () => {
                 isStreaming: dbEndpoint.is_streaming === 1 || dbEndpoint.is_streaming === true,
                 modelConfig: typeof dbEndpoint.models?.[0]?.default_config === 'string' ? dbEndpoint.models[0].default_config : JSON.stringify(dbEndpoint.models?.[0]?.default_config || {}, null, 2)
             }));
-
-
             setCloudEndpoints(mappedData);
         } catch (error) {
             console.error('Error loading cloud endpoints:', error);
@@ -208,10 +184,21 @@ const Configuration = () => {
 
             setGlobalUpdateCache(updateCacheRes.value === 'true');
 
-            const mappedLocalData = (Array.isArray(data) ? data : []).map(dbEndpoint => ({
-                ...dbEndpoint,
-                modelsList: Array.isArray(dbEndpoint.models_list_cache) ? dbEndpoint.models_list_cache.map(m => (typeof m === 'object' && m !== null) ? m.name : m) : []
-            }));
+            const mappedLocalData = (Array.isArray(data) ? data : []).map(dbEndpoint => {
+                const firstModel = dbEndpoint.models?.[0] || {};
+                return {
+                    ...dbEndpoint,
+                    enabled: dbEndpoint.is_enabled === 1 || dbEndpoint.is_enabled === true,
+                    stream_mode: dbEndpoint.is_streaming === 1 || dbEndpoint.is_streaming === true,
+                    cpu_model: dbEndpoint.cpu_model || firstModel.cpu_model || '',
+                    gpu_model: dbEndpoint.gpu_model || firstModel.gpu_model || '',
+                    ram_size: dbEndpoint.ram_size || firstModel.ram_size || '',
+                    running_environment: dbEndpoint.running_environment || firstModel.running_environment || '',
+                    modelsList: Array.isArray(dbEndpoint.models_list_cache) ? dbEndpoint.models_list_cache.map(m => (typeof m === 'object' && m !== null) ? m.name : m) : [],
+                    selectedModel: firstModel.name || '',
+                    configuredModels: dbEndpoint.models || []
+                };
+            });
 
             setEndpoints(mappedLocalData);
         } catch (error) {
@@ -240,121 +227,64 @@ const Configuration = () => {
         loadMetaPromptingData();
     }, []);
 
-    const clearEndpointForm = () => {
-        setUrl('');
-        setLabel('');
-        setIsActive(true);
-        setStreamMode(false);
-        setLocalModelsList([]);
-        setSelectedModel('');
-        setConfiguredModels([]);
-        setCurrentModelConfig({
-            cpu_model: '',
-            gpu_model: '',
-            ram_size: '',
-            running_environment: '',
-            default_config: ''
-        });
-        setEndpointId('');
-        setIsEditingEndpoint(false);
-        setShowEndpointModal(false);
+    const handleLocalFieldChange = (id, field, value) => {
+        setEndpoints(prev => prev.map(ep =>
+            ep.id === id ? { ...ep, [field]: value } : ep
+        ));
     };
 
-    const handleOpenAddEndpoint = () => {
-        clearEndpointForm();
-        setEndpointId(`temp-${Date.now()}`);
-        setShowEndpointModal(true);
+    const handleLocalModelSelect = (id, modelName) => {
+        setEndpoints(prev => prev.map(ep => {
+            if (ep.id !== id) return ep;
+            return {
+                ...ep,
+                selectedModel: modelName
+            };
+        }));
     };
 
-    const handleEditEndpoint = (ep) => {
-        setEndpointId(ep.id);
-        setUrl(ep.endpoint_url);
-        setLabel(ep.label || '');
-        setIsActive(ep.is_enabled || ep.enabled);
-        setStreamMode(ep.is_streaming === 1 || ep.is_streaming === true);
-        setLocalModelsList(ep.modelsList || []);
-        setConfiguredModels(ep.models || []);
-
-        const firstModel = ep.models && ep.models.length > 0 ? ep.models[0] : null;
-        if (firstModel) {
-            setSelectedModel(firstModel.name);
-            setCurrentModelConfig({
-                cpu_model: firstModel.cpu_model || '',
-                gpu_model: firstModel.gpu_model || '',
-                ram_size: firstModel.ram_size || '',
-                running_environment: firstModel.running_environment || '',
-                default_config: firstModel.default_config || ''
-            });
-        } else {
-            setSelectedModel('');
-            setCurrentModelConfig({
-                cpu_model: '',
-                gpu_model: '',
-                ram_size: '',
-                running_environment: '',
-                default_config: ''
-            });
-        }
-
-        setIsEditingEndpoint(true);
-        setShowEndpointModal(true);
+    const handleLocalModelConfigChange = (id, modelName, configValue) => {
+        setEndpoints(prev => prev.map(ep => {
+            if (ep.id !== id) return ep;
+            const newConfigured = [...(ep.configuredModels || [])];
+            const existingIndex = newConfigured.findIndex(m => m.name === modelName);
+            if (existingIndex >= 0) {
+                newConfigured[existingIndex] = { ...newConfigured[existingIndex], default_config: configValue };
+            } else {
+                newConfigured.push({ name: modelName, default_config: configValue });
+            }
+            return { ...ep, configuredModels: newConfigured };
+        }));
     };
 
-    const handleModelSelect = (e) => {
-        const modelName = e.target.value;
-        setSelectedModel(modelName);
-        const existingConfig = configuredModels.find(m => m.name === modelName);
-        if (existingConfig) {
-            setCurrentModelConfig({
-                cpu_model: existingConfig.cpu_model || '',
-                gpu_model: existingConfig.gpu_model || '',
-                ram_size: existingConfig.ram_size || '',
-                running_environment: existingConfig.running_environment || '',
-                default_config: existingConfig.default_config || ''
-            });
-        } else {
-            setCurrentModelConfig({
-                cpu_model: '',
-                gpu_model: '',
-                ram_size: '',
-                running_environment: '',
-                default_config: ''
-            });
+    const handleLocalToggleActive = async (id) => {
+        setEndpoints(prev => prev.map(ep =>
+            ep.id === id ? { ...ep, enabled: !ep.enabled } : ep
+        ));
+        const ep = endpoints.find(e => e.id === id);
+        if (ep) {
+            await saveLocalEndpointWithData({ ...ep, enabled: !ep.enabled });
         }
     };
 
-    const handleConfigChange = (field, value) => {
-        setCurrentModelConfig(prev => ({ ...prev, [field]: value }));
-        if (selectedModel) {
-            setConfiguredModels(prev => {
-                const existingIndex = prev.findIndex(m => m.name === selectedModel);
-                if (existingIndex >= 0) {
-                    const newModels = [...prev];
-                    newModels[existingIndex] = { ...newModels[existingIndex], [field]: value };
-                    return newModels;
-                } else {
-                    return [...prev, { name: selectedModel, [field]: value }];
-                }
-            });
-        }
-    };
-
-    const handleFetchLocalModels = async () => {
-        if (!endpointId || String(endpointId).startsWith('temp-')) {
+    const handleFetchLocalModels = async (id) => {
+        if (!id || String(id).startsWith('temp-')) {
             alert('Please save the endpoint first before fetching models.');
             return;
         }
-        setIsFetchingLocalModels(true);
+        setIsFetchingLocalModels(prev => ({...prev, [id]: true}));
         try {
-            const response = await syncLocalModels(endpointId);
-            setLocalModelsList(response.models.map(m => m.name));
-            // Reload endpoints to get overall state sync
+            await saveLocalEndpoint(id);
+            const response = await syncLocalModels(id);
+            const models = response.models.map(m => m.name);
+            handleLocalFieldChange(id, 'modelsList', models);
+            handleLocalModelSelect(id, models.length > 0 ? models[0] : '');
             await loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error fetching local models:', error);
             alert(`Failed to fetch models: ${error.message}`);
         } finally {
-            setIsFetchingLocalModels(false);
+            setIsFetchingLocalModels(prev => ({...prev, [id]: false}));
         }
     };
 
@@ -370,72 +300,75 @@ const Configuration = () => {
         }
     };
 
-    const handleAddOrUpdate = async (e) => {
-        e.preventDefault();
+    const handleAddEndpoint = () => {
+        const newEp = {
+            id: `temp-${Date.now()}`,
+            label: '',
+            endpoint_url: '',
+            enabled: true,
+            stream_mode: false,
+            cpu_model: '',
+            gpu_model: '',
+            ram_size: '',
+            running_environment: '',
+            selectedModel: '',
+            configuredModels: [],
+            modelsList: []
+        };
+        setEndpoints(prev => [...prev, newEp]);
+    };
+
+    const saveLocalEndpointWithData = async (ep) => {
         try {
-            const localModelsPayload = configuredModels.map(model => {
-                let parsedExtraConfig = null;
+            const modelsPayload = (ep.configuredModels || []).map(model => {
+                let pConfig = null;
                 if (model.default_config) {
                     try {
-                        parsedExtraConfig = typeof model.default_config === 'string' ? JSON.parse(model.default_config) : model.default_config;
+                        pConfig = typeof model.default_config === 'string' ? JSON.parse(model.default_config) : model.default_config;
                     } catch {
                         throw new Error(`Default config for model ${model.name} must be valid JSON`);
                     }
                 }
-
                 return {
                     id: model.id || null,
                     name: model.name,
-                    cpu_model: model.cpu_model || '',
-                    gpu_model: model.gpu_model || '',
-                    ram_size: model.ram_size || '',
-                    running_environment: model.running_environment || '',
-                    default_config: parsedExtraConfig ? JSON.stringify(parsedExtraConfig) : null
+                    default_config: pConfig ? JSON.stringify(pConfig) : null
                 };
             });
 
-            const submitId = String(endpointId).startsWith('temp-') ? null : endpointId;
+            const submitId = String(ep.id).startsWith('temp-') ? null : ep.id;
 
             await upsertLocalEndpoint({
                 id: submitId,
-                provider: label || 'ollama', // Use label as provider or fallback
-                endpoint_url: url,
-                is_enabled: isActive,
-                is_streaming: streamMode,
-                models: localModelsPayload
+                provider: ep.label || 'ollama',
+                endpoint_url: ep.endpoint_url,
+                is_enabled: ep.enabled,
+                is_streaming: ep.stream_mode,
+                cpu_model: ep.cpu_model,
+                gpu_model: ep.gpu_model,
+                ram_size: ep.ram_size,
+                running_environment: ep.running_environment,
+                models: modelsPayload
             });
 
-            // Reset form and close modal
-            clearEndpointForm();
-
-            loadEndpointsAndConfig();
+            await loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error adding endpoint:', error);
             alert(`Failed to save endpoint: ${error.message}`);
         }
     };
 
-    const handleToggleActive = async (endpoint) => {
-        try {
-            await upsertLocalEndpoint({
-                id: endpoint.id,
-                provider: endpoint.provider,
-                endpoint_url: endpoint.endpoint_url,
-                is_enabled: !endpoint.is_enabled,
-                is_streaming: endpoint.is_streaming,
-                models: endpoint.models
-            });
-            loadEndpointsAndConfig();
-        } catch (error) {
-            console.error('Error toggling endpoint:', error);
-        }
+    const saveLocalEndpoint = async (id) => {
+        const ep = endpoints.find(e => e.id === id);
+        if (!ep) return;
+        await saveLocalEndpointWithData(ep);
     };
 
-    const handleDelete = async (endpointUrl) => {
+    const handleDeleteLocalEndpoint = async (endpointUrl) => {
         if (!window.confirm(`Are you sure you want to delete ${endpointUrl}?`)) return;
         try {
             await deleteLocalEndpoint(endpointUrl);
-            loadEndpointsAndConfig();
+            await loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error deleting endpoint:', error);
         }
@@ -477,7 +410,7 @@ const Configuration = () => {
 
     return (
         <div className="space-y-6 text-gray-900 dark:text-gray-100">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+<div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center space-x-2 mb-6">
                     <Settings className="w-6 h-6 text-gray-700 dark:text-gray-300" />
                     <h2 className="text-2xl font-bold">Global Configuration</h2>
@@ -659,19 +592,18 @@ const Configuration = () => {
 
 
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                <h2 className="text-2xl font-bold mb-6">Local Endpoint Manager</h2>
 
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold">Configured Endpoints</h3>
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-2xl font-bold">Local Endpoint Manager</h2>
                     <button
-                        onClick={handleOpenAddEndpoint}
+                        onClick={handleAddEndpoint}
                         className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center"
                     >
                         <Plus className="w-4 h-4 mr-1" /> Add
                     </button>
                 </div>
 
-                <div>
+                <div className="space-y-6">
                     {loading ? (
                         <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading endpoints...</div>
                     ) : endpoints.length === 0 ? (
@@ -679,65 +611,152 @@ const Configuration = () => {
                             No endpoints configured. Add one to get started.
                         </div>
                     ) : (
-                        <div className="space-y-4">
-                            {endpoints.map((ep) => (
-                                <div key={ep.endpoint_url} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-sm">
-                                    <div className="mb-4 sm:mb-0">
-                                        <div className="flex items-center space-x-2 mb-1">
-                                            <span className="font-semibold text-lg">{ep.label || 'Unlabeled'}</span>
-                                            {ep.enabled ? (
-                                                <span className="px-2 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full">Active</span>
-                                            ) : (
-                                                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-full">Inactive</span>
-                                            )}
-                                            {ep.stream_mode ? (
-                                                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">Stream</span>
-                                            ) : null}
+                        endpoints.map(ep => {
+                            const currentModelConfigStr = (ep.configuredModels || []).find(m => m.name === ep.selectedModel)?.default_config || '';
+                            const currentModelConfig = typeof currentModelConfigStr === 'object' ? JSON.stringify(currentModelConfigStr, null, 2) : currentModelConfigStr;
+
+                            return (
+                                <div key={ep.id} className="border dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="w-full flex items-center gap-4">
+                                            <div className="flex-1">
+                                                <input
+                                                    type="text"
+                                                    value={ep.label}
+                                                    onChange={(e) => handleLocalFieldChange(ep.id, 'label', e.target.value)}
+                                                    className="text-lg font-semibold text-gray-800 dark:text-gray-200 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 focus:ring-0 px-0 py-1 transition-colors w-full max-w-md"
+                                                    placeholder="Provider Name (e.g. Local Ollama)"
+                                                />
+                                            </div>
                                         </div>
-                                        <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">{ep.endpoint_url}</div>
-                                        {(ep.gpu_model || ep.cpu_model || ep.ram_size) && (
-                                            <div className="mt-2 text-xs font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded border dark:border-gray-700 flex gap-2">
-                                                {ep.gpu_model && <span>GPU: {ep.gpu_model}</span>}
-                                                {ep.cpu_model && <span>CPU: {ep.cpu_model}</span>}
-                                                {ep.ram_size && <span>RAM: {ep.ram_size}</span>}
-                                            </div>
-                                        )}
-                                        {ep.extra_config && (
-                                            <div className="mt-2 text-xs font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded border dark:border-gray-700">
-                                                {ep.extra_config}
-                                            </div>
-                                        )}
+                                        <div className="flex items-center space-x-3">
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ep.enabled ? 'Enabled' : 'Disabled'}</span>
+                                            <ToggleSwitch checked={ep.enabled} onChange={() => handleLocalToggleActive(ep.id)} />
+                                            <button onClick={() => handleDeleteLocalEndpoint(ep.endpoint_url || ep.id)} className="text-red-500 hover:text-red-600 p-1" title="Delete Endpoint">
+                                                <Trash2 className="w-5 h-5" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center space-x-2">
-                                        <button
-                                            onClick={() => handleEditEndpoint(ep)}
-                                            className="p-2 rounded-md bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900"
-                                            title="Edit"
-                                        >
-                                            <Pencil className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleToggleActive(ep)}
-                                            className={`p-2 rounded-md border ${
-                                                ep.enabled
-                                                    ? 'bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900'
-                                                    : 'bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900'
-                                            }`}
-                                            title={ep.enabled ? "Deactivate" : "Activate"}
-                                        >
-                                            {ep.enabled ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(ep.endpoint_url)}
-                                            className="p-2 rounded-md bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900"
-                                            title="Delete"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
+
+                                    {ep.enabled && (
+                                        <div className="space-y-4 border-t dark:border-gray-700 pt-4 mt-4">
+                                            <div className="flex gap-4">
+                                                <div className="flex-1">
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                                                    <input
+                                                        type="text"
+                                                        value={ep.endpoint_url}
+                                                        onChange={(e) => handleLocalFieldChange(ep.id, 'endpoint_url', e.target.value)}
+                                                        placeholder="http://127.0.0.1:11434"
+                                                        className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 disabled:opacity-50"
+                                                        disabled={!String(ep.id).startsWith('temp-')}
+                                                    />
+                                                </div>
+                                                <div className="flex items-end mb-2">
+                                                    <label className="flex items-center space-x-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={ep.stream_mode}
+                                                            onChange={(e) => handleLocalFieldChange(ep.id, 'stream_mode', e.target.checked)}
+                                                            className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                                        />
+                                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream Mode</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-4 gap-4">
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">CPU Model</label>
+                                                    <input type="text" value={ep.cpu_model || ''} onChange={e=>handleLocalFieldChange(ep.id, 'cpu_model', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm" placeholder="e.g. i9" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">GPU Model</label>
+                                                    <input type="text" value={ep.gpu_model || ''} onChange={e=>handleLocalFieldChange(ep.id, 'gpu_model', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm" placeholder="e.g. RTX 4090" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">RAM Size</label>
+                                                    <input type="text" value={ep.ram_size || ''} onChange={e=>handleLocalFieldChange(ep.id, 'ram_size', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm" placeholder="e.g. 64GB" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">Running Environment</label>
+                                                    <input type="text" value={ep.running_environment || ''} onChange={e=>handleLocalFieldChange(ep.id, 'running_environment', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 text-sm" placeholder="e.g. Docker" />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-end space-x-4">
+                                                <div className="flex-1 max-w-lg">
+                                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Model</label>
+                                                    <div className="flex space-x-2">
+                                                        <select
+                                                            value={ep.selectedModel || ''}
+                                                            onChange={(e) => handleLocalModelSelect(ep.id, e.target.value)}
+                                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
+                                                        >
+                                                            <option value="">-- Select a Model --</option>
+                                                            {(ep.modelsList || []).map(m => (
+                                                                <option key={m} value={m}>{m}</option>
+                                                            ))}
+                                                        </select>
+                                                        <span className="relative group inline-block">
+                                                            <button
+                                                                onClick={() => handleFetchLocalModels(ep.id)}
+                                                                disabled={isFetchingLocalModels[ep.id] || String(ep.id).startsWith('temp-')}
+                                                                title={String(ep.id).startsWith('temp-') ? "Please save the endpoint first" : ""}
+                                                                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
+                                                            >
+                                                                {isFetchingLocalModels[ep.id] ? 'Fetching...' : 'Fetch Models'}
+                                                            </button>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Config (JSON)</label>
+                                                <div className="flex flex-col md:flex-row gap-4 h-48">
+                                                    <textarea
+                                                        className="w-full md:w-1/2 p-3 font-mono text-sm border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                                                        value={currentModelConfig}
+                                                        onChange={(e) => handleLocalModelConfigChange(ep.id, ep.selectedModel, e.target.value)}
+                                                        placeholder='{
+  "temperature": 0.7
+}'
+                                                    />
+                                                    <div className="w-full md:w-1/2 overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
+                                                        <ReactJson
+                                                            value={(() => {
+                                                                try {
+                                                                    const parsed = JSON.parse(currentModelConfig || '{}');
+                                                                    if (parsed === null || typeof parsed !== 'object') {
+                                                                        return { error: "Invalid JSON (must be an object)" };
+                                                                    }
+                                                                    if (Array.isArray(parsed)) {
+                                                                        return parsed;
+                                                                    }
+                                                                    return parsed;
+                                                                } catch (e) {
+                                                                    return { error: "Invalid JSON" };
+                                                                }
+                                                            })()}
+                                                            style={document.documentElement.classList.contains('dark') ? darkTheme : lightTheme}
+                                                            displayDataTypes={false}
+                                                            enableClipboard={false}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-end mt-4">
+                                                <button onClick={() => saveLocalEndpoint(ep.id)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+                                                    Save
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
-                        </div>
+                            );
+                        })
                     )}
                 </div>
             </div>
@@ -849,187 +868,6 @@ const Configuration = () => {
                     </div>
                 </div>
             )}
-
-
-            {/* Endpoint Modal */}
-            {showEndpointModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]">
-                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{isEditingEndpoint ? 'Edit Local Endpoint' : 'Add Local Endpoint'}</h3>
-                            <button onClick={clearEndpointForm} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-4 overflow-y-auto">
-                            <form id="endpointForm" onSubmit={handleAddOrUpdate} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Provider</label>
-                                        <input
-                                            type="text"
-                                            value={label}
-                                            onChange={(e) => setLabel(e.target.value)}
-                                            placeholder="e.g. Local Ollama"
-                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={url}
-                                            onChange={(e) => setUrl(e.target.value)}
-                                            placeholder="http://127.0.0.1:11434"
-                                            className="w-full px-3 py-2 border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-800"
-                                            disabled={isEditingEndpoint}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="flex space-x-6">
-                                    <label className="flex items-center space-x-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={isActive}
-                                            onChange={(e) => setIsActive(e.target.checked)}
-                                            className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                        />
-                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Is Active</span>
-                                    </label>
-                                    <label className="flex items-center space-x-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={streamMode}
-                                            onChange={(e) => setStreamMode(e.target.checked)}
-                                            className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                        />
-                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Stream Mode</span>
-                                    </label>
-                                </div>
-                                <div className="border-t dark:border-gray-700 pt-4">
-                                    <h4 className="text-md font-semibold mb-2">Model Hardware Config</h4>
-                                    <div className="mb-4 flex gap-2 items-end">
-                                        <div className="flex-1">
-                                            <label className="block text-xs text-gray-500 mb-1">Select Model</label>
-                                            <select
-                                                value={selectedModel}
-                                                onChange={handleModelSelect}
-                                                className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600"
-                                            >
-                                                <option value="">-- Select a model --</option>
-                                                {localModelsList.map(m => (
-                                                    <option key={m} value={m}>{m}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div className="relative group">
-                                            <button
-                                                type="button"
-                                                onClick={handleFetchLocalModels}
-                                                disabled={isFetchingLocalModels || String(endpointId).startsWith('temp-')}
-                                                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:pointer-events-none flex items-center whitespace-nowrap"
-                                            >
-                                                {isFetchingLocalModels ? 'Fetching...' : 'Fetch Models'}
-                                            </button>
-                                            {String(endpointId).startsWith('temp-') && (
-                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-max bg-gray-900 text-white text-xs rounded py-1 px-2 pointer-events-none z-50">
-                                                    Please save the endpoint first
-                                                    <svg className="absolute text-gray-900 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xmlSpace="preserve"><polygon className="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">CPU Model</label>
-                                            <input type="text" value={currentModelConfig.cpu_model} onChange={e=>handleConfigChange('cpu_model', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. i9" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">GPU Model</label>
-                                            <input type="text" value={currentModelConfig.gpu_model} onChange={e=>handleConfigChange('gpu_model', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. RTX 4090" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1">RAM Size</label>
-                                            <input type="text" value={currentModelConfig.ram_size} onChange={e=>handleConfigChange('ram_size', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. 64GB" />
-                                        </div>
-                                    </div>
-                                    <div className="mt-4">
-                                        <label className="block text-xs text-gray-500 mb-1">Running Environment</label>
-                                        <input type="text" value={currentModelConfig.running_environment} onChange={e=>handleConfigChange('running_environment', e.target.value)} className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600" placeholder="e.g. Docker, WSL" />
-                                    </div>
-                                </div>
-                                <div className="border-t dark:border-gray-700 pt-4">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Config (JSON)</label>
-                                    <div className="flex flex-col md:flex-row gap-4 h-48">
-                                        <textarea
-                                            className="w-full md:w-1/2 p-3 font-mono text-sm border dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                                            value={currentModelConfig.default_config}
-                                            onChange={(e) => handleConfigChange('default_config', e.target.value)}
-                                            placeholder='{\n  "temperature": 0.7\n}'
-                                        />
-                                        <div className="w-full md:w-1/2 overflow-auto bg-gray-50 dark:bg-gray-800 border dark:border-gray-600 rounded-md p-3">
-                                            <ReactJson
-                                                value={(() => {
-                                                    try {
-                                                        const parsed = JSON.parse(currentModelConfig.default_config || '{}');
-                                                        if (parsed === null || typeof parsed !== 'object') {
-                                                            return { error: "Invalid JSON (must be an object)" };
-                                                        }
-                                                        if (Array.isArray(parsed)) {
-                                                            return parsed;
-                                                        }
-                                                        return parsed;
-                                                    } catch (e) {
-                                                        return { error: "Invalid JSON" };
-                                                    }
-                                                })()}
-                                                style={document.documentElement.classList.contains('dark') ? darkTheme : lightTheme}
-                                                displayDataTypes={false}
-                                                enableClipboard={false}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
-                            <button type="button" onClick={clearEndpointForm} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
-                            <button type="submit" form="endpointForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{isEditingEndpoint ? 'Update' : 'Save'}</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {/* Research Context Modal */}
-            {showRcModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-                        <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{editingRcId ? 'Edit Research Context' : 'Add Research Context'}</h3>
-                            <button onClick={handleCancelEditRc} className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-4 overflow-y-auto">
-                            <form id="rcForm" onSubmit={handleSaveRc} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Name</label>
-                                    <input className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" value={rcName} onChange={e=>setRcName(e.target.value)} placeholder="Context Name" required />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Context Content</label>
-                                    <textarea className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 font-mono text-sm focus:ring-blue-500 focus:border-blue-500 text-gray-900 dark:text-gray-100" rows="10" value={rcContent} onChange={e=>setRcContent(e.target.value)} placeholder="Context Content" required></textarea>
-                                </div>
-                            </form>
-                        </div>
-                        <div className="p-4 border-t dark:border-gray-700 flex justify-end gap-2">
-                            <button type="button" onClick={handleCancelEditRc} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
-                            <button type="submit" form="rcForm" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">{editingRcId ? 'Update' : 'Save'}</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
 
             {/* Meta Prompt Template Modal */}
             {showMptModal && (
