@@ -364,10 +364,10 @@ const Configuration = () => {
         await saveLocalEndpointWithData(ep);
     };
 
-    const handleDeleteLocalEndpoint = async (endpointUrl) => {
-        if (!window.confirm(`Are you sure you want to delete ${endpointUrl}?`)) return;
+    const handleDeleteLocalEndpoint = async (id, label) => {
+        if (!window.confirm(`Are you sure you want to delete ${label}?`)) return;
         try {
-            await deleteLocalEndpoint(endpointUrl);
+            await deleteLocalEndpoint(id);
             await loadEndpointsAndConfig();
         } catch (error) {
             console.error('Error deleting endpoint:', error);
@@ -632,7 +632,7 @@ const Configuration = () => {
                                         <div className="flex items-center space-x-3">
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ep.enabled ? 'Enabled' : 'Disabled'}</span>
                                             <ToggleSwitch checked={ep.enabled} onChange={() => handleLocalToggleActive(ep.id)} />
-                                            <button onClick={() => handleDeleteLocalEndpoint(ep.endpoint_url || ep.id)} className="text-red-500 hover:text-red-600 p-1" title="Delete Endpoint">
+                                            <button onClick={() => handleDeleteLocalEndpoint(ep.id, ep.label)} className="text-red-500 hover:text-red-600 p-1" title="Delete Endpoint">
                                                 <Trash2 className="w-5 h-5" />
                                             </button>
                                         </div>
