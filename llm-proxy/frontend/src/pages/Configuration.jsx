@@ -188,6 +188,7 @@ const Configuration = () => {
                 const firstModel = dbEndpoint.models?.[0] || {};
                 return {
                     ...dbEndpoint,
+                    label: dbEndpoint.provider || '',
                     enabled: dbEndpoint.is_enabled === 1 || dbEndpoint.is_enabled === true,
                     stream_mode: dbEndpoint.is_streaming === 1 || dbEndpoint.is_streaming === true,
                     cpu_model: dbEndpoint.cpu_model || firstModel.cpu_model || '',
@@ -622,7 +623,7 @@ const Configuration = () => {
                                             <div className="flex-1">
                                                 <input
                                                     type="text"
-                                                    value={ep.label}
+                                                    value={ep.label || ''}
                                                     onChange={(e) => handleLocalFieldChange(ep.id, 'label', e.target.value)}
                                                     className="text-lg font-semibold text-gray-800 dark:text-gray-200 bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 focus:ring-0 px-0 py-1 transition-colors w-full max-w-md"
                                                     placeholder="Provider Name (e.g. Local Ollama)"
