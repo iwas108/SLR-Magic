@@ -55,17 +55,17 @@ class CacheRepository {
           h.endpoint_url,
           COALESCE(e.id, h.endpoint_url) as endpoint_label,
           e.id as raw_label,
-          CASE WHEN m.gpu_model IS NOT NULL AND m.gpu_model != '' THEN 1 ELSE 0 END as is_gpu,
-          m.gpu_model,
-          m.cpu_model,
-          m.ram_size,
+          CASE WHEN e.gpu_model IS NOT NULL AND e.gpu_model != '' THEN 1 ELSE 0 END as is_gpu,
+          e.gpu_model,
+          e.cpu_model,
+          e.ram_size,
           COUNT(*) as request_count,
           SUM(h.duration_ms) as total_duration_ms,
           AVG(h.duration_ms) as avg_duration_ms,
           MIN(h.duration_ms) as min_duration_ms,
           MAX(h.duration_ms) as max_duration_ms
       FROM history h
-      LEFT JOIN local_endpoints e ON h.endpoint_url = e.endpoint_url LEFT JOIN local_models m ON e.id = m.local_endpoint_id AND h.model_name = m.name
+      LEFT JOIN local_endpoints e ON h.endpoint_url = e.endpoint_url
       WHERE h.endpoint_url IS NOT NULL
       GROUP BY h.model_name, h.endpoint_url
       ORDER BY h.model_name ASC, request_count DESC
@@ -102,7 +102,7 @@ class CacheRepository {
     const sortOrder = sortDesc ? "DESC" : "ASC";
 
     let countQuery = "SELECT COUNT(*) as count FROM history h";
-    let selectQuery = "SELECT h.*, CASE WHEN m.gpu_model IS NOT NULL AND m.gpu_model != '' THEN 1 ELSE 0 END as is_gpu, l.gpu_model, l.cpu_model, l.ram_size FROM history h LEFT JOIN local_endpoints e ON h.endpoint_url = e.endpoint_url LEFT JOIN local_models m ON e.id = m.local_endpoint_id AND h.model_name = m.name";
+    let selectQuery = "SELECT h.*, CASE WHEN e.gpu_model IS NOT NULL AND e.gpu_model != '' THEN 1 ELSE 0 END as is_gpu, e.gpu_model, e.cpu_model, e.ram_size FROM history h LEFT JOIN local_endpoints e ON h.endpoint_url = e.endpoint_url";
 
     const params = [];
     const conditions = [];
@@ -309,23 +309,55 @@ class CacheRepository {
         provider TEXT,
         endpoint_url TEXT,
         is_enabled BOOLEAN DEFAULT 1,
-        is_streaming BOOLEAN DEFAULT 0
-      )
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS local_models (
-        id TEXT PRIMARY KEY,
-        local_endpoint_id TEXT,
-        name TEXT,
+        is_streaming BOOLEAN DEFAULT 0,
+        models_list_cache TEXT DEFAULT '[]',
         cpu_model TEXT,
         gpu_model TEXT,
         ram_size TEXT,
-        running_environment TEXT,
-        default_config TEXT,
-        FOREIGN KEY(local_endpoint_id) REFERENCES local_endpoints(id) ON DELETE CASCADE
+        running_environment TEXT
       )
     `);
+
+    // Ensure new columns exist in local_endpoints for existing databases
+    const localEndpointsCols = this.db.pragma('table_info(local_endpoints)');
+    if (!localEndpointsCols.find(col => col.name === 'models_list_cache')) {
+      this.db.exec('ALTER TABLE local_endpoints ADD COLUMN models_list_cache TEXT DEFAULT \'[]\'');
+    }
+    if (!localEndpointsCols.find(col => col.name === 'cpu_model')) {
+      this.db.exec('ALTER TABLE local_endpoints ADD COLUMN cpu_model TEXT');
+      this.db.exec('ALTER TABLE local_endpoints ADD COLUMN gpu_model TEXT');
+      this.db.exec('ALTER TABLE local_endpoints ADD COLUMN ram_size TEXT');
+      this.db.exec('ALTER TABLE local_endpoints ADD COLUMN running_environment TEXT');
+    }
+
+    const localModelsCols = this.db.pragma('table_info(local_models)');
+    if (localModelsCols.length > 0 && localModelsCols.find(col => col.name === 'cpu_model')) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS local_models_new (
+          id TEXT PRIMARY KEY,
+          local_endpoint_id TEXT,
+          name TEXT,
+          default_config TEXT,
+          FOREIGN KEY(local_endpoint_id) REFERENCES local_endpoints(id) ON DELETE CASCADE
+        )
+      `);
+      this.db.exec(`
+        INSERT INTO local_models_new (id, local_endpoint_id, name, default_config)
+        SELECT id, local_endpoint_id, name, default_config FROM local_models
+      `);
+      this.db.exec(`DROP TABLE local_models`);
+      this.db.exec(`ALTER TABLE local_models_new RENAME TO local_models`);
+    } else {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS local_models (
+          id TEXT PRIMARY KEY,
+          local_endpoint_id TEXT,
+          name TEXT,
+          default_config TEXT,
+          FOREIGN KEY(local_endpoint_id) REFERENCES local_endpoints(id) ON DELETE CASCADE
+        )
+      `);
+    }
   }
   // Meta Prompting
   async getResearchContexts() {
@@ -487,11 +519,17 @@ CacheRepository.prototype.updateCloudModelsCache = async function(id, modelsList
     stmt.run(typeof modelsListCache === 'string' ? modelsListCache : JSON.stringify(modelsListCache), id);
   };
 
+CacheRepository.prototype.updateLocalModelsCache = async function(id, modelsListCache) {
+    const stmt = this.db.prepare('UPDATE local_endpoints SET models_list_cache = ? WHERE id = ?');
+    stmt.run(typeof modelsListCache === 'string' ? modelsListCache : JSON.stringify(modelsListCache), id);
+  };
+
 CacheRepository.prototype.getLocalEndpoints = async function() {
     const stmt = this.db.prepare(`
       SELECT
-        e.id, e.provider, e.endpoint_url, e.is_enabled, e.is_streaming,
-        m.id as model_id, m.name as model_name, m.cpu_model, m.gpu_model, m.ram_size, m.running_environment, m.default_config
+        e.id, e.provider, e.endpoint_url, e.is_enabled, e.is_streaming, e.models_list_cache,
+        e.cpu_model, e.gpu_model, e.ram_size, e.running_environment,
+        m.id as model_id, m.name as model_name, m.default_config
       FROM local_endpoints e
       LEFT JOIN local_models m ON e.id = m.local_endpoint_id
     `);
@@ -506,6 +544,11 @@ CacheRepository.prototype.getLocalEndpoints = async function() {
           endpoint_url: row.endpoint_url,
           is_enabled: !!row.is_enabled,
           is_streaming: !!row.is_streaming,
+          models_list_cache: row.models_list_cache ? JSON.parse(row.models_list_cache) : [],
+          cpu_model: row.cpu_model,
+          gpu_model: row.gpu_model,
+          ram_size: row.ram_size,
+          running_environment: row.running_environment,
           models: []
         });
       }
@@ -514,10 +557,6 @@ CacheRepository.prototype.getLocalEndpoints = async function() {
         endpointsMap.get(row.id).models.push({
           id: row.model_id,
           name: row.model_name,
-          cpu_model: row.cpu_model,
-          gpu_model: row.gpu_model,
-          ram_size: row.ram_size,
-          running_environment: row.running_environment,
           default_config: row.default_config
         });
       }
@@ -540,33 +579,75 @@ CacheRepository.prototype.getLocalEndpointById = async function(id) {
       endpoint_url: row.endpoint_url,
       is_enabled: !!row.is_enabled,
       is_streaming: !!row.is_streaming,
+      models_list_cache: row.models_list_cache ? JSON.parse(row.models_list_cache) : [],
+      cpu_model: row.cpu_model,
+      gpu_model: row.gpu_model,
+      ram_size: row.ram_size,
+      running_environment: row.running_environment,
       models: models
     };
   };
 
-CacheRepository.prototype.upsertLocalEndpoint = async function(id, provider, endpointUrl, isEnabled, isStreaming) {
+CacheRepository.prototype.upsertLocalEndpoint = async function(id, provider, endpointUrl, isEnabled, isStreaming, modelsListCache, cpuModel, gpuModel, ramSize, runningEnvironment, models = []) {
     if (!id) {
       id = crypto.randomUUID();
     }
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO local_endpoints
-      (id, provider, endpoint_url, is_enabled, is_streaming)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    stmt.run(id, provider, endpointUrl, isEnabled ? 1 : 0, isStreaming ? 1 : 0);
+
+    const transaction = this.db.transaction(() => {
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO local_endpoints
+        (id, provider, endpoint_url, is_enabled, is_streaming, models_list_cache, cpu_model, gpu_model, ram_size, running_environment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      let cacheToSave = modelsListCache;
+      if (cacheToSave === undefined) {
+        const existing = this.db.prepare('SELECT models_list_cache FROM local_endpoints WHERE id = ?').get(id);
+        cacheToSave = existing && existing.models_list_cache ? existing.models_list_cache : '[]';
+      } else if (typeof cacheToSave !== 'string') {
+        cacheToSave = JSON.stringify(cacheToSave);
+      }
+
+      stmt.run(id, provider, endpointUrl, isEnabled ? 1 : 0, isStreaming ? 1 : 0, cacheToSave, cpuModel || '', gpuModel || '', ramSize || '', runningEnvironment || '');
+
+      // Delete existing models for this endpoint
+      const deleteModelsStmt = this.db.prepare('DELETE FROM local_models WHERE local_endpoint_id = ?');
+      deleteModelsStmt.run(id);
+
+      // Insert the new models
+      if (Array.isArray(models)) {
+        const insertModelStmt = this.db.prepare(`
+          INSERT INTO local_models
+          (id, local_endpoint_id, name, default_config)
+          VALUES (?, ?, ?, ?)
+        `);
+
+        for (const model of models) {
+          const modelId = model.id || crypto.randomUUID();
+          insertModelStmt.run(
+            modelId,
+            id,
+            model.name,
+            model.default_config || ''
+          );
+        }
+      }
+    });
+
+    transaction();
     return id;
   };
 
-CacheRepository.prototype.upsertLocalModel = async function(id, localEndpointId, name, cpuModel, gpuModel, ramSize, runningEnvironment, defaultConfig) {
+CacheRepository.prototype.upsertLocalModel = async function(id, localEndpointId, name, defaultConfig) {
     if (!id) {
       id = crypto.randomUUID();
     }
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO local_models
-      (id, local_endpoint_id, name, cpu_model, gpu_model, ram_size, running_environment, default_config)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (id, local_endpoint_id, name, default_config)
+      VALUES (?, ?, ?, ?)
     `);
-    stmt.run(id, localEndpointId, name, cpuModel, gpuModel, ramSize, runningEnvironment, defaultConfig);
+    stmt.run(id, localEndpointId, name, defaultConfig);
     return id;
   };
 

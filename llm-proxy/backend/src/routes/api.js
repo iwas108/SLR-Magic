@@ -26,6 +26,7 @@ webApiRouter.get('/api/local_endpoints', WebApiController.getLocalEndpoints);
 webApiRouter.post('/api/local_endpoints', WebApiController.upsertLocalEndpoint);
 webApiRouter.delete('/api/local_endpoints', WebApiController.deleteLocalEndpoint);
 webApiRouter.post('/api/local_endpoints/fetch_models', WebApiController.fetchLocalModels);
+webApiRouter.post('/api/local_endpoints/:id/sync_models', WebApiController.syncLocalModels);
 
 webApiRouter.get('/api/history', WebApiController.getHistory);
 webApiRouter.delete('/api/history/bulk_delete', WebApiController.bulkDeleteHistory);

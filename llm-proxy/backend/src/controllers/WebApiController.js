@@ -163,12 +163,37 @@ async function getLocalEndpoints(req, res) {
 
 async function upsertLocalEndpoint(req, res) {
     try {
-        const { id, provider, endpoint_url, is_enabled, is_streaming, models } = req.body;
+        const {
+            id,
+            provider,
+            endpoint_url,
+            is_enabled,
+            is_streaming,
+            models_list_cache,
+            models,
+            cpu_model,
+            gpu_model,
+            ram_size,
+            running_environment
+        } = req.body;
+
         if (!endpoint_url) {
             return res.status(400).json({ error: "endpoint_url is required" });
         }
 
-        const resultId = await cacheRepo.upsertLocalEndpoint(id, provider, endpoint_url, is_enabled, is_streaming);
+        const resultId = await cacheRepo.upsertLocalEndpoint(
+            id,
+            provider,
+            endpoint_url,
+            is_enabled,
+            is_streaming,
+            models_list_cache,
+            cpu_model || '',
+            gpu_model || '',
+            ram_size || '',
+            running_environment || '',
+            models
+        );
 
         if (models && Array.isArray(models)) {
             // Delete all current models and re-insert to keep in sync
@@ -179,7 +204,7 @@ async function upsertLocalEndpoint(req, res) {
                  }
             }
             for (let model of models) {
-                await cacheRepo.upsertLocalModel(model.id, resultId, model.name, model.cpu_model, model.gpu_model, model.ram_size, model.running_environment, model.default_config);
+                await cacheRepo.upsertLocalModel(model.id, resultId, model.name, model.default_config);
             }
         }
 
@@ -471,7 +496,7 @@ async function fetchLocalModels(req, res) {
 
         const tagsUrl = `${baseUrl}/api/tags`;
 
-        const fetch = require('node-fetch');
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
         const response = await fetch(tagsUrl, { timeout: 10000 });
         if (!response.ok) {
             return res.status(response.status).json({ error: `Failed to fetch models: ${response.statusText}` });
@@ -483,8 +508,63 @@ async function fetchLocalModels(req, res) {
     }
 }
 
+async function syncLocalModels(req, res) {
+    try {
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ error: "id is required" });
+
+        const endpoint = await cacheRepo.getLocalEndpointById(id);
+        if (!endpoint) return res.status(404).json({ error: "Endpoint not found" });
+
+        let baseUrl = endpoint.endpoint_url;
+        if (baseUrl.endsWith('/v1/chat/completions')) {
+            baseUrl = baseUrl.replace('/v1/chat/completions', '');
+        } else if (baseUrl.endsWith('/v1/completions')) {
+            baseUrl = baseUrl.replace('/v1/completions', '');
+        } else if (baseUrl.endsWith('/api/chat')) {
+            baseUrl = baseUrl.replace('/api/chat', '');
+        } else if (baseUrl.endsWith('/api/generate')) {
+            baseUrl = baseUrl.replace('/api/generate', '');
+        }
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+
+        const tagsUrl = `${baseUrl}/api/tags`;
+
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        const response = await fetch(tagsUrl, { timeout: 10000 });
+        if (!response.ok) {
+            return res.status(response.status).json({ error: `Failed to fetch models: ${response.statusText}` });
+        }
+        const data = await response.json();
+        const crypto = require('crypto');
+        const rawModels = data.models || [];
+        const models = rawModels.map(m => ({
+            id: crypto.randomUUID(),
+            name: m.name,
+            modified_at: m.modified_at,
+            size: m.size,
+            digest: m.digest,
+            details: {
+                format: m.details?.format || 'unknown',
+                family: m.details?.family || 'unknown',
+                parameter_size: m.details?.parameter_size || 'unknown',
+                quantization_level: m.details?.quantization_level || 'unknown'
+            }
+        }));
+
+        await cacheRepo.updateLocalModelsCache(id, models);
+
+        return res.json({ status: "success", models });
+    } catch (e) {
+        return res.status(500).json({ error: e.message || String(e) });
+    }
+}
+
 module.exports = {
     fetchLocalModels,
+    syncLocalModels,
 
     getResearchContexts,
     createResearchContext,

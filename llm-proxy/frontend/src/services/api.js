@@ -233,3 +233,15 @@ export const fetchLocalModelsFromEndpoint = async (endpoint_url) => {
     if (!response.ok) throw new Error('Failed to fetch local models');
     return response.json();
 };
+
+export const syncLocalModels = async (id) => {
+    const response = await fetch(`${API_BASE_URL}/local_endpoints/${id}/sync_models`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to sync local models');
+    }
+    return response.json();
+};
