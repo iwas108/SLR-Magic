@@ -167,6 +167,7 @@ async function proxyTags(req, res) {
 
         // Fetch models from all configured URLs
         const activeUrls = ollamaService.urls || [];
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
         const fetchPromises = activeUrls.map(async (endpointUrl) => {
             try {

@@ -142,6 +142,7 @@ class OllamaService {
     async getBestLocalEndpoint(requestedModel) {
         let bestUrl = null;
         let minConnections = Infinity;
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
         for (const endpointUrl of this.urls) {
             const baseModel = requestedModel || "qwen3.5-slr";
@@ -324,6 +325,7 @@ class OllamaService {
     }
 
     async _fetchStandard(nativePayload, modelName, endpointUrl) {
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
         const response = await fetch(endpointUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -448,6 +450,7 @@ class OllamaService {
 
         let response;
         try {
+            const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
             response = await fetch(endpointUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
