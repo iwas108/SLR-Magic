@@ -7,15 +7,17 @@ async function getQueueStats(req, res) {
 
         const endpointsData = ollamaService.urls.map(url => {
             const status = ollamaService.endpointStatus[url] || "idle";
+            const activeConns = ollamaService.activeConnections ? (ollamaService.activeConnections[url] || 0) : 0;
             const label = labels[url] || url;
             return {
                 url,
                 label,
-                status
+                status: activeConns > 0 ? "active" : "idle",
+                active_connections: activeConns
             };
         });
 
-        let pendingInQueue = ollamaService.queuedRequests;
+        let pendingInQueue = ollamaService.queuedRequests || 0;
 
         return res.json({
             total_endpoints: totalCount,
@@ -208,10 +210,9 @@ async function upsertLocalEndpoint(req, res) {
             }
         }
 
-        // Ensure to tell Ollama Service to refresh tags cache so it picks up endpoint additions.
-        if (ollamaService && typeof ollamaService.refreshTags === 'function') {
-            await ollamaService.refreshTags();
-        }
+        // Ensure OllamaService is synced with latest endpoints to avoid routing errors
+        const updatedEndpoints = await cacheRepo.getLocalEndpoints();
+        ollamaService.syncEndpoints(updatedEndpoints);
 
         return res.json({ status: "success", id: resultId });
     } catch (e) {
@@ -225,10 +226,9 @@ async function deleteLocalEndpoint(req, res) {
         if (!id) return res.status(400).json({ error: "id is required" });
         await cacheRepo.deleteLocalEndpoint(id);
 
-        // Ensure to tell Ollama Service to refresh tags cache.
-        if (ollamaService && typeof ollamaService.refreshTags === 'function') {
-             await ollamaService.refreshTags();
-        }
+        // Ensure OllamaService is synced with latest endpoints
+        const updatedEndpoints = await cacheRepo.getLocalEndpoints();
+        ollamaService.syncEndpoints(updatedEndpoints);
 
         return res.json({ status: "success" });
     } catch (e) {

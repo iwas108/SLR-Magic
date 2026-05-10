@@ -2,7 +2,6 @@ const EventEmitter = require('events');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const AsyncQueue = require('../utils/AsyncQueue');
 const { extractJsonFromMixedText } = require('../utils/parsers');
 
 const logger = require('../utils/logger');
@@ -80,8 +79,8 @@ const streamBroadcaster = new StreamBroadcaster();
 class OllamaService {
     constructor(urls = []) {
         this.urls = urls;
-        this.endpointQueue = new AsyncQueue();
         this.endpointStatus = {};
+        this.activeConnections = {};
         this.queuedRequests = 0;
         this.activeRequests = 0;
         this.totalProcessed = 0;
@@ -97,26 +96,23 @@ class OllamaService {
 
         for (const url of this.urls) {
             this.endpointStatus[url] = "idle";
-            this.endpointQueue.enqueue(url);
+            this.activeConnections[url] = 0;
         }
     }
 
     syncEndpoints(configs) {
-        // configs is a list of objects: [{endpoint_url: "...", enabled: true/false, custom_model: "...", api_key: "...", extra_config: "...", stream_mode: true/false, label: "..."}]
-        const activeUrls = configs.filter(c => c.enabled).map(c => c.endpoint_url);
+        const activeUrls = configs.filter(c => c.is_enabled).map(c => c.endpoint_url);
 
-        this.customModels = {};
         this.apiKeys = {};
         this.extraConfigs = {};
         this.streamModes = {};
         this.endpointLabels = {};
 
-        configs.filter(c => c.enabled).forEach(c => {
-            if (c.custom_model) this.customModels[c.endpoint_url] = c.custom_model;
+        configs.filter(c => c.is_enabled).forEach(c => {
             if (c.api_key) this.apiKeys[c.endpoint_url] = c.api_key;
             if (c.extra_config) this.extraConfigs[c.endpoint_url] = c.extra_config;
-            this.streamModes[c.endpoint_url] = c.stream_mode ? true : false;
-            if (c.label) this.endpointLabels[c.endpoint_url] = c.label;
+            this.streamModes[c.endpoint_url] = c.is_streaming ? true : false;
+            if (c.provider) this.endpointLabels[c.endpoint_url] = c.provider;
         });
 
         // Remove urls that are no longer active from status
@@ -124,6 +120,7 @@ class OllamaService {
             if (!activeUrls.includes(url)) {
                 if (this.endpointStatus[url]) {
                     delete this.endpointStatus[url];
+                    delete this.activeConnections[url];
                 }
             }
         }
@@ -132,24 +129,65 @@ class OllamaService {
         for (const url of activeUrls) {
             if (!this.urls.includes(url)) {
                 this.endpointStatus[url] = "idle";
+                this.activeConnections[url] = 0;
             }
         }
 
         this.urls = activeUrls;
-
-        // Re-populate queue
-        // Extract all current items from the queue
-        const currentQueueItems = this.endpointQueue.clear();
-
-        // Re-enqueue only idle active urls
-        for (const url of this.urls) {
-            if (this.endpointStatus[url] === "idle") {
-                this.endpointQueue.enqueue(url);
-            }
-        }
     }
 
-    async fetchCompletion(openaiPayload, reqHash = "") {
+    async getBestLocalEndpoint(requestedModel) {
+        let bestUrl = null;
+        let minConnections = Infinity;
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+        for (const endpointUrl of this.urls) {
+            const modelName = requestedModel || "qwen3.5-slr";
+
+            let availableModels = [];
+            const cacheEntry = this.endpointModelsCache[endpointUrl];
+            // Cache for 5 minutes
+            if (cacheEntry && (Date.now() - cacheEntry.timestamp < 300000)) {
+                availableModels = cacheEntry.models;
+            } else {
+                try {
+                    let baseUrl = endpointUrl;
+                    if (baseUrl.endsWith('/v1/chat/completions')) baseUrl = baseUrl.replace('/v1/chat/completions', '');
+                    else if (baseUrl.endsWith('/v1/completions')) baseUrl = baseUrl.replace('/v1/completions', '');
+                    else if (baseUrl.endsWith('/api/chat')) baseUrl = baseUrl.replace('/api/chat', '');
+                    else if (baseUrl.endsWith('/api/generate')) baseUrl = baseUrl.replace('/api/generate', '');
+                    if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+                    const tagsResponse = await fetch(`${baseUrl}/api/tags`, { timeout: 3000 });
+                    if (tagsResponse.ok) {
+                        const data = await tagsResponse.json();
+                        if (data && data.models) {
+                            availableModels = data.models.map(m => m.name);
+                            this.endpointModelsCache[endpointUrl] = { models: availableModels, timestamp: Date.now() };
+                        }
+                    }
+                } catch (err) {
+                    logger.warn(`Failed to fetch models for endpoint ${endpointUrl} during fallback check: ${err.message}`);
+                }
+            }
+
+            if (availableModels.length > 0 && !availableModels.includes(modelName)) {
+                logger.info(`Model ${modelName} not found on ${endpointUrl}, skipping...`);
+                continue;
+            }
+
+            // Found an endpoint that has the model or couldn't verify (assume it might have it)
+            const activeConns = this.activeConnections[endpointUrl] || 0;
+            if (activeConns < minConnections) {
+                minConnections = activeConns;
+                bestUrl = endpointUrl;
+            }
+        }
+
+        return bestUrl;
+    }
+
+    async fetchCompletion(openaiPayload, reqHash = "", endpointUrl) {
         const messages = openaiPayload.messages || [];
 
         // Extract default/basic options
@@ -186,72 +224,11 @@ class OllamaService {
 
         const baseModel = openaiPayload.model || "qwen3.5-slr";
 
-        this.queuedRequests += 1;
-        let endpointUrl;
-        let attempts = 0;
-        const maxAttempts = this.urls.length;
-        let skippedEndpoints = [];
-
-        try {
-            while (attempts < maxAttempts) {
-                endpointUrl = await this.endpointQueue.dequeue();
-                attempts++;
-
-                let modelName = this.customModels[endpointUrl] || baseModel;
-
-                // Check if model is available on this endpoint
-                    let availableModels = [];
-                    const cacheEntry = this.endpointModelsCache[endpointUrl];
-                    // Cache for 5 minutes
-                    if (cacheEntry && (Date.now() - cacheEntry.timestamp < 300000)) {
-                        availableModels = cacheEntry.models;
-                    } else {
-                        try {
-                            let baseUrl = endpointUrl;
-                            if (baseUrl.endsWith('/v1/chat/completions')) baseUrl = baseUrl.replace('/v1/chat/completions', '');
-                            else if (baseUrl.endsWith('/v1/completions')) baseUrl = baseUrl.replace('/v1/completions', '');
-                            else if (baseUrl.endsWith('/api/chat')) baseUrl = baseUrl.replace('/api/chat', '');
-                            else if (baseUrl.endsWith('/api/generate')) baseUrl = baseUrl.replace('/api/generate', '');
-                            if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-                            const tagsResponse = await fetch(`${baseUrl}/api/tags`, { timeout: 3000 });
-                            if (tagsResponse.ok) {
-                                const data = await tagsResponse.json();
-                                if (data && data.models) {
-                                    availableModels = data.models.map(m => m.name);
-                                    this.endpointModelsCache[endpointUrl] = { models: availableModels, timestamp: Date.now() };
-                                }
-                            }
-                        } catch (err) {
-                            logger.warn(`Failed to fetch models for endpoint ${endpointUrl} during fallback check: ${err.message}`);
-                        }
-                    }
-
-                    if (availableModels.length > 0 && !availableModels.includes(modelName)) {
-                        logger.info(`Model ${modelName} not found on ${endpointUrl}, trying next endpoint...`);
-                        skippedEndpoints.push(endpointUrl);
-                        endpointUrl = null;
-                        continue;
-                    } else {
-                        // Found it or couldn't verify (assume it might have it)
-                        break;
-                    }
-            }
-
-            // Re-enqueue skipped endpoints so they aren't lost
-            for (const skippedUrl of skippedEndpoints) {
-                this.endpointQueue.enqueue(skippedUrl);
-            }
-
-            if (!endpointUrl) {
-                throw new Error(`None of the available endpoints have the requested model: ${baseModel}`);
-            }
-
-        } finally {
-            this.queuedRequests -= 1;
-        }
-
         this.activeRequests += 1;
+        if (this.activeConnections[endpointUrl] === undefined) {
+            this.activeConnections[endpointUrl] = 0;
+        }
+        this.activeConnections[endpointUrl] += 1;
         this.maxConcurrentRequests = Math.max(this.maxConcurrentRequests, this.activeRequests);
 
         let hasPdf = false;
@@ -290,7 +267,7 @@ class OllamaService {
             openaiPayload.pdf_hash = pdfHash;
         }
 
-        let modelName = this.customModels[endpointUrl] || baseModel;
+        const modelName = baseModel;
 
         const nativePayload = {
             model: modelName,
@@ -333,17 +310,18 @@ class OllamaService {
             return result;
         } finally {
             this.activeRequests -= 1;
+            if (this.activeConnections[endpointUrl] > 0) {
+                this.activeConnections[endpointUrl] -= 1;
+            }
             if (this.endpointStatus[endpointUrl] !== undefined) {
                 this.endpointStatus[endpointUrl] = "idle";
-            }
-            if (this.urls.includes(endpointUrl)) {
-                this.endpointQueue.enqueue(endpointUrl);
             }
             this.totalProcessed += 1;
         }
     }
 
     async _fetchStandard(nativePayload, modelName, endpointUrl) {
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
         const response = await fetch(endpointUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -468,6 +446,7 @@ class OllamaService {
 
         let response;
         try {
+            const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
             response = await fetch(endpointUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
