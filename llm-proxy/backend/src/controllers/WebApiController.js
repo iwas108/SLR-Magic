@@ -210,10 +210,9 @@ async function upsertLocalEndpoint(req, res) {
             }
         }
 
-        // Ensure to tell Ollama Service to refresh tags cache so it picks up endpoint additions.
-        if (ollamaService && typeof ollamaService.refreshTags === 'function') {
-            await ollamaService.refreshTags();
-        }
+        // Ensure OllamaService is synced with latest endpoints to avoid routing errors
+        const updatedEndpoints = await cacheRepo.getLocalEndpoints();
+        ollamaService.syncEndpoints(updatedEndpoints);
 
         return res.json({ status: "success", id: resultId });
     } catch (e) {
@@ -227,10 +226,9 @@ async function deleteLocalEndpoint(req, res) {
         if (!id) return res.status(400).json({ error: "id is required" });
         await cacheRepo.deleteLocalEndpoint(id);
 
-        // Ensure to tell Ollama Service to refresh tags cache.
-        if (ollamaService && typeof ollamaService.refreshTags === 'function') {
-             await ollamaService.refreshTags();
-        }
+        // Ensure OllamaService is synced with latest endpoints
+        const updatedEndpoints = await cacheRepo.getLocalEndpoints();
+        ollamaService.syncEndpoints(updatedEndpoints);
 
         return res.json({ status: "success" });
     } catch (e) {
