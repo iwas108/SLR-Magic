@@ -1,5 +1,0 @@
-
-> backend@1.0.0 dev
-> nodemon src/server.js
-
-sh: 1: nodemon: not found
