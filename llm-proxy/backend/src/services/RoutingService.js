@@ -68,7 +68,23 @@ class RoutingService {
                 } else {
                     logger.warn(`⚠️ Invalid JSON detected for [${reqHash.substring(0, 8)}] on attempt ${attempt + 1}/${maxRetries}. Retrying...`);
                     if (attempt === maxRetries - 1) {
-                        throw new Error("LLM failed to produce valid JSON after retries.");
+                        logger.warn(`⚠️ Exhausted retries for [${reqHash.substring(0, 8)}]. Returning fallback error JSON.`);
+                        const fallbackJson = JSON.stringify({
+                            final_evaluation: {
+                                decision: "Error",
+                                exclusion_code: "N/A",
+                                reasoning: "LLM failed to produce valid JSON after retries."
+                            },
+                            logic_trace: {}
+                        });
+
+                        // Overwrite the content with our fallback
+                        if (responseData && responseData.choices && responseData.choices.length > 0) {
+                            if (!responseData.choices[0].message) {
+                                responseData.choices[0].message = { role: "assistant" };
+                            }
+                            responseData.choices[0].message.content = fallbackJson;
+                        }
                     }
                 }
             } else {
