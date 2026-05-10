@@ -94,9 +94,16 @@ const ScreeningController = (function() {
               const result = response.content;
               updateData["AI_Status"] = "Done";
 
-              for (const [key, value] of Object.entries(result)) {
+              let finalEval = result.final_evaluation || result;
+
+              for (const [key, value] of Object.entries(finalEval)) {
                 SheetUtils.ensureColumn(sheet, key, headerMap);
-                updateData[key] = value;
+                updateData[key] = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
+              }
+
+              if (result.logic_trace) {
+                SheetUtils.ensureColumn(sheet, "Logic_Trace", headerMap);
+                updateData["Logic_Trace"] = typeof result.logic_trace === 'object' && result.logic_trace !== null ? JSON.stringify(result.logic_trace) : result.logic_trace;
               }
 
               if (response.usageMetadata) {
