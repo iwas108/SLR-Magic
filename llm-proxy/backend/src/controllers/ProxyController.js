@@ -169,21 +169,32 @@ async function proxyTags(req, res) {
         const activeUrls = ollamaService.urls || [];
         const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
+        // Check local endpoint models cache first
+        const localEndpoints = await cacheRepo.getLocalEndpoints();
+        for (const le of localEndpoints) {
+            const modelsCache = typeof le.models_list_cache === 'string'
+                ? JSON.parse(le.models_list_cache || '[]')
+                : (le.models_list_cache || []);
+
+            if (Array.isArray(modelsCache)) {
+                for (const model of modelsCache) {
+                    let parsedModel = typeof model === 'string' ? { name: model } : model;
+                    if (parsedModel && parsedModel.name && !uniqueModelsMap.has(parsedModel.name)) {
+                        uniqueModelsMap.set(parsedModel.name, parsedModel);
+                    }
+                }
+            }
+        }
+
+        // Also fetch from live URLs if any to be totally up to date (this populates local if cache is empty/stale)
         const fetchPromises = activeUrls.map(async (endpointUrl) => {
             try {
                 let baseUrl = endpointUrl;
-                if (baseUrl.endsWith('/v1/chat/completions')) {
-                    baseUrl = baseUrl.replace('/v1/chat/completions', '');
-                } else if (baseUrl.endsWith('/v1/completions')) {
-                    baseUrl = baseUrl.replace('/v1/completions', '');
-                } else if (baseUrl.endsWith('/api/chat')) {
-                    baseUrl = baseUrl.replace('/api/chat', '');
-                } else if (baseUrl.endsWith('/api/generate')) {
-                    baseUrl = baseUrl.replace('/api/generate', '');
-                }
-                if (baseUrl.endsWith('/')) {
-                    baseUrl = baseUrl.slice(0, -1);
-                }
+                if (baseUrl.endsWith('/v1/chat/completions')) baseUrl = baseUrl.replace('/v1/chat/completions', '');
+                else if (baseUrl.endsWith('/v1/completions')) baseUrl = baseUrl.replace('/v1/completions', '');
+                else if (baseUrl.endsWith('/api/chat')) baseUrl = baseUrl.replace('/api/chat', '');
+                else if (baseUrl.endsWith('/api/generate')) baseUrl = baseUrl.replace('/api/generate', '');
+                if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
                 const tagsUrl = `${baseUrl}/api/tags`;
                 const response = await fetch(tagsUrl, { timeout: 5000 });

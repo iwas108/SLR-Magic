@@ -145,8 +145,7 @@ class OllamaService {
         const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
         for (const endpointUrl of this.urls) {
-            const baseModel = requestedModel || "qwen3.5-slr";
-            let modelName = this.customModels[endpointUrl] || baseModel;
+            const modelName = requestedModel || "qwen3.5-slr";
 
             let availableModels = [];
             const cacheEntry = this.endpointModelsCache[endpointUrl];
@@ -271,10 +270,8 @@ class OllamaService {
             openaiPayload.pdf_hash = pdfHash;
         }
 
-        let modelName = this.customModels[endpointUrl] || baseModel;
-
         const nativePayload = {
-            model: modelName,
+            model: baseModel,
             messages: messages,
             keep_alive: parsedKeepAlive,
             options: nativeOptions
