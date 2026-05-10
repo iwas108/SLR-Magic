@@ -267,8 +267,10 @@ class OllamaService {
             openaiPayload.pdf_hash = pdfHash;
         }
 
+        const modelName = baseModel;
+
         const nativePayload = {
-            model: baseModel,
+            model: modelName,
             messages: messages,
             keep_alive: parsedKeepAlive,
             options: nativeOptions
