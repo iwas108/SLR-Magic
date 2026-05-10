@@ -23,27 +23,27 @@ This repository contains the full suite of tools needed to run an end-to-end SLR
 
 The SLR Magic ecosystem is composed of several specialized, decoupled modules that interact seamlessly:
 
-1. **[App Script Workspace (`app-script/`)](./app-script/README.md)**
+1. **[App Script Workspace (`app-script/`)](./app-script)**
    - **Role:** The central orchestration hub and primary user interface.
    - **Tech:** Google Apps Script, Google Sheets.
    - **Function:** Manages the entire pipeline from configuration to final data collection. It delegates heavy AI processing to the backend proxy and handles prompt generation and logic gating.
 
-2. **[LLM Proxy Backend (`llm-proxy/`)](./llm-proxy/README.md)**
+2. **[LLM Proxy Backend (`llm-proxy/`)](./llm-proxy/backend)**
    - **Role:** The high-performance caching and routing middleman.
    - **Tech:** Node.js, Express, SQLite.
    - **Function:** Sits between the App Script frontend and your local LLMs (Ollama/vLLM) or cloud providers (Gemini). It caches responses to save time/compute, load balances parallel requests, and records detailed execution history.
 
-3. **[LLM Proxy Frontend (`llm-proxy/frontend/`)](./llm-proxy/frontend/README.md)**
+3. **[LLM Proxy Frontend (`llm-proxy/frontend/`)](./llm-proxy/frontend)**
    - **Role:** Real-time monitoring dashboard for the LLM Proxy.
    - **Tech:** React, Vite, Tailwind CSS.
    - **Function:** Provides a UI to view historical LLM requests, monitor live token streaming via WebSockets, and manage endpoint configurations.
 
-4. **[Inter-Rater SPA (`inter-rater/`)](./inter-rater/README.md)**
+4. **[Inter-Rater SPA (`inter-rater/`)](./inter-rater)**
    - **Role:** The human-in-the-loop validation tool.
    - **Tech:** React, Vite, Tailwind CSS.
    - **Function:** An offline-capable Single-Page Application that allows researchers to perform blinded reviews (without seeing AI decisions) to ensure data integrity and unbiased validation.
 
-5. **[PDF Helper (`pdfhelper/`)](./pdfhelper/README.md)**
+5. **[PDF Helper (`pdfhelper/`)](./pdfhelper)**
    - **Role:** The document retrieval and processing pipeline.
    - **Tech:** Python, FastAPI, Selenium.
    - **Function:** Automates the downloading of research papers via institutional proxies, verifies their contents, compresses them for storage, and syncs them to Google Drive for the LLMs to read.
