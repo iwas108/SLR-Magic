@@ -101,21 +101,18 @@ class OllamaService {
     }
 
     syncEndpoints(configs) {
-        // configs is a list of objects: [{endpoint_url: "...", enabled: true/false, custom_model: "...", api_key: "...", extra_config: "...", stream_mode: true/false, label: "..."}]
-        const activeUrls = configs.filter(c => c.enabled).map(c => c.endpoint_url);
+        const activeUrls = configs.filter(c => c.is_enabled).map(c => c.endpoint_url);
 
-        this.customModels = {};
         this.apiKeys = {};
         this.extraConfigs = {};
         this.streamModes = {};
         this.endpointLabels = {};
 
-        configs.filter(c => c.enabled).forEach(c => {
-            if (c.custom_model) this.customModels[c.endpoint_url] = c.custom_model;
+        configs.filter(c => c.is_enabled).forEach(c => {
             if (c.api_key) this.apiKeys[c.endpoint_url] = c.api_key;
             if (c.extra_config) this.extraConfigs[c.endpoint_url] = c.extra_config;
-            this.streamModes[c.endpoint_url] = c.stream_mode ? true : false;
-            if (c.label) this.endpointLabels[c.endpoint_url] = c.label;
+            this.streamModes[c.endpoint_url] = c.is_streaming ? true : false;
+            if (c.provider) this.endpointLabels[c.endpoint_url] = c.provider;
         });
 
         // Remove urls that are no longer active from status
