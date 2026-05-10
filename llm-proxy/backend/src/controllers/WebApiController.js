@@ -7,15 +7,17 @@ async function getQueueStats(req, res) {
 
         const endpointsData = ollamaService.urls.map(url => {
             const status = ollamaService.endpointStatus[url] || "idle";
+            const activeConns = ollamaService.activeConnections ? (ollamaService.activeConnections[url] || 0) : 0;
             const label = labels[url] || url;
             return {
                 url,
                 label,
-                status
+                status: activeConns > 0 ? "active" : "idle",
+                active_connections: activeConns
             };
         });
 
-        let pendingInQueue = ollamaService.queuedRequests;
+        let pendingInQueue = ollamaService.queuedRequests || 0;
 
         return res.json({
             total_endpoints: totalCount,

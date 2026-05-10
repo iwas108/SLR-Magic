@@ -1,5 +1,5 @@
 const logger = require("../utils/logger");
-const { cacheRepo, ollamaService, cloudService, inFlightRequests } = require('../di');
+const { cacheRepo, ollamaService, cloudService, routingService, inFlightRequests } = require('../di');
 const { extractJsonFromMixedText } = require('../utils/parsers');
 
 async function proxyToOllama(req, res) {
@@ -135,70 +135,8 @@ async function proxyToOllama(req, res) {
             }
         }
 
-        const maxRetries = expectsJson ? 3 : 1;
-        let responseData = null;
-        let durationMs = 0;
-        let endpointUrl = "unknown";
-        let modelName = "unknown";
-
-        // Check if model routes to cloud endpoint
-        let matchingCloudEndpoint = null;
-        const requestedModel = payload.model || "";
-        const cloudEndpoints = await cacheRepo.getCloudEndpoints();
-        for (const ce of cloudEndpoints) {
-            if (requestedModel.startsWith(ce.model_prefix) || requestedModel.includes(ce.model_prefix)) {
-                matchingCloudEndpoint = ce;
-                break;
-            }
-        }
-
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-            if (matchingCloudEndpoint) {
-                logger.info(`☁️ Routing [${shortHash}] to Cloud Endpoint (${matchingCloudEndpoint.provider}): ${matchingCloudEndpoint.name}`);
-                responseData = await cloudService.fetchCompletion(matchingCloudEndpoint, payload, reqHash);
-            } else {
-                // OllamaService fetchCompletion
-                responseData = await ollamaService.fetchCompletion(payload, reqHash);
-            }
-
-            modelName = responseData.model || "unknown";
-            endpointUrl = responseData.endpoint_url || "unknown";
-            delete responseData.endpoint_url;
-
-            durationMs = responseData.endpoint_duration_ms !== undefined ? responseData.endpoint_duration_ms : (Date.now() - startTime);
-            delete responseData.endpoint_duration_ms;
-
-            if (expectsJson) {
-                const choices = responseData.choices || [{}];
-                let content = choices[0].message ? (choices[0].message.content || "") : "";
-
-                const extracted = extractJsonFromMixedText(content);
-
-                let isValidJson = false;
-                if (extracted) {
-                    try {
-                        const parsed = JSON.parse(extracted);
-                        if (typeof parsed === 'object' && parsed !== null) {
-                            isValidJson = true;
-                        }
-                    } catch (e) {
-                        // pass
-                    }
-                }
-
-                if (isValidJson) {
-                    break;
-                } else {
-                    console.warn(`⚠️ Invalid JSON detected for [${shortHash}] on attempt ${attempt + 1}/${maxRetries}. Retrying...`);
-                    if (attempt === maxRetries - 1) {
-                        logger.error(`❌ Failed to get valid JSON after ${maxRetries} attempts for [${shortHash}]. Returning error.`);
-                        return res.status(502).json({ error: "LLM failed to produce valid JSON after retries." });
-                    }
-                }
-            } else {
-                break;
-            }
-        }
+        const routeResult = await routingService.routeRequest(payload, reqHash, expectsJson);
+        const { responseData, modelName, endpointUrl, durationMs } = routeResult;
 
         await cacheRepo.set(reqHash, responseData);
         await cacheRepo.logHistory(modelName, payload, responseData, durationMs, endpointUrl);
@@ -268,10 +206,15 @@ async function proxyTags(req, res) {
         // Inject cloud models
         const cloudEndpoints = await cacheRepo.getCloudEndpoints();
         for (const ce of cloudEndpoints) {
-            if (ce.models_cache && Array.isArray(ce.models_cache)) {
-                for (const model of ce.models_cache) {
-                    if (!uniqueModelsMap.has(model.name)) {
-                        uniqueModelsMap.set(model.name, model);
+            const modelsCache = typeof ce.models_list_cache === 'string'
+                ? JSON.parse(ce.models_list_cache || '[]')
+                : (ce.models_list_cache || []);
+
+            if (Array.isArray(modelsCache)) {
+                for (const model of modelsCache) {
+                    let parsedModel = typeof model === 'string' ? { name: model } : model;
+                    if (parsedModel && parsedModel.name && !uniqueModelsMap.has(parsedModel.name)) {
+                        uniqueModelsMap.set(parsedModel.name, parsedModel);
                     }
                 }
             }
