@@ -1,6 +1,6 @@
 {
   "scriptId": "",
-  "rootDir": "",
+  "rootDir": "app-script",
   "scriptExtensions": [
     ".js",
     ".gs"
