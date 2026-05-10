@@ -1,44 +1,86 @@
-# SLR Magic ✨
+# SLR Magic: Google Apps Script Core ✨
 
-**SLR Magic** is an AI-powered Google Apps Script tool designed to accelerate and safeguard the Systematic Literature Review (SLR) process. By leveraging Large Language Models (LLMs) like Gemini or Qwen3, it automates the tedious screening and extraction phases, eliminating human error, ensuring consistency, and removing bias from the review process.
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Platform: Google Apps Script](https://img.shields.io/badge/Platform-Google%20Apps%20Script-4285F4.svg)
 
-This tool acts as both an **accelerator**, processing thousands of papers in minutes, and a **guard**, enforcing strict logic gates to ensure only relevant, high-quality research makes it to the final synthesis.
+## Overview
 
----
+This module is the core orchestration hub of the SLR Magic ecosystem. Built as a Google Apps Script linked to Google Sheets, it serves as both the central database and the primary user interface for researchers. It manages the entire Systematic Literature Review pipeline—from defining inclusion/exclusion criteria to generating prompts, firing concurrent requests to the LLM backend proxy, and organizing the extracted data into structured formats.
 
-## 🚀 Key Features
+## Table of Contents
 
-*   **Automated Environment Setup**: One-click initialization of the entire workspace.
-*   **Alternative LLM Providers**: Support for Google Gemini natively, private vLLM endpoints (OpenAI-compatible) via public domains like Runpod, and Ollama endpoints (via ngrok/tunnels) for sensitive data processing. Supports multi-Ollama endpoint load balancing.
-*   **Centralized Configuration**: easy-to-use menu-based configuration for API keys, models, prompts, and parallel request batch sizes.
-*   **Parallel Execution**: Native support for parallelizing LLM processing across massive systematic reviews, dramatically accelerating analysis via the Apps Script config menu.
-*   **AI Abstract Screening**: rapid "first-pass" filtering based on Title and Abstract using strict inclusion/exclusion criteria.
-*   **Full-Text Analysis (The Gatekeeper)**: Deep reading of PDFs to confirm relevance based on Methodology and Results, not just abstract promises.
-*   **Quality Assessment (The Scientist)**: Automated evaluation of scientific rigor, documentation quality, and system validity.
-*   **Data Extraction (The Miner & Extended Miner)**: Forensic extraction of structured data (JSON) from full-text papers, including hardware specs, algorithms, and results.
-*   **Cost Management**: Built-in token usage tracking and project cost preview.
-*   **Visualizations**: Generate publication-ready Sankey diagrams, Pie charts, and Bar charts directly from your data.
-*   **FAIR Principles**: Promotes Findability, Accessibility, Interoperability, and Reusability of research data.
-*   **Human-in-the-Loop Required**: SLR Magic is a powerful accelerator, but an expert human-in-the-loop is always required to review, correct, and validate AI decisions.
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the Service](#running-the-service)
+- [Screenshots](#screenshots)
 
----
+## Key Features
 
-## 🛠️ Architecture
+- **Automated Environment Setup:** Instantly generates the necessary worksheet structures.
+- **Provider Agnostic:** Supports natively connecting to Google Gemini or routing traffic through the custom `llm-proxy` to local Ollama or vLLM endpoints.
+- **Parallel Processing:** Batches LLM requests to dramatically speed up screening of thousands of papers.
+- **Multi-Agent Architecture:** Utilizes specialized prompts (The Gatekeeper, The Scientist, The Miner) for abstract screening, full-text reading, and forensic data extraction.
+- **Visualization:** Generates built-in charts (Sankey, Pie, Bar) directly in the spreadsheet from collected data.
 
-SLR Magic follows **Clean Code Architecture** principles to ensure maintainability and robustness:
-*   **Controllers**: Handle business logic and orchestration (e.g., `ScreeningController`, `QualityCheckController`).
-*   **UI**: Separate HTML/JS files for frontend interactions (e.g., `WelcomeUI`, `ConfigurationUI`).
-*   **Services/Adapters**: specialized modules for external services (e.g., `GeminiAdapter` for AI calls).
-*   **Utils**: Shared helper functions (`SheetUtils`, `DriveUtils`, `ConfigManager`).
+## Prerequisites
 
-### Microservices
-*   **`llm-proxy`**: A backend proxy handling local endpoints (Ollama/vLLM) and Gemini API bridging, ensuring proper caching, request multiplexing, and cost tracking.
-*   **`pdfhelper`**: A FastAPI service that automates PDF downloading via dummy proxy (EzProxy) authentication and applies PDF compression.
-*   **`inter-rater`**: A standalone React Single-Page Application (SPA) for human-in-the-loop validation of AI decisions. Play with the live version here: [https://iwas108.github.io/SLR-Magic/inter-rater/dist/](https://iwas108.github.io/SLR-Magic/inter-rater/dist/)
+- **Node.js:** Needed to run `clasp` locally. Install from [nodejs.org](https://nodejs.org/).
+- **Clasp (Command Line Apps Script Projects):** Install globally via npm:
+  ```bash
+  npm install -g @google/clasp
+  ```
+- **Google Account:** Ensure the Apps Script API is enabled at [script.google.com/home/usersettings](https://script.google.com/home/usersettings).
 
----
+## Installation
 
-## 📸 Screenshots
+This project uses **clasp** to push local code to Google's servers.
+
+1. **Login to Google:**
+   ```bash
+   clasp login
+   ```
+   *(This opens a browser window for authorization).*
+
+2. **Create or Clone the Project:**
+   - **Option A (Fresh Setup - Recommended):** Create a new bound Google Sheet project:
+     ```bash
+     clasp create --type sheets --title "SLR Magic Master Project"
+     ```
+   - **Option B (Existing Project):**
+     ```bash
+     clasp clone <your-script-id>
+     ```
+
+3. **Deploy Code:**
+   Push the local files from the `app-script/` directory to the Google cloud:
+   ```bash
+   clasp push
+   ```
+
+4. **Open the Sheet:**
+   ```bash
+   clasp open
+   ```
+
+## Configuration
+
+1. In the newly opened Google Sheet, select the **SLR Magic > Configuration** menu.
+2. Select your **LLM API Provider** (e.g., Gemini, or proxy via Ollama/vLLM).
+3. If using the custom proxy, enter the endpoint URL running the `llm-proxy` backend (e.g., `http://<your-ip>:8899`).
+4. Set up the specific **Prompts** (Abstract Screening, Gatekeeper, Scientist, Miner) relevant to your specific research questions.
+5. Set the **PDF_REPO** URL indicating where full-text PDFs are stored.
+
+## Running the Service
+
+1. **Initialization:** Click **SLR Magic > Initialize Environment** to generate all necessary tabs (`01_abstract_screening`, `03_fulltext_screening`, etc.).
+2. **Abstract Screening:** Import your raw CSV (from Scopus/WoS), then click **SLR Magic > Start AI Title-Abstract Screening**.
+3. **Full-Text Screening:** Import PDFs via utilities, then click **SLR Magic > Start AI Full-Text Screening**.
+4. **Data Sync:** After screening, use **SLR Magic > Process Data Collection** to compile all structured JSON into the final collection tab.
+
+## Screenshots
 
 <details>
   <summary><b>📸 Click here to open the screenshot gallery</b></summary>
@@ -72,97 +114,3 @@ SLR Magic follows **Clean Code Architecture** principles to ensure maintainabili
     </tr>
   </table>
 </details>
-
----
-
-## 💻 Installation (Developers)
-
-This project uses **clasp** (Command Line Apps Script Projects) to manage code locally.
-
-### Prerequisites
-1.  **Node.js**: Install Node.js from [nodejs.org](https://nodejs.org/).
-2.  **Clasp**: Install clasp globally.
-    ```bash
-    npm install -g @google/clasp
-    ```
-3.  **Google Apps Script API**: Enable the API at [script.google.com/home/usersettings](https://script.google.com/home/usersettings).
-
-### Setup & Push
-1.  **Login to Google**:
-    ```bash
-    clasp login
-    ```
-    *This will open a browser window to authorize clasp.*
-
-2.  **Clone or Create**:
-    *   **Option A: Create a New Project** (Recommended for fresh setup)
-        ```bash
-        clasp create --type sheets --title "SLR Magic Project"
-        ```
-    *   **Option B: Clone Existing Project**
-        ```bash
-        clasp clone <scriptId>
-        ```
-        *Find the script ID in your Google Sheet > Extensions > Apps Script > Project Settings.*
-
-3.  **Push Code**:
-    Push the local files to the Google Apps Script project.
-    ```bash
-    clasp push
-    ```
-
-4.  **Open in Browser**:
-    ```bash
-    clasp open
-    ```
-
----
-
-## 📖 How to Use
-
-### Step 1: Initialization
-1.  Open the Google Sheet.
-2.  Click **SLR Magic** > **Initialize Environment**.
-3.  This creates the necessary sheets:
-    *   `01_abstract_screening`: For Title/Abstract data.
-    *   `02_titleabs_quality_check`: For human validation of Title/Abstract screening.
-    *   `03_fulltext_screening`: For PDF processing.
-    *   `04_fulltext_quality_check`: For human validation of full-text screening.
-    *   `05_data_collection`: For final extracted data.
-    *   `98_file_metadata`: For file metadata.
-
-### Step 2: Configuration
-1.  Click **SLR Magic** > **Configuration**.
-2.  Select your **LLM API Provider** (Gemini, vLLM, or Ollama) and enter your **API_KEY** (for Gemini) or the appropriate **API URL** for vLLM/Ollama.
-3.  Select your desired models (e.g., `gemini-2.5-flash`).
-4.  Customize the **Prompts** (Abstract Screening, Gatekeeper, Scientist, Miner) to fit your research topic.
-
-### Step 3: Abstract Screening
-1.  Export your search results (Scopus, WoS) as CSV.
-2.  **SLR Magic** > **Import Raw CSV**.
-3.  Enter the CSV Drive URL and a Source Name. Map columns to system fields.
-4.  **SLR Magic** > **Start AI Title-Abstract Screening**.
-5.  The AI will populate the `decision` and `reasoning` columns.
-
-### Step 4: Full-Text Screening
-1.  Upload PDFs of included papers to a Google Drive folder.
-2.  Set the **PDF_REPO** URL in Configuration.
-3.  **SLR Magic** > **Utilities** > **Import PDF Files** (or use Metadata import).
-4.  **SLR Magic** > **Start AI Full-Text Screening**.
-    *   **The Gatekeeper** checks relevance.
-    *   **The Scientist** checks quality.
-    *   **The Miner** extracts data.
-
-### Step 5: Analysis & Visualization
-1.  **SLR Magic** > **Process Data Collection** to sync extracted data to `05_data_collection`.
-2.  **SLR Magic** > **Visualizer** to create charts.
-
----
-
-## 🤝 Contributing
-
-This project is open-source. Contributions are welcome! Please adhere to the existing code style and architecture.
-
----
-
-*Powered by Google Apps Script and Gemini Models.*

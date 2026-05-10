@@ -1,16 +1,54 @@
-# React + Vite
+# SLR Magic: LLM Proxy Dashboard ✨
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Frontend: React](https://img.shields.io/badge/Frontend-React-61DAFB.svg)
+![Build: Vite](https://img.shields.io/badge/Build-Vite-646CFF.svg)
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+This subdirectory contains the frontend web interface for the `llm-proxy`. Built with React, Vite, and Tailwind CSS, it acts as a modern, real-time dashboard for your proxy server.
 
-## React Compiler
+**Key Features:**
+- **Real-time Streaming:** Monitors live incoming tokens natively via WebSockets, allowing you to watch the LLM's thought processes in real-time.
+- **Request History:** Review historical request/response payloads, execution durations, and model usage.
+- **Configuration Management:** Manage your local (Ollama/vLLM) and cloud (Gemini) endpoint configurations directly through the UI.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Table of Contents
 
-## Expanding the ESLint configuration
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Running the Service](#running-the-service)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Prerequisites
+
+- **Node.js & npm:** Install from [nodejs.org](https://nodejs.org/).
+- **Running Backend:** The frontend requires the [LLM Proxy Backend](../README.md) to be running to fetch data and receive WebSocket streams.
+
+## Installation
+
+1. Navigate to the `llm-proxy/frontend` directory:
+   ```bash
+   cd llm-proxy/frontend
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+## Running the Service
+
+**Development Mode:**
+To run the frontend locally with Hot Module Replacement (HMR) for development:
+```bash
+npm run dev
+```
+*(Ensure the backend is running on `localhost:8899` as the frontend defaults to proxying API requests to that port).*
+
+**Production Build:**
+To build the application for production deployment:
+```bash
+npm run build
+```
+The compiled files will be output directly to the `backend/public` directory, allowing the Express backend server to serve the static SPA automatically when you run `npm run start` from the backend folder.
