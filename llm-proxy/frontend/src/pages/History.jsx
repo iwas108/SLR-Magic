@@ -99,6 +99,10 @@ const History = () => {
       /\{\{RAM\}\}/gi,
       selectedRequest.hardware?.ram_size || "Unknown RAM",
     );
+    result = result.replace(
+      /\{\{Running Environment\}\}/gi,
+      selectedRequest.hardware?.running_environment || "Unknown Environment",
+    );
 
     setGeneratedPrompt(result);
   };

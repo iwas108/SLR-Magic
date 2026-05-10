@@ -312,6 +312,7 @@ async function getHistory(req, res) {
                 hardware: {
                     gpu_model: item.gpu_model || null,
                     cpu_model: item.cpu_model || null,
+                    running_environment: item.running_environment || null,
                     ram_size: item.ram_size || null
                 }
             };

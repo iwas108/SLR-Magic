@@ -480,86 +480,94 @@ class OllamaService {
             throw new Error(errorMsg);
         }
 
-        const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let buffer = "";
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        try {
+            for await (const chunkBytes of response.body) {
+                buffer += decoder.decode(chunkBytes, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || ""; // Keep the last incomplete line in buffer
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || ""; // Keep the last incomplete line in buffer
+                for (const line of lines) {
+                    if (!line.trim()) continue;
 
-            for (const line of lines) {
-                if (!line.trim()) continue;
-
-                let chunk;
-                try {
-                    chunk = JSON.parse(line);
-                } catch (e) {
-                    continue;
-                }
-
-                const msg = chunk.message || {};
-                const thinkingPiece = msg.thinking || "";
-                const contentPiece = msg.content || "";
-
-                if (thinkingPiece) {
-                    if (!inThinking) {
-                        fullContent += "<think>\n";
-                        inThinking = true;
-                        nativeThinkingMode = true;
+                    let chunk;
+                    try {
+                        chunk = JSON.parse(line);
+                    } catch (e) {
+                        continue;
                     }
 
-                    fullContent += thinkingPiece;
+                    const msg = chunk.message || {};
+                    const thinkingPiece = msg.thinking || "";
+                    const contentPiece = msg.content || "";
 
-                    streamBroadcaster.broadcast(JSON.stringify({
-                        type: "content",
-                        stream_id: streamId,
-                        content: thinkingPiece,
-                        in_thinking: true,
-                        endpoint_url: endpointUrl
-                    }));
-                }
+                    if (thinkingPiece) {
+                        if (!inThinking) {
+                            fullContent += "<think>\n";
+                            inThinking = true;
+                            nativeThinkingMode = true;
+                        }
 
-                if (contentPiece) {
-                    if (nativeThinkingMode) {
-                        fullContent += "\n</think>\n\n";
-                        inThinking = false;
-                        nativeThinkingMode = false;
+                        fullContent += thinkingPiece;
+
+                        streamBroadcaster.broadcast(JSON.stringify({
+                            type: "content",
+                            stream_id: streamId,
+                            content: thinkingPiece,
+                            in_thinking: true,
+                            endpoint_url: endpointUrl
+                        }));
                     }
 
-                    if (!inThinking && contentPiece.includes("<think>")) {
-                        inThinking = true;
+                    if (contentPiece) {
+                        if (nativeThinkingMode) {
+                            fullContent += "\n</think>\n\n";
+                            inThinking = false;
+                            nativeThinkingMode = false;
+                        }
+
+                        if (!inThinking && contentPiece.includes("<think>")) {
+                            inThinking = true;
+                        }
+
+                        fullContent += contentPiece;
+
+                        streamBroadcaster.broadcast(JSON.stringify({
+                            type: "content",
+                            stream_id: streamId,
+                            content: contentPiece,
+                            in_thinking: inThinking,
+                            endpoint_url: endpointUrl
+                        }));
+
+                        if (inThinking && contentPiece.includes("</think>")) {
+                            inThinking = false;
+                        }
                     }
 
-                    fullContent += contentPiece;
-
-                    streamBroadcaster.broadcast(JSON.stringify({
-                        type: "content",
-                        stream_id: streamId,
-                        content: contentPiece,
-                        in_thinking: inThinking,
-                        endpoint_url: endpointUrl
-                    }));
-
-                    if (inThinking && contentPiece.includes("</think>")) {
-                        inThinking = false;
+                    if (chunk.done === true) {
+                        const promptTokens = chunk.prompt_eval_count || 0;
+                        const completionTokens = chunk.eval_count || 0;
+                        usage = {
+                            prompt_tokens: promptTokens,
+                            completion_tokens: completionTokens,
+                            total_tokens: promptTokens + completionTokens
+                        };
                     }
-                }
-
-                if (chunk.done === true) {
-                    const promptTokens = chunk.prompt_eval_count || 0;
-                    const completionTokens = chunk.eval_count || 0;
-                    usage = {
-                        prompt_tokens: promptTokens,
-                        completion_tokens: completionTokens,
-                        total_tokens: promptTokens + completionTokens
-                    };
                 }
             }
+        } catch (streamError) {
+            logger.warn(`Stream interrupted for stream_id: ${streamId} on endpoint: ${endpointUrl} - ${streamError.message}`);
+            streamBroadcaster.broadcast(JSON.stringify({
+                type: "error",
+                stream_id: streamId,
+                endpoint_url: endpointUrl,
+                error: `Stream interrupted unexpectedly: ${streamError.message}`,
+                endTime: Date.now()
+            }));
+            // Continue execution to gracefully close the stream and return partial text
         }
 
         streamBroadcaster.broadcast(JSON.stringify({

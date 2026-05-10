@@ -102,7 +102,7 @@ class CacheRepository {
     const sortOrder = sortDesc ? "DESC" : "ASC";
 
     let countQuery = "SELECT COUNT(*) as count FROM history h";
-    let selectQuery = "SELECT h.*, CASE WHEN e.gpu_model IS NOT NULL AND e.gpu_model != '' THEN 1 ELSE 0 END as is_gpu, e.gpu_model, e.cpu_model, e.ram_size FROM history h LEFT JOIN local_endpoints e ON h.endpoint_url = e.endpoint_url";
+    let selectQuery = "SELECT h.*, CASE WHEN e.gpu_model IS NOT NULL AND e.gpu_model != '' THEN 1 ELSE 0 END as is_gpu, e.gpu_model, e.cpu_model, e.ram_size, e.running_environment FROM history h LEFT JOIN local_endpoints e ON h.endpoint_url = e.endpoint_url";
 
     const params = [];
     const conditions = [];
