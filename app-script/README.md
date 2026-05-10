@@ -88,29 +88,29 @@ This project uses **clasp** to push local code to Google's servers.
   
   <table>
     <tr>
-      <td><img src="ss/1.png" width="300" alt="Screenshot 1"></td>
-      <td><img src="ss/2.png" width="300" alt="Screenshot 2"></td>
-      <td><img src="ss/3.png" width="300" alt="Screenshot 3"></td>
+      <td><img src="../docs/ss/1.png" width="300" alt="Screenshot 1"></td>
+      <td><img src="../docs/ss/2.png" width="300" alt="Screenshot 2"></td>
+      <td><img src="../docs/ss/3.png" width="300" alt="Screenshot 3"></td>
     </tr>
     <tr>
-      <td><img src="ss/4.png" width="300" alt="Screenshot 4"></td>
-      <td><img src="ss/5.png" width="300" alt="Screenshot 5"></td>
-      <td><img src="ss/6.png" width="300" alt="Screenshot 6"></td>
+      <td><img src="../docs/ss/4.png" width="300" alt="Screenshot 4"></td>
+      <td><img src="../docs/ss/5.png" width="300" alt="Screenshot 5"></td>
+      <td><img src="../docs/ss/6.png" width="300" alt="Screenshot 6"></td>
     </tr>
     <tr>
-      <td><img src="ss/7.png" width="300" alt="Screenshot 7"></td>
-      <td><img src="ss/8.png" width="300" alt="Screenshot 8"></td>
-      <td><img src="ss/9.png" width="300" alt="Screenshot 9"></td>
+      <td><img src="../docs/ss/7.png" width="300" alt="Screenshot 7"></td>
+      <td><img src="../docs/ss/8.png" width="300" alt="Screenshot 8"></td>
+      <td><img src="../docs/ss/9.png" width="300" alt="Screenshot 9"></td>
     </tr>
     <tr>
-      <td><img src="ss/10.png" width="300" alt="Screenshot 10"></td>
-      <td><img src="ss/11.png" width="300" alt="Screenshot 11"></td>
-      <td><img src="ss/12.png" width="300" alt="Screenshot 12"></td>
+      <td><img src="../docs/ss/10.png" width="300" alt="Screenshot 10"></td>
+      <td><img src="../docs/ss/11.png" width="300" alt="Screenshot 11"></td>
+      <td><img src="../docs/ss/12.png" width="300" alt="Screenshot 12"></td>
     </tr>
     <tr>
-      <td><img src="ss/13.png" width="300" alt="Screenshot 13"></td>
-      <td><img src="ss/14.png" width="300" alt="Screenshot 14"></td>
-      <td><img src="ss/15.png" width="300" alt="Screenshot 15"></td>
+      <td><img src="../docs/ss/13.png" width="300" alt="Screenshot 13"></td>
+      <td><img src="../docs/ss/14.png" width="300" alt="Screenshot 14"></td>
+      <td><img src="../docs/ss/15.png" width="300" alt="Screenshot 15"></td>
     </tr>
   </table>
 </details>

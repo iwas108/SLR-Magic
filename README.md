@@ -73,11 +73,11 @@ To get the entire SLR Magic ecosystem running, follow this general sequence:
 
 For detailed setup, configuration, and execution instructions, please refer to the specific README files for each microservice:
 
-- 📘 **[Google Apps Script Core](./app-script/README.md)**
+- 📘 **[Google Apps Script Core](./app-script)**
 - 📘 **[LLM Proxy (Backend)](./llm-proxy/README.md)**
-- 📘 **[LLM Proxy Dashboard (Frontend)](./llm-proxy/frontend/README.md)**
-- 📘 **[Inter-Rater SPA](./inter-rater/README.md)**
-- 📘 **[PDF Helper Service](./pdfhelper/README.md)**
+- 📘 **[LLM Proxy Dashboard (Frontend)](./llm-proxy/frontend)**
+- 📘 **[Inter-Rater SPA](./inter-rater)**
+- 📘 **[PDF Helper Service](./pdfhelper)**
 
 ## Contributing
 
