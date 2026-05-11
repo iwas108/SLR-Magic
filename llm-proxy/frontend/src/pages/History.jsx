@@ -1,4 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
+import JsonView from '@uiw/react-json-view';
+import { lightTheme } from '@uiw/react-json-view/light';
+import { darkTheme } from '@uiw/react-json-view/dark';
 import {
   fetchHistory,
   deleteHistoryItem,
@@ -746,9 +749,60 @@ const History = () => {
                   <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
                     Response
                   </h4>
-                  <pre className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-blue-200 dark:border-blue-900/50 text-gray-900 dark:text-gray-200">
-                    {selectedRequest.response}
-                  </pre>
+                  {(() => {
+                    let parsed = null;
+                    try {
+                      if (selectedRequest.response) {
+                        parsed = JSON.parse(selectedRequest.response);
+                      }
+                    } catch (e) {
+                      // Failed to parse, fall back to string
+                    }
+
+                    if (parsed && typeof parsed === 'object' && parsed.final_evaluation) {
+                      return (
+                        <div className="flex flex-col space-y-4">
+                          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <h5 className="text-sm font-bold text-blue-800 dark:text-blue-300 mb-2 border-b border-blue-200 dark:border-blue-800 pb-1">Final Evaluation</h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                              <div>
+                                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Decision</span>
+                                <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{parsed.final_evaluation.decision}</div>
+                              </div>
+                              <div>
+                                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Exclusion Code</span>
+                                <div className="font-mono text-sm text-gray-900 dark:text-gray-100">{parsed.final_evaluation.exclusion_code || 'N/A'}</div>
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Reasoning</span>
+                              <div className="font-mono text-sm text-gray-900 dark:text-gray-100 mt-1">{parsed.final_evaluation.reasoning}</div>
+                            </div>
+                          </div>
+                          {parsed.logic_trace && (
+                            <div>
+                              <h5 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-2">Logic Trace</h5>
+                              <div className="text-sm text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-900 p-2 border dark:border-gray-600 rounded overflow-x-auto">
+                                <JsonView
+                                  value={parsed.logic_trace}
+                                  displayDataTypes={false}
+                                  displayObjectSize={false}
+                                  collapsed={1}
+                                  style={document.documentElement.classList.contains('dark') ? darkTheme : lightTheme}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <pre className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg text-sm font-mono whitespace-pre-wrap overflow-x-auto border border-blue-200 dark:border-blue-900/50 text-gray-900 dark:text-gray-200">
+                          {selectedRequest.response}
+                        </pre>
+                      );
+                    }
+                  })()}
                 </div>
               </div>
             </div>
