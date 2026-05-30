@@ -146,6 +146,47 @@ async function proxyToOllama(req, res) {
 
     } catch (e) {
         logger.error(`❌ Internal Server Error [${shortHash}]: ${e.message || e}`);
+
+        // If the payload expects JSON, return a valid fallback JSON response instead of a raw 500/502 error object
+        // to prevent the App Script pipeline from crashing when trying to parse the error text.
+        let expectsJson = false;
+        if (payload.response_format && payload.response_format.type === "json_object") {
+            expectsJson = true;
+        } else if (messages) {
+            for (const msg of messages) {
+                if (msg.content && msg.content.toLowerCase().includes("json")) {
+                    expectsJson = true;
+                    break;
+                }
+            }
+        }
+
+        if (expectsJson) {
+            const fallbackJson = JSON.stringify({
+                final_evaluation: {
+                    decision: "Error",
+                    exclusion_code: "N/A",
+                    reasoning: `Server Error: ${e.message || String(e)}`
+                },
+                logic_trace: {}
+            });
+
+            return res.status(500).json({
+                id: `error-${Date.now()}`,
+                object: 'chat.completion',
+                created: Math.floor(Date.now() / 1000),
+                model: payload.model || "unknown",
+                choices: [{
+                    index: 0,
+                    message: {
+                        role: "assistant",
+                        content: fallbackJson
+                    },
+                    finish_reason: "stop"
+                }]
+            });
+        }
+
         if (e.message && e.message.includes('fetch')) {
             return res.status(502).json({ error: `Ollama connection error: ${e.message}` });
         }

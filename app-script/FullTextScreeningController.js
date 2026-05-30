@@ -442,19 +442,21 @@ const FullTextScreeningController = (function () {
 
       // Helper to process fields (flattening and value/evidence)
       const processContent = (content, targetData, targetNotes) => {
-        for (const [key, value] of Object.entries(content)) {
+        let finalEval = content.final_evaluation || content;
+
+        for (const [key, value] of Object.entries(finalEval)) {
           if (value && typeof value === 'object' && value.hasOwnProperty('value')) {
-            targetData[key] = value.value;
+            targetData[key] = typeof value.value === 'object' && value.value !== null ? JSON.stringify(value.value) : value.value;
             if (value.hasOwnProperty('evidence')) {
-              targetNotes[key] = value.evidence;
+              targetNotes[key] = typeof value.evidence === 'object' && value.evidence !== null ? JSON.stringify(value.evidence) : value.evidence;
             }
-          } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-            // Recursive flatten for nested objects that are NOT value/evidence pairs
-            processContent(value, targetData, targetNotes);
           } else {
-            // Primitive or Array
-            targetData[key] = value;
+            targetData[key] = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
           }
+        }
+
+        if (content.logic_trace) {
+          targetData["Logic_Trace"] = typeof content.logic_trace === 'object' && content.logic_trace !== null ? JSON.stringify(content.logic_trace) : content.logic_trace;
         }
       };
 

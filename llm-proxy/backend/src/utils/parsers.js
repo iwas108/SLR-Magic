@@ -1,14 +1,59 @@
 function optimisticRepairJson(text) {
-    // A robust regex to find JSON string values and escape unescaped double quotes and newlines
-    const pattern = /("\w+"\s*:\s*")([\s\S]*?)("\s*(?:,|}|]))/g;
+    // 1. Repair quotes in flat string values
+    const pattern = /("\w+"\s*:\s*")([\s\S]*?)("\s*(?:,|}|\]))/g;
 
-    return text.replace(pattern, (match, start, content, end) => {
-        // Escape double quotes by unescaping first to avoid double-escaping, then escape all
+    let repaired = text.replace(pattern, (match, start, content, end) => {
+        // If content contains standard object/array syntax or looks like nested JSON mapping, skip quote repair
+        if (/\{\s*\\?"\w+\\?"\s*:/.test(content)) {
+            return match;
+        }
+
         let repairedContent = content.replace(/\\"/g, '"').replace(/"/g, '\\"');
-        // Escape newlines
-        repairedContent = repairedContent.replace(/\n/g, '\\n').replace(/\r/g, '');
         return start + repairedContent + end;
     });
+
+    // 2. Safely encode newlines and control characters everywhere inside strings
+    let inString = false;
+    let escapeNext = false;
+    let result = '';
+
+    for (let i = 0; i < repaired.length; i++) {
+        const char = repaired[i];
+
+        if (escapeNext) {
+            result += char;
+            escapeNext = false;
+            continue;
+        }
+
+        if (char === '\\') {
+            result += char;
+            escapeNext = true;
+            continue;
+        }
+
+        if (char === '"') {
+            inString = !inString;
+            result += char;
+            continue;
+        }
+
+        if (inString) {
+            if (char === '\n') {
+                result += '\\n';
+            } else if (char === '\r') {
+                // skip
+            } else if (char === '\t') {
+                result += '\\t';
+            } else {
+                result += char;
+            }
+        } else {
+            result += char;
+        }
+    }
+
+    return result;
 }
 
 function extractJsonFromMixedText(text) {
