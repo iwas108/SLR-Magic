@@ -2,136 +2,231 @@
 <html>
   <head>
     <base target="_top">
+    <!-- Import Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+          },
+        },
+      }
+    </script>
     <style>
-      body { font-family: 'Google Sans', Arial, sans-serif; padding: 20px; font-size: 14px; }
-      h2 { color: #202124; margin-top: 0; }
-      h3 { color: #5f6368; margin-top: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 5px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-      th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
-      th { background-color: #f1f3f4; color: #202124; font-weight: 500; }
-      input[type="number"] { width: 80px; padding: 4px; border: 1px solid #dadce0; border-radius: 4px; }
-      button { background-color: #1a73e8; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 500; }
-      button:hover { background-color: #1557b0; }
-      button:disabled { background-color: #dadce0; cursor: default; }
-      .results { margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; display: none; }
-      .result-section { margin-bottom: 20px; }
-      .result-title { font-weight: bold; color: #1a73e8; margin-bottom: 5px; font-size: 16px; }
-      .data-table { width: 100%; font-size: 13px; }
-      .data-table th { background-color: #e8f0fe; color: #1967d2; }
-      .data-table td { font-family: monospace; }
-      .note { font-size: 12px; color: #ea4335; margin-top: 10px; font-style: italic; }
-      .grand-total { margin-top: 20px; border-top: 2px solid #1a73e8; padding-top: 10px; font-size: 18px; font-weight: bold; text-align: right; color: #202124; }
-      .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 20px; height: 20px; animation: spin 2s linear infinite; display: none; margin-left: 10px; vertical-align: middle; }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
     </style>
   </head>
-  <body>
-    <h2>Project Cost Preview</h2>
-    <p>Enter the pricing for the models used in your project.</p>
-
-    <div id="model-container">
-      Loading models and pricing...
+  <body class="bg-slate-50 text-slate-800 font-sans leading-normal tracking-normal p-4 space-y-4">
+    
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white p-5 rounded-2xl shadow-md mb-2">
+      <h1 class="text-base font-bold tracking-tight">Project Cost Preview</h1>
+      <p class="text-indigo-200 text-[10px] mt-0.5">Enter pricing for the models used in your literature review project to simulate estimated costs.</p>
     </div>
 
-    <div class="note">
-      * Note: Thinking and Candidate tokens are calculated as Output tokens.
+    <!-- Model Inputs Section -->
+    <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
+      <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Model Configuration Pricing</h2>
+      <div id="model-container" class="overflow-x-auto border border-slate-200 rounded-xl">
+        <div class="text-slate-500 text-xs py-6 text-center animate-pulse">Loading models and pricing configs...</div>
+      </div>
     </div>
 
-    <div style="margin-top: 20px;">
-      <button id="calc-btn" onclick="calculate()">Calculate Cost</button>
-      <div id="loader" class="loader"></div>
+    <!-- Warnings / Notes -->
+    <div class="bg-amber-50 border border-amber-100 p-3 rounded-2xl text-[10px] text-amber-700 leading-relaxed font-medium">
+      ⚠️ <strong>Note:</strong> Thinking and Candidate tokens are accumulated as Output tokens in these calculations.
     </div>
 
-    <div id="results" class="results">
-      <h3>Cost Breakdown</h3>
+    <!-- Actions Area -->
+    <div class="flex items-center gap-3">
+      <button id="calc-btn" onclick="calculate()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-semibold rounded-xl text-xs shadow-sm transition-all flex items-center justify-center cursor-pointer">
+        Calculate Cost
+      </button>
+      <div id="loader" class="animate-spin rounded-full h-5 w-5 border-2 border-indigo-600 border-t-transparent hidden"></div>
+    </div>
 
-      <div class="result-section">
-          <div class="result-title">Title & Abstract Screening</div>
-          <table class="data-table">
-              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
-              <tbody>
+    <!-- Results Block -->
+    <div id="results" class="hidden bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-5">
+      <h3 class="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">Simulated Cost Breakdown</h3>
+
+      <!-- Abstract Screening Section -->
+      <div class="space-y-2">
+          <div class="text-xs font-bold text-indigo-700">Title & Abstract Screening</div>
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-indigo-50/50 text-indigo-800 font-semibold border-b border-slate-200 text-[10px] uppercase tracking-wider">
                   <tr>
-                      <td id="abs-name">Abstract Screening</td>
-                      <td id="abs-total">-</td>
-                      <td id="abs-avg">-</td>
-                      <td id="abs-count">-</td>
-                      <td id="abs-range">-</td>
-                      <td id="abs-input">-</td>
-                      <td id="abs-thinking">-</td>
-                      <td id="abs-candidate">-</td>
+                    <th class="p-2.5">Stage</th>
+                    <th class="p-2.5">Total Cost</th>
+                    <th class="p-2.5">Avg Cost/Paper</th>
+                    <th class="p-2.5">Papers</th>
+                    <th class="p-2.5">Min/Max</th>
+                    <th class="p-2.5">Input Tokens</th>
+                    <th class="p-2.5">Thinking Tokens</th>
+                    <th class="p-2.5">Candidate Tokens</th>
                   </tr>
-              </tbody>
-          </table>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-[11px] text-slate-600 font-mono">
+                    <tr>
+                        <td id="abs-name" class="p-2.5 font-sans font-medium text-slate-800">-</td>
+                        <td id="abs-total" class="p-2.5">-</td>
+                        <td id="abs-avg" class="p-2.5">-</td>
+                        <td id="abs-count" class="p-2.5">-</td>
+                        <td id="abs-range" class="p-2.5">-</td>
+                        <td id="abs-input" class="p-2.5">-</td>
+                        <td id="abs-thinking" class="p-2.5">-</td>
+                        <td id="abs-candidate" class="p-2.5">-</td>
+                    </tr>
+                </tbody>
+            </table>
+          </div>
       </div>
 
-      <div class="result-section">
-          <div class="result-title">Full-Text Screening (Multi-Stage)</div>
-          <table class="data-table">
-              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
-              <tbody>
+      <!-- Full Text Section -->
+      <div class="space-y-2">
+          <div class="text-xs font-bold text-indigo-700">Full-Text Screening (Multi-Stage)</div>
+          <div class="overflow-x-auto border border-slate-200 rounded-xl">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead class="bg-indigo-50/50 text-indigo-800 font-semibold border-b border-slate-200 text-[10px] uppercase tracking-wider">
                   <tr>
-                      <td id="gk-name">The Gatekeeper</td>
-                      <td id="gk-total">-</td>
-                      <td id="gk-avg">-</td>
-                      <td id="gk-count">-</td>
-                      <td id="gk-range">-</td>
-                      <td id="gk-input">-</td>
-                      <td id="gk-thinking">-</td>
-                      <td id="gk-candidate">-</td>
+                    <th class="p-2.5">Stage</th>
+                    <th class="p-2.5">Total Cost</th>
+                    <th class="p-2.5">Avg Cost/Paper</th>
+                    <th class="p-2.5">Papers</th>
+                    <th class="p-2.5">Min/Max</th>
+                    <th class="p-2.5">Input Tokens</th>
+                    <th class="p-2.5">Thinking Tokens</th>
+                    <th class="p-2.5">Candidate Tokens</th>
                   </tr>
-                  <tr>
-                      <td id="sci-name">The Scientist</td>
-                      <td id="sci-total">-</td>
-                      <td id="sci-avg">-</td>
-                      <td id="sci-count">-</td>
-                      <td id="sci-range">-</td>
-                      <td id="sci-input">-</td>
-                      <td id="sci-thinking">-</td>
-                      <td id="sci-candidate">-</td>
-                  </tr>
-                  <tr>
-                      <td id="miner-name">The Miner</td>
-                      <td id="miner-total">-</td>
-                      <td id="miner-avg">-</td>
-                      <td id="miner-count">-</td>
-                      <td id="miner-range">-</td>
-                      <td id="miner-input">-</td>
-                      <td id="miner-thinking">-</td>
-                      <td id="miner-candidate">-</td>
-                  </tr>
-              </tbody>
-          </table>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-[11px] text-slate-600 font-mono">
+                    <tr>
+                        <td id="gk-name" class="p-2.5 font-sans font-medium text-slate-800">-</td>
+                        <td id="gk-total" class="p-2.5">-</td>
+                        <td id="gk-avg" class="p-2.5">-</td>
+                        <td id="gk-count" class="p-2.5">-</td>
+                        <td id="gk-range" class="p-2.5">-</td>
+                        <td id="gk-input" class="p-2.5">-</td>
+                        <td id="gk-thinking" class="p-2.5">-</td>
+                        <td id="gk-candidate" class="p-2.5">-</td>
+                    </tr>
+                    <tr>
+                        <td id="sci-name" class="p-2.5 font-sans font-medium text-slate-800">-</td>
+                        <td id="sci-total" class="p-2.5">-</td>
+                        <td id="sci-avg" class="p-2.5">-</td>
+                        <td id="sci-count" class="p-2.5">-</td>
+                        <td id="sci-range" class="p-2.5">-</td>
+                        <td id="sci-input" class="p-2.5">-</td>
+                        <td id="sci-thinking" class="p-2.5">-</td>
+                        <td id="sci-candidate" class="p-2.5">-</td>
+                    </tr>
+                    <tr>
+                        <td id="miner-name" class="p-2.5 font-sans font-medium text-slate-800">-</td>
+                        <td id="miner-total" class="p-2.5">-</td>
+                        <td id="miner-avg" class="p-2.5">-</td>
+                        <td id="miner-count" class="p-2.5">-</td>
+                        <td id="miner-range" class="p-2.5">-</td>
+                        <td id="miner-input" class="p-2.5">-</td>
+                        <td id="miner-thinking" class="p-2.5">-</td>
+                        <td id="miner-candidate" class="p-2.5">-</td>
+                    </tr>
+                </tbody>
+            </table>
+          </div>
       </div>
 
-      <div class="result-section">
-          <div class="result-title">Extended Screening</div>
-          <table class="data-table">
-              <thead><tr><th>Stage</th><th>Total Cost</th><th>Avg Cost/Paper</th><th>Papers</th><th>Min/Max</th><th>Input Tokens</th><th>Thinking Tokens</th><th>Candidate Tokens</th></tr></thead>
-              <tbody>
-                  <tr>
-                      <td id="ext-name">The Extended Miner</td>
-                      <td id="ext-total">-</td>
-                      <td id="ext-avg">-</td>
-                      <td id="ext-count">-</td>
-                      <td id="ext-range">-</td>
-                      <td id="ext-input">-</td>
-                      <td id="ext-thinking">-</td>
-                      <td id="ext-candidate">-</td>
-                  </tr>
-              </tbody>
-          </table>
+      <!-- Grand Total -->
+      <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl flex items-center justify-between">
+          <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider">Grand Total Estimated Cost</span>
+          <span id="grand-total" class="text-xl font-black text-indigo-900">-</span>
       </div>
-
-      <div class="grand-total">
-          Grand Total: <span id="grand-total">-</span>
-      </div>
-
     </div>
 
     <script>
+      // Secure Toast Notification System
+      function showToast(message, type = 'success') {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'toast-container';
+          container.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;font-family:sans-serif;';
+          document.body.appendChild(container);
+        }
+        
+        const toast = document.createElement('div');
+        toast.style.cssText = 'padding:12px 16px;border-radius:12px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1),0 4px 6px -4px rgba(0,0,0,0.1);border:1px solid;font-size:12px;font-weight:500;transition:all 300ms ease;transform:translateY(8px);opacity:0;display:flex;align-items:center;min-width:250px;max-width:380px;box-sizing:border-box;';
+        
+        const isSuccess = type === 'success';
+        if (isSuccess) {
+          toast.style.backgroundColor = '#ecfdf5';
+          toast.style.color = '#065f46';
+          toast.style.borderColor = '#a7f3d0';
+        } else {
+          toast.style.backgroundColor = '#fff1f2';
+          toast.style.color = '#9f1239';
+          toast.style.borderColor = '#fecdd3';
+        }
+        
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('style', 'width:16px;height:16px;flex-shrink:0;margin-right:8px;');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        path.setAttribute('d', isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z');
+        
+        svg.appendChild(path);
+        toast.appendChild(svg);
+        
+        const span = document.createElement('span');
+        span.style.cssText = 'flex-grow:1;';
+        span.textContent = message;
+        toast.appendChild(span);
+        
+        container.appendChild(toast);
+        toast.offsetHeight; // Force reflow
+        
+        toast.style.transform = 'translateY(0)';
+        toast.style.opacity = '1';
+        
+        setTimeout(() => {
+          toast.style.transform = 'translateY(8px)';
+          toast.style.opacity = '0';
+          setTimeout(() => toast.remove(), 300);
+        }, 3500);
+      }
+
       let uniqueModels = [];
 
       window.onload = function() {
+        if (typeof google === 'undefined') {
+          // Dev mock fallback
+          uniqueModels = ["gemini-1.5-pro", "gemini-2.0-flash"];
+          renderModelTable({});
+          return;
+        }
         google.script.run
           .withSuccessHandler(function(models) {
               uniqueModels = models;
@@ -145,24 +240,28 @@
       };
 
       function renderModelTable(pricingMap) {
-        let html = '<table><thead><tr><th>Model</th><th>Input Price ($)</th><th>Per Tokens</th><th>Output Price ($)</th><th>Per Tokens</th></tr></thead><tbody>';
+        let html = '<table class="w-full text-left border-collapse text-xs"><thead class="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-bold border-b border-slate-200"><tr><th class="p-2.5">Model</th><th class="p-2.5">Input Price ($)</th><th class="p-2.5">Per Tokens</th><th class="p-2.5">Output Price ($)</th><th class="p-2.5">Per Tokens</th></tr></thead><tbody class="divide-y divide-slate-100 text-slate-700">';
 
-        uniqueModels.forEach(m => {
-          const def = pricingMap[m] || {
-             inputPrice: 0.5,
-             outputPrice: 1.5,
-             inputTokenCount: 1000000,
-             outputTokenCount: 1000000
-          };
+        if (!uniqueModels || uniqueModels.length === 0) {
+          html += '<tr><td colspan="5" class="p-4 text-center text-slate-400">No active models found in sheet history. Make sure you have run at least one batch check.</td></tr>';
+        } else {
+          uniqueModels.forEach(m => {
+            const def = pricingMap[m] || {
+               inputPrice: 0.5,
+               outputPrice: 1.5,
+               inputTokenCount: 1000000,
+               outputTokenCount: 1000000
+            };
 
-          html += `<tr>
-            <td>${m}</td>
-            <td><input type="number" id="in-price-${m}" value="${def.inputPrice}" step="any"></td>
-            <td><input type="number" id="in-tokens-${m}" value="${def.inputTokenCount}"></td>
-            <td><input type="number" id="out-price-${m}" value="${def.outputPrice}" step="any"></td>
-            <td><input type="number" id="out-tokens-${m}" value="${def.outputTokenCount}"></td>
-          </tr>`;
-        });
+            html += `<tr>
+              <td class="p-2.5 font-medium text-slate-800">${m}</td>
+              <td class="p-2.5"><input type="number" id="in-price-${m}" value="${def.inputPrice}" step="any" class="w-20 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono"></td>
+              <td class="p-2.5"><input type="number" id="in-tokens-${m}" value="${def.inputTokenCount}" class="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono"></td>
+              <td class="p-2.5"><input type="number" id="out-price-${m}" value="${def.outputPrice}" step="any" class="w-20 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono"></td>
+              <td class="p-2.5"><input type="number" id="out-tokens-${m}" value="${def.outputTokenCount}" class="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono"></td>
+            </tr>`;
+          });
+        }
 
         html += '</tbody></table>';
         document.getElementById('model-container').innerHTML = html;
@@ -173,8 +272,13 @@
         const loader = document.getElementById('loader');
         const priceMap = {};
 
+        if (uniqueModels.length === 0) {
+          showToast("No models configured to calculate.", "error");
+          return;
+        }
+
         btn.disabled = true;
-        loader.style.display = 'inline-block';
+        loader.classList.remove('hidden');
 
         uniqueModels.forEach(m => {
           const inPrice = document.getElementById(`in-price-${m}`).value;
@@ -192,6 +296,20 @@
           };
         });
 
+        if (typeof google === 'undefined') {
+          // Dev mock response
+          setTimeout(() => {
+            showResults({
+              abstract: { model: "gemini-1.5-pro", total: 0.12, avg: 0.0012, count: 100, min: 0.0005, max: 0.003, input: 150000, thinking: 0, candidate: 10000 },
+              gatekeeper: { model: "gemini-2.0-flash", total: 0.35, avg: 0.0035, count: 100, min: 0.001, max: 0.008, input: 450000, thinking: 0, candidate: 25000 },
+              scientist: { model: "gemini-2.0-flash", total: 0.45, avg: 0.0045, count: 100, min: 0.002, max: 0.012, input: 500000, thinking: 50000, candidate: 30000 },
+              miner: { model: "gemini-2.0-flash", total: 0.85, avg: 0.0085, count: 100, min: 0.004, max: 0.024, input: 800000, thinking: 80000, candidate: 60000 },
+              grandTotal: 1.77
+            });
+          }, 1000);
+          return;
+        }
+
         google.script.run
           .withSuccessHandler(function() {
              google.script.run
@@ -204,20 +322,17 @@
       }
 
       function showResults(data) {
-        document.getElementById('loader').style.display = 'none';
+        document.getElementById('loader').classList.add('hidden');
         document.getElementById('calc-btn').disabled = false;
-        document.getElementById('results').style.display = 'block';
+        document.getElementById('results').classList.remove('hidden');
 
         const fmt = (num) => '$' + (parseFloat(num) || 0).toFixed(4);
         const range = (min, max) => fmt(min) + ' - ' + fmt(max);
         const num = (n) => (n || 0).toLocaleString();
 
-        // Helper to set stage info
         const setStage = (prefix, stageData, baseName) => {
-             // Name + Model
              const modelSuffix = stageData.model ? ` (${stageData.model})` : '';
              document.getElementById(prefix + '-name').textContent = baseName + modelSuffix;
-
              document.getElementById(prefix + '-total').textContent = fmt(stageData.total);
              document.getElementById(prefix + '-avg').textContent = fmt(stageData.avg);
              document.getElementById(prefix + '-count').textContent = stageData.count;
@@ -231,15 +346,13 @@
         setStage('gk', data.gatekeeper, 'The Gatekeeper');
         setStage('sci', data.scientist, 'The Scientist');
         setStage('miner', data.miner, 'The Miner');
-        setStage('ext', data.extended_miner, 'The Extended Miner');
 
-        // Grand Total
         document.getElementById('grand-total').textContent = fmt(data.grandTotal);
       }
 
       function showError(err) {
-        alert('Error: ' + err.message);
-        document.getElementById('loader').style.display = 'none';
+        showToast('Error: ' + err.message, 'error');
+        document.getElementById('loader').classList.add('hidden');
         document.getElementById('calc-btn').disabled = false;
       }
     </script>

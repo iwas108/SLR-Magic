@@ -1,65 +1,58 @@
 /**
  * ScreeningController.js
- * Orchestrates the AI Title-Abstract Screening process.
+ * Orchestrates the Stage 1: Title-Abstract Screening process.
  */
 
 const ScreeningController = (function() {
 
-  function run() {
-    // Acquire Lock to prevent race conditions (e.g., overlapping triggers)
+  /**
+   * Main entry point called from global runStage1AbstractScreening()
+   */
+  function runStage1AbstractScreening() {
     const lock = LockService.getScriptLock();
-    // Try to acquire lock for 10 seconds. If failed, it means another instance is running.
     if (!lock.tryLock(10000)) {
         console.log("Could not acquire lock. Another instance of Screening is likely running.");
-        // We do not alert here because this is likely a background trigger overlap.
         return;
     }
 
     try {
       // 1. Read Configuration
       const config = ConfigManager.getAll();
-            const modelName = config["ABSTRACT_SCREENING_MODEL"] || "gemini-2.0-flash-lite";
-      const temperature = parseFloat(config["TEMPERATURE"] || "0.7");
-      const maxTokens = parseInt(config["MAX_TOKENS"] || "1024");
-
-      // Automatic Reasoning Selection
-      let thinkingLevel = undefined;
-      let thinkingBudget = undefined;
-
-      const lowerModel = modelName.toLowerCase();
-      if (lowerModel.includes("gemini-2.5") || lowerModel.includes("flash-thinking")) {
-          // Rule: Gemini 2.5 uses thinking budget
-          thinkingBudget = config["THINKING_BUDGET"];
-      } else if (lowerModel.includes("gemini-3")) {
-          // Rule: Gemini 3 uses thinking level
-          thinkingLevel = config["THINKING_LEVEL"];
-      }
-
+      const modelName = config["STAGE_1_MODEL"] || config["MODEL_NAME"] || "deepseek-r1";
       const batchSize = parseInt(config["BATCH_SIZE"] || "5");
-      const systemPrompt = config["ABSTRACT_SCREENING_PROMPT"];
+      const parallelRequestSize = parseInt(config["PARALLEL_REQUEST_SIZE"] || "1");
+      const systemPrompt = config["STAGE_1_PROMPT"];
 
-            if (!systemPrompt) {
-        throw new Error("ABSTRACT_SCREENING_PROMPT is missing in Configuration.");
+      if (!systemPrompt) {
+        throw new Error("STAGE_1_PROMPT is missing in Configuration.");
       }
 
-      // 2. Get Data
-      const sheet = SheetUtils.getSheetByName("01_abstract_screening");
-      const headerMap = SheetUtils.getHeaderMap(sheet);
-      const allData = SheetUtils.getDataAsObjects(sheet);
+      // 2. Get Data from 00_Raw_Harvest
+      const harvestSheet = SheetUtils.getSheetByName("00_Raw_Harvest");
+      const harvestHeaderMap = SheetUtils.getHeaderMap(harvestSheet);
+      
+      // Ensure 'Status' column exists in 00_Raw_Harvest
+      SheetUtils.ensureColumn(harvestSheet, "Status", harvestHeaderMap);
+      
+      const allHarvestData = SheetUtils.getDataAsObjects(harvestSheet);
 
-      // 3. Filter Pending Rows
-      const pendingRows = allData.filter(row => row["AI_Status"] === "Pending");
+      // 3. Filter Pending Rows (where Status != Processed)
+      const pendingRows = allHarvestData.filter(row => {
+        const status = String(row["Status"] || "").trim().toUpperCase();
+        return status !== "PROCESSED" && status !== "ERROR";
+      });
 
       if (pendingRows.length === 0) {
-        SheetUtils.alert("No pending rows found for screening.");
+        SheetUtils.alert("No pending papers found in 00_Raw_Harvest.");
         return;
       }
 
-      const parallelRequestSize = parseInt(config["PARALLEL_REQUEST_SIZE"] || "1");
-
       // 4. Process Batch
       const batch = pendingRows.slice(0, batchSize);
-      SheetUtils.toast(`Starting screening for ${batch.length} papers. This may take a while.`, "Processing", 5);
+      SheetUtils.toast(`Starting Stage 1 screening for ${batch.length} papers.`, "Processing", 5);
+
+      const destSheet = SheetUtils.getSheetByName("01_Fast_Filter");
+      const destHeaderMap = SheetUtils.getHeaderMap(destSheet);
 
       let processedCount = 0;
       let errorCount = 0;
@@ -74,97 +67,86 @@ const ScreeningController = (function() {
         });
 
         try {
-          const responses = LlmService.callLlmParallel(promptsData, modelName, temperature, maxTokens, thinkingLevel, thinkingBudget);
+          const responses = LlmService.fetchFromProxy(promptsData, modelName);
 
           responses.forEach((response, idx) => {
             const row = subBatch[idx];
-            const updateData = {};
-
+            
             if (response.error) {
-              console.error(`Error mapping row ${row._rowIndex}:`, response.message);
-              updateData["AI_Status"] = "Error";
-              const statusColIdx = headerMap["AI_Status"];
-              if (statusColIdx) sheet.getRange(row._rowIndex, statusColIdx).setNote(`Error: ${response.message}`);
+              console.error(`API Error on row ${row._rowIndex}: ${response.message}`);
+              harvestSheet.getRange(row._rowIndex, harvestHeaderMap["Status"])
+                .setValue("API_ERROR")
+                .setNote(`API_ERROR: ${response.message}`);
               errorCount++;
-              SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
               return;
             }
 
             try {
               const result = response.content;
-              updateData["AI_Status"] = "Done";
+              
+              // Map dynamic JSON response to target sheet row
+              const sheetHeaders = Object.keys(destHeaderMap);
+              const mappedRow = SheetUtils.mapJsonToRow(result, sheetHeaders);
 
-              let finalEval = result.final_evaluation || result;
+              // Copy base metadata fields from harvest row
+              const baseHeaders = ['Paper_ID', 'Import_Date', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link'];
+              baseHeaders.forEach(h => {
+                mappedRow[h] = row[h] !== undefined ? row[h] : "";
+              });
 
-              for (const [key, value] of Object.entries(finalEval)) {
-                SheetUtils.ensureColumn(sheet, key, headerMap);
-                updateData[key] = typeof value === 'object' && value !== null ? JSON.stringify(value) : value;
-              }
-
-              if (result.logic_trace) {
-                SheetUtils.ensureColumn(sheet, "Logic_Trace", headerMap);
-                updateData["Logic_Trace"] = typeof result.logic_trace === 'object' && result.logic_trace !== null ? JSON.stringify(result.logic_trace) : result.logic_trace;
-              }
-
+              // Add token usage metadata to mapped row if available
               if (response.usageMetadata) {
-                const thinkingTokens = response.usageMetadata.thoughtsTokenCount || 0;
-                const candidateTokens = response.usageMetadata.candidatesTokenCount || 0;
-                const promptTokens = response.usageMetadata.promptTokenCount || 0;
-                const totalTokens = response.usageMetadata.totalTokenCount || 0;
-
-                SheetUtils.ensureColumn(sheet, "Thinking_Token_Abstract_Screening", headerMap);
-                SheetUtils.ensureColumn(sheet, "Candidate_Token_Abstract_Screening", headerMap);
-                SheetUtils.ensureColumn(sheet, "Input_Token_Abstract_Screening", headerMap);
-                SheetUtils.ensureColumn(sheet, "Total_Token_Abstract_Screening", headerMap);
-
-                updateData["Thinking_Token_Abstract_Screening"] = thinkingTokens;
-                updateData["Candidate_Token_Abstract_Screening"] = candidateTokens;
-                updateData["Input_Token_Abstract_Screening"] = promptTokens;
-                updateData["Total_Token_Abstract_Screening"] = totalTokens;
+                mappedRow["Input_Tokens"] = response.usageMetadata.promptTokenCount || 0;
+                mappedRow["Thinking_Tokens"] = response.usageMetadata.thoughtsTokenCount || 0;
+                mappedRow["Output_Tokens"] = response.usageMetadata.candidatesTokenCount || 0;
+                mappedRow["Total_Tokens"] = response.usageMetadata.totalTokenCount || 0;
+                mappedRow["Tokens_Used"] = response.usageMetadata.totalTokenCount || 0;
               }
 
+              // Append mapped record to 01_Fast_Filter
+              const updatedDestHeaderMap = SheetUtils.getHeaderMap(destSheet);
+              Object.keys(mappedRow).forEach(k => {
+                SheetUtils.ensureColumn(destSheet, k, updatedDestHeaderMap);
+              });
+              const finalHeaderMap = SheetUtils.getHeaderMap(destSheet);
+              SheetUtils.appendDataMapped(destSheet, [mappedRow], finalHeaderMap);
+
+              // Mark raw harvest paper as Processed
+              harvestSheet.getRange(row._rowIndex, harvestHeaderMap["Status"]).setValue("Processed").clearNote();
               processedCount++;
+
             } catch (e) {
-              console.error(`Error mapping row ${row._rowIndex}:`, e);
-              updateData["AI_Status"] = "Error";
-              const statusColIdx = headerMap["AI_Status"];
-              if (statusColIdx) sheet.getRange(row._rowIndex, statusColIdx).setNote(`Error: ${e.message}`);
+              console.error(`Error mapping response for row ${row._rowIndex}:`, e);
+              harvestSheet.getRange(row._rowIndex, harvestHeaderMap["Status"])
+                .setValue("API_ERROR")
+                .setNote(`Mapping Error: ${e.message}`);
               errorCount++;
             }
-            SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
           });
         } catch (e) {
           console.error(`Error processing parallel batch:`, e);
-          // If the whole parallel fetch fails, mark all in this sub-batch as error
           subBatch.forEach(row => {
-            const updateData = { "AI_Status": "Error" };
-            const statusColIdx = headerMap["AI_Status"];
-            if (statusColIdx) sheet.getRange(row._rowIndex, statusColIdx).setNote(`Batch Error: ${e.message}`);
-            SheetUtils.updateRow(sheet, row._rowIndex, updateData, headerMap);
+            harvestSheet.getRange(row._rowIndex, harvestHeaderMap["Status"])
+              .setValue("API_ERROR")
+              .setNote(`API_ERROR: ${e.message}`);
             errorCount++;
           });
         }
-
-        if (i + parallelRequestSize < batch.length) {
-          Utilities.sleep(2000);
-        }
       }
 
-      // 5. Final Feedback
-      const msg = `Screening Complete.\nProcessed: ${processedCount}\nErrors: ${errorCount}`;
+      const msg = `Stage 1 Screening Complete.\nProcessed: ${processedCount}\nErrors: ${errorCount}`;
       SheetUtils.toast(msg, "Job Done", 10);
 
     } catch (e) {
       console.error(e);
       SheetUtils.alert(`An unexpected error occurred: ${e.message}`);
     } finally {
-        // Always release the lock
-        lock.releaseLock();
+      lock.releaseLock();
     }
   }
 
   return {
-    run
+    runStage1AbstractScreening
   };
 
 })();

@@ -2,366 +2,343 @@
 <html>
 <head>
   <base target="_top">
-  <link rel="stylesheet" href="https://ssl.gstatic.com/docs/script/css/add-ons1.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { padding: 15px; font-family: 'Google Sans', Roboto, Arial, sans-serif; }
-    h2 { margin-top: 0; color: #1a73e8; }
-    .step { display: none; }
-    .step.active { display: block; }
-    .form-group { margin-bottom: 15px; }
-    label { font-weight: bold; display: block; margin-bottom: 5px; }
-    .description { color: #666; font-size: 13px; margin-bottom: 15px; }
-    select, textarea, input[type="text"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-    textarea { height: 150px; font-family: monospace; font-size: 12px; resize: vertical; }
-    .buttons { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
-    .copy-btn { margin-top: 5px; cursor: pointer; color: #1a73e8; font-weight: bold; font-size: 13px; background: none; border: none; padding: 0; }
-    .copy-btn:hover { text-decoration: underline; }
-    .loader { font-style: italic; color: #888; display: none; margin-bottom: 15px; }
-    .checkbox-group { margin-top: 10px; display: flex; align-items: center; }
-    .checkbox-group input { margin-right: 5px; }
-    .checkbox-group label { font-weight: normal; margin-bottom: 0; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      margin: 0;
+      padding: 24px;
+    }
+    .container {
+      max-width: 550px;
+      margin: 0 auto;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      padding: 24px;
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 22px;
+      font-weight: 700;
+      color: #1e1b4b;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .description {
+      color: #475569;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      font-weight: 600;
+      font-size: 13px;
+      color: #475569;
+      display: block;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    select, textarea {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #0f172a;
+      background-color: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      box-sizing: border-box;
+      transition: all 0.15s ease-in-out;
+    }
+    select:focus, textarea:focus {
+      outline: none;
+      border-color: #6366f1;
+      background-color: white;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    textarea {
+      height: 120px;
+      font-family: monospace;
+      font-size: 12px;
+      resize: none;
+    }
+    .buttons {
+      margin-top: 24px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease-in-out;
+      border: none;
+    }
+    .btn-secondary {
+      background-color: #f1f5f9;
+      color: #475569;
+    }
+    .btn-secondary:hover {
+      background-color: #e2e8f0;
+      color: #0f172a;
+    }
+    .btn-primary {
+      background-color: #6366f1;
+      color: white;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+    .btn-primary:hover {
+      background-color: #4f46e5;
+    }
+    .btn-primary:disabled {
+      background-color: #a5b4fc;
+      cursor: not-allowed;
+    }
+    .loader {
+      display: none;
+      font-style: italic;
+      color: #6366f1;
+      font-size: 14px;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(99, 102, 241, 0.2);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 6px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
 
-  <h2>Umbrellanizer</h2>
-
-  <div id="loader" class="loader">Loading...</div>
-
-  <!-- Step 1: Configuration -->
-  <div id="step1" class="step active">
-    <div class="description">
-      Select a column from '03_fulltext_screening' to categorize (umbrellanify) similar values. Only rows matching your decision criteria will be processed.
+  <div class="container">
+    <h2>
+      <svg class="spinner" style="display:none; width: 16px; height: 16px; border-width: 3px;" id="loadingSpinner"></svg>
+      Umbrellanizer (Data Categorizer)
+    </h2>
+    
+    <div id="loader" class="loader">
+      <span class="spinner"></span> <span id="loaderText">Loading columns...</span>
     </div>
 
-    <div class="form-group">
-      <label for="decisionColumnSelect">Decision Column</label>
-      <select id="decisionColumnSelect" onchange="onDecisionColumnChange()">
-        <option value="">Loading columns...</option>
-      </select>
-    </div>
+    <div id="mainForm">
+      <div class="description">
+        Standardize and group categories autonomously inside <code>05_Synthesis</code>. The LLM standardizes unique terms into standard categories and writes the results to an adjacent <code>_Umbrella</code> column.
+      </div>
 
-    <div class="form-group">
-      <label for="decisionValueSelect">Decision Value</label>
-      <select id="decisionValueSelect">
-        <option value="">Select a decision column first...</option>
-      </select>
-    </div>
+      <div class="form-group">
+        <label for="columnSelect">Column to Process</label>
+        <select id="columnSelect">
+          <option value="">Loading columns...</option>
+        </select>
+      </div>
 
-    <div class="form-group">
-      <label for="columnSelect">Column to Process</label>
-      <select id="columnSelect">
-        <option value="">Loading columns...</option>
-      </select>
-    </div>
+      <div class="form-group">
+        <label for="cardinalitySelect">Output Cardinality</label>
+        <select id="cardinalitySelect">
+          <option value="single">Single Value per cell (Enforces 1:1 mapping)</option>
+          <option value="multi">Comma-Separated Multi-Value (Allows multiple categories)</option>
+        </select>
+      </div>
 
-    <div class="form-group checkbox-group">
-      <input type="checkbox" id="multiLabelCheck">
-      <label for="multiLabelCheck">Multi-labeling (Allow multiple categories per row)</label>
-    </div>
+      <div class="form-group">
+        <label for="promptPreview">System Prompt Preview</label>
+        <textarea id="promptPreview" readonly></textarea>
+      </div>
 
-    <div class="buttons">
-      <button class="share" onclick="google.script.host.close()">Cancel</button>
-      <button class="action" id="nextBtn" onclick="goToStep2()" disabled>Next</button>
-    </div>
-  </div>
-
-  <!-- Step 2: Prompt Generation and Execution -->
-  <div id="step2" class="step">
-    <div class="description">
-      1. Copy the generated prompt below.<br>
-      2. Paste it into an LLM (like ChatGPT or Gemini) to generate your classification prompt.<br>
-      3. Paste the LLM's final plain text output (containing the {{CELL_REF}} placeholder) into the box below and click Execute.
-    </div>
-
-    <div class="form-group">
-      <label for="generatedPrompt">Generated Prompt</label>
-      <textarea id="generatedPrompt" readonly style="height: 250px;"></textarea>
-      <button class="copy-btn" onclick="copyPrompt()">Copy to Clipboard</button>
-      <span id="copyFeedback" style="display:none; color: green; font-size: 12px; margin-left: 10px;">Copied!</span>
-    </div>
-
-    <div class="form-group">
-      <label for="llmFormula">LLM Formula Result</label>
-      <textarea id="llmFormula" placeholder="Paste the generated plain text prompt here (make sure it contains {{CELL_REF}})..." style="height: 200px;"></textarea>
-    </div>
-
-    <div class="buttons">
-      <button class="share" onclick="goToStep1()">Back</button>
-      <button class="action" id="executeBtn" onclick="executeUmbrellanizer()">Execute</button>
+      <div class="buttons">
+        <button class="btn-secondary" onclick="google.script.host.close()">Cancel</button>
+        <button class="btn-primary" id="executeBtn" onclick="executeUmbrellanizer()" disabled>Execute</button>
+      </div>
     </div>
   </div>
 
   <script>
-    let uniqueValues = [];
+    // Secure Toast Notification System
+    function showToast(message, type = 'success') {
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;font-family:sans-serif;';
+        document.body.appendChild(container);
+      }
+      
+      const toast = document.createElement('div');
+      toast.style.cssText = 'padding:12px 16px;border-radius:12px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1),0 4px 6px -4px rgba(0,0,0,0.1);border:1px solid;font-size:12px;font-weight:500;transition:all 300ms ease;transform:translateY(8px);opacity:0;display:flex;align-items:center;min-width:250px;max-width:380px;box-sizing:border-box;';
+      
+      const isSuccess = type === 'success';
+      if (isSuccess) {
+        toast.style.backgroundColor = '#ecfdf5';
+        toast.style.color = '#065f46';
+        toast.style.borderColor = '#a7f3d0';
+      } else {
+        toast.style.backgroundColor = '#fff1f2';
+        toast.style.color = '#9f1239';
+        toast.style.borderColor = '#fecdd3';
+      }
+      
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('style', 'width:16px;height:16px;flex-shrink:0;margin-right:8px;');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('d', isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z');
+      
+      svg.appendChild(path);
+      toast.appendChild(svg);
+      
+      const span = document.createElement('span');
+      span.style.cssText = 'flex-grow:1;';
+      span.textContent = message;
+      toast.appendChild(span);
+      
+      container.appendChild(toast);
+      toast.offsetHeight; // Force reflow
+      
+      toast.style.transform = 'translateY(0)';
+      toast.style.opacity = '1';
+      
+      setTimeout(() => {
+        toast.style.transform = 'translateY(8px)';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
 
-    // Check if google.script exists, if not, create a mock for local testing
+    // Mock environment support for local testing
     if (typeof google === 'undefined') {
-        window.google = {
-            script: {
-                run: {
-                    withSuccessHandler: function(handler) {
-                        this.successHandler = handler;
-                        return this;
-                    },
-                    withFailureHandler: function(handler) {
-                        this.failureHandler = handler;
-                        return this;
-                    },
-                    getUmbrellanizerColumns: function() {
-                        setTimeout(() => this.successHandler(['Title', 'Abstract', 'decision', 'rq2c_software_platforms', 'rq3a_ai_category']), 500);
-                    },
-                    getUmbrellanizerUniqueValues: function(colName) {
-                        if (colName === 'decision') {
-                            setTimeout(() => this.successHandler(['Include', 'Exclude', 'Pending']), 500);
-                        } else {
-                            setTimeout(() => this.successHandler(['Custom_API_Server', 'Custom_Database_System', 'GroIMP', 'MQTT', 'Node-RED', 'Unspecified']), 500);
-                        }
-                    },
-                    applyUmbrellanizerFormula: function(col, dCol, dVal, multi, formula) {
-                         setTimeout(() => this.successHandler('Success'), 1000);
-                    },
-                    host: {
-                        close: function() { console.log("Dialog closed."); }
-                    }
-                }
+      window.google = {
+        script: {
+          run: {
+            withSuccessHandler: function(handler) {
+              this.successHandler = handler;
+              return this;
+            },
+            withFailureHandler: function(handler) {
+              this.failureHandler = handler;
+              return this;
+            },
+            getUmbrellanizerColumns: function() {
+              setTimeout(() => this.successHandler(['rq1_primary_domain_Value', 'rq2_protocols_Value', 'rq3_predictive_models_Value']), 500);
+            },
+            getUmbrellanizerPrompt: function() {
+              setTimeout(() => this.successHandler('Mock System Prompt Instruction...'), 500);
+            },
+            applyUmbrellanizer: function(colName, repType) {
+              setTimeout(() => this.successHandler('Success'), 1500);
+            },
+            host: {
+              close: function() { console.log("Dialog closed."); }
             }
-        };
+          }
+        }
+      };
     }
 
     window.onload = function() {
-      showLoader(true);
+      showLoader(true, "Loading configuration...");
+      
+      // Load prompt preview
       google.script.run
-        .withSuccessHandler(populateColumns)
+        .withSuccessHandler(function(prompt) {
+          document.getElementById('promptPreview').value = prompt;
+          
+          // Load columns
+          google.script.run
+            .withSuccessHandler(populateColumns)
+            .withFailureHandler(showError)
+            .getUmbrellanizerColumns();
+        })
         .withFailureHandler(showError)
-        .getUmbrellanizerColumns();
+        .getUmbrellanizerPrompt();
     };
 
-    function showLoader(show) {
+    function showLoader(show, text) {
       document.getElementById('loader').style.display = show ? 'block' : 'none';
+      if (text) {
+        document.getElementById('loaderText').innerText = text;
+      }
+      document.getElementById('loadingSpinner').style.display = show ? 'inline-block' : 'none';
     }
 
     function showError(err) {
       showLoader(false);
-      alert("Error: " + (err.message || err));
+      showToast("Error: " + (err.message || err), "error");
     }
 
     function populateColumns(columns) {
       showLoader(false);
       const select = document.getElementById('columnSelect');
-      const decSelect = document.getElementById('decisionColumnSelect');
-
       select.innerHTML = '';
-      decSelect.innerHTML = '<option value="">-- Select Decision Column --</option>';
 
       if (!columns || columns.length === 0) {
-        select.innerHTML = '<option value="">No columns found in 03_fulltext_screening</option>';
+        select.innerHTML = '<option value="">No valid value columns found in 05_Synthesis</option>';
+        document.getElementById('executeBtn').disabled = true;
         return;
       }
 
       columns.forEach(col => {
-        // Populate Process Column
         const option = document.createElement('option');
         option.value = col;
         option.textContent = col;
         select.appendChild(option);
-
-        // Populate Decision Column
-        const dOption = document.createElement('option');
-        dOption.value = col;
-        dOption.textContent = col;
-        decSelect.appendChild(dOption);
       });
 
-      // Attempt to auto-select "decision" if it exists
-      if (columns.includes('decision')) {
-          decSelect.value = 'decision';
-          onDecisionColumnChange();
-      }
-    }
-
-    function onDecisionColumnChange() {
-      const decCol = document.getElementById('decisionColumnSelect').value;
-      const decValSelect = document.getElementById('decisionValueSelect');
-
-      if (!decCol) {
-          decValSelect.innerHTML = '<option value="">Select a decision column first...</option>';
-          document.getElementById('nextBtn').disabled = true;
-          return;
-      }
-
-      showLoader(true);
-      document.getElementById('nextBtn').disabled = true;
-
-      google.script.run
-        .withSuccessHandler(function(values) {
-           showLoader(false);
-           decValSelect.innerHTML = '';
-
-           if (!values || values.length === 0) {
-               decValSelect.innerHTML = '<option value="">No unique values found</option>';
-               return;
-           }
-
-           values.forEach(val => {
-               const option = document.createElement('option');
-               option.value = val;
-               option.textContent = val;
-               decValSelect.appendChild(option);
-           });
-
-           document.getElementById('nextBtn').disabled = false;
-        })
-        .withFailureHandler(function(err) {
-           document.getElementById('nextBtn').disabled = false;
-           showError(err);
-        })
-        .getUmbrellanizerUniqueValues(decCol);
-    }
-
-    function goToStep2() {
-      const colName = document.getElementById('columnSelect').value;
-      const decCol = document.getElementById('decisionColumnSelect').value;
-      const decVal = document.getElementById('decisionValueSelect').value;
-
-      if (!colName || !decCol || decVal === "") {
-          alert("Please select a Decision Column, a Decision Value, and a Column to Process.");
-          return;
-      }
-
-      showLoader(true);
-      document.getElementById('nextBtn').disabled = true;
-
-      google.script.run
-        .withSuccessHandler(function(values) {
-           showLoader(false);
-           document.getElementById('nextBtn').disabled = false;
-           uniqueValues = values || [];
-           generatePrompt(colName);
-
-           document.getElementById('step1').classList.remove('active');
-           document.getElementById('step2').classList.add('active');
-        })
-        .withFailureHandler(function(err) {
-           document.getElementById('nextBtn').disabled = false;
-           showError(err);
-        })
-        .getUmbrellanizerUniqueValues(colName);
-    }
-
-    function goToStep1() {
-        document.getElementById('step2').classList.remove('active');
-        document.getElementById('step1').classList.add('active');
-    }
-
-    function generatePrompt(colName) {
-      const isMulti = document.getElementById('multiLabelCheck').checked;
-      const isMultiStr = isMulti ? "True" : "False";
-      const valList = uniqueValues.join('\n');
-
-      const prompt = `Act as an Expert Prompt Engineer specializing in Data Standardization and Thematic Coding for Systematic Literature Reviews (SLR).
-
-Your task is to generate a highly structured classification prompt (an "Umbrellanizer" prompt). I will use your output inside a Google Sheets script to classify raw, messy data into clean, standardized categories.
-
-Here is the context for the column being processed:
-
-Column/Data Context: ${colName}
-
-Is Multi-Label Allowed?: ${isMultiStr}
-
-Current Raw Values (Unique List):
-
-${valList}
-
-INSTRUCTIONS:
-Analyze and Cluster: Review the "Current Raw Values". Group them logically into 5 to 12 overarching, mutually exclusive "Standardized Ecosystems" or "Groups" based on thematic similarity.
-
-Define a Persona: Start the prompt by assigning a strict, domain-expert persona relevant to the column context (e.g., "Act as a Senior Software Engineer" or "You are a strict Agricultural Data Steward").
-
-Draft the Categories: List your formulated groups. For each group, explicitly state the keywords or specific raw values that fall under it.
-
-Enforce Constraints based on ${isMultiStr}:
-
-If True: Include a rule stating that multiple categories can be outputted if the input warrants it (separated by a comma).
-
-If False: Include a strict rule stating that ONLY ONE category must be chosen.
-
-Formatting: Do NOT use markdown code blocks (\`\`\`) in your final output. Your output must be plain text that strictly follows the template below. Ensure the placeholder {{CELL_REF}} is kept exactly as is.
-
-STRICT OUTPUT TEMPLATE TO FOLLOW:
-[Insert Persona]
-Task: Classify the input data into the specific 'Standardized Groups' listed below.
-
-INPUT: '{{CELL_REF}}'
-
-ALLOWED STANDARDIZED GROUPS (Map input keywords to these groups):
-
-'[Group 1 Name]'
-
-Keywords: [List of matching terms from the raw values]
-
-'[Group 2 Name]'
-
-Keywords: [List of matching terms from the raw values]
-
-[Continue for all groups. Always include a 'Not Reported' group for blank or unspecified values]
-
-CRITICAL RULES:
-
-MULTI-LABEL / SINGLE-LABEL: [Adapt this rule based on the IS_MULTI_LABEL boolean provided above. Give a short example of "Right" vs "Wrong" output].
-
-DEDUPLICATE: Map all matching keywords to their category and output the category name ONLY ONCE.
-
-FORMAT: Do NOT use commas inside a group name (Use '&' or 'and' instead).
-
-OUTPUT FORMAT:
-Return unique category names separated by comma.`;
-
-      document.getElementById('generatedPrompt').value = prompt;
-    }
-
-    function copyPrompt() {
-      const textarea = document.getElementById('generatedPrompt');
-      textarea.select();
-      document.execCommand('copy');
-
-      const feedback = document.getElementById('copyFeedback');
-      feedback.style.display = 'inline';
-      setTimeout(() => feedback.style.display = 'none', 2000);
+      document.getElementById('executeBtn').disabled = false;
     }
 
     function executeUmbrellanizer() {
       const colName = document.getElementById('columnSelect').value;
-      const decCol = document.getElementById('decisionColumnSelect').value;
-      const decVal = document.getElementById('decisionValueSelect').value;
-      const isMulti = document.getElementById('multiLabelCheck').checked;
-      const formula = document.getElementById('llmFormula').value.trim();
+      const repType = document.getElementById('cardinalitySelect').value;
 
-      if (!formula) {
-          alert("Please paste the plain text prompt generated by the LLM.");
-          return;
+      if (!colName) {
+        showToast("Please select a column to process.", "error");
+        return;
       }
 
-      if (!formula.includes("{{CELL_REF}}")) {
-          alert("The pasted text must contain the {{CELL_REF}} placeholder.");
-          return;
-      }
-
+      showLoader(true, "Processing. Calling LLM standardizer...");
       const btn = document.getElementById('executeBtn');
       btn.disabled = true;
-      btn.innerText = 'Executing...';
 
       google.script.run
         .withSuccessHandler(function(msg) {
-           alert("Umbrellanizer processing complete.");
-           google.script.host.close();
+          showLoader(false);
+          showToast("Umbrellanizer execution completed successfully!", "success");
+          setTimeout(() => google.script.host.close(), 1000);
         })
-        .withFailureHandler(function(e) {
-           showError(e);
-           btn.disabled = false;
-           btn.innerText = 'Execute';
+        .withFailureHandler(function(err) {
+          showLoader(false);
+          btn.disabled = false;
+          showError(err);
         })
-        .applyUmbrellanizerFormula(colName, decCol, decVal, isMulti, formula);
+        .applyUmbrellanizer(colName, repType);
     }
   </script>
 </body>

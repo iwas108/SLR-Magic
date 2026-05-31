@@ -2,149 +2,197 @@
 <html>
 <head>
   <base target="_top">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Import Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
   <style>
-    body { font-family: 'Roboto', sans-serif; padding: 20px; background-color: #f5f5f5; color: #333; }
-    h2 { color: #202124; margin-top: 0; }
-    h3 { font-size: 16px; margin-bottom: 8px; color: #202124; }
-    p { color: #5f6368; }
-    .step-container { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); margin-bottom: 20px; }
-    .hidden { display: none; }
-    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; margin-right: 10px; font-size: 14px; transition: background 0.2s; }
-    .btn-primary { background-color: #1a73e8; color: white; }
-    .btn-primary:hover { background-color: #1765cc; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); }
-    .btn-secondary { background-color: #fff; color: #1a73e8; border: 1px solid #dadce0; }
-    .btn-secondary:hover { background-color: #f8f9fa; color: #174ea6; border-color: #dadce0; }
-
-    /* Selection lists */
-    .selection-container { display: flex; gap: 20px; }
-    .selection-col { flex: 1; }
-    .checkbox-list { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 300px; overflow-y: auto; padding: 4px; border: 1px solid #dadce0; border-radius: 4px; }
-    .checkbox-item { display: flex; align-items: center; }
-    .checkbox-item input { margin-right: 8px; }
-
-    /* Config list */
-    .config-list { margin: 20px 0; border: 1px solid #dadce0; border-radius: 4px; }
-    .config-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #dadce0; background: #fff; }
-    .config-item:last-child { border-bottom: none; }
-    .config-name { flex: 1; font-weight: 500; font-size: 14px; }
-    .config-controls { display: flex; align-items: center; gap: 12px; }
-
-    /* Chart */
-    #chart-container { width: 100%; height: 600px; margin-top: 20px; border: 1px solid #eee; background-color: white; }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: #f1f1f1; }
-    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
   </style>
 </head>
-<body>
+<body class="bg-slate-50 text-slate-800 font-sans leading-normal tracking-normal p-4 min-h-screen">
 
   <!-- Step 1: Select Columns -->
-  <div id="step-1" class="step-container">
-    <h2>Step 1: Select Data</h2>
-    <p>Select one column for the X-Axis (Category) and one column for Stacking (Sub-Category distribution).</p>
+  <div id="step-1" class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
+    <div class="space-y-1">
+      <h2 class="text-base font-bold text-slate-900">Step 1: Select Data</h2>
+      <p class="text-xs text-slate-500">Select one column for the X-Axis (Category) and one column for Stacking (Sub-Category distribution).</p>
+    </div>
 
-    <div class="selection-container">
-        <div class="selection-col">
-            <h3>X-Axis (Category)</h3>
-            <div id="xaxis-list" class="checkbox-list">
-                <div>Loading columns...</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="space-y-2">
+            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">X-Axis (Category)</h3>
+            <div id="xaxis-list" class="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto p-2 border border-slate-200 bg-slate-50 rounded-xl">
+                <div class="text-slate-400 text-xs italic p-2">Loading columns...</div>
             </div>
         </div>
-        <div class="selection-col">
-            <h3>Stack Column (Sub-Category)</h3>
-            <div id="stack-list" class="checkbox-list">
-                <div>Loading columns...</div>
+        <div class="space-y-2">
+            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Stack Column (Sub-Category)</h3>
+            <div id="stack-list" class="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto p-2 border border-slate-200 bg-slate-50 rounded-xl">
+                <div class="text-slate-400 text-xs italic p-2">Loading columns...</div>
             </div>
         </div>
     </div>
 
-    <div style="text-align: right; margin-top: 20px;">
-      <button class="btn btn-primary" onclick="goToStep2()">Next: Configure</button>
+    <div class="flex justify-end pt-2">
+      <button class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="goToStep2()">Next: Configure</button>
     </div>
   </div>
 
   <!-- Step 2: Configure -->
-  <div id="step-2" class="step-container hidden">
-    <h2>Step 2: Configure</h2>
-    <p>Customize your Stack Bar Chart settings.</p>
-
-    <div style="margin-bottom: 15px;">
-        <label for="chart-title" style="display: block; font-weight: 500; margin-bottom: 5px;">Chart Title</label>
-        <input type="text" id="chart-title" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="Enter chart title">
+  <div id="step-2" class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4 hidden">
+    <div class="space-y-1">
+      <h2 class="text-base font-bold text-slate-900">Step 2: Configure</h2>
+      <p class="text-xs text-slate-500">Customize your Stack Bar Chart settings.</p>
     </div>
 
-    <div style="margin-bottom: 15px;">
-        <label for="separator" style="display: block; font-weight: 500; margin-bottom: 5px;">Stack Value Separator</label>
-        <input type="text" id="separator" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="e.g. , (Leave empty if single value)">
-        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">If the Stack Column contains multiple values (e.g. "AI, ML"), specify the separator here to split them.</p>
+    <div class="space-y-3.5 max-w-xl">
+      <div>
+          <label for="chart-title" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Chart Title</label>
+          <input type="text" id="chart-title" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" placeholder="Enter chart title">
+      </div>
+
+      <div>
+          <label for="separator" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Stack Value Separator</label>
+          <input type="text" id="separator" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono" placeholder="e.g. , (Leave empty if single value)">
+          <p class="text-[10px] text-slate-400 mt-1">If the Stack Column contains multiple values (e.g. "AI, ML"), specify the separator here to split them.</p>
+      </div>
+
+      <div>
+          <label for="stack-mode" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Stack Mode</label>
+          <select id="stack-mode" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+              <option value="Count">Standard (Count)</option>
+              <option value="Percent">100% Stacked (Percentage)</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1">
+              <b>Standard:</b> Shows raw counts. <b>100% Stacked:</b> Shows relative proportion of each sub-category.
+          </p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+            <label for="top-n" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Limit Stack (Top N)</label>
+            <input type="number" id="top-n" min="1" max="100" value="10" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono">
+        </div>
+
+        <div>
+            <label for="legend-position" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Legend Position</label>
+            <select id="legend-position" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="label-position" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Label Position</label>
+            <select id="label-position" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+                <option value="inside">Inside</option>
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="none">None</option>
+            </select>
+        </div>
+      </div>
     </div>
 
-    <div style="margin-bottom: 15px;">
-        <label for="stack-mode" style="display: block; font-weight: 500; margin-bottom: 5px;">Stack Mode</label>
-        <select id="stack-mode" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
-            <option value="Count">Standard (Count)</option>
-            <option value="Percent">100% Stacked (Percentage)</option>
-        </select>
-        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">
-            <b>Standard:</b> Shows raw counts.<br>
-            <b>100% Stacked:</b> Shows relative proportion of each sub-category.
-        </p>
-    </div>
-
-    <div style="margin-bottom: 15px;">
-        <label for="top-n" style="display: block; font-weight: 500; margin-bottom: 5px;">Limit Stack Categories (Top N)</label>
-        <input type="number" id="top-n" min="1" max="100" value="10" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;">
-        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">Limit the number of stack segments to the top N most frequent. Others will be grouped as "Other".</p>
-    </div>
-
-    <div style="margin-bottom: 15px;">
-        <label for="legend-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Legend Position</label>
-        <select id="legend-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
-            <option value="top">Top</option>
-            <option value="bottom">Bottom</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-        </select>
-    </div>
-
-    <div style="margin-bottom: 15px;">
-        <label for="label-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Label Position</label>
-        <select id="label-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
-            <option value="inside">Inside</option>
-            <option value="top">Top</option>
-            <option value="bottom">Bottom</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-            <option value="none">None</option>
-        </select>
-    </div>
-
-    <div style="text-align: right; margin-top: 20px;">
-      <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
-      <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
+    <div class="flex justify-end gap-3 pt-2">
+      <button class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="goToStep1()">Back</button>
+      <button class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="generateChart()">Generate Chart</button>
     </div>
   </div>
 
   <!-- Step 3: Visualization -->
-  <div id="step-3" class="step-container hidden">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h2 style="margin: 0;">Stack Bar Chart</h2>
-        <div>
-            <button class="btn btn-secondary" onclick="goToStep2()">Back to Config</button>
-            <button class="btn btn-secondary" onclick="toggleFullscreen()">Fullscreen</button>
-            <button class="btn btn-secondary" onclick="downloadChart('svg')">Download SVG</button>
-            <button class="btn btn-primary" onclick="downloadChart('png')">Download PNG</button>
+  <div id="step-3" class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4 hidden">
+    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+        <h2 class="text-base font-bold text-slate-900">Stack Bar Chart</h2>
+        <div class="flex flex-wrap gap-2">
+            <button class="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="goToStep2()">Back to Config</button>
+            <button class="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="toggleFullscreen()">Fullscreen</button>
+            <button class="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="downloadChart('svg')">Download SVG</button>
+            <button class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="downloadChart('png')">Download PNG</button>
         </div>
     </div>
-    <div id="chart-container"></div>
+    <div id="chart-container" class="w-full h-[550px] border border-slate-150 rounded-xl bg-white shadow-sm overflow-hidden"></div>
   </div>
 
   <script>
+    // Secure Toast Notification System
+    function showToast(message, type = 'success') {
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'fixed bottom-5 right-5 z-[100] flex flex-col gap-2';
+        document.body.appendChild(container);
+      }
+      
+      const toast = document.createElement('div');
+      toast.className = 'px-4 py-3 rounded-xl shadow-lg border text-xs font-medium transition-all duration-300 transform translate-y-2 opacity-0 flex items-center space-x-2 min-w-[250px] max-w-sm';
+      
+      const isSuccess = type === 'success';
+      toast.classList.add(
+        isSuccess ? 'bg-emerald-50' : 'bg-rose-50',
+        isSuccess ? 'text-emerald-800' : 'text-rose-800',
+        isSuccess ? 'border-emerald-200' : 'border-rose-200'
+      );
+      
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', `w-4 h-4 shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-rose-600'}`);
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('d', isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z');
+      
+      svg.appendChild(path);
+      toast.appendChild(svg);
+      
+      const span = document.createElement('span');
+      span.className = 'flex-1';
+      span.textContent = message;
+      toast.appendChild(span);
+      
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
     let availableColumns = [];
     let xAxisColumn = null;
     let stackColumn = null;
@@ -155,7 +203,6 @@
 
     // Initialize
     window.onload = function() {
-      // Mock for development if needed
       if (typeof google === 'undefined') {
         window.google = {
           script: {
@@ -175,7 +222,6 @@
               },
               generateBarStackData: function(config) {
                  setTimeout(() => {
-                   // Mock Response
                    const mockData = {
                       xAxisData: ["2020", "2021", "2022"],
                       series: [
@@ -200,7 +246,7 @@
 
     function showError(err) {
       const container = document.getElementById('step-1');
-      container.innerHTML = `<div style="color: #d93025;">Error: ${err.message}</div>`;
+      container.innerHTML = `<div class="text-rose-600 text-xs p-4 bg-rose-50 border border-rose-100 rounded-xl">Error: ${err.message}</div>`;
     }
 
     // Step 1 Logic
@@ -212,35 +258,37 @@
       stackContainer.innerHTML = '';
 
       if (!columns || columns.length === 0) {
-        xContainer.innerHTML = '<div>No columns found.</div>';
+        xContainer.innerHTML = '<div class="text-slate-400 text-xs italic p-2">No columns found.</div>';
         return;
       }
 
       columns.forEach(col => {
         // X-Axis (Radio)
         const xDiv = document.createElement('div');
-        xDiv.className = 'checkbox-item';
+        xDiv.className = 'flex items-center text-xs text-slate-700 bg-white border border-slate-200/50 p-2.5 rounded-lg hover:border-slate-300 transition-colors';
         const xLabel = document.createElement('label');
-        xLabel.style.cssText = "cursor: pointer; display: flex; align-items: center; width: 100%;";
+        xLabel.className = 'select-none cursor-pointer flex items-center w-full';
         const xInput = document.createElement('input');
         xInput.type = "radio";
         xInput.name = "xaxisSelection";
         xInput.value = col;
+        xInput.className = 'mr-2 rounded-full text-indigo-600 focus:ring-indigo-500 border-slate-300 w-3.5 h-3.5 cursor-pointer';
         if (xAxisColumn === col) xInput.checked = true;
         xLabel.appendChild(xInput);
         xLabel.appendChild(document.createTextNode(col));
         xDiv.appendChild(xLabel);
         xContainer.appendChild(xDiv);
 
-        // Stack Column (Radio - Single Selection for now to keep it simple categorical stacking)
+        // Stack Column (Radio)
         const sDiv = document.createElement('div');
-        sDiv.className = 'checkbox-item';
+        sDiv.className = 'flex items-center text-xs text-slate-700 bg-white border border-slate-200/50 p-2.5 rounded-lg hover:border-slate-300 transition-colors';
         const sLabel = document.createElement('label');
-        sLabel.style.cssText = "cursor: pointer; display: flex; align-items: center; width: 100%;";
+        sLabel.className = 'select-none cursor-pointer flex items-center w-full';
         const sInput = document.createElement('input');
         sInput.type = "radio";
         sInput.name = "stackSelection";
         sInput.value = col;
+        sInput.className = 'mr-2 rounded-full text-indigo-600 focus:ring-indigo-500 border-slate-300 w-3.5 h-3.5 cursor-pointer';
         if (stackColumn === col) sInput.checked = true;
         sLabel.appendChild(sInput);
         sLabel.appendChild(document.createTextNode(col));
@@ -252,14 +300,14 @@
     function goToStep2() {
       const xSelected = document.querySelector('input[name="xaxisSelection"]:checked');
       if (!xSelected) {
-        alert("Please select an X-Axis column.");
+        showToast("Please select an X-Axis column.", "error");
         return;
       }
       xAxisColumn = xSelected.value;
 
       const sSelected = document.querySelector('input[name="stackSelection"]:checked');
       if (!sSelected) {
-        alert("Please select a Stack Column.");
+        showToast("Please select a Stack Column.", "error");
         return;
       }
       stackColumn = sSelected.value;
@@ -271,15 +319,6 @@
 
       document.getElementById('step-1').classList.add('hidden');
       document.getElementById('step-2').classList.remove('hidden');
-      document.getElementById('step-3').classList.add('hidden');
-    }
-
-    function goToStep1() {
-      chartTitle = document.getElementById('chart-title').value;
-      renderColumnSelection(availableColumns);
-
-      document.getElementById('step-1').classList.remove('hidden');
-      document.getElementById('step-2').classList.add('hidden');
       document.getElementById('step-3').classList.add('hidden');
     }
 
@@ -299,12 +338,12 @@
        document.getElementById('step-3').classList.remove('hidden');
 
        const container = document.getElementById('chart-container');
-       container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
+       container.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-xs py-8 animate-pulse">Generating chart...</div>';
 
        google.script.run
          .withSuccessHandler(data => renderChart(data, stackMode, legendPosition, labelPosition))
          .withFailureHandler(err => {
-            container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
+            container.innerHTML = `<div class="text-rose-600 text-xs p-4 bg-rose-50 border border-rose-100 rounded-xl m-4">Error: ${err.message}</div>`;
             console.error(err);
          })
          .generateBarStackData({
@@ -323,7 +362,7 @@
        container.innerHTML = '';
 
        if (!data.series || data.series.length === 0) {
-           container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">No data found to visualize.</div>';
+           container.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-xs">No data found to visualize.</div>';
            return;
        }
 
@@ -343,11 +382,20 @@
        });
     }
 
+    function goToStep1() {
+      chartTitle = document.getElementById('chart-title').value;
+      renderColumnSelection(availableColumns);
+
+      document.getElementById('step-1').classList.remove('hidden');
+      document.getElementById('step-2').classList.add('hidden');
+      document.getElementById('step-3').classList.add('hidden');
+    }
+
     function toggleFullscreen() {
         const container = document.getElementById('chart-container');
         if (!document.fullscreenElement) {
             container.requestFullscreen().catch(err => {
-                alert(`Error: ${err.message}`);
+                showToast(`Error: ${err.message}`, "error");
             });
         } else {
             document.exitFullscreen();
@@ -355,14 +403,11 @@
     }
 
     function getChartOption(data, stackMode, legendPosition, labelPosition) {
-      // data.series contains objects: { name: 'StackVal', data: [val1, val2, ...] }
-      // We need to add styling and stacking logic.
-
       const formattedSeries = data.series.map(s => {
           const seriesObj = {
               name: s.name,
               type: 'bar',
-              stack: 'total', // All series stacked on top of each other
+              stack: 'total',
               data: s.data,
               emphasis: {
                   focus: 'series'
@@ -388,7 +433,7 @@
 
       const legendConfig = {
           data: data.series.map(s => s.name),
-          type: 'scroll' // In case of many stack items
+          type: 'scroll'
       };
 
       if (legendPosition === 'bottom') {
@@ -403,7 +448,7 @@
           legendConfig.right = 10;
           legendConfig.top = 'middle';
           legendConfig.orient = 'vertical';
-      } else { // default top
+      } else { 
           legendConfig.top = 40;
           legendConfig.left = 'center';
           legendConfig.orient = 'horizontal';
@@ -413,7 +458,12 @@
           title: {
               text: chartTitle || 'Stack Bar Chart',
               left: 'center',
-              top: 10
+              top: 10,
+              textStyle: {
+                 fontFamily: 'Inter, sans-serif',
+                 fontWeight: 'bold',
+                 fontSize: 15
+              }
           },
           tooltip: {
               trigger: 'axis',

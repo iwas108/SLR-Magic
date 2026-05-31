@@ -1,143 +1,109 @@
 /**
  * DataCollectionController.js
- * Handles the logic for syncing Included papers to 05_data_collection.
+ * Handles the logic for syncing Included papers from 04_Miner to 05_Synthesis.
  */
 
-var DataCollectionController = (function() {
+const DataCollectionController = (function() {
 
   /**
-   * Shows the Data Collection Sync UI.
+   * Reads all papers from 04_Miner where decision_Value === "INCLUDE",
+   * gathers all their properties across all stages, and writes them to 05_Synthesis.
    */
-  function run() {
-    const html = HtmlService.createHtmlOutputFromFile('DataCollectionSyncUI')
-      .setWidth(400)
-      .setHeight(500)
-      .setTitle('Sync to Data Collection');
-    SpreadsheetApp.getUi().showModalDialog(html, 'Sync to Data Collection');
-  }
-
-  /**
-   * Gets headers from 03_fulltext_screening for selection.
-   * Also returns headers from 05_data_collection to pre-select them.
-   */
-  function getDataCollectionColumns() {
-    // 1. Source Headers
-    const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
-    const lastCol = sheet.getLastColumn();
-    let sourceHeaders = [];
-    if (lastCol > 0) {
-      sourceHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
-        .filter(h => h && h.toString().trim() !== "");
-    }
-
-    // 2. Destination Headers (for auto-check)
-    let destHeaders = [];
+  function runSynthesisReport() {
+    const ui = SpreadsheetApp.getUi();
     try {
-      const destSheet = SheetUtils.getSheetByName("05_data_collection");
-      const destLastCol = destSheet.getLastColumn();
-      if (destLastCol > 0) {
-        destHeaders = destSheet.getRange(1, 1, 1, destLastCol).getValues()[0]
-          .filter(h => h && h.toString().trim() !== "");
+      const minerSheet = SheetUtils.getSheetByName("04_Miner");
+      const synthSheet = SheetUtils.getSheetByName("05_Synthesis");
+      if (!minerSheet) {
+        throw new Error("Sheet 04_Miner not found.");
       }
-    } catch (e) {
-      // Ignore if sheet missing
-    }
+      if (!synthSheet) {
+        throw new Error("Sheet 05_Synthesis not found.");
+      }
 
-    return {
-      source: sourceHeaders,
-      destination: destHeaders
-    };
-  }
-
-  /**
-   * Syncs selected columns for "Included" papers to 05_data_collection.
-   */
-  function syncDataCollection(selectedColumns) {
-    try {
-      const sourceSheet = SheetUtils.getSheetByName("03_fulltext_screening");
-      const destSheet = SheetUtils.getSheetByName("05_data_collection");
-
-      // 1. Get Source Data
-      const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
-      // Retrieve all notes to copy them as well
-      const allNotes = sourceSheet.getDataRange().getNotes();
-      const headerMap = SheetUtils.getHeaderMap(sourceSheet); // Map of Header -> Col Index (1-based)
-
-      // 2. Filter "Include" papers (decision = Include)
-      // "The source of truth is 03_fulltext_screening. Sync Included paper."
-      const includedRows = sourceData.filter(row => {
-          const decision = String(row["decision"] || "").trim().toUpperCase();
-          return decision === "INCLUDE";
+      // 1. Read all rows from 04_Miner
+      const minerData = SheetUtils.getDataAsObjects(minerSheet);
+      
+      // 2. Filter papers where decision_Value === "INCLUDE"
+      const includedMinerPapers = minerData.filter(row => {
+        const decision = String(row["decision_Value"] || "").trim().toUpperCase();
+        return decision === "INCLUDE";
       });
 
-      if (includedRows.length === 0) {
-          throw new Error("No papers found with decision = 'Include' in 03_fulltext_screening.");
+      if (includedMinerPapers.length === 0) {
+        ui.alert("No papers with decision_Value = 'INCLUDE' found in 04_Miner.");
+        return;
       }
 
-      // 3. Prepare Destination Data
-      const finalColumns = ['Paper_ID', ...selectedColumns];
+      // 3. Gather all columns across stages
+      const stages = ["01_Fast_Filter", "02_Gatekeeper", "03_Scientist", "04_Miner"];
+      const stageDataMaps = {}; // paperId -> combined properties
 
-      // Clear destination
-      destSheet.clear();
-
-      // Write Header
-      destSheet.getRange(1, 1, 1, finalColumns.length).setValues([finalColumns]);
-
-      // Map Data
-      const outputValues = [];
-      const outputNotes = [];
-
-      includedRows.forEach(row => {
-          const rowValues = [];
-          const rowNotes = [];
-
-          // Row index in source sheet (0-based for notes array)
-          const sourceRowIdx = row._rowIndex - 1;
-          const sourceRowNotes = allNotes[sourceRowIdx];
-
-          finalColumns.forEach(col => {
-              // Lookup key: trim it to match getDataAsObjects behavior
-              const key = String(col).trim();
-
-              // Value
-              rowValues.push(row[key] || "");
-
-              // Note
-              let note = "";
-              // headerMap keys are trimmed.
-              if (headerMap[key]) {
-                  const colIdx = headerMap[key] - 1; // 1-based to 0-based
-                  if (sourceRowNotes && sourceRowNotes[colIdx]) {
-                      note = sourceRowNotes[colIdx];
+      stages.forEach(sheetName => {
+        try {
+          const sh = SheetUtils.getSheetByName(sheetName);
+          if (sh) {
+            const data = SheetUtils.getDataAsObjects(sh);
+            data.forEach(row => {
+              const paperId = row["Paper_ID"];
+              if (paperId) {
+                if (!stageDataMaps[paperId]) {
+                  stageDataMaps[paperId] = {};
+                }
+                // Copy all properties except _rowIndex
+                Object.keys(row).forEach(k => {
+                  if (k !== "_rowIndex") {
+                    stageDataMaps[paperId][k] = row[k];
                   }
+                });
               }
-              rowNotes.push(note);
-          });
-          outputValues.push(rowValues);
-          outputNotes.push(rowNotes);
+            });
+          }
+        } catch (e) {
+          console.warn("Could not read sheet " + sheetName + ": " + e.message);
+        }
       });
 
-      // Write Data
+      // Get the current headers of 05_Synthesis
+      const lastCol = synthSheet.getLastColumn();
+      if (lastCol === 0) {
+        throw new Error("05_Synthesis has no headers initialized.");
+      }
+      const synthHeaders = synthSheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+
+      // Prepare rows to write
+      const outputValues = [];
+      includedMinerPapers.forEach(minerRow => {
+        const paperId = minerRow["Paper_ID"];
+        const mergedData = stageDataMaps[paperId] || minerRow;
+
+        const rowValues = synthHeaders.map(header => {
+          return mergedData[header] !== undefined ? mergedData[header] : "";
+        });
+        outputValues.push(rowValues);
+      });
+
+      // 4. Overwrite 05_Synthesis
+      synthSheet.clear();
+      
+      // Write headers
+      synthSheet.getRange(1, 1, 1, synthHeaders.length).setValues([synthHeaders]);
+      synthSheet.getRange(1, 1, 1, synthHeaders.length).setFontWeight("bold");
+      synthSheet.setFrozenRows(1);
+
       if (outputValues.length > 0) {
-          const rows = outputValues.length;
-          const cols = finalColumns.length;
-          const targetRange = destSheet.getRange(2, 1, rows, cols);
-          targetRange.setValues(outputValues);
-          targetRange.setNotes(outputNotes);
+        synthSheet.getRange(2, 1, outputValues.length, synthHeaders.length).setValues(outputValues);
       }
 
-      return `Sync Complete.\nSynced ${outputValues.length} papers.\n\nPlease do not modify any value in the destination sheet (read only). Make modifications in the source sheet and sync again.`;
-
+      ui.alert(`Synthesis Report Generated successfully!\nSynced ${outputValues.length} papers to 05_Synthesis.`);
     } catch (e) {
       console.error(e);
-      throw new Error(e.message);
+      ui.alert("Synthesis Generation failed: " + e.message);
     }
   }
 
   return {
-    run,
-    getDataCollectionColumns,
-    syncDataCollection
+    runSynthesisReport: runSynthesisReport
   };
 
 })();

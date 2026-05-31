@@ -3,7 +3,7 @@
  * Handles the logic for the "Umbrellanizer (Data Categorizer)" feature.
  */
 
-var UmbrellanizerController = (function() {
+const UmbrellanizerController = (function() {
 
   /**
    * Shows the Umbrellanizer UI dialog.
@@ -11,187 +11,145 @@ var UmbrellanizerController = (function() {
   function showDialog() {
     const html = HtmlService.createHtmlOutputFromFile('UmbrellanizerUI')
       .setWidth(600)
-      .setHeight(650)
+      .setHeight(450)
       .setTitle('Umbrellanizer (Data Categorizer)');
     SpreadsheetApp.getUi().showModalDialog(html, 'Umbrellanizer (Data Categorizer)');
   }
 
   /**
-   * Retrieves headers from 03_fulltext_screening for selection.
+   * Retrieves headers from 05_Synthesis for selection.
    */
   function getColumnsAndValues() {
     try {
-      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
+      const sheet = SheetUtils.getSheetByName("05_Synthesis");
+      if (!sheet) return [];
       const lastCol = sheet.getLastColumn();
       if (lastCol === 0) return [];
 
       const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
-        .filter(h => h && h.toString().trim() !== "");
+        .map(h => String(h).trim())
+        .filter(h => h !== "");
 
-      return headers;
+      const baseHeaders = ['Paper_ID', 'Import_Date', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link'];
+      // Filter out base headers and also any header ending in _Umbrella
+      return headers.filter(h => !baseHeaders.includes(h) && !h.endsWith("_Umbrella"));
     } catch (e) {
-      console.warn("Error fetching columns from 03_fulltext_screening", e);
+      console.warn("Error fetching columns from 05_Synthesis", e);
       return [];
     }
   }
 
   /**
-   * Retrieves unique values for a given column from 03_fulltext_screening.
-   * Splits by comma to ensure distinct tags.
+   * Runs the Umbrellanizer autonomously in a single LLM request.
+   * @param {string} columnName Name of the column to process
+   * @param {string} replacementType "single" or "multi"
    */
-  function getUniqueValues(columnName) {
+  function applyUmbrellanizer(columnName, replacementType) {
     try {
-      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
-      const data = SheetUtils.getDataAsObjects(sheet);
+      const synthSheet = SheetUtils.getSheetByName("05_Synthesis");
+      if (!synthSheet) throw new Error("05_Synthesis sheet not found.");
 
-      const uniqueSet = new Set();
+      const headerMap = SheetUtils.getHeaderMap(synthSheet);
+      if (!headerMap[columnName]) {
+        throw new Error(`Column '${columnName}' not found in 05_Synthesis.`);
+      }
 
+      // Compile unique list of non-empty values
+      const data = SheetUtils.getDataAsObjects(synthSheet);
+      const uniqueValues = new Set();
       data.forEach(row => {
-        let val = row[columnName];
-        if (val !== null && val !== undefined) {
+        const val = row[columnName];
+        if (val !== undefined && val !== null) {
           const str = String(val).trim();
           if (str !== "") {
-            // Assume comma-separated multi-values
-            const parts = str.split(',').map(s => s.trim()).filter(s => s !== "");
-            parts.forEach(p => uniqueSet.add(p));
+            uniqueValues.add(str);
           }
         }
       });
 
-      // Convert Set to sorted Array
-      return Array.from(uniqueSet).sort();
-    } catch (e) {
-      console.warn(`Error fetching unique values for column ${columnName}`, e);
-      return [];
-    }
-  }
-
-  /**
-   * Applies the LLM-generated prompt to a new "_fixed" column.
-   * Note: The isMultiLabel flag is passed from UI if we need it for specific logic later.
-   * The formula string passed is the raw plaintext prompt containing {{CELL_REF}}.
-   */
-  function applyUmbrellanizer(columnName, decisionColumn, decisionValue, isMultiLabel, formulaText) {
-    try {
-      const sheet = SheetUtils.getSheetByName("03_fulltext_screening");
-      const headerMap = SheetUtils.getHeaderMap(sheet);
-
-      // Ensure source and decision columns exist
-      if (!headerMap[columnName]) {
-        throw new Error(`Column '${columnName}' not found.`);
-      }
-      if (!headerMap[decisionColumn]) {
-        throw new Error(`Decision Column '${decisionColumn}' not found.`);
+      if (uniqueValues.size === 0) {
+        throw new Error(`No non-empty values found in column '${columnName}'.`);
       }
 
-      const sourceColIdx = headerMap[columnName]; // 1-based index
-      let decisionColIdx = headerMap[decisionColumn]; // 1-based index
-      const fixedColumnName = `${columnName}_fixed`;
-
-      const lastRow = sheet.getLastRow();
-      if (lastRow < 2) {
-          throw new Error("No data found to process.");
+      // Fetch prompt template
+      const config = ConfigManager.getAll();
+      const modelName = config["MODEL_NAME"] || "deepseek-r1";
+      const systemPrompt = config["UMBRELLANIZER_PROMPT"];
+      if (!systemPrompt) {
+        throw new Error("UMBRELLANIZER_PROMPT is missing in Configuration.");
       }
 
-      // Read decision column values BEFORE any column insertions to avoid index shifting bugs
-      const decisionRange = sheet.getRange(2, decisionColIdx, lastRow - 1, 1);
-      const decisionValues = decisionRange.getDisplayValues().map(row => row[0].trim());
-
-      // Find or insert the new column to the right of the source column
-      let targetColIdx = headerMap[fixedColumnName];
-      let isNewColumn = false;
-
-      if (!targetColIdx) {
-        // We want to insert to the right of sourceColIdx
-        sheet.insertColumnAfter(sourceColIdx);
-        targetColIdx = sourceColIdx + 1;
-        isNewColumn = true;
-        // Set header name
-        sheet.getRange(1, targetColIdx).setValue(fixedColumnName);
-
-        // If the decision column was to the right of the source column, its index has now shifted by 1
-        if (decisionColIdx > sourceColIdx) {
-            decisionColIdx++;
-        }
-      }
-
-      // Instead of clearing the target column, we fetch existing formulas/values to preserve non-matching rows
-      let existingTargetData = [];
-      if (!isNewColumn) {
-          existingTargetData = sheet.getRange(2, targetColIdx, lastRow - 1, 1).getFormulas();
-          const displayValues = sheet.getRange(2, targetColIdx, lastRow - 1, 1).getValues();
-          // getFormulas returns empty string if it's not a formula, so fallback to display value
-          for (let i = 0; i < existingTargetData.length; i++) {
-              if (existingTargetData[i][0] === "") {
-                  existingTargetData[i][0] = displayValues[i][0];
-              }
-          }
+      // Format constraints and attach unique values
+      let constraints = "";
+      if (replacementType === "single") {
+        constraints = "CARDINALITY CONSTRAINT: You must map each original value to exactly ONE standardized category. Do not output multiple categories or lists.";
       } else {
-          // Initialize with empty strings if it's a new column
-          existingTargetData = new Array(lastRow - 1).fill().map(() => [""]);
+        constraints = "CARDINALITY CONSTRAINT: You may map each original value to multiple standardized categories, separated by commas.";
       }
 
-      // Determine source column letter
-      const getColumnLetter = (colIndex) => {
-        let temp, letter = '';
-        while (colIndex > 0) {
-          temp = (colIndex - 1) % 26;
-          letter = String.fromCharCode(temp + 65) + letter;
-          colIndex = (colIndex - temp - 1) / 26;
-        }
-        return letter;
-      };
+      const fullPrompt = `${systemPrompt}\n\n${constraints}\n\nList of Unique Values to Process:\n${JSON.stringify(Array.from(uniqueValues), null, 2)}`;
 
-      const sourceColLetter = getColumnLetter(sourceColIdx);
-
-      // Prepare the array of formulas to write back.
-      const formulas = [];
-
-      // 1. Escape double quotes in the plaintext to prepare it for a Google Sheets string literal
-      const escapedPrompt = formulaText.replace(/"/g, '""');
-
-      // 2. Iterate and apply conditionally
-      const targetDecisionStr = String(decisionValue).trim().toLowerCase();
-
-      for (let i = 0; i < lastRow - 1; i++) {
-        const currentRowDecision = String(decisionValues[i]).toLowerCase();
-
-        if (currentRowDecision === targetDecisionStr) {
-            const rowIndex = i + 2; // 0-based array index back to 1-based sheet row index starting at 2
-            const dynamicCell = `${sourceColLetter}${rowIndex}`;
-
-            // Replace {{CELL_REF}} with `" & dynamicCell & "`
-            const promptWithDynamicCell = escapedPrompt.replace(/\{\{CELL_REF\}\}/g, `" & ${dynamicCell} & "`);
-
-            // Wrap in `=GEMINI(...)`
-            const finalRowFormula = `=GEMINI("${promptWithDynamicCell}")`;
-
-            formulas.push([finalRowFormula]);
-        } else {
-            // Preserve existing value/formula if it doesn't match the current decision criteria
-            formulas.push([existingTargetData[i][0]]);
-        }
+      // Execute single LLM call
+      const response = LlmService.callLlm(fullPrompt, modelName);
+      if (!response || !response.content) {
+        throw new Error("Empty response from LLM Proxy.");
       }
 
-      // Set the formulas in the sheet
-      // Note: we use setValues to handle both formulas (starting with =) and plain strings
-      const targetRange = sheet.getRange(2, targetColIdx, formulas.length, 1);
+      const result = response.content;
+      const mappings = result.mappings || result; // Try mappings dict or direct response
 
-      // Google Apps Script setValues() handles strings that start with '=' automatically by parsing them as formulas.
-      targetRange.setValues(formulas);
+      if (typeof mappings !== "object" || mappings === null) {
+        throw new Error("Invalid mappings returned by LLM. Expected a JSON object mapping original values to standardized categories.");
+      }
+
+      // Determine target column name
+      const umbrellaColName = columnName.endsWith("_Value") 
+        ? columnName.replace(/_Value$/, "") + "_Umbrella" 
+        : columnName + "_Umbrella";
+
+      // Locate or insert the target column
+      let targetColIdx = headerMap[umbrellaColName];
+      if (!targetColIdx) {
+        const sourceColIdx = headerMap[columnName];
+        synthSheet.insertColumnAfter(sourceColIdx);
+        targetColIdx = sourceColIdx + 1;
+        synthSheet.getRange(1, targetColIdx).setValue(umbrellaColName);
+        synthSheet.getRange(1, targetColIdx).setFontWeight("bold");
+      }
+
+      // Read target values and write mapping
+      const lastRow = synthSheet.getLastRow();
+      if (lastRow > 1) {
+        const sourceColIdx = SheetUtils.getHeaderMap(synthSheet)[columnName]; // Refetch in case index shifted
+        const sourceRange = synthSheet.getRange(2, sourceColIdx, lastRow - 1, 1);
+        const sourceValues = sourceRange.getValues();
+        const targetValues = [];
+
+        for (let i = 0; i < sourceValues.length; i++) {
+          const rawVal = String(sourceValues[i][0]).trim();
+          if (rawVal === "") {
+            targetValues.push([""]);
+          } else {
+            const mappedVal = mappings[rawVal];
+            targetValues.push([mappedVal !== undefined ? String(mappedVal).trim() : rawVal]);
+          }
+        }
+
+        const targetRange = synthSheet.getRange(2, targetColIdx, targetValues.length, 1);
+        targetRange.setValues(targetValues);
+      }
 
       return "Success";
     } catch (e) {
       console.error(e);
-      throw new Error("Error applying Umbrellanizer formula: " + e.message);
+      throw new Error(e.message);
     }
   }
 
   return {
-    showDialog,
-    getColumnsAndValues,
-    getUniqueValues,
-    applyUmbrellanizer
+    showDialog: showDialog,
+    getColumnsAndValues: getColumnsAndValues,
+    applyUmbrellanizer: applyUmbrellanizer
   };
 
 })();

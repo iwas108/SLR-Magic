@@ -1,9 +1,45 @@
 /**
  * InterRaterController.js
  * Handles the logic for Blinded Inter-Rater Review (Exporting, Importing, Scoring)
+ * rewritten for Calibration Pools (CAL_Pool_A, CAL_Pool_B, CAL_Pool_C) and QC_Audit_Batch.
  */
 
-var InterRaterController = (function() {
+const InterRaterController = (function() {
+
+  const DEFAULT_SCHEMAS = {
+    "STAGE_1_SCHEMA": ["decision", "exclusion_code", "reasoning"],
+    "STAGE_2_1_SCHEMA": ["decision", "exclusion_code", "reasoning"],
+    "STAGE_2_2_SCHEMA": [
+      "qa1_aims", "qa2_context", "qa3_reproducibility", "qa4_ingestion", 
+      "qa5_transparency", "qa6_reliability", "qa7_friction", "qa8_transferability", 
+      "decision", "exclusion_code", "reasoning"
+    ],
+    "STAGE_2_3_SCHEMA": [
+      "rq1.1_primary_domain", "rq1.2_operational_status", "rq1.3_computational_topology", 
+      "rq1.4_communication_protocol", "rq1.5_algorithmic_classification", 
+      "rq1.6_predictive_performance_metrics", "rq1.7_computational_overhead", 
+      "rq1.8_documented_frictions", "rq1.9_infrastructural_incompatibility"
+    ]
+  };
+
+  /**
+   * Safe helper to parse schema from config. Falls back to default if parsing fails.
+   */
+  function parseSchema(config, key) {
+    const rawVal = config[key];
+    if (!rawVal) {
+      return DEFAULT_SCHEMAS[key];
+    }
+    try {
+      const parsed = JSON.parse(rawVal);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (e) {
+      console.error(`[InterRaterController] Error parsing schema ${key}: ${e.message}`);
+    }
+    return DEFAULT_SCHEMAS[key];
+  }
 
   /**
    * Opens the Export UI.
@@ -12,10 +48,10 @@ var InterRaterController = (function() {
     const template = HtmlService.createTemplateFromFile('InterRaterExportUI');
     template.phase = phase;
     const html = template.evaluate()
-      .setWidth(450)
-      .setHeight(400)
-      .setTitle('Export Blinded Review');
-    SpreadsheetApp.getUi().showModalDialog(html, 'Export Blinded Review');
+      .setWidth(500)
+      .setHeight(550)
+      .setTitle('Export Blinded Review (.slr)');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Export Blinded Review (.slr)');
   }
 
   /**
@@ -25,10 +61,10 @@ var InterRaterController = (function() {
     const template = HtmlService.createTemplateFromFile('InterRaterImportUI');
     template.phase = phase;
     const html = template.evaluate()
-      .setWidth(450)
-      .setHeight(300)
-      .setTitle('Import Blinded Results');
-    SpreadsheetApp.getUi().showModalDialog(html, 'Import Blinded Results');
+      .setWidth(500)
+      .setHeight(380)
+      .setTitle('Import Blinded Results (.slr)');
+    SpreadsheetApp.getUi().showModalDialog(html, 'Import Blinded Results (.slr)');
   }
 
   /**
@@ -48,109 +84,212 @@ var InterRaterController = (function() {
   }
 
   /**
-   * Processes the generation of the blinded .slr JSON export.
+   * Generates a random sample of 20 included papers from 04_Miner and writes to QC_Audit_Batch sheet permanently.
    */
-  function processExport(phase, sampleType, sampleValue, ecRules = []) {
+  function runQCAuditorChecks() {
+    const ui = SpreadsheetApp.getUi();
     try {
-      console.log(`[InterRater] Starting Export for phase: ${phase}, Type: ${sampleType}, Value: ${sampleValue}, EC Rules count: ${ecRules.length}`);
+      const minerSheet = SheetUtils.getSheetByName("04_Miner");
+      if (!minerSheet) {
+        throw new Error("Sheet 04_Miner not found.");
+      }
+
+      // 1. Read all rows from 04_Miner
+      const minerData = SheetUtils.getDataAsObjects(minerSheet);
+      
+      // 2. Filter papers where decision_Value === "INCLUDE"
+      const includedPapers = minerData.filter(row => {
+        const decision = String(row["decision_Value"] || "").trim().toUpperCase();
+        return decision === "INCLUDE";
+      });
+
+      if (includedPapers.length === 0) {
+        ui.alert("No papers with decision_Value = 'INCLUDE' found in 04_Miner to audit.");
+        return;
+      }
+
+      // 3. Randomly sample 20 papers using Fisher-Yates shuffle
+      const sampleSize = Math.min(20, includedPapers.length);
+      const sampled = getRandomSample(includedPapers, sampleSize);
+
+      // 4. Get or create target sheet QC_Audit_Batch
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      let auditSheet = ss.getSheetByName("QC_Audit_Batch");
+      if (!auditSheet) {
+        auditSheet = ss.insertSheet("QC_Audit_Batch");
+      } else {
+        auditSheet.clear();
+        auditSheet.setFrozenRows(0);
+        auditSheet.setFrozenColumns(0);
+      }
+
+      // 5. Build headers for QC_Audit_Batch
+      const baseHeaders = ['Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link'];
+      const calExtra = ['Human_Decision', 'Human_EC_Trigger', 'Human_Rationale'];
+
+      // Get headers from 04_Miner
+      const lastCol = minerSheet.getLastColumn();
+      let minerHeaders = [];
+      if (lastCol > 0) {
+        minerHeaders = minerSheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim());
+      }
+      
+      const nonBaseHeaders = minerHeaders.filter(h => !baseHeaders.includes(h) && !calExtra.includes(h));
+      const auditHeaders = [...baseHeaders, ...calExtra, ...nonBaseHeaders];
+
+      // Setup sheet headers
+      auditSheet.getRange(1, 1, 1, auditHeaders.length).setValues([auditHeaders]);
+      auditSheet.getRange(1, 1, 1, auditHeaders.length).setFontWeight("bold");
+      auditSheet.setFrozenRows(1);
+
+      // Write data
+      const outputValues = sampled.map(row => {
+        return auditHeaders.map(header => {
+          if (calExtra.includes(header)) {
+            return ""; // Keep human fields empty initially
+          }
+          return row[header] !== undefined ? row[header] : "";
+        });
+      });
+
+      if (outputValues.length > 0) {
+        auditSheet.getRange(2, 1, outputValues.length, auditHeaders.length).setValues(outputValues);
+      }
+
+      ui.alert(`QC Audit Batch Generated successfully!\nSampled ${outputValues.length} papers to QC_Audit_Batch.`);
+    } catch (e) {
+      console.error(e);
+      ui.alert("QC Audit Batch Generation failed: " + e.message);
+    }
+  }
+
+  /**
+   * Processes the generation of the blinded .slr JSON export for a pool.
+   */
+  function processExport(poolName, sampleType, sampleValue, ecRules = []) {
+    try {
+      console.log(`[InterRater] Starting Export for pool: ${poolName}, Type: ${sampleType}, Value: ${sampleValue}, EC Rules count: ${ecRules.length}`);
 
       // 1. Identify Source Sheet
-      let sourceSheetName = phase === "title-abs" ? "01_abstract_screening" : "03_fulltext_screening";
-      const sourceSheet = SheetUtils.getSheetByName(sourceSheetName);
+      const sourceSheet = SheetUtils.getSheetByName(poolName);
       if (!sourceSheet) {
-        throw new Error(`Source sheet "${sourceSheetName}" not found.`);
+        throw new Error(`Calibration pool or audit sheet "${poolName}" not found.`);
       }
 
-      // 2. Load Data and filter eligible
+      // 2. Load Data
       const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
-      const eligibleRows = sourceData.filter(row => {
-        if (phase === "title-abs") {
-            return String(row["AI_Status"]).toUpperCase() === "DONE";
-        } else {
-            const isValid = (row["PDF_Validity"] === true || String(row["PDF_Validity"]).toUpperCase() === "TRUE");
-            const isDone = (String(row["AI_Status"]).toUpperCase() === "DONE");
-            return isValid && isDone;
-        }
-      });
-
-      if (eligibleRows.length === 0) {
-        throw new Error("No eligible rows found (AI_Status=Done).");
+      if (sourceData.length === 0) {
+        throw new Error(`No papers found in "${poolName}" to export.`);
       }
 
-      // 3. Stratify by AI Decision
-      // We must determine which column holds the decision.
-      // Usually "decision" for title-abs, or maybe "AI_Decision"
-      // We look for 'decision' or 'AI_Decision'. Fallback to 'decision'.
-      let decisionCol = "decision";
-      if (eligibleRows.length > 0 && !eligibleRows[0].hasOwnProperty("decision") && eligibleRows[0].hasOwnProperty("AI_Decision")) {
-        decisionCol = "AI_Decision";
-      }
-
-      const included = eligibleRows.filter(r => String(r[decisionCol]).trim().toUpperCase() === "INCLUDE");
-      const excluded = eligibleRows.filter(r => String(r[decisionCol]).trim().toUpperCase() === "EXCLUDE");
-
-      console.log(`[InterRater] Stratification: ${included.length} Includes, ${excluded.length} Excludes.`);
-
-      // 4. Calculate target sample size per stratum (50/50 split)
-      let totalSampleSize = 0;
-      if (sampleType === 'percentage') {
-        const percent = Math.min(100, Math.max(1, sampleValue)) / 100;
-        totalSampleSize = Math.ceil(eligibleRows.length * percent);
+      // 3. Apply Sampling
+      let finalSample = [];
+      if (sampleType === 'all') {
+        finalSample = sourceData;
       } else {
-        totalSampleSize = Math.min(eligibleRows.length, Math.max(1, sampleValue));
+        let totalSampleSize = 0;
+        if (sampleType === 'percentage') {
+          const percent = Math.min(100, Math.max(1, sampleValue)) / 100;
+          totalSampleSize = Math.ceil(sourceData.length * percent);
+        } else {
+          totalSampleSize = Math.min(sourceData.length, Math.max(1, sampleValue));
+        }
+        finalSample = getRandomSample(sourceData, totalSampleSize);
       }
 
-      // Ensure even number for 50/50 split
-      if (totalSampleSize % 2 !== 0) {
-        totalSampleSize++;
+      // Shuffle sample to blind pattern order
+      finalSample = getRandomSample(finalSample, finalSample.length);
+
+      // 4. Fetch dynamic schemas to package blinded questions
+      const config = ConfigManager.getAll();
+      let schemaKeys = [];
+
+      const getKeysFromSheet = (sheetName) => {
+        try {
+          const sheet = SheetUtils.getSheetByName(sheetName);
+          const headers = Object.keys(SheetUtils.getHeaderMap(sheet));
+          // Filter out base headers, Status, and token headers
+          const exclude = ['Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link', 'Status', 'Tokens_Used', 'Input_Tokens', 'Thinking_Tokens', 'Output_Tokens', 'Total_Tokens'];
+          const keys = [];
+          headers.forEach(h => {
+            if (h.endsWith("_Value")) {
+              const baseKey = h.substring(0, h.length - 6);
+              if (!exclude.includes(baseKey) && !keys.includes(baseKey)) {
+                keys.push(baseKey);
+              }
+            }
+          });
+          return keys;
+        } catch (e) {
+          return [];
+        }
+      };
+
+      if (poolName === "CAL_Pool_A") {
+        schemaKeys = getKeysFromSheet("01_Fast_Filter");
+        if (schemaKeys.length === 0) schemaKeys = parseSchema(config, "STAGE_1_SCHEMA");
+      } else if (poolName === "CAL_Pool_B") {
+        schemaKeys = getKeysFromSheet("02_Gatekeeper");
+        if (schemaKeys.length === 0) schemaKeys = parseSchema(config, "STAGE_2_1_SCHEMA");
+      } else if (poolName === "CAL_Pool_C") {
+        const keysSci = getKeysFromSheet("03_Scientist");
+        const keysMin = getKeysFromSheet("04_Miner");
+        const seen = new Set();
+        keysSci.concat(keysMin).forEach(k => seen.add(k));
+        schemaKeys = Array.from(seen);
+        if (schemaKeys.length === 0) {
+          const stage22 = parseSchema(config, "STAGE_2_2_SCHEMA");
+          const stage23 = parseSchema(config, "STAGE_2_3_SCHEMA");
+          const seenDef = new Set();
+          [stage22, stage23].forEach(keys => keys.forEach(k => seenDef.add(k)));
+          schemaKeys = Array.from(seenDef);
+        }
+      } else if (poolName === "QC_Audit_Batch") {
+        schemaKeys = getKeysFromSheet("04_Miner");
+        if (schemaKeys.length === 0) schemaKeys = parseSchema(config, "STAGE_2_3_SCHEMA");
       }
-      let stratumSize = totalSampleSize / 2;
 
-      // Adjust if one stratum doesn't have enough
-      let includeTarget = stratumSize;
-      let excludeTarget = stratumSize;
-
-      if (included.length < stratumSize) {
-         includeTarget = included.length;
-         excludeTarget = Math.min(excluded.length, totalSampleSize - includeTarget);
-      } else if (excluded.length < stratumSize) {
-         excludeTarget = excluded.length;
-         includeTarget = Math.min(included.length, totalSampleSize - excludeTarget);
-      }
-
-      // 5. Sample & Combine
-      const sampledInclude = getRandomSample(included, includeTarget);
-      const sampledExclude = getRandomSample(excluded, excludeTarget);
-      const combinedSample = [...sampledInclude, ...sampledExclude];
-
-      if (combinedSample.length === 0) {
-        throw new Error("Not enough data to sample after stratification.");
-      }
-
-      // 6. Final Shuffle to hide the pattern
-      const finalSample = getRandomSample(combinedSample, combinedSample.length);
-
-      // 7. Blind the data (Remove AI outputs)
-      const blindFields = ["decision", "AI_Decision", "reasoning", "exclusion_code", "AI_Status", "Gatekeeper_Decision", "Gatekeeper_Reasoning", "Scientist_Decision", "Scientist_Reasoning", "_rowIndex", "_notes"];
-
+      // 5. Blind data and build JSON papers array
       const blindedPapers = finalSample.map(row => {
-         let blindedRow = {};
-         for (let key in row) {
-           if (!blindFields.includes(key)) {
-             blindedRow[key] = row[key];
-           }
+         const paperObj = {
+           "Paper_ID": row["Paper_ID"] || "",
+           "Title": row["Title"] || "",
+           "Abstract": row["Abstract"] || "",
+           "Authors": row["Authors"] || "",
+           "Year": row["Year"] || "",
+           "DOI": row["DOI"] || "",
+           "PDF_Link": row["PDF_Link"] || "",
+           "Import_Source": row["Import_Source"] || "",
+           "Source": row["Source"] || "",
+           "Import_Date": row["Import_Date"] || ""
+         };
+
+         // Add empty Human fields (markdown-friendly)
+         paperObj["Human_Decision"] = "";
+         if (poolName === "CAL_Pool_A" || poolName === "CAL_Pool_B" || poolName === "QC_Audit_Batch") {
+           paperObj["Human_EC_Trigger"] = "";
+           paperObj["Human_Rationale"] = "";
          }
-         return blindedRow;
+
+         // Add nested schema responses
+         if (poolName === "CAL_Pool_C" || poolName === "QC_Audit_Batch") {
+           schemaKeys.forEach(k => {
+             paperObj[k] = { value: "", evidence: "" };
+           });
+         }
+
+         return paperObj;
       });
 
-      // 8. Fetch Metadata
-      const config = ConfigManager.getAll();
+      // 6. Build Metadata block
       const metadata = {
         projectName: config["PROJECT_NAME"] || "Unnamed Project",
+        researchManifesto: config["RESEARCH_MANIFESTO"] || "",
+        researchObjective: config["RESEARCH_OBJECTIVE"] || "",
         researchQuestions: config["RESEARCH_QUESTIONS"] || "",
-        inclusionCriteria: config["INCLUSION_CRITERIA"] || "",
+        qualityAssuranceDefinition: config["QUALITY_ASSURANCE_DEFINITION"] || "",
         exclusionCriteria: config["EXCLUSION_CRITERIA"] || "",
-        phase: phase,
+        poolType: poolName,
         exportDate: new Date().toISOString(),
         ecRules: ecRules
       };
@@ -160,7 +299,7 @@ var InterRaterController = (function() {
         papers: blindedPapers
       };
 
-      const message = `Sampled ${blindedPapers.length} papers (${sampledInclude.length} Include, ${sampledExclude.length} Exclude).`;
+      const message = `Sampled and blinded ${blindedPapers.length} papers from "${poolName}".`;
 
       return {
         message: message,
@@ -174,60 +313,109 @@ var InterRaterController = (function() {
   }
 
   /**
-   * Processes the import of the completed .slr JSON file.
+   * Processes the import of the completed .slr JSON file into a pool.
    */
-  function processImport(phase, jsonDataStr) {
+  function processImport(poolName, jsonDataStr) {
     try {
-      console.log(`[InterRater] Starting Import for phase: ${phase}`);
+      console.log(`[InterRater] Starting Import into pool: ${poolName}`);
       const data = JSON.parse(jsonDataStr);
 
-      if (!data || !data.papers || !Array.isArray(data.papers)) {
-        throw new Error("Invalid .slr format: missing papers array.");
+      if (!data || !data.metadata || !data.papers || !Array.isArray(data.papers)) {
+        throw new Error("Invalid .slr format: missing papers or metadata block.");
       }
 
-      // Identify Target Sheet
-      const targetSheetName = phase === "title-abs" ? "02_titleabs_inter_rater" : "04_fulltext_inter_rater";
-      let targetSheet = SheetUtils.getSheetByName(targetSheetName);
+      // Check poolType mismatch
+      const filePoolType = data.metadata.poolType || data.metadata.phase;
+      let normalizedFilePool = filePoolType;
+      if (filePoolType === "title-abs") normalizedFilePool = "CAL_Pool_A";
+      if (filePoolType === "full-text") normalizedFilePool = "CAL_Pool_C";
+
+      if (normalizedFilePool !== poolName) {
+        throw new Error(`Pool Mismatch: Target pool selected is "${poolName}" but file belongs to "${normalizedFilePool}".`);
+      }
+
+      // Get target sheet
+      const targetSheet = SheetUtils.getSheetByName(poolName);
       if (!targetSheet) {
-         // Create if missing
-         const ss = SpreadsheetApp.getActiveSpreadsheet();
-         targetSheet = ss.insertSheet(targetSheetName);
+        throw new Error(`Target calibration/audit sheet "${poolName}" not found.`);
       }
 
-      // Ensure minimal Headers
-      const headersToEnsure = ["Paper_ID", "Reviewer", "Decision", "Reason", "EC_Code", "Timestamp"];
-      const targetHeaderMap = SheetUtils.getHeaderMap(targetSheet);
-      headersToEnsure.forEach(h => SheetUtils.ensureColumn(targetSheet, h, targetHeaderMap));
+      const headerMap = SheetUtils.getHeaderMap(targetSheet);
+      const numRows = targetSheet.getLastRow() - 1;
+      if (numRows <= 0) {
+        return "No rows to update in the selected sheet.";
+      }
 
-      // Re-fetch header map after potential additions
-      const finalHeaderMap = SheetUtils.getHeaderMap(targetSheet);
+      // Load config and schemas
+      const config = ConfigManager.getAll();
+      let schemaKeys = [];
+      if (poolName === "CAL_Pool_A") {
+        schemaKeys = parseSchema(config, "STAGE_1_SCHEMA");
+      } else if (poolName === "CAL_Pool_B") {
+        schemaKeys = parseSchema(config, "STAGE_2_1_SCHEMA");
+      } else if (poolName === "CAL_Pool_C") {
+        const stage22 = parseSchema(config, "STAGE_2_2_SCHEMA");
+        const stage23 = parseSchema(config, "STAGE_2_3_SCHEMA");
+        const seen = new Set();
+        [stage22, stage23].forEach(keys => {
+          keys.forEach(k => {
+            if (!seen.has(k)) {
+              seen.add(k);
+              schemaKeys.push(k);
+            }
+          });
+        });
+      } else if (poolName === "QC_Audit_Batch") {
+        schemaKeys = parseSchema(config, "STAGE_2_3_SCHEMA");
+      }
 
-      // Append new data
-      const newRows = [];
-      const timestamp = new Date().toISOString();
+      // Get values and build indices
+      const range = targetSheet.getRange(2, 1, numRows, targetSheet.getLastColumn());
+      const values = range.getValues();
+
+      const headerIndices = {};
+      for (const [colName, colIdx1] of Object.entries(headerMap)) {
+        headerIndices[colName] = colIdx1 - 1;
+      }
+
+      const pidIdx = headerIndices["Paper_ID"];
+      if (pidIdx === undefined) throw new Error("Paper_ID column is missing in target sheet.");
+
+      let updateCount = 0;
 
       data.papers.forEach(paper => {
-        // Only append if it has a decision
-        if (paper.Reviewer_Decision && paper.Reviewer_Decision !== "") {
-           const row = {
-             "Paper_ID": paper.Paper_ID,
-             "Reviewer": paper.Reviewer_Name || "Unknown",
-             "Decision": paper.Reviewer_Decision,
-             "Reason": paper.Reviewer_Reasoning || "",
-             "EC_Code": paper.Reviewer_EC_Code || "",
-             "Timestamp": timestamp
-           };
-           newRows.push(row);
+        const pid = String(paper.Paper_ID).trim();
+        // Find matching row
+        const rowArray = values.find(r => String(r[pidIdx]).trim() === pid);
+        if (rowArray) {
+          updateCount++;
+
+          const decVal = paper.Human_Decision || paper.Reviewer_Decision || "";
+          const ecVal = paper.Human_EC_Trigger || paper.Reviewer_EC_Code || "";
+          const ratVal = paper.Human_Rationale || paper.Reviewer_Reasoning || "";
+
+          // Update human decision fields
+          if (headerIndices["Human_Decision"] !== undefined) rowArray[headerIndices["Human_Decision"]] = decVal;
+          if (poolName === "CAL_Pool_A" || poolName === "CAL_Pool_B" || poolName === "QC_Audit_Batch") {
+            if (headerIndices["Human_EC_Trigger"] !== undefined) rowArray[headerIndices["Human_EC_Trigger"]] = ecVal;
+            if (headerIndices["Human_Rationale"] !== undefined) rowArray[headerIndices["Human_Rationale"]] = ratVal;
+          }
+
+          // Map dynamic schema keys
+          schemaKeys.forEach(key => {
+            const { value, quote } = extractKeyValueAndQuote(paper, key);
+            const valCol = key + "_Value";
+            const quoteCol = key + "_Quote";
+
+            if (headerIndices[valCol] !== undefined) rowArray[headerIndices[valCol]] = value;
+            if (headerIndices[quoteCol] !== undefined) rowArray[headerIndices[quoteCol]] = quote;
+          });
         }
       });
 
-      if (newRows.length === 0) {
-        return "No valid reviewer decisions found to import.";
-      }
-
-      SheetUtils.appendDataMapped(targetSheet, newRows, finalHeaderMap);
-
-      return `Successfully imported ${newRows.length} reviewer decisions.`;
+      // Batch write updated data
+      range.setValues(values);
+      return `Successfully imported blinded review for ${updateCount} papers into "${poolName}".`;
 
     } catch (e) {
       console.error(e);
@@ -236,143 +424,90 @@ var InterRaterController = (function() {
   }
 
   /**
-   * Calculates Inter-Rater Score and AI vs Human Consensus.
+   * Helper to resolve dynamic value and evidence/quote from paper object.
    */
-  function calculateScore(phase) {
+  function extractKeyValueAndQuote(paper, key) {
+    let val = "";
+    let quote = "";
+
+    if (paper[key] !== undefined) {
+      if (typeof paper[key] === 'object' && paper[key] !== null) {
+        val = paper[key].value !== undefined ? paper[key].value : "";
+        quote = paper[key].evidence || paper[key].quote || "";
+      } else {
+        val = paper[key];
+      }
+    } 
+    else if (paper.responses && paper.responses[key] !== undefined) {
+      const r = paper.responses[key];
+      if (typeof r === 'object' && r !== null) {
+        val = r.value !== undefined ? r.value : "";
+        quote = r.evidence || r.quote || "";
+      } else {
+        val = r;
+      }
+    }
+    else if (paper.qa_scores && paper.qa_scores[key] !== undefined) {
+      const r = paper.qa_scores[key];
+      if (typeof r === 'object' && r !== null) {
+        val = r.value !== undefined ? r.value : "";
+        quote = r.evidence || r.quote || "";
+      } else {
+        val = r;
+      }
+    }
+    else if (paper.extracted_data && paper.extracted_data[key] !== undefined) {
+      const r = paper.extracted_data[key];
+      if (typeof r === 'object' && r !== null) {
+        val = r.value !== undefined ? r.value : "";
+        quote = r.evidence || r.quote || "";
+      } else {
+        val = r;
+      }
+    }
+
+    return { value: String(val).trim(), quote: String(quote).trim() };
+  }
+
+  /**
+   * Calculates Inter-Rater Score comparing Human Consensus vs AI Decision.
+   */
+  function calculateScore(poolName) {
     try {
-      console.log(`[InterRater] Calculating Score for phase: ${phase}`);
+      console.log(`[InterRater] Calculating Score for pool: ${poolName}`);
 
-      const interRaterSheetName = phase === "title-abs" ? "02_titleabs_inter_rater" : "04_fulltext_inter_rater";
-      const interRaterSheet = SheetUtils.getSheetByName(interRaterSheetName);
-      if (!interRaterSheet) {
-         SheetUtils.alert(`Sheet "${interRaterSheetName}" not found. Please import blinded results first.`);
-         return;
+      const sheet = SheetUtils.getSheetByName(poolName);
+      if (!sheet) {
+        SheetUtils.alert(`Sheet "${poolName}" not found. Please run environment initialization.`);
+        return;
       }
 
-      const sourceSheetName = phase === "title-abs" ? "01_abstract_screening" : "03_fulltext_screening";
-      const sourceSheet = SheetUtils.getSheetByName(sourceSheetName);
-      if (!sourceSheet) {
-         SheetUtils.alert(`Source sheet "${sourceSheetName}" not found.`);
-         return;
-      }
-
-      const irData = SheetUtils.getDataAsObjects(interRaterSheet);
-      if (irData.length === 0) {
-         SheetUtils.alert("No inter-rater data available.");
-         return;
-      }
-
-      const sourceData = SheetUtils.getDataAsObjects(sourceSheet);
-
-      // Group inter-rater decisions by Paper_ID
-      const groupedByPaper = {};
-      irData.forEach(row => {
-        const pid = row["Paper_ID"];
-        if (!pid) return;
-        const decision = String(row["Decision"] || "").trim().toUpperCase();
-        if (decision === "INCLUDE" || decision === "EXCLUDE") {
-           if (!groupedByPaper[pid]) {
-             groupedByPaper[pid] = [];
-           }
-           groupedByPaper[pid].push(decision);
-        }
+      const rows = SheetUtils.getDataAsObjects(sheet);
+      // Filter rows where human decision has been inputted
+      const reviewedRows = rows.filter(r => {
+        const dec = String(r["Human_Decision"] || "").trim().toUpperCase();
+        return dec === "INCLUDE" || dec === "EXCLUDE";
       });
 
-      const paperIds = Object.keys(groupedByPaper);
-      if (paperIds.length === 0) {
-         SheetUtils.alert("No valid Include/Exclude decisions found.");
-         return;
+      if (reviewedRows.length === 0) {
+        SheetUtils.alert(`No papers with human decisions ("Include" or "Exclude") found in "${poolName}". Please import blinded results first.`);
+        return;
       }
 
-      // --- 1. Human vs Human (Fleiss' Kappa approximation for multiple raters) ---
-      let totalPapersReviewed = paperIds.length;
-      let totalRatersCount = 0;
-      let perfectAgreementCount = 0;
-
-      // For Fleiss Kappa calculation:
-      // Rows = papers, Cols = categories (Include, Exclude)
-      let sumOfPj = 0; // for calculating overall proportion of assignments to a category
-      let n_i = []; // array of total raters per paper
-      let categoryCounts = { "INCLUDE": 0, "EXCLUDE": 0 };
-      let sumOfPi = 0; // Sum of agreement proportions per subject
-
-      paperIds.forEach(pid => {
-         const decisions = groupedByPaper[pid];
-         const n = decisions.length;
-         n_i.push(n);
-         totalRatersCount += n;
-
-         let inc = decisions.filter(d => d === "INCLUDE").length;
-         let exc = decisions.filter(d => d === "EXCLUDE").length;
-
-         categoryCounts["INCLUDE"] += inc;
-         categoryCounts["EXCLUDE"] += exc;
-
-         if (n > 1) {
-             let Pi = ((inc * inc) + (exc * exc) - n) / (n * (n - 1));
-             sumOfPi += Pi;
-             if (inc === n || exc === n) {
-                 perfectAgreementCount++;
-             }
-         }
-      });
-
-      const avgRatersPerPaper = (totalRatersCount / totalPapersReviewed).toFixed(2);
-
-      let humanKappa = "N/A";
-      let papersWithMultipleRaters = n_i.filter(n => n > 1).length;
-      let humanAgreementRate = papersWithMultipleRaters > 0 ? ((perfectAgreementCount / papersWithMultipleRaters) * 100).toFixed(1) : "N/A";
-
-      if (papersWithMultipleRaters > 0) {
-          // Fleiss Kappa
-          let Pbar = sumOfPi / papersWithMultipleRaters;
-          let Pbar_e = 0;
-          let totalAssignments = totalRatersCount;
-
-          let p_inc = categoryCounts["INCLUDE"] / totalAssignments;
-          let p_exc = categoryCounts["EXCLUDE"] / totalAssignments;
-
-          Pbar_e = (p_inc * p_inc) + (p_exc * p_exc);
-
-          if (Pbar_e === 1) {
-              humanKappa = "1.000"; // Perfect agreement, avoid division by zero
-          } else {
-              let kappa = (Pbar - Pbar_e) / (1 - Pbar_e);
-              humanKappa = kappa.toFixed(3);
-          }
-      }
-
-      // --- 2. Human Consensus vs AI Decision ---
+      // Calculate confusion matrix
       let TP = 0, FP = 0, TN = 0, FN = 0;
+      
+      // Determine the AI decision column.
+      const decisionCol = "decision_Value";
 
-      let decisionCol = "decision";
-      if (sourceData.length > 0 && !sourceData[0].hasOwnProperty("decision") && sourceData[0].hasOwnProperty("AI_Decision")) {
-        decisionCol = "AI_Decision";
-      }
+      reviewedRows.forEach(row => {
+        const humanDec = String(row["Human_Decision"]).trim().toUpperCase();
+        const aiDec = String(row[decisionCol] || "").trim().toUpperCase();
 
-      paperIds.forEach(pid => {
-         const decisions = groupedByPaper[pid];
-         let incCount = decisions.filter(d => d === "INCLUDE").length;
-         let excCount = decisions.filter(d => d === "EXCLUDE").length;
-
-         // Majority vote consensus
-         let consensus = incCount > excCount ? "INCLUDE" : (excCount > incCount ? "EXCLUDE" : "TIE");
-
-         // Look up AI decision
-         const sourceRow = sourceData.find(r => String(r["Paper_ID"]) === String(pid));
-         if (sourceRow) {
-            let aiDec = String(sourceRow[decisionCol]).trim().toUpperCase();
-
-            // If TIE, we'll exclude from binary confusion matrix or consider it a mismatch.
-            // For rigorous science, we'll skip ties in the confusion matrix or count as FN/FP based on AI.
-            // Let's only count clear consensus.
-            if (consensus === "INCLUDE" || consensus === "EXCLUDE") {
-               if (aiDec === "INCLUDE" && consensus === "INCLUDE") TP++;
-               else if (aiDec === "INCLUDE" && consensus === "EXCLUDE") FP++; // AI said include, human consensus said exclude (AI False Positive)
-               else if (aiDec === "EXCLUDE" && consensus === "EXCLUDE") TN++;
-               else if (aiDec === "EXCLUDE" && consensus === "INCLUDE") FN++; // AI said exclude, human consensus said include (AI False Negative)
-            }
-         }
+        if (aiDec === "INCLUDE" && humanDec === "INCLUDE") TP++;
+        else if (aiDec === "INCLUDE" && humanDec === "EXCLUDE") FP++; // AI said include, human said exclude (AI False Positive)
+        else if (aiDec === "EXCLUDE" && humanDec === "EXCLUDE") TN++;
+        else if (aiDec === "EXCLUDE" && humanDec === "INCLUDE") FN++; // AI said exclude, human said include (AI False Negative)
       });
 
       const totalAIvsHuman = TP + FP + TN + FN;
@@ -391,30 +526,30 @@ var InterRaterController = (function() {
 
       let aiKappa = "N/A";
       if (totalAIvsHuman > 0) {
-         if (p_e === 1) {
-             aiKappa = "1.000";
-         } else {
-             aiKappa = ((p_o - p_e) / (1 - p_e)).toFixed(3);
-         }
+        if (p_e === 1) {
+          aiKappa = "1.000";
+        } else {
+          aiKappa = ((p_o - p_e) / (1 - p_e)).toFixed(3);
+        }
       }
 
       const stats = {
-          totalPapersReviewed,
-          avgRatersPerPaper,
-          humanKappa,
-          humanAgreementRate,
-          aiVsHuman: {
-              cm: { TP, FP, TN, FN },
-              accuracy: (accuracy * 100).toFixed(1),
-              precision: (precision * 100).toFixed(1),
-              recall: (recall * 100).toFixed(1),
-              f1: f1.toFixed(3),
-              kappa: aiKappa
-          }
+        totalPapersReviewed: reviewedRows.length,
+        avgRatersPerPaper: "1.00",
+        humanKappa: "N/A",
+        humanAgreementRate: "N/A",
+        aiVsHuman: {
+          cm: { TP, FP, TN, FN },
+          accuracy: (accuracy * 100).toFixed(1),
+          precision: (precision * 100).toFixed(1),
+          recall: (recall * 100).toFixed(1),
+          f1: f1.toFixed(3),
+          kappa: aiKappa
+        }
       };
 
       const template = HtmlService.createTemplateFromFile('InterRaterScoreReport');
-      template.phase = phase;
+      template.phase = poolName;
       template.stats = stats;
       const html = template.evaluate()
         .setWidth(600)
@@ -430,11 +565,12 @@ var InterRaterController = (function() {
   }
 
   return {
-    showExportDialog,
-    showImportDialog,
-    processExport,
-    processImport,
-    calculateScore
+    showExportDialog: showExportDialog,
+    showImportDialog: showImportDialog,
+    runQCAuditorChecks: runQCAuditorChecks,
+    processExport: processExport,
+    processImport: processImport,
+    calculateScore: calculateScore
   };
 
 })();

@@ -2,140 +2,193 @@
 <html>
 <head>
   <base target="_top">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Import Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
   <style>
-    body { font-family: 'Roboto', sans-serif; padding: 20px; background-color: #f5f5f5; color: #333; }
-    h2 { color: #202124; margin-top: 0; }
-    h3 { font-size: 16px; margin-bottom: 8px; color: #202124; }
-    p { color: #5f6368; }
-    .step-container { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); margin-bottom: 20px; }
-    .hidden { display: none; }
-    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; margin-right: 10px; font-size: 14px; transition: background 0.2s; }
-    .btn-primary { background-color: #1a73e8; color: white; }
-    .btn-primary:hover { background-color: #1765cc; box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15); }
-    .btn-secondary { background-color: #fff; color: #1a73e8; border: 1px solid #dadce0; }
-    .btn-secondary:hover { background-color: #f8f9fa; color: #174ea6; border-color: #dadce0; }
-
-    /* Selection lists */
-    .selection-container { display: flex; gap: 20px; }
-    .selection-col { flex: 1; }
-    .checkbox-list { display: grid; grid-template-columns: 1fr; gap: 8px; max-height: 300px; overflow-y: auto; padding: 4px; border: 1px solid #dadce0; border-radius: 4px; }
-    .checkbox-item { display: flex; align-items: center; }
-    .checkbox-item input { margin-right: 8px; }
-
-    /* Chart */
-    #chart-container { width: 100%; height: 600px; margin-top: 20px; border: 1px solid #eee; background-color: white; }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 8px; }
-    ::-webkit-scrollbar-track { background: #f1f1f1; }
-    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
   </style>
 </head>
-<body>
+<body class="bg-slate-50 text-slate-800 font-sans leading-normal tracking-normal p-4 min-h-screen">
 
   <!-- Step 1: Select Columns -->
-  <div id="step-1" class="step-container">
-    <h2>Step 1: Select Data</h2>
-    <p>Select the columns to define the Radar Chart dimensions and series.</p>
+  <div id="step-1" class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
+    <div class="space-y-1">
+      <h2 class="text-base font-bold text-slate-900">Step 1: Select Data</h2>
+      <p class="text-xs text-slate-500">Select the columns to define the Radar Chart dimensions and series.</p>
+    </div>
 
-    <div class="selection-container">
-        <div class="selection-col">
-            <h3>Series Column (Group/Shape)</h3>
-            <p style="font-size: 12px; margin-top:0;">Determines the different polygons (e.g. Year, Paper ID).</p>
-            <div id="series-list" class="checkbox-list">
-                <div>Loading columns...</div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="space-y-2">
+            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Series Column (Group/Shape)</h3>
+            <p class="text-[10px] text-slate-400">Determines the different polygons (e.g. Year, Paper ID).</p>
+            <div id="series-list" class="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto p-2 border border-slate-200 bg-slate-50 rounded-xl">
+                <div class="text-slate-400 text-xs italic p-2">Loading columns...</div>
             </div>
         </div>
-        <div class="selection-col">
-            <h3>Indicator Column (Axes)</h3>
-            <p style="font-size: 12px; margin-top:0;">Determines the axes (spokes) of the chart (e.g. Keywords, Topics).</p>
-            <div id="indicator-list" class="checkbox-list">
-                <div>Loading columns...</div>
+        <div class="space-y-2">
+            <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Indicator Column (Axes)</h3>
+            <p class="text-[10px] text-slate-400">Determines the axes (spokes) of the chart (e.g. Keywords, Topics).</p>
+            <div id="indicator-list" class="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto p-2 border border-slate-200 bg-slate-50 rounded-xl">
+                <div class="text-slate-400 text-xs italic p-2">Loading columns...</div>
             </div>
         </div>
     </div>
 
-    <div style="text-align: right; margin-top: 20px;">
-      <button class="btn btn-primary" onclick="goToStep2()">Next: Configure</button>
+    <div class="flex justify-end pt-2">
+      <button class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="goToStep2()">Next: Configure</button>
     </div>
   </div>
 
   <!-- Step 2: Configure -->
-  <div id="step-2" class="step-container hidden">
-    <h2>Step 2: Configure</h2>
-    <p>Customize your Radar Chart data preparation and appearance.</p>
-
-    <div style="margin-bottom: 15px;">
-        <label for="chart-title" style="display: block; font-weight: 500; margin-bottom: 5px;">Chart Title</label>
-        <input type="text" id="chart-title" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="Enter chart title">
+  <div id="step-2" class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4 hidden">
+    <div class="space-y-1">
+      <h2 class="text-base font-bold text-slate-900">Step 2: Configure</h2>
+      <p class="text-xs text-slate-500">Customize your Radar Chart data preparation and appearance.</p>
     </div>
 
-    <div style="margin-bottom: 15px;">
-        <label for="separator" style="display: block; font-weight: 500; margin-bottom: 5px;">Data Separator</label>
-        <input type="text" id="separator" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;" placeholder="e.g. , (Leave empty if single value)">
-        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">Splits multiple values in both Series (Group) and Indicator (Axes) columns.</p>
+    <div class="space-y-3.5 max-w-xl">
+      <div>
+          <label for="chart-title" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Chart Title</label>
+          <input type="text" id="chart-title" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-sans" placeholder="Enter chart title">
+      </div>
+
+      <div>
+          <label for="separator" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Data Separator</label>
+          <input type="text" id="separator" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono" placeholder="e.g. , (Leave empty if single value)">
+          <p class="text-[10px] text-slate-400 mt-1">Splits multiple values in both Series (Group) and Indicator (Axes) columns.</p>
+      </div>
+
+      <div>
+          <label for="value-column" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Value Column (Optional)</label>
+          <select id="value-column" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+              <option value="">(None - Use Frequency Count)</option>
+          </select>
+          <p class="text-[10px] text-slate-400 mt-1">Select a numeric column to aggregate. If "None", the chart counts the occurrences of each Indicator.</p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div>
+            <label for="aggregation-mode" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Aggregation Mode</label>
+            <select id="aggregation-mode" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+                <option value="Count">Count (Frequency)</option>
+                <option value="Sum">Sum</option>
+                <option value="Average">Average</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="top-n" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Limit Indicators (Top N)</label>
+            <input type="number" id="top-n" min="3" max="50" value="6" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono">
+        </div>
+
+        <div>
+            <label for="legend-position" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Legend Position</label>
+            <select id="legend-position" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+                <option value="top">Top</option>
+                <option value="bottom">Bottom</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+            </select>
+        </div>
+      </div>
     </div>
 
-    <div style="margin-bottom: 15px;">
-        <label for="value-column" style="display: block; font-weight: 500; margin-bottom: 5px;">Value Column (Optional)</label>
-        <select id="value-column" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
-            <option value="">(None - Use Frequency Count)</option>
-        </select>
-        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">
-            Select a numeric column to aggregate. If "None", the chart counts the occurrences of each Indicator.
-        </p>
-    </div>
-
-    <div style="margin-bottom: 15px;">
-        <label for="aggregation-mode" style="display: block; font-weight: 500; margin-bottom: 5px;">Aggregation Mode</label>
-        <select id="aggregation-mode" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
-            <option value="Count">Count (Frequency)</option>
-            <option value="Sum">Sum</option>
-            <option value="Average">Average</option>
-        </select>
-        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">How to combine values when multiple rows match the same Series and Indicator.</p>
-    </div>
-
-    <div style="margin-bottom: 15px;">
-        <label for="top-n" style="display: block; font-weight: 500; margin-bottom: 5px;">Limit Indicators (Top N)</label>
-        <input type="number" id="top-n" min="3" max="50" value="6" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box;">
-        <p style="font-size: 12px; margin: 4px 0 0 0; color: #5f6368;">Limit the number of axes to the top N most frequent items.</p>
-    </div>
-
-    <div style="margin-bottom: 15px;">
-        <label for="legend-position" style="display: block; font-weight: 500; margin-bottom: 5px;">Legend Position</label>
-        <select id="legend-position" style="width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; background-color: white;">
-            <option value="top">Top</option>
-            <option value="bottom">Bottom</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-        </select>
-    </div>
-
-    <div style="text-align: right; margin-top: 20px;">
-      <button class="btn btn-secondary" onclick="goToStep1()">Back</button>
-      <button class="btn btn-primary" onclick="generateChart()">Generate Chart</button>
+    <div class="flex justify-end gap-3 pt-2">
+      <button class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="goToStep1()">Back</button>
+      <button class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="generateChart()">Generate Chart</button>
     </div>
   </div>
 
   <!-- Step 3: Visualization -->
-  <div id="step-3" class="step-container hidden">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h2 style="margin: 0;">Radar Chart</h2>
-        <div>
-            <button class="btn btn-secondary" onclick="goToStep2()">Back to Config</button>
-            <button class="btn btn-secondary" onclick="toggleFullscreen()">Fullscreen</button>
-            <button class="btn btn-secondary" onclick="downloadChart('svg')">Download SVG</button>
-            <button class="btn btn-primary" onclick="downloadChart('png')">Download PNG</button>
+  <div id="step-3" class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4 hidden">
+    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+        <h2 class="text-base font-bold text-slate-900">Radar Chart</h2>
+        <div class="flex flex-wrap gap-2">
+            <button class="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="goToStep2()">Back to Config</button>
+            <button class="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="toggleFullscreen()">Fullscreen</button>
+            <button class="px-3.5 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="downloadChart('svg')">Download SVG</button>
+            <button class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer" onclick="downloadChart('png')">Download PNG</button>
         </div>
     </div>
-    <div id="chart-container"></div>
+    <div id="chart-container" class="w-full h-[550px] border border-slate-150 rounded-xl bg-white shadow-sm overflow-hidden"></div>
   </div>
 
   <script>
+    // Secure Toast Notification System
+    function showToast(message, type = 'success') {
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'fixed bottom-5 right-5 z-[100] flex flex-col gap-2';
+        document.body.appendChild(container);
+      }
+      
+      const toast = document.createElement('div');
+      toast.className = 'px-4 py-3 rounded-xl shadow-lg border text-xs font-medium transition-all duration-300 transform translate-y-2 opacity-0 flex items-center space-x-2 min-w-[250px] max-w-sm';
+      
+      const isSuccess = type === 'success';
+      toast.classList.add(
+        isSuccess ? 'bg-emerald-50' : 'bg-rose-50',
+        isSuccess ? 'text-emerald-800' : 'text-rose-800',
+        isSuccess ? 'border-emerald-200' : 'border-rose-200'
+      );
+      
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', `w-4 h-4 shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-rose-600'}`);
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('d', isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z');
+      
+      svg.appendChild(path);
+      toast.appendChild(svg);
+      
+      const span = document.createElement('span');
+      span.className = 'flex-1';
+      span.textContent = message;
+      toast.appendChild(span);
+      
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
     let availableColumns = [];
     let seriesColumn = null;
     let indicatorColumn = null;
@@ -166,7 +219,6 @@
               },
               generateRadarChartData: function(config) {
                  setTimeout(() => {
-                   // Mock Response
                    const mockData = {
                       indicator: [
                           { name: 'AI', max: 100 },
@@ -203,7 +255,7 @@
 
     function showError(err) {
       const container = document.getElementById('step-1');
-      container.innerHTML = `<div style="color: #d93025;">Error: ${err.message}</div>`;
+      container.innerHTML = `<div class="text-rose-600 text-xs p-4 bg-rose-50 border border-rose-100 rounded-xl">Error: ${err.message}</div>`;
     }
 
     function initColumns(columns) {
@@ -220,20 +272,21 @@
       iContainer.innerHTML = '';
 
       if (!columns || columns.length === 0) {
-        sContainer.innerHTML = '<div>No columns found.</div>';
+        sContainer.innerHTML = '<div class="text-slate-400 text-xs italic p-2">No columns found.</div>';
         return;
       }
 
       columns.forEach(col => {
         // Series Column (Radio)
         const sDiv = document.createElement('div');
-        sDiv.className = 'checkbox-item';
+        sDiv.className = 'flex items-center text-xs text-slate-700 bg-white border border-slate-200/50 p-2.5 rounded-lg hover:border-slate-300 transition-colors';
         const sLabel = document.createElement('label');
-        sLabel.style.cssText = "cursor: pointer; display: flex; align-items: center; width: 100%;";
+        sLabel.className = 'select-none cursor-pointer flex items-center w-full';
         const sInput = document.createElement('input');
         sInput.type = "radio";
         sInput.name = "seriesSelection";
         sInput.value = col;
+        sInput.className = 'mr-2 rounded-full text-indigo-600 focus:ring-indigo-500 border-slate-300 w-3.5 h-3.5 cursor-pointer';
         if (seriesColumn === col) sInput.checked = true;
         sLabel.appendChild(sInput);
         sLabel.appendChild(document.createTextNode(col));
@@ -242,13 +295,14 @@
 
         // Indicator Column (Radio)
         const iDiv = document.createElement('div');
-        iDiv.className = 'checkbox-item';
+        iDiv.className = 'flex items-center text-xs text-slate-700 bg-white border border-slate-200/50 p-2.5 rounded-lg hover:border-slate-300 transition-colors';
         const iLabel = document.createElement('label');
-        iLabel.style.cssText = "cursor: pointer; display: flex; align-items: center; width: 100%;";
+        iLabel.className = 'select-none cursor-pointer flex items-center w-full';
         const iInput = document.createElement('input');
         iInput.type = "radio";
         iInput.name = "indicatorSelection";
         iInput.value = col;
+        iInput.className = 'mr-2 rounded-full text-indigo-600 focus:ring-indigo-500 border-slate-300 w-3.5 h-3.5 cursor-pointer';
         if (indicatorColumn === col) iInput.checked = true;
         iLabel.appendChild(iInput);
         iLabel.appendChild(document.createTextNode(col));
@@ -259,7 +313,6 @@
 
     function updateValueColumnOptions(columns) {
         const select = document.getElementById('value-column');
-        // Clear existing options except default
         while (select.options.length > 1) {
             select.remove(1);
         }
@@ -275,14 +328,14 @@
     function goToStep2() {
       const sSelected = document.querySelector('input[name="seriesSelection"]:checked');
       if (!sSelected) {
-        alert("Please select a Series Column.");
+        showToast("Please select a Series Column.", "error");
         return;
       }
       seriesColumn = sSelected.value;
 
       const iSelected = document.querySelector('input[name="indicatorSelection"]:checked');
       if (!iSelected) {
-        alert("Please select an Indicator Column.");
+        showToast("Please select an Indicator Column.", "error");
         return;
       }
       indicatorColumn = iSelected.value;
@@ -299,7 +352,7 @@
 
     function goToStep1() {
       chartTitle = document.getElementById('chart-title').value;
-      renderColumnSelection(availableColumns); // Re-render to keep selection state visually
+      renderColumnSelection(availableColumns); 
 
       document.getElementById('step-1').classList.remove('hidden');
       document.getElementById('step-2').classList.add('hidden');
@@ -322,12 +375,12 @@
        document.getElementById('step-3').classList.remove('hidden');
 
        const container = document.getElementById('chart-container');
-       container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">Generating chart...</div>';
+       container.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-xs py-8 animate-pulse">Generating chart...</div>';
 
        google.script.run
          .withSuccessHandler(data => renderChart(data))
          .withFailureHandler(err => {
-            container.innerHTML = `<div style="color: #d93025; padding: 20px;">Error: ${err.message}</div>`;
+            container.innerHTML = `<div class="text-rose-600 text-xs p-4 bg-rose-50 border border-rose-100 rounded-xl m-4">Error: ${err.message}</div>`;
             console.error(err);
          })
          .generateRadarChartData(lastConfig);
@@ -339,7 +392,7 @@
        container.innerHTML = '';
 
        if (!data.series || data.series.length === 0 || !data.indicator || data.indicator.length === 0) {
-           container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">No data found to visualize.</div>';
+           container.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 text-xs">No data found to visualize.</div>';
            return;
        }
 
@@ -363,7 +416,7 @@
         const container = document.getElementById('chart-container');
         if (!document.fullscreenElement) {
             container.requestFullscreen().catch(err => {
-                alert(`Error: ${err.message}`);
+                showToast(`Error: ${err.message}`, "error");
             });
         } else {
             document.exitFullscreen();
@@ -388,7 +441,7 @@
           legendConfig.right = 10;
           legendConfig.top = 'middle';
           legendConfig.orient = 'vertical';
-      } else { // default top
+      } else { 
           legendConfig.top = 40;
           legendConfig.left = 'center';
           legendConfig.orient = 'horizontal';
@@ -398,7 +451,12 @@
         title: {
           text: chartTitle || 'Radar Chart',
           left: 'center',
-          top: 10
+          top: 10,
+          textStyle: {
+             fontFamily: 'Inter, sans-serif',
+             fontWeight: 'bold',
+             fontSize: 15
+          }
         },
         tooltip: {
             trigger: 'item'
@@ -414,7 +472,7 @@
         },
         radar: {
           indicator: data.indicator,
-          shape: 'circle', // Optional, user might like polygon too, but circle is safe
+          shape: 'circle',
           radius: '65%'
         },
         series: [

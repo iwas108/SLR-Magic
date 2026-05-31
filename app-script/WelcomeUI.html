@@ -3,594 +3,252 @@
 
 <head>
   <base target="_top">
+  <!-- Import Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
   <style>
-    body {
-      font-family: 'Google Sans', Arial, sans-serif;
-      padding: 0;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
     }
-
-    .header {
-      background-color: #f1f3f4;
-      padding: 15px;
-      text-align: center;
-      border-bottom: 1px solid #e0e0e0;
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
     }
-
-    .header h2 {
-      margin: 0;
-      color: #1a73e8;
-      font-size: 20px;
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
     }
-
-    .tabs {
-      display: flex;
-      background-color: #fff;
-      border-bottom: 1px solid #e0e0e0;
-    }
-
-    .tab {
-      flex: 1;
-      padding: 12px;
-      text-align: center;
-      cursor: pointer;
-      color: #5f6368;
-      font-weight: 500;
-      font-size: 13px;
-      border-bottom: 2px solid transparent;
-    }
-
-    .tab:hover {
-      background-color: #f8f9fa;
-    }
-
-    .tab.active {
-      color: #1a73e8;
-      border-bottom: 2px solid #1a73e8;
-    }
-
-    .content-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-    }
-
-    .content-section {
-      display: none;
-    }
-
-    .content-section.active {
-      display: block;
-    }
-
-    h3 {
-      color: #202124;
-      margin-top: 0;
-      font-size: 16px;
-    }
-
-    p,
-    li {
-      color: #3c4043;
-      line-height: 1.5;
-      font-size: 13px;
-    }
-
-    .code-block {
-      background-color: #f5f5f5;
-      padding: 10px;
-      border-radius: 4px;
-      border: 1px solid #e0e0e0;
-      font-family: monospace;
-      white-space: pre-wrap;
-      font-size: 11px;
-      overflow-x: auto;
-      max-height: 300px;
-      overflow-y: auto;
-      margin-top: 10px;
-    }
-
-    .footer {
-      padding: 10px;
-      text-align: center;
-      background-color: #fff;
-      border-top: 1px solid #e0e0e0;
-      font-size: 12px;
-    }
-
-    /* Accordion for Prompts */
-    .accordion {
-      margin-top: 10px;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-    }
-
-    .accordion-item {
-      border-bottom: 1px solid #e0e0e0;
-    }
-
-    .accordion-item:last-child {
-      border-bottom: none;
-    }
-
-    .accordion-header {
-      padding: 10px 15px;
-      background-color: #f8f9fa;
-      cursor: pointer;
-      font-weight: 500;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .accordion-header:hover {
-      background-color: #f1f3f4;
-    }
-
-    .accordion-content {
-      display: none;
-      padding: 15px;
-      background-color: #fff;
-    }
-
-    .accordion-content.open {
-      display: block;
-    }
-
-    .icon {
-      transition: transform 0.2s;
-    }
-
-    .accordion-header.active .icon {
-      transform: rotate(180deg);
-    }
-
-    .checkbox-container {
-      margin-top: 5px;
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
     }
   </style>
 </head>
 
-<body>
+<body class="bg-slate-50 text-slate-800 font-sans leading-normal tracking-normal flex flex-col h-screen overflow-hidden">
 
-  <div class="header">
-    <h2>SLR Magic ✨</h2>
+  <!-- Top Header -->
+  <div class="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white p-5 shadow-md flex-shrink-0">
+    <h1 class="text-base font-bold tracking-tight flex items-center gap-1.5">
+      SLR Magic <span class="text-indigo-300">✨</span>
+    </h1>
+    <p class="text-indigo-200 text-[10px] mt-0.5">Multi-Persona AI Pipeline for Systematic Literature Reviews</p>
   </div>
 
-  <div class="tabs">
-    <div class="tab active" onclick="showTab('overview')">Overview</div>
-    <div class="tab" onclick="showTab('workflow')">Workflow</div>
-    <div class="tab" onclick="showTab('prompts')">Prompts</div>
-    <div class="tab" onclick="showTab('search')">Search</div>
-    <div class="tab" onclick="showTab('about')">About</div>
+  <!-- Navigation Tabs -->
+  <div class="flex border-b border-slate-200 bg-white px-4 flex-shrink-0 shadow-sm">
+    <button id="tab-btn-overview" onclick="showTab('overview')" class="tab-btn px-4 py-2.5 text-xs font-semibold text-indigo-600 border-b-2 border-indigo-600 transition-all">Overview</button>
+    <button id="tab-btn-workflow" onclick="showTab('workflow')" class="tab-btn px-4 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-800 border-b-2 border-transparent transition-all">Workflow</button>
+    <button id="tab-btn-about" onclick="showTab('about')" class="tab-btn px-4 py-2.5 text-xs font-semibold text-slate-500 hover:text-slate-800 border-b-2 border-transparent transition-all">About</button>
   </div>
 
-  <div class="content-area">
+  <!-- Main Scrollable Content -->
+  <div class="flex-1 overflow-y-auto p-4 space-y-4">
 
-    <!-- Overview Tab -->
-    <div id="overview" class="content-section active">
-      <h3>Welcome to Your AI Research Assistant</h3>
-      <p>SLR Magic acts as an accelerator and a guard for your Systematic Literature Review. It helps eliminate human
-        error and ensures consistency without bias.</p>
-      <p><b>Key Features:</b></p>
-      <ul>
-        <li><b>Alternative LLM Providers:</b> Support for Gemini, vLLM, and Ollama (including load balancing).</li>
-        <li><b>Automated Screening:</b> AI filters abstracts and full-texts based on strict logic gates.</li>
-        <li><b>Data Extraction:</b> "The Miner" & "Extended Miner" extract structured data (JSON) directly from PDFs.
-        </li>
-        <li><b>Quality Control:</b> Calculates agreement rates (Cohen's Kappa) and samples decisions for human review.
-        </li>
-        <li><b>Cost Management:</b> Built-in token usage tracking and project cost preview.</li>
-        <li><b>Visualization:</b> Generate Sankey, Pie, Bar, Stack Bar, Line, and Radar charts from your data.</li>
-      </ul>
-      <p><i>Tip: Initialize the environment from the menu to get started!</i></p>
+    <!-- Overview Section -->
+    <div id="overview" class="content-section space-y-4">
+      <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Welcome to Your AI Research Assistant</h3>
+        <p class="text-xs text-slate-600 leading-relaxed mb-4">
+          SLR Magic is a next-generation research automation system designed to eliminate human bias and error in systematic literature reviews. Utilizing a state-of-the-art multi-persona LLM architecture, the platform accelerates screening and extraction tasks while maintaining absolute methodological rigor and auditability.
+        </p>
+        
+        <h4 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Key System Features</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+            <span class="text-xs font-bold text-indigo-700">🤖 Multi-Persona Pipeline</span>
+            <p class="text-[11px] text-slate-500">Deploys specialized AI agents sequentially: Fast-Filter, Gatekeeper, Scientist, and Miner.</p>
+          </div>
+          <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+            <span class="text-xs font-bold text-indigo-700">⚡ Anchored Calibration</span>
+            <p class="text-[11px] text-slate-500">Mathematically checks prompt-readiness against a Gold Standard dataset before running the pipeline.</p>
+          </div>
+          <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+            <span class="text-xs font-bold text-indigo-700">⛏️ Dynamic Schema Extraction</span>
+            <p class="text-[11px] text-slate-500">Adapts and generates spreadsheet columns dynamically to parse and map any complex JSON output.</p>
+          </div>
+          <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+            <span class="text-xs font-bold text-indigo-700">⚖️ Sequential Quality Control</span>
+            <p class="text-[11px] text-slate-500">A statistical rolling audit with confidence intervals to verify inter-rater reliability with minimal human labor.</p>
+          </div>
+          <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+            <span class="text-xs font-bold text-indigo-700">💰 Cost & Token Tracking</span>
+            <p class="text-[11px] text-slate-500">Monitors prompt, thinking, input, and output tokens to optimize API expenses.</p>
+          </div>
+          <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
+            <span class="text-xs font-bold text-indigo-700">📊 Rich Visualization</span>
+            <p class="text-[11px] text-slate-500">Generates Sankey, Radar, Pie, Bar, Stack Bar, and Line charts directly from review data.</p>
+          </div>
+        </div>
+        
+        <p class="text-[11px] text-indigo-600 mt-4 font-medium italic">
+          💡 Tip: Head to the Configuration menu to fill in your Research Manifesto and setup your models before initializing.
+        </p>
+      </div>
     </div>
 
-    <!-- Workflow Tab -->
-    <div id="workflow" class="content-section">
-      <h3>The SLR Magic Pipeline</h3>
-      <p>Follow these steps to conduct your review:</p>
-      <ol>
-        <li><b>Setup:</b> Run "Initialize Environment" to create sheets. Configure your API Key and Models in
-          <code>Configuration</code> menu.</li>
-        <li><b>Import:</b> Use "Import Raw CSV" to load your search results (Scopus/WoS) into
-          <code>01_abstract_screening</code>.</li>
-        <li><b>Abstract Screening:</b> Run the AI screener. It reads Title + Abstract and decides Include/Exclude.</li>
-        <li><b>Full-Text Screening:</b>
-          <ul>
-            <li>Upload PDFs to a Google Drive folder.</li>
-            <li>Link PDFs using "Import PDF Metadata".</li>
-            <li>Run "The Gatekeeper" (Relevance) and "The Scientist" (Quality) checks.</li>
-          </ul>
-        </li>
-        <li><b>Data Extraction:</b> Run "The Miner" to extract data into cell notes.</li>
-        <li><b>Data Collection:</b> Sync extracted data to <code>05_data_collection</code> for analysis and
-          visualization.</li>
-      </ol>
-    </div>
-
-    <!-- Prompts Tab -->
-    <div id="prompts" class="content-section">
-      <h3>Prompt Engineering Guide</h3>
-      <p>Effective prompts are critical. Use these examples as templates for your <code>Configuration</code> menu.</p>
-
-      <div class="accordion">
-        <!-- Abstract Screening -->
-        <div class="accordion-item">
-          <div class="accordion-header" onclick="toggleAccordion(this)">
-            <span>1. Abstract Screening Prompt</span>
-            <span class="icon">▼</span>
+    <!-- Workflow Section -->
+    <div id="workflow" class="content-section hidden">
+      <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4">The SLR Magic Pipeline</h3>
+        <div class="relative pl-6 border-l-2 border-indigo-100 space-y-5">
+          <!-- Step 1 -->
+          <div class="relative">
+            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">1</span>
+            <h4 class="text-xs font-bold text-slate-800">Setup & Initialization</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Run "Initialize Workspace" from the menu. The system creates the necessary review sheets with default system-required columns automatically.</p>
           </div>
-          <div class="accordion-content">
-            <p>Used for the first pass on Title and Abstract.</p>
-            <div class="code-block">Act as a strictly literal, fast-filtering Research Assistant for a Systematic
-              Literature Review. You operate like a highly optimized, sequential logic engine.
-              --- SEQUENTIAL LOGIC GATES (FAIL-FAST) ---
-              Evaluate sequentially using a strict [TRIGGERED / CLEAR] binary.
-              "TRIGGERED" means the paper violates the criteria and must be excluded. "CLEAR" means it passes that
-              specific check.
-
-              [ ] Gate 1: Is the text explicitly a Review, Survey, Bibliometric, Book chapter, or Conference summary?
-              -&gt; If TRIGGERED: Stop. Code = EC1_WrongDocType
-              [ ] Gate 2: Does the text completely fail to mention a physical asset context, cyber-physical system, or
-              system architecture?
-              -&gt; If TRIGGERED: Stop. Code = EC2_NoSystemContext
-              [ ] Gate 3: Does the text completely fail to mention an AI/ML forecasting or predictive analytic model?
-              -&gt; If TRIGGERED: Stop. Code = EC3_NoPredictive
-              [ ] Gate 4 (Architectural vs. Algorithmic Check):
-              CRITICAL RULE: Do NOT exclude a paper simply because it uses "simulation", "synthetic data", or
-              "datasets".
-              EXCLUDE the paper ONLY IF it strictly focuses on pure algorithmic/mathematical performance benchmarking
-              (e.g., solely comparing F1-scores, accuracy on a static dataset) WITHOUT proposing, evaluating, or
-              explicitly discussing a system architecture, framework, or edge-cloud integration.
-              -&gt; If TRIGGERED: Stop. Code = EC4_PureAlgorithmic
-
-              --- STRICT OUTPUT PROTOCOL ---
-              1. NO QUOTING REQUIRED: Rely strictly on your internal semantic match.
-              2. ABORT ON TRIGGER: Stop writing gates the exact moment one evaluates to TRIGGERED.
-              3. EXACT MAPPING: Ensure the exclusion_code matches the code of the TRIGGERED Gate.
-
-              REQUIRED FORMAT:
-              &lt;think&gt;
-              G1: [TRIGGERED / CLEAR]
-              G2: [TRIGGERED / CLEAR]
-              [... Stop writing immediately if a gate is TRIGGERED ...]
-              &lt;/think&gt;
-              {
-              "decision": "Include" | "Exclude",
-              "exclusion_code": "[Insert exact code from triggered Gate, or null]",
-              "reasoning": "[Max 50 words. Exclude: State the exact disqualifying trigger. Include: List System,
-              Predictive, and Architectural elements found.]"
-              }</div>
+          <!-- Step 2 -->
+          <div class="relative">
+            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">2</span>
+            <h4 class="text-xs font-bold text-slate-800">Metadata Ingestion</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Load your search results (e.g., Scopus or Web of Science CSV exports) into the <code>00_Raw_Harvest</code> sheet using the Ingestion Hub.</p>
           </div>
-        </div>
-
-        <!-- The Gatekeeper -->
-        <div class="accordion-item">
-          <div class="accordion-header" onclick="toggleAccordion(this)">
-            <span>2. The Gatekeeper (Relevance)</span>
-            <span class="icon">▼</span>
+          <!-- Step 3 -->
+          <div class="relative">
+            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">3</span>
+            <h4 class="text-xs font-bold text-slate-800">Pre-Execution Calibration</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Export calibration pools to check your LLM prompts against a human-labeled Gold Standard dataset. Iterate until Kappa/F1-score clear thresholds.</p>
           </div>
-          <div class="accordion-content">
-            <p>Reads the full text to confirm relevance.</p>
-            <div class="code-block">--- SYSTEM ROLE &amp; READING PROTOCOL (CRITICAL) ---
-              Act as a strictly literal Scientific Reviewer for an Information Technology Systematic Literature Review.
-              Your task is to deeply analyze the FULL TEXT to verify the baseline architectural qualifications.
-
-              To avoid "hallucinations" over a 10,000+ token context window or citing related work as the author's
-              contribution, you MUST adhere to this reading protocol:
-              1. IGNORE: Title, Abstract (already screened), Introduction (contains marketing/promises), Literature
-              Review, and Future Work.
-              2. FOCUS EXCLUSIVELY ON: Methodology / System Architecture / Experimental Setup / Results.
-              3. THE CONFLICT RULE: If the Introduction claims "AI and Digital Twin" but the Methodology only describes
-              "Static Threshold-based Control", ALWAYS TRUST THE METHODOLOGY.
-
-              --- THE 3-PILLAR DIGITAL TWIN ANCHOR ---
-              To pass, the Methodology/Architecture sections MUST explicitly detail an integrated system comprising:
-              1. Physical/Cyber-Physical Context: Real deployed hardware/testbeds, OR a rigorously defined distributed
-              architecture/blueprint connecting physical and virtual spaces.
-              2. Predictive Brain: Data-driven AI/ML/DL models forecasting future states.
-              3. System Integration: Explicit technical topologies (data pipelines, IoT networks, edge-cloud
-              communication).
-
-              --- THE TRAP: REACTIVE AUTOMATION ---
-              Standard IoT/WSN setups that merely log data to a dashboard, or "Smart" systems relying on hard-coded
-              static thresholds (e.g., "If Humidity &lt; 20%, Turn Pump ON") without adaptive learning are strictly
-              EXCLUDED. This is reactive automation, not predictive intelligence.
-
-              --- SEQUENTIAL LOGIC GATES (FAIL-FAST) ---
-              Evaluate sequentially. "TRIGGERED" means the paper violates the criteria and must be excluded. "CLEAR"
-              means it passes.
-
-              [ ] Gate 1 (Accessibility): Is the text not in English, heavily corrupted, garbled OCR, or just a table of
-              contents?
-              -&gt; If TRIGGERED: Stop. Code = EC7_Accessibility
-              [ ] Gate 2 (The Trap / Static Rules): Does the methodology reveal that the control/decision-making system
-              relies ENTIRELY on static, hard-coded rules WITHOUT employing data-driven predictive algorithms?
-              -&gt; If TRIGGERED: Stop. Code = EC6_StaticRules
-              [ ] Gate 3 (Architectural Integrity): Does the text FAIL to comprehensively detail all elements of the
-              3-Pillar Anchor?
-              CRITICAL RULE: Papers proposing reference architectures validated via system simulators (e.g., CloudSim,
-              edge-emulators) are VALID (CLEAR). However, using simulation SOLELY to test algorithmic accuracy (e.g.,
-              isolating F1-scores on a static dataset) without defining the underlying cyber-physical integration
-              architecture is INVALID (TRIGGERED).
-              -&gt; If TRIGGERED: Stop. Code = EC5_FailedArchitecture
-
-              --- STRICT OUTPUT PROTOCOL (JSON PARSER SAFETY) ---
-              This response will be directly consumed by a serverless JSON.parse() function. Any text outside the
-              &lt;think&gt; block other than valid RFC 8259 JSON will cause a critical pipeline crash.
-
-              &lt;think&gt;
-              G1: [TRIGGERED / CLEAR]
-              G2: [TRIGGERED / CLEAR]
-              [... Stop writing immediately if a gate is TRIGGERED ...]
-              &lt;/think&gt;
-              {
-              "decision": "Include" | "Exclude",
-              "exclusion_code": "[Insert exact code from triggered Gate, or null]",
-              "reasoning": "[Max 50 words. Exclude: State exactly what the METHODOLOGY section lacked. Include: Briefly
-              summarize the physical context, predictive algorithm, and integration pipeline found in the methodology.]"
-              }</div>
+          <!-- Step 4 -->
+          <div class="relative">
+            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">4</span>
+            <h4 class="text-xs font-bold text-slate-800">Phase 1: Abstract Fast-Filter</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Execute the Fast Filter screener to quickly exclude irrelevant or out-of-scope papers based on title and abstract logic gates.</p>
           </div>
-        </div>
-
-        <!-- The Scientist -->
-        <div class="accordion-item">
-          <div class="accordion-header" onclick="toggleAccordion(this)">
-            <span>3. The Scientist (Quality Check)</span>
-            <span class="icon">▼</span>
+          <!-- Step 5 -->
+          <div class="relative">
+            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">5</span>
+            <h4 class="text-xs font-bold text-slate-800">Phase 2.1: Full-Text Gatekeeper</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Filter documents based on full-text methodology. Gatekeeper verifies the physical/cyber-physical context and predictive algorithms.</p>
           </div>
-          <div class="accordion-content">
-            <p>Evaluates scientific rigor and completeness.</p>
-            <div class="code-block">--- SYSTEM ROLE &amp; READING PROTOCOL ---
-              Act as an objective, highly rigorous Scientific Reviewer. Your task is to evaluate the scientific rigor
-              and architectural engineering quality of a paper that has already passed baseline relevance checks.
-              To avoid hallucinations:
-              1. FOCUS EXCLUSIVELY ON: Methodology, System Architecture, Experimental Setup, and Results sections.
-              2. IGNORE: Promises made in the Abstract, Introduction, or Future Work.
-              3. THE EVIDENCE RULE: "No concrete metric or diagram = Score 0". Do not give the benefit of the doubt.
-
-              --- THE SCORING ENGINE ---
-              Evaluate the paper against 8 Quality Assessment (QA) criteria.
-              Assign a strict numerical score for each:
-              [ 1.0 ] = Yes (Fully satisfied with explicit evidence)
-              [ 0.5 ] = Partially (Satisfied but with limitations or simulated/partial evidence)
-              [ 0.0 ] = No (Fails to satisfy, vague, or no evidence)
-
-              QUALITY CRITERIA:
-              [ ] QA1_Aims [CRITICAL]: Is there a clear statement of the specific aims regarding the predictive
-              analytics within the system?
-              (1.0: Explicit prediction targets / 0.0: Vague "smart system" claims).
-              [ ] QA2_Context [CRITICAL]: Are the physical domain, operational scale, and hardware infrastructure
-              precisely defined?
-              (1.0: Specifies exact environment, e.g., "500kW Turbine" or "100m2 Greenhouse" / 0.0: Generic, undefined
-              terms).
-              [ ] QA3_Reliability [CRITICAL]: Is the data collection and physical-virtual integration reliably executed?
-              (1.0: Uses physical hardware data / 0.5: Simulated but validated with real historical data / 0.0: Pure
-              mathematical concept without physical validation).
-              [ ] QA4_Architecture [CRITICAL]: Is the computational architecture (Edge, Fog, Cloud) and data pipeline
-              explicitly described or illustrated?
-              (1.0: Clear architectural topology / 0.0: Deployment environment is hidden/omitted).
-              [ ] QA5_Answered: Do the reported results adequately answer the specific predictive research aims?
-              (1.0: Directly addresses aims / 0.5: Addresses some aims / 0.0: Deviates completely).
-              [ ] QA6_Limitations: Does the paper explicitly report technical limitations (e.g., computational cost,
-              latency, bandwidth)?
-              (1.0: Discusses technical constraints / 0.5: Mentions non-technical future work / 0.0: Presents a flawless
-              system).
-              [ ] QA7_Findings [CRITICAL]: Are BOTH predictive accuracy (e.g., RMSE) AND system performance metrics
-              (e.g., network latency, inference time, memory footprint) empirically reported?
-              (1.0: Metrics provided for BOTH model and system / 0.5: ONLY model accuracy reported / 0.0: Qualitative
-              findings only).
-              [ ] QA8_Conclusion: Do the conclusions explicitly relate back to the aims and are strictly supported by
-              data?
-              (1.0: Grounded in reported numbers / 0.5: Broad claims / 0.0: Overstated, unsupported claims).
-
-              --- DECISION LOGIC (THE GATE) ---
-              A paper is EXCLUDED if it hits EITHER of these two conditions:
-              1. Critical Failure: It receives a score of [ 0.0 ] on ANY of the [CRITICAL] criteria (QA1, QA2, QA3, QA4,
-              QA7). -&gt; Code = EC8_CriticalFailure
-              2. Low Quality Threshold: The total sum of QA1 to QA8 is strictly LESS THAN 4.5. -&gt; Code =
-              EC9_LowScoreThreshold
-
-              If it passes BOTH rules, it is INCLUDED. -&gt; Code = Pass_Quality
-
-              --- STRICT OUTPUT PROTOCOL (JSON PARSER SAFETY) ---
-              This response will be parsed directly by a serverless JSON.parse() function. Any text outside the
-              &lt;think&gt; block other than valid RFC 8259 JSON will cause a critical crash.
-
-              REQUIRED FORMAT:
-              &lt;think&gt;
-              Score Calculation:
-              QA1: [1.0 | 0.5 | 0.0] - Reason...
-              QA2: [1.0 | 0.5 | 0.0] - Reason...
-              [... list all up to QA8 ...]
-              Total Score: [Sum of QA1 to QA8]
-              Gate Check 1 (Critical 0.0?): [Pass/Fail]
-              Gate Check 2 (Total &gt;= 4.5?): [Pass/Fail]
-              &lt;/think&gt;
-              {
-              "decision": "Include" | "Exclude",
-              "exclusion_code": "EC8_CriticalFailure" | "EC9_LowScoreThreshold" | null,
-              "qa_scores": {
-              "qa1_aims": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Quote explicit evidence or state None]" },
-              "qa2_context": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Quote context/scale/hardware found]" },
-              "qa3_reliability": { "value": [1.0 | 0.5 | 0.0], "evidence": "[State data source: Physical / Simulated /
-              None]" },
-              "qa4_architecture": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Describe architecture/data pipeline
-              found]" },
-              "qa5_answered": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Brief justification]" },
-              "qa6_limitations": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Brief justification]" },
-              "qa7_findings": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Quote exact metrics, e.g., RMSE / Latency /
-              None]" },
-              "qa8_conclusion": { "value": [1.0 | 0.5 | 0.0], "evidence": "[Brief justification]" }
-              },
-              "reasoning": "[Max 50 words. Provide a highly technical summary justifying the final decision. If
-              excluded, state the critical failure or low total score.]"
-              }</div>
+          <!-- Step 6 -->
+          <div class="relative">
+            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">6</span>
+            <h4 class="text-xs font-bold text-slate-800">Phase 2.2: Full-Text Scientist</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Score the remaining papers against 8 Quality Assessment (QA) criteria. Low quality or failing papers are excluded automatically.</p>
           </div>
-        </div>
-
-        <!-- The Miner -->
-        <div class="accordion-item">
-          <div class="accordion-header" onclick="toggleAccordion(this)">
-            <span>4. The Miner (Data Extraction)</span>
-            <span class="icon">▼</span>
+          <!-- Step 7 -->
+          <div class="relative">
+            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">7</span>
+            <h4 class="text-xs font-bold text-slate-800">Phase 2.3: Data Extraction (Miner)</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Run The Miner to extract research parameters and quoted evidence. New columns are appended to the sheet dynamically matching the LLM output keys.</p>
           </div>
-          <div class="accordion-content">
-            <p>Extracts specific variables and data points.</p>
-            <div class="code-block">--- SYSTEM ROLE &amp; EXTRACTION PROTOCOL ---
-              Act as a meticulous, zero-hallucination Data Extraction Specialist for a Systematic Literature Review.
-              Your input is a full-text scientific paper that has PASSED all relevance and quality checks.
-              Your SOLE TASK is to extract specific engineering, algorithmic, and architectural parameters strictly
-              mapped to the 4 Research Questions (RQ).
-
-              --- PROTOCOL: EXTRACTION RULES (CRITICAL) ---
-              1. SOURCE OF TRUTH: Focus exclusively on Methodology, System Architecture, Experimental Setup, and
-              Results.
-              2. EFFORT LEVEL: High. Search figure captions, architectural diagrams, table footnotes, and hardware
-              specs.
-              3. THE STRICT NULLING RULE: If a data point is TRULY absent, you MUST output "Not Reported" in the "value"
-              field. Do not guess, infer, or assume industry standards.
-              4. SCALE INFERENCE RULE (Cross-Domain):
-              - Do NOT infer a system is "Small-scale" solely because it uses Raspberry Pi/Arduino; industrial IoT uses
-              MCUs too.
-              - Look for context keywords: "Commercial", "Large-scale", "City-wide", "Industrial Plant" (Industrial) VS
-              "Low-cost", "Affordable", "Prototype", "Bench-scale" (Small-scale).
-              5. MATURITY DEFINITION:
-              - Autonomous: AI decides &amp; acts automatically (Closed-loop) without human intervention.
-              - Prescriptive: Suggests actions to user (DSS) OR uses static hard-coded rules/thresholds.
-              - Predictive: Forecasts future states but does not act or suggest.
-              - Monitoring: Dashboard/Visualization only.
-
-              --- EXTRACTION FIELDS (JSON) ---
-
-              [RQ1.1: DOMAIN &amp; SCALE]
-              - rq1_primary_domain: The specific industry (e.g., "Aerospace", "Manufacturing", "Smart Horticulture").
-              - rq1_operational_scale: Extracted scale based on Rule 4 (e.g., "Industrial", "Laboratory Prototype",
-              "Small-scale").
-              - rq1_maturity_level: Extracted maturity based on Rule 5.
-
-              [RQ1.2: ARCHITECTURE]
-              - rq2_topology: Where does computation happen? (e.g., "Edge-Cloud Distributed", "Monolithic Cloud", "Pure
-              Edge").
-              - rq2_protocols: Communication/IoT protocols (e.g., "MQTT, LoRaWAN, HTTP").
-              - rq2_hardware: Explicit hardware/sensor names (e.g., "ESP32, DHT11, NVIDIA Jetson").
-
-              [RQ1.3: ALGORITHMS &amp; PERFORMANCE]
-              - rq3_predictive_models: Exact algorithm names (e.g., "LSTM", "Random Forest").
-              - rq3_inference_node: Where the model is deployed (e.g., "Deployed on Edge TPU", "Running on AWS Cloud").
-              - rq3_metrics_model: Predictive accuracy (e.g., "RMSE = 0.05", "98% Accuracy").
-              - rq3_metrics_system: System performance metrics (e.g., "Inference latency 45ms", "Network delay 12ms").
-
-              [RQ1.4: LIMITATIONS]
-              - rq4_limitations: Explicit technical constraints, bottlenecks, or architectural flaws stated by the
-              authors.
-
-              --- STRICT OUTPUT FORMAT (JSON PARSER SAFETY) ---
-              EVERY field must be an object containing exactly two keys: "value" and "evidence".
-              - "value": The extracted concise data OR "Not Reported".
-              - "evidence": A direct quote or highly specific pointer to where you found it (e.g., "Section 3.2: 'MQTT
-              was used...'").
-              This response will be parsed directly by a Google Apps Script JSON.parse() function. Any text outside the
-              &lt;think&gt; block other than valid RFC 8259 JSON will cause a critical error.
-
-              REQUIRED FORMAT:
-              &lt;think&gt;
-              Scanning for RQ1.1 targets...
-              Scanning for RQ1.2 targets...
-              Scanning for RQ1.3 targets...
-              Scanning for RQ1.4 targets...
-              Validating all fields have 'value' and 'evidence'.
-              Ensuring nulling rule is applied for missing data.
-              &lt;/think&gt;
-              {
-              "extracted_data": {
-              "rq1_primary_domain": { "value": "...", "evidence": "..." },
-              "rq1_operational_scale": { "value": "...", "evidence": "..." },
-              "rq1_maturity_level": { "value": "...", "evidence": "..." },
-              "rq2_topology": { "value": "...", "evidence": "..." },
-              "rq2_protocols": { "value": "...", "evidence": "..." },
-              "rq2_hardware": { "value": "...", "evidence": "..." },
-              "rq3_predictive_models": { "value": "...", "evidence": "..." },
-              "rq3_inference_node": { "value": "...", "evidence": "..." },
-              "rq3_metrics_model": { "value": "...", "evidence": "..." },
-              "rq3_metrics_system": { "value": "...", "evidence": "..." },
-              "rq4_limitations": { "value": "...", "evidence": "..." }
-              }
-              }</div>
+          <!-- Step 8 -->
+          <div class="relative">
+            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">8</span>
+            <h4 class="text-xs font-bold text-slate-800">Phase 3: Post-Execution QC Audit</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Perform rolling micro-batch human reviews of 20 random papers. Auditing stops early as soon as the confidence interval clears predefined targets.</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Search String Tab -->
-    <div id="search" class="content-section">
-      <h3>Example Search String</h3>
-      <p>Use this format for Scopus or Web of Science exports.</p>
-      <div class="code-block">TITLE-ABS-KEY ( "digital twin*" OR "digital-twin*" )
-        AND
-        TITLE-ABS-KEY ( "predictive analytic*" OR "machine learning" OR "deep learning" OR "forecasting" OR
-        "prognostic*" )
-        AND
-        TITLE-ABS-KEY ( "architecture*" OR "cyber-physical" OR "edge computing" OR "fog computing" OR
-        "system-of-systems" OR "framework" )
-        AND NOT
-        TITLE-ABS-KEY ( "genomic*" OR "molecular docking" OR "surgery" OR "patient*" OR "nanomaterial*" OR "pharmac*" OR
-        "clinical" )
-        AND
-        ( LIMIT-TO ( PUBYEAR, 2025 ) OR LIMIT-TO ( PUBYEAR, 2024 ) OR LIMIT-TO ( PUBYEAR, 2023 ) OR LIMIT-TO ( PUBYEAR,
-        2022 ) OR LIMIT-TO ( PUBYEAR, 2021 ) OR LIMIT-TO ( PUBYEAR, 2020 ) OR LIMIT-TO ( PUBYEAR, 2019 ) OR LIMIT-TO (
-        PUBYEAR, 2018 ) )</div>
-    </div>
+    <!-- About Section -->
+    <div id="about" class="content-section hidden space-y-4">
+      <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-5">
+        <div>
+          <h3 class="text-sm font-bold text-slate-800 tracking-tight">About SLR Magic</h3>
+          <div class="text-xs text-slate-600 mt-2 space-y-3 leading-relaxed">
+            <p>
+              The multi-persona LLM framework achieves a statistically significant level of inter-rater reliability comparable to human experts while simultaneously optimizing processing efficiency. This is achieved through a two-tiered, resource-optimized validation architecture consisting of pre-execution calibration and post-execution verification:
+            </p>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+              <div>
+                <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider block mb-1">1. Pre-Validation Phase</span>
+                <p class="text-[11px] text-slate-500">
+                  Prior to full-scale pipeline execution, an anchored meta-prompting loop optimizes phase-specific prompts against a human-annotated "Gold Standard" sample dataset. Prompt readiness is mathematically verified using strict target thresholds for F1-score, Cohen's Kappa, and Schema Exactness.
+                </p>
+              </div>
+              <hr class="border-slate-200/60" />
+              <div>
+                <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider block mb-1">2. Post-Validation Phase (Sequential Quality Control Audit)</span>
+                <p class="text-[11px] text-slate-500">
+                  Following autonomous processing of the corpus down to the final extracted cohort, the system's generalizability is verified without exhausting human expert resources. Instead of rigid, flat percentage-based sampling, human reviewers execute double-blind assessments on independent, randomized entries in rolling micro-batches of 20 papers. Cumulative performance metrics are re-calculated after each batch alongside their 95% confidence intervals. The human auditing process automatically terminates the moment the lower statistical bound of the confidence interval stably clears predefined performance thresholds (e.g., Kappa &ge; 0.80 for filtering layers, Kappa &ge; 0.65 for complex methodological appraisals).
+                </p>
+              </div>
+            </div>
+            <p class="text-[11px] font-medium text-indigo-600 italic">
+              This end-to-end framework guarantees absolute methodological rigor across the selection funnel while minimizing human verification overhead.
+            </p>
+          </div>
+        </div>
 
-    <!-- About Tab -->
-    <div id="about" class="content-section">
-      <h3>About SLR Magic</h3>
-      <p>This project is open-source and free to use.</p>
-      <p>Code available at: <a href="https://github.com/iwas108/SLR-Magic"
-          target="_blank">github.com/iwas108/SLR-Magic</a></p>
-      <p>Feel free to contribute or report issues!</p>
-      <p><i>Adhering to FAIR and Clean Code Architecture principles.</i></p>
+        <!-- Core Principles -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+          <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Core Principles</h4>
+          <ul class="text-[11px] text-slate-600 space-y-1.5 list-disc pl-4 leading-relaxed">
+            <li><strong>FAIR Data Principles:</strong> Promotes findable, accessible, interoperable, and reusable scientific review outputs.</li>
+            <li><strong>Clean Architecture:</strong> Strict decoupling of presentation UI, service layer proxies, and storage adapters.</li>
+            <li><strong>Privacy-First Local AI:</strong> Native integration with local Ollama endpoints to keep literature screening completely private.</li>
+          </ul>
+        </div>
+
+        <!-- Author & Repository -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-4 border-t border-slate-100 gap-4 text-xs">
+          <div>
+            <span class="font-bold text-slate-700">Developer Contact</span>
+            <div class="text-[11px] text-slate-500 mt-0.5">
+              <strong>I Wayan Aditya Suranata</strong> &middot; 
+              <a href="mailto:aditya@narin.co.id" class="text-indigo-600 hover:underline">aditya@narin.co.id</a>
+            </div>
+          </div>
+          <div class="sm:text-right">
+            <span class="font-bold text-slate-700">GitHub Repository</span>
+            <div class="text-[11px] mt-0.5">
+              <a href="https://iwas108.github.io/SLR-Magic" target="_blank" class="text-indigo-600 hover:underline font-semibold">iwas108.github.io/SLR-Magic</a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
 
-  <div class="footer">
-    <div class="checkbox-container">
-      <label>
-        <input type="checkbox" id="dont-show" onchange="togglePreference()"> Don't show this again
-      </label>
+  <!-- Bottom Footer -->
+  <div class="bg-white border-t border-slate-200 p-4 flex flex-col items-center justify-between gap-3 flex-shrink-0">
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="dont-show" onchange="togglePreference()" class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500">
+      <label for="dont-show" class="text-xs text-slate-500 select-none cursor-pointer">Don't show this again</label>
     </div>
-    <button onclick="google.script.host.close()"
-      style="margin-top:10px; padding: 5px 15px; cursor: pointer;">Close</button>
+    <button onclick="google.script.host.close()" class="px-5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-xl text-xs shadow-sm transition-colors cursor-pointer">
+      Close Dialog
+    </button>
   </div>
 
   <script>
     function showTab(tabId) {
       // Hide all sections
       const sections = document.querySelectorAll('.content-section');
-      sections.forEach(s => s.classList.remove('active'));
+      sections.forEach(s => s.classList.add('hidden'));
 
-      // Deactivate all tabs
-      const tabs = document.querySelectorAll('.tab');
-      tabs.forEach(t => t.classList.remove('active'));
+      // Deactivate all tab buttons
+      const tabs = document.querySelectorAll('.tab-btn');
+      tabs.forEach(t => {
+        t.classList.remove('text-indigo-600', 'border-indigo-600');
+        t.classList.add('text-slate-500', 'border-transparent');
+      });
 
-      // Activate selected
-      document.getElementById(tabId).classList.add('active');
-      // Activate button
-      const activeTab = Array.from(tabs).find(t => t.innerText.toLowerCase().includes(tabId.replace('search', 'search')));
-      if (activeTab) activeTab.classList.add('active');
-      else if (tabId === 'search') tabs[3].classList.add('active'); // fallback
-    }
+      // Activate selected section
+      document.getElementById(tabId).classList.remove('hidden');
 
-    function toggleAccordion(header) {
-      header.classList.toggle('active');
-      const content = header.nextElementSibling;
-      content.classList.toggle('open');
+      // Activate selected button
+      const activeTabBtn = document.getElementById('tab-btn-' + tabId);
+      if (activeTabBtn) {
+        activeTabBtn.classList.remove('text-slate-500', 'border-transparent');
+        activeTabBtn.classList.add('text-indigo-600', 'border-indigo-600');
+      }
     }
 
     function togglePreference() {

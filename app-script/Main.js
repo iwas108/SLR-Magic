@@ -9,48 +9,45 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('SLR Magic')
-    .addItem('Initialize Environment', 'runInitialization')
-    .addItem('Configuration', 'showConfigurationDialog')
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('⚙️ Setup & Configuration')
+        .addItem('Initialize Workspace', 'runInitialization')
+        .addItem('Configure Settings', 'showConfigurationDialog')
+        .addItem('Project Cost Preview', 'showCostPreviewDialog')
+        .addItem('About SLR-Magic', 'showWelcomeDialog'))
     .addSeparator()
-    .addItem('Import Raw CSV', 'runImportRawCSV')
-    .addItem('Import Snowballed(s)', 'runImportSnowballed')
-    .addSeparator()
-    .addItem('Start AI Title-Abstract Screening', 'runScreening')
-    .addItem('Manage Background Screening (Abstract)', 'manageScreeningTrigger')
-    .addSeparator()
-    .addSubMenu(SpreadsheetApp.getUi().createMenu('Utilities')
-        .addItem('Copy Screened Title-Abstract', 'runCopyScreenedPapers')
-        .addItem('Import PDF Files', 'presentPDFImportUI')
-        .addItem('Import PDF Metadata (CSV)', 'runImportFileMetadata')
-        .addItem('Manage Background PDF Import', 'managePDFImportTrigger')
-        .addItem('Prepare Manual Download (Proxy Links)', 'runTransformDOILinks'))
-    .addSeparator()
-    .addItem('Start AI Full-Text Screening', 'runFullTextScreening')
-    .addItem('Manage Background Screening (Full Text)', 'manageFullTextScreeningTrigger')
-    .addItem('Start AI Extended Miner', 'runExtendedMiner')
-    .addItem('Manage Background AI Extended Miner', 'manageExtendedMinerTrigger')
-    .addSeparator()
-    .addSubMenu(SpreadsheetApp.getUi().createMenu('Title-Abstract Inter-Rater')
-        .addItem('Export Blinded Review (.slr)', 'exportTitleAbsInterRater')
-        .addItem('Import Blinded Results (.slr)', 'importTitleAbsInterRater')
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('🧪 Phase 1: Pre-Calibration')
+        .addItem('Assign Papers to Pools', 'runAssignToPools')
+        .addSeparator()
+        .addItem('Export Blinded Review Sample (.slr)', 'exportTitleAbsInterRater')
+        .addItem('Import Blinded Results Sample (.slr)', 'importTitleAbsInterRater')
         .addItem('Calculate Inter-Rater Score', 'calculateTitleAbsInterRaterScore'))
-    .addSubMenu(SpreadsheetApp.getUi().createMenu('Full-Text Inter-Rater')
-        .addItem('Export Blinded Review (.slr)', 'exportFullTextInterRater')
-        .addItem('Import Blinded Results (.slr)', 'importFullTextInterRater')
-        .addItem('Calculate Inter-Rater Score', 'calculateFullTextInterRaterScore'))
-    .addSeparator()
-    .addItem('Umbrellanizer (Data Categorizer)', 'runUmbrellanizer')
-    .addItem('Process Data Collection', 'runDataCollection')
-    .addSubMenu(SpreadsheetApp.getUi().createMenu('Visualizer')
-        .addItem('Sankey Diagram', 'openSankeyVisualizer')
-        .addItem('Pie Chart', 'openPieChartVisualizer')
-        .addItem('Bar Chart', 'openBarChartVisualizer')
-        .addItem('Stack Bar Chart', 'openBarStackVisualizer')
-        .addItem('Line Chart', 'openLineChartVisualizer')
-        .addItem('Radar Chart', 'openRadarChartVisualizer'))
-    .addSeparator()
-    .addItem('Project Cost Preview', 'showCostPreviewDialog')
-    .addItem('About SLR-Magic', 'showWelcomeDialog')
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('🚀 Phase 2: Autonomous Execution')
+        .addItem('Run Stage 1: Abstract Screening', 'runStage1AbstractScreening')
+        .addItem('Manage Stage 1 Trigger', 'manageStage1Trigger')
+        .addSeparator()
+        .addItem('Run Stage 2.1: Gatekeeper', 'runStage21Gatekeeper')
+        .addItem('Run Stage 2.2: Scientist', 'runStage22Scientist')
+        .addItem('Run Stage 2.3: Miner', 'runStage23Miner')
+        .addSeparator()
+        .addItem('Manage Stage 2.1 Trigger', 'manageStage21Trigger')
+        .addItem('Manage Stage 2.2 Trigger', 'manageStage22Trigger')
+        .addItem('Manage Stage 2.3 Trigger', 'manageStage23Trigger'))
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('⚖️ Phase 3: Sequential QC Audit')
+        .addItem('Generate QC Audit Batch', 'runQCAuditorChecks')
+        .addItem('Export Blinded QC Review (.slr)', 'exportQCAuditBatch')
+        .addItem('Import Blinded QC Results (.slr)', 'importQCAuditBatch')
+        .addItem('Calculate QC Inter-Rater Score', 'calculateQCAuditScore'))
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('📊 Phase 4: Synthesis & Visuals')
+        .addItem('Umbrellanizer (Data Categorizer)', 'runUmbrellanizer')
+        .addItem('Process Data Collection', 'runDataCollection')
+        .addSeparator()
+        .addSubMenu(SpreadsheetApp.getUi().createMenu('Visualizer Graphs')
+            .addItem('Sankey Diagram', 'openSankeyVisualizer')
+            .addItem('Pie Chart', 'openPieChartVisualizer')
+            .addItem('Bar Chart', 'openBarChartVisualizer')
+            .addItem('Stack Bar Chart', 'openBarStackVisualizer')
+            .addItem('Line Chart', 'openLineChartVisualizer')
+            .addItem('Radar Chart', 'openRadarChartVisualizer')))
     .addToUi();
 
   // Attempt to show welcome screen if configured
@@ -109,7 +106,15 @@ function showConfigurationDialog() {
  * Server-side handler for getting configuration (called from ConfigurationUI).
  */
 function getConfiguration() {
-  return ConfigManager.getAll();
+  const config = ConfigManager.getAll();
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("00_Raw_Harvest");
+    config["_RAW_HARVEST_COUNT"] = sheet ? Math.max(0, sheet.getLastRow() - 1) : 0;
+  } catch (e) {
+    config["_RAW_HARVEST_COUNT"] = 0;
+  }
+  return config;
 }
 
 /**
@@ -153,8 +158,23 @@ function fetchOllamaModelsProxy(baseUrl, apiKey) {
  * Server-side handler for saving configuration (called from ConfigurationUI).
  */
 function saveConfiguration(config) {
-  const props = PropertiesService.getScriptProperties();
-  props.setProperties(config);
+  for (const [key, val] of Object.entries(config)) {
+    ConfigManager.set(key, val);
+  }
+}
+
+/**
+ * Placeholder for Phase 3 QC Audit Configuration.
+ */
+function showQCAuditPlaceholder() {
+  SpreadsheetApp.getUi().alert("Sequential QC Audit Configuration will be enabled in Epoch 3: Sequential QC Audit & Human-in-the-Loop.");
+}
+
+/**
+ * Placeholder for Phase 3 QC Verification Checks.
+ */
+function runQCVerificationPlaceholder() {
+  SpreadsheetApp.getUi().alert("Sequential QC Verification checks will be enabled in Epoch 3: Sequential QC Audit & Human-in-the-Loop.");
 }
 
 /**
@@ -193,36 +213,22 @@ function calculateProjectCosts(priceMap) {
 }
 
 /**
- * The main workflow controller wrapper.
- */
-function runImportRawCSV() {
-  ImportController.showImportDialog();
+// Ingestion wrappers are now handled directly by ingestCSVData and ingestManualPaperData below.
+
+function runStage1AbstractScreening() {
+  ScreeningController.runStage1AbstractScreening();
 }
 
-/**
- * Runs the Snowballed(s) Import workflow.
- */
-function runImportSnowballed() {
-  ImportController.runImportSnowballed();
+function runStage21Gatekeeper() {
+  FullTextScreeningController.runStage21Gatekeeper();
 }
 
-/**
- * Server-side handlers for ImportCSVUI.
- */
-function getCSVHeaders(url) {
-  return ImportController.getCSVHeaders(url);
+function runStage22Scientist() {
+  FullTextScreeningController.runStage22Scientist();
 }
 
-function processImport(url, sourceName, mapping) {
-  return ImportController.processImport(url, sourceName, mapping);
-}
-
-function runScreening() {
-  ScreeningController.run();
-}
-
-function runCopyScreenedPapers() {
-  FullTextScreeningController.runCopyScreenedPapers();
+function runStage23Miner() {
+  FullTextScreeningController.runStage23Miner();
 }
 
 function runImportPDFs() {
@@ -241,14 +247,6 @@ function presentPDFImportUI() {
  */
 function runImportFileMetadata() {
   FullTextScreeningController.runImportFileMetadata();
-}
-
-function runTransformDOILinks() {
-  FullTextScreeningController.runTransformDOILinks();
-}
-
-function runFullTextScreening() {
-  FullTextScreeningController.runScreening();
 }
 
 /**
@@ -273,17 +271,50 @@ function getUmbrellanizerUniqueValues(columnName) {
 }
 
 /**
- * Server-side handler for applying the Umbrellanizer formula.
+ * Server-side handler for applying the Umbrellanizer taxonomy mapping.
  */
-function applyUmbrellanizerFormula(columnName, decisionColumn, decisionValue, isMultiLabel, formulaText) {
-  return UmbrellanizerController.applyUmbrellanizer(columnName, decisionColumn, decisionValue, isMultiLabel, formulaText);
+function applyUmbrellanizer(columnName, replacementType) {
+  return UmbrellanizerController.applyUmbrellanizer(columnName, replacementType);
 }
 
 /**
- * Processes data collection JSON in '05_data_collection'.
+ * Server-side handler for fetching the UMBRELLANIZER_PROMPT configuration template.
+ */
+function getUmbrellanizerPrompt() {
+  return ConfigManager.get("UMBRELLANIZER_PROMPT") || "";
+}
+
+/**
+ * Processes data collection JSON and generates the downstream Synthesis Report.
  */
 function runDataCollection() {
-  DataCollectionController.run();
+  DataCollectionController.runSynthesisReport();
+}
+
+/**
+ * Expose runSynthesisReport globally for other modules or menus.
+ */
+function runSynthesisReport() {
+  DataCollectionController.runSynthesisReport();
+}
+
+/**
+ * Expose QC Auditor checks.
+ */
+function runQCAuditorChecks() {
+  InterRaterController.runQCAuditorChecks();
+}
+
+function exportQCAuditBatch() {
+  InterRaterController.showExportDialog("QC_Audit_Batch");
+}
+
+function importQCAuditBatch() {
+  InterRaterController.showImportDialog("QC_Audit_Batch");
+}
+
+function calculateQCAuditScore() {
+  InterRaterController.calculateScore("QC_Audit_Batch");
 }
 
 /**
@@ -298,42 +329,57 @@ function importTitleAbsInterRater() {
 }
 
 function calculateTitleAbsInterRaterScore() {
-  InterRaterController.calculateScore("title-abs");
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.prompt(
+    "Calculate Inter-Rater Score",
+    "Enter the Calibration Pool sheet name to analyze (CAL_Pool_A, CAL_Pool_B, or CAL_Pool_C):",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (response.getSelectedButton() === ui.Button.OK) {
+    const poolName = response.getResponseText().trim();
+    if (poolName === "CAL_Pool_A" || poolName === "CAL_Pool_B" || poolName === "CAL_Pool_C") {
+      InterRaterController.calculateScore(poolName);
+    } else {
+      ui.alert("Invalid calibration pool name. Please enter CAL_Pool_A, CAL_Pool_B, or CAL_Pool_C.");
+    }
+  }
 }
 
-function exportFullTextInterRater() {
-  InterRaterController.showExportDialog("full-text");
+function processInterRaterExport(poolName, sampleType, sampleValue, ecRules) {
+  return InterRaterController.processExport(poolName, sampleType, sampleValue, ecRules);
 }
 
-function importFullTextInterRater() {
-  InterRaterController.showImportDialog("full-text");
-}
-
-function calculateFullTextInterRaterScore() {
-  InterRaterController.calculateScore("full-text");
-}
-
-function processInterRaterExport(phase, sampleType, sampleValue, ecRules) {
-  return InterRaterController.processExport(phase, sampleType, sampleValue, ecRules);
-}
-
-function processInterRaterImport(phase, jsonData) {
-  return InterRaterController.processImport(phase, jsonData);
+function processInterRaterImport(poolName, jsonData) {
+  return InterRaterController.processImport(poolName, jsonData);
 }
 
 
 /**
- * Manages the background screening trigger for Abstract Screening.
+ * Manages background trigger for Stage 1.
  */
-function manageScreeningTrigger() {
-  manageTrigger('runScreening', 'Abstract Screening');
+function manageStage1Trigger() {
+  manageTrigger('runStage1AbstractScreening', 'Stage 1 Abstract Screening');
 }
 
 /**
- * Manages the background screening trigger for Full Text Screening.
+ * Manages background trigger for Stage 2.1.
  */
-function manageFullTextScreeningTrigger() {
-  manageTrigger('runFullTextScreening', 'Full-Text Screening');
+function manageStage21Trigger() {
+  manageTrigger('runStage21Gatekeeper', 'Stage 2.1 Gatekeeper');
+}
+
+/**
+ * Manages background trigger for Stage 2.2.
+ */
+function manageStage22Trigger() {
+  manageTrigger('runStage22Scientist', 'Stage 2.2 Scientist');
+}
+
+/**
+ * Manages background trigger for Stage 2.3.
+ */
+function manageStage23Trigger() {
+  manageTrigger('runStage23Miner', 'Stage 2.3 Miner');
 }
 
 /**
@@ -356,7 +402,7 @@ function managePDFImportTrigger() {
     }
   }
 
-  const currentBatchSize = PropertiesService.getScriptProperties().getProperty("PDF_IMPORT_BATCH_SIZE") || "Not Set";
+  const currentBatchSize = ConfigManager.get("PDF_IMPORT_BATCH_SIZE") || "Not Set";
   const statusMsg = existingTrigger
     ? `Current Status: ACTIVE (${jobName} is running)\nCurrent Batch Size: ${currentBatchSize}`
     : `Current Status: INACTIVE`;
@@ -409,7 +455,7 @@ function managePDFImportTrigger() {
   }
 
   // 4. Save Settings and Create Trigger
-  PropertiesService.getScriptProperties().setProperty("PDF_IMPORT_BATCH_SIZE", batchSize.toString());
+  ConfigManager.set("PDF_IMPORT_BATCH_SIZE", batchSize.toString());
 
   if (existingTrigger) {
     ScriptApp.deleteTrigger(existingTrigger);
@@ -490,34 +536,6 @@ function manageTrigger(functionName, jobName) {
 }
 
 /**
- * Server-side handler for getting abstract screening columns.
- */
-function getAbstractScreeningColumns() {
-  return FullTextScreeningController.getAbstractScreeningColumns();
-}
-
-/**
- * Server-side handler for getting unique values for a column.
- */
-function getUniqueValuesForAbstractColumn(columnName) {
-  return FullTextScreeningController.getUniqueValuesForColumn(columnName);
-}
-
-/**
- * Server-side handler for processing the copy operation.
- */
-function processCopyScreenedPapers(columnName, includedValues, columnsToCopy) {
-  return FullTextScreeningController.processCopyScreenedPapers(columnName, includedValues, columnsToCopy);
-}
-
-/**
- * Server-side handler for getting full-text screening columns.
- */
-function getFullTextScreeningColumns() {
-  return FullTextScreeningController.getFullTextScreeningColumns();
-}
-
-/**
  * Server-side handler for getting data collection columns.
  */
 function getDataCollectionColumns() {
@@ -531,19 +549,7 @@ function syncDataCollection(selectedColumns) {
   return DataCollectionController.syncDataCollection(selectedColumns);
 }
 
-/**
- * Runs the Extended Miner.
- */
-function runExtendedMiner() {
-  ExtendedMinerController.run();
-}
 
-/**
- * Manages the background trigger for Extended Miner.
- */
-function manageExtendedMinerTrigger() {
-  ExtendedMinerController.manageTrigger();
-}
 
 /**
  * Visualizer Module Functions
@@ -599,3 +605,176 @@ function openRadarChartVisualizer() {
 function generateRadarChartData(config) {
   return VisualizerController.processRadarChartData(config);
 }
+
+/**
+ * Ingests CSV data from the Ingestion Hub.
+ * Routes to ImportController for strict deduplication.
+ */
+function ingestCSVData(csvString, sourceName, importDate, columnMapping, secondaryColumns) {
+  return ImportController.ingestCSVData(csvString, sourceName, importDate, columnMapping, secondaryColumns);
+}
+
+/**
+ * Ingests a single manually entered paper from the Ingestion Hub.
+ * Routes to ImportController for strict deduplication.
+ */
+function ingestManualPaperData(paperData) {
+  return ImportController.ingestManualPaperData(paperData);
+}
+
+/**
+ * Shows the Pool Assignment Dialog.
+ */
+function runAssignToPools() {
+  const html = HtmlService.createHtmlOutputFromFile('PoolAssignmentUI')
+    .setWidth(850)
+    .setHeight(600)
+    .setTitle('Calibration Pool Assignment');
+  SpreadsheetApp.getUi().showModalDialog(html, 'Calibration Pool Assignment');
+}
+
+/**
+ * Server-side handler: Gets all papers from 00_Raw_Harvest.
+ */
+function getHarvestedPapers() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("00_Raw_Harvest");
+    if (!sheet) return [];
+    
+    // Load assigned IDs from calibration pools to find existing assignments
+    const assignedPools = {};
+    const pools = ["CAL_Pool_A", "CAL_Pool_B", "CAL_Pool_C"];
+    pools.forEach(poolName => {
+      const poolSheet = ss.getSheetByName(poolName);
+      if (poolSheet) {
+        const poolData = SheetUtils.getDataAsObjects(poolSheet);
+        poolData.forEach(r => {
+          const id = r["Paper_ID"];
+          if (id) {
+            assignedPools[String(id)] = poolName;
+          }
+        });
+      }
+    });
+    
+    const data = SheetUtils.getDataAsObjects(sheet);
+    return data.map(r => {
+      const pid = r["Paper_ID"] || "";
+      return {
+        Paper_ID: pid,
+        Title: r["Title"] || "",
+        Authors: r["Authors"] || "",
+        Year: r["Year"] || "",
+        DOI: r["DOI"] || "",
+        Abstract: r["Abstract"] || "",
+        Assigned_Pool: assignedPools[String(pid)] || null
+      };
+    });
+  } catch (e) {
+    console.error(e);
+    throw new Error("Failed to load harvested papers: " + e.message);
+  }
+}
+
+/**
+ * Server-side handler: Copies literature row from 00_Raw_Harvest to target CAL pool sheet.
+ */
+function assignPaperToPool(paperId, poolName) {
+  try {
+    if (!paperId || !poolName) throw new Error("Missing parameters.");
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const harvestSheet = ss.getSheetByName("00_Raw_Harvest");
+    if (!harvestSheet) throw new Error("00_Raw_Harvest sheet not found.");
+    
+    const targetSheet = ss.getSheetByName(poolName);
+    if (!targetSheet) throw new Error(`Target pool sheet "${poolName}" not found. Please run environment initialization.`);
+    
+    const harvestData = SheetUtils.getDataAsObjects(harvestSheet);
+    const paperRecord = harvestData.find(r => String(r["Paper_ID"]) === String(paperId));
+    if (!paperRecord) throw new Error(`Paper with ID "${paperId}" not found in raw harvest.`);
+
+    // Enforce configured pool size limits
+    ConfigManager.initializeDefaults();
+    let limitKey = "";
+    if (poolName === "CAL_Pool_A") limitKey = "POOL_A_SIZE";
+    else if (poolName === "CAL_Pool_B") limitKey = "POOL_B_SIZE";
+    else if (poolName === "CAL_Pool_C") limitKey = "POOL_C_SIZE";
+
+    if (limitKey) {
+      const limit = parseInt(ConfigManager.get(limitKey)) || 0;
+      const targetData = SheetUtils.getDataAsObjects(targetSheet);
+      if (targetData.length >= limit) {
+        return `Cannot assign paper. Calibration Pool "${poolName}" has reached its configured limit of ${limit} papers.`;
+      }
+    }
+    
+    // Check if already assigned to ANY calibration pool to enforce mathematically independent, non-overlapping pools
+    const pools = ["CAL_Pool_A", "CAL_Pool_B", "CAL_Pool_C"];
+    for (const pool of pools) {
+      const otherSheet = ss.getSheetByName(pool);
+      if (otherSheet) {
+        const otherData = SheetUtils.getDataAsObjects(otherSheet);
+        const exists = otherData.some(r => String(r["Paper_ID"]) === String(paperId));
+        if (exists) {
+          return `Paper "${paperRecord.Title}" is already assigned to "${pool}". To maintain mathematically independent, non-overlapping pools, it cannot be assigned to "${poolName}".`;
+        }
+      }
+    }
+    
+    const targetHeaderMap = SheetUtils.getHeaderMap(targetSheet);
+    
+    const newRecord = {};
+    const baseHeaders = ['Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link'];
+    baseHeaders.forEach(h => {
+      newRecord[h] = paperRecord[h] !== undefined ? paperRecord[h] : "";
+    });
+    
+    if (!newRecord["Import_Date"]) {
+      newRecord["Import_Date"] = new Date().toISOString().split('T')[0];
+    }
+    
+    SheetUtils.appendDataMapped(targetSheet, [newRecord], targetHeaderMap);
+    return `Successfully assigned "${newRecord.Title}" to "${poolName}".`;
+  } catch (e) {
+    console.error(e);
+    throw new Error("Assignment failed: " + e.message);
+  }
+}
+
+/**
+ * Server-side handler: Gets calibration pool target sizes and current sheet counts.
+ */
+function getCalibrationPoolProgress() {
+  try {
+    ConfigManager.initializeDefaults();
+    const targetA = parseInt(ConfigManager.get("POOL_A_SIZE")) || 50;
+    const targetB = parseInt(ConfigManager.get("POOL_B_SIZE")) || 30;
+    const targetC = parseInt(ConfigManager.get("POOL_C_SIZE")) || 20;
+    
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    
+    const getCount = (sheetName) => {
+      const sheet = ss.getSheetByName(sheetName);
+      if (!sheet) return 0;
+      try {
+        const data = SheetUtils.getDataAsObjects(sheet);
+        return data.length;
+      } catch (e) {
+        const rows = sheet.getLastRow();
+        return rows > 0 ? rows - 1 : 0;
+      }
+    };
+    
+    return {
+      poolA: { count: getCount("CAL_Pool_A"), target: targetA },
+      poolB: { count: getCount("CAL_Pool_B"), target: targetB },
+      poolC: { count: getCount("CAL_Pool_C"), target: targetC }
+    };
+  } catch (e) {
+    console.error(e);
+    throw new Error("Failed to load pool progress: " + e.message);
+  }
+}
+

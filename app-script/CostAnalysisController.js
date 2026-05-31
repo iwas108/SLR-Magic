@@ -13,16 +13,15 @@ var CostAnalysisController = (function() {
     try {
       const config = ConfigManager.getAll();
       const models = [
-        config["ABSTRACT_SCREENING_MODEL"],
-        config["THE_GATEKEEPER_MODEL"],
-        config["THE_SCIENTIST_MODEL"],
-        config["THE_MINER_MODEL"],
-        config["THE_EXTENDED_MINER_MODEL"]
+        config["STAGE_1_MODEL"] || config["MODEL_NAME"],
+        config["STAGE_2_1_MODEL"] || config["MODEL_NAME"],
+        config["STAGE_2_2_MODEL"] || config["MODEL_NAME"],
+        config["STAGE_2_3_MODEL"] || config["MODEL_NAME"]
       ];
 
       // Filter distinct, non-empty values
       const unique = Array.from(new Set(models.filter(m => m && m.trim() !== "")));
-      return unique.length > 0 ? unique : ["gemini-2.0-flash-lite"];
+      return unique.length > 0 ? unique : ["llama3"];
     } catch (e) {
       console.error(e);
       return ["gemini-2.0-flash-lite"];
@@ -100,7 +99,6 @@ var CostAnalysisController = (function() {
             const entry = priceMap[modelName];
             if (!entry) return { input: 0, output: 0 };
 
-            // Prefer explicit input/output fields, fallback to generic price for input if missing (legacy safety)
             const inPrice = parseFloat(entry.inputPrice) !== undefined ? parseFloat(entry.inputPrice) : (parseFloat(entry.price) || 0);
             const outPrice = parseFloat(entry.outputPrice) || 0;
 
@@ -113,17 +111,15 @@ var CostAnalysisController = (function() {
             };
         };
 
-        const absModel = config["ABSTRACT_SCREENING_MODEL"];
-        const gkModel = config["THE_GATEKEEPER_MODEL"];
-        const sciModel = config["THE_SCIENTIST_MODEL"];
-        const minerModel = config["THE_MINER_MODEL"];
-        const extMinerModel = config["THE_EXTENDED_MINER_MODEL"];
+        const absModel = config["STAGE_1_MODEL"] || config["MODEL_NAME"] || "deepseek-r1";
+        const gkModel = config["STAGE_2_1_MODEL"] || config["MODEL_NAME"] || "deepseek-r1";
+        const sciModel = config["STAGE_2_2_MODEL"] || config["MODEL_NAME"] || "deepseek-r1";
+        const minerModel = config["STAGE_2_3_MODEL"] || config["MODEL_NAME"] || "deepseek-r1";
 
         const absRates = getRates(absModel);
         const gkRates = getRates(gkModel);
         const sciRates = getRates(sciModel);
         const minerRates = getRates(minerModel);
-        const extRates = getRates(extMinerModel);
 
         // --- Stats Initialization ---
         const initStats = () => ({
@@ -135,124 +131,40 @@ var CostAnalysisController = (function() {
         const gkStats = initStats();
         const sciStats = initStats();
         const minerStats = initStats();
-        const extStats = initStats();
 
         // Assign model names for UI display
         absStats.model = absModel;
         gkStats.model = gkModel;
         sciStats.model = sciModel;
         minerStats.model = minerModel;
-        extStats.model = extMinerModel;
 
-        // --- Abstract Screening ---
-        const absSheet = SheetUtils.getSheetByName("01_abstract_screening");
-        const absData = SheetUtils.getDataAsObjects(absSheet);
+        const processSheet = (sheetName, stats, rates) => {
+            try {
+                const sheet = SheetUtils.getSheetByName(sheetName);
+                const data = SheetUtils.getDataAsObjects(sheet);
 
-        absData.forEach(row => {
-             if (row["AI_Status"] === "Done") {
-                 const input = parseInt(row["Input_Token_Abstract_Screening"] || 0);
-                 const thinking = parseInt(row["Thinking_Token_Abstract_Screening"] || 0);
-                 const candidate = parseInt(row["Candidate_Token_Abstract_Screening"] || 0);
+                data.forEach(row => {
+                     const input = parseInt(row["Input_Tokens"] || 0);
+                     const thinking = parseInt(row["Thinking_Tokens"] || 0);
+                     const output = parseInt(row["Output_Tokens"] || 0);
 
-                 // Input cost + Output cost (thinking + candidate)
-                 const cost = (input * absRates.input) + ((thinking + candidate) * absRates.output);
+                     if (input + thinking + output > 0) {
+                         const cost = (input * rates.input) + ((thinking + output) * rates.output);
 
-                 absStats.total += cost;
-                 absStats.count++;
-                 absStats.input += input;
-                 absStats.thinking += thinking;
-                 absStats.candidate += candidate;
+                         stats.total += cost;
+                         stats.count++;
+                         stats.input += input;
+                         stats.thinking += thinking;
+                         stats.candidate += output;
 
-                 if (cost < absStats.min) absStats.min = cost;
-                 if (cost > absStats.max) absStats.max = cost;
-             }
-        });
+                         if (cost < stats.min) stats.min = cost;
+                         if (cost > stats.max) stats.max = cost;
+                     }
+                });
+            } catch (err) {
+                console.warn(`[CostAnalysis] Could not read costs for ${sheetName}: ${err.message}`);
+            }
 
-        if (absStats.count > 0) {
-            absStats.avg = absStats.total / absStats.count;
-        } else {
-            absStats.min = 0;
-        }
-
-        // --- Full-Text & Extended Miner ---
-        const ftSheet = SheetUtils.getSheetByName("03_fulltext_screening");
-        const ftData = SheetUtils.getDataAsObjects(ftSheet);
-
-        ftData.forEach(row => {
-             if (row["AI_Status"] === "Done") {
-
-                 // Gatekeeper
-                 const gkInput = parseInt(row["Input_Token_The_Gatekeeper"] || 0);
-                 const gkThink = parseInt(row["Thinking_Token_The_Gatekeeper"] || 0);
-                 const gkCand = parseInt(row["Candidate_Token_The_Gatekeeper"] || 0);
-
-                 if (gkInput + gkThink + gkCand > 0) {
-                     const cost = (gkInput * gkRates.input) + ((gkThink + gkCand) * gkRates.output);
-                     gkStats.total += cost;
-                     gkStats.count++;
-                     gkStats.input += gkInput;
-                     gkStats.thinking += gkThink;
-                     gkStats.candidate += gkCand;
-
-                     if (cost < gkStats.min) gkStats.min = cost;
-                     if (cost > gkStats.max) gkStats.max = cost;
-                 }
-
-                 // Scientist
-                 const sciInput = parseInt(row["Input_Token_The_Scientist"] || 0);
-                 const sciThink = parseInt(row["Thinking_Token_The_Scientist"] || 0);
-                 const sciCand = parseInt(row["Candidate_Token_The_Scientist"] || 0);
-
-                 if (sciInput + sciThink + sciCand > 0) {
-                     const cost = (sciInput * sciRates.input) + ((sciThink + sciCand) * sciRates.output);
-                     sciStats.total += cost;
-                     sciStats.count++;
-                     sciStats.input += sciInput;
-                     sciStats.thinking += sciThink;
-                     sciStats.candidate += sciCand;
-
-                     if (cost < sciStats.min) sciStats.min = cost;
-                     if (cost > sciStats.max) sciStats.max = cost;
-                 }
-
-                 // Miner
-                 const minerInput = parseInt(row["Input_Token_The_Miner"] || 0);
-                 const minerThink = parseInt(row["Thinking_Token_The_Miner"] || 0);
-                 const minerCand = parseInt(row["Candidate_Token_The_Miner"] || 0);
-
-                 if (minerInput + minerThink + minerCand > 0) {
-                     const cost = (minerInput * minerRates.input) + ((minerThink + minerCand) * minerRates.output);
-                     minerStats.total += cost;
-                     minerStats.count++;
-                     minerStats.input += minerInput;
-                     minerStats.thinking += minerThink;
-                     minerStats.candidate += minerCand;
-
-                     if (cost < minerStats.min) minerStats.min = cost;
-                     if (cost > minerStats.max) minerStats.max = cost;
-                 }
-
-                 // Extended Miner
-                 const extInput = parseInt(row["Input_Token_The_Extended_Miner"] || 0);
-                 const extThink = parseInt(row["Thinking_Token_The_Extended_Miner"] || 0);
-                 const extCand = parseInt(row["Candidate_Token_The_Extended_Miner"] || 0);
-
-                 if (extInput + extThink + extCand > 0) {
-                     const cost = (extInput * extRates.input) + ((extThink + extCand) * extRates.output);
-                     extStats.total += cost;
-                     extStats.count++;
-                     extStats.input += extInput;
-                     extStats.thinking += extThink;
-                     extStats.candidate += extCand;
-
-                     if (cost < extStats.min) extStats.min = cost;
-                     if (cost > extStats.max) extStats.max = cost;
-                 }
-             }
-        });
-
-        // Calculate Averages / Reset Min
-        const finalizeStats = (stats) => {
             if (stats.count > 0) {
                 stats.avg = stats.total / stats.count;
             } else {
@@ -260,20 +172,19 @@ var CostAnalysisController = (function() {
             }
         };
 
-        finalizeStats(gkStats);
-        finalizeStats(sciStats);
-        finalizeStats(minerStats);
-        finalizeStats(extStats);
+        processSheet("01_Fast_Filter", absStats, absRates);
+        processSheet("02_Gatekeeper", gkStats, gkRates);
+        processSheet("03_Scientist", sciStats, sciRates);
+        processSheet("04_Miner", minerStats, minerRates);
 
         // Calculate Grand Total
-        const grandTotal = absStats.total + gkStats.total + sciStats.total + minerStats.total + extStats.total;
+        const grandTotal = absStats.total + gkStats.total + sciStats.total + minerStats.total;
 
         return {
             abstract: absStats,
             gatekeeper: gkStats,
             scientist: sciStats,
             miner: minerStats,
-            extended_miner: extStats,
             grandTotal: grandTotal
         };
 
