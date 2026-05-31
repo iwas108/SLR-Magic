@@ -9,20 +9,20 @@ The Inter-Rater SPA is a client-side React application that serves as the offlin
 ## 1. Architectural Philosophy & Principles
 
 The application is built on the following principles:
-- **Offline-First & Serverless Core**: All states, sessions, and inputs are stored client-side in the browser's `localStorage` via a storage service. There is no active server backend during the review process, making it resilient to connection loss.
+- **Offline-First & Serverless Core**: All states, sessions, and inputs are stored client-side in the browser's IndexedDB (using Dexie.js for state management). There is no active server backend during the review process, making it resilient to connection loss.
 - **Blinded & Independent Review**: Unlike standard Quality Control (QC) workflows where reviewers audit AI outputs, the SPA implements a strict double-blind system. Reviewers are presented with the paper title, abstract, metadata, and research criteria without seeing LLM classifications.
 - **Metadata-Driven Context**: The research context (manifestos, inclusion/exclusion criteria, and exclusion codes) is dynamically configured via the imported `.slr` metadata, eliminating hardcoded review rules.
-- **Clean Component Structure**: Logic is separated into a core `StorageService` for data management, top-level routing in `App.jsx`, and modular screen/form components.
+- **Clean Component Structure**: Logic is separated into a core `StorageService` database layer, top-level routing in `App.jsx`, and modular screen/form components.
 
 ```mermaid
 graph TD
     A[GAS: Export Inter-Rater Pool] -->|Generates .slr JSON File| B[Client: ImportWorkflow.jsx]
-    B -->|Create Session| C[StorageService.js]
-    C -->|Save State| D[(Browser localStorage)]
+    B -->|Create Relational Records| C[StorageService.js]
+    C -->|Save State| D[(Browser IndexedDB)]
     D -->|Load Session| E[PreScreen.jsx]
     E -->|Input Reviewer Name| F[ReviewScreen.jsx]
-    F -->|Render Paper & Form| G[BlindedReviewForm.jsx]
-    G -->|Autosave Inputs| C
+    F -->|Render Split-Screen Details & Dynamic Form| G[BlindedReviewForm.jsx]
+    G -->|Autosave on Input Change| C
     F -->|Navigate & Complete| H[Dashboard.jsx]
     H -->|Export .slr JSON| I[GAS: Import Inter-Rater Results]
 ```
@@ -35,14 +35,14 @@ The `inter-rater` project is structured as follows:
 
 - **`index.html`**: Entry page mountpoint.
 - **`src/main.jsx`**: Bootstraps the React application.
-- **`src/App.jsx`**: Root component managing global styling themes (Light/Dark) and route/navigation state.
-- **`src/StorageService.js`**: Data access object (DAO) layer for `localStorage` interactions.
+- **`src/App.jsx`**: Root component managing global styling themes (Light/Dark/System) and route/navigation state.
+- **`src/StorageService.js`**: Data access object (DAO) layer for `IndexedDB` interactions using Dexie.js.
 - **`src/components/`**:
-  - **`Dashboard.jsx`**: Main portal listing saved review sessions, progress metrics, and actions (resume, delete, export).
+  - **`Dashboard.jsx`**: Main portal listing saved review sessions, progress metrics, search/filtering options, and actions (resume, delete, export, update SLR).
   - **`ImportWorkflow.jsx`**: Handlers for file reading, JSON validation, schema structure checks, and reviewer profile creation.
   - **`PreScreen.jsx`**: Display panel showing the research criteria (manifesto, questions, criteria) and capturing the reviewer's name before starting.
-  - **`ReviewScreen.jsx`**: Controller for reviewing papers, managing the active paper index, progress validation, and navigation controls.
-  - **`BlindedReviewForm.jsx`**: Form inputs for capturing decisions, reasoning, confidence score, and conditional exclusion codes.
+  - **`ReviewScreen.jsx`**: Controller for reviewing papers, displaying a dynamic split-screen layout with an abstract reading panel, form inputs, and a floating Research Cookbook reference drawer.
+  - **`BlindedReviewForm.jsx`**: Dynamic form that adapts to poolType, rendering QA scales and text extractions alongside standard fields.
 
 ---
 
@@ -54,39 +54,39 @@ The `inter-rater` project is structured as follows:
    - A `papers` array must exist and contain at least one element.
    - Each paper must contain a `Paper_ID` attribute.
 3. A unique session is created via `StorageService.createSession(filename, reviewerName, papers, metadata)`:
-   - It is assigned a `sessionId` (using `crypto.randomUUID()` or timestamp fallback).
+   - Records are created in IndexedDB: one in the `sessions` table (with metadata block) and multiple in the `papers` table (mapping base metadata and splitting reviewer states).
    - Its status is set to `in-progress`.
-   - The file's metadata block (project name, questions, inclusion criteria, exclusion codes) is saved into the session.
 
 ### Step 2: Context Pre-Screening
 - Before starting a review, `PreScreen.jsx` shows the project's metadata context (`inclusionCriteria`, `exclusionCriteria`, and `ecRules`).
 - The reviewer enters their name. The name is saved in the session metadata under `reviewerName`.
 
 ### Step 3: Active Reviewing & Auto-saving
-- `ReviewScreen.jsx` loads the session.
+- `ReviewScreen.jsx` loads the session and paper records.
 - As the reviewer goes through each paper, input changes in `BlindedReviewForm.jsx` trigger the auto-save sequence:
-  1. The specific paper object in memory is updated.
-  2. The updated `papers` array is passed to `StorageService.updateSession(sessionId, { data: updatedData })`.
-  3. `localStorage` is overwritten with the serialized sessions state.
+  1. The specific paper record is updated in the `papers` table via `StorageService.updatePaperAppraisal()`.
+  2. Session metadata (e.g. `currentIndex` and `lastModified`) is synchronously updated in the `sessions` table.
+- A **Save State Indicator** is rendered in the review page header to display the real-time status (`Autosaved`, `Saving...`, or `Save Error`).
+- Reviewers can add new reasoning templates in-flight by typing the custom rationale directly in the templates dropdown. An inline action in the dropdown list enables saving the new template to the database so it is preserved and exported.
 - Form inputs are validated in real-time. The "Next" button is disabled unless the reviewer provides:
-  - An inclusion decision (`Reviewer_Decision`: `Include` / `Exclude`).
-  - Reasoning text (`Reviewer_Reasoning`).
-  - Confidence score (`Reviewer_Confidence`).
-  - An exclusion code (`Reviewer_EC_Code`) **only if** the decision is `Exclude` and `ecRules` were configured.
+  - An inclusion decision (`Human_Decision` / `Reviewer_Decision`: `Include` / `Exclude`).
+  - Reasoning text (`Human_Rationale` / `Reviewer_Reasoning`).
+  - An exclusion code (`Human_EC_Trigger` / `Reviewer_EC_Code`) **only if** the decision is `Exclude`.
+  - For `CAL_Pool_C` / `QC_Audit_Batch` dynamic sessions, if decision is `Include`, all dynamically parsed QA metrics (scores and quotes) and data extraction fields (values and quotes) must be fully populated. Required rubrics are automatically loaded and parsed from the metadata block.
 
 ### Step 4: Exporting Results
 - From `Dashboard.jsx`, the user clicks **Export Results**.
-- The app maps the session papers to inject the `Reviewer_Name` on every row:
+- The app reconstructs the papers by basing them on their original imported objects (`rawPaper` field in IndexedDB). All legacy `Reviewer_*` keys (e.g., `Reviewer_Decision`, `Reviewer_Reasoning`, `Reviewer_Confidence`, `Reviewer_EC_Code`) and `Reviewer_Name` are completely dropped. The output contains exclusively the standard metadata, dynamic appraisal fields, and the new `Human_*` keys (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`):
   ```json
   {
     "metadata": { ... },
     "papers": [
       {
         "Paper_ID": "P001",
-        "Reviewer_Name": "Jane Doe",
-        "Reviewer_Decision": "Include",
-        "Reviewer_Reasoning": "Focuses on Edge Computing topologies",
-        "Reviewer_Confidence": "5",
+        "Title": "...",
+        "Human_Decision": "Include",
+        "Human_Rationale": "Focuses on Edge Computing topologies",
+        "Human_EC_Trigger": "",
         ...
       }
     ]
@@ -137,30 +137,23 @@ The data contract between the Google Apps Script backend and the React SPA is de
 ## 5. UI/UX Design System
 
 The application features a modern styling system using Tailwind CSS:
-- **Responsive Layouts**: Fixed bottom navigation bar simplifies navigation on small devices (Previous, Dashboard, Next/Complete).
-- **Theme Engine**: Integrates standard Tailwind utility classes with a custom dark mode selector.
-  - State is tracked in React state and stored in `localStorage` under the `theme` key.
-  - Active theme dynamically appends or removes the `.dark` class from the `document.documentElement` element to handle dark mode rendering (`dark:bg-gray-900`, `dark:text-gray-100`).
-- **Interactive Micro-Animations**: Buttons, transitions, and theme toggling leverage smooth transition animations (`transition-colors duration-200`).
+- **Responsive Layouts**: Clean reading layouts split the paper description (left) and dynamic forms (right) to ease focus during evaluation. The left reading panel contains tabs to switch between the paper **Abstract** and the project **Exclusion Rules** reference list. A bottom fixed navigation bar coordinates progress transitions (Previous, Dashboard, Next/Complete).
+- **Theme Engine**: Integrates standard Tailwind utility classes with support for light, dark, and system themes.
+  - Preference state is saved in the IndexedDB `config` table under the `theme` key.
+  - Active theme dynamically updates the `.dark` class from the `document.documentElement` element to handle dark mode rendering (`dark:bg-gray-900`, `dark:text-gray-100`) and syncs to OS color preferences automatically when set to system mode.
+- **Interactive Micro-Animations**: Buttons, inputs, transitions, and theme toggling leverage smooth transition animations (`transition-all duration-200`).
 
 ---
 
-## 6. Mismatch Analysis & Refactoring Guidance
-
-To support the refactoring of this application into the **New Workflow**, developers should be aware of the following architectural constraints and mismatches between the current code and the Google Apps Script backend:
-
-### 1. Dynamic Extraction & Appraisal Support Mismatch
-- **Current Behavior**: The SPA is hardcoded to collect only `Reviewer_Decision`, `Reviewer_Reasoning`, `Reviewer_Confidence`, and `Reviewer_EC_Code`. 
-- **The Issue**: For calibration pools like `CAL_Pool_C` (Scientist & Miner stages) and `QC_Audit_Batch`, the Google Apps Script backend actually exports dynamic schema keys (e.g., `qa1_aims`, `rq1.1_primary_domain`) on every paper as nested `{ value: "", evidence: "" }` blocks inside the `.slr` file. Currently, the React SPA completely ignores these dynamic keys, and the reviewer has no way to input or edit them.
-- **Refactoring Requirement**: Update `BlindedReviewForm.jsx` to dynamically inspect the paper object's fields. If keys other than the standard base metadata and reviewer fields are present, it must dynamically render form inputs (text fields, checkboxes, or textareas for both the `value` and `evidence` fields) so the reviewer can perform detailed extraction and qualitative appraisals.
+### 1. Dynamic Extraction & Appraisal Support
+- The React SPA dynamically inspects the paper object's fields. If keys other than the standard base metadata and reviewer fields are present, it dynamically renders form inputs (segmented button scales for QA fields and textareas for both the `value` and `evidence` fields) so the reviewer can perform detailed extraction and qualitative appraisals. Rubrics are dynamically parsed from the `qualityAssuranceDefinition` block and displayed inline.
 
 ### 2. Multi-Rater Consensus Mode (Double-Blind Resolution Workflow)
-- **Current Behavior**: The SPA handles one reviewer session at a time and exports it. The merging of reviews and Kappa calculations happens strictly on the Google Apps Script backend.
-- **Refactoring Opportunity**: To introduce a collaborative double-blind resolution workflow:
-  - Add an import option to load **two** completed `.slr` files for the same session.
-  - Create a "Resolution Dashboard" that highlights papers where the two reviewers disagreed.
-  - Provide a UI for a third user (or the reviewers together) to resolve the conflicts, generating a single consensus `.slr` file to import back to Google Sheets.
+- Future enhancements could integrate:
+  - An import option to load **two** completed `.slr` files for the same session.
+  - A "Resolution Dashboard" highlighting papers where the two reviewers disagreed.
+  - A UI for a third user to resolve conflicts, generating a single consensus `.slr` file to import back to Google Sheets.
 
 ### 3. Progressive Web App (PWA) Offline Upgrades
-- **Current Behavior**: The app runs locally via `vite` or is hosted statically on GitHub Pages, relying on the browser cache.
-- **Refactoring Recommendation**: Register service workers and create a `manifest.json` to upgrade the SPA to a full Progressive Web App, enabling offline access even when hosted remotely.
+- Register service workers and create a `manifest.json` to upgrade the SPA to a full Progressive Web App, enabling offline access even when hosted remotely.
+

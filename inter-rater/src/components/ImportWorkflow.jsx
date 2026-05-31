@@ -23,7 +23,7 @@ const ImportWorkflow = ({ onNavigate }) => {
     }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parsedData = JSON.parse(event.target.result);
 
@@ -47,8 +47,8 @@ const ImportWorkflow = ({ onNavigate }) => {
         const metadata = parsedData.metadata || {};
 
         // Create the session
-        const session = StorageService.createSession(file.name, reviewerName.trim(), data, metadata);
-        onNavigate('prescreen', { sessionId: session.sessionId });
+        const session = await StorageService.createSession(file.name, reviewerName.trim(), data, metadata);
+        onNavigate('prescreen', { sessionId: session.id });
 
       } catch (err) {
         setError(`Error parsing JSON: ${err.message}`);
