@@ -142,6 +142,57 @@
             </div>
           </div>
         </div>
+
+        <!-- Pre-Calibration Pools Size Config -->
+        <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200">
+          <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+              </path>
+            </svg>
+            Pre-Calibration Pools Size
+          </h2>
+          <p class="text-xs text-slate-500 mb-4">Set target sample sizes for the calibration pools. These settings are dynamically reflected in the pool assignment progress indicators.</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Pool A -->
+            <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+              <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_A_SIZE">Pool A Target Size</label>
+                <input type="number" id="POOL_A_SIZE" name="POOL_A_SIZE" min="1" max="1000" placeholder="50"
+                  class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
+              </div>
+              <p class="text-[10px] text-slate-500 leading-normal mt-2">
+                <strong>Stage 1 (Fast Filter) Validation:</strong> Target size for calibration pool to check title/abstract screening boundary conditions.
+              </p>
+            </div>
+
+            <!-- Pool B -->
+            <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+              <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_B_SIZE">Pool B Target Size</label>
+                <input type="number" id="POOL_B_SIZE" name="POOL_B_SIZE" min="1" max="1000" placeholder="30"
+                  class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
+              </div>
+              <p class="text-[10px] text-slate-500 leading-normal mt-2">
+                <strong>Stage 2.1 (Gatekeeper) Validation:</strong> Target size for calibration pool evaluating full-text relevance criteria.
+              </p>
+            </div>
+
+            <!-- Pool C -->
+            <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+              <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_C_SIZE">Pool C Target Size</label>
+                <input type="number" id="POOL_C_SIZE" name="POOL_C_SIZE" min="1" max="1000" placeholder="20"
+                  class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
+              </div>
+              <p class="text-[10px] text-slate-500 leading-normal mt-2">
+                <strong>Stage 2.2/2.3 (Sci/Miner) Validation:</strong> Target size for calibration pool verifying structured extraction precision.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Tab 4: Ingestion Hub -->

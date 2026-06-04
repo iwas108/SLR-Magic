@@ -12,7 +12,10 @@ const ConfigManager = (function () {
     "RESEARCH_OBJECTIVE": "",
     "RESEARCH_QUESTIONS": "",
     "QUALITY_ASSURANCE_DEFINITION": "",
-    "EXCLUSION_CRITERIA": ""
+    "EXCLUSION_CRITERIA": "",
+    "POOL_A_SIZE": "50",
+    "POOL_B_SIZE": "30",
+    "POOL_C_SIZE": "20"
   };
 
   /**

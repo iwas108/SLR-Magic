@@ -1,0 +1,324 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <!-- Import Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 text-slate-800 font-sans leading-normal tracking-normal p-4 min-h-screen">
+    
+    <!-- Top Header -->
+    <div class="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white p-4 rounded-2xl shadow-md mb-4">
+      <h1 class="text-base font-bold tracking-tight">Export Blinded Review (.slr)</h1>
+      <p class="text-indigo-200 text-[10px] mt-0.5">Generates a blinded literature sample file for human reviewer pre-calibration analysis.</p>
+    </div>
+
+    <div id="form-container" class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-4">
+      
+      <!-- Pool Selector -->
+      <div>
+        <label for="poolType" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Target Calibration Pool</label>
+        <select id="poolType" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+          <option value="CAL_Pool_A">CAL_Pool_A (Stage 1 Filter)</option>
+          <option value="CAL_Pool_B">CAL_Pool_B (Stage 2.1 Gatekeeper)</option>
+          <option value="CAL_Pool_C">CAL_Pool_C (Stage 2.2/2.3 Scientist & Miner)</option>
+          <option value="QC_Audit_Batch">QC_Audit_Batch (Phase 3 QC Auditor)</option>
+        </select>
+      </div>
+
+      <!-- Sampling Method -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="sampleType" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sampling Method</label>
+          <select id="sampleType" class="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+            <option value="all">Export Entire Pool</option>
+            <option value="percentage">Percentage (%)</option>
+            <option value="absolute">Absolute Count</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="sampleValue" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1" id="sampleValueLabel">Sampling Value</label>
+          <input type="number" id="sampleValue" min="1" max="100" value="10" disabled
+                 class="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-400 focus:outline-none transition-all">
+        </div>
+      </div>
+
+      <!-- EC Rules -->
+      <div class="border-t border-slate-100 pt-3">
+        <div class="flex justify-between items-center mb-2">
+          <h2 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Exclusion Criteria (EC) Rules</h2>
+          <button type="button" onclick="addEcRule()" class="px-2 py-0.5 text-[10px] bg-slate-100 hover:bg-slate-200 font-medium text-indigo-600 rounded cursor-pointer transition-all">
+            + Add Rule
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-400 mb-2">Provide codes and definitions the human reviewer will select from for exclusions.</p>
+        
+        <div id="ec-rules-container" class="space-y-2 max-h-36 overflow-y-auto pr-1">
+          <!-- Dynamic rules injected here -->
+        </div>
+      </div>
+
+      <button id="exportBtn" onclick="startExport()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-all flex items-center justify-center cursor-pointer">
+        <svg id="loadingSpinner" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white hidden" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Generate Blinded Review Export
+      </button>
+    </div>
+
+    <!-- Success Container -->
+    <div id="result-container" class="hidden bg-white border border-slate-200 p-6 rounded-2xl shadow-sm text-center space-y-4">
+      <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto border border-emerald-100">
+        <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+      </div>
+      <h3 class="text-sm font-bold text-slate-900">Export File Generated Successfully!</h3>
+      <p id="resultMessage" class="text-xs text-slate-500"></p>
+      <div class="flex justify-center pt-2">
+        <a id="downloadLink" href="#" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-colors">
+          Download .slr File
+        </a>
+      </div>
+    </div>
+
+    <script>
+      const defaultPhase = "<?= phase ?>"; // Default phase from GAS menu entry
+      const storageKey = `slr_magic_ec_rules`;
+
+      document.addEventListener('DOMContentLoaded', () => {
+        // Map initial pool based on default phase name
+        const poolSelect = document.getElementById('poolType');
+        if (defaultPhase === 'full-text') {
+          poolSelect.value = 'CAL_Pool_C';
+        } else if (defaultPhase === 'CAL_Pool_B') {
+          poolSelect.value = 'CAL_Pool_B';
+        } else if (defaultPhase === 'QC_Audit_Batch') {
+          poolSelect.value = 'QC_Audit_Batch';
+        } else {
+          poolSelect.value = 'CAL_Pool_A';
+        }
+
+        loadEcRules();
+      });
+
+      document.getElementById('sampleType').addEventListener('change', function(e) {
+        const val = e.target.value;
+        const input = document.getElementById('sampleValue');
+        const label = document.getElementById('sampleValueLabel');
+        
+        if (val === 'all') {
+          input.disabled = true;
+          input.className = "w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-400 focus:outline-none transition-all";
+        } else {
+          input.disabled = false;
+          input.className = "w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all";
+          if (val === 'percentage') {
+            input.max = 100;
+            input.value = 10;
+          } else {
+            input.removeAttribute('max');
+            input.value = 10;
+          }
+        }
+      });
+
+      function loadEcRules() {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          try {
+            const rules = JSON.parse(saved);
+            rules.forEach(rule => addEcRule(rule.code, rule.description));
+          } catch (e) {
+            console.error('Error parsing EC rules', e);
+          }
+        }
+
+        const container = document.getElementById('ec-rules-container');
+        if (container.children.length === 0) {
+          addEcRule();
+        }
+      }
+
+      function addEcRule(code = '', description = '') {
+        const container = document.getElementById('ec-rules-container');
+        const row = document.createElement('div');
+        row.className = 'flex gap-2 items-center ec-rule-row';
+        row.innerHTML = `
+          <input type="text" class="w-1/4 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none ec-code" placeholder="EC1" value="${code}">
+          <input type="text" class="w-2/3 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none ec-description" placeholder="Description" value="${description}">
+          <button type="button" onclick="this.parentElement.remove(); saveEcRules();" class="text-slate-400 hover:text-red-600 text-xs px-2 py-1 transition-colors">Γ£ò</button>
+        `;
+
+        const inputs = row.querySelectorAll('input');
+        inputs.forEach(input => {
+          input.addEventListener('input', saveEcRules);
+        });
+
+        container.appendChild(row);
+        saveEcRules();
+      }
+
+      function getEcRules() {
+        const rows = document.querySelectorAll('.ec-rule-row');
+        const rules = [];
+        rows.forEach(row => {
+          const code = row.querySelector('.ec-code').value.trim();
+          const description = row.querySelector('.ec-description').value.trim();
+          if (code || description) {
+            rules.push({ code, description });
+          }
+        });
+        return rules;
+      }
+
+      function saveEcRules() {
+        const rules = getEcRules();
+        localStorage.setItem(storageKey, JSON.stringify(rules));
+      }
+
+      // Secure Toast Notification System
+      function showToast(message, type = 'success') {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'toast-container';
+          container.className = 'fixed bottom-5 right-5 z-[100] flex flex-col gap-2';
+          document.body.appendChild(container);
+        }
+        
+        const toast = document.createElement('div');
+        toast.className = 'px-4 py-3 rounded-xl shadow-lg border text-xs font-medium transition-all duration-300 transform translate-y-2 opacity-0 flex items-center space-x-2 min-w-[250px] max-w-sm';
+        
+        const isSuccess = type === 'success';
+        toast.classList.add(
+          isSuccess ? 'bg-emerald-50' : 'bg-rose-50',
+          isSuccess ? 'text-emerald-800' : 'text-rose-800',
+          isSuccess ? 'border-emerald-200' : 'border-rose-200'
+        );
+        
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', `w-4 h-4 shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-rose-600'}`);
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('d', isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z');
+        
+        svg.appendChild(path);
+        toast.appendChild(svg);
+        
+        const span = document.createElement('span');
+        span.className = 'flex-1';
+        span.textContent = message;
+        toast.appendChild(span);
+        
+        container.appendChild(toast);
+        setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+        setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-2');
+          setTimeout(() => toast.remove(), 300);
+        }, 3500);
+      }
+
+      function startExport() {
+        const poolType = document.getElementById('poolType').value;
+        const sampleType = document.getElementById('sampleType').value;
+        const sampleValue = Number(document.getElementById('sampleValue').value);
+
+        if (sampleType !== 'all' && (!sampleValue || sampleValue <= 0)) {
+          showToast("Please enter a valid positive sampling value.", "error");
+          return;
+        }
+
+        const ecRules = getEcRules();
+
+        document.getElementById('exportBtn').disabled = true;
+        document.getElementById('loadingSpinner').classList.remove('hidden');
+
+        google.script.run
+          .withSuccessHandler(onSuccess)
+          .withFailureHandler(onFailure)
+          .processInterRaterExport(poolType, sampleType, sampleValue, ecRules);
+      }
+
+      function onSuccess(response) {
+        document.getElementById('exportBtn').disabled = false;
+        document.getElementById('loadingSpinner').classList.add('hidden');
+        document.getElementById('form-container').classList.add('hidden');
+        document.getElementById('result-container').classList.remove('hidden');
+
+        document.getElementById('resultMessage').innerText = response.message;
+
+        let filename = `${document.getElementById('poolType').value}_blinded_review.slr`;
+        try {
+          const payloadObj = JSON.parse(response.jsonPayload);
+          const metadata = payloadObj.metadata || {};
+          let projName = (metadata.projectName || "SLR_Magic_Review").trim();
+          projName = projName.replace(/[^a-zA-Z0-9_\-\s]/g, "").replace(/\s+/g, "_");
+          if (projName.length > 30) {
+            projName = projName.substring(0, 30);
+          }
+
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const day = String(now.getDate()).padStart(2, '0');
+          const hours = String(now.getHours()).padStart(2, '0');
+          const mins = String(now.getMinutes()).padStart(2, '0');
+          const datetimeStr = `${year}${month}${day}_${hours}${mins}`;
+
+          const poolType = document.getElementById('poolType').value;
+          filename = `${projName}_${poolType}_${datetimeStr}_blinded_review.slr`;
+        } catch (e) {
+          console.warn("Failed to parse JSON payload for custom filename:", e);
+        }
+
+        const blob = new Blob([response.jsonPayload], { type: "application/json" });
+        const dataUrl = URL.createObjectURL(blob);
+        const dlLink = document.getElementById('downloadLink');
+        dlLink.href = dataUrl;
+        dlLink.download = filename;
+        showToast("Export file generated successfully!", "success");
+      }
+
+      function onFailure(error) {
+        document.getElementById('exportBtn').disabled = false;
+        document.getElementById('loadingSpinner').classList.add('hidden');
+        showToast("Export failed: " + error.message, "error");
+      }
+    </script>
+  </body>
+</html>

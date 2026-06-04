@@ -6,6 +6,7 @@
 const Initializer = (function() {
 
   const BASE_HEADERS = ['Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link'];
+  const EVAL_HEADERS = ['decision_Value', 'decision_Quote', 'exclusion_code_Value', 'exclusion_code_Quote', 'reasoning_Value', 'reasoning_Quote'];
 
   /**
    * Wipes all contents and formats, or creates sheet if missing.
@@ -66,9 +67,21 @@ const Initializer = (function() {
     const sheetSynth = clearOrCreateSheet(ss, "05_Synthesis");
     setupSheet(sheetSynth, BASE_HEADERS);
 
+    // -- CAL_Pool_A: Base + Human_Decision, Human_EC_Trigger, Human_Rationale + EVAL
+    const sheetCalA = clearOrCreateSheet(ss, "CAL_Pool_A");
+    setupSheet(sheetCalA, [...BASE_HEADERS, 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', ...EVAL_HEADERS]);
+
+    // -- CAL_Pool_B: Base + Human_Decision, Human_EC_Trigger, Human_Rationale + EVAL
+    const sheetCalB = clearOrCreateSheet(ss, "CAL_Pool_B");
+    setupSheet(sheetCalB, [...BASE_HEADERS, 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', ...EVAL_HEADERS]);
+
+    // -- CAL_Pool_C: Base + Human_Decision + EVAL
+    const sheetCalC = clearOrCreateSheet(ss, "CAL_Pool_C");
+    setupSheet(sheetCalC, [...BASE_HEADERS, 'Human_Decision', ...EVAL_HEADERS]);
+
     // 4. Alert user with completion message and Google Sheet Table instruction
     const alertMessage = "Workspace Initialized Successfully!\n\n" +
-      "The '00_Raw_Harvest' and '05_Synthesis' sheets have been generated with required system columns.\n\n" +
+      "All 5 sheets have been generated with required system columns.\n\n" +
       "⚠️ NOTE: Google Sheets Table conversion is not programmatically supported by Apps Script. " +
       "For a premium experience, you can manually convert the generated sheets to tables. " +
       "To do this: select each sheet, click 'Format' in the top Google Sheets menu, and select 'Convert to table'.";
