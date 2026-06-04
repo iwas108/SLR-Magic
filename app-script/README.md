@@ -5,7 +5,7 @@
 
 ## Overview
 
-This module is the core orchestration hub of the SLR Magic ecosystem. Built as a Google Apps Script linked to Google Sheets, it serves as both the central database and the primary user interface for researchers. It manages the entire Systematic Literature Review pipeline—from defining inclusion/exclusion criteria to generating prompts, firing concurrent requests to the LLM backend proxy, and organizing the extracted data into structured formats.
+This module is the core orchestration hub of the SLR Magic Google Sheets application. It manages the Systematic Literature Review pipeline, supporting metadata ingestion, manual review screening, synthesis, and visual analysis.
 
 ## Table of Contents
 
@@ -14,16 +14,15 @@ This module is the core orchestration hub of the SLR Magic ecosystem. Built as a
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Configuration](#configuration)
-- [Running the Service](#running-the-service)
-- [Screenshots](#screenshots)
+- [Running the Workspace](#running-the-workspace)
 
 ## Key Features
 
-- **Automated Environment Setup:** Instantly generates the necessary worksheet structures.
-- **Provider Agnostic:** Supports natively connecting to Google Gemini or routing traffic through the custom `llm-proxy` to local Ollama or vLLM endpoints.
-- **Parallel Processing:** Batches LLM requests to dramatically speed up screening of thousands of papers.
-- **Multi-Agent Architecture:** Utilizes specialized prompts (The Gatekeeper, The Scientist, The Miner) for abstract screening, full-text reading, and forensic data extraction.
-- **Visualization:** Generates built-in charts (Sankey, Pie, Bar) directly in the spreadsheet from collected data.
+- **Automated Environment Setup:** Instantly generates the necessary worksheet structures (`00_Raw_Harvest` and `05_Synthesis`).
+- **Structured Metadata Ingestion:** Bulk ingest CSV records from Scopus or Web of Science with interactive column mapping and fuzzy-matching, or add manual references.
+- **Deduplication Guardrail:** Prevents importing duplicates by normalising DOIs and paper Titles.
+- **Manual review screening & synthesis:** Tags chosen literature with Status `INCLUDE` and copies them to the synthesis collection sheet.
+- **Visual Analytics:** Generates built-in charts (Sankey, Pie, Bar, Stack Bar, Line, Radar) directly in the spreadsheet from reviews using ECharts.
 
 ## Prerequisites
 
@@ -47,7 +46,7 @@ This project uses **clasp** to push local code to Google's servers.
 2. **Create or Clone the Project:**
    - **Option A (Fresh Setup - Recommended):** Create a new bound Google Sheet project:
      ```bash
-     clasp create --type sheets --title "SLR Magic Master Project"
+     clasp create --type sheets --title "SLR Magic Project"
      ```
    - **Option B (Existing Project):**
      ```bash
@@ -67,50 +66,14 @@ This project uses **clasp** to push local code to Google's servers.
 
 ## Configuration
 
-1. In the newly opened Google Sheet, select the **SLR Magic > Configuration** menu.
-2. Select your **LLM API Provider** (e.g., Gemini, or proxy via Ollama/vLLM).
-3. If using the custom proxy, enter the endpoint URL running the `llm-proxy` backend (e.g., `http://<your-ip>:8899`).
-4. Set up the specific **Prompts** (Abstract Screening, Gatekeeper, Scientist, Miner) relevant to your specific research questions.
-5. Set the **PDF_REPO** URL indicating where full-text PDFs are stored.
+1. In the newly opened Google Sheet, select the **SLR Magic > Configure Settings** menu.
+2. Under **Research Manifesto**, set up the Project Name, Manifesto, Objectives, and Questions.
+3. Use the **Ingestion Hub** to import your bibliography files.
 
-## Running the Service
+## Running the Workspace
 
-1. **Initialization:** Click **SLR Magic > Initialize Environment** to generate all necessary tabs (`01_abstract_screening`, `03_fulltext_screening`, etc.).
-2. **Abstract Screening:** Import your raw CSV (from Scopus/WoS), then click **SLR Magic > Start AI Title-Abstract Screening**.
-3. **Full-Text Screening:** Import PDFs via utilities, then click **SLR Magic > Start AI Full-Text Screening**.
-4. **Data Sync:** After screening, use **SLR Magic > Process Data Collection** to compile all structured JSON into the final collection tab.
-
-## Screenshots
-
-<details>
-  <summary><b>📸 Click here to open the screenshot gallery</b></summary>
-  <br>
-  
-  <table>
-    <tr>
-      <td><img src="../docs/ss/1.png" width="300" alt="Screenshot 1"></td>
-      <td><img src="../docs/ss/2.png" width="300" alt="Screenshot 2"></td>
-      <td><img src="../docs/ss/3.png" width="300" alt="Screenshot 3"></td>
-    </tr>
-    <tr>
-      <td><img src="../docs/ss/4.png" width="300" alt="Screenshot 4"></td>
-      <td><img src="../docs/ss/5.png" width="300" alt="Screenshot 5"></td>
-      <td><img src="../docs/ss/6.png" width="300" alt="Screenshot 6"></td>
-    </tr>
-    <tr>
-      <td><img src="../docs/ss/7.png" width="300" alt="Screenshot 7"></td>
-      <td><img src="../docs/ss/8.png" width="300" alt="Screenshot 8"></td>
-      <td><img src="../docs/ss/9.png" width="300" alt="Screenshot 9"></td>
-    </tr>
-    <tr>
-      <td><img src="../docs/ss/10.png" width="300" alt="Screenshot 10"></td>
-      <td><img src="../docs/ss/11.png" width="300" alt="Screenshot 11"></td>
-      <td><img src="../docs/ss/12.png" width="300" alt="Screenshot 12"></td>
-    </tr>
-    <tr>
-      <td><img src="../docs/ss/13.png" width="300" alt="Screenshot 13"></td>
-      <td><img src="../docs/ss/14.png" width="300" alt="Screenshot 14"></td>
-      <td><img src="../docs/ss/15.png" width="300" alt="Screenshot 15"></td>
-    </tr>
-  </table>
-</details>
+1. **Initialization:** Click **SLR Magic > Initialize Workspace** to generate the required sheets.
+2. **Metadata Ingestion:** Import your bibliography exports inside the Ingestion Hub.
+3. **Screening:** Review papers in `00_Raw_Harvest` and set the `Status` column to `INCLUDE` for the chosen papers.
+4. **Data Sync:** Click **SLR Magic > Process Data Collection** to compile the selected papers into `05_Synthesis`.
+5. **Visualization:** Open chart dialogues to explore categories and trends.

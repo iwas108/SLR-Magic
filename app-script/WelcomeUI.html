@@ -43,7 +43,7 @@
     <h1 class="text-base font-bold tracking-tight flex items-center gap-1.5">
       SLR Magic <span class="text-indigo-300">✨</span>
     </h1>
-    <p class="text-indigo-200 text-[10px] mt-0.5">Multi-Persona AI Pipeline for Systematic Literature Reviews</p>
+    <p class="text-indigo-200 text-[10px] mt-0.5">Workspace for Systematic Literature Reviews, Ingestion, and Visuals</p>
   </div>
 
   <!-- Navigation Tabs -->
@@ -59,41 +59,33 @@
     <!-- Overview Section -->
     <div id="overview" class="content-section space-y-4">
       <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
-        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Welcome to Your AI Research Assistant</h3>
+        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Welcome to SLR Magic Workspace</h3>
         <p class="text-xs text-slate-600 leading-relaxed mb-4">
-          SLR Magic is a next-generation research automation system designed to eliminate human bias and error in systematic literature reviews. Utilizing a state-of-the-art multi-persona LLM architecture, the platform accelerates screening and extraction tasks while maintaining absolute methodological rigor and auditability.
+          SLR Magic is a systematic literature review (SLR) workspace designed to help researchers organize, screen, synthesize, and visualize academic literature. The platform automates data ingestion and dynamic visualization, providing a central database for structured literature reviews.
         </p>
         
         <h4 class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Key System Features</h4>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-            <span class="text-xs font-bold text-indigo-700">🤖 Multi-Persona Pipeline</span>
-            <p class="text-[11px] text-slate-500">Deploys specialized AI agents sequentially: Fast-Filter, Gatekeeper, Scientist, and Miner.</p>
+            <span class="text-xs font-bold text-indigo-700">📂 Structured Metadata Ingestion</span>
+            <p class="text-[11px] text-slate-500">Bulk ingest literature metadata exports from Scopus/WoS using a fuzzy-matched interactive mapper, or add manual records.</p>
           </div>
           <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-            <span class="text-xs font-bold text-indigo-700">⚡ Anchored Calibration</span>
-            <p class="text-[11px] text-slate-500">Mathematically checks prompt-readiness against a Gold Standard dataset before running the pipeline.</p>
+            <span class="text-xs font-bold text-indigo-700">🛡️ Deduplication Guardrails</span>
+            <p class="text-[11px] text-slate-500">Automatically screens incoming papers for duplicates by normalising DOIs and Titles to prevent sheet pollution.</p>
           </div>
           <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-            <span class="text-xs font-bold text-indigo-700">⛏️ Dynamic Schema Extraction</span>
-            <p class="text-[11px] text-slate-500">Adapts and generates spreadsheet columns dynamically to parse and map any complex JSON output.</p>
+            <span class="text-xs font-bold text-indigo-700">📝 Integrated Synthesis Report</span>
+            <p class="text-[11px] text-slate-500">Consolidates and maps screened literature directly into 05_Synthesis to construct your final cohort database.</p>
           </div>
           <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-            <span class="text-xs font-bold text-indigo-700">⚖️ Sequential Quality Control</span>
-            <p class="text-[11px] text-slate-500">A statistical rolling audit with confidence intervals to verify inter-rater reliability with minimal human labor.</p>
-          </div>
-          <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-            <span class="text-xs font-bold text-indigo-700">💰 Cost & Token Tracking</span>
-            <p class="text-[11px] text-slate-500">Monitors prompt, thinking, input, and output tokens to optimize API expenses.</p>
-          </div>
-          <div class="p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1">
-            <span class="text-xs font-bold text-indigo-700">📊 Rich Visualization</span>
-            <p class="text-[11px] text-slate-500">Generates Sankey, Radar, Pie, Bar, Stack Bar, and Line charts directly from review data.</p>
+            <span class="text-xs font-bold text-indigo-700">📊 Interactive Visualizations</span>
+            <p class="text-[11px] text-slate-500">Generates Sankey diagrams, radar charts, pie charts, stack bar, and line graphs using ECharts directly in Google Sheets dialogs.</p>
           </div>
         </div>
         
         <p class="text-[11px] text-indigo-600 mt-4 font-medium italic">
-          💡 Tip: Head to the Configuration menu to fill in your Research Manifesto and setup your models before initializing.
+          💡 Tip: Head to the Configuration menu to fill in your Research Manifesto and metadata before initializing.
         </p>
       </div>
     </div>
@@ -106,50 +98,26 @@
           <!-- Step 1 -->
           <div class="relative">
             <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">1</span>
-            <h4 class="text-xs font-bold text-slate-800">Setup & Initialization</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Run "Initialize Workspace" from the menu. The system creates the necessary review sheets with default system-required columns automatically.</p>
+            <h4 class="text-xs font-bold text-slate-800">Workspace Setup</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Run "Initialize Workspace" from the menu to wipe and establish your primary database sheets (00_Raw_Harvest and 05_Synthesis).</p>
           </div>
           <!-- Step 2 -->
           <div class="relative">
             <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">2</span>
             <h4 class="text-xs font-bold text-slate-800">Metadata Ingestion</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Load your search results (e.g., Scopus or Web of Science CSV exports) into the <code>00_Raw_Harvest</code> sheet using the Ingestion Hub.</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">Upload your search results CSV (e.g. Scopus or Web of Science) or input manual references via the Ingestion Hub in the Configuration panel.</p>
           </div>
           <!-- Step 3 -->
           <div class="relative">
             <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">3</span>
-            <h4 class="text-xs font-bold text-slate-800">Pre-Execution Calibration</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Export calibration pools to check your LLM prompts against a human-labeled Gold Standard dataset. Iterate until Kappa/F1-score clear thresholds.</p>
+            <h4 class="text-xs font-bold text-slate-800">Paper Screening & Synthesis</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Review papers in <code>00_Raw_Harvest</code>, set the "Status" column to "INCLUDE" for chosen literature, then execute "Process Data Collection" to build your Synthesis database.</p>
           </div>
           <!-- Step 4 -->
           <div class="relative">
             <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">4</span>
-            <h4 class="text-xs font-bold text-slate-800">Phase 1: Abstract Fast-Filter</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Execute the Fast Filter screener to quickly exclude irrelevant or out-of-scope papers based on title and abstract logic gates.</p>
-          </div>
-          <!-- Step 5 -->
-          <div class="relative">
-            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">5</span>
-            <h4 class="text-xs font-bold text-slate-800">Phase 2.1: Full-Text Gatekeeper</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Filter documents based on full-text methodology. Gatekeeper verifies the physical/cyber-physical context and predictive algorithms.</p>
-          </div>
-          <!-- Step 6 -->
-          <div class="relative">
-            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">6</span>
-            <h4 class="text-xs font-bold text-slate-800">Phase 2.2: Full-Text Scientist</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Score the remaining papers against 8 Quality Assessment (QA) criteria. Low quality or failing papers are excluded automatically.</p>
-          </div>
-          <!-- Step 7 -->
-          <div class="relative">
-            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">7</span>
-            <h4 class="text-xs font-bold text-slate-800">Phase 2.3: Data Extraction (Miner)</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Run The Miner to extract research parameters and quoted evidence. New columns are appended to the sheet dynamically matching the LLM output keys.</p>
-          </div>
-          <!-- Step 8 -->
-          <div class="relative">
-            <span class="absolute -left-[31px] top-0 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center text-[9px] font-bold">8</span>
-            <h4 class="text-xs font-bold text-slate-800">Phase 3: Post-Execution QC Audit</h4>
-            <p class="text-[11px] text-slate-500 mt-0.5">Perform rolling micro-batch human reviews of 20 random papers. Auditing stops early as soon as the confidence interval clears predefined targets.</p>
+            <h4 class="text-xs font-bold text-slate-800">Cohort Visualizations</h4>
+            <p class="text-[11px] text-slate-500 mt-0.5">Launch chart visualizers from the menu to analyze your synthesis data using Sankey, Pie, Bar, Stack Bar, Line, or Radar charts.</p>
           </div>
         </div>
       </div>
@@ -162,25 +130,10 @@
           <h3 class="text-sm font-bold text-slate-800 tracking-tight">About SLR Magic</h3>
           <div class="text-xs text-slate-600 mt-2 space-y-3 leading-relaxed">
             <p>
-              The multi-persona LLM framework achieves a statistically significant level of inter-rater reliability comparable to human experts while simultaneously optimizing processing efficiency. This is achieved through a two-tiered, resource-optimized validation architecture consisting of pre-execution calibration and post-execution verification:
+              SLR Magic is a lightweight systematic literature review database tool that integrates metadata ingestion, deduplication checks, manual cohort tagging, and dynamic visual graphics directly inside Google Sheets.
             </p>
-            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
-              <div>
-                <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider block mb-1">1. Pre-Validation Phase</span>
-                <p class="text-[11px] text-slate-500">
-                  Prior to full-scale pipeline execution, an anchored meta-prompting loop optimizes phase-specific prompts against a human-annotated "Gold Standard" sample dataset. Prompt readiness is mathematically verified using strict target thresholds for F1-score, Cohen's Kappa, and Schema Exactness.
-                </p>
-              </div>
-              <hr class="border-slate-200/60" />
-              <div>
-                <span class="text-xs font-bold text-indigo-700 uppercase tracking-wider block mb-1">2. Post-Validation Phase (Sequential Quality Control Audit)</span>
-                <p class="text-[11px] text-slate-500">
-                  Following autonomous processing of the corpus down to the final extracted cohort, the system's generalizability is verified without exhausting human expert resources. Instead of rigid, flat percentage-based sampling, human reviewers execute double-blind assessments on independent, randomized entries in rolling micro-batches of 20 papers. Cumulative performance metrics are re-calculated after each batch alongside their 95% confidence intervals. The human auditing process automatically terminates the moment the lower statistical bound of the confidence interval stably clears predefined performance thresholds (e.g., Kappa &ge; 0.80 for filtering layers, Kappa &ge; 0.65 for complex methodological appraisals).
-                </p>
-              </div>
-            </div>
-            <p class="text-[11px] font-medium text-indigo-600 italic">
-              This end-to-end framework guarantees absolute methodological rigor across the selection funnel while minimizing human verification overhead.
+            <p>
+              This workspace provides an organized repository for conducting systematic reviews with full compatibility for ECharts-based visualization dashboards.
             </p>
           </div>
         </div>
@@ -190,8 +143,8 @@
           <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Core Principles</h4>
           <ul class="text-[11px] text-slate-600 space-y-1.5 list-disc pl-4 leading-relaxed">
             <li><strong>FAIR Data Principles:</strong> Promotes findable, accessible, interoperable, and reusable scientific review outputs.</li>
-            <li><strong>Clean Architecture:</strong> Strict decoupling of presentation UI, service layer proxies, and storage adapters.</li>
-            <li><strong>Privacy-First Local AI:</strong> Native integration with local Ollama endpoints to keep literature screening completely private.</li>
+            <li><strong>Clean Architecture:</strong> Strict decoupling of presentation UI, service controllers, and sheet storage managers.</li>
+            <li><strong>Visual Analysis:</strong> Native ECharts mapping inside custom modal windows to explore literature attributes.</li>
           </ul>
         </div>
 

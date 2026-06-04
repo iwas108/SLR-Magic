@@ -73,16 +73,8 @@
 
     <!-- Tabs Navigation -->
     <div class="flex border-b border-slate-200 mb-6 gap-2 overflow-x-auto">
-      <button id="tab-system" onclick="openTab('system')"
-        class="px-5 py-3 border-b-2 font-semibold text-sm transition-all duration-150 cursor-pointer border-indigo-600 text-indigo-600 whitespace-nowrap">
-        System Config
-      </button>
-      <button id="tab-prompts" onclick="openTab('prompts')"
-        class="px-5 py-3 border-b-2 font-semibold text-sm transition-all duration-150 cursor-pointer border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 whitespace-nowrap">
-        Prompt Templates
-      </button>
       <button id="tab-manifesto" onclick="openTab('manifesto')"
-        class="px-5 py-3 border-b-2 font-semibold text-sm transition-all duration-150 cursor-pointer border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 whitespace-nowrap">
+        class="px-5 py-3 border-b-2 font-semibold text-sm transition-all duration-150 cursor-pointer border-indigo-600 text-indigo-600 whitespace-nowrap">
         Research Manifesto
       </button>
       <button id="tab-ingest" onclick="openTab('ingest')"
@@ -94,207 +86,8 @@
     <!-- Main Config Form -->
     <form id="configForm" class="space-y-6">
 
-      <!-- Tab 1: System Config -->
-      <div id="system-content" class="tab-pane space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          <!-- Proxy Server Config -->
-          <div
-            class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col justify-between">
-            <div>
-              <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
-                  </path>
-                </svg>
-                LLM Tunnel Settings
-              </h2>
-
-              <div class="space-y-4">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
-                    for="LLM_PROXY_URL">LLM Proxy URL</label>
-                  <input type="text" id="LLM_PROXY_URL" name="LLM_PROXY_URL"
-                    placeholder="e.g. https://domain.tunnels.dev/v1/chat/completions"
-                    class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150">
-                  <p class="text-xs text-slate-400 mt-1">Endpoint routing requests through the HAProxy edge-to-cloud
-                    tunnel.</p>
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
-                    for="API_KEY">Tunnel API Key / Token</label>
-                  <input type="text" id="API_KEY" name="API_KEY" placeholder="Bearer auth token (optional)"
-                    class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150">
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
-                    for="MODEL_NAME">Active Pipeline Model</label>
-                  <input type="text" id="MODEL_NAME" name="MODEL_NAME" placeholder="e.g. deepseek-r1"
-                    class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150">
-                </div>
-              </div>
-            </div>
-
-            <div class="mt-6 pt-4 border-t border-slate-100">
-              <button type="button" onclick="fetchAvailableModels()"
-                class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl shadow-sm transition-colors duration-150 cursor-pointer flex items-center justify-center">
-                Fetch Available Models
-              </button>
-
-              <div id="models_container" class="mt-4 hidden">
-                <span class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Tunnel Active
-                  Models</span>
-                <div id="models_list"
-                  class="max-h-32 overflow-y-auto border border-slate-200 p-3 rounded-xl bg-slate-50 text-xs space-y-1.5">
-                </div>
-              </div>
-              <div id="models_loading" class="mt-4 hidden text-center text-xs italic text-slate-500">
-                Contacting tunnel...
-              </div>
-            </div>
-          </div>
-
-          <!-- PDF Storage settings -->
-          <div
-            class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col justify-between">
-            <div>
-              <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center">
-                <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                </svg>
-                Repository Ingestion
-              </h2>
-              <div class="space-y-4">
-                <div>
-                  <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
-                    for="PDF_REPO_FOLDER_ID">Google Drive Folder ID (PDF Repo)</label>
-                  <input type="text" id="PDF_REPO_FOLDER_ID" name="PDF_REPO_FOLDER_ID"
-                    placeholder="Enter folder ID (e.g. 1aB2c3D4e5...)"
-                    class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150">
-                  <p class="text-xs text-slate-400 mt-1">Copy the ID from the end of the folder link in Google Drive.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="bg-slate-50 border border-slate-150 p-4 rounded-xl text-xs text-slate-500 mt-6 leading-relaxed">
-              <strong>FAIR Data Compliance Guardrail:</strong><br />
-              All PDFs ingested from this folder must resolve through unique identifier schemas matching the sheet
-              metadata key index (DOIs or Paper IDs).
-            </div>
-          </div>
-
-          <!-- Pre-Calibration Pools Size Config -->
-          <div
-            class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 col-span-1 md:col-span-2">
-            <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center">
-              <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
-                </path>
-              </svg>
-              Pre-Calibration Pools Size
-            </h2>
-            <p class="text-xs text-slate-500 mb-4">Set target sample sizes for the calibration pools. These settings are
-              dynamically reflected in the pool assignment progress indicators.</p>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <!-- Pool A -->
-              <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
-                <div class="flex justify-between items-center">
-                  <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_A_SIZE">Pool
-                    A Target Size</label>
-                  <input type="number" id="POOL_A_SIZE" name="POOL_A_SIZE" min="1" max="1000" placeholder="50"
-                    class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
-                </div>
-                <p class="text-[10px] text-slate-500 leading-normal mt-2">
-                  <strong>Stage 1 (Fast Filter) Validation:</strong> Manually verified baseline to calibrate metadata
-                  filtering and identify semantic boundary traps (50% bad example, 50% good example).
-                </p>
-              </div>
-
-              <!-- Pool B -->
-              <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
-                <div class="flex justify-between items-center">
-                  <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_B_SIZE">Pool
-                    B Target Size</label>
-                  <input type="number" id="POOL_B_SIZE" name="POOL_B_SIZE" min="1" max="1000" placeholder="30"
-                    class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
-                </div>
-                <p class="text-[10px] text-slate-500 leading-normal mt-2">
-                  <strong>Stage 2.1 (Gatekeeper) Validation:</strong> Manual bypass baseline of full-text relevance,
-                  matching physical integration against pure simulations (50% bad example, 50% good example).
-                </p>
-              </div>
-
-              <!-- Pool C -->
-              <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
-                <div class="flex justify-between items-center">
-                  <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_C_SIZE">Pool
-                    C Target Size</label>
-                  <input type="number" id="POOL_C_SIZE" name="POOL_C_SIZE" min="1" max="1000" placeholder="20"
-                    class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
-                </div>
-                <p class="text-[10px] text-slate-500 leading-normal mt-2">
-                  <strong>Stage 2.2/2.3 (Sci/Miner) Validation:</strong> High-maturity papers verifying extraction
-                  precision across varying methodological qualities (50% good example, 50% bad example).
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tab 2: Prompt Templates -->
-      <div id="prompts-content" class="tab-pane hidden space-y-6">
-        <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-6">
-          <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center">
-            <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
-              </path>
-            </svg>
-            Multi-Persona System Instructions
-          </h2>
-
-          <div class="space-y-6">
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
-                for="STAGE_1_PROMPT">Stage 1: Title-Abstract Screener Prompt</label>
-              <textarea id="STAGE_1_PROMPT" name="STAGE_1_PROMPT"
-                class="w-full h-40 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
-                for="STAGE_2_1_PROMPT">Stage 2.1: The Gatekeeper Prompt (Full text relevance)</label>
-              <textarea id="STAGE_2_1_PROMPT" name="STAGE_2_1_PROMPT"
-                class="w-full h-40 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
-                for="STAGE_2_2_PROMPT">Stage 2.2: The Scientist Prompt (Quality scoring)</label>
-              <textarea id="STAGE_2_2_PROMPT" name="STAGE_2_2_PROMPT"
-                class="w-full h-40 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
-                for="STAGE_2_3_PROMPT">Stage 2.3: The Miner Prompt (Structured extraction)</label>
-              <textarea id="STAGE_2_3_PROMPT" name="STAGE_2_3_PROMPT"
-                class="w-full h-40 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
-                for="UMBRELLANIZER_PROMPT">Umbrellanizer Prompt (Taxonomy Standardization)</label>
-              <textarea id="UMBRELLANIZER_PROMPT" name="UMBRELLANIZER_PROMPT"
-                class="w-full h-40 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tab 3: Research Manifesto -->
-      <div id="manifesto-content" class="tab-pane hidden space-y-6">
+      <!-- Tab: Research Manifesto -->
+      <div id="manifesto-content" class="tab-pane space-y-6">
         <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-6">
           <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center">
             <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -770,7 +563,7 @@
       document.getElementById(tabName + "-content").classList.remove("hidden");
 
       // Toggle buttons active state
-      const tabIds = ["system", "prompts", "manifesto", "ingest"];
+      const tabIds = ["manifesto", "ingest"];
       tabIds.forEach(id => {
         const btn = document.getElementById("tab-" + id);
         if (id === tabName) {
@@ -789,64 +582,6 @@
       } else {
         controls.classList.remove("hidden");
       }
-    }
-
-    function fetchAvailableModels() {
-      const proxyUrl = document.getElementById("LLM_PROXY_URL").value;
-      const apiKey = document.getElementById("API_KEY").value;
-
-      if (!proxyUrl) {
-        showToast("Please enter the LLM Proxy URL first.", "error");
-        return;
-      }
-
-      const btn = document.querySelector('button[onclick="fetchAvailableModels()"]');
-      const loadingDiv = document.getElementById("models_loading");
-      const containerDiv = document.getElementById("models_container");
-      const listDiv = document.getElementById("models_list");
-
-      btn.disabled = true;
-      btn.classList.add("opacity-50", "cursor-not-allowed");
-      loadingDiv.classList.remove("hidden");
-      containerDiv.classList.add("hidden");
-      listDiv.replaceChildren();
-
-      google.script.run.withSuccessHandler(function (response) {
-        btn.disabled = false;
-        btn.classList.remove("opacity-50", "cursor-not-allowed");
-        loadingDiv.classList.add("hidden");
-        containerDiv.classList.remove("hidden");
-
-        if (response && response.models && response.models.length > 0) {
-          response.models.forEach(model => {
-            const itemDiv = document.createElement("div");
-            itemDiv.className = "flex justify-between items-center py-1 border-b border-slate-100 last:border-0";
-
-            const nameSpan = document.createElement("span");
-            nameSpan.className = "font-mono font-medium text-slate-700";
-            nameSpan.innerText = model.name;
-
-            const selectBtn = document.createElement("button");
-            selectBtn.type = "button";
-            selectBtn.innerText = "Select";
-            selectBtn.className = "px-2 py-0.5 text-[10px] bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white font-medium rounded transition-all cursor-pointer";
-            selectBtn.onclick = function () {
-              document.getElementById("MODEL_NAME").value = model.name;
-            };
-
-            itemDiv.appendChild(nameSpan);
-            itemDiv.appendChild(selectBtn);
-            listDiv.appendChild(itemDiv);
-          });
-        } else {
-          listDiv.innerText = "No models found or invalid response from /api/tags.";
-        }
-      }).withFailureHandler(function (error) {
-        btn.disabled = false;
-        btn.classList.remove("opacity-50", "cursor-not-allowed");
-        loadingDiv.classList.add("hidden");
-        showToast("Error fetching models: " + error.message, "error");
-      }).fetchOllamaModelsProxy(proxyUrl, apiKey);
     }
 
     function handleCSVUpload() {
