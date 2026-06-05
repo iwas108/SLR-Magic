@@ -10,6 +10,8 @@ temp_pdfs
 Downloaded_PDFs
 *.log
 database.csv
+venv
+venv\**
 .venv
 .venv\**
 *.db
