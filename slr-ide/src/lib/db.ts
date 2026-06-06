@@ -34,7 +34,11 @@ db.exec(`
     Status TEXT NOT NULL DEFAULT 'PENDING',
     Local_PDF_Status TEXT NOT NULL DEFAULT 'IGNORED',
     Local_PDF_Path TEXT,
-    Project_ID TEXT
+    Project_ID TEXT,
+    calibration_pool TEXT,
+    Human_Decision TEXT,
+    Human_EC_Trigger TEXT,
+    Human_Rationale TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers (DOI);
@@ -65,6 +69,34 @@ db.exec(`
 // Add Project_ID column to papers if it doesn't exist (migration fallback)
 try {
   db.exec("ALTER TABLE papers ADD COLUMN Project_ID TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add calibration_pool column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN calibration_pool TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add Human_Decision column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN Human_Decision TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add Human_EC_Trigger column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN Human_EC_Trigger TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add Human_Rationale column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN Human_Rationale TEXT");
 } catch (e) {
   // Column already exists
 }

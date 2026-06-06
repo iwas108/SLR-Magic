@@ -8,7 +8,8 @@ import {
   Download, FileSpreadsheet, Layers, Sparkles, AlertTriangle, ExternalLink, Trash2,
   ArrowUpDown, ArrowUp, ArrowDown, Eye, Edit2, ChevronLeft, ChevronRight,
   Minus, Maximize2, LayoutDashboard, Plus, Edit, Folder, Calendar, CheckCircle2,
-  TrendingUp, BarChart3, Cloud, Database
+  TrendingUp, BarChart3, Cloud, Database, ShieldAlert, Terminal, ArrowRightLeft,
+  Lock, Unlock, Loader2
 } from 'lucide-react';
 
 // Types
@@ -26,6 +27,10 @@ interface Paper {
   Status: string;
   Local_PDF_Status: string;
   Local_PDF_Path: string | null;
+  calibration_pool?: string | null;
+  Human_Decision?: string | null;
+  Human_EC_Trigger?: string | null;
+  Human_Rationale?: string | null;
 }
 
 export default function DashboardPage() {
@@ -370,6 +375,39 @@ export default function DashboardPage() {
   const [previewStats, setPreviewStats] = useState({ total: 0, newCount: 0, dupCount: 0 });
   const [importing, setImporting] = useState(false);
 
+  // Pre-Calibration States
+  const [calActivePool, setCalActivePool] = useState<'pool_a' | 'pool_b' | 'pool_c'>('pool_a');
+  const [calStats, setCalStats] = useState({ TP: 0, TN: 0, FP: 0, FN: 0, agreementRate: 0, kappa: 'N/A', reviewedCount: 0 });
+  const [calPapers, setCalPapers] = useState<Paper[]>([]);
+  const [calLoading, setCalLoading] = useState(false);
+  const [calSearchTerm, setCalSearchTerm] = useState('');
+  const [calStatusFilter, setCalStatusFilter] = useState('');
+  const [calPdfFilter, setCalPdfFilter] = useState('');
+  const [calPage, setCalPage] = useState(1);
+  const [calLimit, setCalLimit] = useState(50);
+  const [calTotalPapers, setCalTotalPapers] = useState(0);
+  const [calTotalPages, setCalTotalPages] = useState(1);
+  const [calSortBy, setCalSortBy] = useState('Paper_ID');
+  const [calSortOrder, setCalSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Assign Papers modal states
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignSearch, setAssignSearch] = useState('');
+  const [assignPoolFilter, setAssignPoolFilter] = useState('all');
+  const [assignPapers, setAssignPapers] = useState<Paper[]>([]);
+  const [assignSelectedPaper, setAssignSelectedPaper] = useState<Paper | null>(null);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignPage, setAssignPage] = useState(1);
+  const [assignLimit, setAssignLimit] = useState(25);
+  const [assignTotalPapers, setAssignTotalPapers] = useState(0);
+  const [assignTotalPages, setAssignTotalPages] = useState(1);
+  const [assignLogs, setAssignLogs] = useState<string[]>([]);
+  const [assignIsRunning, setAssignIsRunning] = useState(false);
+  const [assignStatusText, setAssignStatusText] = useState('');
+  const [assignProgress, setAssignProgress] = useState(0);
+  const [assignWaitingLogin, setAssignWaitingLogin] = useState(false);
+  const [importingSLR, setImportingSLR] = useState(false);
+
   // Batch Execution steps selection state
   const [batchSteps, setBatchSteps] = useState<Record<string, boolean>>({
     scan: true,
@@ -451,6 +489,27 @@ export default function DashboardPage() {
       return <ArrowUpDown className="w-3 h-3 text-muted-foreground/40 shrink-0" />;
     }
     return sortOrder === 'asc' ? (
+      <ArrowUp className="w-3 h-3 text-primary shrink-0" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-primary shrink-0" />
+    );
+  };
+
+  const handleCalSort = (field: string) => {
+    if (calSortBy === field) {
+      setCalSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setCalSortBy(field);
+      setCalSortOrder('asc');
+    }
+    setCalPage(1);
+  };
+
+  const renderCalSortIcon = (field: string) => {
+    if (calSortBy !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-muted-foreground/40 shrink-0" />;
+    }
+    return calSortOrder === 'asc' ? (
       <ArrowUp className="w-3 h-3 text-primary shrink-0" />
     ) : (
       <ArrowDown className="w-3 h-3 text-primary shrink-0" />
@@ -639,6 +698,331 @@ export default function DashboardPage() {
   useEffect(() => {
     setPage(1);
   }, [searchTerm, statusFilter, pdfFilter]);
+
+  // Fetch calibration papers
+  const loadCalPapers = async () => {
+    setCalLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (calSearchTerm) params.append('search', calSearchTerm);
+      if (calStatusFilter) params.append('status', calStatusFilter);
+      if (calPdfFilter) params.append('pdfStatus', calPdfFilter);
+      params.append('calibrationPool', calActivePool);
+      
+      params.append('sortBy', calSortBy);
+      params.append('sortOrder', calSortOrder);
+      params.append('page', String(calPage));
+      params.append('limit', String(calLimit));
+
+      const res = await fetch(`/api/papers?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCalPapers(data.papers || []);
+        setCalTotalPapers(data.total || 0);
+        setCalTotalPages(data.totalPages || 1);
+      }
+
+      // Calculate inter-rater statistics for Pool A
+      if (calActivePool === 'pool_a') {
+        const statsRes = await fetch(`/api/papers?limit=1000&calibrationPool=pool_a`);
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          const allCalAPapers = statsData.papers || [];
+          let TP = 0, TN = 0, FP = 0, FN = 0;
+          let reviewed = 0;
+          for (const p of allCalAPapers) {
+            const humanDec = String(p.Human_Decision || '').trim().toUpperCase();
+            const aiDec = String(p.Status || '').trim().toUpperCase();
+            if (humanDec === 'INCLUDE' || humanDec === 'EXCLUDE') {
+              reviewed++;
+              if (aiDec === 'INCLUDE' && humanDec === 'INCLUDE') TP++;
+              else if (aiDec === 'INCLUDE' && humanDec === 'EXCLUDE') FP++;
+              else if (aiDec === 'EXCLUDE' && humanDec === 'EXCLUDE') TN++;
+              else if (aiDec === 'EXCLUDE' && humanDec === 'INCLUDE') FN++;
+            }
+          }
+          const totalReviewed = TP + TN + FP + FN;
+          let agreementRate = 0;
+          let kappaStr = 'N/A';
+          if (totalReviewed > 0) {
+            agreementRate = ((TP + TN) / totalReviewed) * 100;
+            const p_o = (TP + TN) / totalReviewed;
+            const p_yes = ((TP + FP) * (TP + FN)) / (totalReviewed * totalReviewed);
+            const p_no = ((TN + FN) * (TN + FP)) / (totalReviewed * totalReviewed);
+            const p_e = p_yes + p_no;
+            if (p_e === 1) {
+              kappaStr = '1.000';
+            } else {
+              kappaStr = ((p_o - p_e) / (1 - p_e)).toFixed(3);
+            }
+          }
+          setCalStats({ TP, TN, FP, FN, agreementRate, kappa: kappaStr, reviewedCount: reviewed });
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching calibration papers:', err);
+    } finally {
+      setCalLoading(false);
+    }
+  };
+
+  // Fetch papers for pool assignment
+  const loadAssignPapers = async () => {
+    setAssignLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (assignSearch) params.append('search', assignSearch);
+      
+      if (assignPoolFilter === 'unassigned') {
+        params.append('calibrationPool', 'none');
+      } else if (assignPoolFilter && assignPoolFilter !== 'all') {
+        params.append('calibrationPool', assignPoolFilter);
+      }
+
+      params.append('sortBy', 'Paper_ID');
+      params.append('sortOrder', 'asc');
+      params.append('page', String(assignPage));
+      params.append('limit', String(assignLimit));
+
+      const res = await fetch(`/api/papers?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAssignPapers(data.papers || []);
+        setAssignTotalPapers(data.total || 0);
+        setAssignTotalPages(data.totalPages || 1);
+        
+        if (data.papers && data.papers.length > 0) {
+          const found = data.papers.find((p: any) => p.Paper_ID === assignSelectedPaper?.Paper_ID);
+          if (!found) {
+            setAssignSelectedPaper(data.papers[0]);
+          } else {
+            setAssignSelectedPaper(found);
+          }
+        } else {
+          setAssignSelectedPaper(null);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching papers for assignment:', err);
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  // Assign or unassign papers to pools
+  const handleAssignPool = async (paperId: string, pool: string | null) => {
+    try {
+      const paperObj = papers.find(p => p.Paper_ID === paperId) || calPapers.find(p => p.Paper_ID === paperId) || assignPapers.find(p => p.Paper_ID === paperId);
+      if (!paperObj) return;
+
+      let nextPdfStatus = paperObj.Local_PDF_Status;
+      if (pool === 'pool_b' || pool === 'pool_c') {
+        if (paperObj.Local_PDF_Status === 'IGNORED' || !paperObj.Local_PDF_Status) {
+          nextPdfStatus = 'MISSING';
+        }
+      }
+
+      const res = await fetch(`/api/papers/${paperId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          Title: paperObj.Title,
+          calibration_pool: pool,
+          Local_PDF_Status: nextPdfStatus
+        })
+      });
+
+      if (res.ok) {
+        showToast(`Paper successfully ${pool ? `assigned to ${pool.replace('_', ' ')}` : 'unassigned'}.`, 'success');
+        
+        await loadProjects();
+        if (activeTab === 'pre-calibration') {
+          loadCalPapers();
+        }
+        if (showAssignModal) {
+          loadAssignPapers();
+        }
+        loadPapers();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'Failed to assign pool', 'error');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Failed to assign pool', 'error');
+    }
+  };
+
+  // Single paper PDF acquisition pipeline
+  const singlePipelineAbortControllerRef = useRef<AbortController | null>(null);
+
+  const runSinglePaperPipeline = async (paperId: string) => {
+    if (assignIsRunning) {
+      showToast('A PDF acquisition process is already active.', 'warning');
+      return;
+    }
+
+    setAssignIsRunning(true);
+    setAssignLogs([]);
+    setAssignProgress(0);
+    setAssignStatusText('Starting single paper acquisition...');
+    setAssignWaitingLogin(false);
+
+    try {
+      const abortController = new AbortController();
+      singlePipelineAbortControllerRef.current = abortController;
+
+      const res = await fetch('/api/pdf/single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperId }),
+        signal: abortController.signal
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Failed to run single paper matching/scraping', 'error');
+        setAssignIsRunning(false);
+        return;
+      }
+
+      if (!res.body) {
+        showToast('Streaming response not available.', 'error');
+        setAssignIsRunning(false);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const parsed = JSON.parse(line);
+            
+            if (parsed.event === 'log') {
+              setAssignLogs(prev => [...prev, parsed.message]);
+            } else if (parsed.event === 'step_start') {
+              setAssignStatusText(parsed.message);
+              if (parsed.step === 'scan') {
+                setAssignProgress(15);
+              } else if (parsed.step === 'scrape') {
+                setAssignProgress(45);
+              }
+            } else if (parsed.event === 'step_complete') {
+              setAssignStatusText(parsed.message);
+            } else if (parsed.event === 'waiting_login') {
+              setAssignWaitingLogin(true);
+              setAssignStatusText(parsed.message);
+            } else if (parsed.event === 'resume') {
+              setAssignWaitingLogin(false);
+            } else if (parsed.event === 'paper_success') {
+              setAssignProgress(90);
+              showToast('Paper PDF acquired successfully!', 'success');
+            } else if (parsed.event === 'paper_fail') {
+              setAssignProgress(100);
+              showToast(`Scrape failed: ${parsed.error}`, 'error');
+            } else if (parsed.event === 'complete') {
+              setAssignProgress(100);
+              setAssignStatusText(parsed.message);
+              showToast(parsed.message, 'success');
+            } else if (parsed.event === 'error') {
+              setAssignProgress(100);
+              setAssignStatusText(parsed.message);
+              showToast(parsed.message, 'error');
+            }
+          } catch (e) {
+            setAssignLogs(prev => [...prev, line]);
+          }
+        }
+      }
+
+      await loadProjects();
+      if (activeTab === 'pre-calibration') {
+        loadCalPapers();
+      }
+      if (showAssignModal) {
+        loadAssignPapers();
+      }
+      loadPapers();
+
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        showToast('Pipeline cancelled by user.', 'info');
+      } else {
+        showToast(err.message || 'Error running pipeline', 'error');
+      }
+    } finally {
+      setAssignIsRunning(false);
+      singlePipelineAbortControllerRef.current = null;
+    }
+  };
+
+  // Inter-Rater Export/Import for Pool A
+  const handleExportCalPoolA = () => {
+    window.open('/api/export/inter-rater?pool=pool_a', '_blank');
+    showToast('Exporting Pool A blinded review file (.slr)...', 'info');
+  };
+
+  const handleImportCalPoolA = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportingSLR(true);
+    try {
+      const text = await file.text();
+      const res = await fetch('/api/import/inter-rater?pool=pool_a', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: text
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Successfully imported blinded results!', 'success');
+        loadCalPapers();
+      } else {
+        showToast(data.error || 'Failed to import blinded results', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error importing blinded results', 'error');
+    } finally {
+      setImportingSLR(false);
+      e.target.value = '';
+    }
+  };
+
+  // Trigger calibration papers load
+  useEffect(() => {
+    if (activeTab === 'pre-calibration') {
+      loadCalPapers();
+    }
+  }, [calActivePool, calSearchTerm, calStatusFilter, calPdfFilter, calSortBy, calSortOrder, calPage, calLimit, activeTab]);
+
+  // Trigger assignment papers load
+  useEffect(() => {
+    if (showAssignModal) {
+      loadAssignPapers();
+    }
+  }, [showAssignModal, assignSearch, assignPoolFilter, assignPage, assignLimit]);
+
+  // Reset calibration pagination when filter changes
+  useEffect(() => {
+    setCalPage(1);
+  }, [calSearchTerm, calStatusFilter, calPdfFilter, calActivePool]);
+
+  // Reset assignment pagination when filter changes
+  useEffect(() => {
+    setAssignPage(1);
+  }, [assignSearch, assignPoolFilter]);
 
   // Scroll logs to bottom
   useEffect(() => {
@@ -1252,20 +1636,22 @@ export default function DashboardPage() {
   };
 
   const handleResumeOperation = async () => {
+    // Optimistically dismiss login wait state to prevent duplicate clicks
+    setOperationModal(prev => ({ ...prev, isWaitingLogin: false }));
     try {
       const res = await fetch('/api/pdf/batch/resume', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         showToast('Pipeline resume requested.', 'info');
-        setOperationModal(prev => ({
-          ...prev,
-          isWaitingLogin: false
-        }));
       } else {
         showToast(data.message, 'warning');
+        // Restore wait state on failure
+        setOperationModal(prev => ({ ...prev, isWaitingLogin: true }));
       }
     } catch (e: any) {
       showToast(`Resume error: ${e.message}`, 'error');
+      // Restore wait state on error
+      setOperationModal(prev => ({ ...prev, isWaitingLogin: true }));
     }
   };
 
@@ -1822,7 +2208,455 @@ export default function DashboardPage() {
               )}
 
             </div>
-          ) : activeTab !== 'database' ? (
+          ) : activeTab === 'pre-calibration' ? (
+            <div className="h-full flex flex-col overflow-hidden space-y-6 animate-in fade-in duration-200">
+              {/* TOP METRICS ROW */}
+              {(() => {
+                const activeProj = projects.find(p => p.id === activeProjectId);
+                const targetA = activeProj?.pool_a_size || 50;
+                const targetB = activeProj?.pool_b_size || 30;
+                const targetC = activeProj?.pool_c_size || 20;
+                const countA = activeProj?.stats?.pool_a_count || 0;
+                const countB = activeProj?.stats?.pool_b_count || 0;
+                const countC = activeProj?.stats?.pool_c_count || 0;
+
+                const pctA = Math.min(100, Math.round((countA / targetA) * 100));
+                const pctB = Math.min(100, Math.round((countB / targetB) * 100));
+                const pctC = Math.min(100, Math.round((countC / targetC) * 100));
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
+                    {/* Pool A Card */}
+                    <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+                      <div className="space-y-1.5 z-10">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-indigo-400 uppercase font-black tracking-wider">Pool A (Fast Filter)</span>
+                          <span className="text-[9px] font-mono font-bold bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded">PDF Not Required</span>
+                        </div>
+                        <h4 className="font-bold text-lg text-foreground font-mono">{countA} <span className="text-xs text-muted-foreground font-normal">/ {targetA} papers</span></h4>
+                        <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${pctA}%` }} />
+                        </div>
+                        <p className="text-[9px] text-muted-foreground flex justify-between">
+                          <span>Progress: {pctA}%</span>
+                          <span>Reviewed: {calStats.reviewedCount}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Pool B Card */}
+                    <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+                      <div className="space-y-1.5 z-10">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-emerald-400 uppercase font-black tracking-wider">Pool B (Gatekeeper)</span>
+                          <span className="text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded">PDF Required</span>
+                        </div>
+                        <h4 className="font-bold text-lg text-foreground font-mono">{countB} <span className="text-xs text-muted-foreground font-normal">/ {targetB} papers</span></h4>
+                        <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pctB}%` }} />
+                        </div>
+                        <p className="text-[9px] text-muted-foreground">Progress: {pctB}%</p>
+                      </div>
+                    </div>
+
+                    {/* Pool C Card */}
+                    <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+                      <div className="space-y-1.5 z-10">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-amber-400 uppercase font-black tracking-wider">Pool C (Scientist)</span>
+                          <span className="text-[9px] font-mono font-bold bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded">PDF Required</span>
+                        </div>
+                        <h4 className="font-bold text-lg text-foreground font-mono">{countC} <span className="text-xs text-muted-foreground font-normal">/ {targetC} papers</span></h4>
+                        <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${pctC}%` }} />
+                        </div>
+                        <p className="text-[9px] text-muted-foreground">Progress: {pctC}%</p>
+                      </div>
+                    </div>
+
+                    {/* Consensus Scorecard Card */}
+                    <div className="bg-card border border-border p-3.5 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+                      <div className="space-y-1 z-10 flex flex-col h-full justify-between">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-primary uppercase font-black tracking-wider">Consensus Scorecard (Pool A)</span>
+                          <span className="text-[9px] font-mono font-bold bg-primary/10 text-primary px-1.5 py-0.5 rounded">Cohen's Kappa</span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between py-1">
+                          <div>
+                            <span className="text-[9px] text-muted-foreground block font-bold uppercase">Agreement</span>
+                            <span className="text-sm font-black text-foreground font-mono">{calStats.agreementRate.toFixed(1)}%</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-muted-foreground block font-bold uppercase">Kappa</span>
+                            <span className="text-sm font-black text-primary font-mono">{calStats.kappa}</span>
+                          </div>
+                        </div>
+
+                        {/* Confusion Matrix Mini Grid */}
+                        <div className="grid grid-cols-4 gap-1 text-[8px] font-mono text-center border-t border-border/60 pt-1">
+                          <div className="bg-secondary/40 rounded p-0.5">
+                            <span className="text-muted-foreground block scale-90">TP</span>
+                            <span className="font-bold text-foreground">{calStats.TP}</span>
+                          </div>
+                          <div className="bg-secondary/40 rounded p-0.5">
+                            <span className="text-muted-foreground block scale-90">TN</span>
+                            <span className="font-bold text-foreground">{calStats.TN}</span>
+                          </div>
+                          <div className="bg-secondary/40 rounded p-0.5">
+                            <span className="text-muted-foreground block scale-90">FP</span>
+                            <span className="font-bold text-foreground">{calStats.FP}</span>
+                          </div>
+                          <div className="bg-secondary/40 rounded p-0.5">
+                            <span className="text-muted-foreground block scale-90">FN</span>
+                            <span className="font-bold text-foreground">{calStats.FN}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ACTION BAR AND SUBTABS */}
+              <div className="bg-card border border-border p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 shadow-sm">
+                {/* Subtabs selection */}
+                <div className="flex items-center gap-1.5 bg-secondary/45 p-1 rounded-lg border border-border shrink-0 select-none">
+                  {[
+                    { id: 'pool_a', label: 'Pool A (Fast Filter)' },
+                    { id: 'pool_b', label: 'Pool B (Gatekeeper)' },
+                    { id: 'pool_c', label: 'Pool C (Scientist/Miner)' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setCalActivePool(tab.id as any)}
+                      className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                        calActivePool === tab.id
+                          ? 'bg-background text-foreground shadow-sm border border-border/85'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {/* Blinded Review SLR Import/Export only for Pool A */}
+                  {calActivePool === 'pool_a' && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleExportCalPoolA}
+                        className="px-3 py-2 bg-secondary text-foreground hover:bg-secondary/80 border border-border text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px]"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Export Blinded (.slr)
+                      </button>
+                      <label
+                        className={`px-3 py-2 bg-secondary text-foreground hover:bg-secondary/80 border border-border text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px] cursor-pointer ${importingSLR ? 'opacity-50 pointer-events-none' : ''}`}
+                      >
+                        {importingSLR ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                        Import Blinded (.slr)
+                        <input
+                          type="file"
+                          accept=".slr,application/json"
+                          onChange={handleImportCalPoolA}
+                          className="hidden"
+                          disabled={importingSLR}
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setShowAssignModal(true)}
+                    className="px-3 py-2 bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px] font-bold rounded-lg shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Assign Papers to Pools
+                  </button>
+                </div>
+              </div>
+
+              {/* FILTER BAR */}
+              <div className="bg-card border border-border p-4 rounded-xl flex flex-col md:flex-row md:items-center gap-4 shrink-0 shadow-sm">
+                <div className="flex-1 relative">
+                  <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search by ID, Title, DOI, Authors, or Abstract..."
+                    value={calSearchTerm}
+                    onChange={(e) => setCalSearchTerm(e.target.value)}
+                    className="w-full bg-secondary/35 border border-border rounded-lg pl-9 pr-4 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-medium"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <select
+                    className="bg-secondary/35 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold transition-colors"
+                    value={calStatusFilter}
+                    onChange={(e) => setCalStatusFilter(e.target.value)}
+                  >
+                    <option value="">All Screen Decisions</option>
+                    <option value="PENDING">PENDING</option>
+                    <option value="INCLUDE">INCLUDE</option>
+                    <option value="EXCLUDE">EXCLUDE</option>
+                  </select>
+
+                  <select
+                    className="bg-secondary/35 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold transition-colors"
+                    value={calPdfFilter}
+                    onChange={(e) => setCalPdfFilter(e.target.value)}
+                  >
+                    <option value="">All PDF Statuses</option>
+                    <option value="IGNORED">IGNORED</option>
+                    <option value="MISSING">MISSING</option>
+                    <option value="MATCHED">MATCHED</option>
+                    <option value="DOWNLOADED">DOWNLOADED</option>
+                    <option value="SYNCED">SYNCED</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* DATA TABLE */}
+              <div className="flex-1 flex flex-col overflow-hidden bg-card border border-border rounded-xl shadow-sm">
+                {calLoading ? (
+                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <span className="text-xs font-semibold">Loading calibration data...</span>
+                  </div>
+                ) : calPapers.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-6">
+                    <FileText className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                    <h4 className="font-bold text-sm mb-1 text-foreground">No papers in this pool</h4>
+                    <p className="text-xs text-muted-foreground max-w-xs leading-relaxed mb-4">
+                      No papers matching your filters are currently assigned to this calibration pool.
+                    </p>
+                    <button
+                      onClick={() => setShowAssignModal(true)}
+                      className="px-4 py-2 bg-secondary text-foreground hover:bg-secondary/80 text-xs font-bold rounded-lg border border-border transition-colors uppercase tracking-wider text-[10px]"
+                    >
+                      Assign Papers Now
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-auto">
+                      <table className="w-full table-fixed text-left text-xs border-collapse relative">
+                        <thead className="sticky top-0 z-10 bg-secondary border-b border-border shadow-sm">
+                          <tr className="text-muted-foreground text-[10px] font-bold uppercase">
+                            <th className="p-3 w-[15%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleCalSort('Paper_ID')}>
+                              <div className="flex items-center gap-1.5">
+                                ID {renderCalSortIcon('Paper_ID')}
+                              </div>
+                            </th>
+                            <th className="p-3 w-[30%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleCalSort('Title')}>
+                              <div className="flex items-center gap-1.5">
+                                Title {renderCalSortIcon('Title')}
+                              </div>
+                            </th>
+                            <th className="p-3 w-[15%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleCalSort('Authors')}>
+                              <div className="flex items-center gap-1.5">
+                                Authors {renderCalSortIcon('Authors')}
+                              </div>
+                            </th>
+                            <th className="p-3 w-[8%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleCalSort('Year')}>
+                              <div className="flex items-center gap-1.5">
+                                Year {renderCalSortIcon('Year')}
+                              </div>
+                            </th>
+                            <th className="p-3 w-[12%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleCalSort('Local_PDF_Status')}>
+                              <div className="flex items-center gap-1.5">
+                                PDF Status {renderCalSortIcon('Local_PDF_Status')}
+                              </div>
+                            </th>
+                            {calActivePool === 'pool_a' ? (
+                              <>
+                                <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleCalSort('Human_Decision')}>
+                                  <div className="flex items-center gap-1.5">
+                                    Human {renderCalSortIcon('Human_Decision')}
+                                  </div>
+                                </th>
+                                <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleCalSort('Status')}>
+                                  <div className="flex items-center gap-1.5">
+                                    AI Decision {renderCalSortIcon('Status')}
+                                  </div>
+                                </th>
+                              </>
+                            ) : (
+                              <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleCalSort('Status')}>
+                                <div className="flex items-center gap-1.5">
+                                  Decision {renderCalSortIcon('Status')}
+                                </div>
+                              </th>
+                            )}
+                            <th className="p-3 w-[10%] text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {calPapers.map((p) => (
+                            <tr key={p.Paper_ID} className="h-16 hover:bg-secondary/15 transition-colors group">
+                              <td className="p-3 font-bold text-muted-foreground truncate" title={p.Paper_ID}>
+                                {p.Paper_ID}
+                              </td>
+                              <td className="p-3">
+                                <div className="font-bold text-foreground truncate" title={p.Title}>
+                                  {p.Title}
+                                </div>
+                                {p.Abstract && (
+                                  <div className="text-[10px] text-muted-foreground truncate mt-0.5 italic" title={p.Abstract}>
+                                    {p.Abstract}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-muted-foreground truncate" title={p.Authors || '—'}>
+                                {p.Authors || '—'}
+                              </td>
+                              <td className="p-3 text-muted-foreground font-semibold truncate">{p.Year || '—'}</td>
+                              <td className="p-3 truncate">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                                    p.Local_PDF_Status === 'SYNCED' ? 'bg-emerald-500' :
+                                    p.Local_PDF_Status === 'DOWNLOADED' || p.Local_PDF_Status === 'MATCHED' ? 'bg-amber-500 animate-pulse' :
+                                    p.Local_PDF_Status === 'FAILED' ? 'bg-destructive' :
+                                    p.Local_PDF_Status === 'IGNORED' ? 'bg-muted-foreground/50' :
+                                    'bg-destructive/60'
+                                  }`} />
+                                  <span className="text-[10px] font-bold tracking-wider uppercase truncate">
+                                    {p.Local_PDF_Status}
+                                  </span>
+                                  {p.PDF_Link && p.PDF_Link.startsWith('http') && (
+                                    <a
+                                      href={p.PDF_Link}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-primary hover:text-primary/80 transition-colors p-0.5 rounded ml-1 shrink-0"
+                                      title="Open Google Drive File"
+                                    >
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                </div>
+                              </td>
+                              
+                              {/* Decisions Columns */}
+                              {calActivePool === 'pool_a' ? (
+                                <>
+                                  <td className="p-3 truncate">
+                                    {p.Human_Decision ? (
+                                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${
+                                        p.Human_Decision === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                        p.Human_Decision === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                                        'bg-secondary border-border text-muted-foreground'
+                                      }`} title={p.Human_Rationale || ''}>
+                                        {p.Human_Decision}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-bold text-muted-foreground/50 uppercase italic">—</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 truncate">
+                                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${
+                                      p.Status === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                      p.Status === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                                      'bg-secondary border-border text-muted-foreground'
+                                    }`}>
+                                      {p.Status}
+                                    </span>
+                                  </td>
+                                </>
+                              ) : (
+                                <td className="p-3 truncate">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${
+                                    p.Status === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                                    p.Status === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                                    'bg-secondary border-border text-muted-foreground'
+                                  }`}>
+                                    {p.Status}
+                                  </span>
+                                </td>
+                              )}
+
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => setPaperModal({ isOpen: true, mode: 'view', paper: p })}
+                                    className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
+                                    title="View Paper Details"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setPaperModal({ isOpen: true, mode: 'edit', paper: p })}
+                                    className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-primary transition-colors"
+                                    title="Edit Paper Details"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleAssignPool(p.Paper_ID, null)}
+                                    className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-destructive transition-colors"
+                                    title="Remove from Calibration Pool"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination Footer */}
+                    <div className="px-4 py-3 border-t border-border bg-secondary/20 flex items-center justify-between shrink-0 select-none">
+                      <div className="text-[10px] text-muted-foreground font-semibold uppercase">
+                        Showing {calTotalPapers > 0 ? (calPage - 1) * calLimit + 1 : 0} to {Math.min(calPage * calLimit, calTotalPapers)} of {calTotalPapers} papers
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground font-semibold uppercase">Rows:</span>
+                          <select
+                            className="bg-secondary border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-primary font-bold"
+                            value={calLimit}
+                            onChange={(e) => {
+                              setCalLimit(Number(e.target.value));
+                              setCalPage(1);
+                            }}
+                          >
+                            {[10, 25, 50, 100].map(val => (
+                              <option key={val} value={val}>{val}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex items-center gap-1 bg-secondary border border-border rounded-lg p-0.5">
+                          <button
+                            disabled={calPage === 1}
+                            onClick={() => setCalPage(prev => Math.max(1, prev - 1))}
+                            className="p-1 hover:bg-background rounded-md text-muted-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <span className="text-[10px] font-bold px-2 select-none">
+                            {calPage} / {calTotalPages}
+                          </span>
+                          <button
+                            disabled={calPage === calTotalPages}
+                            onClick={() => setCalPage(prev => Math.min(calTotalPages, prev + 1))}
+                            className="p-1 hover:bg-background rounded-md text-muted-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : activeTab !== 'database' && activeTab !== 'pre-calibration' ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-border rounded-xl bg-card/35 max-w-lg mx-auto my-12">
               <Layers className="w-12 h-12 text-muted-foreground/60 mb-4 animate-pulse" />
               <h3 className="font-bold text-sm mb-1 text-foreground">Workflow Stage On Hold</h3>
@@ -2435,7 +3269,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Data Table */}
-              <div className="flex-1 overflow-auto bg-card">
+              <div className="flex-1 flex flex-col overflow-hidden bg-card">
                 {loadingPapers ? (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-3">
                     <LoaderIcon />
@@ -2838,6 +3672,423 @@ export default function DashboardPage() {
             </div>
           );
         })()
+      )}
+
+      {/* FULLSCREEN ASSIGN PAPERS TO POOLS MODAL */}
+      {showAssignModal && (
+        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-md flex flex-col animate-in fade-in duration-300">
+          {/* Header */}
+          <div className="h-16 px-6 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+              <ShieldAlert className="w-5 h-5 text-primary animate-pulse" />
+              <div>
+                <h3 className="font-bold text-sm">Assign Papers to Calibration Pools</h3>
+                <p className="text-[10px] text-muted-foreground font-medium">Select and partition literature references into independent calibration sets</p>
+              </div>
+            </div>
+
+            {/* Realtime progress bars inside header */}
+            {(() => {
+              const activeProj = projects.find(p => p.id === activeProjectId);
+              const targetA = activeProj?.pool_a_size || 50;
+              const targetB = activeProj?.pool_b_size || 30;
+              const targetC = activeProj?.pool_c_size || 20;
+              const countA = activeProj?.stats?.pool_a_count || 0;
+              const countB = activeProj?.stats?.pool_b_count || 0;
+              const countC = activeProj?.stats?.pool_c_count || 0;
+
+              const pctA = Math.min(100, Math.round((countA / targetA) * 100));
+              const pctB = Math.min(100, Math.round((countB / targetB) * 100));
+              const pctC = Math.min(100, Math.round((countC / targetC) * 100));
+
+              return (
+                <div className="hidden xl:flex items-center gap-6 text-[10px] select-none">
+                  <div className="w-48 space-y-1">
+                    <div className="flex justify-between font-bold">
+                      <span className="text-indigo-400">Pool A</span>
+                      <span className="text-muted-foreground">{countA} / {targetA}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border/50">
+                      <div className="h-full bg-indigo-50 rounded-full transition-all duration-300" style={{ width: `${pctA}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="w-48 space-y-1">
+                    <div className="flex justify-between font-bold">
+                      <span className="text-emerald-400">Pool B</span>
+                      <span className="text-muted-foreground">{countB} / {targetB}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border/50">
+                      <div className="h-full bg-emerald-5 rounded-full transition-all duration-300" style={{ width: `${pctB}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="w-48 space-y-1">
+                    <div className="flex justify-between font-bold">
+                      <span className="text-amber-400">Pool C</span>
+                      <span className="text-muted-foreground">{countC} / {targetC}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border/50">
+                      <div className="h-full bg-amber-5 rounded-full transition-all duration-300" style={{ width: `${pctC}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <button
+              onClick={() => {
+                setShowAssignModal(false);
+                loadCalPapers();
+                loadPapers();
+              }}
+              className="p-2 hover:bg-secondary rounded-xl text-muted-foreground hover:text-foreground transition-all duration-200"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Fullscreen Body split into left list and right details */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left Panel: Searchable paper list */}
+            <div className="w-96 border-r border-border bg-card/30 flex flex-col overflow-hidden shrink-0">
+              {/* Search and pool filter */}
+              <div className="p-4 border-b border-border space-y-3 shrink-0">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search papers..."
+                    value={assignSearch}
+                    onChange={(e) => setAssignSearch(e.target.value)}
+                    className="w-full bg-secondary/40 border border-border rounded-lg pl-9 pr-4 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold"
+                  />
+                </div>
+
+                {/* mini sub-filter for pool assignment */}
+                <div className="grid grid-cols-5 gap-1 bg-secondary/50 p-0.5 rounded-lg border border-border text-[9px] font-bold text-center uppercase tracking-wide">
+                  {[
+                    { id: 'all', label: 'All' },
+                    { id: 'unassigned', label: 'Un' },
+                    { id: 'pool_a', label: 'A' },
+                    { id: 'pool_b', label: 'B' },
+                    { id: 'pool_c', label: 'C' }
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => setAssignPoolFilter(f.id)}
+                      className={`py-1 rounded-md transition-colors ${
+                        assignPoolFilter === f.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                      title={`Show ${f.id === 'unassigned' ? 'Unassigned' : f.id.toUpperCase()} papers`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Papers List */}
+              <div className="flex-1 overflow-y-auto divide-y divide-border/60">
+                {assignLoading ? (
+                  <div className="p-8 text-center text-muted-foreground text-xs flex flex-col items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    <span>Loading papers database...</span>
+                  </div>
+                ) : assignPapers.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-xs">
+                    No papers found matching filters.
+                  </div>
+                ) : (
+                  assignPapers.map((paper) => {
+                    const isSelected = assignSelectedPaper?.Paper_ID === paper.Paper_ID;
+                    return (
+                      <div
+                        key={paper.Paper_ID}
+                        onClick={() => {
+                          if (!assignIsRunning) {
+                            setAssignSelectedPaper(paper);
+                            setAssignLogs([]);
+                            setAssignProgress(0);
+                            setAssignStatusText('');
+                          } else {
+                            showToast('Please wait or cancel the running acquisition process first.', 'warning');
+                          }
+                        }}
+                        className={`p-3.5 cursor-pointer transition-all flex flex-col gap-1 border-l-2 select-none ${
+                          isSelected
+                            ? 'bg-secondary/40 border-primary'
+                            : paper.calibration_pool === 'pool_a'
+                            ? 'border-indigo-500 hover:bg-secondary/10'
+                            : paper.calibration_pool === 'pool_b'
+                            ? 'border-emerald-500 hover:bg-secondary/10'
+                            : paper.calibration_pool === 'pool_c'
+                            ? 'border-amber-500 hover:bg-secondary/10'
+                            : 'border-transparent hover:bg-secondary/10'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="font-mono text-[9px] font-bold text-muted-foreground shrink-0">{paper.Paper_ID}</span>
+                          {paper.calibration_pool && (
+                            <span className={`text-[8px] font-black uppercase tracking-wider px-1 py-0.5 rounded ${
+                              paper.calibration_pool === 'pool_a' ? 'bg-indigo-500/10 text-indigo-400' :
+                              paper.calibration_pool === 'pool_b' ? 'bg-emerald-500/10 text-emerald-400' :
+                              'bg-amber-500/10 text-amber-400'
+                            }`}>
+                              {paper.calibration_pool.replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="font-bold text-xs text-foreground line-clamp-2 leading-relaxed">{paper.Title}</h4>
+                        <p className="text-[9px] text-muted-foreground truncate">{paper.Authors || 'Unknown Author'} • {paper.Year || '—'}</p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* sticky bottom page controls inside list */}
+              <div className="p-3 border-t border-border bg-secondary/10 flex items-center justify-between shrink-0 select-none">
+                <span className="text-[9px] text-muted-foreground font-semibold">Total: {assignTotalPapers}</span>
+                <div className="flex items-center gap-1 bg-secondary border border-border rounded-lg p-0.5">
+                  <button
+                    disabled={assignPage === 1 || assignIsRunning}
+                    onClick={() => setAssignPage(prev => Math.max(1, prev - 1))}
+                    className="p-1 hover:bg-background rounded text-muted-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[9px] font-bold px-1.5">{assignPage} / {assignTotalPages}</span>
+                  <button
+                    disabled={assignPage === assignTotalPages || assignIsRunning}
+                    onClick={() => setAssignPage(prev => Math.min(assignTotalPages, prev + 1))}
+                    className="p-1 hover:bg-background rounded text-muted-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Panel: Detailed view and assignment controls */}
+            <div className="flex-1 bg-background p-6 overflow-y-auto flex flex-col space-y-6">
+              {!assignSelectedPaper ? (
+                <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground p-6">
+                  <ShieldAlert className="w-12 h-12 text-muted-foreground/30 mb-3" />
+                  <h4 className="font-bold text-sm mb-1 text-foreground">No paper selected</h4>
+                  <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                    Select a literature reference from the left panel list to inspect its metadata and assign it to a calibration pool.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 w-full pb-8">
+                  
+                  {/* Paper Info Section */}
+                  <div className="bg-card border border-border p-5 rounded-xl space-y-3 shrink-0 shadow-sm">
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-muted-foreground/80 block uppercase">Paper Identification: {assignSelectedPaper.Paper_ID}</span>
+                        <h2 className="font-bold text-lg xl:text-xl text-foreground leading-snug mt-0.5">{assignSelectedPaper.Title}</h2>
+                      </div>
+                      
+                      {/* Assignment buttons inside Detail View */}
+                      <div className="flex flex-col gap-1.5 shrink-0 select-none">
+                        <span className="text-[8px] text-muted-foreground uppercase font-black tracking-wider text-right block mb-0.5">Quick Actions</span>
+                        <div className="flex items-center gap-1.5 bg-secondary/35 p-1 rounded-lg border border-border">
+                          {[
+                            { id: 'pool_a', label: 'Pool A', color: 'hover:bg-indigo-500/10 hover:text-indigo-400' },
+                            { id: 'pool_b', label: 'Pool B', color: 'hover:bg-emerald-500/10 hover:text-emerald-400' },
+                            { id: 'pool_c', label: 'Pool C', color: 'hover:bg-amber-500/10 hover:text-amber-400' }
+                          ].map((pool) => {
+                            const isAssigned = assignSelectedPaper.calibration_pool === pool.id;
+                            return (
+                              <button
+                                key={pool.id}
+                                disabled={assignIsRunning}
+                                onClick={() => handleAssignPool(assignSelectedPaper.Paper_ID, pool.id)}
+                                className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all duration-200 ${
+                                  isAssigned
+                                    ? pool.id === 'pool_a' ? 'bg-indigo-50 text-indigo-foreground shadow-sm' :
+                                      pool.id === 'pool_b' ? 'bg-emerald-500 text-emerald-foreground shadow-sm' :
+                                      'bg-amber-505 text-amber-foreground shadow-sm'
+                                    : `text-muted-foreground hover:bg-secondary ${pool.color}`
+                                }`}
+                              >
+                                {pool.label}
+                              </button>
+                            );
+                          })}
+                          {assignSelectedPaper.calibration_pool && (
+                            <button
+                              disabled={assignIsRunning}
+                              onClick={() => handleAssignPool(assignSelectedPaper.Paper_ID, null)}
+                              className="px-2.5 py-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md text-[9px] font-bold uppercase transition-all duration-200"
+                              title="Unassign Paper"
+                            >
+                              Unassign
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground font-semibold leading-relaxed">
+                      Authors: <span className="text-foreground">{assignSelectedPaper.Authors || '—'}</span>
+                    </p>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground font-semibold">
+                      <p>Year: <span className="text-foreground">{assignSelectedPaper.Year || '—'}</span></p>
+                      <p>DOI: <span className="text-foreground font-mono">{assignSelectedPaper.DOI || '—'}</span></p>
+                    </div>
+
+                    {assignSelectedPaper.Abstract && (
+                      <div className="pt-2 border-t border-border/60">
+                        <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider block mb-1">Abstract</span>
+                        <p className="text-xs xl:text-sm text-foreground font-medium leading-relaxed select-text pt-1">{assignSelectedPaper.Abstract}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PDF Viewer or Acquisition Panel */}
+                  <div className="bg-card border border-border rounded-xl shadow-sm relative shrink-0 overflow-hidden">
+                    {/* Pool A: PDF is not required */}
+                    {assignSelectedPaper.calibration_pool === 'pool_a' ? (
+                      <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-6">
+                        <CheckCircle2 className="w-12 h-12 text-indigo-400 mb-3 animate-bounce" />
+                        <h4 className="font-bold text-sm mb-1 text-foreground font-semibold">Paper Assigned to Pool A</h4>
+                        <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                          Pool A only screens Title and Abstract. Full text PDF file matching is not required for this calibration cohort.
+                        </p>
+                      </div>
+                    ) : (assignSelectedPaper.Local_PDF_Status === 'MATCHED' || assignSelectedPaper.Local_PDF_Status === 'DOWNLOADED' || assignSelectedPaper.Local_PDF_Status === 'SYNCED') && assignSelectedPaper.Local_PDF_Path ? (
+                      /* Embed PDF Viewer */
+                      <div className="h-[600px] flex flex-col overflow-hidden">
+                        <div className="p-3 border-b border-border bg-secondary/15 flex items-center justify-between shrink-0 select-none">
+                          <span className="text-[9px] text-emerald-400 uppercase font-black tracking-wider flex items-center gap-1.5 font-bold">
+                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                            PDF Available Inline
+                          </span>
+                          <a
+                            href={`/api/pdf/serve?path=${encodeURIComponent(assignSelectedPaper.Local_PDF_Path)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[9px] font-bold text-primary hover:text-primary/80 transition-colors p-0.5 rounded ml-1 shrink-0"
+                            title="Open Google Drive File"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                        <div className="flex-1 bg-secondary/20 h-[550px]">
+                          <iframe
+                            src={`/api/pdf/serve?path=${encodeURIComponent(assignSelectedPaper.Local_PDF_Path)}`}
+                            className="w-full h-full border-0"
+                            title="Embedded PDF Viewer"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      /* Get PDF Acquisition Area */
+                      <div className="border border-border rounded-xl bg-card p-6 select-none flex flex-col min-h-[350px] shrink-0 shadow-sm">
+                        <div className={`flex flex-col items-center justify-center text-center py-4 ${assignIsRunning ? 'border-b border-border/40 pb-4 shrink-0' : 'flex-1'}`}>
+                          <AlertTriangle className="w-12 h-12 text-amber-500 mb-3 animate-pulse" />
+                          <h4 className="font-bold text-sm mb-1 text-foreground">Local PDF Not Found</h4>
+                          <p className="text-xs text-muted-foreground max-w-sm leading-relaxed mb-4">
+                            Pool B and Pool C require full-text screening. Trigger PDF matching and crawler scraping specifically for this paper now.
+                          </p>
+                          
+                          <div className="flex flex-wrap items-center justify-center gap-3">
+                            <button
+                              onClick={() => runSinglePaperPipeline(assignSelectedPaper.Paper_ID)}
+                              disabled={assignIsRunning}
+                              className={`px-4 py-2 font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px] ${
+                                assignIsRunning 
+                                  ? 'bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-50 shadow-none' 
+                                  : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'
+                              }`}
+                            >
+                              {assignIsRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                              {assignIsRunning ? 'Acquiring PDF...' : 'Get PDF via Cache Matching & Scraping'}
+                            </button>
+
+                            {assignIsRunning && (
+                              <button
+                                onClick={async () => {
+                                  singlePipelineAbortControllerRef.current?.abort();
+                                  await fetch('/api/pdf/batch/cancel', { method: 'POST' });
+                                }}
+                                className="px-4 py-2 border border-border text-[10px] font-bold uppercase rounded-lg hover:bg-secondary text-foreground transition-colors shrink-0"
+                              >
+                                Cancel
+                              </button>
+                            )}
+
+                            {assignIsRunning && assignWaitingLogin && (
+                              <button
+                                onClick={async () => {
+                                  setAssignWaitingLogin(false);
+                                  await fetch('/api/pdf/batch/resume', { method: 'POST' });
+                                }}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase rounded-lg text-[10px] tracking-wide shadow-md flex items-center gap-1.5 animate-pulse transition-all hover:scale-105 shrink-0"
+                              >
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                                Resume Download
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Real-time single-run console log widget */}
+                        {assignIsRunning && (
+                          <div className="mt-4 h-64 border border-border/80 rounded-lg bg-black text-emerald-400 font-mono text-[9px] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 shadow-inner select-text">
+                            {/* console header */}
+                            <div className="p-2 border-b border-border/40 bg-zinc-900/60 flex items-center justify-between shrink-0 select-none">
+                              <span className="text-[8px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                                <Terminal className="w-3.5 h-3.5 text-emerald-500" />
+                                Single PDF Pipeline: {assignStatusText}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-emerald-400">{assignProgress}%</span>
+                                {assignWaitingLogin && (
+                                  <button
+                                    onClick={async () => {
+                                      await fetch('/api/pdf/batch/resume', { method: 'POST' });
+                                    }}
+                                    className="px-1.5 py-0.5 bg-amber-500 hover:bg-amber-600 text-black font-bold uppercase rounded text-[7px]"
+                                  >
+                                    Resume Login
+                                  </button>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    singlePipelineAbortControllerRef.current?.abort();
+                                    await fetch('/api/pdf/batch/cancel', { method: 'POST' });
+                                  }}
+                                  className="px-1.5 py-0.5 bg-destructive hover:bg-destructive/80 text-white font-bold uppercase rounded text-[7px]"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                            {/* logs body */}
+                            <div className="flex-1 p-3 overflow-y-auto space-y-1.5">
+                              {assignLogs.length === 0 ? (
+                                <span className="text-zinc-600 block italic">Spawning subprocess connection...</span>
+                              ) : (
+                                assignLogs.map((log, index) => (
+                                  <div key={index} className="leading-normal whitespace-pre-wrap">{log}</div>
+                                ))
+                              )}
+                              <div ref={logEndRef} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} showToast={showToast} />

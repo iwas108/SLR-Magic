@@ -12,13 +12,16 @@ export async function GET() {
           COUNT(*) as total,
           SUM(CASE WHEN Status IN ('INCLUDE', 'EXCLUDE') THEN 1 ELSE 0 END) as screened,
           SUM(CASE WHEN Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as acquired,
-          SUM(CASE WHEN Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced
+          SUM(CASE WHEN Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced,
+          SUM(CASE WHEN calibration_pool = 'pool_a' THEN 1 ELSE 0 END) as pool_a_count,
+          SUM(CASE WHEN calibration_pool = 'pool_b' THEN 1 ELSE 0 END) as pool_b_count,
+          SUM(CASE WHEN calibration_pool = 'pool_c' THEN 1 ELSE 0 END) as pool_c_count
         FROM papers WHERE Project_ID = ?
-      `).get(proj.id) as { total: number; screened: number; acquired: number; synced: number } | undefined;
+      `).get(proj.id) as { total: number; screened: number; acquired: number; synced: number; pool_a_count: number; pool_b_count: number; pool_c_count: number } | undefined;
       
       return {
         ...proj,
-        stats: stats || { total: 0, screened: 0, acquired: 0, synced: 0 }
+        stats: stats || { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0 }
       };
     });
 

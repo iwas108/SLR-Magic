@@ -46,6 +46,7 @@ export async function GET(request: Request) {
     const search = searchParams.get('search')?.trim() || '';
     const status = searchParams.get('status')?.trim() || '';
     const pdfStatus = searchParams.get('pdfStatus')?.trim() || '';
+    const calibrationPool = searchParams.get('calibrationPool')?.trim() || '';
     
     // Sort parameters
     const sortBy = searchParams.get('sortBy')?.trim() || 'Paper_ID';
@@ -77,12 +78,21 @@ export async function GET(request: Request) {
       params.push(pdfStatus);
     }
 
+    if (calibrationPool) {
+      if (calibrationPool === 'none') {
+        filterQuery += ' AND (calibration_pool IS NULL OR calibration_pool = \'\')';
+      } else {
+        filterQuery += ' AND calibration_pool = ?';
+        params.push(calibrationPool);
+      }
+    }
+
     // 1. Get total matching count
     const countRow = db.prepare(`SELECT COUNT(*) as count ${filterQuery}`).get(...params) as { count: number } | undefined;
     const total = countRow ? countRow.count : 0;
 
     // 2. Sorting whitelist validation to prevent SQL Injection
-    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status'];
+    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale'];
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 

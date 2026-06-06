@@ -45,11 +45,11 @@ graph LR
 ### II. Local Desktop Workspace (`slr-ide/`)
 *For details, refer to the module blueprint: [slr-ide/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/architecture.md)*
 
-*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4, featuring a **Dashboard** (metrics, active project manifesto selector), a **Paper Database**, and an **Ingestion Hub** (supporting CSV and manual snowballing imports).
-*   **Persistence**: SQLite database (`db/slr.db`) utilizing `better-sqlite3`. Table schema documented in [db/schema.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/db/schema.md). Supports multi-project segmentation.
+*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4, featuring a **Dashboard** (metrics, active project manifesto selector), a **Paper Database**, an **Ingestion Hub** (supporting CSV and manual snowballing imports), and a **Pre-Calibration** dashboard (target metrics progress, Cohen's Kappa consensus scorecard, paginated data grid, SLR import/export sync, and side-by-side paper partitioning).
+*   **Persistence**: SQLite database (`db/slr.db`) utilizing `better-sqlite3`. Table schema documented in [db/schema.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/db/schema.md). Supports multi-project segmentation and calibration pools (`calibration_pool`, `Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`).
 *   **Deterministic Paper ID**: Ingestion generates unique paper identifiers using the author name, year, title, and hash algorithm to align with the Apps Script protocol.
-*   **Smart Cache Matcher**: [cache_matcher.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/cache_matcher.py) (scopes papers to active project, matching against a shared raw/cached directory, maintaining caches intact for multiple projects).
-*   **Bulk Downloader**: [pdf_scraper.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/pdf_scraper.py) (Selenium / `undetected-chromedriver` crawler supporting proxy login, delays, headed mode toggling, and stateful DFS backtracking).
+*   **Smart Cache Matcher**: [cache_matcher.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/cache_matcher.py) (scopes papers to active project, matching against a shared raw/cached directory, maintaining caches intact for multiple projects, supports single `--paper` execution mode).
+*   **Bulk Downloader**: [pdf_scraper.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/pdf_scraper.py) (Selenium / `undetected-chromedriver` crawler supporting proxy login, delays, headed mode toggling, stateful DFS backtracking, and single `--paper` execution mode).
 *   **Integrated Sync & Compression**: Merged Ghostscript-based PDF size compression directly into the Rclone sync step. Synced files are isolated under separate Google Drive destinations configured per-project.
 *   **Cloud Gateway**: Subprocess execution of `rclone` to back up files and generate drive links.
 

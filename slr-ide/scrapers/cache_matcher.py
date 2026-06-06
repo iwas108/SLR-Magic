@@ -321,11 +321,23 @@ def run_matcher():
     proj_row = cursor.fetchone()
     folder_name = proj_row[0] if proj_row else 'default_project'
 
-    # Fetch papers from main DB for the active project that are missing PDF
-    cursor.execute("""
-        SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path FROM papers
-        WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING')
-    """, (active_proj_id,))
+    # Fetch papers from main DB for the active project (optionally filtering by specific Paper_ID)
+    paper_id_arg = None
+    if len(sys.argv) > 1:
+        for i in range(1, len(sys.argv)):
+            if sys.argv[i] == '--paper' and i + 1 < len(sys.argv):
+                paper_id_arg = sys.argv[i+1]
+
+    if paper_id_arg:
+        cursor.execute("""
+            SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path FROM papers
+            WHERE Project_ID = ? AND Paper_ID = ?
+        """, (active_proj_id, paper_id_arg))
+    else:
+        cursor.execute("""
+            SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path FROM papers
+            WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING')
+        """, (active_proj_id,))
     papers = cursor.fetchall()
 
     print(json.dumps({"info": f"Index loaded. Starting matching lookup for {len(papers)} papers in database."}))

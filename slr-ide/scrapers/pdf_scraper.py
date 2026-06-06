@@ -803,14 +803,29 @@ def main():
     active_proj_row = cursor.fetchone()
     active_proj_id = active_proj_row[0] if active_proj_row else 'default-project'
 
-    # Fetch papers with DOI that are missing local PDFs for the active project
-    cursor.execute("""
-        SELECT Paper_ID, DOI, Title
-        FROM papers
-        WHERE DOI IS NOT NULL AND DOI != '' 
-          AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING')
-          AND Project_ID = ?
-    """, (active_proj_id,))
+    # Fetch papers with DOI for the active project (optionally filtering by specific Paper_ID)
+    paper_id_arg = None
+    if len(sys.argv) > 1:
+        for i in range(1, len(sys.argv)):
+            if sys.argv[i] == '--paper' and i + 1 < len(sys.argv):
+                paper_id_arg = sys.argv[i+1]
+
+    if paper_id_arg:
+        cursor.execute("""
+            SELECT Paper_ID, DOI, Title
+            FROM papers
+            WHERE DOI IS NOT NULL AND DOI != '' 
+              AND Paper_ID = ?
+              AND Project_ID = ?
+        """, (paper_id_arg, active_proj_id))
+    else:
+        cursor.execute("""
+            SELECT Paper_ID, DOI, Title
+            FROM papers
+            WHERE DOI IS NOT NULL AND DOI != '' 
+              AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING')
+              AND Project_ID = ?
+        """, (active_proj_id,))
     papers = cursor.fetchall()
     total = len(papers)
 

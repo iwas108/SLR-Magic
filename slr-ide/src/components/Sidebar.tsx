@@ -15,7 +15,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOp
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, disabled: false },
     { id: 'database', label: 'Paper Database', icon: Database, disabled: false },
-    { id: 'pre-calibration', label: 'Pre-Calibration', icon: ShieldAlert, disabled: true, badge: 'On Hold' },
+    { id: 'pre-calibration', label: 'Pre-Calibration', icon: ShieldAlert, disabled: false },
     { id: 'full-execution', label: 'Full Execution', icon: Play, disabled: true, badge: 'On Hold' },
     { id: 'post-validation', label: 'Post-Validation', icon: BadgeCheck, disabled: true, badge: 'On Hold' },
     { id: 'accounting-export', label: 'Accounting & Export', icon: FileOutput, disabled: true, badge: 'On Hold' },
