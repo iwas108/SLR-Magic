@@ -1,80 +1,70 @@
-# SLR Magic System Architecture
+# SLR Magic: System Architecture Blueprint
 
-This document describes the global architectural design, components, and module interactions across the SLR Magic repository.
+This document defines the global architectural design, data models, and module interactions across the **SLR Magic** workspace.
 
 ---
 
-## 1. Ecosystem Overview
+## 1. System Ecosystem Overview
 
-The SLR Magic ecosystem is designed to coordinate systematic literature reviews (SLRs) through a decoupled structure:
-1. **Google Sheets Workspace (`app-script/`)**: Serves as the primary database, ingestion panel, manual annotation dashboard, and ECharts visualizer.
-2. **Inter-Rater Single-Page Application (`inter-rater/`)**: An offline-first React SPA that allows blinded human reviewers to score papers independently, exporting results back to the Sheets workspace.
+The SLR Magic workspace coordinates systematic literature reviews (SLRs) through two active, complementary modules:
+1. **Google Sheets Master Workspace (`app-script/`)**: Serves as the cloud database, manual annotation environment, cohort synthesizers, and ECharts visualizers.
+2. **Local Desktop Workspace Hub (`slr-ide/`)**: Next.js + SQLite application that operates locally to import references, perform smart local PDF matching, execute bulk PDF downloads via Selenium, and sync files to Google Drive.
 
 ```mermaid
-sequenceDiagram
-    participant GS as Google Sheets Workspace
-    participant SPA as Inter-Rater React SPA
+graph LR
+    subgraph Google Workspace Cloud
+        A[Google Sheets Hub]
+    end
+    subgraph Local Desktop environment
+        B[Next.js App - slr-ide]
+        C[SQLite Database]
+        D[Rclone Sync]
+        E[Selenium Scrapers]
+    end
     
-    GS->>GS: Initialize Workspace (00_Raw_Harvest & 05_Synthesis)
-    GS->>GS: Ingest Bibliography exports (CSV/Manual)
-    GS->>SPA: Export Blinded Review (.slr file)
-    SPA->>SPA: Blinded Manual Screening & Scoring
-    SPA->>GS: Export Review Results (.slr file)
-    GS->>GS: Process Data Collection & Sync
-    GS->>GS: View ECharts Graphs (Sankey, Pie, Bar)
+    A -->|1. Export CSV| B
+    B -->|2. Local Cached Match| B
+    B -->|3. Scrape Web| E
+    B -->|4. Sync Drive & Link| D
+    D -->|5. Upload PDFs & Fetch links| A
+    B -->|6. Ingestion CSV| A
 ```
 
 ---
 
-## 2. Module Specifications
+## 2. Active Module Blueprints
 
-### I. Google Sheets Workspace (`app-script/`)
-Built with Google Apps Script, Google Sheets, and Tailwind CSS.
-- **Ingestion Hub**: Maps and parses bibliographies from Scopus or Web of Science, running normalized DOI/Title deduplication checks.
-- **Synthesis Report Controller**: Reads `00_Raw_Harvest` entries tagged as `INCLUDE` and synthesizes them to `05_Synthesis` preserving user custom columns.
-- **ECharts Visualizers**: Standard and customized visual analysis graphs.
+### I. Google Sheets Hub (`app-script/`)
+*For details, refer to the module blueprint: [app-script/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/app-script/architecture.md)*
 
-### II. Inter-Rater SPA (`inter-rater/`)
-An offline-capable client-side React single-page application.
-- **Offline Storage**: Uses IndexedDB via Dexie.js.
-- **Double-Blind Review**: Implements a split-screen view where raters review paper abstracts, input decision rationales, and grade dynamic qualitative rubrics blindly.
-- **Metadata-Driven Forms**: Automatically configures scoring rules and exclusion options based on imported `.slr` JSON structures.
+*   **Principles**: Clean Architecture decoupling presentation (`html` dialogs), controllers, and spreadsheet utilities.
+*   **Ingestion**: Supports custom visual CSV column mapping and manual snowballing.
+*   **Cohort Processing**: Copies references with `Status = INCLUDE` to `05_Synthesis` while preserving user custom columns.
+*   **Calibration Pools**: Partitions papers into independent pools (`CAL_Pool_A`, `CAL_Pool_B`, `CAL_Pool_C`) and computes Cohen's Kappa consensus reports.
+
+### II. Local Desktop Workspace (`slr-ide/`)
+*For details, refer to the module blueprint: [slr-ide/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/architecture.md)*
+
+*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4, featuring a **Dashboard** (metrics, active project manifesto selector), a **Paper Database**, and an **Ingestion Hub** (supporting CSV and manual snowballing imports).
+*   **Persistence**: SQLite database (`db/slr.db`) utilizing `better-sqlite3`. Table schema documented in [db/schema.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/db/schema.md). Supports multi-project segmentation.
+*   **Deterministic Paper ID**: Ingestion generates unique paper identifiers using the author name, year, title, and hash algorithm to align with the Apps Script protocol.
+*   **Smart Cache Matcher**: [cache_matcher.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/cache_matcher.py) (scopes papers to active project, matching against a shared raw/cached directory, maintaining caches intact for multiple projects).
+*   **Bulk Downloader**: [pdf_scraper.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/pdf_scraper.py) (Selenium / `undetected-chromedriver` crawler supporting proxy login, delays, headed mode toggling, and stateful DFS backtracking).
+*   **Integrated Sync & Compression**: Merged Ghostscript-based PDF size compression directly into the Rclone sync step. Synced files are isolated under separate Google Drive destinations configured per-project.
+*   **Cloud Gateway**: Subprocess execution of `rclone` to back up files and generate drive links.
 
 ---
 
-## 3. Data Exchange Protocol (`.slr` Schema)
+## 3. Data Ingestion & Sync Protocol
 
-The communication bridge between the Google Sheet and the React SPA is the standardized `.slr` JSON contract:
+Data exchanges between `app-script` and `slr-ide` are synchronized via flat CSV files conforming exactly to the `00_Raw_Harvest` column schema:
 
-```json
-{
-  "metadata": {
-    "projectName": "Industrial Edge Topologies",
-    "researchManifesto": "Guidelines...",
-    "researchObjective": "Objectives...",
-    "researchQuestions": "Research questions...",
-    "qualityAssuranceDefinition": "Quality check definitions...",
-    "exclusionCriteria": "Exclusion rules...",
-    "poolType": "CAL_Pool_C",
-    "exportDate": "2026-06-04T22:00:00Z",
-    "ecRules": [
-      { "code": "EC1", "description": "Out of scope domain" }
-    ]
-  },
-  "papers": [
-    {
-      "Paper_ID": "P001",
-      "Title": "Evaluating Edge Architectures",
-      "Abstract": "Context...",
-      "Authors": "Author A, Author B",
-      "Year": "2026",
-      "DOI": "10.1016/j.compind.2026.104000",
-      "PDF_Link": "https://...",
-      "Import_Source": "Scopus",
-      "Source": "Scopus",
-      "Import_Date": "2026-06-04"
-    }
-  ]
-}
+```text
+['Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link', 'Status']
 ```
-Upon completion of the review, the SPA appends the evaluation fields (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`) and returns the completed `.slr` package to the Sheets workspace.
+
+1.  **Export from Sheets**: The user downloads the `00_Raw_Harvest` sheet as a CSV file.
+2.  **Import to SLR IDE**: The user uploads the CSV into `slr-ide`. The IDE uses fuzzy header matching to automatically map columns and skips duplicates (incremental import) using normalized DOI and title checkers.
+3.  **PDF Matching & Downloading**: The IDE matches PDFs locally from the cache or downloads them from the web.
+4.  **GDrive Upload**: The IDE runs Rclone to sync matched PDFs to Google Drive, gets their shareable drive URLs, and writes them to the `PDF_Link` field.
+5.  **Export to Sheets**: The user exports a updated CSV from `slr-ide` containing the newly acquired Google Drive PDF links and imports it back into the Google Sheet.
