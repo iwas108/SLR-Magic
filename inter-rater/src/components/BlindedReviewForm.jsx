@@ -154,38 +154,73 @@ const BlindedReviewForm = ({
   return (
     <div className="space-y-6">
       {/* 1. Reviewer Decision */}
-      <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+      <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-850">
         <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
           Inclusion Decision <span className="text-red-500">*</span>
         </label>
-        <div className="flex gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <button
             type="button"
             onClick={() => handleInputChange('Human_Decision', 'Include')}
-            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm border transition-all flex items-center justify-center gap-2 ${
+            className={`group flex flex-col items-center justify-center p-5 rounded-2xl border-2 transition-all duration-300 text-center relative overflow-hidden ${
               decision === 'Include'
-                ? 'bg-green-600 text-white border-green-600 shadow-md shadow-green-500/10'
-                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-900 dark:text-emerald-300 shadow-lg shadow-emerald-500/10'
+                : 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/80 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-750 hover:shadow-sm'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-            </svg>
-            Include
+            {/* Background Accent glow */}
+            <div className={`absolute -right-6 -bottom-6 w-16 h-16 rounded-full transition-all duration-300 ${
+              decision === 'Include' ? 'bg-emerald-500/10 scale-150' : 'bg-transparent group-hover:bg-gray-150/50 dark:group-hover:bg-gray-700/30'
+            }`} />
+            
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2.5 transition-all duration-300 ${
+              decision === 'Include'
+                ? 'bg-emerald-600 dark:bg-emerald-500 text-white scale-110 shadow-md shadow-emerald-600/20'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 group-hover:scale-105 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+            }`}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            
+            <span className={`text-xs font-extrabold tracking-wide uppercase transition-colors duration-300 ${
+              decision === 'Include' ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-650 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200'
+            }`}>
+              Include
+            </span>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 font-medium">Shortcut: Press [I]</span>
           </button>
+
           <button
             type="button"
             onClick={() => handleInputChange('Human_Decision', 'Exclude')}
-            className={`flex-1 py-3 px-4 rounded-xl font-bold text-sm border transition-all flex items-center justify-center gap-2 ${
+            className={`group flex flex-col items-center justify-center p-5 rounded-2xl border-2 transition-all duration-300 text-center relative overflow-hidden ${
               decision === 'Exclude'
-                ? 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-500/10'
-                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-500 text-rose-900 dark:text-rose-300 shadow-lg shadow-rose-500/10'
+                : 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/80 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-750 hover:shadow-sm'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            Exclude
+            {/* Background Accent glow */}
+            <div className={`absolute -right-6 -bottom-6 w-16 h-16 rounded-full transition-all duration-300 ${
+              decision === 'Exclude' ? 'bg-rose-500/10 scale-150' : 'bg-transparent group-hover:bg-gray-100/50 dark:group-hover:bg-gray-700/30'
+            }`} />
+
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2.5 transition-all duration-300 ${
+              decision === 'Exclude'
+                ? 'bg-rose-600 dark:bg-rose-500 text-white scale-110 shadow-md shadow-rose-600/20'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 group-hover:scale-105 group-hover:text-gray-500 dark:group-hover:text-gray-300'
+            }`}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+
+            <span className={`text-xs font-extrabold tracking-wide uppercase transition-colors duration-300 ${
+              decision === 'Exclude' ? 'text-rose-700 dark:text-rose-400' : 'text-gray-650 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200'
+            }`}>
+              Exclude
+            </span>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 font-medium">Shortcut: Press [E]</span>
           </button>
         </div>
       </div>
@@ -204,31 +239,43 @@ const BlindedReviewForm = ({
                   key={idx}
                   type="button"
                   onClick={() => handleInputChange('Human_EC_Trigger', rule.code)}
-                  className={`w-full text-left p-4 rounded-xl border transition-all flex flex-col gap-2 ${
+                  className={`w-full text-left p-3.5 rounded-xl border transition-all duration-200 flex items-start gap-3 relative overflow-hidden group ${
                     isSelected
-                      ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-500 shadow-md shadow-rose-500/5'
-                      : 'bg-white dark:bg-gray-800/80 border-gray-250 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/80'
+                      ? 'bg-rose-50/70 dark:bg-rose-950/25 border-rose-500 shadow-md shadow-rose-500/5'
+                      : 'bg-white dark:bg-gray-800/80 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-750'
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full">
-                    <span className={`px-2.5 py-0.5 text-[10px] font-extrabold rounded-md border ${
-                      isSelected
-                        ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                        : 'bg-rose-50 dark:bg-rose-950/45 border-rose-100 dark:border-rose-900/40 text-rose-700 dark:text-rose-350'
-                    }`}>
-                      {rule.code}
-                    </span>
-                    {isSelected && (
-                      <span className="flex items-center justify-center w-5 h-5 bg-rose-600 dark:bg-rose-500 rounded-full text-white">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                        </svg>
-                      </span>
-                    )}
+                  {/* Left Radio Check Indicator */}
+                  <div className={`mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+                    isSelected
+                      ? 'border-rose-500 bg-rose-600 text-white'
+                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-transparent group-hover:border-gray-400 dark:group-hover:border-gray-500'
+                  }`}>
+                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                    </svg>
                   </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-normal">
-                    {rule.description}
-                  </p>
+                  
+                  {/* Rule Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className={`px-2 py-0.5 text-[9px] font-black rounded border tracking-wide uppercase ${
+                        isSelected
+                          ? 'bg-rose-600 border-rose-600 text-white shadow-sm'
+                          : 'bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-350'
+                      }`}>
+                        {rule.code}
+                      </span>
+                      {idx < 9 && (
+                        <span className="text-[10px] text-gray-405 dark:text-gray-500 font-semibold font-mono">
+                          Shortcut: [{idx + 1}]
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed font-normal">
+                      {rule.description}
+                    </p>
+                  </div>
                 </button>
               );
             })}

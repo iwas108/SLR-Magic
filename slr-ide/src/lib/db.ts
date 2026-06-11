@@ -16,7 +16,11 @@ if (!fs.existsSync(dbDir)) {
 const dbPath = path.join(dbDir, 'slr.db');
 
 // Enable better-sqlite3 instance
-const db = new Database(dbPath, { verbose: process.env.NODE_ENV === 'development' ? console.log : undefined });
+const db = new Database(dbPath, { 
+  verbose: process.env.NODE_ENV === 'development' ? console.log : undefined,
+  timeout: 5000
+});
+db.pragma('foreign_keys = ON');
 
 // Initialize schema
 db.exec(`
@@ -62,8 +66,48 @@ db.exec(`
     pool_b_size INTEGER DEFAULT 30,
     pool_c_size INTEGER DEFAULT 20,
     gdrive_dest_path TEXT DEFAULT 'SLR_Magic/PDFs',
+    cloud_provider TEXT DEFAULT 'gdrive',
+    rclone_remote_name TEXT,
+    pool_tags TEXT,
+    ec_rules TEXT,
+    reasoning_template TEXT,
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS reviewer_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    pool TEXT NOT NULL DEFAULT 'pool_a',
+    reviewer_name TEXT NOT NULL,
+    decision TEXT,
+    ec_trigger TEXT,
+    rationale TEXT,
+    imported_at TEXT NOT NULL,
+    UNIQUE(paper_id, project_id, pool, reviewer_name),
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_rd_paper ON reviewer_decisions(paper_id, project_id);
+  CREATE INDEX IF NOT EXISTS idx_rd_reviewer ON reviewer_decisions(reviewer_name, project_id);
+
+  CREATE TABLE IF NOT EXISTS calibration_commit_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    commit_hash TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    paper_id TEXT NOT NULL,
+    pool TEXT NOT NULL DEFAULT 'pool_a',
+    adjudicator TEXT NOT NULL,
+    previous_state TEXT NOT NULL,
+    resolved_decision TEXT NOT NULL,
+    resolved_ec TEXT,
+    resolved_rationale TEXT NOT NULL,
+    commit_message TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_ledger_project ON calibration_commit_ledger(project_id);
 `);
 
 // Add Project_ID column to papers if it doesn't exist (migration fallback)
@@ -101,9 +145,58 @@ try {
   // Column already exists
 }
 
+// Add Parent_Paper_ID column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN Parent_Paper_ID TEXT");
+} catch (e) {
+  // Column already exists
+}
+
 // Add gdrive_dest_path column to projects if it doesn't exist (migration fallback)
 try {
   db.exec("ALTER TABLE projects ADD COLUMN gdrive_dest_path TEXT DEFAULT 'SLR_Magic/PDFs'");
+} catch (e) {
+  // Column already exists
+}
+
+// Add cloud_provider column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN cloud_provider TEXT DEFAULT 'gdrive'");
+} catch (e) {
+  // Column already exists
+}
+
+// Add rclone_remote_name column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN rclone_remote_name TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add pool_tags column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN pool_tags TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add ec_rules column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN ec_rules TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add reasoning_template column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN reasoning_template TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add calibration_tag column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN calibration_tag TEXT");
 } catch (e) {
   // Column already exists
 }
@@ -113,8 +206,8 @@ const projectCount = db.prepare("SELECT COUNT(*) as count FROM projects").get() 
 if (projectCount.count === 0) {
   const defaultProjectId = 'default-project';
   db.prepare(`
-    INSERT INTO projects (id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO projects (id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     defaultProjectId,
     'Default Project',
@@ -128,6 +221,8 @@ if (projectCount.count === 0) {
     30,
     20,
     'SLR_Magic/PDFs',
+    'gdrive',
+    'gdrive',
     new Date().toISOString()
   );
   

@@ -34,15 +34,18 @@ export async function POST(request: Request) {
     const compress = getConfig('PDF_COMPRESSION_ENABLED', 'false') === 'true';
 
     const rclonePath = getConfig('RCLONE_EXECUTABLE_PATH', 'rclone');
-    const remote = getConfig('RCLONE_REMOTE_NAME', 'gdrive');
     const configPath = getConfig('RCLONE_CONFIG_PATH', '');
     const syncMode = getConfig('RCLONE_SYNC_MODE', 'incremental');
 
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
-    const project = db.prepare('SELECT folder_name, gdrive_dest_path FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string; gdrive_dest_path: string } | undefined;
+    const project = db.prepare('SELECT folder_name, gdrive_dest_path, cloud_provider, rclone_remote_name FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string; gdrive_dest_path: string; cloud_provider?: string; rclone_remote_name?: string } | undefined;
     const folderName = project ? project.folder_name : 'default_project';
     const gdriveDest = project ? project.gdrive_dest_path : 'SLR_Magic/PDFs';
     const destPath = `${gdriveDest}/${folderName}`;
+
+    const cloudProvider = project?.cloud_provider || 'gdrive';
+    const remote = project?.rclone_remote_name || (cloudProvider === 'onedrive' ? 'onedrive' : 'gdrive');
+    const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
 
     const localPdfDir = path.join(PROJECT_ROOT, 'pdf_repo', folderName);
     if (!fs.existsSync(localPdfDir)) {
@@ -151,7 +154,7 @@ export async function POST(request: Request) {
         }
 
         // 2. Launch Rclone sync execution
-        controller.enqueue(encoder.encode(JSON.stringify({ event: 'info', message: `Starting Rclone sync to Google Drive directory: ${destPath}` }) + '\n'));
+        controller.enqueue(encoder.encode(JSON.stringify({ event: 'info', message: `Starting Rclone sync to ${cloudName} directory: ${destPath}` }) + '\n'));
 
         const subCommand = syncMode === 'mirror' ? 'sync' : 'copy';
         const syncArgs = [
@@ -219,7 +222,7 @@ export async function POST(request: Request) {
             );
             
             if (hasAuthError) {
-              errorMsg = `Rclone authentication failed (exit code ${code}). Empty/expired token found. Please run "rclone config reconnect ${remote}:" in your terminal to re-authenticate and connect to Google Drive.`;
+              errorMsg = `Rclone authentication failed (exit code ${code}). Empty/expired token found. Please run "rclone config reconnect ${remote}:" in your terminal to re-authenticate and connect to ${cloudName}.`;
             }
 
             controller.enqueue(encoder.encode(JSON.stringify({ event: 'error', message: errorMsg }) + '\n'));
@@ -227,7 +230,7 @@ export async function POST(request: Request) {
             return;
           }
 
-          controller.enqueue(encoder.encode(JSON.stringify({ event: 'info', message: 'Sync completed. Generating Google Drive links...' }) + '\n'));
+          controller.enqueue(encoder.encode(JSON.stringify({ event: 'info', message: `Sync completed. Generating ${cloudName} links...` }) + '\n'));
 
           try {
             // Find papers that have a local PDF to generate links for (matching active project)

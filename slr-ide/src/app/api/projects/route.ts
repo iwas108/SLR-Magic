@@ -17,11 +17,32 @@ export async function GET() {
           SUM(CASE WHEN calibration_pool = 'pool_b' THEN 1 ELSE 0 END) as pool_b_count,
           SUM(CASE WHEN calibration_pool = 'pool_c' THEN 1 ELSE 0 END) as pool_c_count
         FROM papers WHERE Project_ID = ?
-      `).get(proj.id) as { total: number; screened: number; acquired: number; synced: number; pool_a_count: number; pool_b_count: number; pool_c_count: number } | undefined;
+      `).get(proj.id) as any;
+
+      const tagRows = db.prepare(`
+        SELECT calibration_pool, calibration_tag, COUNT(*) as count 
+        FROM papers 
+        WHERE Project_ID = ? AND calibration_pool IS NOT NULL 
+        GROUP BY calibration_pool, calibration_tag
+      `).all(proj.id) as { calibration_pool: string; calibration_tag: string | null; count: number }[];
+
+      const tagStats: Record<string, Record<string, number>> = {
+        pool_a: {},
+        pool_b: {},
+        pool_c: {}
+      };
+
+      for (const row of tagRows) {
+        const p = row.calibration_pool;
+        const tag = row.calibration_tag || '__general';
+        if (tagStats[p]) {
+          tagStats[p][tag] = row.count;
+        }
+      }
       
       return {
         ...proj,
-        stats: stats || { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0 }
+        stats: stats ? { ...stats, tagStats } : { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0, tagStats }
       };
     });
 
@@ -45,7 +66,12 @@ export async function POST(request: Request) {
       pool_a_size, 
       pool_b_size, 
       pool_c_size,
-      gdrive_dest_path
+      gdrive_dest_path,
+      cloud_provider,
+      rclone_remote_name,
+      pool_tags,
+      ec_rules,
+      reasoning_template
     } = body;
 
     if (!name || !name.trim()) {
@@ -70,11 +96,16 @@ export async function POST(request: Request) {
     const poolB = parseInt(pool_b_size || '30', 10) || 30;
     const poolC = parseInt(pool_c_size || '20', 10) || 20;
     const gdriveDest = (gdrive_dest_path || 'SLR_Magic/PDFs').trim();
+    const cloudProvider = cloud_provider || 'gdrive';
+    const remoteName = rclone_remote_name ? rclone_remote_name.trim() : '';
+    const poolTags = pool_tags ? (typeof pool_tags === 'string' ? pool_tags : JSON.stringify(pool_tags)) : '{}';
+    const ecRules = ec_rules ? (typeof ec_rules === 'string' ? ec_rules : JSON.stringify(ec_rules)) : '[]';
+    const reasoningTemplate = reasoning_template ? (typeof reasoning_template === 'string' ? reasoning_template : JSON.stringify(reasoning_template)) : '[]';
 
     db.prepare(`
       INSERT INTO projects (
-        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       name.trim(),
@@ -88,6 +119,11 @@ export async function POST(request: Request) {
       poolB,
       poolC,
       gdriveDest,
+      cloudProvider,
+      remoteName,
+      poolTags,
+      ecRules,
+      reasoningTemplate,
       new Date().toISOString()
     );
 
@@ -111,7 +147,12 @@ export async function PUT(request: Request) {
       pool_a_size, 
       pool_b_size, 
       pool_c_size,
-      gdrive_dest_path
+      gdrive_dest_path,
+      cloud_provider,
+      rclone_remote_name,
+      pool_tags,
+      ec_rules,
+      reasoning_template
     } = body;
 
     if (!id) {
@@ -126,6 +167,11 @@ export async function PUT(request: Request) {
     const poolB = parseInt(pool_b_size || '30', 10) || 30;
     const poolC = parseInt(pool_c_size || '20', 10) || 20;
     const gdriveDest = (gdrive_dest_path || 'SLR_Magic/PDFs').trim();
+    const cloudProvider = cloud_provider || 'gdrive';
+    const remoteName = rclone_remote_name ? rclone_remote_name.trim() : '';
+    const poolTags = pool_tags ? (typeof pool_tags === 'string' ? pool_tags : JSON.stringify(pool_tags)) : '{}';
+    const ecRules = ec_rules ? (typeof ec_rules === 'string' ? ec_rules : JSON.stringify(ec_rules)) : '[]';
+    const reasoningTemplate = reasoning_template ? (typeof reasoning_template === 'string' ? reasoning_template : JSON.stringify(reasoning_template)) : '[]';
 
     db.prepare(`
       UPDATE projects
@@ -138,7 +184,12 @@ export async function PUT(request: Request) {
           pool_a_size = ?,
           pool_b_size = ?,
           pool_c_size = ?,
-          gdrive_dest_path = ?
+          gdrive_dest_path = ?,
+          cloud_provider = ?,
+          rclone_remote_name = ?,
+          pool_tags = ?,
+          ec_rules = ?,
+          reasoning_template = ?
       WHERE id = ?
     `).run(
       name.trim(),
@@ -151,6 +202,11 @@ export async function PUT(request: Request) {
       poolB,
       poolC,
       gdriveDest,
+      cloudProvider,
+      remoteName,
+      poolTags,
+      ecRules,
+      reasoningTemplate,
       id
     );
 

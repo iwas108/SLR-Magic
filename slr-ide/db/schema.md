@@ -28,6 +28,12 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `Local_PDF_Status` | TEXT | NOT NULL DEFAULT 'IGNORED' | Status of local PDF: `IGNORED`, `MISSING`, `MATCHED`, `DOWNLOADED`, `SYNCED` |
 | `Local_PDF_Path` | TEXT | | Local path to PDF file if available |
 | `Project_ID` | TEXT | | Reference link to the project |
+| `Parent_Paper_ID` | TEXT | | Optional reference link to parent paper for snowballing chaining |
+| `calibration_pool` | TEXT | | Target calibration partition: `pool_a`, `pool_b`, `pool_c` |
+| `calibration_tag` | TEXT | | Selected custom tag code for this calibration cohort |
+| `Human_Decision` | TEXT | | Reviewer decision input: `INCLUDE`, `EXCLUDE`, `QA_WAIT` |
+| `Human_EC_Trigger` | TEXT | | Reviewer exclusion criteria trigger code |
+| `Human_Rationale` | TEXT | | Reviewer annotation or explanation notes |
 
 **Indexes**:
 *   `idx_papers_doi`: ON `papers(DOI)` (for fast duplicate checking during import).
@@ -51,7 +57,12 @@ Stores literature review projects metadata, target directories, and calibration 
 | `pool_a_size` | INTEGER | DEFAULT 50 | Calibration pool A size percentage / count |
 | `pool_b_size` | INTEGER | DEFAULT 30 | Calibration pool B size percentage / count |
 | `pool_c_size` | INTEGER | DEFAULT 20 | Calibration pool C size percentage / count |
-| `gdrive_dest_path` | TEXT | DEFAULT 'SLR_Magic/PDFs' | Custom destination folder path on Google Drive |
+| `gdrive_dest_path` | TEXT | DEFAULT 'SLR_Magic/PDFs' | Custom destination folder path on cloud storage |
+| `cloud_provider` | TEXT | DEFAULT 'gdrive' | Active cloud provider for project: 'gdrive' or 'onedrive' |
+| `rclone_remote_name` | TEXT | | Cloud provider specific remote configuration name in Rclone |
+| `pool_tags` | TEXT | | JSON string storing Pool A, Pool B, and Pool C tag arrays |
+| `ec_rules` | TEXT | | JSON string storing Exclusion Criteria rules for blinded review |
+| `reasoning_template` | TEXT | | JSON string storing rationale templates array for blinded review |
 | `created_at` | TEXT | NOT NULL | Timestamp of creation |
 
 ---
@@ -82,6 +93,61 @@ Stores user configurations, scraping settings, and cloud sync paths.
 
 ---
 
+### Table: `reviewer_decisions`
+Stores individual reviewer decisions for double-blind calibration (Pool A).
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique record key |
+| `paper_id` | TEXT | NOT NULL | Reference to `papers(Paper_ID)` |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `pool` | TEXT | NOT NULL DEFAULT 'pool_a' | Calibration pool identification |
+| `reviewer_name` | TEXT | NOT NULL | Unique reviewer name formatted as `shortname_xxxx` |
+| `decision` | TEXT | | Reviewer decision: `Include` or `Exclude` |
+| `ec_trigger` | TEXT | | Exclusion criteria rule trigger code |
+| `rationale` | TEXT | | Strategic annotation / rationale notes |
+| `imported_at` | TEXT | NOT NULL | Timestamp of import |
+
+**Unique Constraints**:
+*   `UNIQUE(paper_id, project_id, pool, reviewer_name)`
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+*   `FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE`
+
+**Indexes**:
+*   `idx_rd_paper`: ON `reviewer_decisions(paper_id, project_id)`
+*   `idx_rd_reviewer`: ON `reviewer_decisions(reviewer_name, project_id)`
+
+---
+
+### Table: `calibration_commit_ledger`
+Stores immutable audit log tracking adjudication commits and auto-adjudication import histories.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique record key |
+| `commit_hash` | TEXT | NOT NULL | 8-character SHA-256 commit hash |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `paper_id` | TEXT | NOT NULL | Reference to `papers(Paper_ID)` |
+| `pool` | TEXT | NOT NULL DEFAULT 'pool_a' | Calibration pool identification |
+| `adjudicator` | TEXT | NOT NULL | Name of adjudicator or system import source |
+| `previous_state` | TEXT | NOT NULL | JSON string representation of paper's prior decision state |
+| `resolved_decision` | TEXT | NOT NULL | Decision committed (e.g. `Include`, `Exclude`) |
+| `resolved_ec` | TEXT | | Exclusion criterion triggered, if any |
+| `resolved_rationale` | TEXT | NOT NULL | Final strategic rationale annotating the choice |
+| `commit_message` | TEXT | NOT NULL | Git-like commit comment |
+| `timestamp` | TEXT | NOT NULL | ISO date-time string of resolution |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+*   `FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE`
+
+**Indexes**:
+*   `idx_ledger_project`: ON `calibration_commit_ledger(project_id)`
+
+---
+
 ## 2. Schema Incremental Changes
 
 ### Baseline (2026-06-05)
@@ -92,4 +158,17 @@ Stores user configurations, scraping settings, and cloud sync paths.
 *   Added `projects` table to hold multi-project metadata, custom calibration sizes, and Google Drive upload path configs.
 *   Added `Project_ID` column to the `papers` table to scope papers within projects.
 *   Updated default `Local_PDF_Status` of `papers` to `'IGNORED'`.
+
+### Pre-Calibration, Snowballing & Cloud Sync Updates (2026-06-11)
+*   Added `Parent_Paper_ID` column to the `papers` table to enable hierarchical parent-child snowballing chains.
+*   Added `cloud_provider` and `rclone_remote_name` columns to the `projects` table to support scoped Microsoft OneDrive and Google Drive configurations.
+*   Added `calibration_pool` (`pool_a`, `pool_b`, `pool_c`) and human reviewer classification fields (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`) columns to the `papers` table.
+*   Added `calibration_tag` column to the `papers` table and `pool_tags` JSON config column to the `projects` table to persist custom decision classification tagging.
+*   Added `ec_rules` and `reasoning_template` JSON config columns to the `projects` table to support Inter-Rater Blinded Review configuration.
+
+### Inter-Rater Adjudication & Ledger Updates (2026-06-11)
+*   Added `reviewer_decisions` table to store double-blind reviewer inputs with foreign key cascades.
+*   Added `calibration_commit_ledger` table to record audit log files of calibration commits with foreign key cascades.
+*   Added indexes `idx_rd_paper`, `idx_rd_reviewer`, and `idx_ledger_project`.
+*   Enforced database connection busy timeout of `5000ms` and `PRAGMA foreign_keys = ON` in application database context wrapper.
 

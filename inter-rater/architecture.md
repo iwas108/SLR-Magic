@@ -10,21 +10,21 @@ The Inter-Rater SPA is a client-side React application that serves as the offlin
 
 The application is built on the following principles:
 - **Offline-First & Serverless Core**: All states, sessions, and inputs are stored client-side in the browser's IndexedDB (using Dexie.js for state management). There is no active server backend during the review process, making it resilient to connection loss.
-- **Blinded & Independent Review**: Unlike standard Quality Control (QC) workflows where reviewers audit AI outputs, the SPA implements a strict double-blind system. Reviewers are presented with the paper title, abstract, metadata, and research criteria without seeing LLM classifications.
+- **Blinded & Independent Review**: Unlike standard Quality Control (QC) workflows where reviewers audit AI outputs, the SPA implements a strict double-blind system. Reviewers are presented with the paper title, abstract, metadata, and research criteria without seeing LLM classifications or being identified by name.
 - **Metadata-Driven Context**: The research context (manifestos, inclusion/exclusion criteria, and exclusion codes) is dynamically configured via the imported `.slr` metadata, eliminating hardcoded review rules.
 - **Clean Component Structure**: Logic is separated into a core `StorageService` database layer, top-level routing in `App.jsx`, and modular screen/form components.
 
 ```mermaid
 graph TD
-    A[GAS: Export Inter-Rater Pool] -->|Generates .slr JSON File| B[Client: ImportWorkflow.jsx]
+    A[slr-ide: Export Blinded .slr] -->|Generates .slr JSON File| B[Client: ImportWorkflow.jsx]
     B -->|Create Relational Records| C[StorageService.js]
     C -->|Save State| D[(Browser IndexedDB)]
     D -->|Load Session| E[PreScreen.jsx]
-    E -->|Input Reviewer Name| F[ReviewScreen.jsx]
+    E -->|Launch Review Screen| F[ReviewScreen.jsx]
     F -->|Render Split-Screen Details & Dynamic Form| G[BlindedReviewForm.jsx]
     G -->|Autosave on Input Change| C
     F -->|Navigate & Complete| H[Dashboard.jsx]
-    H -->|Export .slr JSON| I[GAS: Import Inter-Rater Results]
+    H -->|Export .slr JSON| I[slr-ide: Import Blinded .slr]
 ```
 
 ---
@@ -38,10 +38,10 @@ The `inter-rater` project is structured as follows:
 - **`src/App.jsx`**: Root component managing global styling themes (Light/Dark/System) and route/navigation state.
 - **`src/StorageService.js`**: Data access object (DAO) layer for `IndexedDB` interactions using Dexie.js.
 - **`src/components/`**:
-  - **`Dashboard.jsx`**: Main portal listing saved review sessions, progress metrics, search/filtering options, and actions (resume, delete, export, update SLR).
-  - **`ImportWorkflow.jsx`**: Handlers for file reading, JSON validation, schema structure checks, and reviewer profile creation.
-  - **`PreScreen.jsx`**: Display panel showing the research criteria (manifesto, questions, criteria) and capturing the reviewer's name before starting.
-  - **`ReviewScreen.jsx`**: Controller for reviewing papers, displaying a dynamic split-screen layout with an abstract reading panel, form inputs, and a floating Research Cookbook reference drawer.
+  - **`Dashboard.jsx`**: Main portal listing saved review sessions, progress metrics, search/filtering options, and actions (resume, delete, export, update SLR). Displays overall project statistics.
+  - **`ImportWorkflow.jsx`**: Handlers for file reading, JSON validation, schema structure checks, and session creation.
+  - **`PreScreen.jsx`**: Display panel showing the research criteria (manifesto, questions, criteria) before starting.
+  - **`ReviewScreen.jsx`**: Controller for reviewing papers, displaying a dynamic split-screen layout with an abstract reading panel, form inputs, and a floating Research Cookbook reference drawer. Lock to viewport to prevent scrolling lag.
   - **`BlindedReviewForm.jsx`**: Dynamic form that adapts to poolType, rendering QA scales and text extractions alongside standard fields.
 
 ---
@@ -49,17 +49,17 @@ The `inter-rater` project is structured as follows:
 ## 3. Data Flow & Session Lifecycles
 
 ### Step 1: Session Ingestion
-1. The user uploads a `.slr` file (JSON formatting) exported from SLR Magic Google Sheets via `ImportWorkflow.jsx`.
+1. The user uploads a `.slr` file (JSON formatting) exported from `slr-ide` via `ImportWorkflow.jsx`.
 2. The file is validated for structural components:
    - A `papers` array must exist and contain at least one element.
    - Each paper must contain a `Paper_ID` attribute.
-3. A unique session is created via `StorageService.createSession(filename, reviewerName, papers, metadata)`:
-   - Records are created in IndexedDB: one in the `sessions` table (with metadata block) and multiple in the `papers` table (mapping base metadata and splitting reviewer states).
+3. A unique session is created via `StorageService.createSession(filename, papers, metadata)`:
+   - Records are created in IndexedDB: one in the `sessions` table (with metadata block) and multiple in the `papers` table (mapping base metadata).
    - Its status is set to `in-progress`.
 
 ### Step 2: Context Pre-Screening
 - Before starting a review, `PreScreen.jsx` shows the project's metadata context (`inclusionCriteria`, `exclusionCriteria`, and `ecRules`).
-- The reviewer enters their name. The name is saved in the session metadata under `reviewerName`.
+- The reviewer clicks the "Start Reviewing" button directly. No reviewer name is stored.
 
 ### Step 3: Active Reviewing & Auto-saving
 - `ReviewScreen.jsx` loads the session and paper records.
@@ -67,93 +67,97 @@ The `inter-rater` project is structured as follows:
   1. The specific paper record is updated in the `papers` table via `StorageService.updatePaperAppraisal()`.
   2. Session metadata (e.g. `currentIndex` and `lastModified`) is synchronously updated in the `sessions` table.
 - A **Save State Indicator** is rendered in the review page header to display the real-time status (`Autosaved`, `Saving...`, or `Save Error`).
-- Reviewers can add new reasoning templates in-flight by typing the custom rationale directly in the templates dropdown. An inline action in the dropdown list enables saving the new template to the database so it is preserved and exported.
+- Reviewers can add new reasoning templates in-flight by typing the custom rationale directly in the templates dropdown.
 - Form inputs are validated in real-time. The "Next" button is disabled unless the reviewer provides:
   - An inclusion decision (`Human_Decision` / `Reviewer_Decision`: `Include` / `Exclude`).
   - Reasoning text (`Human_Rationale` / `Reviewer_Reasoning`).
   - An exclusion code (`Human_EC_Trigger` / `Reviewer_EC_Code`) **only if** the decision is `Exclude`.
-  - For `CAL_Pool_C` / `QC_Audit_Batch` dynamic sessions, if decision is `Include`, all dynamically parsed QA metrics (scores and quotes) and data extraction fields (values and quotes) must be fully populated. Required rubrics are automatically loaded and parsed from the metadata block.
+  - For `CAL_Pool_C` dynamic sessions, if decision is `Include`, all dynamically parsed QA metrics (scores and quotes) and data extraction fields (values and quotes) must be fully populated.
 
 ### Step 4: Exporting Results
-- From `Dashboard.jsx`, the user clicks **Export Results**.
-- The app reconstructs the papers by basing them on their original imported objects (`rawPaper` field in IndexedDB). All legacy `Reviewer_*` keys (e.g., `Reviewer_Decision`, `Reviewer_Reasoning`, `Reviewer_Confidence`, `Reviewer_EC_Code`) and `Reviewer_Name` are completely dropped. The output contains exclusively the standard metadata, dynamic appraisal fields, and the new `Human_*` keys (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`):
+- From `Dashboard.jsx`, when the user clicks **Export Results**, the application displays a confirmation modal to prompt for the reviewer's short name.
+- **Reviewer Identifier Generation**: The app dynamically suffixes the short name with a unique 4-character random hex string (e.g. `shortname_a8f2`) and shows a live preview.
+- **Identity Caching**: The confirmed reviewer identifier is saved in the browser's `localStorage` under the key `slr_reviewer_identity`. On subsequent exports, this value pre-populates the input field.
+- **Blinded Export Construction**: The app queries the database and reconstructs the papers, dropping all legacy `Reviewer_*` keys.
+- **Metadata Embedding**: The confirmed reviewer name is embedded in the exported `.slr` metadata block using the key `"reviewer_name"`. The output contains exclusively the whitelisted keys:
   ```json
   {
-    "metadata": { ... },
+    "metadata": {
+      "project_name": "...",
+      "pool_type": "CAL_Pool_A",
+      "reviewer_name": "onder_a8f2",
+      "export_date": "..."
+    },
     "papers": [
       {
         "Paper_ID": "P001",
         "Title": "...",
+        "Year": "2025",
+        "Abstract": "...",
         "Human_Decision": "Include",
         "Human_Rationale": "Focuses on Edge Computing topologies",
-        "Human_EC_Trigger": "",
-        ...
+        "Human_EC_Trigger": ""
       }
     ]
   }
   ```
-- A JSON string is generated and downloaded with a `.slr` file extension using a temporary `<a>` element simulation.
+- A JSON string is generated and downloaded with a `.slr` file extension. The file is imported directly back into the local `slr-ide` application.
 
 ---
 
 ## 4. SLR Schema Definitions
 
-The data contract between the Google Apps Script backend and the React SPA is defined by the `.slr` (JSON) format.
+The data contract between the `slr-ide` desktop workspace and the React SPA is defined by the `.slr` (JSON) format. 
 
-### Import/Export Structure (.slr)
+### 4.1 Standardized Pool A Schema (CAL_Pool_A)
+For reviews under **CAL_Pool_A**, the `.slr` file schema is standardized to ensure strict blinding and metadata-only reviews:
+1. **Snake-Case Naming Standard**: All keys inside the `metadata` block are converted from camelCase to `snake_case`.
+2. **Whitelisted Paper Keys Only**: To prevent leakage of non-reviewed attributes, the papers array entries must only contain the following seven keys: `Paper_ID`, `Title`, `Year`, `Abstract`, `Human_Decision`, `Human_EC_Trigger`, and `Human_Rationale`. All other details (Authors, DOI, PDF Links, etc.) are stripped.
+
 ```json
 {
   "metadata": {
-    "projectName": "Cloud Topology Mapping",
-    "researchQuestions": "RQ1: What computational topologies are used in industrial edge architectures?",
-    "inclusionCriteria": "1. Must describe edge computing systems\n2. Must address topological constraints.",
-    "exclusionCriteria": "1. Out of scope domain\n2. Review paper.",
-    "poolType": "CAL_Pool_A",
-    "exportDate": "2026-05-31T16:30:00Z",
-    "ecRules": [
+    "project_name": "Cloud Topology Mapping",
+    "research_manifesto": "Focus on distributed edge systems...",
+    "research_objective": "Identify structural patterns in IoT architectures",
+    "research_questions": "RQ1: What computational topologies are used in industrial edge architectures?",
+    "quality_assurance_definition": "Rubric details here...",
+    "exclusion_criteria": "1. Out of scope domain\n2. Review paper.",
+    "pool_type": "CAL_Pool_A",
+    "export_date": "2026-06-11T18:45:52Z",
+    "ec_rules": [
       { "code": "EC1", "description": "System domain out of scope" },
       { "code": "EC2", "description": "Insufficient structural details" }
+    ],
+    "reasoning_template": [
+      "Wrong domain out of scope",
+      "Algorithms benchmarked without system architecture details"
     ]
   },
   "papers": [
     {
       "Paper_ID": "P101",
       "Title": "A Survey of Edge Computing Topologies",
-      "Abstract": "This survey details the topological configurations of modern IoT nodes...",
-      "Authors": "Alice Smith, Bob Jones",
       "Year": "2025",
-      "DOI": "10.1109/SURV.2025.10101",
-      "PDF_Link": "https://doi.org/.../pdf",
-      "Import_Source": "IEEE Xplore",
-      "Source": "IEEE Xplore",
-      "Import_Date": "2026-05-30"
+      "Abstract": "This survey details the topological configurations of modern IoT nodes...",
+      "Human_Decision": "Exclude",
+      "Human_EC_Trigger": "EC1",
+      "Human_Rationale": "Wrong domain out of scope"
     }
   ]
 }
 ```
+
+### 4.2 Legacy Pools Schemas (CAL_Pool_B, CAL_Pool_C, QC Audit)
+Other calibration pools are currently not migrated to this restricted format. They preserve the legacy import/export schema configurations:
+- **Project Metadata**: Uses camelCase keys (e.g., `projectName`, `researchQuestions`, `inclusionCriteria`, `exclusionCriteria`, `poolType`, `exportDate`, `ecRules`, `reasoningTemplate`).
+- **Paper Objects**: Retain complete paper details including `Abstract`, `Authors`, `DOI`, `PDF_Link`, `Import_Source`, etc., alongside dynamic quality appraisal and data extraction attributes.
 
 ---
 
 ## 5. UI/UX Design System
 
 The application features a modern styling system using Tailwind CSS:
-- **Responsive Layouts**: Clean reading layouts split the paper description (left) and dynamic forms (right) to ease focus during evaluation. The left reading panel contains tabs to switch between the paper **Abstract** and the project **Exclusion Rules** reference list. A bottom fixed navigation bar coordinates progress transitions (Previous, Dashboard, Next/Complete).
+- **Page-Level Scrolling Layout**: The review screen uses page-level scrolling to maximize the visible viewport height. Column heights are determined naturally by their content, preventing vertical clipping or double scrollbars.
 - **Theme Engine**: Integrates standard Tailwind utility classes with support for light, dark, and system themes.
-  - Preference state is saved in the IndexedDB `config` table under the `theme` key.
-  - Active theme dynamically updates the `.dark` class from the `document.documentElement` element to handle dark mode rendering (`dark:bg-gray-900`, `dark:text-gray-100`) and syncs to OS color preferences automatically when set to system mode.
-- **Interactive Micro-Animations**: Buttons, inputs, transitions, and theme toggling leverage smooth transition animations (`transition-all duration-200`).
-
----
-
-### 1. Dynamic Extraction & Appraisal Support
-- The React SPA dynamically inspects the paper object's fields. If keys other than the standard base metadata and reviewer fields are present, it dynamically renders form inputs (segmented button scales for QA fields and textareas for both the `value` and `evidence` fields) so the reviewer can perform detailed extraction and qualitative appraisals. Rubrics are dynamically parsed from the `qualityAssuranceDefinition` block and displayed inline.
-
-### 2. Multi-Rater Consensus Mode (Double-Blind Resolution Workflow)
-- Future enhancements could integrate:
-  - An import option to load **two** completed `.slr` files for the same session.
-  - A "Resolution Dashboard" highlighting papers where the two reviewers disagreed.
-  - A UI for a third user to resolve conflicts, generating a single consensus `.slr` file to import back to Google Sheets.
-
-### 3. Progressive Web App (PWA) Offline Upgrades
-- Register service workers and create a `manifest.json` to upgrade the SPA to a full Progressive Web App, enabling offline access even when hosted remotely.
-
+- **Stats Dashboard Grid**: Renders premium high-level cards summarizing global systematic review analytics.

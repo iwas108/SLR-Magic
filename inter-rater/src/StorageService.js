@@ -54,14 +54,15 @@ export const StorageService = {
             const decision = app.Human_Decision || app.Reviewer_Decision;
             if (!decision) return false;
             
-            // Basic validation (confidence score removed completely)
+            // Basic validation
             const hasBasic = (app.Human_Rationale || app.Reviewer_Reasoning) && 
                              String(app.Human_Rationale || app.Reviewer_Reasoning).trim() !== '';
             
             if (!hasBasic) return false;
 
             // Exclusion check
-            if (decision === 'Exclude' && session.metadata?.ecRules?.length > 0) {
+            const ecRules = session.metadata?.ec_rules || session.metadata?.ecRules || [];
+            if (decision === 'Exclude' && ecRules.length > 0) {
               if (!app.Human_EC_Trigger && !app.Reviewer_EC_Code) return false;
             }
 
@@ -91,10 +92,12 @@ export const StorageService = {
 
           return {
             ...session,
+            projectName: session.projectName || session.metadata?.project_name || session.metadata?.projectName || 'Unnamed Project',
+            poolType: session.poolType || session.metadata?.pool_type || session.metadata?.poolType || 'CAL_Pool_A',
             totalPapers,
             completedPapers,
             filename: session.metadata?.filename || `session_${session.id}.slr`,
-            reviewerName: session.metadata?.reviewerName || 'Unknown',
+            reviewerName: '',
             status: session.metadata?.status || 'in-progress',
             lastModified: session.metadata?.lastModified || Date.now(),
             importedAt: session.metadata?.importedAt || Date.now(),
@@ -120,9 +123,11 @@ export const StorageService = {
 
       return {
         ...session,
+        projectName: session.projectName || session.metadata?.project_name || session.metadata?.projectName || 'Unnamed Project',
+        poolType: session.poolType || session.metadata?.pool_type || session.metadata?.poolType || 'CAL_Pool_A',
         papers,
         filename: session.metadata?.filename || `session_${session.id}.slr`,
-        reviewerName: session.metadata?.reviewerName || 'Unknown',
+        reviewerName: '',
         status: session.metadata?.status || 'in-progress',
         lastModified: session.metadata?.lastModified || Date.now(),
         importedAt: session.metadata?.importedAt || Date.now(),
@@ -144,43 +149,60 @@ export const StorageService = {
     }
   },
 
-  createSession: async (filename, reviewerName, papersArray, metadataBlock = {}) => {
+  createSession: async (filename, papersArray, metadataBlock = {}) => {
     try {
-      const poolType = metadataBlock.poolType || metadataBlock.phase || 'CAL_Pool_A';
-      const projectName = metadataBlock.projectName || filename.replace(/\.[^/.]+$/, "");
+      const poolType = metadataBlock.pool_type || metadataBlock.poolType || metadataBlock.phase || 'CAL_Pool_A';
+      const projectName = metadataBlock.project_name || 
+                          metadataBlock.projectName || 
+                          metadataBlock.Project_Name || 
+                          metadataBlock['Project Name'] || 
+                          filename.replace(/\.[^/.]+$/, "");
 
       // Insert session record
       const sessionId = await db.sessions.add({
         projectName,
         poolType,
-        exportDate: metadataBlock.exportDate || new Date().toISOString(),
+        exportDate: metadataBlock.export_date || metadataBlock.exportDate || new Date().toISOString(),
         metadata: {
           filename,
-          reviewerName,
+          reviewerName: '',
+          project_name: projectName,
+          pool_type: poolType,
           status: 'in-progress',
           currentIndex: 0,
           lastModified: Date.now(),
           importedAt: Date.now(),
-          researchManifesto: metadataBlock.researchManifesto || '',
-          researchObjective: metadataBlock.researchObjective || '',
-          researchQuestions: metadataBlock.researchQuestions || '',
-          qualityAssuranceDefinition: metadataBlock.qualityAssuranceDefinition || '',
-          exclusionCriteria: metadataBlock.exclusionCriteria || '',
-          ecRules: metadataBlock.ecRules || [],
-          reasoningTemplate: metadataBlock.reasoningTemplate || []
+          research_manifesto: metadataBlock.research_manifesto || metadataBlock.researchManifesto || '',
+          research_objective: metadataBlock.research_objective || metadataBlock.researchObjective || '',
+          research_questions: metadataBlock.research_questions || metadataBlock.researchQuestions || '',
+          quality_assurance_definition: metadataBlock.quality_assurance_definition || metadataBlock.qualityAssuranceDefinition || '',
+          exclusion_criteria: metadataBlock.exclusion_criteria || metadataBlock.exclusionCriteria || '',
+          ec_rules: metadataBlock.ec_rules || metadataBlock.ecRules || [],
+          reasoning_template: metadataBlock.reasoning_template || metadataBlock.reasoningTemplate || []
         }
       });
 
       // Insert papers
       const papersToInsert = papersArray.map((paper) => {
+        let cleanPaper = { ...paper };
+        if (poolType === 'CAL_Pool_A') {
+          // Drop all non-whitelisted keys
+          const allowedKeys = ['Paper_ID', 'Title', 'Year', 'Abstract', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale'];
+          Object.keys(cleanPaper).forEach((k) => {
+            if (!allowedKeys.includes(k)) {
+              delete cleanPaper[k];
+            }
+          });
+        }
+
         const standard_metadata = {};
         const appraisal = {
-          Human_Decision: paper.Human_Decision || paper.Reviewer_Decision || '',
-          Human_Rationale: paper.Human_Rationale || paper.Reviewer_Reasoning || '',
-          Human_EC_Trigger: paper.Human_EC_Trigger || paper.Reviewer_EC_Code || ''
+          Human_Decision: cleanPaper.Human_Decision || cleanPaper.Reviewer_Decision || '',
+          Human_Rationale: cleanPaper.Human_Rationale || cleanPaper.Reviewer_Reasoning || '',
+          Human_EC_Trigger: cleanPaper.Human_EC_Trigger || cleanPaper.Reviewer_EC_Code || ''
         };
 
-        Object.entries(paper).forEach(([key, val]) => {
+        Object.entries(cleanPaper).forEach(([key, val]) => {
           if (key === 'Paper_ID') return;
 
           if (STANDARD_METADATA_KEYS.includes(key) || (!APPRAISAL_FIELDS.includes(key) && typeof val !== 'object')) {
@@ -197,11 +219,11 @@ export const StorageService = {
         });
 
         return {
-          Paper_ID: paper.Paper_ID,
+          Paper_ID: cleanPaper.Paper_ID,
           sessionId,
           standard_metadata,
           appraisal,
-          rawPaper: paper
+          rawPaper: cleanPaper
         };
       });
 
@@ -304,6 +326,14 @@ export const StorageService = {
       const session = await db.sessions.get(sId);
       if (!session) throw new Error('Session not found');
 
+      // Determine poolType and projectName checking new format keys
+      const poolType = newMetadata.pool_type || newMetadata.poolType || newMetadata.phase || session.poolType;
+      const projectName = newMetadata.project_name || 
+                          newMetadata.projectName || 
+                          newMetadata.Project_Name || 
+                          newMetadata['Project Name'] || 
+                          session.projectName;
+
       // 1. Get existing papers in DB
       const existingPapers = await db.papers.where({ sessionId: sId }).toArray();
       const existingMap = new Map(existingPapers.map(p => [p.Paper_ID, p]));
@@ -321,14 +351,25 @@ export const StorageService = {
       newPapersArray.forEach(paper => {
         const pid = paper.Paper_ID;
         
+        let cleanPaper = { ...paper };
+        if (poolType === 'CAL_Pool_A') {
+          // Drop non-whitelisted keys
+          const allowedKeys = ['Paper_ID', 'Title', 'Year', 'Abstract', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale'];
+          Object.keys(cleanPaper).forEach((k) => {
+            if (!allowedKeys.includes(k)) {
+              delete cleanPaper[k];
+            }
+          });
+        }
+
         const standard_metadata = {};
         const appraisal = {
-          Human_Decision: paper.Human_Decision || paper.Reviewer_Decision || '',
-          Human_Rationale: paper.Human_Rationale || paper.Reviewer_Reasoning || '',
-          Human_EC_Trigger: paper.Human_EC_Trigger || paper.Reviewer_EC_Code || ''
+          Human_Decision: cleanPaper.Human_Decision || cleanPaper.Reviewer_Decision || '',
+          Human_Rationale: cleanPaper.Human_Rationale || cleanPaper.Reviewer_Reasoning || '',
+          Human_EC_Trigger: cleanPaper.Human_EC_Trigger || cleanPaper.Reviewer_EC_Code || ''
         };
 
-        Object.entries(paper).forEach(([key, val]) => {
+        Object.entries(cleanPaper).forEach(([key, val]) => {
           if (key === 'Paper_ID') return;
           if (STANDARD_METADATA_KEYS.includes(key) || (!APPRAISAL_FIELDS.includes(key) && typeof val !== 'object')) {
             standard_metadata[key] = val;
@@ -363,7 +404,7 @@ export const StorageService = {
             sessionId: sId,
             standard_metadata,
             appraisal: mergedAppraisal,
-            rawPaper: paper
+            rawPaper: cleanPaper
           });
         } else {
           // Add as new paper
@@ -372,7 +413,7 @@ export const StorageService = {
             sessionId: sId,
             standard_metadata,
             appraisal,
-            rawPaper: paper
+            rawPaper: cleanPaper
           });
         }
       });
@@ -394,10 +435,6 @@ export const StorageService = {
           await db.papers.put(paper);
         }
 
-        // Update session meta block
-        const poolType = newMetadata.poolType || newMetadata.phase || session.poolType;
-        const projectName = newMetadata.projectName || session.projectName;
-
         let currentIndex = session.metadata.currentIndex || 0;
         if (currentIndex >= newPapersArray.length) {
           currentIndex = 0;
@@ -405,23 +442,23 @@ export const StorageService = {
 
         const updatedMetadata = {
           ...session.metadata,
-          projectName,
-          poolType,
+          project_name: projectName,
+          pool_type: poolType,
           currentIndex,
           lastModified: Date.now(),
-          researchManifesto: newMetadata.researchManifesto || '',
-          researchObjective: newMetadata.researchObjective || '',
-          researchQuestions: newMetadata.researchQuestions || '',
-          qualityAssuranceDefinition: newMetadata.qualityAssuranceDefinition || '',
-          exclusionCriteria: newMetadata.exclusionCriteria || '',
-          ecRules: newMetadata.ecRules || [],
-          reasoningTemplate: newMetadata.reasoningTemplate || []
+          research_manifesto: newMetadata.research_manifesto || newMetadata.researchManifesto || '',
+          research_objective: newMetadata.research_objective || newMetadata.researchObjective || '',
+          research_questions: newMetadata.research_questions || newMetadata.researchQuestions || '',
+          quality_assurance_definition: newMetadata.quality_assurance_definition || newMetadata.qualityAssuranceDefinition || '',
+          exclusion_criteria: newMetadata.exclusion_criteria || newMetadata.exclusionCriteria || '',
+          ec_rules: newMetadata.ec_rules || newMetadata.ecRules || [],
+          reasoning_template: newMetadata.reasoning_template || newMetadata.reasoningTemplate || []
         };
 
         await db.sessions.update(sId, {
           projectName,
           poolType,
-          exportDate: newMetadata.exportDate || session.exportDate,
+          exportDate: newMetadata.export_date || newMetadata.exportDate || session.exportDate,
           metadata: updatedMetadata
         });
       });
@@ -431,7 +468,7 @@ export const StorageService = {
     }
   },
 
-  exportSession: async (sessionId) => {
+  exportSession: async (sessionId, reviewerName) => {
     try {
       const id = parseInt(sessionId, 10);
       const session = await db.sessions.get(id);
@@ -440,23 +477,35 @@ export const StorageService = {
       const papers = await db.papers.where({ sessionId: id }).toArray();
       // Flatten papers back to exported SLR Magic JSON structure
       const exportedPapers = papers.map((paper) => {
+        const decisionVal = paper.appraisal.Human_Decision || paper.appraisal.Reviewer_Decision || '';
+        const rationaleVal = paper.appraisal.Human_Rationale || paper.appraisal.Reviewer_Reasoning || '';
+        const ecVal = paper.appraisal.Human_EC_Trigger || paper.appraisal.Reviewer_EC_Code || '';
+
+        if (session.poolType === 'CAL_Pool_A') {
+          // STRICT 7-KEY WHITELISTED SCHEMA
+          return {
+            Paper_ID: paper.Paper_ID,
+            Title: paper.standard_metadata.Title || '',
+            Year: paper.standard_metadata.Year || '',
+            Abstract: paper.standard_metadata.Abstract || '',
+            Human_Decision: decisionVal,
+            Human_EC_Trigger: ecVal,
+            Human_Rationale: rationaleVal
+          };
+        }
+
+        // LEGACY POOLS FORMAT
         const base = paper.rawPaper ? { ...paper.rawPaper } : { Paper_ID: paper.Paper_ID, ...paper.standard_metadata };
         const flatPaper = {
           ...base
         };
 
-        // Remove completely any legacy Reviewer_* keys and Reviewer_Name
         delete flatPaper.Reviewer_Decision;
         delete flatPaper.Reviewer_Reasoning;
         delete flatPaper.Reviewer_Confidence;
         delete flatPaper.Reviewer_EC_Code;
         delete flatPaper.Reviewer_Name;
 
-        const decisionVal = paper.appraisal.Human_Decision || paper.appraisal.Reviewer_Decision || '';
-        const rationaleVal = paper.appraisal.Human_Rationale || paper.appraisal.Reviewer_Reasoning || '';
-        const ecVal = paper.appraisal.Human_EC_Trigger || paper.appraisal.Reviewer_EC_Code || '';
-
-        // Write exclusively to the new Human_* fields
         flatPaper.Human_Decision = decisionVal;
         flatPaper.Human_Rationale = rationaleVal;
         flatPaper.Human_EC_Trigger = ecVal;
@@ -471,18 +520,42 @@ export const StorageService = {
         return flatPaper;
       });
 
+      // Construct standard metadata block depending on poolType
+      if (session.poolType === 'CAL_Pool_A') {
+        // SNAKE-CASE PROJECT METADATA
+        const exportPayload = {
+          metadata: {
+            project_name: session.projectName || session.metadata?.project_name || session.metadata?.projectName || 'Unnamed Project',
+            research_manifesto: session.metadata?.research_manifesto || session.metadata?.researchManifesto || '',
+            research_objective: session.metadata?.research_objective || session.metadata?.researchObjective || '',
+            research_questions: session.metadata?.research_questions || session.metadata?.researchQuestions || '',
+            quality_assurance_definition: session.metadata?.quality_assurance_definition || session.metadata?.qualityAssuranceDefinition || '',
+            exclusion_criteria: session.metadata?.exclusion_criteria || session.metadata?.exclusionCriteria || '',
+            pool_type: 'CAL_Pool_A',
+            export_date: new Date().toISOString(),
+            ec_rules: session.metadata?.ec_rules || session.metadata?.ecRules || [],
+            reasoning_template: session.metadata?.reasoning_template || session.metadata?.reasoningTemplate || [],
+            ...(reviewerName ? { reviewer_name: reviewerName } : {})
+          },
+          papers: exportedPapers
+        };
+        return exportPayload;
+      }
+
+      // LEGACY CAMEL-CASE EXPORT
       const exportPayload = {
         metadata: {
           projectName: session.projectName,
-          researchManifesto: session.metadata?.researchManifesto || '',
-          researchObjective: session.metadata?.researchObjective || '',
-          researchQuestions: session.metadata?.researchQuestions || '',
-          qualityAssuranceDefinition: session.metadata?.qualityAssuranceDefinition || '',
-          exclusionCriteria: session.metadata?.exclusionCriteria || '',
+          researchManifesto: session.metadata?.researchManifesto || session.metadata?.research_manifesto || '',
+          researchObjective: session.metadata?.researchObjective || session.metadata?.research_objective || '',
+          researchQuestions: session.metadata?.researchQuestions || session.metadata?.research_questions || '',
+          qualityAssuranceDefinition: session.metadata?.qualityAssuranceDefinition || session.metadata?.quality_assurance_definition || '',
+          exclusionCriteria: session.metadata?.exclusionCriteria || session.metadata?.exclusion_criteria || '',
           poolType: session.poolType,
           exportDate: new Date().toISOString(),
-          ecRules: session.metadata?.ecRules || [],
-          reasoningTemplate: session.metadata?.reasoningTemplate || []
+          ecRules: session.metadata?.ecRules || session.metadata?.ec_rules || [],
+          reasoningTemplate: session.metadata?.reasoningTemplate || session.metadata?.reasoning_template || [],
+          ...(reviewerName ? { reviewer_name: reviewerName } : {})
         },
         papers: exportedPapers
       };

@@ -33,30 +33,43 @@ export async function GET(request: Request) {
     const blindedPapers = shuffledPapers.map(paper => ({
       Paper_ID: paper.Paper_ID || '',
       Title: paper.Title || '',
-      Abstract: paper.Abstract || '',
-      Authors: paper.Authors || '',
       Year: paper.Year !== null ? String(paper.Year) : '',
-      DOI: paper.DOI || '',
-      PDF_Link: paper.PDF_Link || '',
-      Import_Source: paper.Import_Source || '',
-      Source: paper.Source || '',
-      Import_Date: paper.Import_Date || '',
+      Abstract: paper.Abstract || '',
       Human_Decision: '',
       Human_EC_Trigger: '',
       Human_Rationale: ''
     }));
 
+    let ecRules = [];
+    if (project.ec_rules) {
+      try {
+        ecRules = typeof project.ec_rules === 'string' ? JSON.parse(project.ec_rules) : project.ec_rules;
+      } catch (e) {
+        console.error("Error parsing project.ec_rules in export", e);
+      }
+    }
+
+    let reasoningTemplate = [];
+    if (project.reasoning_template) {
+      try {
+        reasoningTemplate = typeof project.reasoning_template === 'string' ? JSON.parse(project.reasoning_template) : project.reasoning_template;
+      } catch (e) {
+        console.error("Error parsing project.reasoning_template in export", e);
+      }
+    }
+
     const payload = {
       metadata: {
-        projectName: project.name || 'Unnamed Project',
-        researchManifesto: project.manifesto || '',
-        researchObjective: project.objective || '',
-        researchQuestions: project.questions || '',
-        qualityAssuranceDefinition: project.qa_definition || '',
-        exclusionCriteria: project.exclusion_criteria || '',
-        poolType: 'CAL_Pool_A',
-        exportDate: new Date().toISOString(),
-        ecRules: []
+        project_name: project.name || 'Unnamed Project',
+        research_manifesto: project.manifesto || '',
+        research_objective: project.objective || '',
+        research_questions: project.questions || '',
+        quality_assurance_definition: project.qa_definition || '',
+        exclusion_criteria: project.exclusion_criteria || '',
+        pool_type: 'CAL_Pool_A',
+        export_date: new Date().toISOString(),
+        ec_rules: ecRules,
+        reasoning_template: reasoningTemplate
       },
       papers: blindedPapers
     };

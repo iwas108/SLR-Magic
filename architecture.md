@@ -6,65 +6,71 @@ This document defines the global architectural design, data models, and module i
 
 ## 1. System Ecosystem Overview
 
-The SLR Magic workspace coordinates systematic literature reviews (SLRs) through two active, complementary modules:
-1. **Google Sheets Master Workspace (`app-script/`)**: Serves as the cloud database, manual annotation environment, cohort synthesizers, and ECharts visualizers.
-2. **Local Desktop Workspace Hub (`slr-ide/`)**: Next.js + SQLite application that operates locally to import references, perform smart local PDF matching, execute bulk PDF downloads via Selenium, and sync files to Google Drive.
+The SLR Magic workspace coordinates systematic literature reviews (SLRs) through a local, laptop-first architecture. It prioritizes offline-capable local processes and file-based exchanges over complex network configurations (dropping any requirements for custom VPN configurations, HAProxy reverse proxies, or centralized databases).
+
+The workspace comprises three active, complementary modules:
+1. **Local Desktop Workspace Hub (`slr-ide/`)**: A local Next.js + SQLite application acting as the **one-stop solution** for the entire workflow. It handles project setup, reference ingestion, Python-based PDF matching/crawling, cloud syncing, calibration pool assignment, and consensus Kappa metric calculation.
+2. **Blinded Review Client (`inter-rater/`)**: An offline-capable React SPA that **facilitates blinded inter-rater review** sessions. Reviewers import rating packages, score papers independently using keyboard shortcuts, and export results back without seeing AI ratings or co-reviewer selections.
+3. **FAIR Compliance Spreadsheet database (`app-script/`)**: A Google Apps Script application operating within Google Sheets. It is restricted to serving strictly as a **FAIR-compliant cloud storage database** to ingest finalized project results, minimizing Google permissions and security trust boundaries.
 
 ```mermaid
-graph LR
-    subgraph Google Workspace Cloud
-        A[Google Sheets Hub]
-    end
-    subgraph Local Desktop environment
-        B[Next.js App - slr-ide]
-        C[SQLite Database]
-        D[Rclone Sync]
-        E[Selenium Scrapers]
+graph TD
+    subgraph "Local Desktop Environment (Laptop-First)"
+        A[slr-ide: One-Stop Hub] <-->|SQLite Client| B[(Local SQLite DB)]
+        A -->|1. Export Blinded .slr| C[inter-rater: Blinded SPA]
+        C -->|2. Export Rated .slr| A
+        A -->|Spawn Subprocesses| D[Python Scrapers: Matcher & Selenium]
+        A -->|Rclone Sync Subprocess| E[Rclone Sync CLI]
     end
     
-    A -->|1. Export CSV| B
-    B -->|2. Local Cached Match| B
-    B -->|3. Scrape Web| E
-    B -->|4. Sync Drive & Link| D
-    D -->|5. Upload PDFs & Fetch links| A
-    B -->|6. Ingestion CSV| A
+    subgraph "Google Workspace / Cloud"
+        F[app-script: Google Sheets FAIR Database Sink]
+        G[Cloud Storage: Google Drive / OneDrive]
+    end
+    
+    A -->|3. Export FAIR CSV / Data Ingestion| F
+    E -->|Upload matched PDFs| G
+    A -->|Fetch shareable file links| G
 ```
 
 ---
 
 ## 2. Active Module Blueprints
 
-### I. Google Sheets Hub (`app-script/`)
-*For details, refer to the module blueprint: [app-script/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/app-script/architecture.md)*
-
-*   **Principles**: Clean Architecture decoupling presentation (`html` dialogs), controllers, and spreadsheet utilities.
-*   **Ingestion**: Supports custom visual CSV column mapping and manual snowballing.
-*   **Cohort Processing**: Copies references with `Status = INCLUDE` to `05_Synthesis` while preserving user custom columns.
-*   **Calibration Pools**: Partitions papers into independent pools (`CAL_Pool_A`, `CAL_Pool_B`, `CAL_Pool_C`) and computes Cohen's Kappa consensus reports.
-
-### II. Local Desktop Workspace (`slr-ide/`)
+### I. Local Desktop Workspace (`slr-ide/`)
 *For details, refer to the module blueprint: [slr-ide/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/architecture.md)*
 
-*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4, featuring a **Dashboard** (metrics, active project manifesto selector), a **Paper Database**, an **Ingestion Hub** (supporting CSV and manual snowballing imports), and a **Pre-Calibration** dashboard (target metrics progress, Cohen's Kappa consensus scorecard, paginated data grid, SLR import/export sync, and side-by-side paper partitioning).
-*   **Persistence**: SQLite database (`db/slr.db`) utilizing `better-sqlite3`. Table schema documented in [db/schema.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/db/schema.md). Supports multi-project segmentation and calibration pools (`calibration_pool`, `Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`).
-*   **Deterministic Paper ID**: Ingestion generates unique paper identifiers using the author name, year, title, and hash algorithm to align with the Apps Script protocol.
-*   **Smart Cache Matcher**: [cache_matcher.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/cache_matcher.py) (scopes papers to active project, matching against a shared raw/cached directory, maintaining caches intact for multiple projects, supports single `--paper` execution mode).
-*   **Bulk Downloader**: [pdf_scraper.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/pdf_scraper.py) (Selenium / `undetected-chromedriver` crawler supporting proxy login, delays, headed mode toggling, stateful DFS backtracking, and single `--paper` execution mode).
-*   **Integrated Sync & Compression**: Merged Ghostscript-based PDF size compression directly into the Rclone sync step. Synced files are isolated under separate Google Drive destinations configured per-project.
-*   **Cloud Gateway**: Subprocess execution of `rclone` to back up files and generate drive links.
+*   **Role**: The one-stop control hub for the systematic review lifecycle.
+*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4, containing Projects tables, Settings modal tabs (Metadata, Pool configurations, Sync), Paper database grids, Ingestion panel templates, and Pre-Calibration Agreement trackers.
+*   **Persistence**: SQLite database (`db/slr.db`) for multi-project segmentation and paper metadata.
+*   **Acquisition Engine**: Deterministic ID generators spawning Python CGI subprocesses (`cache_matcher.py` with OCR fallbacks, stateful DFS `pdf_scraper.py` crawling web interfaces).
+*   **Cloud Gateway**: Subprocess execution of `rclone` to compress and upload local PDFs to project-scoped Drive/OneDrive folders and retrieve shareable file links.
+
+### II. Inter-Rater Blinded Review SPA (`inter-rater/`)
+*For details, refer to the module blueprint: [inter-rater/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/architecture.md)*
+
+*   **Role**: Facilitates double-blind human rating reviews of calibration pools.
+*   **Principles**: Offline-First & Serverless React Core using Dexie.js (IndexedDB) for browser-level persistence. Reviewer name variables and AI ratings are completely stripped from workflows to guarantee blinding.
+*   **Interface**: Page-level scrolling layouts locking keyboard shortcuts (`I` / `E` / rules `1`-`9` / page navigation) alongside dynamic QA scoring fields and description templates.
+*   **Standardized Schema**: Enforces 7 whitelisted paper keys (including Abstract) and snake_case project metadata naming rules specifically for `CAL_Pool_A` sessions.
+
+### III. Google Sheets FAIR Database (`app-script/`)
+*For details, refer to the module blueprint: [app-script/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/app-script/architecture.md)*
+
+*   **Role**: Minimizes Google App security permission boundaries by acting strictly as a FAIR-compliant database sink.
+*   **Ingestion**: Receives final reference CSV outputs exported from `slr-ide` to archive the systematically compiled literature dataset.
+*   **Cohort Archiving**: Stores references under `00_Raw_Harvest` and copies selected papers to `05_Synthesis` for cloud indexing.
 
 ---
 
 ## 3. Data Ingestion & Sync Protocol
 
-Data exchanges between `app-script` and `slr-ide` are synchronized via flat CSV files conforming exactly to the `00_Raw_Harvest` column schema:
+Literature reference data exchanges are synchronized using localized file-based exports and imports:
 
-```text
-['Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link', 'Status']
-```
-
-1.  **Export from Sheets**: The user downloads the `00_Raw_Harvest` sheet as a CSV file.
-2.  **Import to SLR IDE**: The user uploads the CSV into `slr-ide`. The IDE uses fuzzy header matching to automatically map columns and skips duplicates (incremental import) using normalized DOI and title checkers.
-3.  **PDF Matching & Downloading**: The IDE matches PDFs locally from the cache or downloads them from the web.
-4.  **GDrive Upload**: The IDE runs Rclone to sync matched PDFs to Google Drive, gets their shareable drive URLs, and writes them to the `PDF_Link` field.
-5.  **Export to Sheets**: The user exports a updated CSV from `slr-ide` containing the newly acquired Google Drive PDF links and imports it back into the Google Sheet.
+1. **Ingestion into slr-ide**: Project databases are initialized by importing research reference files (CSV/BibTeX) from external scholarly databases (Scopus, IEEE Xplore, Web of Science, etc.).
+2. **Blinded Review Exchange**:
+   - `slr-ide` exports a blinded `.slr` JSON package containing snake_case metadata configuration details and whitelisted paper data (excluding AI decisions).
+   - The reviewer imports this `.slr` file into `inter-rater`, ratings are entered locally, and the completed `.slr` file is exported back to `slr-ide` to auto-ingest reviewer decisions.
+3. **FAIR Database Ingestion**:
+   - The completed database cohort is exported from `slr-ide` as a standard `.csv` file.
+   - The user uploads this `.csv` file into the `app-script` Google Sheet workspace to populate the master `00_Raw_Harvest` and `05_Synthesis` sheets for FAIR storage compliance.

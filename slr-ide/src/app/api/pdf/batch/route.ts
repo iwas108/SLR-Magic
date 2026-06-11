@@ -317,7 +317,7 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
   const pythonExe = path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe');
   
   const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
-  const project = db.prepare('SELECT folder_name, gdrive_dest_path FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string; gdrive_dest_path: string } | undefined;
+  const project = db.prepare('SELECT folder_name, gdrive_dest_path, cloud_provider, rclone_remote_name FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string; gdrive_dest_path: string; cloud_provider?: string; rclone_remote_name?: string } | undefined;
   const folderName = project ? project.folder_name : 'default_project';
   const gdriveDest = project ? project.gdrive_dest_path : 'SLR_Magic/PDFs';
 
@@ -327,7 +327,9 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
   if (!fs.existsSync(pdfRepoDir)) fs.mkdirSync(pdfRepoDir, { recursive: true });
 
   const rclonePath = getConfig('RCLONE_EXECUTABLE_PATH', 'rclone');
-  const remote = getConfig('RCLONE_REMOTE_NAME', 'gdrive');
+  const cloudProvider = project?.cloud_provider || 'gdrive';
+  const remote = project?.rclone_remote_name || (cloudProvider === 'onedrive' ? 'onedrive' : 'gdrive');
+  const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
   const destPath = `${gdriveDest}/${folderName}`;
   const configPath = getConfig('RCLONE_CONFIG_PATH', '');
   const syncMode = getConfig('RCLONE_SYNC_MODE', 'incremental');
@@ -371,7 +373,7 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
         const msg = { 
           event: 'step_start', 
           step: 'sync', 
-          message: `[${stepNum}/${totalSteps}] Starting Google Drive Cloud Sync...` 
+          message: `[${stepNum}/${totalSteps}] Starting ${cloudName} Cloud Sync...` 
         };
         updateStateFromMsg(msg);
         broadcast(msg);
@@ -637,7 +639,7 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
               );
               
               if (hasAuthError) {
-                errorMsg = `Rclone authentication failed (exit code ${code}). Empty/expired token found. Please run "rclone config reconnect ${remote}:" in your terminal to re-authenticate and connect to Google Drive.`;
+                errorMsg = `Rclone authentication failed (exit code ${code}). Empty/expired token found. Please run "rclone config reconnect ${remote}:" in your terminal to re-authenticate and connect to ${cloudName}.`;
               }
 
               const msg = { event: 'error', message: errorMsg, step: 'sync' };
@@ -648,7 +650,7 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
               return;
             }
 
-            const infoMsg = { event: 'info', message: 'Sync complete. Creating cloud drive links...', step: 'sync' };
+            const infoMsg = { event: 'info', message: `Sync complete. Creating ${cloudName} links...`, step: 'sync' };
             updateStateFromMsg(infoMsg);
             broadcast(infoMsg);
 

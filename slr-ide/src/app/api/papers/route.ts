@@ -47,6 +47,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status')?.trim() || '';
     const pdfStatus = searchParams.get('pdfStatus')?.trim() || '';
     const calibrationPool = searchParams.get('calibrationPool')?.trim() || '';
+    const calibrationTag = searchParams.get('calibrationTag')?.trim() || '';
     
     // Sort parameters
     const sortBy = searchParams.get('sortBy')?.trim() || 'Paper_ID';
@@ -87,18 +88,27 @@ export async function GET(request: Request) {
       }
     }
 
+    if (calibrationTag) {
+      if (calibrationTag === 'none') {
+        filterQuery += ' AND (calibration_tag IS NULL OR calibration_tag = \'\')';
+      } else {
+        filterQuery += ' AND calibration_tag = ?';
+        params.push(calibrationTag);
+      }
+    }
+
     // 1. Get total matching count
     const countRow = db.prepare(`SELECT COUNT(*) as count ${filterQuery}`).get(...params) as { count: number } | undefined;
     const total = countRow ? countRow.count : 0;
 
     // 2. Sorting whitelist validation to prevent SQL Injection
-    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale'];
+    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'calibration_tag', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale'];
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     // 3. Paginated and sorted query execution
     const offset = (page - 1) * limit;
-    const dataQuery = `SELECT * ${filterQuery} ORDER BY ${safeSortBy} ${safeSortOrder} LIMIT ? OFFSET ?`;
+    const dataQuery = `SELECT *, (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title ${filterQuery} ORDER BY ${safeSortBy} ${safeSortOrder} LIMIT ? OFFSET ?`;
     const dataParams = [...params, limit, offset];
 
     const papers = db.prepare(dataQuery).all(...dataParams);
@@ -135,8 +145,8 @@ export async function POST(request: Request) {
 
     const insertStmt = db.prepare(`
       INSERT INTO papers (
-        Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year, PDF_Link, Status, Local_PDF_Status, Project_ID
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year, PDF_Link, Status, Local_PDF_Status, Project_ID, Parent_Paper_ID
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     // Fetch existing paper IDs to generate new ones if Paper_ID is missing or conflicted
@@ -216,6 +226,7 @@ export async function POST(request: Request) {
         
         // Initial Local PDF status
         const localPdfStatus = 'IGNORED';
+        const parentPaperId = paper.Parent_Paper_ID || null;
 
         insertStmt.run(
           paperId,
@@ -230,7 +241,8 @@ export async function POST(request: Request) {
           pdfLink,
           status,
           localPdfStatus,
-          activeProjectId
+          activeProjectId,
+          parentPaperId
         );
         importedCount++;
       }

@@ -10,15 +10,19 @@ Welcome, coding agent! This document contains the master developer instructions,
 
 ## 1. Active Modules & Workspace Structure
 
-The repository is structured around two active modules. All other folders (like `pdfhelper` and `llm-proxy`) are deprecated legacy code and must not be modified or used:
+The repository is structured around three active modules. All other legacy folders (like `pdfhelper` and `llm-proxy`) are deprecated and will be removed after final implementation of the new architecture:
 
-1.  **`app-script/`**: The Google Apps Script codebase running within the Google Sheets environment. It manages the master spreadsheet sheets: `00_Raw_Harvest`, `05_Synthesis`, and the calibration pools (`CAL_Pool_A`, `CAL_Pool_B`, `CAL_Pool_C`).
-2.  **`slr-ide/`**: The local Next.js + SQLite desktop application. It acts as the local workspace hub to import references, run smart local/online PDF matching, sync with Google Drive, and manage review cohorts.
+1.  **`slr-ide/`**: The local Next.js + SQLite desktop application. It serves as the **one-stop solution** for the entire systematic literature review (SLR) workflow (managing ingestion, PDF acquisition, sync, pooling, and calibration metrics).
+2.  **`inter-rater/`**: The local offline React SPA. It **facilitates blinded inter-rater reviews** by letting independent reviewers evaluate assigned paper pools without visibility into other raters' choices or AI decisions.
+3.  **`app-script/`**: The Google Apps Script codebase running within the Google Sheets environment. It **only acts as a FAIR-compliant database** to ingest exported datasets from any step in `slr-ide`. This minimizes the required Google API app permissions and security/trust considerations.
+
+### Local-First & File-Based Architecture
+The workflow runs entirely locally on a reviewer's computer. It utilizes file-based synchronization (`.slr` with JSON schema for reviews, and `.csv` for spreadsheet FAIR database updates). This approach drops previous complex infrastructure requirements such as custom VPN tunnels and HAProxy load balancers.
 
 ### Workspace Router Guidelines
-When the user's instruction targets a specific module (e.g., "new feats in slr-ide" or "update app-script"), you must:
+When the user's instruction targets specific modules (e.g., "new feats in slr-ide" or "update inter-rater"), you must:
 *   Only make modifications within the targeted directory.
-*   You are permitted to read and crosscheck files in the other active module for integration compatibility, but you **MUST NOT** write code or make changes in the other module unless explicitly authorized.
+*   You are permitted to read and crosscheck files in the other active modules for integration compatibility, but you **MUST NOT** write code or make changes in the other modules unless explicitly authorized.
 
 ---
 
@@ -27,7 +31,7 @@ When the user's instruction targets a specific module (e.g., "new feats in slr-i
 To maintain the system state and trace all changes cleanly, we adopt a hierarchical documentation standard:
 
 ### 2.1 Module-Scoped Blueprints (`architecture.md`)
-*   Every active module (`app-script/`, `slr-ide/`) **MUST** have its own `architecture.md` file (e.g., [app-script/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/app-script/architecture.md), [slr-ide/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/architecture.md)) acting as a comprehensive blueprint of that module.
+*   Every active module (`app-script/`, `slr-ide/`, `inter-rater/`) **MUST** have its own `architecture.md` file (e.g., [app-script/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/app-script/architecture.md), [slr-ide/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/architecture.md), [inter-rater/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/architecture.md)) acting as a comprehensive blueprint of that module.
 *   These module-scoped blueprints are compiled to construct the system-level `architecture.md` in the root directory.
 
 ### 2.2 Module-Scoped Logs (`improvements-log.md`)

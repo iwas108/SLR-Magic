@@ -1,6 +1,22 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const paper = db.prepare('SELECT *, (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title FROM papers WHERE Paper_ID = ?').get(id);
+    if (!paper) {
+      return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
+    }
+    return NextResponse.json(paper);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to fetch paper' }, { status: 500 });
+  }
+}
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -8,7 +24,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { Title, Authors, Year, DOI, Abstract, PDF_Link, Status, Local_PDF_Status, calibration_pool, Human_Decision, Human_EC_Trigger, Human_Rationale } = body;
+    const { Title, Authors, Year, DOI, Abstract, PDF_Link, Status, Local_PDF_Status, calibration_pool, calibration_tag, Human_Decision, Human_EC_Trigger, Human_Rationale, Parent_Paper_ID } = body;
 
     if (!Title || !Title.trim()) {
       return NextResponse.json({ error: 'Title is mandatory' }, { status: 400 });
@@ -32,9 +48,11 @@ export async function PUT(
     }
 
     const calibrationPoolVal = calibration_pool !== undefined ? calibration_pool : currentPaper.calibration_pool;
+    const calibrationTagVal = calibration_tag !== undefined ? calibration_tag : currentPaper.calibration_tag;
     const humanDecisionVal = Human_Decision !== undefined ? Human_Decision : currentPaper.Human_Decision;
     const humanEcVal = Human_EC_Trigger !== undefined ? Human_EC_Trigger : currentPaper.Human_EC_Trigger;
     const humanRatVal = Human_Rationale !== undefined ? Human_Rationale : currentPaper.Human_Rationale;
+    const parentPaperIdVal = Parent_Paper_ID !== undefined ? Parent_Paper_ID : currentPaper.Parent_Paper_ID;
 
     db.prepare(`
       UPDATE papers
@@ -47,9 +65,11 @@ export async function PUT(
           Status = ?,
           Local_PDF_Status = ?,
           calibration_pool = ?,
+          calibration_tag = ?,
           Human_Decision = ?,
           Human_EC_Trigger = ?,
-          Human_Rationale = ?
+          Human_Rationale = ?,
+          Parent_Paper_ID = ?
       WHERE Paper_ID = ?
     `).run(
       Title.trim(),
@@ -61,9 +81,11 @@ export async function PUT(
       Status || 'PENDING',
       Local_PDF_Status || 'MISSING',
       calibrationPoolVal,
+      calibrationTagVal,
       humanDecisionVal,
       humanEcVal,
       humanRatVal,
+      parentPaperIdVal,
       id
     );
 

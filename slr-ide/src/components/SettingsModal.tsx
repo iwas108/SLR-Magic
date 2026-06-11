@@ -114,7 +114,7 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
             }`}
           >
             <Cloud className="w-4 h-4" />
-            Rclone GDrive Sync
+            Rclone Engine Settings
           </button>
           <button
             onClick={() => setActiveTab('scraper')}
@@ -137,51 +137,18 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
           ) : activeTab === 'rclone' ? (
             <div className="space-y-6 text-xs">
               
-              {/* Setup Guide */}
-              <div className="space-y-3 bg-secondary/20 border border-border/80 rounded-lg p-4">
-                <h3 className="font-bold text-foreground text-xs">Rclone Setup Wizard</h3>
-                <ol className="list-decimal pl-4 space-y-2 text-muted-foreground leading-relaxed">
-                  <li>
-                    Download and install Rclone from <a href="https://rclone.org/downloads/" target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold">rclone.org</a>.
-                  </li>
-                  <li>
-                    Open a terminal/PowerShell and run <code className="bg-secondary text-foreground px-1 py-0.5 rounded font-mono border border-border">rclone config</code>.
-                  </li>
-                  <li>
-                    Create a new remote named <strong className="text-foreground">gdrive</strong>, select <strong className="text-foreground">Google Drive</strong> (type <code className="font-mono">drive</code>), and authorize your account.
-                  </li>
-                  <li>
-                    (Optional) Find your config file path (usually in AppData on Windows) and select it below to link it.
-                  </li>
-                </ol>
-              </div>
-
               {/* Rclone Forms */}
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-muted-foreground">Rclone Executable Path</label>
-                    <input
-                      type="text"
-                      className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary font-mono text-[11px]"
-                      value={configs.RCLONE_EXECUTABLE_PATH || ''}
-                      onChange={(e) => handleChange('RCLONE_EXECUTABLE_PATH', e.target.value)}
-                      placeholder="rclone"
-                    />
-                    <p className="text-[10px] text-muted-foreground">Leave as &apos;rclone&apos; if it is in your system PATH.</p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-muted-foreground">Remote Name</label>
-                    <input
-                      type="text"
-                      className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary font-mono text-[11px]"
-                      value={configs.RCLONE_REMOTE_NAME || ''}
-                      onChange={(e) => handleChange('RCLONE_REMOTE_NAME', e.target.value)}
-                      placeholder="gdrive"
-                    />
-                    <p className="text-[10px] text-muted-foreground">The remote identifier defined in rclone config.</p>
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground">Rclone Executable Path</label>
+                  <input
+                    type="text"
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary font-mono text-[11px]"
+                    value={configs.RCLONE_EXECUTABLE_PATH || ''}
+                    onChange={(e) => handleChange('RCLONE_EXECUTABLE_PATH', e.target.value)}
+                    placeholder="rclone"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Leave as &apos;rclone&apos; if it is in your system PATH.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -241,7 +208,7 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="font-bold text-foreground">Verify Connectivity</h4>
-                    <p className="text-[10px] text-muted-foreground">Test if Rclone can identify your drive and successfully fetch remotes.</p>
+                    <p className="text-[10px] text-muted-foreground">Test if Rclone can successfully connect to the active project's cloud remote.</p>
                   </div>
                   <button
                     onClick={handleTestConnection}

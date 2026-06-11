@@ -1,11 +1,23 @@
 import { exec } from 'child_process';
 import { NextResponse } from 'next/server';
-import { getConfig } from '@/lib/db';
+import db, { getConfig } from '@/lib/db';
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    const body = await req.json().catch(() => ({}));
     const rclonePath = getConfig('RCLONE_EXECUTABLE_PATH', 'rclone');
-    const remote = getConfig('RCLONE_REMOTE_NAME', 'gdrive');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    
+    // Check if parameters are passed in body, otherwise query active project
+    let cloudProvider = body.cloud_provider;
+    let remote = body.rclone_remote_name;
+
+    if (!cloudProvider || !remote) {
+      const project = db.prepare('SELECT cloud_provider, rclone_remote_name FROM projects WHERE id = ?').get(activeProjectId) as { cloud_provider?: string; rclone_remote_name?: string } | undefined;
+      cloudProvider = cloudProvider || project?.cloud_provider || 'gdrive';
+      remote = remote || project?.rclone_remote_name || (cloudProvider === 'onedrive' ? 'onedrive' : 'gdrive');
+    }
+    
     const configPath = getConfig('RCLONE_CONFIG_PATH', '');
 
     let cmd = `"${rclonePath}" listremotes`;
