@@ -12,6 +12,7 @@ import {
   TrendingUp, BarChart3, Cloud, Database, ShieldAlert, Terminal, ArrowRightLeft,
   Lock, Unlock, Loader2, Settings
 } from 'lucide-react';
+import { broadcastSync } from '@/lib/sync-utils';
 
 // Types
 interface Paper {
@@ -217,6 +218,7 @@ export default function DashboardPage() {
         setActiveProjectId(id);
         await loadProjects();
         loadPapers();
+        broadcastSync('SYNC_PROJECTS');
       } else {
         const data = await res.json();
         showToast(data.error || 'Failed to switch active project', 'error');
@@ -285,6 +287,7 @@ export default function DashboardPage() {
         if (data.project && data.project.id) {
           await activateProject(data.project.id);
         }
+        broadcastSync('SYNC_PROJECTS');
       } else {
         const data = await res.json();
         showToast(data.error || 'Failed to create project', 'error');
@@ -515,6 +518,7 @@ export default function DashboardPage() {
         showToast('Project configuration updated successfully', 'success');
         setShowEditProjectModal(false);
         await loadProjects();
+        broadcastSync('SYNC_PROJECTS');
       } else {
         const data = await res.json();
         showToast(data.error || 'Failed to update configuration', 'error');
@@ -570,6 +574,7 @@ export default function DashboardPage() {
           setSelectedParentPaper(null);
           setParentPaperSuggestions([]);
           loadPapers();
+          broadcastSync('SYNC_PAPERS');
         } else {
           showToast('Paper was skipped (likely a duplicate by Title/DOI)', 'warning');
         }
@@ -927,6 +932,8 @@ export default function DashboardPage() {
         loadPapers();
         loadCalPapers();
         loadProjects();
+        broadcastSync('SYNC_PAPERS');
+        broadcastSync('SYNC_PROJECTS');
       } else {
         const data = await res.json().catch(() => ({}));
         showToast(data.error || 'Failed to update paper details', 'error');
@@ -953,6 +960,7 @@ export default function DashboardPage() {
           setPaperModal({ isOpen: false, mode: 'view', paper: null });
         }
         loadPapers();
+        broadcastSync('SYNC_PAPERS');
       } else {
         const data = await res.json().catch(() => ({}));
         showToast(data.error || 'Failed to delete paper', 'error');
@@ -978,6 +986,8 @@ export default function DashboardPage() {
         setDeleteAllConfirmationText('');
         loadPapers();
         loadProjects(); // Reload projects stats
+        broadcastSync('SYNC_PAPERS');
+        broadcastSync('SYNC_PROJECTS');
       } else {
         const data = await res.json().catch(() => ({}));
         showToast(data.error || 'Failed to delete all papers', 'error');
@@ -1004,6 +1014,8 @@ export default function DashboardPage() {
         setDeleteProjectConfirmationText('');
         await loadProjects();
         loadPapers();
+        broadcastSync('SYNC_PROJECTS');
+        broadcastSync('SYNC_PAPERS');
       } else {
         const data = await res.json().catch(() => ({}));
         showToast(data.error || 'Failed to delete project', 'error');
@@ -1346,21 +1358,10 @@ export default function DashboardPage() {
 
   // Check active batch pipeline on mount
   useEffect(() => {
-    const checkBatchStatus = async () => {
-      try {
-        const res = await fetch('/api/pdf/batch');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.isExecuting) {
-            subscribeToBatchStream();
-          }
-        }
-      } catch (e) {
-        console.error('Error checking batch status:', e);
-      }
-    };
     checkBatchStatus();
   }, []);
+
+
 
   // CSV Parsing
   const handleCsvSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1508,6 +1509,7 @@ export default function DashboardPage() {
         setCsvData([]);
         setPreviewPapers([]);
         loadPapers();
+        broadcastSync('SYNC_PAPERS');
       } else {
         const errData = await res.json().catch(() => ({}));
         showToast(`Failed to import papers: ${errData.error || res.statusText || 'Unknown error'}`, 'error');
@@ -1588,6 +1590,8 @@ export default function DashboardPage() {
       isExecuting: false
     }));
     loadPapers();
+    broadcastSync('SYNC_PIPELINE');
+    broadcastSync('SYNC_PAPERS');
   };
 
   const subscribeToBatchStream = async () => {
@@ -1604,6 +1608,45 @@ export default function DashboardPage() {
       }
     }
   };
+
+  const checkBatchStatus = async () => {
+    try {
+      const res = await fetch('/api/pdf/batch');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.isExecuting) {
+          subscribeToBatchStream();
+        }
+      }
+    } catch (e) {
+      console.error('Error checking batch status:', e);
+    }
+  };
+
+  // Setup Broadcast Channel for multi-tab sync using Mutable Ref pattern to prevent stale closures
+  const latestLoaders = useRef({ loadPapers, loadProjects, checkBatchStatus });
+  useEffect(() => {
+    latestLoaders.current = { loadPapers, loadProjects, checkBatchStatus };
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.BroadcastChannel) return;
+    const channel = new BroadcastChannel('slr-magic-sync');
+    channel.onmessage = (event) => {
+      const { type } = event.data;
+      if (type === 'SYNC_PAPERS') {
+        latestLoaders.current.loadPapers();
+      } else if (type === 'SYNC_PROJECTS') {
+        latestLoaders.current.loadProjects();
+        latestLoaders.current.loadPapers();
+      } else if (type === 'SYNC_PIPELINE') {
+        latestLoaders.current.checkBatchStatus();
+      }
+    };
+    return () => {
+      channel.close();
+    };
+  }, []);
 
   // PDF Operations: Scan Cache, Scrape, Sync
   // Customizable sequential batch PDF pipeline execution
@@ -1650,6 +1693,8 @@ export default function DashboardPage() {
         body: JSON.stringify({ steps: activeSteps, compress: compressOnSync }),
         signal: controller.signal
       });
+
+      broadcastSync('SYNC_PIPELINE');
 
       if (!res.body) throw new Error('No body stream returned');
       await readBatchStream(res, controller);
@@ -1946,6 +1991,7 @@ export default function DashboardPage() {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+    broadcastSync('SYNC_PIPELINE');
   };
 
   const handleResumeOperation = async () => {

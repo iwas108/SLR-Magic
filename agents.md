@@ -52,6 +52,10 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 *   **Zero Leakage Policy**: You must never expose or commit SQLite databases (`slr.db`, `*.db`, `*.sqlite`), temporary PDF folders (`cached_pdf/`, `downloaded_pdf/`, `pdf_repo/`), environmental configurations (`.env*`), or credentials (`.rclone.conf`).
 *   Always check the local and root `.gitignore` files to ensure exclusions are correctly configured and followed.
 
+### 3.3 Multi-Tab Synchronization Protocol
+*   **Agnostic Broadcast Pattern**: When implementing or editing features that mutate key workspace states (e.g. project activations, paper edits, pipeline execution state, and inter-rater decisions), you **MUST** trigger synchronization broadcasts using the `broadcastSync` utility from `@/lib/sync-utils`.
+*   **Stale-Closure Prevention (Mutable Ref Pattern)**: When subscribing to `BroadcastChannel` messages in React functional components, do not reference state-dependent getters/setters directly in the message listener. You **MUST** use a mutable `useRef` to store the latest versions of callback functions (e.g. `loadPapers`, `loadProjects`, `checkBatchStatus`) to avoid capturing stale closures.
+
 ---
 
 ## 4. SLR IDE Core Blueprint Reference

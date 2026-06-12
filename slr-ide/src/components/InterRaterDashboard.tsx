@@ -4,6 +4,7 @@ import {
   ArrowRightLeft, BarChart3, Clock, HelpCircle, ChevronRight, CheckCircle2,
   BookOpen, GitCommit, FileCheck, Info, RotateCcw
 } from 'lucide-react';
+import { broadcastSync } from '@/lib/sync-utils';
 
 interface ReviewerDecision {
   reviewer_name: string;
@@ -129,6 +130,25 @@ export default function InterRaterDashboard({
     fetchStatsAndLedger();
   }, [activeProjectId]);
 
+  const latestAdjudicationLoaders = React.useRef({ fetchStatsAndLedger });
+  useEffect(() => {
+    latestAdjudicationLoaders.current = { fetchStatsAndLedger };
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.BroadcastChannel) return;
+    const channel = new BroadcastChannel('slr-magic-sync');
+    channel.onmessage = (event) => {
+      const { type } = event.data;
+      if (type === 'SYNC_ADJUDICATION' || type === 'SYNC_PAPERS') {
+        latestAdjudicationLoaders.current.fetchStatsAndLedger();
+      }
+    };
+    return () => {
+      channel.close();
+    };
+  }, []);
+
   const handleExportBlinded = () => {
     window.open('/api/export/inter-rater?pool=pool_a', '_blank');
     showToast('Exporting Pool A blinded review template (.slr)...', 'info');
@@ -153,6 +173,8 @@ export default function InterRaterDashboard({
         showToast(data.message || `Successfully imported results for ${data.reviewer_name}!`, 'success');
         await fetchStatsAndLedger();
         loadCalPapers();
+        broadcastSync('SYNC_ADJUDICATION');
+        broadcastSync('SYNC_PAPERS');
       } else {
         if (res.status === 409) {
           setImportError(data.error || 'All available calibration slots (maximum 2 reviewers per pool) are fully occupied.');
@@ -184,6 +206,8 @@ export default function InterRaterDashboard({
         showToast(data.message || 'Successfully reset all calibration reviewer decisions.', 'success');
         await fetchStatsAndLedger();
         loadCalPapers();
+        broadcastSync('SYNC_ADJUDICATION');
+        broadcastSync('SYNC_PAPERS');
       } else {
         showToast(data.error || 'Failed to reset calibration decisions', 'error');
       }
@@ -242,6 +266,8 @@ export default function InterRaterDashboard({
         closeAdjudicationWorkspace();
         await fetchStatsAndLedger();
         loadCalPapers();
+        broadcastSync('SYNC_ADJUDICATION');
+        broadcastSync('SYNC_PAPERS');
       } else {
         showToast(data.error || 'Failed to commit adjudication', 'error');
       }
