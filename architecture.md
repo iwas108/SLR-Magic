@@ -41,7 +41,7 @@ graph TD
 *For details, refer to the module blueprint: [slr-ide/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/architecture.md)*
 
 *   **Role**: The one-stop control hub for the systematic review lifecycle.
-*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4, containing Projects tables, Settings modal tabs (Metadata, Pool configurations, Sync), Paper database grids, Ingestion panel templates, and Pre-Calibration Agreement trackers.
+*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4. Operates through a clean modular architecture separating functional Views (`DashboardView`, `PaperDatabaseView`, etc.) and Custom Hooks (`useProjects`, `usePapers`, etc.) from the main `page.tsx` entry point.
 *   **Persistence**: SQLite database (`db/slr.db`) for multi-project segmentation and paper metadata.
 *   **Acquisition Engine**: Deterministic ID generators spawning Python CGI subprocesses (`cache_matcher.py` with OCR fallbacks, stateful DFS `pdf_scraper.py` crawling web interfaces).
 *   **Cloud Gateway**: Subprocess execution of `rclone` to compress and upload local PDFs to project-scoped Drive/OneDrive folders and retrieve shareable file links.

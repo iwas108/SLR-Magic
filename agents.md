@@ -44,7 +44,9 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 ## 3. Strict Coding & Security Standards
 
 ### 3.1 Clean Code Architecture & FAIR Principles
-*   Write modular, reusable components and functions.
+*   **Modular Component Architecture**: You MUST break down large interfaces into single-responsibility React functional components (e.g., place specific view modules in `src/components/features/`). DO NOT build or maintain massive single-file monoliths (like a 5000+ line `page.tsx`).
+*   **Custom Hooks for State Management**: Separate complex business logic, side-effects, and React state (`useState`, `useEffect`) into custom hooks (`src/hooks/`) to keep View components clean and declarative.
+*   **Explicit Prop Passing**: Avoid the "props-drilling nightmare" pattern of collecting the entire application state into a single massive `allProps` object and passing it down to all children blindly. Explicitly pass only the props required by the child components.
 *   Maintain clean interfaces between Next.js APIs, the local SQLite database, and the Python CGI-like scrapers.
 *   Follow FAIR data principles (Findable, Accessible, Interoperable, and Reusable) for all paper datasets.
 

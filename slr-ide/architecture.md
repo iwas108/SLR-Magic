@@ -15,9 +15,11 @@ This document serves as the comprehensive blueprint for the local **SLR IDE** de
   - `pdf_scraper.py`: Headed/headless Selenium scrapper.
 - **`src/`**: Next.js App Router codebase.
   - `lib/db.ts`: SQLite client database connection using `better-sqlite3`.
+  - `hooks/`: Custom React hooks for business logic and state (`useProjects.ts`, `usePapers.ts`, etc.).
   - `components/`: Reusable client UI components (`Sidebar.tsx`, `SettingsModal.tsx`).
+  - `components/features/`: Modular single-responsibility views (`DashboardView.tsx`, `PaperDatabaseView.tsx`, etc.).
   - `app/api/`: REST APIs and streaming subprocess gateways.
-  - `app/page.tsx`: Single-Page-App dashboard (Reference Ingestion, Crawler Controls, Table Grid).
+  - `app/page.tsx`: SPA entry point managing layout and view rendering.
 
 ---
 
