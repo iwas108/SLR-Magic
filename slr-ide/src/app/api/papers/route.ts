@@ -271,9 +271,19 @@ export async function DELETE(request: Request) {
     }
 
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    
+    // PDF Rescue
+    const { rescuePdfAssets } = require('@/lib/pdf-utils');
+    const papers = db.prepare('SELECT Paper_ID FROM papers WHERE Project_ID = ?').all(activeProjectId) as { Paper_ID: string }[];
+    const paperIds = papers.map(p => p.Paper_ID);
+    const rescuedCount = rescuePdfAssets(paperIds);
+
     db.prepare('DELETE FROM papers WHERE Project_ID = ?').run(activeProjectId);
 
-    return NextResponse.json({ success: true, message: 'All papers deleted successfully' });
+    return NextResponse.json({ 
+      success: true, 
+      message: `All papers deleted successfully. Rescued ${rescuedCount} PDF assets.` 
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to delete all papers' }, { status: 500 });
   }

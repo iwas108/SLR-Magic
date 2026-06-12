@@ -238,3 +238,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message || 'Failed to import blinded review' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const pool = searchParams.get('pool') || 'pool_a';
+
+    if (pool !== 'pool_a' && pool !== 'CAL_Pool_A') {
+      return NextResponse.json({ error: 'Inter-rater reset is only implemented for Pool A' }, { status: 400 });
+    }
+
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+
+    db.transaction(() => {
+      // 1. Delete decisions
+      db.prepare(`
+        DELETE FROM reviewer_decisions 
+        WHERE project_id = ? AND pool = 'pool_a'
+      `).run(activeProjectId);
+
+      // 2. Delete audit ledger entries
+      db.prepare(`
+        DELETE FROM calibration_commit_ledger 
+        WHERE project_id = ? AND pool = 'pool_a'
+      `).run(activeProjectId);
+
+      // 3. Reset papers master decisions for calibration pool
+      db.prepare(`
+        UPDATE papers 
+        SET Human_Decision = NULL, 
+            Human_EC_Trigger = NULL, 
+            Human_Rationale = NULL 
+        WHERE Project_ID = ? AND calibration_pool = 'pool_a'
+      `).run(activeProjectId);
+    })();
+
+    return NextResponse.json({ success: true, message: 'Successfully reset all calibration data for Pool A' });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to reset calibration decisions' }, { status: 500 });
+  }
+}
+
