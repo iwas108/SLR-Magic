@@ -47,11 +47,16 @@ graph TD
 
 ### 2.1 Persistent Storage (SQLite)
 *   The SQLite instance is loaded in a single-instance client module using `better-sqlite3` (`src/lib/db.ts`).
-*   Three main tables are maintained:
+*   Key database tables are maintained:
     - `papers`: holds systematic literature review paper metadata, screening decisions, local status, parent paper reference `Parent_Paper_ID` (for snowballing chaining), and `calibration_tag` (indicating custom classification tag). Imported papers default to `IGNORED` local PDF status and are assigned a deterministic, unique `Paper_ID` (using `AuthorLastName_Year_TitleStart_Hash`). Additionally, fields for calibration partition are tracked: `calibration_pool` (`pool_a`, `pool_b`, `pool_c`), and human reviewer inputs (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`).
-    - `projects`: handles multi-project scope separation (manifesto, objective, questions, quality definition, exclusion criteria, calibration pool distributions, custom destination path, project-level cloud provider, project-level Rclone remote name, and custom pool tagging configurations `pool_tags` stored as JSON).
+    - `projects`: handles multi-project scope separation (manifesto, objective, questions, quality definition, exclusion criteria, calibration pool distributions, custom destination path, project-level cloud provider, project-level Rclone remote name, custom pool tagging configurations `pool_tags` stored as JSON, and `llm_config` containing model parameter mappings: provider, model_id, temperature, max_tokens, top_p, top_k).
     - `configs`: stores global system configuration settings (rclone remote, executable binary paths, proxies).
-*   Papers are scoped to specific projects via the `Project_ID` foreign key column.
+    - `prompt_templates`: stores global and project-specific prompt definitions with columns `id`, `project_id` (NULL for global templates), `name`, `description`, `system_instruction`, `user_template`, and `is_active` status.
+    - `llm_pricing`: stores global model token pricing definitions (`input_token_price`, `output_token_price`, `thinking_token_price`, `batch_discount`) for cost estimation and budget tracking.
+    - `reviewer_decisions`: stores individual reviewer decisions for double-blind calibration reviews.
+    - `calibration_commit_ledger`: tracks immutable audit trails for manual resolution history.
+    - `llm_jobs` & `llm_batch_jobs`: manage state and telemetry tracking for long-running screening and batch jobs.
+*   Papers and prompt templates are scoped to specific projects via the `Project_ID` foreign key column.
 
 ### 2.2 Decoupled Python Scraper (CGI Pattern)
 *   To bypass complex Node.js multi-threading limitations during heavy browser automation, Selenium browser scraping and cache matching are delegated to a standalone Python environment (`venv/`).
@@ -86,7 +91,10 @@ graph TD
 *   **Unified Command Center**: The `PipelineExecutionView` merges both the Data Acquisition Pipeline (Scrapers/Sync) and the Semantic LLM Screening pipeline into a single responsive grid dashboard.
 *   **LLM Process Management**: Background semantic screening processes run via Python worker scripts. They are tracked and managed through `/api/llm/jobs/active`, allowing Next.js to provide seamless process recovery upon page reloads.
 *   **Real-time Operations Center**: The `LLMOperationsCenter` connects to the Next.js API via Server-Sent Events (SSE). It utilizes robust `AbortController` lifecycles and mutable `useRef` closures to correctly handle React strict-mode re-mounts, hot module reloads, and prevent memory leaks.
-*   **Live Metrics & Budgets**: Features a live auto-scrolling terminal output and tracks dynamic token usage and budget limits through `/api/llm/pricing` configurations. User-defined LLM guardrails (`llm_config`) are securely persisted into the SQLite `projects` table.
+*   **Live Metrics & Budgets**: Features a live auto-scrolling terminal output and tracks dynamic token usage and budget limits through `/api/llm/pricing` configurations.
+*   **Prompt Library Control**: Connects to `/api/llm/prompts` to perform full CRUD operations on `prompt_templates`. System instructions and user templates can be scoped globally or to a specific project.
+*   **Dynamic LLM Parameterization**: Projects configure provider, model_id, and advanced tuning variables (`temperature`, `max_tokens`, `top_p`, `top_k`) saved inside `llm_config` and forwarded to model execution APIs.
+*   **Decoupled API Key Storage**: Global API keys (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) are stored in `.env.local` via `/api/config/env` rather than the SQLite database, ensuring strict credential hygiene.
 
 ### 2.6 Frontend App Core & UI Layouts
 *   **SPA Dashboard**: Driven by Next.js App Router, React hooks, and Tailwind CSS v4.

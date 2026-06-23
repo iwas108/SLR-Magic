@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Cloud, Sliders, CheckCircle, AlertTriangle, Play, RefreshCw, Loader } from 'lucide-react';
+import { X, Cloud, Sliders, CheckCircle, AlertTriangle, Play, RefreshCw, Loader, Cpu, FileText } from 'lucide-react';
+import GlobalLLMSettingsView from './features/GlobalLLMSettingsView';
+import PromptLibraryView from './features/PromptLibraryView';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -11,7 +13,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ isOpen, onClose, showToast }: SettingsModalProps) {
   const [showPathsHelp, setShowPathsHelp] = useState(false);
-  const [activeTab, setActiveTab] = useState<'rclone' | 'scraper'>('rclone');
+  const [activeTab, setActiveTab] = useState<'rclone' | 'scraper' | 'llm' | 'prompts'>('rclone');
   const [configs, setConfigs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -124,6 +126,24 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
           >
             <Sliders className="w-4 h-4" />
             Scraper Settings
+          </button>
+          <button
+            onClick={() => setActiveTab('llm')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
+              activeTab === 'llm' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Cpu className="w-4 h-4" />
+            LLM Engine
+          </button>
+          <button
+            onClick={() => setActiveTab('prompts')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
+              activeTab === 'prompts' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            Global Prompts
           </button>
         </div>
 
@@ -252,7 +272,7 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
               </div>
 
             </div>
-          ) : (
+          ) : activeTab === 'scraper' ? (
             <div className="space-y-4 text-xs">
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-muted-foreground">EzProxy Base Login URL</label>
@@ -426,7 +446,15 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
                 </div>
               </div>
             </div>
-          )}
+          ) : activeTab === 'llm' ? (
+            <div className="h-full">
+              <GlobalLLMSettingsView showToast={showToast} />
+            </div>
+          ) : activeTab === 'prompts' ? (
+            <div className="h-full">
+              <PromptLibraryView projectId={null} showToast={showToast} />
+            </div>
+          ) : null}
         </div>
 
         {/* Footer */}

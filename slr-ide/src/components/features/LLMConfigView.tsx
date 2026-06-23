@@ -23,6 +23,10 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
   const [batchQueueSize, setBatchQueueSize] = useState(existingConfig.batch_queue_size || 100);
   const [temperature, setTemperature] = useState(existingConfig.temperature || 0.0);
   const [budgetLimit, setBudgetLimit] = useState(activeProject?.project_budget_limit || 5.0);
+  const [maxTokens, setMaxTokens] = useState(existingConfig.max_tokens !== undefined ? existingConfig.max_tokens : 2000);
+  const [topP, setTopP] = useState(existingConfig.top_p !== undefined ? existingConfig.top_p : 0.9);
+  const [topK, setTopK] = useState(existingConfig.top_k !== undefined ? existingConfig.top_k : 40);
+  const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
 
   useEffect(() => {
     fetch('/api/llm/pricing')
@@ -36,6 +40,18 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
       .finally(() => setLoadingModels(false));
   }, []);
 
+  useEffect(() => {
+    if (!activeProject?.id) return;
+    fetch(`/api/llm/prompts?project_id=${activeProject.id}&include_global=true`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setAvailableTemplates(data.prompts);
+        }
+      })
+      .catch(err => console.error('Failed to load prompt templates', err));
+  }, [activeProject?.id]);
+
   const handleSave = async () => {
     if (!activeProject) return;
     setSaving(true);
@@ -47,7 +63,10 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
       prompt_template_id: promptTemplate,
       concurrency_limit: Number(concurrency),
       batch_queue_size: Number(batchQueueSize),
-      temperature: Number(temperature)
+      temperature: Number(temperature),
+      max_tokens: Number(maxTokens),
+      top_p: Number(topP),
+      top_k: provider !== 'openai' && topK !== '' ? Number(topK) : undefined
     };
 
     try {
@@ -99,6 +118,7 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
           </div>
         </div>
         <button
+          type="button"
           onClick={handleSave}
           disabled={saving}
           className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg shadow hover:bg-primary/90 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -178,8 +198,17 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
                 onChange={(e) => setPromptTemplate(e.target.value)}
                 className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-primary outline-none transition-shadow"
               >
-                <option value="default-screen">Standard Boolean Screen</option>
-                <option value="cot-screen">Chain of Thought Screen</option>
+                {availableTemplates.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.project_id ? '(Project)' : '(Global)'}
+                  </option>
+                ))}
+                {availableTemplates.length === 0 && (
+                  <>
+                    <option value="default-screen">Standard Boolean Screen</option>
+                    <option value="cot-screen">Chain of Thought Screen</option>
+                  </>
+                )}
               </select>
             </div>
           </div>
@@ -220,6 +249,46 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
                 />
                 <span className="text-xs font-mono w-6">{temperature}</span>
               </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">Max Output Tokens</label>
+              <input 
+                type="number" 
+                min="1" max="16000"
+                value={maxTokens} 
+                onChange={(e) => setMaxTokens(Number(e.target.value))}
+                className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-primary outline-none transition-shadow"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">Top P</label>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="range" 
+                  min="0" max="1" step="0.05"
+                  value={topP} 
+                  onChange={(e) => setTopP(Number(e.target.value))}
+                  className="flex-1 accent-primary"
+                />
+                <span className="text-xs font-mono w-8">{topP}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">Top K</label>
+              <input 
+                type="number" 
+                min="1" max="500"
+                value={topK} 
+                onChange={(e) => setTopK(e.target.value !== '' ? Number(e.target.value) : '')}
+                className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-primary outline-none transition-shadow"
+                disabled={provider === 'openai'}
+                placeholder={provider === 'openai' ? 'N/A' : '40'}
+              />
             </div>
           </div>
         </section>

@@ -10,6 +10,8 @@ import {
 
 import { useProjects } from '@/hooks/useProjects';
 import { useProjectForm } from '@/hooks/useProjectForm';
+import LLMConfigView from './LLMConfigView';
+import PromptLibraryView from './PromptLibraryView';
 
 export default function DashboardView({ 
   showToast, activeProject, activeProjectId, projects, activateProject, loadProjects, showCreateProjectModal, 
@@ -518,6 +520,22 @@ export default function DashboardView({
                       >
                         Cloud Sync Configuration
                       </button>
+                      <button
+                        onClick={() => setProjectSettingsTab('llm')}
+                        className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
+                          projectSettingsTab === 'llm' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        LLM Configuration
+                      </button>
+                      <button
+                        onClick={() => setProjectSettingsTab('prompts')}
+                        className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
+                          projectSettingsTab === 'prompts' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Project Prompts
+                      </button>
                     </div>
 
                     {/* Form Container */}
@@ -928,6 +946,20 @@ export default function DashboardView({
                               </div>
                             </div>
 
+                          </div>
+                        )}
+
+                        {/* Tab Content: LLM Configuration */}
+                        {projectSettingsTab === 'llm' && (
+                          <div className="flex-1 min-h-0 h-full">
+                            <LLMConfigView activeProject={projects.find((p: any) => p.id === editingProjectId)} loadProjects={loadProjects} showToast={showToast} />
+                          </div>
+                        )}
+
+                        {/* Tab Content: Project Prompts */}
+                        {projectSettingsTab === 'prompts' && (
+                          <div className="flex-1 min-h-0 h-full">
+                            <PromptLibraryView projectId={editingProjectId} showToast={showToast} />
                           </div>
                         )}
                       </div>

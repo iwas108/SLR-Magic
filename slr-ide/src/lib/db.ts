@@ -129,6 +129,7 @@ db.exec(`
     description TEXT,
     system_instruction TEXT,
     user_template TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
@@ -279,6 +280,13 @@ try {
   // Column already exists
 }
 
+// Add is_active column to prompt_templates if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE prompt_templates ADD COLUMN is_active INTEGER DEFAULT 1");
+} catch (e) {
+  // Column already exists
+}
+
 // Pre-populate LLM pricing default entries if empty
 try {
   const pricingCount = db.prepare("SELECT COUNT(*) as count FROM llm_pricing").get() as { count: number };
@@ -299,22 +307,43 @@ try {
   console.error("Failed to populate default llm_pricing:", e);
 }
 
-// Pre-populate default prompt template if empty
+// Pre-populate default prompt templates if they don't exist
 try {
-  const templateCount = db.prepare("SELECT COUNT(*) as count FROM prompt_templates").get() as { count: number };
-  if (templateCount.count === 0) {
-    db.prepare(`
-      INSERT INTO prompt_templates (id, project_id, name, description, system_instruction, user_template, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+  const checkStmt = db.prepare("SELECT COUNT(*) as count FROM prompt_templates WHERE id = ?");
+  const insertStmt = db.prepare(`
+    INSERT INTO prompt_templates (id, project_id, name, description, system_instruction, user_template, is_active, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+  `);
+  
+  const now = new Date().toISOString();
+
+  // 1. Seed default-screen
+  const hasDefault = checkStmt.get('default-screen') as { count: number };
+  if (hasDefault.count === 0) {
+    insertStmt.run(
       'default-screen',
       null, // global
       'Default Screening Prompt',
       'Standard screening prompt using project context variables.',
       'You are an expert scientific screener conducting a systematic literature review (SLR).\nYour task is to review the provided research paper title and abstract (and local text context if available) and decide if it should be INCLUDED or EXCLUDED based on the project exclusion criteria.\n\nCRITICAL: Respond strictly in JSON format as defined below:\n{\n  "decision": "INCLUDE" | "EXCLUDE",\n  "exclusion_trigger": "string or null (specify the rule number/text triggered if EXCLUDE)",\n  "rationale": "detailed academic reasoning for the decision"\n}',
       'Research Project Context:\n- Objective: {{ objective }}\n- Research Questions: {{ questions }}\n- Exclusion Criteria:\n{{ exclusion_criteria }}\n\nPaper to Evaluate:\n- Title: {{ title }}\n- Abstract: {{ abstract }}\n- DOI: {{ doi }}\n\nPerform a rigorous screening. Output the JSON decision.',
-      new Date().toISOString(),
-      new Date().toISOString()
+      now,
+      now
+    );
+  }
+
+  // 2. Seed cot-screen (Chain of Thought)
+  const hasCot = checkStmt.get('cot-screen') as { count: number };
+  if (hasCot.count === 0) {
+    insertStmt.run(
+      'cot-screen',
+      null, // global
+      'Chain of Thought Screen',
+      'Advanced screening using chain-of-thought step-by-step reasoning.',
+      'You are an expert scientific screener conducting a systematic literature review (SLR).\nYour task is to review the provided research paper title and abstract (and local text context if available) and decide if it should be INCLUDED or EXCLUDED based on the project exclusion criteria.\n\nFirst, think step-by-step to analyze the paper against each exclusion criterion.\nThen, output your final decision in the JSON format as defined below:\n{\n  "logic_trace": {\n    "criterion_analysis": "your step-by-step analysis"\n  },\n  "final_evaluation": {\n    "decision": "INCLUDE" | "EXCLUDE",\n    "exclusion_code": "string or null (specify the rule number/text triggered if EXCLUDE)",\n    "reasoning": "detailed academic reasoning for the decision"\n  }\n}',
+      'Research Project Context:\n- Objective: {{ objective }}\n- Research Questions: {{ questions }}\n- Exclusion Criteria:\n{{ exclusion_criteria }}\n\nPaper to Evaluate:\n- Title: {{ title }}\n- Abstract: {{ abstract }}\n- DOI: {{ doi }}\n\nPerform a step-by-step evaluation and output the JSON response.',
+      now,
+      now
     );
   }
 } catch (e) {

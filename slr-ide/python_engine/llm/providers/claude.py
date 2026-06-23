@@ -49,24 +49,25 @@ class ClaudeAdapter(BaseLLMAdapter):
             {"role": "assistant", "content": "{"}
         ]
 
+        # Call Anthropic Claude Messages API
+        params = {
+            "model": self.model_id,
+            "max_tokens": self.config_params.get("max_tokens", 2000),
+            "system": system_instruction,
+            "messages": messages,
+            "temperature": self.config_params.get("temperature", 0.0)
+        }
+        if self.config_params.get("top_p") is not None:
+            params["top_p"] = self.config_params["top_p"]
+        if self.config_params.get("top_k") is not None:
+            params["top_k"] = self.config_params["top_k"]
+
         # Use beta endpoint for PDF document block support
         if pdf_data:
-            response = self.client.beta.messages.create(
-                model=self.model_id,
-                betas=["pdfs-2024-09-25"],
-                max_tokens=2000,
-                system=system_instruction,
-                messages=messages,
-                temperature=self.config_params.get("temperature", 0.0)
-            )
+            params["betas"] = ["pdfs-2024-09-25"]
+            response = self.client.beta.messages.create(**params)
         else:
-            response = self.client.messages.create(
-                model=self.model_id,
-                max_tokens=2000,
-                system=system_instruction,
-                messages=messages,
-                temperature=self.config_params.get("temperature", 0.0)
-            )
+            response = self.client.messages.create(**params)
 
         # Parse text output (pre-appending the pre-filled opening bracket)
         response_text = response.content[0].text

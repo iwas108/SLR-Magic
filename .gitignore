@@ -20,12 +20,16 @@ pdf_library/
 
 # Databases & Cache
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 .db.sqlite
 app.db
 slr.db
 /slr-ide/db/*.db
+/slr-ide/db/*.db-shm
+/slr-ide/db/*.db-wal
 /slr-ide/db/*.sqlite
 
 # Environment Files & Configurations

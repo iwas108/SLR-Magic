@@ -43,12 +43,18 @@ class OpenAIAdapter(BaseLLMAdapter):
         ]
 
         # Call OpenAI Chat Completions API
-        response = self.client.chat.completions.create(
-            model=self.model_id,
-            messages=messages,
-            response_format={"type": "json_object"},
-            temperature=self.config_params.get("temperature", 0.0)
-        )
+        completion_params = {
+            "model": self.model_id,
+            "messages": messages,
+            "response_format": {"type": "json_object"},
+            "temperature": self.config_params.get("temperature", 0.0)
+        }
+        if self.config_params.get("max_tokens") is not None:
+            completion_params["max_completion_tokens"] = self.config_params["max_tokens"]
+        if self.config_params.get("top_p") is not None:
+            completion_params["top_p"] = self.config_params["top_p"]
+
+        response = self.client.chat.completions.create(**completion_params)
 
         content = response.choices[0].message.content or "{}"
         

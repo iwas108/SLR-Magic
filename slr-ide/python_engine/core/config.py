@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Dynamically resolve project root strictly bypassing depth bugs
 def get_project_root() -> Path:
@@ -12,6 +13,11 @@ def get_project_root() -> Path:
     return current.parent.parent.parent
 
 PROJECT_DIR = get_project_root()
+
+# Load environment variables
+env_path = PROJECT_DIR / '.env.local'
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
 DB_PATH = PROJECT_DIR / 'db' / 'slr.db'
 CACHE_INDEX_DB_PATH = PROJECT_DIR / 'db' / 'cache_index.db'
 MANIFEST_FILE = PROJECT_DIR / 'db' / 'compression_manifest.json'

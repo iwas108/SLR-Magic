@@ -77,6 +77,16 @@ def main():
     concurrency_limit = int(llm_config.get("concurrency_limit", 5))
     batch_queue_size = int(llm_config.get("batch_queue_size", 100))
     temperature = float(llm_config.get("temperature", 0.0))
+    max_tokens = int(llm_config.get("max_tokens", 2000))
+    top_p = llm_config.get("top_p")
+    if top_p is not None:
+        top_p = float(top_p)
+    top_k = llm_config.get("top_k")
+    if top_k is not None:
+        try:
+            top_k = int(top_k)
+        except (ValueError, TypeError):
+            top_k = None
 
     # 3. Resolve API Keys from process environment block
     provider_lower = provider.lower()
@@ -148,7 +158,7 @@ def main():
         
         try:
             from llm.batch_handler import submit_batch_job
-            cloud_id = submit_batch_job(project_id, job_id, provider, model_id, system_instruction, user_template, papers)
+            cloud_id = submit_batch_job(project_id, job_id, provider, model_id, system_instruction, user_template, papers, llm_config)
             
             # Update parent job status to PROCESSING_BATCH
             execute_write(
@@ -171,6 +181,9 @@ def main():
     # 7. Instantiate provider adapter
     config_params = {
         "temperature": temperature,
+        "max_tokens": max_tokens,
+        "top_p": top_p,
+        "top_k": top_k,
         "batch_mode": (mode == 'batch'),
         "mode": mode
     }

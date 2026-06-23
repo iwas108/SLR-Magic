@@ -39,13 +39,21 @@ class GeminiAdapter(BaseLLMAdapter):
             )
 
             # Request structured JSON output matching the TypedDict schema
+            gen_config = {
+                "response_mime_type": "application/json",
+                "response_schema": ScreenResponse,
+                "temperature": self.config_params.get("temperature", 0.0)
+            }
+            if self.config_params.get("max_tokens") is not None:
+                gen_config["max_output_tokens"] = self.config_params["max_tokens"]
+            if self.config_params.get("top_p") is not None:
+                gen_config["top_p"] = self.config_params["top_p"]
+            if self.config_params.get("top_k") is not None:
+                gen_config["top_k"] = self.config_params["top_k"]
+
             response = model.generate_content(
                 contents,
-                generation_config=genai.GenerationConfig(
-                    response_mime_type="application/json",
-                    response_schema=ScreenResponse,
-                    temperature=self.config_params.get("temperature", 0.0)
-                )
+                generation_config=genai.GenerationConfig(**gen_config)
             )
 
             # Parse structured JSON response

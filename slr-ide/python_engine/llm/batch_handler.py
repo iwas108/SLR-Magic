@@ -11,10 +11,13 @@ from llm.budget import get_model_pricing, update_project_spend
 
 logger = logging.getLogger("BatchHandler")
 
-def submit_openai_batch(api_key, model_id, system_instruction, user_template, project_row, papers, job_id):
+def submit_openai_batch(api_key, model_id, system_instruction, user_template, project_row, papers, job_id, config_params=None):
     """Compiles and submits a batch job to OpenAI API."""
     from openai import OpenAI
     client = OpenAI(api_key=api_key)
+    
+    if config_params is None:
+        config_params = {}
     
     lines = []
     for paper in papers:
@@ -29,23 +32,30 @@ def submit_openai_batch(api_key, model_id, system_instruction, user_template, pr
             if not os.path.isabs(pdf_path):
                 SCRAPER_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 pdf_path = os.path.join(os.path.dirname(SCRAPER_DIR), pdf_path)
-            pdf_text = extract_pdf_text(pdf_path)
-            if pdf_text:
-                user_prompt += f"\n\n--- ATTACHED PDF FILE TEXT CONTENT ---\n\n{pdf_text}"
+            if os.path.exists(pdf_path):
+                pdf_text = extract_pdf_text(pdf_path)
+                if pdf_text:
+                    user_prompt += f"\n\n--- ATTACHED PDF FILE TEXT CONTENT ---\n\n{pdf_text}"
+
+        body_params = {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": user_prompt}
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": config_params.get("temperature", 0.0)
+        }
+        if config_params.get("max_tokens") is not None:
+            body_params["max_completion_tokens"] = config_params["max_tokens"]
+        if config_params.get("top_p") is not None:
+            body_params["top_p"] = config_params["top_p"]
 
         line = {
             "custom_id": paper_id,
             "method": "POST",
             "url": "/v1/chat/completions",
-            "body": {
-                "model": model_id,
-                "messages": [
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_prompt}
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.0
-            }
+            "body": body_params
         }
         lines.append(json.dumps(line))
         
@@ -82,11 +92,14 @@ def submit_openai_batch(api_key, model_id, system_instruction, user_template, pr
         "status": "PROCESSING"
     }
 
-def submit_claude_batch(api_key, model_id, system_instruction, user_template, project_row, papers, job_id):
+def submit_claude_batch(api_key, model_id, system_instruction, user_template, project_row, papers, job_id, config_params=None):
     """Compiles and submits a Message Batch to Anthropic API."""
     import anthropic
     client = anthropic.Anthropic(api_key=api_key)
     
+    if config_params is None:
+        config_params = {}
+        
     requests = []
     for paper in papers:
         paper_id = paper["Paper_ID"]
@@ -125,15 +138,21 @@ def submit_claude_batch(api_key, model_id, system_instruction, user_template, pr
             {"role": "assistant", "content": "{"}
         ]
         
+        params = {
+            "model": model_id,
+            "max_tokens": config_params.get("max_tokens", 2000),
+            "system": system_instruction,
+            "messages": messages,
+            "temperature": config_params.get("temperature", 0.0)
+        }
+        if config_params.get("top_p") is not None:
+            params["top_p"] = config_params["top_p"]
+        if config_params.get("top_k") is not None:
+            params["top_k"] = config_params["top_k"]
+
         request = {
             "custom_id": paper_id,
-            "params": {
-                "model": model_id,
-                "max_tokens": 1000,
-                "system": system_instruction,
-                "messages": messages,
-                "temperature": 0.0
-            }
+            "params": params
         }
         requests.append(request)
         
@@ -189,10 +208,27 @@ def submit_gemini_batch(model_id, project_id, job_id, papers):
         "status": "PROCESSING"
     }
 
-def submit_batch_job(project_id, job_id, provider, model_id, system_instruction, user_template, papers):
+def submit_batch_job(project_id, job_id, provider, model_id, system_instruction, user_template, papers, llm_config=None):
     """Aggregates and submits paper batches based on selected provider."""
     project = execute_read_one("SELECT * FROM projects WHERE id = ?", (project_id,))
     
+    if llm_config is None:
+        llm_config = {}
+        
+    config_params = {
+        "temperature": float(llm_config.get("temperature", 0.0)),
+        "max_tokens": int(llm_config.get("max_tokens", 2000)),
+        "top_p": llm_config.get("top_p"),
+        "top_k": llm_config.get("top_k")
+    }
+    if config_params["top_p"] is not None:
+        config_params["top_p"] = float(config_params["top_p"])
+    if config_params["top_k"] is not None:
+        try:
+            config_params["top_k"] = int(config_params["top_k"])
+        except (ValueError, TypeError):
+            config_params["top_k"] = None
+            
     # Resolve API keys from environments
     provider_lower = provider.lower()
     api_key = None
@@ -203,9 +239,9 @@ def submit_batch_job(project_id, job_id, provider, model_id, system_instruction,
 
     # Launch submissions
     if provider_lower == 'openai':
-        res = submit_openai_batch(api_key, model_id, system_instruction, user_template, project, papers, job_id)
+        res = submit_openai_batch(api_key, model_id, system_instruction, user_template, project, papers, job_id, config_params)
     elif provider_lower in ('claude', 'anthropic'):
-        res = submit_claude_batch(api_key, model_id, system_instruction, user_template, project, papers, job_id)
+        res = submit_claude_batch(api_key, model_id, system_instruction, user_template, project, papers, job_id, config_params)
     elif provider_lower == 'gemini':
         res = submit_gemini_batch(model_id, project_id, job_id, papers)
     else:
