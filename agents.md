@@ -31,13 +31,17 @@ When the user's instruction targets specific modules (e.g., "new feats in slr-id
 To maintain the system state and trace all changes cleanly, we adopt a hierarchical documentation standard:
 
 ### 2.1 Module-Scoped Blueprints (`architecture.md`)
-*   Every active module (`app-script/`, `slr-ide/`, `inter-rater/`) **MUST** have its own `architecture.md` file (e.g., [app-script/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/app-script/architecture.md), [slr-ide/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/architecture.md), [inter-rater/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/architecture.md)) acting as a comprehensive blueprint of that module.
+*   Every active module (`app-script/`, `slr-ide/`, `inter-rater/`) **MUST** have its own `architecture.md` file (e.g., [app-script/architecture.md](app-script/architecture.md), [slr-ide/architecture.md](slr-ide/architecture.md), [inter-rater/architecture.md](inter-rater/architecture.md)) acting as a comprehensive blueprint of that module.
 *   These module-scoped blueprints are compiled to construct the system-level `architecture.md` in the root directory.
 
 ### 2.2 Module-Scoped Logs (`improvements-log.md`)
 *   Every active module **MUST** maintain an `improvements-log.md` tracking all its iterations, features, and fixes.
 *   Every log entry in this file must feature an **iterative sequential ID number** (e.g., `#001`, `#002`, `#003`).
 *   These local log files are used to compile the system-level `improvements.md` in the root directory.
+
+### 2.3 Core Execution & Calibration Blueprint (`methodology.md`)
+*   The system-level `methodology.md` ([methodology.md](methodology.md)) serves as the absolute source of truth for the core execution pipeline, calibration workflows, mathematical targets/thresholds, and target JSON schemas (Prompt Seeds).
+*   Any prompt modifications, scoring mechanisms, or pipeline adjustments MUST strictly adhere to the guidelines and schemas defined in this document.
 
 ---
 
@@ -69,7 +73,8 @@ px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, 
 
 ## 4. SLR IDE Core Blueprint Reference
 
-*   **Database**: SQLite (`db/slr.db`) with schema documentation in [db/schema.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/db/schema.md).
-*   **Smart Cache Matcher**: [scrapers/cache_matcher.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/cache_matcher.py) (matches local PDFs using ID, DOI, Title Similarity, and Page 1 text).
-*   **Web Scraper**: [scrapers/pdf_scraper.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scrapers/pdf_scraper.py) (downloads missing PDFs using undetected-chromedriver).
+*   **Database**: SQLite (`db/slr.db`) with schema documentation in [slr-ide/db/schema.md](slr-ide/db/schema.md).
+*   **Smart Cache Matcher**: [slr-ide/scrapers/cache_matcher.py](slr-ide/scrapers/cache_matcher.py) (matches local PDFs using ID, DOI, Title Similarity, and Page 1 text).
+*   **Web Scraper**: [slr-ide/scrapers/pdf_scraper.py](slr-ide/scrapers/pdf_scraper.py) (downloads missing PDFs using undetected-chromedriver).
 *   **Sync**: Subprocess execution of `rclone` with shareable Google Drive links generation.
+*   **Core Execution & Calibration**: [methodology.md](methodology.md) (defines thresholds, pre-calibration loops, and target JSON payloads).

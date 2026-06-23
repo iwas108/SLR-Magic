@@ -38,7 +38,7 @@ graph TD
 ## 2. Active Module Blueprints
 
 ### I. Local Desktop Workspace (`slr-ide/`)
-*For details, refer to the module blueprint: [slr-ide/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/architecture.md)*
+*For details, refer to the module blueprint: [slr-ide/architecture.md](slr-ide/architecture.md)*
 
 *   **Role**: The one-stop control hub for the systematic review lifecycle.
 *   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4. Operates through a clean modular architecture separating functional Views (`DashboardView`, `PaperDatabaseView`, etc.) and Custom Hooks (`useProjects`, `usePapers`, etc.) from the main `page.tsx` entry point.
@@ -47,7 +47,7 @@ graph TD
 *   **Cloud Gateway**: Subprocess execution of `rclone` to compress and upload local PDFs to project-scoped Drive/OneDrive folders and retrieve shareable file links.
 
 ### II. Inter-Rater Blinded Review SPA (`inter-rater/`)
-*For details, refer to the module blueprint: [inter-rater/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/architecture.md)*
+*For details, refer to the module blueprint: [inter-rater/architecture.md](inter-rater/architecture.md)*
 
 *   **Role**: Facilitates double-blind human rating reviews of calibration pools.
 *   **Principles**: Offline-First & Serverless React Core using Dexie.js (IndexedDB) for browser-level persistence. Reviewer name variables and AI ratings are completely stripped from workflows to guarantee blinding.
@@ -55,7 +55,7 @@ graph TD
 *   **Standardized Schema**: Enforces 7 whitelisted paper keys (including Abstract) and snake_case project metadata naming rules specifically for `CAL_Pool_A` sessions.
 
 ### III. Google Sheets FAIR Database (`app-script/`)
-*For details, refer to the module blueprint: [app-script/architecture.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/app-script/architecture.md)*
+*For details, refer to the module blueprint: [app-script/architecture.md](app-script/architecture.md)*
 
 *   **Role**: Minimizes Google App security permission boundaries by acting strictly as a FAIR-compliant database sink.
 *   **Ingestion**: Receives final reference CSV outputs exported from `slr-ide` to archive the systematically compiled literature dataset.
