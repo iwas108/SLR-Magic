@@ -6,3 +6,7 @@ pypdf>=4.0.0
 pymupdf>=1.23.0
 pytesseract>=0.3.10
 cryptography>=41.0.0
+jinja2>=3.1.2
+google-generativeai>=0.4.0
+openai>=1.12.0
+anthropic>=0.18.0

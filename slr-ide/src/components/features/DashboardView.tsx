@@ -322,7 +322,7 @@ export default function DashboardView({
                             className="w-full px-3 py-1.5 text-xs bg-secondary/35 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-semibold font-mono"
                             placeholder="e.g. slr_magic_validation"
                           />
-                          <p className="text-[8px] text-muted-foreground mt-0.5">Used for specialized pdf_repo folder</p>
+                          <p className="text-[8px] text-muted-foreground mt-0.5">Used for specialized pdf_library/repo folder</p>
                         </div>
                       </div>
 

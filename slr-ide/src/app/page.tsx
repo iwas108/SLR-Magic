@@ -3,6 +3,7 @@ import DashboardView from '../components/features/DashboardView';
 import PreCalibrationView from '../components/features/PreCalibrationView';
 import IngestionHubView from '../components/features/IngestionHubView';
 import PaperDatabaseView from '../components/features/PaperDatabaseView';
+import PipelineExecutionView from '../components/features/PipelineExecutionView';
 
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -2089,72 +2090,21 @@ export default function DashboardPage() {
             <p className="text-[10px] text-muted-foreground font-medium">Stage 1: Reference Ingestion & matching workflows</p>
           </div>
 
-          {activeTab === 'database' && (
-            <div className="flex items-center gap-4 border border-border/80 bg-secondary/15 rounded-xl px-4 py-2 text-xs shrink-0 select-none animate-in fade-in duration-200">
-              <div className="flex items-center gap-4">
-                <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
-                  <input
-                    type="checkbox"
-                    checked={batchSteps.scan}
-                    disabled={operationModal.isExecuting}
-                    onChange={(e) => setBatchSteps(prev => ({ ...prev, scan: e.target.checked }))}
-                    className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                  />
-                  Match Cache
-                </label>
-
-                <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
-                  <input
-                    type="checkbox"
-                    checked={batchSteps.scrape}
-                    disabled={operationModal.isExecuting}
-                    onChange={(e) => setBatchSteps(prev => ({ ...prev, scrape: e.target.checked }))}
-                    className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                  />
-                  Scrape PDFs
-                </label>
-
-                <label className={`flex items-center gap-1.5 font-semibold transition-colors group relative flex ${operationModal.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`} title={`${cloudName} Cloud Synchronization (Disable to keep data strictly local for GDPR compliance)`}>
-                  <input
-                    type="checkbox"
-                    checked={batchSteps.sync}
-                    disabled={operationModal.isExecuting}
-                    onChange={(e) => setBatchSteps(prev => ({ ...prev, sync: e.target.checked }))}
-                    className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                  />
-                  <span className={batchSteps.sync ? (operationModal.isExecuting ? "text-amber-500/50" : "text-amber-500") : ""}>Sync {cloudProvider === 'onedrive' ? 'OneDrive' : 'GDrive'}</span>
-                  {batchSteps.sync && (
-                    <span className={`text-[8px] border px-1 py-0.5 rounded font-black tracking-wider uppercase scale-90 select-none ml-1 ${operationModal.isExecuting ? "bg-amber-500/5 text-amber-500/50 border-amber-500/10" : "bg-amber-500/10 text-amber-500 border-amber-500/20"}`}>
-                      Cloud
-                    </span>
-                  )}
-                </label>
-              </div>
-
-              <div className="w-px h-5 bg-border mx-1" />
-
-              <button
-                onClick={runBatchExecution}
-                disabled={operationModal.isExecuting}
-                className={`px-3 py-1.5 font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px] ${operationModal.isExecuting ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed opacity-50 shadow-none' : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'}`}
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                Execute Pipeline
-              </button>
-            </div>
-          )}
+          {/* Data Pipeline toggles have been extracted to PipelineExecutionView in Epoch 5.4 */}
         </header>
 
         {/* Content Shell */}
         <div className="flex-1 overflow-hidden p-6 relative">
           
           {/* DASHBOARD VIEW */}
-          {(() => { const allProps = {activeTab, setActiveTab, projects, setProjects, activeProjectId, setActiveProjectId, loadingProjects, setLoadingProjects, projectSubTab, setProjectSubTab, compressOnSync, setCompressOnSync, showCreateProjectModal, setShowCreateProjectModal, savingProject, setSavingProject, showEditProjectModal, setShowEditProjectModal, editingProjectId, setEditingProjectId, projectSettingsTab, setProjectSettingsTab, testingProjectConnection, setTestingProjectConnection, projectConnectionTestResult, setProjectConnectionTestResult, calibrationSubTab, setCalibrationSubTab, projectFormName, setProjectFormName, projectFormManifesto, setProjectFormManifesto, projectFormObjective, setProjectFormObjective, projectFormQuestions, setProjectFormQuestions, projectFormQaDefinition, setProjectFormQaDefinition, projectFormExclusionCriteria, setProjectFormExclusionCriteria, projectFormPoolA, setProjectFormPoolA, projectFormPoolB, setProjectFormPoolB, projectFormPoolC, setProjectFormPoolC, projectFormGDriveDest, setProjectFormGDriveDest, projectFormCloudProvider, setProjectFormCloudProvider, projectFormRemoteName, setProjectFormRemoteName, projectFormPoolTags, setProjectFormPoolTags, projectFormEcRules, setProjectFormEcRules, projectFormReasoningTemplate, setProjectFormReasoningTemplate, newProjName, setNewProjName, newProjFolder, setNewProjFolder, newProjManifesto, setNewProjManifesto, newProjObjective, setNewProjObjective, newProjQuestions, setNewProjQuestions, newProjQaDefinition, setNewProjQaDefinition, newProjExclusionCriteria, setNewProjExclusionCriteria, newProjPoolA, setNewProjPoolA, newProjPoolB, setNewProjPoolB, newProjPoolC, setNewProjPoolC, newProjGDriveDest, setNewProjGDriveDest, newProjCloudProvider, setNewProjCloudProvider, newProjRemoteName, setNewProjRemoteName, newProjPoolTags, setNewProjPoolTags, deleteProjectConfirm, setDeleteProjectConfirm, deleteProjectConfirmationText, setDeleteProjectConfirmationText, deletingProject, setDeletingProject, csvSource, setCsvSource, csvFile, setCsvFile, csvImportDate, setCsvImportDate, manualSource, setManualSource, manualImportDate, setManualImportDate, manualYear, setManualYear, manualTitle, setManualTitle, manualAuthors, setManualAuthors, manualDoi, setManualDoi, manualAbstract, setManualAbstract, manualIngesting, setManualIngesting, papers, setPapers, loadingPapers, setLoadingPapers, searchTerm, setSearchTerm, statusFilter, setStatusFilter, pdfFilter, setPdfFilter, deleteConfirm, setDeleteConfirm, deletingPaper, setDeletingPaper, deleteAllConfirm, setDeleteAllConfirm, isSettingsOpen, setIsSettingsOpen, toasts, setToasts, assignSelectedPaper, setAssignSelectedPaper, operationModal, setOperationModal, cloudProvider, cloudName, handleTestProjectConnection, handleAddPoolTag, handleUpdatePoolTag, activeProject, showToast, loadProjects, activateProject, handleCreateProject, handleSaveProjectManifesto, loadPapers, handleManualIngest, runBatchExecution, paperModal, setPaperModal, hasLocalPdf, showInterRaterModal, setShowInterRaterModal, showImport, setShowImport,     pipelineStats, setPipelineStats, currentStep, setCurrentStep, isModalMinimized, setIsModalMinimized, formatBytes, getTimeEstimates, indexingState, logEndRef, handleResumeOperation, handleCancelOperation, renderCalSortIcon, handleCalSort, calActivePool, calPapers, calTotalPapers, calPage, calLimit, setCalLimit, setCalPage, calTotalPages, handleAssignPool, setSelectedParentPaper, setManualParentPaperId, setManualParentSearch, setShowParentSuggestions, showParentSuggestions, manualParentSearch, parentPaperSuggestions, LoaderIcon, handleSort, renderSortIcon, totalPapers, page, limit, setLimit, setPage, totalPages, calStats, setCalActivePool, handleExportCalPoolA, setShowAssignModal, calSearchTerm, setCalSearchTerm, calStatusFilter, setCalStatusFilter, calPdfFilter, setCalPdfFilter, calLoading, openProjectSettings, handleRemovePoolTag, handleAddEcRule, handleUpdateEcRule, handleRemoveEcRule, handleAddReasoningTemplate, handleUpdateReasoningTemplate, handleRemoveReasoningTemplate, handleCsvSelect, csvData, columnMapping, setColumnMapping, csvHeaders, previewPapers, previewStats, handleImport, importing, selectedParentPaper, setParentPaperSuggestions}; return (
+          {(() => { const allProps = {activeTab, setActiveTab, projects, setProjects, activeProjectId, setActiveProjectId, loadingProjects, setLoadingProjects, projectSubTab, setProjectSubTab, compressOnSync, setCompressOnSync, showCreateProjectModal, setShowCreateProjectModal, savingProject, setSavingProject, showEditProjectModal, setShowEditProjectModal, editingProjectId, setEditingProjectId, projectSettingsTab, setProjectSettingsTab, testingProjectConnection, setTestingProjectConnection, projectConnectionTestResult, setProjectConnectionTestResult, calibrationSubTab, setCalibrationSubTab, projectFormName, setProjectFormName, projectFormManifesto, setProjectFormManifesto, projectFormObjective, setProjectFormObjective, projectFormQuestions, setProjectFormQuestions, projectFormQaDefinition, setProjectFormQaDefinition, projectFormExclusionCriteria, setProjectFormExclusionCriteria, projectFormPoolA, setProjectFormPoolA, projectFormPoolB, setProjectFormPoolB, projectFormPoolC, setProjectFormPoolC, projectFormGDriveDest, setProjectFormGDriveDest, projectFormCloudProvider, setProjectFormCloudProvider, projectFormRemoteName, setProjectFormRemoteName, projectFormPoolTags, setProjectFormPoolTags, projectFormEcRules, setProjectFormEcRules, projectFormReasoningTemplate, setProjectFormReasoningTemplate, newProjName, setNewProjName, newProjFolder, setNewProjFolder, newProjManifesto, setNewProjManifesto, newProjObjective, setNewProjObjective, newProjQuestions, setNewProjQuestions, newProjQaDefinition, setNewProjQaDefinition, newProjExclusionCriteria, setNewProjExclusionCriteria, newProjPoolA, setNewProjPoolA, newProjPoolB, setNewProjPoolB, newProjPoolC, setNewProjPoolC, newProjGDriveDest, setNewProjGDriveDest, newProjCloudProvider, setNewProjCloudProvider, newProjRemoteName, setNewProjRemoteName, newProjPoolTags, setNewProjPoolTags, deleteProjectConfirm, setDeleteProjectConfirm, deleteProjectConfirmationText, setDeleteProjectConfirmationText, deletingProject, setDeletingProject, csvSource, setCsvSource, csvFile, setCsvFile, csvImportDate, setCsvImportDate, manualSource, setManualSource, manualImportDate, setManualImportDate, manualYear, setManualYear, manualTitle, setManualTitle, manualAuthors, setManualAuthors, manualDoi, setManualDoi, manualAbstract, setManualAbstract, manualIngesting, setManualIngesting, papers, setPapers, loadingPapers, setLoadingPapers, searchTerm, setSearchTerm, statusFilter, setStatusFilter, pdfFilter, setPdfFilter, deleteConfirm, setDeleteConfirm, deletingPaper, setDeletingPaper, deleteAllConfirm, setDeleteAllConfirm, isSettingsOpen, setIsSettingsOpen, toasts, setToasts, assignSelectedPaper, setAssignSelectedPaper, operationModal, setOperationModal, cloudProvider, cloudName, handleTestProjectConnection, handleAddPoolTag, handleUpdatePoolTag, activeProject, showToast, loadProjects, activateProject, handleCreateProject, handleSaveProjectManifesto, loadPapers, handleManualIngest, batchSteps, setBatchSteps, runBatchExecution, paperModal, setPaperModal, hasLocalPdf, showInterRaterModal, setShowInterRaterModal, showImport, setShowImport,     pipelineStats, setPipelineStats, currentStep, setCurrentStep, isModalMinimized, setIsModalMinimized, formatBytes, getTimeEstimates, indexingState, logEndRef, handleResumeOperation, handleCancelOperation, renderCalSortIcon, handleCalSort, calActivePool, calPapers, calTotalPapers, calPage, calLimit, setCalLimit, setCalPage, calTotalPages, handleAssignPool, setSelectedParentPaper, setManualParentPaperId, setManualParentSearch, setShowParentSuggestions, showParentSuggestions, manualParentSearch, parentPaperSuggestions, LoaderIcon, handleSort, renderSortIcon, totalPapers, page, limit, setLimit, setPage, totalPages, calStats, setCalActivePool, handleExportCalPoolA, setShowAssignModal, calSearchTerm, setCalSearchTerm, calStatusFilter, setCalStatusFilter, calPdfFilter, setCalPdfFilter, calLoading, openProjectSettings, handleRemovePoolTag, handleAddEcRule, handleUpdateEcRule, handleRemoveEcRule, handleAddReasoningTemplate, handleUpdateReasoningTemplate, handleRemoveReasoningTemplate, handleCsvSelect, csvData, columnMapping, setColumnMapping, csvHeaders, previewPapers, previewStats, handleImport, importing, selectedParentPaper, setParentPaperSuggestions}; return (
             <>
             {activeTab === 'dashboard' ? (
               <DashboardView {...allProps} />
             ) : activeTab === 'pre-calibration' ? (
               <PreCalibrationView {...allProps} />
+            ) : activeTab === 'full-execution' ? (
+              <PipelineExecutionView {...allProps} />
             ) : showImport ? (
               <IngestionHubView {...allProps} />
             ) : (
@@ -2165,8 +2115,8 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* MINIMIZED PIPELINE BANNER */}
-      {operationModal.isOpen && isModalMinimized && (
+      {/* MINIMIZED PIPELINE BANNER (Hidden on full-execution tab) */}
+      {operationModal.isOpen && isModalMinimized && activeTab !== 'full-execution' && (
         (() => {
           let statsFound = 0;
           let statsNotFound = 0;

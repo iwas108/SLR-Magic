@@ -19,16 +19,15 @@ graph TD
         A[slr-ide: One-Stop Hub] <-->|SQLite Client| B[(Local SQLite DB)]
         A -->|1. Export Blinded .slr| C[inter-rater: Blinded SPA]
         C -->|2. Export Rated .slr| A
-        A -->|Spawn Subprocesses| D[Python Scrapers: Matcher & Selenium]
-        A -->|Rclone Sync Subprocess| E[Rclone Sync CLI]
+        A -->|Spawn Subprocesses| D[Python Engine]
+        D -->|Execute Entrypoints| E[match_cache.py / scrape_pdfs.py]
+    E -->|JSON Output to Stdout| B
+    B -->|SSE / ReadableStream Stream| A
+    E -->|Write Local PDFs| F[pdf_library/repo/ & pdf_library/downloads/]
+    B -->|Rclone CLI Sync| G[Cloud Storage Google Drive / OneDrive]
     end
     
-    subgraph "Google Workspace / Cloud"
-        F[app-script: Google Sheets FAIR Database Sink]
-        G[Cloud Storage: Google Drive / OneDrive]
-    end
-    
-    A -->|3. Export FAIR CSV / Data Ingestion| F
+    A -->|3. Export FAIR CSV / Data Ingestion| H[app-script: Google Sheets FAIR Database Sink]
     E -->|Upload matched PDFs| G
     A -->|Fetch shareable file links| G
 ```
@@ -41,9 +40,9 @@ graph TD
 *For details, refer to the module blueprint: [slr-ide/architecture.md](slr-ide/architecture.md)*
 
 *   **Role**: The one-stop control hub for the systematic review lifecycle.
-*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4. Operates through a clean modular architecture separating functional Views (`DashboardView`, `PaperDatabaseView`, etc.) and Custom Hooks (`useProjects`, `usePapers`, etc.) from the main `page.tsx` entry point.
+*   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4. Operates through a clean modular architecture separating functional Views (`DashboardView`, `PipelineExecutionView`, etc.) and Custom Hooks (`useProjects`, `usePapers`, etc.) from the main `page.tsx` entry point.
 *   **Persistence**: SQLite database (`db/slr.db`) for multi-project segmentation and paper metadata.
-*   **Acquisition Engine**: Deterministic ID generators spawning Python CGI subprocesses (`cache_matcher.py` with OCR fallbacks, stateful DFS `pdf_scraper.py` crawling web interfaces).
+*   **Pipeline & Execution Engine**: Deterministic ID generators spawning Python Engine subprocesses. Hosts a Centralized Pipeline Dashboard orchestrating Web Scraping (`scrape_pdfs.py`), Cloud Syncing (`rclone`), and Semantic LLM Screening via live SSE terminal streams and process recovery endpoints.
 *   **Cloud Gateway**: Subprocess execution of `rclone` to compress and upload local PDFs to project-scoped Drive/OneDrive folders and retrieve shareable file links.
 
 ### II. Inter-Rater Blinded Review SPA (`inter-rater/`)

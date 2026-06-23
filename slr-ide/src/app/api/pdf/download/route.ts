@@ -5,9 +5,10 @@ import { PROJECT_ROOT } from '@/lib/db';
 export async function POST() {
   try {
     const pythonExe = path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe');
-    const scriptPath = path.join(PROJECT_ROOT, 'scrapers', 'pdf_scraper.py');
 
-    const child = spawn(pythonExe, [scriptPath]);
+    const child = spawn(pythonExe, ['-m', 'python_engine.entrypoints.scrape_pdfs'], {
+      cwd: PROJECT_ROOT
+    });
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({

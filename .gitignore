@@ -13,14 +13,8 @@ __pycache__/
 *.pyc
 
 # Local PDF Storage
-cached_pdf/
-downloaded_pdf/
-pdf_repo/
-raw_pdf/
-/slr-ide/cached_pdf/
-/slr-ide/downloaded_pdf/
-/slr-ide/pdf_repo/
-/slr-ide/raw_pdf/
+pdf_library/
+/slr-ide/pdf_library/
 /slr-ide/db/compression_manifest.json
 *.pdf
 

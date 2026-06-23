@@ -7,36 +7,11 @@ import platform
 import sqlite3
 from pathlib import Path
 
-# ================= CONFIGURATION =================
-PROJECT_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = PROJECT_DIR / 'db' / 'slr.db'
-INPUT_DIR = PROJECT_DIR / 'raw_pdf'
-OUTPUT_DIR = PROJECT_DIR / 'pdf_repo'
-MANIFEST_FILE = PROJECT_DIR / 'db' / 'compression_manifest.json'
-# =================================================
-
-def get_ghostscript_command(custom_path=None):
-    """
-    Auto-detects the Ghostscript executable name or verifies custom_path.
-    """
-    if custom_path and custom_path.strip():
-        if shutil.which(custom_path.strip()):
-            return custom_path.strip()
-        # Fall back if path exists directly
-        p = Path(custom_path.strip())
-        if p.exists() and p.is_file():
-            return str(p)
-        print(json.dumps({"info": f"[WARNING]: Configured Ghostscript path '{custom_path}' not found. Auto-detecting..."}))
-        sys.stdout.flush()
-    
-    possible_commands = ["gs", "gswin64c", "gswin32c"]
-    for cmd in possible_commands:
-        if shutil.which(cmd):
-            return cmd
-    return None
+from python_engine.core.config import PROJECT_DIR, DB_PATH, RAW_DIR, REPO_DIR, MANIFEST_FILE
+from python_engine.core.events import throttle_print
+from python_engine.pdf.compressor import get_ghostscript_command, compress_pdf
 
 def load_manifest(manifest_path):
-    """Loads the processing history from JSON."""
     if manifest_path.exists():
         try:
             with open(manifest_path, 'r') as f:
@@ -46,50 +21,19 @@ def load_manifest(manifest_path):
     return {}
 
 def save_manifest(manifest_path, data):
-    """Saves the processing history to JSON."""
     try:
-        # Ensure db/ folder exists
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         with open(manifest_path, 'w') as f:
             json.dump(data, f, indent=4)
     except IOError as e:
         print(json.dumps({"info": f"[WARNING]: Could not save manifest file: {e}"}))
 
-def compress_pdf(gs_command, compression_level, input_file, output_file):
-    """
-    Compresses a single PDF using Ghostscript.
-    """
-    try:
-        command = [
-            gs_command,
-            "-sDEVICE=pdfwrite",
-            "-dCompatibilityLevel=1.4",
-            f"-dPDFSETTINGS={compression_level}",
-            "-dNOPAUSE",
-            "-dQUIET",
-            "-dBATCH",
-            f"-sOutputFile={str(output_file)}",
-            str(input_file)
-        ]
-
-        # Use subprocess.run with timeout or capture output
-        res = subprocess.run(command, check=True, capture_output=True, text=True)
-        return True
-    except Exception as e:
-        # Print warning to stdout inside NDJSON event format
-        err_msg = str(e)
-        if hasattr(e, 'stderr') and e.stderr:
-            err_msg += f" | stderr: {e.stderr}"
-        print(json.dumps({"info": f"[WARNING]: Ghostscript error on {input_file.name}: {err_msg}"}))
-        sys.stdout.flush()
-        return False
-
 def main():
     # 1. Setup environment
-    if not INPUT_DIR.exists():
-        INPUT_DIR.mkdir(parents=True, exist_ok=True)
-    if not OUTPUT_DIR.exists():
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if not RAW_DIR.exists():
+        RAW_DIR.mkdir(parents=True, exist_ok=True)
+    if not REPO_DIR.exists():
+        REPO_DIR.mkdir(parents=True, exist_ok=True)
 
     # Load configuration from SQLite
     enabled = False
@@ -129,7 +73,7 @@ def main():
         sys.stdout.flush()
 
     # Re-evaluate OUTPUT and MANIFEST based on project folder name
-    project_output_dir = PROJECT_DIR / 'pdf_repo' / folder_name
+    project_output_dir = PROJECT_DIR / 'pdf_library' / 'repo' / folder_name
     project_output_dir.mkdir(parents=True, exist_ok=True)
     project_manifest_file = PROJECT_DIR / 'db' / f'compression_manifest_{folder_name}.json'
 

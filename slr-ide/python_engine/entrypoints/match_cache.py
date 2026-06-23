@@ -8,6 +8,11 @@ import difflib
 import hashlib
 import time
 
+from python_engine.core.config import PROJECT_DIR, DB_PATH, CACHE_DIR, RAW_DIR, CACHE_INDEX_DB_PATH
+from python_engine.core.events import throttle_print
+from python_engine.core.security import sanitize_string, sanitize_doi, calculate_md5
+from python_engine.pdf.analyzer import extract_pdf_text_first_page
+
 # Add pypdf fallback
 try:
     from pypdf import PdfReader
@@ -25,83 +30,7 @@ try:
 except ImportError:
     has_ocr_libs = False
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(PROJECT_DIR, 'db', 'slr.db')
-CACHE_DIR = os.path.join(PROJECT_DIR, 'cached_pdf')
-RAW_DIR = os.path.join(PROJECT_DIR, 'raw_pdf')
-CACHE_INDEX_DB_PATH = os.path.join(PROJECT_DIR, 'db', 'cache_index.db')
-
 last_print_time = 0.0
-
-def throttle_print(event_data, throttle_interval=0.3):
-    global last_print_time
-    now = time.time()
-    event_type = event_data.get('event')
-    
-    # Critical events that must always be printed immediately
-    is_critical = event_type in ('match', 'complete', 'error', 'step_start', 'step_complete', 'log') or 'info' in event_data
-    
-    # Boundary progress updates
-    is_boundary = False
-    if event_type == 'progress':
-        is_boundary = (event_data.get('current') == 1 or event_data.get('current') == event_data.get('total'))
-    elif event_type == 'indexing':
-        is_boundary = (event_data.get('current') == 1 or event_data.get('current') == event_data.get('total'))
-        
-    if is_critical or is_boundary or (now - last_print_time >= throttle_interval):
-        print(json.dumps(event_data))
-        sys.stdout.flush()
-        last_print_time = now
-
-def sanitize_string(s):
-    if not s:
-        return ""
-    return re.sub(r'[^a-zA-Z0-9]', '', str(s).lower())
-
-def sanitize_doi(doi):
-    if not doi:
-        return ""
-    return re.sub(r'[^a-zA-Z0-9]', '_', str(doi).lower())
-
-def calculate_md5(file_path):
-    hash_md5 = hashlib.md5()
-    try:
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()
-    except Exception as e:
-        print(f"Error calculating MD5 for {file_path}: {e}", file=sys.stderr)
-        return None
-
-def extract_pdf_text_first_page(file_path, ocr_enabled=False, tesseract_path="tesseract"):
-    text = ""
-    if has_pypdf:
-        try:
-            reader = PdfReader(file_path)
-            if len(reader.pages) > 0:
-                text = reader.pages[0].extract_text() or ""
-        except Exception as e:
-            print(f"Error reading PDF via pypdf {file_path}: {e}", file=sys.stderr)
-
-    if not text.strip() and ocr_enabled and has_ocr_libs:
-        try:
-            if tesseract_path and tesseract_path != "tesseract":
-                pytesseract.pytesseract.tesseract_cmd = tesseract_path
-            
-            doc = fitz.open(file_path)
-            if len(doc) > 0:
-                page = doc.load_page(0)
-                pix = page.get_pixmap()
-                img_data = pix.tobytes("png")
-                img = Image.open(io.BytesIO(img_data))
-                
-                text = pytesseract.image_to_string(img) or ""
-            doc.close()
-        except Exception as e:
-            print(f"Error executing Tesseract OCR on {file_path}: {e}", file=sys.stderr)
-
-    return text
 
 def run_matcher():
     os.makedirs(CACHE_DIR, exist_ok=True)
@@ -365,8 +294,8 @@ def run_matcher():
                     has_file = True
             
             if not has_file:
-                raw_path = os.path.join(PROJECT_DIR, 'raw_pdf', f"{paper_id}.pdf")
-                repo_path = os.path.join(PROJECT_DIR, 'pdf_repo', folder_name, f"{paper_id}.pdf")
+                raw_path = os.path.join(PROJECT_DIR, 'pdf_library', 'raw', f"{paper_id}.pdf")
+                repo_path = os.path.join(PROJECT_DIR, 'pdf_library', 'repo', folder_name, f"{paper_id}.pdf")
                 if os.path.exists(raw_path) or os.path.exists(repo_path):
                     has_file = True
             

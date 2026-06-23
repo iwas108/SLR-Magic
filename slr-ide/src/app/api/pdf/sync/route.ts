@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     const remote = project?.rclone_remote_name || (cloudProvider === 'onedrive' ? 'onedrive' : 'gdrive');
     const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
 
-    const localPdfDir = path.join(PROJECT_ROOT, 'pdf_repo', folderName);
+    const localPdfDir = path.join(PROJECT_ROOT, 'pdf_library', 'repo', folderName);
     if (!fs.existsSync(localPdfDir)) {
       fs.mkdirSync(localPdfDir, { recursive: true });
     }
@@ -257,7 +257,7 @@ export async function POST(request: Request) {
                 controller.enqueue(encoder.encode(JSON.stringify({ 
                   event: 'link_fail', 
                   paper_id: paperId, 
-                  message: 'Local PDF file missing in pdf_repo - skipped linking' 
+                  message: 'Local PDF file missing in pdf_library/repo - skipped linking' 
                 }) + '\n'));
                 continue;
               }

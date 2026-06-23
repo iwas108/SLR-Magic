@@ -3,8 +3,8 @@ import path from 'path';
 import { PROJECT_ROOT } from './db';
 
 export function rescuePdfAssets(paperIds: string[]): number {
-  const rawPdfDir = path.join(PROJECT_ROOT, 'raw_pdf');
-  const cachedPdfDir = path.join(PROJECT_ROOT, 'cached_pdf');
+  const rawPdfDir = path.join(PROJECT_ROOT, 'pdf_library', 'raw');
+  const cachedPdfDir = path.join(PROJECT_ROOT, 'pdf_library', 'cached');
   
   if (!fs.existsSync(cachedPdfDir)) {
     fs.mkdirSync(cachedPdfDir, { recursive: true });

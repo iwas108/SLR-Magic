@@ -48,7 +48,7 @@ Stores literature review projects metadata, target directories, and calibration 
 | :--- | :--- | :--- | :--- |
 | `id` | TEXT | PRIMARY KEY | Unique identifier for the project |
 | `name` | TEXT | NOT NULL | Name of the project |
-| `folder_name` | TEXT | NOT NULL UNIQUE | Unique directory subfolder name inside `pdf_repo/` |
+| `folder_name` | TEXT | NOT NULL UNIQUE | Unique directory subfolder name inside `pdf_library/repo/` |
 | `manifesto` | TEXT | | Description or manifesto of the project |
 | `objective` | TEXT | | Research objective |
 | `questions` | TEXT | | List of research questions |

@@ -45,3 +45,21 @@ next-env.d.ts
 .chrome_profile/**
 chrome_profile
 chrome_profile/**
+
+# Database
+db/*.db
+db/*.sqlite
+db/cache_index.db
+
+# Virtual Environment & Python
+venv/
+__pycache__/
+*.pyc
+
+# Centralized PDF Library
+pdf_library/
+pdf_library/**
+pdf_library/raw/**
+pdf_library/cached/**
+pdf_library/repo/**
+pdf_library/downloads/**

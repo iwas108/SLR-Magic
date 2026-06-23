@@ -71,7 +71,9 @@ export async function POST(request: Request) {
       rclone_remote_name,
       pool_tags,
       ec_rules,
-      reasoning_template
+      reasoning_template,
+      project_budget_limit,
+      llm_config
     } = body;
 
     if (!name || !name.trim()) {
@@ -101,11 +103,13 @@ export async function POST(request: Request) {
     const poolTags = pool_tags ? (typeof pool_tags === 'string' ? pool_tags : JSON.stringify(pool_tags)) : '{}';
     const ecRules = ec_rules ? (typeof ec_rules === 'string' ? ec_rules : JSON.stringify(ec_rules)) : '[]';
     const reasoningTemplate = reasoning_template ? (typeof reasoning_template === 'string' ? reasoning_template : JSON.stringify(reasoning_template)) : '[]';
+    const budgetLimit = project_budget_limit !== undefined ? parseFloat(project_budget_limit) : 5.0;
+    const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
 
     db.prepare(`
       INSERT INTO projects (
-        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, project_budget_limit, llm_config, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       name.trim(),
@@ -124,6 +128,8 @@ export async function POST(request: Request) {
       poolTags,
       ecRules,
       reasoningTemplate,
+      budgetLimit,
+      llmConfigStr,
       new Date().toISOString()
     );
 
@@ -152,7 +158,9 @@ export async function PUT(request: Request) {
       rclone_remote_name,
       pool_tags,
       ec_rules,
-      reasoning_template
+      reasoning_template,
+      project_budget_limit,
+      llm_config
     } = body;
 
     if (!id) {
@@ -172,6 +180,8 @@ export async function PUT(request: Request) {
     const poolTags = pool_tags ? (typeof pool_tags === 'string' ? pool_tags : JSON.stringify(pool_tags)) : '{}';
     const ecRules = ec_rules ? (typeof ec_rules === 'string' ? ec_rules : JSON.stringify(ec_rules)) : '[]';
     const reasoningTemplate = reasoning_template ? (typeof reasoning_template === 'string' ? reasoning_template : JSON.stringify(reasoning_template)) : '[]';
+    const budgetLimit = project_budget_limit !== undefined ? parseFloat(project_budget_limit) : 5.0;
+    const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
 
     db.prepare(`
       UPDATE projects
@@ -189,7 +199,9 @@ export async function PUT(request: Request) {
           rclone_remote_name = ?,
           pool_tags = ?,
           ec_rules = ?,
-          reasoning_template = ?
+          reasoning_template = ?,
+          project_budget_limit = ?,
+          llm_config = ?
       WHERE id = ?
     `).run(
       name.trim(),
@@ -207,6 +219,8 @@ export async function PUT(request: Request) {
       poolTags,
       ecRules,
       reasoningTemplate,
+      budgetLimit,
+      llmConfigStr,
       id
     );
 

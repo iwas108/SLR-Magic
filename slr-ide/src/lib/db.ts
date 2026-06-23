@@ -71,6 +71,9 @@ db.exec(`
     pool_tags TEXT,
     ec_rules TEXT,
     reasoning_template TEXT,
+    project_budget_limit REAL DEFAULT 0.0,
+    project_current_spend REAL DEFAULT 0.0,
+    llm_config TEXT DEFAULT '{}',
     created_at TEXT NOT NULL
   );
 
@@ -108,6 +111,60 @@ db.exec(`
     FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
   );
   CREATE INDEX IF NOT EXISTS idx_ledger_project ON calibration_commit_ledger(project_id);
+
+  CREATE TABLE IF NOT EXISTS llm_pricing (
+    model_id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    input_token_price REAL NOT NULL,
+    output_token_price REAL NOT NULL,
+    thinking_token_price REAL,
+    batch_discount REAL DEFAULT 0.5,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS prompt_templates (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    name TEXT NOT NULL,
+    description TEXT,
+    system_instruction TEXT,
+    user_template TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS llm_jobs (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    total_papers INTEGER NOT NULL,
+    processed_papers INTEGER DEFAULT 0,
+    total_input_tokens INTEGER DEFAULT 0,
+    total_output_tokens INTEGER DEFAULT 0,
+    total_thinking_tokens INTEGER DEFAULT 0,
+    total_cost REAL DEFAULT 0.0,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS llm_batch_jobs (
+    id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    cloud_batch_id TEXT,
+    status TEXT NOT NULL,
+    input_file_id TEXT,
+    output_file_id TEXT,
+    submitted_at TEXT NOT NULL,
+    checked_at TEXT,
+    completed_at TEXT,
+    FOREIGN KEY(job_id) REFERENCES llm_jobs(id) ON DELETE CASCADE
+  );
 `);
 
 // Add Project_ID column to papers if it doesn't exist (migration fallback)
@@ -199,6 +256,69 @@ try {
   db.exec("ALTER TABLE papers ADD COLUMN calibration_tag TEXT");
 } catch (e) {
   // Column already exists
+}
+
+// Add project_budget_limit column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN project_budget_limit REAL DEFAULT 0.0");
+} catch (e) {
+  // Column already exists
+}
+
+// Add project_current_spend column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN project_current_spend REAL DEFAULT 0.0");
+} catch (e) {
+  // Column already exists
+}
+
+// Add llm_config column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN llm_config TEXT DEFAULT '{}'");
+} catch (e) {
+  // Column already exists
+}
+
+// Pre-populate LLM pricing default entries if empty
+try {
+  const pricingCount = db.prepare("SELECT COUNT(*) as count FROM llm_pricing").get() as { count: number };
+  if (pricingCount.count === 0) {
+    const insertPricing = db.prepare(`
+      INSERT INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const now = new Date().toISOString();
+    // prices are USD per 1M tokens
+    insertPricing.run('gemini-1.5-flash', 'gemini', 0.075, 0.30, 0.30, 0.5, now);
+    insertPricing.run('gemini-1.5-pro', 'gemini', 1.25, 5.00, 5.00, 0.5, now);
+    insertPricing.run('gpt-4o', 'openai', 2.50, 10.00, 10.00, 0.5, now);
+    insertPricing.run('gpt-4o-mini', 'openai', 0.15, 0.60, 0.60, 0.5, now);
+    insertPricing.run('claude-3-5-sonnet-latest', 'claude', 3.00, 15.00, 15.00, 0.5, now);
+  }
+} catch (e) {
+  console.error("Failed to populate default llm_pricing:", e);
+}
+
+// Pre-populate default prompt template if empty
+try {
+  const templateCount = db.prepare("SELECT COUNT(*) as count FROM prompt_templates").get() as { count: number };
+  if (templateCount.count === 0) {
+    db.prepare(`
+      INSERT INTO prompt_templates (id, project_id, name, description, system_instruction, user_template, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'default-screen',
+      null, // global
+      'Default Screening Prompt',
+      'Standard screening prompt using project context variables.',
+      'You are an expert scientific screener conducting a systematic literature review (SLR).\nYour task is to review the provided research paper title and abstract (and local text context if available) and decide if it should be INCLUDED or EXCLUDED based on the project exclusion criteria.\n\nCRITICAL: Respond strictly in JSON format as defined below:\n{\n  "decision": "INCLUDE" | "EXCLUDE",\n  "exclusion_trigger": "string or null (specify the rule number/text triggered if EXCLUDE)",\n  "rationale": "detailed academic reasoning for the decision"\n}',
+      'Research Project Context:\n- Objective: {{ objective }}\n- Research Questions: {{ questions }}\n- Exclusion Criteria:\n{{ exclusion_criteria }}\n\nPaper to Evaluate:\n- Title: {{ title }}\n- Abstract: {{ abstract }}\n- DOI: {{ doi }}\n\nPerform a rigorous screening. Output the JSON decision.',
+      new Date().toISOString(),
+      new Date().toISOString()
+    );
+  }
+} catch (e) {
+  console.error("Failed to populate default prompt_templates:", e);
 }
 
 // Auto-create a default project if none exist

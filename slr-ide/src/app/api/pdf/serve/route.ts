@@ -16,10 +16,10 @@ export async function GET(request: Request) {
     const safePath = path.normalize(relativePath).replace(/^(\.\.(\/|\\))+/, '');
     const fullPath = path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, safePath);
 
-    // Ensure the path is within PROJECT_ROOT and is inside raw_pdf, cached_pdf, or pdf_repo
+    // Ensure the path is within PROJECT_ROOT and is inside pdf_library
     const relativeToCwd = path.relative(/*turbopackIgnore: true*/ PROJECT_ROOT, fullPath);
     const isSafe = !relativeToCwd.startsWith('..') && !path.isAbsolute(relativeToCwd) &&
-      (relativeToCwd.startsWith('raw_pdf') || relativeToCwd.startsWith('cached_pdf') || relativeToCwd.startsWith('pdf_repo'));
+      (relativeToCwd.startsWith('pdf_library'));
 
     if (!isSafe) {
       return new Response('Forbidden: Access is denied', { status: 403 });

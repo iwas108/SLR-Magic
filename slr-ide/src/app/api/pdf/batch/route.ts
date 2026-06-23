@@ -321,8 +321,8 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
   const folderName = project ? project.folder_name : 'default_project';
   const gdriveDest = project ? project.gdrive_dest_path : 'SLR_Magic/PDFs';
 
-  const rawPdfDir = path.join(PROJECT_ROOT, 'raw_pdf');
-  const pdfRepoDir = path.join(PROJECT_ROOT, 'pdf_repo', folderName);
+  const rawPdfDir = path.join(PROJECT_ROOT, 'pdf_library', 'raw');
+  const pdfRepoDir = path.join(PROJECT_ROOT, 'pdf_library', 'repo', folderName);
   if (!fs.existsSync(rawPdfDir)) fs.mkdirSync(rawPdfDir, { recursive: true });
   if (!fs.existsSync(pdfRepoDir)) fs.mkdirSync(pdfRepoDir, { recursive: true });
 
@@ -341,9 +341,9 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
       const stepNum = i + 1;
       const totalSteps = steps.length;
 
-      let scriptPath = '';
+      let pythonModule = '';
       if (step === 'scan') {
-        scriptPath = path.join(PROJECT_ROOT, 'scrapers', 'cache_matcher.py');
+        pythonModule = 'python_engine.entrypoints.match_cache';
         const msg = { 
           event: 'step_start', 
           step: 'scan', 
@@ -352,7 +352,7 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
         updateStateFromMsg(msg);
         broadcast(msg);
       } else if (step === 'scrape') {
-        scriptPath = path.join(PROJECT_ROOT, 'scrapers', 'pdf_scraper.py');
+        pythonModule = 'python_engine.pdf_scraper';
         const msg = { 
           event: 'step_start', 
           step: 'scrape', 
@@ -361,7 +361,7 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
         updateStateFromMsg(msg);
         broadcast(msg);
       } else if (step === 'compress') {
-        scriptPath = path.join(PROJECT_ROOT, 'scrapers', 'pdf_compressor.py');
+        pythonModule = 'python_engine.entrypoints.compress_pdfs';
         const msg = { 
           event: 'step_start', 
           step: 'compress', 
@@ -385,7 +385,7 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
             resolve();
             return;
           }
-          const child = spawn(pythonExe, ['-u', scriptPath]);
+          const child = spawn(pythonExe, ['-u', '-m', pythonModule], { cwd: PROJECT_ROOT });
           batchState.activeChild = child;
 
           let stdoutBuffer = '';
@@ -683,7 +683,7 @@ async function runBackgroundExecution(steps: string[], compress: boolean) {
                   const failMsg = { 
                     event: 'link_fail', 
                     paper_id: paperId, 
-                    message: 'Local PDF file missing in pdf_repo - skipped linking',
+                    message: 'Local PDF file missing in pdf_library/repo - skipped linking',
                     step: 'sync' 
                   };
                   updateStateFromMsg(failMsg);

@@ -101,8 +101,8 @@ export async function POST(request: Request) {
     }
 
     const pythonExe = path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe');
-    const cacheMatcherScript = path.join(PROJECT_ROOT, 'scrapers', 'cache_matcher.py');
-    const scraperScript = path.join(PROJECT_ROOT, 'scrapers', 'pdf_scraper.py');
+    const cacheMatcherModule = 'python_engine.entrypoints.match_cache';
+    const scraperModule = 'python_engine.pdf_scraper';
 
     const encoder = new TextEncoder();
     
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
         if (!batchState.cancelRequested) {
           await new Promise<void>((resolve) => {
             pushLog(`Spawning cache matcher for ${paperId}...`);
-            const child = spawn(pythonExe, ['-u', cacheMatcherScript, '--paper', paperId]);
+            const child = spawn(pythonExe, ['-u', '-m', cacheMatcherModule, '--paper', paperId], { cwd: PROJECT_ROOT });
             batchState.activeChild = child;
 
             let buffer = '';
@@ -217,7 +217,7 @@ export async function POST(request: Request) {
 
             await new Promise<void>((resolve) => {
               pushLog(`Spawning browser scraper for DOI: ${paper.DOI}...`);
-              const child = spawn(pythonExe, ['-u', scraperScript, '--paper', paperId]);
+              const child = spawn(pythonExe, ['-u', '-m', scraperModule, '--paper', paperId], { cwd: PROJECT_ROOT });
               batchState.activeChild = child;
 
               let buffer = '';
