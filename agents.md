@@ -58,6 +58,13 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 *   **Agnostic Broadcast Pattern**: When implementing or editing features that mutate key workspace states (e.g. project activations, paper edits, pipeline execution state, and inter-rater decisions), you **MUST** trigger synchronization broadcasts using the `broadcastSync` utility from `@/lib/sync-utils`.
 *   **Stale-Closure Prevention (Mutable Ref Pattern)**: When subscribing to `BroadcastChannel` messages in React functional components, do not reference state-dependent getters/setters directly in the message listener. You **MUST** use a mutable `useRef` to store the latest versions of callback functions (e.g. `loadPapers`, `loadProjects`, `checkBatchStatus`) to avoid capturing stale closures.
 
+
+### 3.4 Mandatory Tree Shaking
+*   **Post-Refactor Cleanup**: Every time you perform a major component or hook extraction, you MUST perform a 'tree shaking' audit of the parent file (e.g., page.tsx).
+*   **Remove Dead Code**: Identify and delete any unused imports, orphaned local states (useState), and abandoned functions left behind by the refactor.
+*   **Compiler Verification**: After tree shaking, you MUST run the TypeScript compiler (e.g., 
+px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, ensuring a clean and stable build.
+
 ---
 
 ## 4. SLR IDE Core Blueprint Reference

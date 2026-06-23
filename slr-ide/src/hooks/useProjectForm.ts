@@ -73,6 +73,61 @@ export function useProjectForm(initialData?: Partial<Project>) {
     }
   }, [initialData]);
 
+  
+  const handleAddPoolTag = (pool: 'pool_a' | 'pool_b' | 'pool_c') => {
+    setPoolTags(prev => ({
+      ...prev,
+      [pool]: [...(prev[pool] || []), { code: '', label: '' }]
+    }));
+  }
+
+  const handleUpdatePoolTag = (pool: 'pool_a' | 'pool_b' | 'pool_c', index: number, field: 'code' | 'label', value: string) => {
+    setPoolTags(prev => {
+      const updated = [...(prev[pool] || [])];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, [pool]: updated };
+    });
+  }
+
+  const handleRemovePoolTag = (pool: 'pool_a' | 'pool_b' | 'pool_c', index: number) => {
+    setPoolTags(prev => {
+      const updated = (prev[pool] || []).filter((_, i) => i !== index);
+      return { ...prev, [pool]: updated };
+    });
+  }
+
+  const handleAddEcRule = () => {
+    setEcRules(prev => [...prev, { code: '', description: '' }]);
+  }
+
+  const handleUpdateEcRule = (index: number, field: 'code' | 'description', value: string) => {
+    setEcRules(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  }
+
+  const handleRemoveEcRule = (index: number) => {
+    setEcRules(prev => prev.filter((_, i) => i !== index));
+  }
+
+  const handleAddReasoningTemplate = () => {
+    setReasoningTemplate(prev => [...prev, '']);
+  }
+
+  const handleUpdateReasoningTemplate = (index: number, value: string) => {
+    setReasoningTemplate(prev => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  }
+
+  const handleRemoveReasoningTemplate = (index: number) => {
+    setReasoningTemplate(prev => prev.filter((_, i) => i !== index));
+  }
+
   const resetForm = () => {
     setName('');
     setFolderName('');
@@ -109,6 +164,10 @@ export function useProjectForm(initialData?: Partial<Project>) {
     poolTags, setPoolTags,
     ecRules, setEcRules,
     reasoningTemplate, setReasoningTemplate,
-    resetForm
+    resetForm,
+    handleAddPoolTag, handleUpdatePoolTag, handleRemovePoolTag,
+    handleAddEcRule, handleUpdateEcRule, handleRemoveEcRule,
+    handleAddReasoningTemplate, handleUpdateReasoningTemplate, handleRemoveReasoningTemplate
+
   };
 }

@@ -42,4 +42,8 @@ export interface Project {
   };
   ec_rules?: string | { code: string; description: string }[];
   reasoning_template?: string | string[];
+  stats?: any;
+  Pool_A_Tags?: any;
+  Pool_B_Tags?: any;
+  Pool_C_Tags?: any;
 }

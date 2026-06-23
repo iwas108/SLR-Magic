@@ -11,3 +11,21 @@ export function broadcastSync(type: SyncType) {
     }
   }
 }
+
+export function subscribeSyncChannel(callback: (type: SyncType) => void): () => void {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    try {
+      const channel = new BroadcastChannel('slr-magic-sync');
+      channel.onmessage = (e) => {
+        if (e.data?.type) {
+          callback(e.data.type as SyncType);
+        }
+      };
+      return () => channel.close();
+    } catch (e) {
+      console.error('[subscribeSyncChannel] Failed to subscribe:', e);
+      return () => {};
+    }
+  }
+  return () => {};
+}

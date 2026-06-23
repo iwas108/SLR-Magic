@@ -59,7 +59,7 @@ export default function DashboardPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>('default-project');
   const [loadingProjects, setLoadingProjects] = useState(true);
-  const activeProject = projects.find(p => p.id === activeProjectId);
+  const activeProject = projects.find(p => String(p.id) === String(activeProjectId));
   const cloudProvider = activeProject?.cloud_provider || 'gdrive';
   const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
   const [projectSubTab, setProjectSubTab] = useState<'overview' | 'ingest'>('overview');
@@ -481,7 +481,7 @@ export default function DashboardPage() {
 
   // Helper to get active project's pool tags
   const getActiveProjectPoolTags = (poolId: string): { code: string; label: string }[] => {
-    const activeProj = projects.find(p => p.id === activeProjectId);
+    const activeProj = projects.find(p => String(p.id) === String(activeProjectId));
     if (!activeProj || !activeProj.pool_tags) return [];
     try {
       const parsed = typeof activeProj.pool_tags === 'string' ? JSON.parse(activeProj.pool_tags) : activeProj.pool_tags;
@@ -1420,11 +1420,22 @@ export default function DashboardPage() {
       const initialMapping: Record<string, string> = {};
       
       targetColumns.forEach(col => {
-        const matched = headers.find(h => {
-          const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const cleanC = col.toLowerCase().replace(/[^a-z0-9]/g, '');
-          return cleanH.includes(cleanC) || cleanC.includes(cleanH);
-        });
+        let matched = undefined;
+        
+        if (col === 'PDF_Link') {
+          // Empty by default for PDF Link / Cloud Link
+          matched = undefined;
+        } else if (col === 'Authors') {
+          matched = headers.find(h => h.toLowerCase().includes('author full names')) || 
+                    headers.find(h => h.toLowerCase().includes('authors') || h.toLowerCase().includes('author'));
+        } else {
+          matched = headers.find(h => {
+            const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanC = col.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cleanH.includes(cleanC) || cleanC.includes(cleanH);
+          });
+        }
+        
         if (matched) {
           initialMapping[col] = matched;
         } else {
@@ -1464,17 +1475,14 @@ export default function DashboardPage() {
     let newCount = 0;
     let dupCount = 0;
     
+    const existingDois = new Set(existingHashes.map(ep => ep.DOI?.trim().toLowerCase()).filter(Boolean));
+    const existingTitles = new Set(existingHashes.map(ep => ep.Title?.toLowerCase().replace(/\s+/g, '')).filter(Boolean));
+
     const checkedPapers = parsedPapers.map(p => {
       const cleanTitle = p.Title?.toLowerCase().replace(/\s+/g, '') || '';
-      const doi = p.DOI?.trim() || '';
+      const doi = p.DOI?.trim().toLowerCase() || '';
 
-      const isDuplicate = existingHashes.some(ep => {
-        if (doi && ep.DOI && ep.DOI.trim().toLowerCase() === doi.toLowerCase()) {
-          return true;
-        }
-        const cleanEpTitle = ep.Title?.toLowerCase().replace(/\s+/g, '') || '';
-        return cleanTitle === cleanEpTitle;
-      });
+      const isDuplicate = (doi && existingDois.has(doi)) || (cleanTitle && existingTitles.has(cleanTitle));
 
       if (isDuplicate) {
         dupCount++;
@@ -2076,7 +2084,7 @@ export default function DashboardPage() {
         <header className="h-16 px-6 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
           <div>
             <h2 className="font-bold text-sm tracking-tight capitalize">
-              {projects.find(p => p.id === activeProjectId)?.name || 'Default Project'} • {activeTab.replace('-', ' ')}
+              {projects.find(p => String(p.id) === String(activeProjectId))?.name || 'Default Project'} • {activeTab.replace('-', ' ')}
             </h2>
             <p className="text-[10px] text-muted-foreground font-medium">Stage 1: Reference Ingestion & matching workflows</p>
           </div>
@@ -2348,7 +2356,7 @@ export default function DashboardPage() {
 
             {/* Realtime progress bars inside header */}
             {(() => {
-              const activeProj = projects.find(p => p.id === activeProjectId);
+              const activeProj = projects.find(p => String(p.id) === String(activeProjectId));
               const targetA = activeProj?.pool_a_size || 50;
               const targetB = activeProj?.pool_b_size || 30;
               const targetC = activeProj?.pool_c_size || 20;
@@ -2913,7 +2921,7 @@ export default function DashboardPage() {
           <div className="flex-1 overflow-y-auto p-6">
             <InterRaterDashboard
               activeProjectId={activeProjectId}
-              activeProject={projects.find(p => p.id === activeProjectId)}
+              activeProject={projects.find(p => String(p.id) === String(activeProjectId))}
               showToast={showToast}
               loadCalPapers={loadCalPapers}
               setCalActivePool={setCalActivePool}

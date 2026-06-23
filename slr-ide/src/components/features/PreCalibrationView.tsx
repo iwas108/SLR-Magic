@@ -8,8 +8,64 @@ import {
   Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield
 } from 'lucide-react';
 
+import { useCalibration } from '@/hooks/useCalibration';
+import { broadcastSync } from '@/lib/sync-utils';
+
 export default function PreCalibrationView(props: any) {
-  const {activeTab, setActiveTab, projects, setProjects, activeProjectId, setActiveProjectId, loadingProjects, setLoadingProjects, projectSubTab, setProjectSubTab, compressOnSync, setCompressOnSync, showCreateProjectModal, setShowCreateProjectModal, savingProject, setSavingProject, showEditProjectModal, setShowEditProjectModal, editingProjectId, setEditingProjectId, projectSettingsTab, setProjectSettingsTab, testingProjectConnection, setTestingProjectConnection, projectConnectionTestResult, setProjectConnectionTestResult, calibrationSubTab, setCalibrationSubTab, projectFormName, setProjectFormName, projectFormManifesto, setProjectFormManifesto, projectFormObjective, setProjectFormObjective, projectFormQuestions, setProjectFormQuestions, projectFormQaDefinition, setProjectFormQaDefinition, projectFormExclusionCriteria, setProjectFormExclusionCriteria, projectFormPoolA, setProjectFormPoolA, projectFormPoolB, setProjectFormPoolB, projectFormPoolC, setProjectFormPoolC, projectFormGDriveDest, setProjectFormGDriveDest, projectFormCloudProvider, setProjectFormCloudProvider, projectFormRemoteName, setProjectFormRemoteName, projectFormPoolTags, setProjectFormPoolTags, projectFormEcRules, setProjectFormEcRules, projectFormReasoningTemplate, setProjectFormReasoningTemplate, newProjName, setNewProjName, newProjFolder, setNewProjFolder, newProjManifesto, setNewProjManifesto, newProjObjective, setNewProjObjective, newProjQuestions, setNewProjQuestions, newProjQaDefinition, setNewProjQaDefinition, newProjExclusionCriteria, setNewProjExclusionCriteria, newProjPoolA, setNewProjPoolA, newProjPoolB, setNewProjPoolB, newProjPoolC, setNewProjPoolC, newProjGDriveDest, setNewProjGDriveDest, newProjCloudProvider, setNewProjCloudProvider, newProjRemoteName, setNewProjRemoteName, newProjPoolTags, setNewProjPoolTags, deleteProjectConfirm, setDeleteProjectConfirm, deleteProjectConfirmationText, setDeleteProjectConfirmationText, deletingProject, setDeletingProject, csvSource, setCsvSource, csvFile, setCsvFile, csvImportDate, setCsvImportDate, manualSource, setManualSource, manualImportDate, setManualImportDate, manualYear, setManualYear, manualTitle, setManualTitle, manualAuthors, setManualAuthors, manualDoi, setManualDoi, manualAbstract, setManualAbstract, manualIngesting, setManualIngesting, papers, setPapers, loadingPapers, setLoadingPapers, searchTerm, setSearchTerm, statusFilter, setStatusFilter, pdfFilter, setPdfFilter, deleteConfirm, setDeleteConfirm, deletingPaper, setDeletingPaper, deleteAllConfirm, setDeleteAllConfirm, isSettingsOpen, setIsSettingsOpen, toasts, setToasts, assignSelectedPaper, setAssignSelectedPaper, operationModal, setOperationModal, cloudProvider, cloudName, handleTestProjectConnection, handleAddPoolTag, handleUpdatePoolTag, activeProject, showToast, loadProjects, activateProject, handleCreateProject, handleSaveProjectManifesto, loadPapers, handleManualIngest, runBatchExecution, paperModal, setPaperModal, hasLocalPdf, showInterRaterModal, setShowInterRaterModal, showImport, setShowImport,     pipelineStats, setPipelineStats, currentStep, setCurrentStep, isModalMinimized, setIsModalMinimized, formatBytes, getTimeEstimates, indexingState, logEndRef, handleResumeOperation, handleCancelOperation, renderCalSortIcon, handleCalSort, calActivePool, calPapers, calTotalPapers, calPage, calLimit, setCalLimit, setCalPage, calTotalPages, handleAssignPool, setSelectedParentPaper, setManualParentPaperId, setManualParentSearch, setShowParentSuggestions, showParentSuggestions, manualParentSearch, parentPaperSuggestions, LoaderIcon, handleSort, renderSortIcon, totalPapers, page, limit, setLimit, setPage, totalPages, calStats, setCalActivePool, handleExportCalPoolA, setShowAssignModal, calSearchTerm, setCalSearchTerm, calStatusFilter, setCalStatusFilter, calPdfFilter, setCalPdfFilter, calLoading, openProjectSettings, handleRemovePoolTag, handleAddEcRule, handleUpdateEcRule, handleRemoveEcRule, handleAddReasoningTemplate, handleUpdateReasoningTemplate, handleRemoveReasoningTemplate, handleCsvSelect, csvData, columnMapping, setColumnMapping, csvHeaders, previewPapers, previewStats, handleImport, importing, selectedParentPaper, setParentPaperSuggestions} = props;
+  const { 
+    showToast, activeProject, projects, activeProjectId, paperModal, setPaperModal,
+    calActivePool, setCalActivePool, calStats, setCalStats, calPapers, calLoading, calSearchTerm, setCalSearchTerm,
+    calStatusFilter, setCalStatusFilter, calPdfFilter, setCalPdfFilter, calTagFilter, setCalTagFilter, calPage,
+    setCalPage, calLimit, setCalLimit, calTotalPapers, calTotalPages, calSortBy, setCalSortBy, calSortOrder,
+    setCalSortOrder, showAssignModal, setShowAssignModal, showInterRaterModal, setShowInterRaterModal, activeAssignDropdown,
+    setActiveAssignDropdown, assignSearch, setAssignSearch, assignPoolFilter, setAssignPoolFilter, assignPapers,
+    assignSelectedPaper, setAssignSelectedPaper, assignLoading, assignPage, setAssignPage, assignLimit, setAssignLimit,
+    assignTotalPapers, assignTotalPages, assignLogs, setAssignLogs, assignIsRunning, setAssignIsRunning, assignStatusText,
+    setAssignStatusText, assignProgress, setAssignProgress, assignWaitingLogin, setAssignWaitingLogin, handleCalSort,
+    handleAssignPool, handleExportCalPoolA, loadCalPapers, loadAssignPapers
+  } = props;
+
+
+  function LoaderIcon() {
+    return (
+      <svg className="w-6 h-6 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+    );
+  }
+
+
+  const renderCalSortIcon = (field: string) => {
+    if (calSortBy !== field) return <ArrowUpDown className="w-3 h-3 text-muted-foreground/30" />;
+    return calSortOrder === 'asc' ? 
+      <ArrowUp className="w-3 h-3 text-primary" /> : 
+      <ArrowDown className="w-3 h-3 text-primary" />;
+  };
+
+  const handleDeployInterRater = async () => {
+    setAssignIsRunning(true);
+    setAssignStatusText('Deploying to Inter-Rater module...');
+    setAssignLogs([]);
+    try {
+      const res = await fetch('/api/inter-rater/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      if (res.ok) {
+        setAssignStatusText('Deployment Successful');
+        showToast('Inter-Rater deployment completed', 'success');
+        setTimeout(() => setShowInterRaterModal(false), 2000);
+      } else {
+        const data = await res.json();
+        setAssignStatusText('Deployment Failed');
+        showToast(data.error || 'Failed to deploy', 'error');
+      }
+    } catch (err: any) {
+      setAssignStatusText('Error occurred');
+      showToast(err.message, 'error');
+    } finally {
+      setAssignIsRunning(false);
+    }
+  };
+
 
   return (
     <>
@@ -117,10 +173,16 @@ export default function PreCalibrationView(props: any) {
                           </div>
                         </div>
                       </div>
+
                     </div>
-                  </div>
-                );
-              })()}
+
+                    {/* INJECTED MODALS */}
+
+                    
+
+                    </div>
+  );
+})()}
 
               {/* ACTION BAR AND SUBTABS */}
               <div className="bg-card border border-border p-4 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 shadow-sm">
@@ -454,244 +516,7 @@ export default function PreCalibrationView(props: any) {
                 )}
               </div>
             </div>
-         ) : activeTab !== 'database' && activeTab !== 'pre-calibration' ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-border rounded-xl bg-card/35 max-w-lg mx-auto my-12">
-              <Layers className="w-12 h-12 text-muted-foreground/60 mb-4 animate-pulse" />
-              <h3 className="font-bold text-sm mb-1 text-foreground">Workflow Stage On Hold</h3>
-              <p className="text-xs text-muted-foreground max-w-sm leading-relaxed mb-4">
-                This workflow block (&quot;{activeTab.replace('-', ' ')}&quot;) is currently on hold. We are polishing the Paper Database stage first.
-              </p>
-              <button
-                onClick={() => setActiveTab('database')}
-                className="px-4 py-2 bg-secondary text-foreground hover:bg-secondary/80 text-xs font-semibold rounded-lg border border-border transition-colors"
-              >
-                Back to Paper Database
-              </button>
-            </div>
-          ) : operationModal.isOpen && !isModalMinimized ? (
-            /* BATCH PDF PIPELINE PANEL CARD */
-            <div className="h-full flex flex-col bg-card border border-border rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/25 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Play className="w-4 h-4 text-primary fill-current animate-pulse" />
-                  <h3 className="font-bold text-sm">{operationModal.title}</h3>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalMinimized(true)}
-                    className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 text-[10px] font-bold uppercase"
-                    title="Minimize to Widget"
-                  >
-                    <Minus className="w-4 h-4" />
-                    Minimize
-                  </button>
-                  {!operationModal.isExecuting && (
-                    <button 
-                      onClick={() => {
-                        setOperationModal((prev: any) => ({ ...prev, isOpen: false }));
-                        setCurrentStep(null);
-                      }} 
-                      className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex-1 p-5 overflow-hidden flex flex-col space-y-4">
-                {/* Progress bar */}
-                <div className="space-y-1.5 shrink-0">
-                  <div className="flex justify-between items-center text-[10px] font-bold uppercase text-muted-foreground">
-                    <span>{operationModal.statusText}</span>
-                    <span>{operationModal.progress}%</span>
-                  </div>
-                  <div className="w-full h-2 bg-secondary border border-border rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-300 rounded-full" 
-                      style={{ width: `${operationModal.progress}%` }} 
-                    />
-                  </div>
-                </div>
-
-                {/* Statistics Row */}
-                {currentStep && (
-                  (() => {
-                    let statsFound = 0;
-                    let statsNotFound = 0;
-                    let statsTotal = pipelineStats.total;
-                    let statsCurrent = pipelineStats.current;
-
-                    if (currentStep === 'scan') {
-                      statsFound = pipelineStats.matched;
-                      statsNotFound = Math.max(0, pipelineStats.current - pipelineStats.matched);
-                    } else if (currentStep === 'scrape') {
-                    statsFound = pipelineStats.downloaded;
-                      statsNotFound = pipelineStats.failed;
-                    } else if (currentStep === 'sync') {
-                      statsFound = pipelineStats.current;
-                      statsNotFound = pipelineStats.failed;
-                    }
-
-                    if (currentStep === 'compress') {
-                      const ratio = pipelineStats.originalSpaceBytes > 0 
-                        ? (pipelineStats.savedSpaceBytes / pipelineStats.originalSpaceBytes) * 100 
-                        : 0;
-                      return (
-                        <div className="grid grid-cols-3 gap-3 shrink-0 text-[10px] select-none">
-                          <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-2 flex flex-col items-center justify-center">
-                            <span className="font-bold text-emerald-400 uppercase tracking-wide">Processed / Total</span>
-                            <span className="text-sm font-black text-emerald-400 mt-0.5">{statsCurrent} / {statsTotal || '—'}</span>
-                          </div>
-                          <div className="bg-primary/5 border border-primary/20 rounded-lg p-2 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-200">
-                            <span className="font-bold text-primary uppercase tracking-wide">Space Saved</span>
-                            <span className="text-sm font-black text-primary mt-0.5">{formatBytes(pipelineStats.savedSpaceBytes)}</span>
-                          </div>
-                          <div className="bg-secondary border border-border rounded-lg p-2 flex flex-col items-center justify-center">
-                            <span className="font-bold text-muted-foreground uppercase tracking-wide">Original Total Size</span>
-                            <span className="text-sm font-black text-foreground mt-0.5">
-                              {formatBytes(pipelineStats.originalSpaceBytes)} {ratio > 0 ? `(-${ratio.toFixed(1)}%)` : ''}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    if (currentStep === 'sync') {
-                      const isLinking = pipelineStats.total > 0;
-                      const syncStatus = isLinking ? "Generating Links..." : "Syncing Files (Rclone)...";
-                      return (
-                        <div className="grid grid-cols-3 gap-3 shrink-0 text-[10px] select-none animate-in fade-in zoom-in duration-200">
-                          <div className="bg-primary/5 border border-primary/20 rounded-lg p-2 flex flex-col items-center justify-center">
-                            <span className="font-bold text-primary uppercase tracking-wide">Sync Phase</span>
-                            <span className="text-sm font-black text-primary mt-0.5">{syncStatus}</span>
-                          </div>
-                          <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-2 flex flex-col items-center justify-center">
-                            <span className="font-bold text-emerald-400 uppercase tracking-wide">Links Generated</span>
-                            <span className="text-sm font-black text-emerald-400 mt-0.5">{statsFound} / {statsTotal || '—'}</span>
-                          </div>
-                          <div className={`rounded-lg p-2 flex flex-col items-center justify-center border ${statsNotFound > 0 ? 'bg-destructive/5 border-destructive/20 text-destructive animate-pulse' : 'bg-secondary border-border text-muted-foreground'}`}>
-                            <span className={`font-bold uppercase tracking-wide ${statsNotFound > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>Link Failures</span>
-                            <span className={`text-sm font-black mt-0.5 ${statsNotFound > 0 ? 'text-destructive' : 'text-foreground'}`}>{statsNotFound}</span>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="grid grid-cols-3 gap-3 shrink-0 text-[10px] select-none">
-                        <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-2 flex flex-col items-center justify-center">
-                          <span className="font-bold text-emerald-400 uppercase tracking-wide">Found / Success</span>
-                          <span className="text-sm font-black text-emerald-400 mt-0.5">{statsFound}</span>
-                        </div>
-                        <div className="bg-destructive/5 border border-destructive/10 rounded-lg p-2 flex flex-col items-center justify-center">
-                          <span className="font-bold text-destructive uppercase tracking-wide">Not Found / Fail</span>
-                          <span className="text-sm font-black text-destructive mt-0.5">{statsNotFound}</span>
-                        </div>
-                        <div className="bg-secondary border border-border rounded-lg p-2 flex flex-col items-center justify-center">
-                          <span className="font-bold text-muted-foreground uppercase tracking-wide">Processed / Total</span>
-                          <span className="text-sm font-black text-foreground mt-0.5">{statsCurrent} / {statsTotal || '—'}</span>
-                        </div>
-                      </div>
-                    );
-                  })()
-                )}
-
-                {currentStep && (
-                  (() => {
-                    const { avgTime, timeLeft } = getTimeEstimates();
-                    return (
-                      <div className="bg-secondary/15 border border-border/80 rounded-lg p-2.5 flex items-center justify-between text-[10px] select-none shrink-0 font-semibold text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary/80 animate-pulse" />
-                          <span>Average Speed:</span>
-                          <span className="text-foreground font-black">{avgTime} / paper</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span>Time Remaining:</span>
-                          <span className="text-primary font-black tracking-wide">{timeLeft}</span>
-                        </div>
-                      </div>
-                    );
-                  })()
-                )}
-
-                {indexingState && (
-                  <div className="bg-primary/5 border border-primary/10 rounded-lg p-2.5 flex items-center justify-between text-[10px] select-none shrink-0 font-semibold text-muted-foreground animate-in fade-in duration-200">
-                    <div className="flex items-center gap-1.5 text-primary max-w-[70%]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-ping shrink-0" />
-                      <span className="shrink-0 font-bold">Indexing Cache:</span>
-                      <span className="text-foreground font-black truncate" title={indexingState.filename}>
-                        {indexingState.filename}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span>
-                        Tool: <span className="text-foreground font-black uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px]">{indexingState.tool}</span>
-                      </span>
-                      <span className="text-primary font-bold">
-                        ({indexingState.current}/{indexingState.total})
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {operationModal.currentItem && (
-                  <div className="bg-secondary/30 border border-border rounded-lg p-2.5 text-[10px] font-bold text-foreground shrink-0 whitespace-normal break-words">
-                    Current paper: {operationModal.currentItem}
-                  </div>
-                )}
-
-                {/* Logs area */}
-                <div className="flex-1 bg-secondary/15 border border-border rounded-lg p-3 overflow-y-auto font-mono text-[10px] leading-relaxed text-muted-foreground space-y-1 select-text">
-                  {operationModal.logs.slice(-500).map((log: any, idx: any) => (
-                    <div key={idx} className={
-                      log.includes('✓') || log.includes('[SUCCESS]') || log.includes('>>>') ? 'text-emerald-400' :
-                      log.includes('✗') || log.includes('[ERROR]') || log.includes('<<<') ? 'text-destructive' :
-                      log.includes('[START]') ? 'text-primary font-bold' :
-                      log.includes('[SKIPPED]') ? 'text-amber-500/70' :
-                      log.includes('[SCANNING]') ? 'text-muted-foreground/60' : 'text-muted-foreground'
-                    }>
-                      {log}
-                    </div>
-                  ))}
-                  <div ref={logEndRef} />
-                </div>
-              </div>
-
-              {/* Card Footer Actions */}
-              <div className="p-4 border-t border-border flex items-center justify-end bg-secondary/25 shrink-0 gap-3">
-                {operationModal.isExecuting && operationModal.isWaitingLogin && (
-                  <button
-                    onClick={handleResumeOperation}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white hover:text-white text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 animate-pulse"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    Resume Download
-                  </button>
-                )}
-                {operationModal.isExecuting && (
-                  <button
-                    onClick={handleCancelOperation}
-                    className="px-4 py-2 border border-border text-xs font-semibold rounded-lg hover:bg-secondary text-foreground transition-colors"
-                  >
-                    Cancel Process
-                  </button>
-                )}
-                {!operationModal.isExecuting && (
-                  <button
-                    onClick={() => {
-                      setOperationModal((prev: any) => ({ ...prev, isOpen: false }));
-                      setCurrentStep(null);
-                    }}
-                    className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors"
-                  >
-                    Close Window
-                  </button>
-                )}
-              </div>
-            </div>
+         
     </>
   );
 }

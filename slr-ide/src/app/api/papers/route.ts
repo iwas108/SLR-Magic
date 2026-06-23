@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
 import db, { getConfig } from '@/lib/db';
 import crypto from 'crypto';
 
@@ -95,6 +96,12 @@ export async function GET(request: Request) {
         filterQuery += ' AND calibration_tag = ?';
         params.push(calibrationTag);
       }
+    }
+
+    // Check if only IDs matching the current query filters are requested
+    if (searchParams.get('onlyIds') === 'true') {
+      const rows = db.prepare(`SELECT Paper_ID ${filterQuery}`).all(...params) as { Paper_ID: string }[];
+      return NextResponse.json(rows.map(r => r.Paper_ID));
     }
 
     // 1. Get total matching count
@@ -258,6 +265,50 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to import papers' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { paperIds, status, localPdfStatus } = body;
+
+    if (!Array.isArray(paperIds) || paperIds.length === 0) {
+      return NextResponse.json({ error: 'Payload must contain a non-empty "paperIds" array' }, { status: 400 });
+    }
+
+    if (status === undefined && localPdfStatus === undefined) {
+      return NextResponse.json({ error: 'Payload must specify at least one attribute to update ("status" or "localPdfStatus")' }, { status: 400 });
+    }
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (status !== undefined) {
+      updates.push('Status = ?');
+      params.push(status);
+    }
+
+    if (localPdfStatus !== undefined) {
+      updates.push('Local_PDF_Status = ?');
+      params.push(localPdfStatus);
+    }
+
+    const setClause = updates.join(', ');
+    const query = `UPDATE papers SET ${setClause} WHERE Paper_ID = ?`;
+
+    const stmt = db.prepare(query);
+    const transaction = db.transaction((ids: string[]) => {
+      for (const id of ids) {
+        stmt.run(...params, id);
+      }
+    });
+
+    transaction(paperIds);
+
+    return NextResponse.json({ success: true, updatedCount: paperIds.length });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Failed to update papers' }, { status: 500 });
   }
 }
 

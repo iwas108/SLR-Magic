@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Project } from '@/types';
 import { broadcastSync } from '@/lib/sync-utils';
 
-export function useProjects(showToast: (msg: string, type: string) => void) {
+export function useProjects(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string>('default-project');
   const [loadingProjects, setLoadingProjects] = useState(true);
@@ -28,6 +28,11 @@ export function useProjects(showToast: (msg: string, type: string) => void) {
     }
     return null;
   }, [showToast]);
+
+  // Load projects on mount
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   const activateProject = useCallback(async (id: string, onActiveCallback?: () => void) => {
     try {

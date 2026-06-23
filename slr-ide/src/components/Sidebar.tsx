@@ -4,6 +4,7 @@ import React from 'react';
 import { LayoutDashboard, Database, ShieldAlert, Play, BadgeCheck, FileOutput, Sun, Moon, Laptop, Settings } from 'lucide-react';
 
 interface SidebarProps {
+  activeProject?: any;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   theme: string;
@@ -14,7 +15,7 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOpenSettings }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, disabled: false },
-    { id: 'database', label: 'Paper Database', icon: Database, disabled: false },
+    { id: 'paper-database', label: 'Paper Database', icon: Database, disabled: false },
     { id: 'pre-calibration', label: 'Pre-Calibration', icon: ShieldAlert, disabled: false },
     { id: 'full-execution', label: 'Full Execution', icon: Play, disabled: true, badge: 'On Hold' },
     { id: 'post-validation', label: 'Post-Validation', icon: BadgeCheck, disabled: true, badge: 'On Hold' },
