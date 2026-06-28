@@ -108,6 +108,10 @@ export default function DashboardPage() {
   }>({ pool_a: [], pool_b: [], pool_c: [] });
   const [projectFormEcRules, setProjectFormEcRules] = useState<{ code: string; description: string }[]>([]);
   const [projectFormReasoningTemplate, setProjectFormReasoningTemplate] = useState<string[]>([]);
+  const [projectFormPoolBEcRules, setProjectFormPoolBEcRules] = useState<{ code: string; description: string }[]>([]);
+  const [projectFormPoolBReasoningTemplate, setProjectFormPoolBReasoningTemplate] = useState<string[]>([]);
+  const [projectFormPoolCQaRules, setProjectFormPoolCQaRules] = useState<{ code: string; question: string; is_fatal_flaw?: boolean }[]>([]);
+  const [projectFormPoolCExtractionRules, setProjectFormPoolCExtractionRules] = useState<{ json_key: string; question: string }[]>([]);
 
   // New project modal states
   const [newProjName, setNewProjName] = useState('');
@@ -365,6 +369,46 @@ export default function DashboardPage() {
     }
     setProjectFormReasoningTemplate(parsedReasoning || []);
 
+    let parsedPoolBEc = [];
+    if (proj.pool_b_ec_rules) {
+      try {
+        parsedPoolBEc = typeof proj.pool_b_ec_rules === 'string' ? JSON.parse(proj.pool_b_ec_rules) : proj.pool_b_ec_rules;
+      } catch (e) {
+        console.error("Error parsing pool_b_ec_rules", e);
+      }
+    }
+    setProjectFormPoolBEcRules(parsedPoolBEc || []);
+
+    let parsedPoolBReasoning = [];
+    if (proj.pool_b_reasoning_template) {
+      try {
+        parsedPoolBReasoning = typeof proj.pool_b_reasoning_template === 'string' ? JSON.parse(proj.pool_b_reasoning_template) : proj.pool_b_reasoning_template;
+      } catch (e) {
+        console.error("Error parsing pool_b_reasoning_template", e);
+      }
+    }
+    setProjectFormPoolBReasoningTemplate(parsedPoolBReasoning || []);
+
+    let parsedPoolCQa = [];
+    if (proj.pool_c_qa_rules) {
+      try {
+        parsedPoolCQa = typeof proj.pool_c_qa_rules === 'string' ? JSON.parse(proj.pool_c_qa_rules) : proj.pool_c_qa_rules;
+      } catch (e) {
+        console.error("Error parsing pool_c_qa_rules", e);
+      }
+    }
+    setProjectFormPoolCQaRules(parsedPoolCQa || []);
+
+    let parsedPoolCExtraction = [];
+    if (proj.pool_c_extraction_rules) {
+      try {
+        parsedPoolCExtraction = typeof proj.pool_c_extraction_rules === 'string' ? JSON.parse(proj.pool_c_extraction_rules) : proj.pool_c_extraction_rules;
+      } catch (e) {
+        console.error("Error parsing pool_c_extraction_rules", e);
+      }
+    }
+    setProjectFormPoolCExtractionRules(parsedPoolCExtraction || []);
+
     setProjectSettingsTab('metadata');
     setProjectConnectionTestResult(null);
     setTestingProjectConnection(false);
@@ -463,6 +507,70 @@ export default function DashboardPage() {
     setProjectFormReasoningTemplate(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleAddPoolBEcRule = () => {
+    setProjectFormPoolBEcRules(prev => [...prev, { code: '', description: '' }]);
+  };
+
+  const handleUpdatePoolBEcRule = (index: number, field: 'code' | 'description', value: string) => {
+    setProjectFormPoolBEcRules(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleRemovePoolBEcRule = (index: number) => {
+    setProjectFormPoolBEcRules(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddPoolBReasoningTemplate = () => {
+    setProjectFormPoolBReasoningTemplate(prev => [...prev, '']);
+  };
+
+  const handleUpdatePoolBReasoningTemplate = (index: number, value: string) => {
+    setProjectFormPoolBReasoningTemplate(prev => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  };
+
+  const handleRemovePoolBReasoningTemplate = (index: number) => {
+    setProjectFormPoolBReasoningTemplate(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddPoolCQaRule = () => {
+    setProjectFormPoolCQaRules(prev => [...prev, { code: '', question: '', is_fatal_flaw: false }]);
+  };
+
+  const handleUpdatePoolCQaRule = (index: number, field: 'code' | 'question' | 'is_fatal_flaw', value: string | boolean) => {
+    setProjectFormPoolCQaRules(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleRemovePoolCQaRule = (index: number) => {
+    setProjectFormPoolCQaRules(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddPoolCExtractionRule = () => {
+    setProjectFormPoolCExtractionRules(prev => [...prev, { json_key: '', question: '' }]);
+  };
+
+  const handleUpdatePoolCExtractionRule = (index: number, field: 'json_key' | 'question', value: string) => {
+    setProjectFormPoolCExtractionRules(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleRemovePoolCExtractionRule = (index: number) => {
+    setProjectFormPoolCExtractionRules(prev => prev.filter((_, i) => i !== index));
+  };
+
   // Pool tags helpers for new project
   const handleAddNewProjPoolTag = (pool: 'pool_a' | 'pool_b' | 'pool_c') => {
     setNewProjPoolTags(prev => ({
@@ -528,7 +636,11 @@ export default function DashboardPage() {
           rclone_remote_name: projectFormRemoteName,
           pool_tags: projectFormPoolTags,
           ec_rules: projectFormEcRules,
-          reasoning_template: projectFormReasoningTemplate
+          reasoning_template: projectFormReasoningTemplate,
+          pool_b_ec_rules: projectFormPoolBEcRules,
+          pool_b_reasoning_template: projectFormPoolBReasoningTemplate,
+          pool_c_qa_rules: projectFormPoolCQaRules,
+          pool_c_extraction_rules: projectFormPoolCExtractionRules
         })
       });
 
@@ -2433,7 +2545,34 @@ export default function DashboardPage() {
     setAssignWaitingLogin,
     loadCalPapers,
     loadAssignPapers,
-    runSinglePaperPipeline
+    runSinglePaperPipeline,
+    projectFormPoolBEcRules,
+    setProjectFormPoolBEcRules,
+    projectFormPoolBReasoningTemplate,
+    setProjectFormPoolBReasoningTemplate,
+    projectFormPoolCQaRules,
+    setProjectFormPoolCQaRules,
+    projectFormPoolCExtractionRules,
+    setProjectFormPoolCExtractionRules,
+    handleAddPoolBEcRule,
+    handleUpdatePoolBEcRule,
+    handleRemovePoolBEcRule,
+    handleAddPoolBReasoningTemplate,
+    handleUpdatePoolBReasoningTemplate,
+    handleRemovePoolBReasoningTemplate,
+    handleAddPoolCQaRule,
+    handleUpdatePoolCQaRule,
+    handleRemovePoolCQaRule,
+    handleAddPoolCExtractionRule,
+    handleUpdatePoolCExtractionRule,
+    handleRemovePoolCExtractionRule,
+    calTagFilter,
+    setCalTagFilter,
+    calSortBy,
+    setCalSortBy,
+    calSortOrder,
+    setCalSortOrder,
+    setCalStats
   };
 
   return (

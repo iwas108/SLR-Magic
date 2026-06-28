@@ -25,8 +25,9 @@ export function useAppSync(callbacks: SyncCallbacks) {
       if (type === 'SYNC_PROJECTS' && latestCallbacks.current.loadProjects) {
         latestCallbacks.current.loadProjects();
       }
-      if (type === 'SYNC_PAPERS' && latestCallbacks.current.loadPapers) {
-        latestCallbacks.current.loadPapers();
+      if (type === 'SYNC_PAPERS') {
+        if (latestCallbacks.current.loadPapers) latestCallbacks.current.loadPapers();
+        if (latestCallbacks.current.loadDuplicatesCount) latestCallbacks.current.loadDuplicatesCount();
       }
       if (type === 'SYNC_CALIBRATION' && latestCallbacks.current.loadCalPapers) {
         latestCallbacks.current.loadCalPapers();

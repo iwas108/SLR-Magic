@@ -1,4 +1,4 @@
-export type SyncType = 'SYNC_PAPERS' | 'SYNC_PROJECTS' | 'SYNC_PIPELINE' | 'SYNC_ADJUDICATION';
+export type SyncType = 'SYNC_PAPERS' | 'SYNC_PROJECTS' | 'SYNC_PIPELINE' | 'SYNC_ADJUDICATION' | 'SYNC_DUPLICATES';
 
 export function broadcastSync(type: SyncType) {
   if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {

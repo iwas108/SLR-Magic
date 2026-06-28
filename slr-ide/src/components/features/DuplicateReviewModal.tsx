@@ -160,6 +160,7 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
       if (res.ok) {
         showToast(data.message || 'Duplicate resolved successfully.', 'success');
         broadcastSync('SYNC_PAPERS');
+        broadcastSync('SYNC_DUPLICATES');
         loadPapersRef.current();
 
         // Load next or update

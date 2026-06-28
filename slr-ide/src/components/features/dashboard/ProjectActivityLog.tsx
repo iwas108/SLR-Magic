@@ -51,7 +51,7 @@ export default function ProjectActivityLog({ activeProject }: ProjectActivityLog
           <div className="space-y-1.5">
             <h4 className="font-bold text-foreground text-xs text-primary">Research Questions (RQs)</h4>
             <div className="text-[11px] font-mono bg-background/50 p-2.5 rounded-lg border border-border/60 text-muted-foreground whitespace-pre-wrap max-h-32 overflow-y-auto">
-              {activeProject.research_questions || 'RQ1: Not defined\nRQ2: Not defined'}
+              {activeProject.questions || activeProject.research_questions || 'RQ1: Not defined\nRQ2: Not defined'}
             </div>
           </div>
 
