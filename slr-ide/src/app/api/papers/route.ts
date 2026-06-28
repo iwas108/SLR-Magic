@@ -44,11 +44,18 @@ export async function GET(request: Request) {
       return NextResponse.json(rows);
     }
 
+    // Check if only unique publishers are requested
+    if (searchParams.get('getPublishers') === 'true') {
+      const rows = db.prepare("SELECT DISTINCT Publisher FROM papers WHERE Project_ID = ? AND Publisher IS NOT NULL AND Publisher != '' ORDER BY Publisher ASC").all(activeProjectId) as { Publisher: string }[];
+      return NextResponse.json(rows.map(r => r.Publisher));
+    }
+
     const search = searchParams.get('search')?.trim() || '';
     const status = searchParams.get('status')?.trim() || '';
     const pdfStatus = searchParams.get('pdfStatus')?.trim() || '';
     const calibrationPool = searchParams.get('calibrationPool')?.trim() || '';
     const calibrationTag = searchParams.get('calibrationTag')?.trim() || '';
+    const publisher = searchParams.get('publisher')?.trim() || '';
     
     // Sort parameters
     const sortBy = searchParams.get('sortBy')?.trim() || 'Paper_ID';
@@ -61,13 +68,13 @@ export async function GET(request: Request) {
     const limitVal = parseInt(searchParams.get('limit') || '50', 10);
     const limit = !isNaN(limitVal) && limitVal > 0 ? limitVal : 50;
 
-    let filterQuery = ' FROM papers WHERE Project_ID = ?';
+    let filterQuery = ' FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)';
     const params: any[] = [activeProjectId];
 
     if (search) {
-      filterQuery += ' AND (Paper_ID LIKE ? OR Title LIKE ? OR Abstract LIKE ? OR Authors LIKE ? OR DOI LIKE ?)';
+      filterQuery += ' AND (Paper_ID LIKE ? OR Title LIKE ? OR Abstract LIKE ? OR Authors LIKE ? OR DOI LIKE ? OR Publisher LIKE ?)';
       const searchWildcard = `%${search}%`;
-      params.push(searchWildcard, searchWildcard, searchWildcard, searchWildcard, searchWildcard);
+      params.push(searchWildcard, searchWildcard, searchWildcard, searchWildcard, searchWildcard, searchWildcard);
     }
 
     if (status) {
@@ -78,6 +85,11 @@ export async function GET(request: Request) {
     if (pdfStatus) {
       filterQuery += ' AND Local_PDF_Status = ?';
       params.push(pdfStatus);
+    }
+
+    if (publisher) {
+      filterQuery += ' AND Publisher = ?';
+      params.push(publisher);
     }
 
     if (calibrationPool) {
@@ -109,7 +121,7 @@ export async function GET(request: Request) {
     const total = countRow ? countRow.count : 0;
 
     // 2. Sorting whitelist validation to prevent SQL Injection
-    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'calibration_tag', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale'];
+    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'calibration_tag', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', 'Publisher'];
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
@@ -152,8 +164,8 @@ export async function POST(request: Request) {
 
     const insertStmt = db.prepare(`
       INSERT INTO papers (
-        Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year, PDF_Link, Status, Local_PDF_Status, Project_ID, Parent_Paper_ID
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year, PDF_Link, Status, Local_PDF_Status, Project_ID, Parent_Paper_ID, Original_Publisher, Publisher
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     // Fetch existing paper IDs to generate new ones if Paper_ID is missing or conflicted
@@ -234,6 +246,8 @@ export async function POST(request: Request) {
         // Initial Local PDF status
         const localPdfStatus = 'IGNORED';
         const parentPaperId = paper.Parent_Paper_ID || null;
+        const originalPublisher = paper.Original_Publisher || paper.Publisher || '';
+        const publisherVal = '';
 
         insertStmt.run(
           paperId,
@@ -249,7 +263,9 @@ export async function POST(request: Request) {
           status,
           localPdfStatus,
           activeProjectId,
-          parentPaperId
+          parentPaperId,
+          originalPublisher,
+          publisherVal
         );
         importedCount++;
       }

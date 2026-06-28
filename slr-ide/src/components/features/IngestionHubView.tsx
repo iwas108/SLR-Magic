@@ -7,8 +7,10 @@ import {
   TrendingUp, BarChart3, Cloud, Database, ShieldAlert, Terminal, ArrowRightLeft,
   Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield
 } from 'lucide-react';
+import { useAppState } from '@/hooks/AppStateProvider';
 
-export default function IngestionHubView(props: any) {
+export default function IngestionHubView() {
+  const props = useAppState();
   const { activeTab, setActiveTab, projects, setProjects, activeProjectId, setActiveProjectId, loadingProjects, setLoadingProjects, projectSubTab, setProjectSubTab, compressOnSync, setCompressOnSync, showCreateProjectModal, setShowCreateProjectModal, savingProject, setSavingProject, showEditProjectModal, setShowEditProjectModal, editingProjectId, setEditingProjectId, projectSettingsTab, setProjectSettingsTab, testingProjectConnection, setTestingProjectConnection, projectConnectionTestResult, setProjectConnectionTestResult, calibrationSubTab, setCalibrationSubTab, projectFormName, setProjectFormName, projectFormManifesto, setProjectFormManifesto, projectFormObjective, setProjectFormObjective, projectFormQuestions, setProjectFormQuestions, projectFormQaDefinition, setProjectFormQaDefinition, projectFormExclusionCriteria, setProjectFormExclusionCriteria, projectFormPoolA, setProjectFormPoolA, projectFormPoolB, setProjectFormPoolB, projectFormPoolC, setProjectFormPoolC, projectFormGDriveDest, setProjectFormGDriveDest, projectFormCloudProvider, setProjectFormCloudProvider, projectFormRemoteName, setProjectFormRemoteName, projectFormPoolTags, setProjectFormPoolTags, projectFormEcRules, setProjectFormEcRules, projectFormReasoningTemplate, setProjectFormReasoningTemplate, newProjName, setNewProjName, newProjFolder, setNewProjFolder, newProjManifesto, setNewProjManifesto, newProjObjective, setNewProjObjective, newProjQuestions, setNewProjQuestions, newProjQaDefinition, setNewProjQaDefinition, newProjExclusionCriteria, setNewProjExclusionCriteria, newProjPoolA, setNewProjPoolA, newProjPoolB, setNewProjPoolB, newProjPoolC, setNewProjPoolC, newProjGDriveDest, setNewProjGDriveDest, newProjCloudProvider, setNewProjCloudProvider, newProjRemoteName, setNewProjRemoteName, newProjPoolTags, setNewProjPoolTags, deleteProjectConfirm, setDeleteProjectConfirm, deleteProjectConfirmationText, setDeleteProjectConfirmationText, deletingProject, setDeletingProject, csvSource, setCsvSource, csvFile, setCsvFile, csvImportDate, setCsvImportDate, manualSource, setManualSource, manualImportDate, setManualImportDate, manualYear, setManualYear, manualTitle, setManualTitle, manualAuthors, setManualAuthors, manualDoi, setManualDoi, manualAbstract, setManualAbstract, manualIngesting, setManualIngesting, papers, setPapers, loadingPapers, setLoadingPapers, searchTerm, setSearchTerm, statusFilter, setStatusFilter, pdfFilter, setPdfFilter, deleteConfirm, setDeleteConfirm, deletingPaper, setDeletingPaper, deleteAllConfirm, setDeleteAllConfirm, isSettingsOpen, setIsSettingsOpen, toasts, setToasts, assignSelectedPaper, setAssignSelectedPaper, operationModal, setOperationModal, cloudProvider, cloudName, handleTestProjectConnection, handleAddPoolTag, handleUpdatePoolTag, activeProject, showToast, loadProjects, activateProject, handleCreateProject, handleSaveProjectManifesto, loadPapers, handleManualIngest, runBatchExecution, paperModal, setPaperModal, hasLocalPdf, showInterRaterModal, setShowInterRaterModal, showImport, setShowImport, pipelineStats, setPipelineStats, currentStep, setCurrentStep, isModalMinimized, setIsModalMinimized, formatBytes, getTimeEstimates, indexingState, logEndRef, handleResumeOperation, handleCancelOperation, renderCalSortIcon, handleCalSort, calActivePool, calPapers, calTotalPapers, calPage, calLimit, setCalLimit, setCalPage, calTotalPages, handleAssignPool, setSelectedParentPaper, setManualParentPaperId, setManualParentSearch, setShowParentSuggestions, showParentSuggestions, manualParentSearch, parentPaperSuggestions, LoaderIcon, handleSort, renderSortIcon, totalPapers, page, limit, setLimit, setPage, totalPages, calStats, setCalActivePool, handleExportCalPoolA, setShowAssignModal, calSearchTerm, setCalSearchTerm, calStatusFilter, setCalStatusFilter, calPdfFilter, setCalPdfFilter, calLoading, openProjectSettings, handleRemovePoolTag, handleAddEcRule, handleUpdateEcRule, handleRemoveEcRule, handleAddReasoningTemplate, handleUpdateReasoningTemplate, handleRemoveReasoningTemplate, handleCsvSelect, csvData, columnMapping, setColumnMapping, csvHeaders, previewPapers, previewStats, handleImport, importing, selectedParentPaper, setParentPaperSuggestions } = props;
 
   const [isReviewModalOpen, setIsReviewModalOpen] = React.useState(false);
@@ -98,6 +100,8 @@ export default function IngestionHubView(props: any) {
                           { key: 'Abstract', label: 'Abstract', req: false },
                           { key: 'Authors', label: 'Authors', req: false },
                           { key: 'Year', label: 'Year', req: false },
+                          { key: 'Original_Publisher', label: 'Original Publisher', req: false },
+                          { key: 'Publisher', label: 'Publisher (Initial Empty)', req: false },
                           { key: 'PDF_Link', label: 'PDF Link / Cloud URL', req: false },
                           { key: 'Status', label: 'Status (e.g. INCLUDE)', req: false }
                         ].map((col) => {
@@ -439,6 +443,8 @@ export default function IngestionHubView(props: any) {
                     <th className="p-3 font-semibold">Authors</th>
                     <th className="p-3 font-semibold">Year</th>
                     <th className="p-3 font-semibold">DOI</th>
+                    <th className="p-3 font-semibold">Original Publisher</th>
+                    <th className="p-3 font-semibold">Publisher</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
@@ -461,11 +467,13 @@ export default function IngestionHubView(props: any) {
                         <td className="p-3 text-muted-foreground truncate max-w-[150px]" title={p.Authors}>{p.Authors || '—'}</td>
                         <td className="p-3 text-muted-foreground">{p.Year || '—'}</td>
                         <td className="p-3 text-muted-foreground font-mono text-[10px]">{p.DOI || '—'}</td>
+                        <td className="p-3 text-muted-foreground truncate max-w-[150px]" title={p.Original_Publisher}>{p.Original_Publisher || '—'}</td>
+                        <td className="p-3 text-muted-foreground truncate max-w-[150px]" title={p.Publisher}>{p.Publisher || '—'}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={8} className="p-8 text-center text-muted-foreground">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Search className="w-8 h-8 opacity-20" />
                           <p>No records found matching filters.</p>

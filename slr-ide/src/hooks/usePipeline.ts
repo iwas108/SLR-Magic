@@ -3,14 +3,16 @@ import { broadcastSync } from '@/lib/sync-utils';
 
 export function usePipeline(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void, loadPapers: () => void) {
   const [batchSteps, setBatchSteps] = useState<Record<string, boolean>>({
-    scan: true,
-    scrape: true,
-    sync: true
+    duplicate_scan: false,
+    scan: false,
+    scrape: false,
+    map_publisher: false,
+    sync: false
   });
 
   const [operationModal, setOperationModal] = useState<{
     isOpen: boolean;
-    type: 'scan' | 'scrape' | 'sync' | null;
+    type: 'scan' | 'scrape' | 'sync' | 'map_publisher' | null;
     title: string;
     progress: number;
     statusText: string;
@@ -30,7 +32,7 @@ export function usePipeline(showToast: (msg: string, type: 'success' | 'error' |
   });
 
   const [isModalMinimized, setIsModalMinimized] = useState(false);
-  const [currentStep, setCurrentStep] = useState<'scan' | 'scrape' | 'compress' | 'sync' | null>(null);
+  const [currentStep, setCurrentStep] = useState<'scan' | 'duplicate_scan' | 'scrape' | 'compress' | 'sync' | 'map_publisher' | null>(null);
   const [pipelineStats, setPipelineStats] = useState({
     matched: 0,
     downloaded: 0,
@@ -72,6 +74,7 @@ export function usePipeline(showToast: (msg: string, type: 'success' | 'error' |
   }, [operationModal.logs, operationModal.isOpen]);
 
   const handleBatchEvent = useCallback((data: any) => {
+    // 1. Step Start/Complete markers
     if (data.event === 'step_start') {
       setCurrentStep(data.step);
       setStepStartTime(Date.now());
@@ -110,39 +113,23 @@ export function usePipeline(showToast: (msg: string, type: 'success' | 'error' |
       setIndexingState(null);
       setOperationModal(prev => ({
         ...prev,
-        statusText: `Error: ${data.message}`,
         isWaitingLogin: false,
         logs: [...prev.logs, `[ERROR]: ${data.message}`].slice(-500),
         isExecuting: false
       }));
-    } else if (data.event === 'progress') {
-      if (data.currentItem) {
-        setPipelineStats(prev => ({
-          ...prev,
-          current: data.current || prev.current,
-          total: data.total || prev.total
-        }));
-        setOperationModal(prev => ({
-          ...prev,
-          progress: data.total ? Math.round(((data.current || 0) / data.total) * 100) : prev.progress,
-          currentItem: data.currentItem,
-          isWaitingLogin: false,
-          logs: [...prev.logs, data.message].slice(-500)
-        }));
-      } else {
-        setOperationModal(prev => ({
-          ...prev,
-          logs: [...prev.logs, data.message].slice(-500)
-        }));
-      }
     } else if (data.event === 'waiting_login') {
       setOperationModal(prev => ({
         ...prev,
-        statusText: data.message,
         isWaitingLogin: true,
+        statusText: data.message,
         logs: [...prev.logs, `[ACTION REQUIRED]: ${data.message}`].slice(-500)
       }));
-    } else if (data.event === 'indexing_progress') {
+    } else if (data.event === 'resume') {
+      setOperationModal(prev => ({
+        ...prev,
+        isWaitingLogin: false
+      }));
+    } else if (data.event === 'indexing') {
       setIndexingState({
         filename: data.filename,
         tool: data.tool,
@@ -150,19 +137,265 @@ export function usePipeline(showToast: (msg: string, type: 'success' | 'error' |
         total: data.total
       });
       if (data.current === data.total) {
-        setTimeout(() => {
+        if ((window as any).indexingTimer) {
+          clearTimeout((window as any).indexingTimer);
+        }
+        (window as any).indexingTimer = setTimeout(() => {
           setIndexingState(null);
         }, 10000);
       }
-    } else if (data.event === 'stats_update') {
-      setPipelineStats(prev => ({
+    } else if (data.event === 'clear_indexing') {
+      setIndexingState(null);
+    } else if (data.event === 'log') {
+      setOperationModal(prev => ({
         ...prev,
-        matched: data.stats?.matched ?? prev.matched,
-        downloaded: data.stats?.downloaded ?? prev.downloaded,
-        failed: data.stats?.failed ?? prev.failed,
-        savedSpaceBytes: data.stats?.savedSpaceBytes ?? prev.savedSpaceBytes,
-        originalSpaceBytes: data.stats?.originalSpaceBytes ?? prev.originalSpaceBytes
+        logs: [...prev.logs, data.message].slice(-500)
       }));
+    } else if (data.info) {
+      setOperationModal(prev => ({
+        ...prev,
+        logs: [...prev.logs, `[INFO]: ${data.info}`].slice(-500)
+      }));
+    } else if (data.event === 'comparing') {
+      setOperationModal(prev => ({
+        ...prev,
+        currentItem: `${prev.currentItem?.split(' | ')[0] || prev.currentItem} | Comparing: ${data.filename}`
+      }));
+    }
+    
+    // 2. Step specific events
+    // Cache Scan Matcher events
+    else if (data.step === 'scan') {
+      if (data.event === 'progress') {
+        const percent = Math.round((data.current / data.total) * 100);
+        setPipelineStats(prev => ({
+          ...prev,
+          current: data.current,
+          total: data.total
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          progress: percent,
+          currentItem: `Paper: ${data.paper_id} - "${data.title}"`,
+          statusText: `Matching Cache: paper ${data.current} of ${data.total}...`
+        }));
+      } else if (data.event === 'match') {
+        setPipelineStats(prev => ({
+          ...prev,
+          matched: prev.matched + 1
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `✓ Matched: ${data.paper_id} - "${data.filename}" (${data.method})`].slice(-500),
+          statusText: `Matched paper ${data.paper_id}...`
+        }));
+      }
+    } 
+    
+    // Duplicate scan events
+    else if (data.step === 'duplicate_scan') {
+      if (data.event === 'progress') {
+        const percent = Math.round((data.current / data.total) * 100);
+        setPipelineStats(prev => ({
+          ...prev,
+          current: data.current,
+          total: data.total,
+          matched: data.matched !== undefined ? data.matched : prev.matched
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          progress: percent,
+          currentItem: data.currentItem ? `Comparing: "${data.currentItem}"` : undefined,
+          statusText: `Scanning duplicates: paper ${data.current} of ${data.total}...`
+        }));
+      }
+    }    
+    // Scraper events
+    else if (data.step === 'scrape') {
+      if (data.event === 'start') {
+        setPipelineStats(prev => ({
+          ...prev,
+          total: data.total,
+          current: 0
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `Scraper starting for ${data.total} papers...`].slice(-500),
+          statusText: 'Launching Scraper...'
+        }));
+      } else if (data.event === 'progress') {
+        const percent = Math.round((data.current / data.total) * 100);
+        setPipelineStats(prev => ({
+          ...prev,
+          current: data.current
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          progress: percent,
+          currentItem: data.title,
+          statusText: `Scraping: paper ${data.current} of ${data.total}...`,
+          logs: [...prev.logs, `[Scrape ${data.current}/${data.total}] Attempting download for: "${data.title}"`].slice(-500)
+        }));
+      } else if (data.event === 'paper_success') {
+        setPipelineStats(prev => ({
+          ...prev,
+          downloaded: prev.downloaded + 1
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `✓ Downloaded and saved PDF for ${data.paper_id}.`].slice(-500)
+        }));
+      } else if (data.event === 'paper_fail') {
+        setPipelineStats(prev => ({
+          ...prev,
+          failed: prev.failed + 1
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `✗ Download failed for ${data.paper_id}: ${data.error}`].slice(-500)
+        }));
+      } else if (data.event === 'sleep') {
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `Scraper rate limit delay: sleeping for ${data.duration}s...`].slice(-500)
+        }));
+      }
+    } 
+    
+    // Compressor events
+    else if (data.step === 'compress') {
+      if (data.event === 'start') {
+        setPipelineStats(prev => ({
+          ...prev,
+          total: data.total,
+          current: 0
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `Compressor starting for ${data.total} files...`].slice(-500),
+          statusText: 'Launching Compressor...'
+        }));
+      } else if (data.event === 'progress') {
+        const percent = Math.round((data.current / data.total) * 100);
+        const origSize = data.original_size || 0;
+        const newSize = data.new_size || 0;
+        const savedSpace = Math.max(0, origSize - newSize);
+
+        setPipelineStats(prev => ({
+          ...prev,
+          current: data.current,
+          originalSpaceBytes: (prev.originalSpaceBytes || 0) + (data.skipped ? 0 : origSize),
+          savedSpaceBytes: (prev.savedSpaceBytes || 0) + (data.skipped ? 0 : savedSpace)
+        }));
+
+        const formatBytesLocal = (bytes: number) => {
+          if (!bytes || bytes === 0) return '0 Bytes';
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(Math.abs(bytes)) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        const ratioText = data.skipped
+          ? ` (${formatBytesLocal(origSize)}, Already Processed)`
+          : (data.ratio > 0 
+              ? ` (${formatBytesLocal(origSize)} -> ${formatBytesLocal(newSize)}, saved -${data.ratio}%)` 
+              : ` (${formatBytesLocal(origSize)}, Direct Copy)`);
+
+        setOperationModal(prev => ({
+          ...prev,
+          progress: percent,
+          currentItem: `${data.paper_id}.pdf`,
+          statusText: `Compressing: file ${data.current} of ${data.total}...`,
+          logs: [...prev.logs, `[Compress ${data.current}/${data.total}] Processed ${data.paper_id}.pdf${ratioText}`].slice(-500)
+        }));
+      }
+    } 
+    
+    // Map Publisher events
+    else if (data.step === 'map_publisher') {
+      if (data.event === 'start') {
+        setPipelineStats(prev => ({
+          ...prev,
+          total: data.total,
+          current: 0,
+          failed: 0
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `Publisher mapping starting for ${data.total} papers...`].slice(-500),
+          statusText: 'Launching Publisher Mapper...'
+        }));
+      } else if (data.event === 'progress') {
+        const percent = Math.round((data.current / data.total) * 100);
+        setPipelineStats(prev => ({
+          ...prev,
+          current: data.current
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          progress: percent,
+          currentItem: data.title,
+          statusText: `Mapping Publisher: paper ${data.current} of ${data.total}...`,
+          logs: [...prev.logs, `[Map ${data.current}/${data.total}] Processing publisher for: "${data.title}"`].slice(-500)
+        }));
+      } else if (data.event === 'paper_success') {
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `✓ Mapped publisher for ${data.paper_id}.`].slice(-500)
+        }));
+      } else if (data.event === 'paper_fail') {
+        setPipelineStats(prev => ({
+          ...prev,
+          failed: prev.failed + 1
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `✗ Publisher mapping failed for ${data.paper_id}: ${data.error}`].slice(-500)
+        }));
+      }
+    }
+    
+    // Sync events
+    else if (data.step === 'sync') {
+      if (data.event === 'start') {
+        setPipelineStats(prev => ({
+          ...prev,
+          total: data.total,
+          current: 0,
+          failed: 0
+        }));
+      } else if (data.event === 'rclone_log') {
+        const match = data.message.match(/INFO\s*:\s*([^:]+\.pdf):\s*(.*)/i);
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, data.message].slice(-500),
+          currentItem: match ? `Syncing: ${match[1]} (${match[2]})` : prev.currentItem
+        }));
+      } else if (data.event === 'linking') {
+        setOperationModal(prev => ({
+          ...prev,
+          currentItem: `Linking paper: ${data.paper_id}`
+        }));
+      } else if (data.event === 'link_success') {
+        setPipelineStats(prev => ({
+          ...prev,
+          current: prev.current + 1
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `✓ link generated for ${data.paper_id}: ${data.link}`].slice(-500)
+        }));
+      } else if (data.event === 'link_fail') {
+        setPipelineStats(prev => ({
+          ...prev,
+          failed: prev.failed + 1
+        }));
+        setOperationModal(prev => ({
+          ...prev,
+          logs: [...prev.logs, `✗ link failed for ${data.paper_id}: ${data.message}`].slice(-500)
+        }));
+      }
     }
   }, []);
 
@@ -253,17 +486,53 @@ export function usePipeline(showToast: (msg: string, type: 'success' | 'error' |
     });
 
     try {
-      const res = await fetch('/api/pdf/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ steps: activeSteps, compress: compressOnSync }),
-        signal: controller.signal
-      });
+      // Step 1: Sequential Duplicate Scanning
+      if (batchSteps.duplicate_scan) {
+        setOperationModal(prev => ({
+          ...prev,
+          statusText: 'Starting duplicate scan...',
+          logs: ['>>> Launching Duplicate Paper Detection...']
+        }));
+        
+        const resScan = await fetch('/api/duplicates/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal
+        });
+        
+        broadcastSync('SYNC_PIPELINE');
+        
+        if (!resScan.body) throw new Error('No duplicate scan stream returned');
+        await readBatchStream(resScan, controller);
 
-      broadcastSync('SYNC_PIPELINE');
+        // Check if aborted/cancelled during duplicate scan
+        if (controller.signal.aborted) {
+          return;
+        }
+      }
 
-      if (!res.body) throw new Error('No body stream returned');
-      await readBatchStream(res, controller);
+      // Step 2: Next steps in batch execution
+      const otherSteps = activeSteps.filter(k => k !== 'duplicate_scan');
+      if (otherSteps.length > 0) {
+        setOperationModal(prev => ({
+          ...prev,
+          statusText: 'Transitioning to PDF batch acquisition...',
+          logs: [...prev.logs, '>>> Starting PDF Acquisition & Sync...'],
+          isExecuting: true
+        }));
+
+        const res = await fetch('/api/pdf/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ steps: otherSteps, compress: compressOnSync }),
+          signal: controller.signal
+        });
+
+        broadcastSync('SYNC_PIPELINE');
+
+        if (!res.body) throw new Error('No body stream returned');
+        await readBatchStream(res, controller);
+      }
 
     } catch (err: any) {
       if (err.name !== 'AbortError') {

@@ -9,20 +9,21 @@ export async function GET() {
     const projectsWithStats = projects.map(proj => {
       const stats = db.prepare(`
         SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN Status IN ('INCLUDE', 'EXCLUDE') THEN 1 ELSE 0 END) as screened,
-          SUM(CASE WHEN Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as acquired,
-          SUM(CASE WHEN Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced,
-          SUM(CASE WHEN calibration_pool = 'pool_a' THEN 1 ELSE 0 END) as pool_a_count,
-          SUM(CASE WHEN calibration_pool = 'pool_b' THEN 1 ELSE 0 END) as pool_b_count,
-          SUM(CASE WHEN calibration_pool = 'pool_c' THEN 1 ELSE 0 END) as pool_c_count
+          COUNT(CASE WHEN is_duplicate IS NULL OR is_duplicate = 0 THEN 1 END) as total,
+          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Status IN ('INCLUDE', 'EXCLUDE') THEN 1 ELSE 0 END) as screened,
+          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as acquired,
+          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced,
+          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND calibration_pool = 'pool_a' THEN 1 ELSE 0 END) as pool_a_count,
+          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND calibration_pool = 'pool_b' THEN 1 ELSE 0 END) as pool_b_count,
+          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND calibration_pool = 'pool_c' THEN 1 ELSE 0 END) as pool_c_count,
+          SUM(CASE WHEN is_duplicate = 1 THEN 1 ELSE 0 END) as duplicates
         FROM papers WHERE Project_ID = ?
       `).get(proj.id) as any;
 
       const tagRows = db.prepare(`
         SELECT calibration_pool, calibration_tag, COUNT(*) as count 
         FROM papers 
-        WHERE Project_ID = ? AND calibration_pool IS NOT NULL 
+        WHERE Project_ID = ? AND calibration_pool IS NOT NULL AND (is_duplicate IS NULL OR is_duplicate = 0)
         GROUP BY calibration_pool, calibration_tag
       `).all(proj.id) as { calibration_pool: string; calibration_tag: string | null; count: number }[];
 
@@ -103,13 +104,17 @@ export async function POST(request: Request) {
     const poolTags = pool_tags ? (typeof pool_tags === 'string' ? pool_tags : JSON.stringify(pool_tags)) : '{}';
     const ecRules = ec_rules ? (typeof ec_rules === 'string' ? ec_rules : JSON.stringify(ec_rules)) : '[]';
     const reasoningTemplate = reasoning_template ? (typeof reasoning_template === 'string' ? reasoning_template : JSON.stringify(reasoning_template)) : '[]';
+    const poolBEcRules = body.pool_b_ec_rules ? (typeof body.pool_b_ec_rules === 'string' ? body.pool_b_ec_rules : JSON.stringify(body.pool_b_ec_rules)) : '[]';
+    const poolBReasoningTemplate = body.pool_b_reasoning_template ? (typeof body.pool_b_reasoning_template === 'string' ? body.pool_b_reasoning_template : JSON.stringify(body.pool_b_reasoning_template)) : '[]';
+    const poolCQaRules = body.pool_c_qa_rules ? (typeof body.pool_c_qa_rules === 'string' ? body.pool_c_qa_rules : JSON.stringify(body.pool_c_qa_rules)) : '[]';
+    const poolCExtractionRules = body.pool_c_extraction_rules ? (typeof body.pool_c_extraction_rules === 'string' ? body.pool_c_extraction_rules : JSON.stringify(body.pool_c_extraction_rules)) : '[]';
     const budgetLimit = project_budget_limit !== undefined ? parseFloat(project_budget_limit) : 5.0;
     const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
 
     db.prepare(`
       INSERT INTO projects (
-        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, project_budget_limit, llm_config, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, llm_config, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       name.trim(),
@@ -128,6 +133,10 @@ export async function POST(request: Request) {
       poolTags,
       ecRules,
       reasoningTemplate,
+      poolBEcRules,
+      poolBReasoningTemplate,
+      poolCQaRules,
+      poolCExtractionRules,
       budgetLimit,
       llmConfigStr,
       new Date().toISOString()
@@ -159,6 +168,10 @@ export async function PUT(request: Request) {
       pool_tags,
       ec_rules,
       reasoning_template,
+      pool_b_ec_rules,
+      pool_b_reasoning_template,
+      pool_c_qa_rules,
+      pool_c_extraction_rules,
       project_budget_limit,
       llm_config
     } = body;
@@ -180,6 +193,10 @@ export async function PUT(request: Request) {
     const poolTags = pool_tags ? (typeof pool_tags === 'string' ? pool_tags : JSON.stringify(pool_tags)) : '{}';
     const ecRules = ec_rules ? (typeof ec_rules === 'string' ? ec_rules : JSON.stringify(ec_rules)) : '[]';
     const reasoningTemplate = reasoning_template ? (typeof reasoning_template === 'string' ? reasoning_template : JSON.stringify(reasoning_template)) : '[]';
+    const poolBEcRules = pool_b_ec_rules ? (typeof pool_b_ec_rules === 'string' ? pool_b_ec_rules : JSON.stringify(pool_b_ec_rules)) : '[]';
+    const poolBReasoningTemplate = pool_b_reasoning_template ? (typeof pool_b_reasoning_template === 'string' ? pool_b_reasoning_template : JSON.stringify(pool_b_reasoning_template)) : '[]';
+    const poolCQaRules = pool_c_qa_rules ? (typeof pool_c_qa_rules === 'string' ? pool_c_qa_rules : JSON.stringify(pool_c_qa_rules)) : '[]';
+    const poolCExtractionRules = pool_c_extraction_rules ? (typeof pool_c_extraction_rules === 'string' ? pool_c_extraction_rules : JSON.stringify(pool_c_extraction_rules)) : '[]';
     const budgetLimit = project_budget_limit !== undefined ? parseFloat(project_budget_limit) : 5.0;
     const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
 
@@ -200,6 +217,10 @@ export async function PUT(request: Request) {
           pool_tags = ?,
           ec_rules = ?,
           reasoning_template = ?,
+          pool_b_ec_rules = ?,
+          pool_b_reasoning_template = ?,
+          pool_c_qa_rules = ?,
+          pool_c_extraction_rules = ?,
           project_budget_limit = ?,
           llm_config = ?
       WHERE id = ?
@@ -219,6 +240,10 @@ export async function PUT(request: Request) {
       poolTags,
       ecRules,
       reasoningTemplate,
+      poolBEcRules,
+      poolBReasoningTemplate,
+      poolCQaRules,
+      poolCExtractionRules,
       budgetLimit,
       llmConfigStr,
       id

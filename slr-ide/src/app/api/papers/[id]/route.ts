@@ -24,7 +24,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { Title, Authors, Year, DOI, Abstract, PDF_Link, Status, Local_PDF_Status, calibration_pool, calibration_tag, Human_Decision, Human_EC_Trigger, Human_Rationale, Parent_Paper_ID } = body;
+    const { Title, Authors, Year, DOI, Abstract, PDF_Link, Status, Local_PDF_Status, calibration_pool, calibration_tag, Human_Decision, Human_EC_Trigger, Human_Rationale, Parent_Paper_ID, Original_Publisher, Publisher } = body;
 
     if (!Title || !Title.trim()) {
       return NextResponse.json({ error: 'Title is mandatory' }, { status: 400 });
@@ -53,6 +53,8 @@ export async function PUT(
     const humanEcVal = Human_EC_Trigger !== undefined ? Human_EC_Trigger : currentPaper.Human_EC_Trigger;
     const humanRatVal = Human_Rationale !== undefined ? Human_Rationale : currentPaper.Human_Rationale;
     const parentPaperIdVal = Parent_Paper_ID !== undefined ? Parent_Paper_ID : currentPaper.Parent_Paper_ID;
+    const originalPublisherVal = Original_Publisher !== undefined ? Original_Publisher : currentPaper.Original_Publisher;
+    const publisherVal = Publisher !== undefined ? Publisher : currentPaper.Publisher;
 
     db.prepare(`
       UPDATE papers
@@ -69,7 +71,9 @@ export async function PUT(
           Human_Decision = ?,
           Human_EC_Trigger = ?,
           Human_Rationale = ?,
-          Parent_Paper_ID = ?
+          Parent_Paper_ID = ?,
+          Original_Publisher = ?,
+          Publisher = ?
       WHERE Paper_ID = ?
     `).run(
       Title.trim(),
@@ -86,6 +90,8 @@ export async function PUT(
       humanEcVal,
       humanRatVal,
       parentPaperIdVal,
+      originalPublisherVal,
+      publisherVal,
       id
     );
 

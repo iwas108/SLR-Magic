@@ -4,7 +4,7 @@ import { PROJECT_ROOT } from '@/lib/db';
 
 export async function POST() {
   try {
-    const pythonExe = path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe');
+    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
 
     const child = spawn(pythonExe, ['-m', 'python_engine.entrypoints.scrape_pdfs'], {
       cwd: PROJECT_ROOT

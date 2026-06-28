@@ -1,16 +1,80 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ShieldAlert, Plus, RefreshCw, X, ChevronLeft, ChevronRight, Loader2, ArrowUpDown, ArrowUp, ArrowDown, Search, CheckCircle2, ExternalLink, AlertTriangle, Play, Terminal } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { ShieldAlert, RefreshCw, X, ChevronLeft, ChevronRight, Loader2, Search, CheckCircle2, ExternalLink, AlertTriangle, Play, Terminal } from 'lucide-react';
+import { broadcastSync } from '@/lib/sync-utils';
 
-export default function AssignPapersModal({ allProps }: { allProps: any }) {
-  const {
-    projects, activeProjectId, assignSearch, setAssignSearch, assignPoolFilter, setAssignPoolFilter,
-    assignPapers, assignTotalPapers, assignPage, setAssignPage, assignTotalPages, assignLoading, assignSelectedPaper, setAssignSelectedPaper,
-    activeAssignDropdown, setActiveAssignDropdown, handleAssignPool, showAssignModal, setShowAssignModal, calPapers,
-    activeProject, loadCalPapers, loadPapers, formatBytes, showToast, cloudName,
-    assignIsRunning, setAssignIsRunning, assignLogs, setAssignLogs, assignProgress, setAssignProgress, assignStatusText, setAssignStatusText,
-    assignWaitingLogin, setAssignWaitingLogin, singlePipelineAbortControllerRef, runSinglePaperPipeline
-  } = allProps;
+interface AssignPapersModalProps {
+  projects: any[];
+  activeProjectId: string | null;
+  activeProject: any;
+  assignSearch: string;
+  setAssignSearch: (val: string) => void;
+  assignPoolFilter: string;
+  setAssignPoolFilter: (val: string) => void;
+  assignPapers: any[];
+  assignTotalPapers: number;
+  assignPage: number;
+  setAssignPage: any;
+  assignTotalPages: number;
+  assignLoading: boolean;
+  assignSelectedPaper: any;
+  setAssignSelectedPaper: (paper: any) => void;
+  activeAssignDropdown: any;
+  setActiveAssignDropdown: (val: any) => void;
+  handleAssignPool: (paperId: string, pool: string | null, tag?: string | null) => Promise<void>;
+  showAssignModal: boolean;
+  setShowAssignModal: (val: boolean) => void;
+  loadCalPapers: () => void;
+  loadPapers: () => void;
+  showToast: (msg: string, type: string) => void;
+  cloudName: string;
+  assignIsRunning: boolean;
+  assignLogs: string[];
+  setAssignLogs: (logs: string[]) => void;
+  assignProgress: number;
+  setAssignProgress: (prog: number) => void;
+  assignStatusText: string;
+  assignWaitingLogin: boolean;
+  setAssignWaitingLogin: (val: boolean) => void;
+  singlePipelineAbortControllerRef: React.MutableRefObject<AbortController | null>;
+  runSinglePaperPipeline: (paperId: string) => void;
+}
 
+export default function AssignPapersModal({
+  projects,
+  activeProjectId,
+  activeProject,
+  assignSearch,
+  setAssignSearch,
+  assignPoolFilter,
+  setAssignPoolFilter,
+  assignPapers,
+  assignTotalPapers,
+  assignPage,
+  setAssignPage,
+  assignTotalPages,
+  assignLoading,
+  assignSelectedPaper,
+  setAssignSelectedPaper,
+  activeAssignDropdown,
+  setActiveAssignDropdown,
+  handleAssignPool,
+  showAssignModal,
+  setShowAssignModal,
+  loadCalPapers,
+  loadPapers,
+  showToast,
+  cloudName,
+  assignIsRunning,
+  assignLogs,
+  setAssignLogs,
+  assignProgress,
+  setAssignProgress,
+  assignStatusText,
+  assignWaitingLogin,
+  setAssignWaitingLogin,
+  singlePipelineAbortControllerRef,
+  runSinglePaperPipeline
+}: AssignPapersModalProps) {
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -242,7 +306,6 @@ export default function AssignPapersModal({ allProps }: { allProps: any }) {
                             setAssignSelectedPaper(paper);
                             setAssignLogs([]);
                             setAssignProgress(0);
-                            setAssignStatusText('');
                           } else {
                             showToast('Please wait or cancel the running acquisition process first.', 'warning');
                           }
@@ -251,7 +314,7 @@ export default function AssignPapersModal({ allProps }: { allProps: any }) {
                           isSelected
                             ? 'bg-secondary/40 border-primary'
                             : paper.calibration_pool === 'pool_a'
-                            ? 'border-indigo-500 hover:bg-secondary/10'
+                            ? 'border-indigo-50 hover:bg-secondary/10'
                             : paper.calibration_pool === 'pool_b'
                             ? 'border-emerald-500 hover:bg-secondary/10'
                             : paper.calibration_pool === 'pool_c'
@@ -342,7 +405,7 @@ export default function AssignPapersModal({ allProps }: { allProps: any }) {
                                 <button
                                   type="button"
                                   disabled={assignIsRunning}
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (tags.length > 0) {
                                       if (showDropdown) {
                                         setActiveAssignDropdown(null);
@@ -350,7 +413,9 @@ export default function AssignPapersModal({ allProps }: { allProps: any }) {
                                         setActiveAssignDropdown({ paperId: assignSelectedPaper.Paper_ID, poolId: pool.id });
                                       }
                                     } else {
-                                      handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, null);
+                                      await handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, null);
+                                      broadcastSync('SYNC_PAPERS');
+                                      broadcastSync('SYNC_PROJECTS');
                                     }
                                   }}
                                   className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all duration-200 flex items-center gap-1 ${
@@ -381,9 +446,11 @@ export default function AssignPapersModal({ allProps }: { allProps: any }) {
                                       </div>
                                       <button
                                         type="button"
-                                        onClick={() => {
-                                          handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, null);
+                                        onClick={async () => {
+                                          await handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, null);
                                           setActiveAssignDropdown(null);
+                                          broadcastSync('SYNC_PAPERS');
+                                          broadcastSync('SYNC_PROJECTS');
                                         }}
                                         className="px-2.5 py-1.5 text-left hover:bg-secondary transition-colors"
                                       >
@@ -393,9 +460,11 @@ export default function AssignPapersModal({ allProps }: { allProps: any }) {
                                         <button
                                           key={tag.code}
                                           type="button"
-                                          onClick={() => {
-                                            handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, tag.code);
+                                          onClick={async () => {
+                                            await handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, tag.code);
                                             setActiveAssignDropdown(null);
+                                            broadcastSync('SYNC_PAPERS');
+                                            broadcastSync('SYNC_PROJECTS');
                                           }}
                                           className="px-2.5 py-1.5 text-left hover:bg-secondary transition-colors border-t border-border/30"
                                         >
@@ -411,7 +480,11 @@ export default function AssignPapersModal({ allProps }: { allProps: any }) {
                           {assignSelectedPaper.calibration_pool && (
                             <button
                               disabled={assignIsRunning}
-                              onClick={() => handleAssignPool(assignSelectedPaper.Paper_ID, null)}
+                              onClick={async () => {
+                                await handleAssignPool(assignSelectedPaper.Paper_ID, null);
+                                broadcastSync('SYNC_PAPERS');
+                                broadcastSync('SYNC_PROJECTS');
+                              }}
                               className="px-2.5 py-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md text-[9px] font-bold uppercase transition-all duration-200"
                               title="Unassign Paper"
                             >

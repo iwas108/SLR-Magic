@@ -1,28 +1,23 @@
 import { NextResponse } from 'next/server';
+import { processManager } from '@/lib/services/process-manager';
+import { streamManager } from '@/lib/services/stream-manager';
+import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 
 export async function POST() {
-  const globalState = (global as any);
-  const state = globalState.batchState;
+  const state = batchStateTracker.getState();
   
   if (state && state.isExecuting && state.isWaitingLogin && state.activeChild) {
     console.log(`Resuming active child process PID ${state.activeChild.pid} via Resume endpoint...`);
     try {
       state.isWaitingLogin = false;
-      // Write a newline to stdin of the active child process to unblock sys.stdin.readline()
       state.activeChild.stdin?.write('\n');
       
       const msg = { event: 'log', message: '[SYSTEM]: User clicked resume. Continuing scraping pipeline...', step: 'scrape' };
-      state.logs.push(msg.message);
-      if (state.logs.length > 500) {
-        state.logs.shift();
-      }
+      batchStateTracker.pushLog(msg.message);
       
-      // Notify all listeners
       const resumeEvent = { event: 'resume', step: 'scrape' };
-      state.listeners.forEach((send: any) => {
-        try { send(resumeEvent); } catch (e) {}
-        try { send(msg); } catch (e) {}
-      });
+      streamManager.broadcast(resumeEvent);
+      streamManager.broadcast(msg);
       
       return NextResponse.json({ success: true, message: 'Pipeline resumed.' });
     } catch (e: any) {

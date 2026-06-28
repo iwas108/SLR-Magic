@@ -1,15 +1,23 @@
 import { NextResponse } from 'next/server';
 import db, { getConfig } from '@/lib/db';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const pool = searchParams.get('pool') || 'pool_a';
+    const dbPool = (pool === 'pool_b' || pool === 'CAL_Pool_B') 
+      ? 'pool_b' 
+      : (pool === 'pool_c' || pool === 'CAL_Pool_C') 
+      ? 'pool_c' 
+      : 'pool_a';
+
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
     const ledger = db.prepare(`
-      SELECT id, commit_hash, project_id, paper_id, pool, adjudicator, previous_state, resolved_decision, resolved_ec, resolved_rationale, commit_message, timestamp
+      SELECT id, commit_hash, project_id, paper_id, pool, adjudicator, previous_state, resolved_decision, resolved_ec, resolved_rationale, resolved_qa_scores, resolved_extracted_data, commit_message, timestamp
       FROM calibration_commit_ledger
-      WHERE project_id = ? AND pool = 'pool_a'
+      WHERE project_id = ? AND pool = ?
       ORDER BY timestamp DESC
-    `).all(activeProjectId);
+    `).all(activeProjectId, dbPool);
 
     return NextResponse.json({ success: true, ledger });
   } catch (error: any) {

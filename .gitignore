@@ -9,6 +9,7 @@ node_modules/
 .venv/
 venv/
 /slr-ide/venv/
+/slr-ide/python_engine/venv/
 __pycache__/
 *.pyc
 

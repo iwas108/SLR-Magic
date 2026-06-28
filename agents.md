@@ -43,12 +43,23 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 *   The system-level `methodology.md` ([methodology.md](methodology.md)) serves as the absolute source of truth for the core execution pipeline, calibration workflows, mathematical targets/thresholds, and target JSON schemas (Prompt Seeds).
 *   Any prompt modifications, scoring mechanisms, or pipeline adjustments MUST strictly adhere to the guidelines and schemas defined in this document.
 
+### 2.4 Module-Scoped File & Function Directories (`files.md`)
+*   Every active module maintains a `files.md` directory index (e.g., [slr-ide/files.md](slr-ide/files.md)) containing every file within that module along with its specific function, architectural layer, and purpose.
+*   Coding agents **MUST** utilize this file index to speed up codebase navigation, function searching, and structural lookup during tasks.
+*   **MANDATORY FILE LOGGING RULE**: Coding agents **MUST** update `slr-ide/files.md` whenever any file is created, modified in purpose, or deleted.
+*   **Table Schema**: When appending new file records to `files.md`, you must strictly adhere to the following Markdown table schema: `| File Path | Architectural Layer | Function & Purpose |`.
+
 ---
 
 ## 3. Strict Coding & Security Standards
 
 ### 3.1 Clean Code Architecture & FAIR Principles
-*   **Modular Component Architecture**: You MUST break down large interfaces into single-responsibility React functional components (e.g., place specific view modules in `src/components/features/`). DO NOT build or maintain massive single-file monoliths (like a 5000+ line `page.tsx`).
+*   **Modular Component Architecture**: You MUST break down large interfaces into single-responsibility React functional components. DO NOT build or maintain massive single-file monoliths (like a 5000+ line `page.tsx`). Utilize the following dedicated architectural directories:
+    *   `src/lib/services/`: Core backend services, child process orchestration, and EventSource stream management.
+    *   `src/lib/inter-rater/`: Pure TypeScript domain calculation libraries with zero Next.js dependencies (fully portable with standalone SPA).
+    *   `src/components/features/modals/`: Standalone, fully encapsulated modal dialog components.
+    *   `src/components/features/dashboard/`: Modular single-responsibility widgets for executive overviews.
+    *   `src/components/features/inter-rater/`: Presentation components for blinded review adjudication and comparisons.
 *   **Custom Hooks for State Management**: Separate complex business logic, side-effects, and React state (`useState`, `useEffect`) into custom hooks (`src/hooks/`) to keep View components clean and declarative.
 *   **Explicit Prop Passing**: Avoid the "props-drilling nightmare" pattern of collecting the entire application state into a single massive `allProps` object and passing it down to all children blindly. Explicitly pass only the props required by the child components.
 *   Maintain clean interfaces between Next.js APIs, the local SQLite database, and the Python CGI-like scrapers.
@@ -78,3 +89,4 @@ px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, 
 *   **Web Scraper**: [slr-ide/scrapers/pdf_scraper.py](slr-ide/scrapers/pdf_scraper.py) (downloads missing PDFs using undetected-chromedriver).
 *   **Sync**: Subprocess execution of `rclone` with shareable Google Drive links generation.
 *   **Core Execution & Calibration**: [methodology.md](methodology.md) (defines thresholds, pre-calibration loops, and target JSON payloads).
+*   **Comprehensive File Index**: [slr-ide/files.md](slr-ide/files.md) (contains every file inside slr-ide and its function/purpose to speed up agent navigation).

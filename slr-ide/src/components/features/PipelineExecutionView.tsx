@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Play, Minus, X, Database, BrainCircuit } from 'lucide-react';
 import LLMOperationsCenter from './LLMOperationsCenter';
+import { useAppState } from '@/hooks/AppStateProvider';
 
-export default function PipelineExecutionView(props: any) {
+export default function PipelineExecutionView() {
+  const props = useAppState();
   const { 
     activeProject, 
     loadProjects, 
@@ -33,8 +35,14 @@ export default function PipelineExecutionView(props: any) {
   if (currentStep === 'scan') {
     statsFound = pipelineStats.matched;
     statsNotFound = Math.max(0, pipelineStats.current - pipelineStats.matched);
+  } else if (currentStep === 'duplicate_scan') {
+    statsFound = pipelineStats.matched;
+    statsNotFound = 0;
   } else if (currentStep === 'scrape') {
     statsFound = pipelineStats.downloaded;
+    statsNotFound = pipelineStats.failed;
+  } else if (currentStep === 'map_publisher') {
+    statsFound = pipelineStats.current - pipelineStats.failed;
     statsNotFound = pipelineStats.failed;
   } else if (currentStep === 'sync') {
     statsFound = pipelineStats.current;
@@ -80,6 +88,17 @@ export default function PipelineExecutionView(props: any) {
                     <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
                       <input
                         type="checkbox"
+                        checked={batchSteps?.duplicate_scan || false}
+                        disabled={operationModal?.isExecuting}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, duplicate_scan: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Execute and Review Anti-Duplicate Job
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
                         checked={batchSteps?.scan || false}
                         disabled={operationModal?.isExecuting}
                         onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, scan: e.target.checked }))}
@@ -97,6 +116,17 @@ export default function PipelineExecutionView(props: any) {
                         className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                       Scrape PDFs
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.map_publisher || false}
+                        disabled={operationModal?.isExecuting}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, map_publisher: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Map Publisher
                     </label>
 
                     <label className={`flex items-center gap-1.5 font-semibold transition-colors group relative flex ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`} title={`${cloudName} Cloud Synchronization`}>

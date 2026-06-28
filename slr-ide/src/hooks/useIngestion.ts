@@ -105,7 +105,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
       
       const targetColumns = [
         'Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 
-        'PDF_Link', 'Status'
+        'PDF_Link', 'Status', 'Original_Publisher', 'Publisher'
       ];
       const initialMapping: Record<string, string> = {};
       
@@ -115,6 +115,20 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
         // Strict mapping exceptions
         if (col === 'PDF_Link') {
           initialMapping[col] = ''; // Always empty by default
+          return;
+        }
+
+        if (col === 'Publisher') {
+          initialMapping[col] = ''; // Always empty by default
+          return;
+        }
+
+        if (col === 'Original_Publisher') {
+          const matched = headers.find(h => {
+            const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cleanH === 'publisher' || cleanH === 'originalpublisher' || cleanH === 'original_publisher';
+          });
+          initialMapping[col] = matched || '';
           return;
         }
         
@@ -244,7 +258,9 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
         Source: manualSource || 'Manual Ingestion',
         Status: 'PENDING',
         Local_PDF_Status: 'MISSING',
-        Parent_Paper_ID: manualParentPaperId || ''
+        Parent_Paper_ID: manualParentPaperId || '',
+        Original_Publisher: '',
+        Publisher: ''
       };
 
       const res = await fetch('/api/papers', {

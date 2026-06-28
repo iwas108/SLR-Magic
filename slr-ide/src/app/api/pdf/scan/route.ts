@@ -4,7 +4,7 @@ import { PROJECT_ROOT } from '@/lib/db';
 
 export async function POST() {
   try {
-    const pythonExe = path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe');
+    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
     const pythonModule = 'python_engine.entrypoints.match_cache';
 
     const child = spawn(pythonExe, ['-u', '-m', pythonModule], { cwd: PROJECT_ROOT });

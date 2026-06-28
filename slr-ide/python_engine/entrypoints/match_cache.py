@@ -41,8 +41,8 @@ def run_matcher():
         print(json.dumps({"error": f"Database not found at {DB_PATH}"}))
         sys.exit(1)
 
-    # 1. Deduplicate cached_pdf/
-    print(json.dumps({"event": "log", "message": "Checking for duplicate files in cached_pdf/..."}))
+    # 1. Deduplicate pdf_library/cached/
+    print(json.dumps({"event": "log", "message": "Checking for duplicate files in pdf_library/cached/..."}))
     sys.stdout.flush()
     
     seen_hashes = {}
@@ -119,9 +119,9 @@ def run_matcher():
     """)
     conn_idx.commit()
 
-    # Fetch active PDF files in cached_pdf/
+    # Fetch active PDF files in pdf_library/cached/
     active_pdf_files = [f for f in os.listdir(CACHE_DIR) if f.lower().endswith('.pdf')]
-    print(json.dumps({"event": "log", "message": f"Scanning cached_pdf: found {len(active_pdf_files)} PDF files. Building cache index..."}))
+    print(json.dumps({"event": "log", "message": f"Scanning pdf_library/cached: found {len(active_pdf_files)} PDF files. Building cache index..."}))
     sys.stdout.flush()
 
     # Incremental Cache Indexing
@@ -397,7 +397,7 @@ def run_matcher():
                     UPDATE papers
                     SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ?
                     WHERE Paper_ID = ?
-                """, (f"cached_pdf/{matched_file}", paper_id))
+                """, (f"pdf_library/cached/{matched_file}", paper_id))
                 conn.commit()
 
                 matched_count += 1

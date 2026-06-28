@@ -42,7 +42,13 @@ db.exec(`
     calibration_pool TEXT,
     Human_Decision TEXT,
     Human_EC_Trigger TEXT,
-    Human_Rationale TEXT
+    Human_Rationale TEXT,
+    Original_Publisher TEXT,
+    Publisher TEXT,
+    Human_QA_Scores TEXT,
+    Human_Extracted_Data TEXT,
+    is_duplicate INTEGER DEFAULT 0,
+    merged_into_id TEXT DEFAULT NULL
   );
 
   CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers (DOI);
@@ -71,6 +77,10 @@ db.exec(`
     pool_tags TEXT,
     ec_rules TEXT,
     reasoning_template TEXT,
+    pool_b_ec_rules TEXT,
+    pool_b_reasoning_template TEXT,
+    pool_c_qa_rules TEXT,
+    pool_c_extraction_rules TEXT,
     project_budget_limit REAL DEFAULT 0.0,
     project_current_spend REAL DEFAULT 0.0,
     llm_config TEXT DEFAULT '{}',
@@ -87,6 +97,8 @@ db.exec(`
     ec_trigger TEXT,
     rationale TEXT,
     imported_at TEXT NOT NULL,
+    qa_scores TEXT,
+    extracted_data TEXT,
     UNIQUE(paper_id, project_id, pool, reviewer_name),
     FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
@@ -107,6 +119,8 @@ db.exec(`
     resolved_rationale TEXT NOT NULL,
     commit_message TEXT NOT NULL,
     timestamp TEXT NOT NULL,
+    resolved_qa_scores TEXT,
+    resolved_extracted_data TEXT,
     FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
   );
@@ -166,6 +180,24 @@ db.exec(`
     completed_at TEXT,
     FOREIGN KEY(job_id) REFERENCES llm_jobs(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS duplicate_pairs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id TEXT NOT NULL,
+    paper1_id TEXT NOT NULL,
+    paper2_id TEXT NOT NULL,
+    similarity_score REAL NOT NULL,
+    shared_authors_count INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    keep_paper_id TEXT,
+    exclude_paper_id TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY(paper1_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE,
+    FOREIGN KEY(paper2_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_dp_project_status ON duplicate_pairs(project_id, status);
 `);
 
 // Add Project_ID column to papers if it doesn't exist (migration fallback)
@@ -206,6 +238,20 @@ try {
 // Add Parent_Paper_ID column to papers if it doesn't exist (migration fallback)
 try {
   db.exec("ALTER TABLE papers ADD COLUMN Parent_Paper_ID TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add Original_Publisher column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN Original_Publisher TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add Publisher column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN Publisher TEXT");
 } catch (e) {
   // Column already exists
 }
@@ -280,12 +326,90 @@ try {
   // Column already exists
 }
 
+// Add pool_b_ec_rules column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN pool_b_ec_rules TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add pool_b_reasoning_template column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN pool_b_reasoning_template TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add pool_c_qa_rules column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN pool_c_qa_rules TEXT");
+} catch (e) {
+  // Column already exists
+}
+
+// Add pool_c_extraction_rules column to projects if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN pool_c_extraction_rules TEXT");
+} catch (e) {
+  // Column already exists
+}
+
 // Add is_active column to prompt_templates if it doesn't exist (migration fallback)
 try {
   db.exec("ALTER TABLE prompt_templates ADD COLUMN is_active INTEGER DEFAULT 1");
 } catch (e) {
   // Column already exists
 }
+
+// Add Human_QA_Scores column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN Human_QA_Scores TEXT");
+} catch (e) {}
+
+// Add Human_Extracted_Data column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN Human_Extracted_Data TEXT");
+} catch (e) {}
+
+// Add qa_scores column to reviewer_decisions if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE reviewer_decisions ADD COLUMN qa_scores TEXT");
+} catch (e) {}
+
+// Add extracted_data column to reviewer_decisions if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE reviewer_decisions ADD COLUMN extracted_data TEXT");
+} catch (e) {}
+
+// Add resolved_qa_scores column to calibration_commit_ledger if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE calibration_commit_ledger ADD COLUMN resolved_qa_scores TEXT");
+} catch (e) {}
+
+// Add resolved_extracted_data column to calibration_commit_ledger if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE calibration_commit_ledger ADD COLUMN resolved_extracted_data TEXT");
+} catch (e) {}
+
+// Add is_duplicate column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN is_duplicate INTEGER DEFAULT 0");
+} catch (e) {}
+
+// Add merged_into_id column to papers if it doesn't exist (migration fallback)
+try {
+  db.exec("ALTER TABLE papers ADD COLUMN merged_into_id TEXT DEFAULT NULL");
+} catch (e) {}
+
+// Create index idx_papers_is_duplicate if it doesn't exist
+try {
+  db.exec("CREATE INDEX IF NOT EXISTS idx_papers_is_duplicate ON papers (is_duplicate)");
+} catch (e) {}
+
+// Create index idx_papers_merged_into if it doesn't exist
+try {
+  db.exec("CREATE INDEX IF NOT EXISTS idx_papers_merged_into ON papers (merged_into_id)");
+} catch (e) {}
 
 // Pre-populate LLM pricing default entries if empty
 try {
@@ -420,6 +544,35 @@ const transaction = db.transaction(() => {
 });
 
 transaction();
+
+// Migrate legacy PDF paths to the unified pdf_library layout
+try {
+  db.prepare(`
+    UPDATE papers 
+    SET Local_PDF_Path = REPLACE(REPLACE(Local_PDF_Path, 'cached_pdf/', 'pdf_library/cached/'), 'cached_pdf\\', 'pdf_library/cached/')
+    WHERE Local_PDF_Path LIKE 'cached_pdf/%' OR Local_PDF_Path LIKE 'cached_pdf\\%'
+  `).run();
+
+  db.prepare(`
+    UPDATE papers 
+    SET Local_PDF_Path = REPLACE(REPLACE(Local_PDF_Path, 'downloaded_pdf/', 'pdf_library/downloads/'), 'downloaded_pdf\\', 'pdf_library/downloads/')
+    WHERE Local_PDF_Path LIKE 'downloaded_pdf/%' OR Local_PDF_Path LIKE 'downloaded_pdf\\%'
+  `).run();
+
+  db.prepare(`
+    UPDATE papers 
+    SET Local_PDF_Path = REPLACE(REPLACE(Local_PDF_Path, 'raw_pdf/', 'pdf_library/raw/'), 'raw_pdf\\', 'pdf_library/raw/')
+    WHERE Local_PDF_Path LIKE 'raw_pdf/%' OR Local_PDF_Path LIKE 'raw_pdf\\%'
+  `).run();
+
+  db.prepare(`
+    UPDATE papers 
+    SET Local_PDF_Path = REPLACE(REPLACE(Local_PDF_Path, 'pdf_repo/', 'pdf_library/repo/'), 'pdf_repo\\', 'pdf_library/repo/')
+    WHERE Local_PDF_Path LIKE 'pdf_repo/%' OR Local_PDF_Path LIKE 'pdf_repo\\%'
+  `).run();
+} catch (e) {
+  console.error("Failed to migrate legacy PDF paths:", e);
+}
 
 // Config helpers
 export function getConfig(key: string, defaultValue?: string): string {

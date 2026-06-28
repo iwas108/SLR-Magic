@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine absolute paths relative to project root
-    const pythonExe = path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe');
-    const mainScript = path.join(PROJECT_ROOT, 'scrapers', 'llm', 'main.py');
+    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+    const mainScript = path.join(PROJECT_ROOT, 'python_engine', 'llm', 'main.py');
 
     if (!fs.existsSync(pythonExe)) {
       return NextResponse.json({ error: `Python virtual env not found at ${pythonExe}` }, { status: 500 });

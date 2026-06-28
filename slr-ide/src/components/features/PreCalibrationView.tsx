@@ -10,8 +10,10 @@ import {
 
 import { useCalibration } from '@/hooks/useCalibration';
 import { broadcastSync } from '@/lib/sync-utils';
+import { useAppState } from '@/hooks/AppStateProvider';
 
-export default function PreCalibrationView(props: any) {
+export default function PreCalibrationView() {
+  const props = useAppState();
   const { 
     showToast, activeProject, projects, activeProjectId, paperModal, setPaperModal,
     calActivePool, setCalActivePool, calStats, setCalStats, calPapers, calLoading, calSearchTerm, setCalSearchTerm,
@@ -208,25 +210,23 @@ export default function PreCalibrationView(props: any) {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {/* Blinded Review SLR Import/Export only for Pool A */}
-                  {calActivePool === 'pool_a' && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleExportCalPoolA}
-                        className="px-3 py-2 bg-secondary text-foreground hover:bg-secondary/80 border border-border text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px]"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        Export Blinded (.slr)
-                      </button>
-                      <button
-                        onClick={() => setShowInterRaterModal(true)}
-                        className="px-3 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px]"
-                      >
-                        <LayoutDashboard className="w-3.5 h-3.5" />
-                        Inter-Rater Dashboard
-                      </button>
-                    </div>
-                  )}
+                  {/* Blinded Review SLR Import/Export for all pools */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleExportCalPoolA}
+                      className="px-3 py-2 bg-secondary text-foreground hover:bg-secondary/80 border border-border text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px]"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Export Blinded (.slr)
+                    </button>
+                    <button
+                      onClick={() => setShowInterRaterModal(true)}
+                      className="px-3 py-2 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px]"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5" />
+                      Inter-Rater Dashboard
+                    </button>
+                  </div>
 
                   <button
                     onClick={() => setShowAssignModal(true)}

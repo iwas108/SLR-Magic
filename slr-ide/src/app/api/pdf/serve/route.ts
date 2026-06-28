@@ -12,8 +12,20 @@ export async function GET(request: Request) {
       return new Response('Path query parameter is required', { status: 400 });
     }
 
+    // Map legacy paths to the new unified pdf_library layout
+    let resolvedPath = relativePath.replace(/\\/g, '/');
+    if (resolvedPath.startsWith('cached_pdf/')) {
+      resolvedPath = resolvedPath.replace('cached_pdf/', 'pdf_library/cached/');
+    } else if (resolvedPath.startsWith('downloaded_pdf/')) {
+      resolvedPath = resolvedPath.replace('downloaded_pdf/', 'pdf_library/downloads/');
+    } else if (resolvedPath.startsWith('raw_pdf/')) {
+      resolvedPath = resolvedPath.replace('raw_pdf/', 'pdf_library/raw/');
+    } else if (resolvedPath.startsWith('pdf_repo/')) {
+      resolvedPath = resolvedPath.replace('pdf_repo/', 'pdf_library/repo/');
+    }
+
     // Sanitize path to prevent directory traversal
-    const safePath = path.normalize(relativePath).replace(/^(\.\.(\/|\\))+/, '');
+    const safePath = path.normalize(resolvedPath).replace(/^(\.\.(\/|\\))+/, '');
     const fullPath = path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, safePath);
 
     // Ensure the path is within PROJECT_ROOT and is inside pdf_library

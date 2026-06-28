@@ -100,9 +100,9 @@ export async function POST(request: Request) {
       db.prepare("UPDATE papers SET Local_PDF_Status = 'MISSING' WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
     }
 
-    const pythonExe = path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe');
+    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
     const cacheMatcherModule = 'python_engine.entrypoints.match_cache';
-    const scraperModule = 'python_engine.pdf_scraper';
+    const scraperModule = 'python_engine.entrypoints.scrape_pdfs';
 
     const encoder = new TextEncoder();
     

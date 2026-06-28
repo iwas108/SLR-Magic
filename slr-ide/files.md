@@ -1,0 +1,219 @@
+# SLR IDE File & Function Directory (`files.md`)
+
+This document serves as a comprehensive index of every file within the `slr-ide` module, detailing each file's specific function, architectural layer, and core purpose. This directory is specifically designed to assist coding agents in rapid codebase navigation, function searching, and architectural understanding.
+
+---
+
+## 1. Root Configuration & Documentation (`slr-ide/`)
+
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `AGENTS.md` | Governance / Directives | Contains workspace-scoped rules, developer instructions, and behavioral guardrails specifically for coding agents operating in `slr-ide`. |
+| `architecture.md` | Documentation | Module-scoped blueprint detailing the local Next.js + SQLite desktop application design, data flows, and IPC patterns. |
+| `improvements-log.md` | Documentation | Chronological log of incremental features, bug fixes, refactoring iterations, and optimizations with sequential IDs (e.g., `#001`). |
+| `package.json` | Dependency / Scripts | Defines NPM package dependencies, project metadata, and execution scripts (e.g., `dev`, `build`, `lint`). |
+| `package-lock.json` | Dependency | Lockfile ensuring reproducible dependency tree installation across environments. |
+| `tsconfig.json` | Build Configuration | TypeScript compiler configuration defining strict type-checking rules, module resolution, and path aliases (`@/*`). |
+| `tsconfig.tsbuildinfo` | Build Configuration | Incremental TypeScript compiler cache file to speed up subsequent type-checking builds. |
+| `next-env.d.ts` | Type Declarations | Automatically generated TypeScript definitions for Next.js environment compatibility. |
+| `eslint.config.mjs` | Linting Configuration | ESLint configuration file defining strict code quality rules and linting standards. |
+| `postcss.config.mjs` | Build Configuration | PostCSS configuration for processing Tailwind CSS utilities and global stylesheets. |
+| `README.md` | Documentation | General developer onboarding guide and quickstart documentation for the Next.js workspace. |
+| `.gitignore` | Security / Git | Git exclusion rules preventing the leakage of SQLite databases, PDF repositories, environment variables, and build caches. |
+| `CLAUDE.md` | Governance / Directives | Quick reference configuration file for AI agent interactions. |
+
+---
+
+## 2. Database & Schema (`slr-ide/db/`)
+
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `slr.db` | Persistence | Primary SQLite database storing all active project metadata, paper records, reviewer decisions, and configuration states. |
+| `slr.db-shm` / `slr.db-wal` | Persistence | SQLite Write-Ahead Logging (WAL) shared-memory and log files enabling high-concurrency atomic transactions. |
+| `cache_index.db` | Persistence / Caching | High-speed SQLite caching database storing MD5 hashes, file sizes, mtimes, extracted titles/DOIs, and page 1 OCR text for rapid local PDF matching. |
+| `compression_manifest.json` | Persistence | Manifest file tracking PDF compression statistics, original/compressed file sizes, and cumulative storage savings. |
+| `schema.md` | Documentation | Absolute source of truth for the SQLite database schema, documenting table structures (`papers`, `projects`, `configs`, `reviewer_decisions`, `calibration_commit_ledger`, `duplicate_pairs`), foreign keys, indexes, and historical migration changes. |
+
+---
+
+## 3. Public Static Assets (`slr-ide/public/`)
+
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `file.svg`, `globe.svg`, `next.svg`, `vercel.svg`, `window.svg` | Frontend / UI | Static vector illustration assets and branding icons utilized across the Next.js user interface. |
+
+---
+
+## 4. Scratch & Utilities (`slr-ide/scratch/`)
+
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `extract_from_sourcemap.py` | Utility / Debugging | Python utility script designed to parse JavaScript sourcemaps and extract original source code files for debugging purposes. |
+| `migrate.js` | Database / Migration | Node.js execution script responsible for running DDL schema creation and initializing default tables/configurations in `slr.db`. |
+| `test_epoch3.py` | Testing | Automated test suite verifying the correctness of frontend UI components, state orchestration, and synchronization logic from Epoch 3. |
+| `test_epoch4.py` | Testing | Automated test suite validating inter-rater adjudication logic, QA scoring, data extraction structures, and ledger commits from Epoch 4. |
+
+---
+
+## 5. Python Scraping & Processing Engine (`slr-ide/python_engine/`)
+
+### Core & Infrastructure
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `requirements.txt` | Dependency | Lists required Python packages (`pypdf`, `cryptography`, `selenium`, `undetected-chromedriver`, `pymupdf`, `pytesseract`, etc.). |
+| `core/config.py` | Configuration | Parses environment variables and queries the SQLite `configs` table to establish operational settings for Python subprocesses. |
+| `core/db.py` | Database Interop | Provides lightweight SQLite connection management, pragmas enforcement, and query execution helpers for Python scripts. |
+| `core/events.py` | Real-time IPC | Formats and emits real-time NDJSON event objects to `stdout`, allowing Next.js API routes to stream progress updates to the frontend. |
+| `core/security.py` | Security | Implements cryptographic routines (e.g., AES decryption for locked PDFs) and secure credential/proxy handling. |
+
+### Crawler & Scraper Modules
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `crawler/browser.py` | Web Scraping | Instantiates stealthy Selenium WebDriver instances using `undetected-chromedriver` with custom proxy and headless/headed mode configurations. |
+| `crawler/config.py` | Configuration | Defines crawler-specific settings such as request delays, jitter windows, User-Agent rotation, and institutional proxy structures. |
+| `crawler/dom_parser.py` | Web Scraping | Parses HTML DOM trees to locate academic full-text PDF download links, identify paywalls, and extract paper metadata. |
+| `crawler/navigator.py` | Web Scraping | Automates complex browser navigation flows, handling cookie consent banners, institutional login redirects, and dynamic page loading. |
+
+### CLI Entrypoints
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `entrypoints/compress_pdfs.py` | CLI Subprocess | Executes bulk batch PDF compression across project directories using Ghostscript or fallback mechanisms to optimize storage. |
+| `entrypoints/detect_duplicates.py` | CLI Subprocess | Implements fuzzy heuristic matching (token set ratios, Scopus Author ID overlap) to detect candidate duplicate paper pairs for human review. |
+| `entrypoints/map_publisher.py` | CLI Subprocess | Normalizes raw publisher string fields from ingested literature datasets into standardized academic publisher entities. |
+| `entrypoints/match_cache.py` | CLI Subprocess | Executes smart cached PDF matching against local libraries using Paper ID, DOI, Title similarity, MD5 hash lookups, and Tesseract OCR fallback. |
+| `entrypoints/scrape_pdfs.py` | CLI Subprocess | Initiates automated bulk PDF acquisition from academic publisher websites for papers marked with `MISSING` local PDF status. |
+
+### LLM Orchestration & Providers
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `llm/main.py` | LLM Orchestration | Primary CLI entrypoint for executing LLM-powered paper screening, quality assessment, and structured data extraction tasks. |
+| `llm/batch_handler.py` | LLM Orchestration | Manages high-concurrency bulk LLM job batches, implementing rate limit backoffs, error handling, and retry mechanisms. |
+| `llm/queue_handler.py` | LLM Orchestration | Asynchronous queue management mechanism for feeding paper batches to LLM provider endpoints without overwhelming resources. |
+| `llm/database.py` | Database Interop | Interacts with `slr.db` to read paper prompts/schemas and persist LLM screening decisions, QA scores, and extracted JSON payloads. |
+| `llm/budget.py` | Cost Management | Tracks token consumption across models, calculates real-time API financial expenditures, and enforces strict budget thresholds. |
+| `llm/test_budget.py` | Testing | Unit test suite validating the precision of token counting, pricing formulas, and budget cutoff enforcement logic. |
+| `llm/templating.py` | Prompt Management | Loads dynamic prompt templates, injects paper metadata/abstracts, and formats output instructions matching target JSON schemas. |
+| `llm/providers/base.py` | LLM Provider | Abstract Base Class (ABC) defining the mandatory contract and standard execution signatures for all LLM provider wrappers. |
+| `llm/providers/claude.py` | LLM Provider | Concrete wrapper for Anthropic's Claude API, supporting prompt caching, system instructions, and structured JSON output generation. |
+| `llm/providers/gemini.py` | LLM Provider | Concrete wrapper for Google Gemini API, implementing structured JSON schema adherence and native model invocation. |
+| `llm/providers/openai.py` | LLM Provider | Concrete wrapper for OpenAI API, managing GPT-model invocations, JSON mode formatting, and function calling parameters. |
+
+### PDF Processing & Validation
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `pdf/analyzer.py` | PDF Processing | Parses PDF binary structure, inspects internal metadata, and verifies file integrity before allowing ingestion. |
+| `pdf/compressor.py` | PDF Processing | Wraps Ghostscript execution commands to perform safe, high-quality compression on large academic PDF documents. |
+| `pdf/validator.py` | PDF Processing | Validates scientific document validity, enforcing minimum file size (>5KB) and rejecting conference schedules, TOCs, or paywall stubs. |
+
+---
+
+## 6. Frontend Source Code (`slr-ide/src/`)
+
+### Types & Client Libraries (`src/types/` & `src/lib/`)
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `types/index.ts` | TypeScript Definitions| Defines strict TypeScript interfaces for core entities: `Paper`, `Project`, `Config`, `ReviewerDecision`, `LedgerCommit`, and `DuplicatePair`. |
+| `lib/db.ts` | Database Client | Exports the singleton `better-sqlite3` database instance, transaction wrappers, PRAGMA enforcements, and configuration helpers. |
+| `lib/llm-operations.ts` | Frontend Utility | Provides helper routines for calculating LLM pricing estimations, managing job payloads, and initiating screening API calls. |
+| `lib/pdf-utils.ts` | Frontend Utility | Contains helper functions for validating PDF paths, checking file accessibility, and managing local preview URIs. |
+| `lib/sync-utils.ts` | Synchronization | Implements the Agnostic BroadcastChannel pattern (`broadcastSync`, `subscribeSyncChannel`) for cross-tab synchronization and reactivity. |
+
+### Core Backend Services & Inter-Rater Libraries (`src/lib/services/` & `src/lib/inter-rater/`)
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `lib/services/process-manager.ts` | Backend Service | Singleton manager for active child process instances, arguments, PIDs, and clean tree termination (`taskkill` / `SIGKILL`). |
+| `lib/services/stream-manager.ts` | Backend Service | Encapsulates Server-Sent Events (SSE) stream lifecycles, HTTP keep-alive headers, and periodic heartbeat pings. |
+| `lib/services/batch-state-tracker.ts`| Backend Service | Thread-safe memory state manager for batch progress counters, with SQLite `configs` persistence checkpoints for batch resume. |
+| `lib/inter-rater/adjudication-calculations.ts` | Domain Library | Pure TypeScript calculation library for Cohen's Kappa, agreement formulas, and data extraction JSON comparisons (zero Next.js dependencies, standalone SPA ready). |
+
+### State Management Hooks (`src/hooks/`)
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `hooks/AppStateProvider.tsx` | State Provider | React Context provider consolidating top-level SPA state variables and setter functions, eliminating `allProps` prop-drilling. |
+| `hooks/useAppSync.ts` | Custom Hook | Manages global `BroadcastChannel` synchronization subscriptions using the Mutable Ref Pattern (`useRef`) to prevent stale closures. |
+| `hooks/useAssignState.ts` | Custom Hook | Manages local React state, filtering logic, and selection arrays for assigning paper pools to independent blinded reviewers. |
+| `hooks/useCalibration.ts` | Custom Hook | Encapsulates business logic for managing calibration cohorts (`pool_a`, `pool_b`, `pool_c`), reviewer decisions, and commit ledger audits. |
+| `hooks/useIngestion.ts` | Custom Hook | Manages the multi-step CSV ingestion workflow, file parsing buffers, dynamic column mapping state, and import transactions. |
+| `hooks/usePapers.ts` | Custom Hook | Encapsulates paper database queries, server-side pagination (LIMIT/OFFSET), column sorting, search filtering, and CRUD operations. |
+| `hooks/usePipeline.ts` | Custom Hook | Manages PDF batch execution state, EventSource/SSE stream consumption, live statistics calculation, and process cancellation logic. |
+| `hooks/useProjectForm.ts` | Custom Hook | Handles form state, input validation, and submission logic for creating and updating literature review projects. |
+| `hooks/useProjects.ts` | Custom Hook | Manages project listing retrieval, active project switching, and cloud provider (Google Drive / OneDrive) configuration state. |
+| `hooks/useUIState.ts` | Custom Hook | Manages top-level UI state, active tab switching, modal visibility flags, and floating Toast notification dispatches. |
+
+### UI Components & Features (`src/components/`)
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `components/Sidebar.tsx` | View Component | Renders the primary navigation sidebar, active project selector dropdown, and quick links to main application views. |
+| `components/SettingsModal.tsx` | View Component | Modal interface for configuring global application settings, Rclone paths, Tesseract OCR toggles, and scraper proxy URLs. |
+| `components/InterRaterDashboard.tsx` | View Component | Comprehensive dashboard for adjudicating blinded inter-rater reviews, comparing QA scores, and evaluating data extractions. |
+| `components/features/AssignPapersModal.tsx` | View Component | Modal dialog enabling lead researchers to partition and assign specific paper cohorts to external blinded reviewers. |
+| `components/features/DashboardView.tsx` | View Component | Executive project overview view displaying summary statistics, local PDF acquisition charts, and recent project activity logs. |
+| `components/features/DuplicateReviewModal.tsx`| View Component | Human-in-the-loop modal interface for side-by-side comparison, scoring analysis, and adjudication of candidate duplicate pairs. |
+| `components/features/GlobalLLMSettingsView.tsx`| View Component | Configuration interface for managing global LLM provider API keys, model selections, and base operational parameters. |
+| `components/features/GlobalModals.tsx` | View Component | Unified container component wrapping all application modals to prevent inline rendering clutter within the main page structure. |
+| `components/features/IngestionHubView.tsx` | View Component | Primary view interface for importing new literature databases, reviewing CSV structures, and launching column mapping workflows. |
+| `components/features/IngestionPanel.tsx` | View Component | Interactive sub-panel handling file drag-and-drop, initial CSV parsing, and preview rendering during ingestion. |
+| `components/features/InterRaterModal.tsx` | View Component | Modal dialog for displaying inter-rater specific comparison rules, exclusion criteria definitions, and blinded review parameters. |
+| `components/features/LLMConfigView.tsx` | View Component | View interface for configuring project-scoped LLM prompts, quality assessment rules, and target JSON extraction schemas. |
+| `components/features/LLMOperationsCenter.tsx` | View Component | Monitoring dashboard tracking active LLM screening jobs, batch execution progress, token usage, and real-time cost accumulation. |
+| `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records. |
+| `components/features/PipelineExecutionView.tsx`| View Component | Interface for launching, monitoring, and controlling automated PDF acquisition, OCR indexing, and cloud sync batch pipelines. |
+| `components/features/PreCalibrationView.tsx` | View Component | View interface for managing pre-calibration workflows, tagging specific screening cohorts, and analyzing screening consistency. |
+| `components/features/ProjectManager.tsx` | View Component | Management interface for creating new literature review projects, defining research questions, and updating project metadata. |
+| `components/features/PromptLibraryView.tsx` | View Component | Interface for versioning, organizing, and testing reusable system prompt templates and structured JSON extraction schemas. |
+| `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal encapsulating paper metadata form state, validation, and save handlers (`PUT /api/papers/[id]`). |
+| `components/features/modals/DeletePaperConfirmModal.tsx` | Modal Component| Standalone modal dialog for confirming permanent deletion of a single paper record (`DELETE /api/papers/[id]`). |
+| `components/features/modals/DeleteProjectConfirmModal.tsx`| Modal Component| Standalone modal dialog for confirming deletion of a literature review project configuration (`DELETE /api/projects/[id]`). |
+| `components/features/modals/DeleteAllPapersConfirmModal.tsx`| Modal Component| Standalone security dialog verifying active project name before executing bulk wipe of all project papers. |
+| `components/features/dashboard/MetricSummaryCards.tsx` | Widget Component| Displays executive metric calculations, total counts, duplicate statistics, and missing PDF percentages in glassmorphic cards. |
+| `components/features/dashboard/LocalPDFStatusChart.tsx`| Widget Component| Renders graphical status distribution bars and legends for `AVAILABLE`, `MISSING`, `FAILED`, and `EXCLUDED` local PDFs. |
+| `components/features/dashboard/ProjectActivityLog.tsx` | Widget Component| Renders chronological project activity items, status badges, timestamp formatting, and empty-state placeholders. |
+| `components/features/dashboard/DashboardQuickActions.tsx`| Widget Component| Houses quick navigation action buttons (Import CSV, Run Batch Pipeline, Review Duplicates, Export Database). |
+| `components/features/inter-rater/AgreementMetricsPanel.tsx`| View Component | Renders agreement summary meters, Cohen's Kappa interpretation badges (e.g., Substantial, Almost Perfect), and statistical tables. |
+| `components/features/inter-rater/AdjudicationScorecardView.tsx`| View Component | Displays side-by-side rater decision comparison cards, QA score discrepancies, and final adjudication selectors. |
+| `components/features/inter-rater/DataExtractionComparisonView.tsx`| View Component | Displays side-by-side JSON schema tree viewers, discrepancy highlighting, and value merge selector controls. |
+
+### Next.js Application Core (`src/app/`)
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `app/globals.css` | Styling | Defines global CSS rules, Tailwind CSS utility layers, custom font styles, and design system color palette variables. |
+| `app/layout.tsx` | Application Layout | Root Next.js layout structure wrapping all pages with standard HTML head elements, font definitions, and global structure. |
+| `app/page.tsx` | Application Root | Main Single Page Application (SPA) entrypoint orchestrating top-level state (`allProps`), view switching, and sidebar integration. |
+
+### Next.js Backend API Routes (`src/app/api/`)
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `api/adjudicate/route.ts` | REST Endpoint | Handles POST requests to commit calibration adjudication decisions, resolving inter-rater conflicts in `slr.db`. |
+| `api/adjudicate/ledger/route.ts` | REST Endpoint | Handles GET requests to retrieve the immutable audit log of all calibration adjudication commits for a project. |
+| `api/adjudicate/stats/route.ts` | REST Endpoint | Handles GET requests to calculate inter-rater agreement statistics, Cohen's Kappa, and calibration progress metrics. |
+| `api/config/route.ts` | REST Endpoint | Handles GET and PUT requests to retrieve and update key-value configuration settings in the SQLite `configs` table. |
+| `api/config/env/route.ts` | REST Endpoint | Handles GET requests to verify system environment variables and confirm the existence of required external executables (`rclone`, `tesseract`). |
+| `api/config/test/route.ts` | REST Endpoint | Handles POST requests to test Rclone cloud storage connectivity (Google Drive / OneDrive) by listing remote root directories. |
+| `api/duplicates/route.ts` | REST Endpoint | Handles GET requests to retrieve pending candidate duplicate paper pairs for the active project from `duplicate_pairs`. |
+| `api/duplicates/resolve/route.ts`| REST Endpoint | Handles POST requests to adjudicate duplicate pairs (`KEEP_BOTH`, `CONFIRMED_DUPLICATE`), executing atomic merge transactions. |
+| `api/duplicates/scan/route.ts` | REST Endpoint | Handles POST/GET requests to spawn the Python duplicate detection background process and stream live EventSource progress updates. |
+| `api/export/route.ts` | REST Endpoint | Handles POST requests to export filtered paper databases and screening results to downloadable CSV files or Google Sheets. |
+| `api/export/inter-rater/route.ts`| REST Endpoint | Handles POST requests to generate standalone blinded review export packages (`.slr` schema) for use in the offline `inter-rater` SPA. |
+| `api/import/route.ts` | REST Endpoint | Handles POST requests for CSV uploads, executing data parsing, duplicate DOI checks, and batch insertion into `papers`. |
+| `api/import/inter-rater/route.ts`| REST Endpoint | Handles POST requests to ingest completed `.slr` review packages from external raters, inserting records into `reviewer_decisions`. |
+| `api/llm/batch/route.ts` | REST Endpoint | Handles POST requests to launch bulk LLM screening and data extraction batches across project paper pools. |
+| `api/llm/batch/status/route.ts` | REST Endpoint | Handles GET requests to stream real-time Server-Sent Events (SSE) detailing progress and token usage of active LLM batches. |
+| `api/llm/jobs/route.ts` | REST Endpoint | Handles GET requests to retrieve the execution history and detailed status logs of background LLM screening jobs. |
+| `api/llm/jobs/active/route.ts` | REST Endpoint | Handles GET requests to check for any currently active or running LLM screening operations to prevent concurrent collisions. |
+| `api/llm/pricing/route.ts` | REST Endpoint | Handles GET requests to supply token cost rates and calculate financial budget estimations for LLM screening jobs. |
+| `api/llm/prompts/route.ts` | REST Endpoint | Handles GET, POST, PUT, DELETE requests for managing reusable system prompt templates and JSON extraction schemas. |
+| `api/llm/screen/route.ts` | REST Endpoint | Handles POST requests to initiate a single-paper LLM screening or data extraction execution. |
+| `api/llm/screen/logs/route.ts` | REST Endpoint | Handles GET requests to retrieve raw prompt payloads, LLM completions, and execution logs for a specific screening job. |
+| `api/papers/route.ts` | REST Endpoint | Handles GET requests for querying, filtering, sorting, and server-side paginating paper records from `slr.db`. |
+| `api/papers/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests for retrieving, updating, or permanently deleting a single paper record by its `Paper_ID`. |
+| `api/pdf/batch/route.ts` | REST Endpoint | Handles POST/GET requests to spawn the unified sequential PDF batch pipeline (Scan, Scrape, Compress, Sync) and stream live NDJSON logs. |
+| `api/pdf/batch/cancel/route.ts` | REST Endpoint | Handles POST requests to terminate active PDF batch child process trees (`taskkill` / `SIGKILL`) and set cancellation flags. |
+| `api/pdf/batch/resume/route.ts` | REST Endpoint | Handles POST requests to resume an interrupted or paused PDF batch execution pipeline from its last recorded checkpoint. |
+| `api/pdf/download/route.ts` | REST Endpoint | Handles POST requests to trigger a direct background download of a single paper's PDF via `scrape_pdfs.py`. |
+| `api/pdf/scan/route.ts` | REST Endpoint | Handles POST requests to execute a smart cache match scan (`match_cache.py`) for a single paper against local repositories. |
+| `api/pdf/serve/route.ts` | REST Endpoint | Handles GET requests to securely read and stream local binary PDF file contents to the frontend iframe previewer. |
+| `api/pdf/single/route.ts` | REST Endpoint | Handles POST requests to execute a complete single-paper PDF acquisition workflow (Scan -> Scrape -> Compress -> Sync). |
+| `api/pdf/sync/route.ts` | REST Endpoint | Handles POST requests to execute an Rclone cloud synchronization subprocess for a single paper to Google Drive / OneDrive. |
+| `api/projects/route.ts` | REST Endpoint | Handles GET and POST requests to list all active literature review projects or create new project database records. |
+| `api/projects/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests to retrieve, update, or permanently wipe a specific project configuration and its associated data. |
+| `api/projects/activate/route.ts` | REST Endpoint | Handles POST requests to update the `ACTIVE_PROJECT_ID` value in the SQLite `configs` table, switching the active workspace context. |

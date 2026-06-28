@@ -53,6 +53,7 @@ db/cache_index.db
 
 # Virtual Environment & Python
 venv/
+python_engine/venv/
 __pycache__/
 *.pyc
 

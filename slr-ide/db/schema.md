@@ -34,10 +34,18 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `Human_Decision` | TEXT | | Reviewer decision input: `INCLUDE`, `EXCLUDE`, `QA_WAIT` |
 | `Human_EC_Trigger` | TEXT | | Reviewer exclusion criteria trigger code |
 | `Human_Rationale` | TEXT | | Reviewer annotation or explanation notes |
+| `Original_Publisher` | TEXT | | Original publisher string imported from CSV |
+| `Publisher` | TEXT | | Mapped and normalized publisher name |
+| `Human_QA_Scores` | TEXT | | JSON string containing QA rules mapped to values and evidence |
+| `Human_Extracted_Data` | TEXT | | JSON string containing extractions mapped to values and evidence |
+| `is_duplicate` | INTEGER | DEFAULT 0 | Flag indicating if this paper is an excluded duplicate (1) or not (0) |
+| `merged_into_id` | TEXT | DEFAULT NULL | Scoped reference pointing to the primary Paper_ID if this is a duplicate |
 
 **Indexes**:
 *   `idx_papers_doi`: ON `papers(DOI)` (for fast duplicate checking during import).
 *   `idx_papers_title`: ON `papers(Title)` (for fuzzy match lookup).
+*   `idx_papers_is_duplicate`: ON `papers(is_duplicate)` (for excluding duplicate papers in database and pagination).
+*   `idx_papers_merged_into`: ON `papers(merged_into_id)` (for tracking trace hierarchy and data lineage).
 
 ---
 
@@ -107,6 +115,8 @@ Stores individual reviewer decisions for double-blind calibration (Pool A).
 | `ec_trigger` | TEXT | | Exclusion criteria rule trigger code |
 | `rationale` | TEXT | | Strategic annotation / rationale notes |
 | `imported_at` | TEXT | NOT NULL | Timestamp of import |
+| `qa_scores` | TEXT | | JSON string containing reviewer's QA scores |
+| `extracted_data` | TEXT | | JSON string containing reviewer's extractions |
 
 **Unique Constraints**:
 *   `UNIQUE(paper_id, project_id, pool, reviewer_name)`
@@ -138,6 +148,8 @@ Stores immutable audit log tracking adjudication commits and auto-adjudication i
 | `resolved_rationale` | TEXT | NOT NULL | Final strategic rationale annotating the choice |
 | `commit_message` | TEXT | NOT NULL | Git-like commit comment |
 | `timestamp` | TEXT | NOT NULL | ISO date-time string of resolution |
+| `resolved_qa_scores` | TEXT | | JSON string containing resolved QA scores |
+| `resolved_extracted_data` | TEXT | | JSON string containing resolved extractions |
 
 **Foreign Keys**:
 *   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
@@ -145,6 +157,32 @@ Stores immutable audit log tracking adjudication commits and auto-adjudication i
 
 **Indexes**:
 *   `idx_ledger_project`: ON `calibration_commit_ledger(project_id)`
+
+---
+
+### Table: `duplicate_pairs`
+Stores potential duplicate pairs identified by the fuzzy heuristic matching engine for human-in-the-loop review.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique record key |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `paper1_id` | TEXT | NOT NULL | Reference to first paper in comparison (`papers(Paper_ID)`) |
+| `paper2_id` | TEXT | NOT NULL | Reference to second paper in comparison (`papers(Paper_ID)`) |
+| `similarity_score` | REAL | NOT NULL | Fuzzy match token set ratio (0.0 to 100.0) |
+| `shared_authors_count` | INTEGER | NOT NULL | Number of overlapping Scopus Author IDs / author last names |
+| `status` | TEXT | NOT NULL DEFAULT 'PENDING' | Review status: `PENDING`, `FALSE_FLAG`, `CONFIRMED_DUPLICATE` |
+| `keep_paper_id` | TEXT | | ID of the primary paper kept during resolution |
+| `exclude_paper_id` | TEXT | | ID of the duplicate paper excluded during resolution |
+| `created_at` | TEXT | NOT NULL | Timestamp of pair detection |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+*   `FOREIGN KEY(paper1_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE`
+*   `FOREIGN KEY(paper2_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE`
+
+**Indexes**:
+*   `idx_dp_project_status`: ON `duplicate_pairs(project_id, status)` (for filtering active duplicates)
 
 ---
 
@@ -171,4 +209,14 @@ Stores immutable audit log tracking adjudication commits and auto-adjudication i
 *   Added `calibration_commit_ledger` table to record audit log files of calibration commits with foreign key cascades.
 *   Added indexes `idx_rd_paper`, `idx_rd_reviewer`, and `idx_ledger_project`.
 *   Enforced database connection busy timeout of `5000ms` and `PRAGMA foreign_keys = ON` in application database context wrapper.
+
+### Pool B & Pool C Inter-Rater Dashboard Updates (2026-06-24)
+*   Added `Human_QA_Scores` and `Human_Extracted_Data` columns to the `papers` table.
+*   Added `qa_scores` and `extracted_data` columns to the `reviewer_decisions` table.
+*   Added `resolved_qa_scores` and `resolved_extracted_data` columns to the `calibration_commit_ledger` table.
+
+### Heuristic Duplicate Detection & Adjudication Pipeline (2026-06-25)
+*   Added `is_duplicate` and `merged_into_id` columns to `papers` table.
+*   Added `duplicate_pairs` table to hold potential duplicate pairs and status.
+*   Added indexes `idx_papers_is_duplicate`, `idx_papers_merged_into`, and `idx_dp_project_status`.
 
