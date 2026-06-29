@@ -71,7 +71,95 @@ Stores literature review projects metadata, target directories, and calibration 
 | `pool_tags` | TEXT | | JSON string storing Pool A, Pool B, and Pool C tag arrays |
 | `ec_rules` | TEXT | | JSON string storing Exclusion Criteria rules for blinded review |
 | `reasoning_template` | TEXT | | JSON string storing rationale templates array for blinded review |
+| `pool_b_ec_rules` | TEXT | | JSON string storing Pool B Exclusion Criteria rules |
+| `pool_b_reasoning_template` | TEXT | | JSON string storing Pool B rationale templates array |
+| `pool_c_qa_rules` | TEXT | | JSON string storing Pool C Quality Appraisal rules |
+| `pool_c_extraction_rules` | TEXT | | JSON string storing Pool C Data Extraction rules |
+| `project_budget_limit` | REAL | DEFAULT 0.0 | Budget limit allocated for LLM inference on this project |
+| `project_current_spend` | REAL | DEFAULT 0.0 | Running accumulation of LLM inference spend |
+| `llm_config` | TEXT | DEFAULT '{}' | JSON string storing project-scoped LLM provider configurations |
 | `created_at` | TEXT | NOT NULL | Timestamp of creation |
+
+---
+
+### Table: `llm_pricing`
+Stores base token pricing and batch discount parameters across supported LLM providers.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `model_id` | TEXT | PRIMARY KEY | Model identifier (e.g., `gemini-1.5-pro`, `gpt-4o`, `claude-3-5-sonnet-latest`) |
+| `provider` | TEXT | NOT NULL | Provider name (`gemini`, `openai`, `claude`) |
+| `input_token_price` | REAL | NOT NULL | Cost in USD per 1M input tokens |
+| `output_token_price` | REAL | NOT NULL | Cost in USD per 1M output tokens |
+| `thinking_token_price` | REAL | | Cost in USD per 1M thinking tokens |
+| `batch_discount` | REAL | DEFAULT 0.5 | Multiplier discount for batch API execution |
+| `updated_at` | TEXT | NOT NULL | Timestamp of last price adjustment |
+
+---
+
+### Table: `prompt_templates`
+Stores user and system prompt seeds for automated screening, extraction, and evaluation.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | TEXT | PRIMARY KEY | Unique prompt template identifier |
+| `project_id` | TEXT | | Reference to `projects(id)` (null if global template) |
+| `name` | TEXT | NOT NULL | Display name of the prompt template |
+| `description` | TEXT | | Description of prompt intent |
+| `system_instruction` | TEXT | | Core system prompt guidelines and JSON output schema definition |
+| `user_template` | TEXT | NOT NULL | User prompt containing mustache-like interpolation tags |
+| `is_active` | INTEGER | DEFAULT 1 | Active status flag (1 = active, 0 = archived) |
+| `created_at` | TEXT | NOT NULL | Timestamp of creation |
+| `updated_at` | TEXT | NOT NULL | Timestamp of last edit |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+
+---
+
+### Table: `llm_jobs`
+Stores active and historical LLM screening, extraction, and batch inference jobs.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | TEXT | PRIMARY KEY | Unique job identifier |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `model_id` | TEXT | NOT NULL | Reference to `llm_pricing(model_id)` |
+| `mode` | TEXT | NOT NULL | Execution mode (`screen`, `extract`, `batch`) |
+| `status` | TEXT | NOT NULL | Current status (`PENDING`, `RUNNING`, `COMPLETED`, `FAILED`) |
+| `total_papers` | INTEGER | NOT NULL | Number of papers in the target cohort |
+| `processed_papers` | INTEGER | DEFAULT 0 | Count of successfully evaluated papers |
+| `total_input_tokens` | INTEGER | DEFAULT 0 | Cumulative input tokens consumed |
+| `total_output_tokens` | INTEGER | DEFAULT 0 | Cumulative output tokens generated |
+| `total_thinking_tokens` | INTEGER | DEFAULT 0 | Cumulative thinking tokens consumed |
+| `total_cost` | REAL | DEFAULT 0.0 | Calculated running spend in USD |
+| `error_message` | TEXT | | Capture of fatal failure stack trace or API error |
+| `created_at` | TEXT | NOT NULL | Timestamp of job initialization |
+| `updated_at` | TEXT | NOT NULL | Timestamp of last state change |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+
+---
+
+### Table: `llm_batch_jobs`
+Stores cloud provider specific batch processing metadata and file identifiers.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | TEXT | PRIMARY KEY | Unique batch record key |
+| `job_id` | TEXT | NOT NULL | Reference to `llm_jobs(id)` |
+| `provider` | TEXT | NOT NULL | LLM provider name |
+| `cloud_batch_id` | TEXT | | Cloud provider's remote batch ID |
+| `status` | TEXT | NOT NULL | Remote cloud batch status |
+| `input_file_id` | TEXT | | Remote JSONL input file upload ID |
+| `output_file_id` | TEXT | | Remote JSONL output results file ID |
+| `submitted_at` | TEXT | NOT NULL | Timestamp of submission to cloud provider |
+| `checked_at` | TEXT | | Timestamp of last status poll |
+| `completed_at` | TEXT | | Timestamp of remote completion |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(job_id) REFERENCES llm_jobs(id) ON DELETE CASCADE`
 
 ---
 

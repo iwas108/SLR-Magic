@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { broadcastSync } from '@/lib/sync-utils';
 
-export function useIngestion(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void, papers: any[] = []) {
+export function useIngestion(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void, papers: any[] = [], loadPapers?: () => void) {
   // Ingestion states
   const [csvSource, setCsvSource] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -246,13 +246,14 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
 
     setManualIngesting(true);
     try {
+      const parsedYear = parseInt(manualYear, 10);
       const p = {
         Paper_ID: `TEMP_M_${Date.now()}`,
-        Title: manualTitle,
-        Authors: manualAuthors,
-        Year: manualYear,
-        DOI: manualDoi,
-        Abstract: manualAbstract,
+        Title: manualTitle.trim(),
+        Authors: manualAuthors.trim(),
+        Year: !isNaN(parsedYear) ? parsedYear : null,
+        DOI: manualDoi.trim(),
+        Abstract: manualAbstract.trim(),
         Import_Date: manualImportDate || new Date().toISOString().split('T')[0],
         Import_Source: manualSource || 'Manual Ingestion',
         Source: manualSource || 'Manual Ingestion',
@@ -284,6 +285,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
           setManualParentPaperId('');
           setManualParentSearch('');
           setSelectedParentPaper(null);
+          if (loadPapers) loadPapers();
           broadcastSync('SYNC_PAPERS');
         }
       } else {

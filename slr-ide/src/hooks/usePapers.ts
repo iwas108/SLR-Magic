@@ -2,9 +2,10 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Paper } from '@/types';
 import { broadcastSync } from '@/lib/sync-utils';
 
-export function usePapers(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void) {
+export function usePapers(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void, loadProjects?: () => void) {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loadingPapers, setLoadingPapers] = useState(true);
+  const [duplicatesCount, setDuplicatesCount] = useState(0);
   
   // Filtering & Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,23 +32,37 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     isOpen: false,
     paper: null
   });
+  const [deletingPaper, setDeletingPaper] = useState(false);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
   const [deleteAllConfirmationText, setDeleteAllConfirmationText] = useState('');
   const [selectedPaperIds, setSelectedPaperIds] = useState<string[]>([]);
 
+  const loadDuplicatesCount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/duplicates');
+      if (res.ok) {
+        const data = await res.json();
+        setDuplicatesCount(data.count || 0);
+      }
+    } catch (err) {
+      console.error('Error loading duplicates count:', err);
+    }
+  }, []);
+
   const loadPapers = useCallback(async () => {
     setLoadingPapers(true);
     try {
-      const query = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-        sortBy,
-        sortOrder,
-        search: searchTerm,
-        status: statusFilter,
-        pdfStatus: pdfFilter
-      });
-      const res = await fetch(`/api/papers?${query}`);
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter) params.append('status', statusFilter);
+      if (pdfFilter) params.append('pdfStatus', pdfFilter);
+      
+      params.append('sortBy', sortBy);
+      params.append('sortOrder', sortOrder);
+      params.append('page', String(page));
+      params.append('limit', String(limit));
+
+      const res = await fetch(`/api/papers?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setPapers(data.papers || []);
@@ -56,12 +71,13 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
       } else {
         showToast('Failed to load papers', 'error');
       }
+      await loadDuplicatesCount();
     } catch (err: any) {
       showToast(`Error loading papers: ${err.message || err}`, 'error');
     } finally {
       setLoadingPapers(false);
     }
-  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, showToast]);
+  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, showToast, loadDuplicatesCount]);
 
   // Load papers on mount and when filters change
   useEffect(() => {
@@ -73,25 +89,10 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     setSelectedPaperIds([]);
   }, [searchTerm, statusFilter, pdfFilter]);
 
-  // Sync Listener (Mutable Ref Pattern to avoid stale closures)
-  const loadPapersRef = useRef(loadPapers);
+  // Reset page to 1 when filters or search terms change
   useEffect(() => {
-    loadPapersRef.current = loadPapers;
-  }, [loadPapers]);
-
-  useEffect(() => {
-    const channel = new BroadcastChannel('slr-sync');
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'SYNC_PAPERS' || event.data.type === 'SYNC_PROJECTS') {
-        loadPapersRef.current();
-      }
-    };
-    channel.addEventListener('message', handleMessage);
-    return () => {
-      channel.removeEventListener('message', handleMessage);
-      channel.close();
-    };
-  }, []);
+    setPage(1);
+  }, [searchTerm, statusFilter, pdfFilter]);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -100,30 +101,64 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
       setSortBy(field);
       setSortOrder('asc');
     }
-    setPage(1); // Reset page on sort change
+    setPage(1);
   };
 
-  const deletePaper = useCallback(async (paperId: string) => {
+  const deletePaper = useCallback(async () => {
+    if (!deleteConfirm.paper) return false;
+    setDeletingPaper(true);
     try {
-      const res = await fetch(`/api/papers?id=${encodeURIComponent(paperId)}`, {
+      const res = await fetch(`/api/papers/${deleteConfirm.paper.Paper_ID}`, {
         method: 'DELETE'
       });
       if (res.ok) {
         showToast('Paper deleted successfully', 'success');
+        setDeleteConfirm({ isOpen: false, paper: null });
+        if (paperModal.isOpen && paperModal.paper?.Paper_ID === deleteConfirm.paper.Paper_ID) {
+          setPaperModal({ isOpen: false, mode: 'view', paper: null });
+        }
         await loadPapers();
         broadcastSync('SYNC_PAPERS');
-        setDeleteConfirm({ isOpen: false, paper: null });
         return true;
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         showToast(data.error || 'Failed to delete paper', 'error');
         return false;
       }
     } catch (err: any) {
       showToast(`Error deleting paper: ${err.message || err}`, 'error');
       return false;
+    } finally {
+      setDeletingPaper(false);
     }
-  }, [loadPapers, showToast]);
+  }, [deleteConfirm.paper, paperModal, loadPapers, showToast]);
+
+  const handleDeleteAllPapers = useCallback(async () => {
+    if (deleteAllConfirmationText !== 'DELETE ALL') return false;
+    try {
+      const res = await fetch('/api/papers?confirm=DELETE_ALL', {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.message || 'All papers deleted successfully', 'success');
+        setDeleteAllConfirm(false);
+        setDeleteAllConfirmationText('');
+        await loadPapers();
+        if (loadProjects) loadProjects();
+        broadcastSync('SYNC_PAPERS');
+        broadcastSync('SYNC_PROJECTS');
+        return true;
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'Failed to delete all papers', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showToast(`Error deleting all papers: ${err.message || err}`, 'error');
+      return false;
+    }
+  }, [deleteAllConfirmationText, loadPapers, loadProjects, showToast]);
 
   const updatePaperStatus = useCallback(async (paperId: string, newStatus: string) => {
     try {
@@ -220,7 +255,11 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
 
   return {
     papers,
+    setPapers,
     loadingPapers,
+    duplicatesCount,
+    setDuplicatesCount,
+    loadDuplicatesCount,
     searchTerm, setSearchTerm,
     statusFilter, setStatusFilter,
     pdfFilter, setPdfFilter,
@@ -232,11 +271,13 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     sortOrder,
     paperModal, setPaperModal,
     deleteConfirm, setDeleteConfirm,
+    deletingPaper, setDeletingPaper,
     deleteAllConfirm, setDeleteAllConfirm,
     deleteAllConfirmationText, setDeleteAllConfirmationText,
     handleSort,
     loadPapers,
     deletePaper,
+    handleDeleteAllPapers,
     updatePaperStatus,
     updateLocalPdfStatus,
     selectedPaperIds,

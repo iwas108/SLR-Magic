@@ -1,29 +1,51 @@
 import React, { useState } from 'react';
 import { Play, Minus, X, Database, BrainCircuit } from 'lucide-react';
 import LLMOperationsCenter from './LLMOperationsCenter';
-import { useAppState } from '@/hooks/AppStateProvider';
+import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
 
-export default function PipelineExecutionView() {
-  const props = useAppState();
-  const { 
-    activeProject, 
-    loadProjects, 
-    showToast,
-    batchSteps,
-    setBatchSteps,
-    operationModal,
-    runBatchExecution,
-    cloudProvider,
-    cloudName,
-    pipelineStats,
-    currentStep,
-    formatBytes,
-    getTimeEstimates,
-    indexingState,
-    logEndRef,
-    handleResumeOperation,
-    handleCancelOperation
-  } = props;
+interface PipelineExecutionViewProps {
+  activeProject: any;
+  loadProjects: () => Promise<any>;
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  batchSteps: any;
+  setBatchSteps: React.Dispatch<React.SetStateAction<any>>;
+  operationModal: any;
+  runBatchExecution: () => void;
+  cloudProvider: string;
+  cloudName: string;
+  pipelineStats: any;
+  currentStep: any;
+  setCurrentStep: React.Dispatch<React.SetStateAction<any>>;
+  formatBytes: (bytes: number) => string;
+  getTimeEstimates: () => { avgTime: string; timeLeft: string };
+  indexingState: any;
+  logEndRef: React.RefObject<HTMLDivElement | null>;
+  handleResumeOperation: () => void;
+  handleCancelOperation: () => void;
+  setOperationModal: React.Dispatch<React.SetStateAction<any>>;
+}
+
+export default function PipelineExecutionView({
+  activeProject,
+  loadProjects,
+  showToast,
+  batchSteps,
+  setBatchSteps,
+  operationModal,
+  runBatchExecution,
+  cloudProvider,
+  cloudName,
+  pipelineStats,
+  currentStep,
+  setCurrentStep,
+  formatBytes,
+  getTimeEstimates,
+  indexingState,
+  logEndRef,
+  handleResumeOperation,
+  handleCancelOperation,
+  setOperationModal
+}: PipelineExecutionViewProps) {
 
   const [activeTab, setActiveTab] = useState<'acquisition' | 'llm'>('acquisition');
 
@@ -151,87 +173,23 @@ export default function PipelineExecutionView() {
                 </div>
              </div>
 
-             <div className="flex-1 p-4 overflow-hidden flex flex-col space-y-4">
+             <div className="flex-1 overflow-hidden p-4">
                 {operationModal?.isOpen ? (
-                  <>
-                    <div className="space-y-1.5 shrink-0">
-                      <div className="flex justify-between items-center text-[10px] font-bold uppercase text-muted-foreground">
-                        <span>{operationModal.statusText}</span>
-                        <span>{operationModal.progress}%</span>
-                      </div>
-                      <div className="w-full h-2 bg-secondary border border-border rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary transition-all duration-300 rounded-full" 
-                          style={{ width: `${operationModal.progress}%` }} 
-                        />
-                      </div>
-                    </div>
-
-                    {/* Stats Row */}
-                    {currentStep && (
-                      <div className="grid grid-cols-3 gap-3 shrink-0 text-[10px] select-none">
-                        <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-2 flex flex-col items-center justify-center">
-                          <span className="font-bold text-emerald-400 uppercase tracking-wide">Processed / Found</span>
-                          <span className="text-sm font-black text-emerald-400 mt-0.5">{statsFound} / {statsCurrent}</span>
-                        </div>
-                        <div className={`rounded-lg p-2 flex flex-col items-center justify-center border ${statsNotFound > 0 ? 'bg-destructive/5 border-destructive/20 text-destructive animate-pulse' : 'bg-secondary border-border text-muted-foreground'}`}>
-                          <span className="font-bold uppercase tracking-wide">Failures</span>
-                          <span className="text-sm font-black mt-0.5">{statsNotFound}</span>
-                        </div>
-                        <div className="bg-secondary border border-border rounded-lg p-2 flex flex-col items-center justify-center">
-                          <span className="font-bold text-muted-foreground uppercase tracking-wide">Total Target</span>
-                          <span className="text-sm font-black text-foreground mt-0.5">{statsTotal || '—'}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {currentStep && (
-                      <div className="bg-secondary/15 border border-border/80 rounded-lg p-2.5 flex items-center justify-between text-[10px] select-none shrink-0 font-semibold text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <span>Average Speed:</span>
-                          <span className="text-foreground font-black">{getTimeEstimates?.().avgTime || '?'} / paper</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span>Time Remaining:</span>
-                          <span className="text-primary font-black tracking-wide">{getTimeEstimates?.().timeLeft || '?'}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex-1 bg-black text-[10px] text-green-400/90 font-mono rounded-lg p-3 overflow-y-auto custom-scrollbar flex flex-col space-y-1 select-text">
-                      {operationModal.logs.slice(-200).map((log: string, idx: number) => (
-                        <div key={idx} className={
-                          log.includes('✓') || log.includes('[SUCCESS]') || log.includes('>>>') ? 'text-emerald-400' :
-                          log.includes('✗') || log.includes('[ERROR]') || log.includes('<<<') ? 'text-destructive' :
-                          log.includes('[START]') ? 'text-primary font-bold' :
-                          log.includes('[SKIPPED]') ? 'text-amber-500/70' :
-                          log.includes('[SCANNING]') ? 'text-muted-foreground/60' : 'text-muted-foreground'
-                        }>
-                          {log.replace('Γ£ô', '✓').replace('Γ£ù', '✗')}
-                        </div>
-                      ))}
-                      <div ref={logEndRef} />
-                    </div>
-
-                    <div className="flex justify-end gap-3 shrink-0">
-                      {operationModal.isExecuting && operationModal.isWaitingLogin && (
-                        <button
-                          onClick={handleResumeOperation}
-                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded shadow-md transition-colors animate-pulse"
-                        >
-                          Resume Download
-                        </button>
-                      )}
-                      {operationModal.isExecuting && (
-                        <button
-                          onClick={handleCancelOperation}
-                          className="px-4 py-1.5 border border-border text-xs font-semibold rounded hover:bg-secondary text-foreground transition-colors"
-                        >
-                          Cancel Process
-                        </button>
-                      )}
-                    </div>
-                  </>
+                  <PipelineProgressPanel
+                    operationModal={operationModal}
+                    setOperationModal={setOperationModal}
+                    currentStep={currentStep}
+                    setCurrentStep={setCurrentStep}
+                    pipelineStats={pipelineStats}
+                    indexingState={indexingState}
+                    logEndRef={logEndRef}
+                    formatBytes={formatBytes}
+                    getTimeEstimates={getTimeEstimates}
+                    handleResumeOperation={handleResumeOperation}
+                    handleCancelOperation={handleCancelOperation}
+                    cloudName={cloudName}
+                    isMinimizable={false}
+                  />
                 ) : (
                   <div className="h-full flex items-center justify-center text-muted-foreground/50 text-xs flex-col gap-2">
                     <Play className="w-8 h-8 opacity-20" />

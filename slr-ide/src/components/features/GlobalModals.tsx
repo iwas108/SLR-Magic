@@ -1,29 +1,49 @@
 import React from 'react';
 import SettingsModal from '@/components/SettingsModal';
-import AssignPapersModal from '@/components/features/AssignPapersModal';
-import InterRaterModal from '@/components/features/InterRaterModal';
 import DuplicateReviewModal from './DuplicateReviewModal';
 import ViewEditPaperModal from './modals/ViewEditPaperModal';
 import DeletePaperConfirmModal from './modals/DeletePaperConfirmModal';
 import DeleteProjectConfirmModal from './modals/DeleteProjectConfirmModal';
 import DeleteAllPapersConfirmModal from './modals/DeleteAllPapersConfirmModal';
-import { useAppState } from '@/hooks/AppStateProvider';
+interface GlobalModalsProps {
+  deleteProjectConfirm: any;
+  setDeleteProjectConfirm: React.Dispatch<React.SetStateAction<any>>;
+  loadProjects: () => Promise<any>;
+  paperModal: any;
+  setPaperModal: React.Dispatch<React.SetStateAction<any>>;
+  hasLocalPdf: boolean;
+  deleteConfirm: any;
+  setDeleteConfirm: React.Dispatch<React.SetStateAction<any>>;
+  deleteAllConfirm: boolean;
+  setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
+  loadPapers: () => void;
+  activeProject: any;
+  isSettingsOpen: boolean;
+  setIsSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  showDuplicateModal: boolean;
+  setShowDuplicateModal: React.Dispatch<React.SetStateAction<boolean>>;
+}
 
-export default function GlobalModals() {
-  const allProps = useAppState();
-  const {
-    // Project Delete State
-    deleteProjectConfirm, setDeleteProjectConfirm, loadProjects,
-    
-    // Paper State
-    paperModal, setPaperModal, hasLocalPdf, deleteConfirm, setDeleteConfirm,
-    deleteAllConfirm, setDeleteAllConfirm, loadPapers,
-    
-    // Project State
-    activeProject,
-    
-    isSettingsOpen, setIsSettingsOpen, showToast
-  } = allProps;
+export default function GlobalModals({
+  deleteProjectConfirm,
+  setDeleteProjectConfirm,
+  loadProjects,
+  paperModal,
+  setPaperModal,
+  hasLocalPdf,
+  deleteConfirm,
+  setDeleteConfirm,
+  deleteAllConfirm,
+  setDeleteAllConfirm,
+  loadPapers,
+  activeProject,
+  isSettingsOpen,
+  setIsSettingsOpen,
+  showToast,
+  showDuplicateModal,
+  setShowDuplicateModal
+}: GlobalModalsProps) {
 
   return (
     <>
@@ -73,48 +93,11 @@ export default function GlobalModals() {
         onClose={() => setIsSettingsOpen(false)} 
         showToast={showToast}
       />
-      <AssignPapersModal
-        projects={allProps.projects}
-        activeProjectId={allProps.activeProjectId}
-        activeProject={allProps.activeProject}
-        assignSearch={allProps.assignSearch}
-        setAssignSearch={allProps.setAssignSearch}
-        assignPoolFilter={allProps.assignPoolFilter}
-        setAssignPoolFilter={allProps.setAssignPoolFilter}
-        assignPapers={allProps.assignPapers}
-        assignTotalPapers={allProps.assignTotalPapers}
-        assignPage={allProps.assignPage}
-        setAssignPage={allProps.setAssignPage}
-        assignTotalPages={allProps.assignTotalPages}
-        assignLoading={allProps.assignLoading}
-        assignSelectedPaper={allProps.assignSelectedPaper}
-        setAssignSelectedPaper={allProps.setAssignSelectedPaper}
-        activeAssignDropdown={allProps.activeAssignDropdown}
-        setActiveAssignDropdown={allProps.setActiveAssignDropdown}
-        handleAssignPool={allProps.handleAssignPool}
-        showAssignModal={allProps.showAssignModal}
-        setShowAssignModal={allProps.setShowAssignModal}
-        loadCalPapers={allProps.loadCalPapers}
-        loadPapers={allProps.loadPapers}
-        showToast={showToast}
-        cloudName={allProps.cloudName}
-        assignIsRunning={allProps.assignIsRunning}
-        assignLogs={allProps.assignLogs}
-        setAssignLogs={allProps.setAssignLogs}
-        assignProgress={allProps.assignProgress}
-        setAssignProgress={allProps.setAssignProgress}
-        assignStatusText={allProps.assignStatusText}
-        assignWaitingLogin={allProps.assignWaitingLogin}
-        setAssignWaitingLogin={allProps.setAssignWaitingLogin}
-        singlePipelineAbortControllerRef={allProps.singlePipelineAbortControllerRef}
-        runSinglePaperPipeline={allProps.runSinglePaperPipeline}
-      />
-      <InterRaterModal allProps={allProps} />
       <DuplicateReviewModal 
-        isOpen={allProps.showDuplicateModal} 
-        onClose={() => allProps.setShowDuplicateModal(false)} 
+        isOpen={showDuplicateModal} 
+        onClose={() => setShowDuplicateModal(false)} 
         showToast={showToast}
-        loadPapers={allProps.loadPapers}
+        loadPapers={loadPapers}
       />
     </>
   );

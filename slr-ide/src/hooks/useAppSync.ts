@@ -22,11 +22,17 @@ export function useAppSync(callbacks: SyncCallbacks) {
     
     channel.onmessage = (event) => {
       const { type } = event.data;
-      if (type === 'SYNC_PROJECTS' && latestCallbacks.current.loadProjects) {
-        latestCallbacks.current.loadProjects();
-      }
-      if (type === 'SYNC_PAPERS') {
+      if (type === 'SYNC_PROJECTS') {
+        if (latestCallbacks.current.loadProjects) latestCallbacks.current.loadProjects();
         if (latestCallbacks.current.loadPapers) latestCallbacks.current.loadPapers();
+        if (latestCallbacks.current.loadCalPapers) latestCallbacks.current.loadCalPapers();
+        if (latestCallbacks.current.loadAssignPapers) latestCallbacks.current.loadAssignPapers();
+        if (latestCallbacks.current.loadDuplicatesCount) latestCallbacks.current.loadDuplicatesCount();
+      }
+      if (type === 'SYNC_PAPERS' || type === 'SYNC_ADJUDICATION' || type === 'SYNC_DUPLICATES') {
+        if (latestCallbacks.current.loadPapers) latestCallbacks.current.loadPapers();
+        if (latestCallbacks.current.loadCalPapers) latestCallbacks.current.loadCalPapers();
+        if (latestCallbacks.current.loadAssignPapers) latestCallbacks.current.loadAssignPapers();
         if (latestCallbacks.current.loadDuplicatesCount) latestCallbacks.current.loadDuplicatesCount();
       }
       if (type === 'SYNC_CALIBRATION' && latestCallbacks.current.loadCalPapers) {
@@ -34,9 +40,6 @@ export function useAppSync(callbacks: SyncCallbacks) {
       }
       if (type === 'SYNC_ASSIGN' && latestCallbacks.current.loadAssignPapers) {
         latestCallbacks.current.loadAssignPapers();
-      }
-      if (type === 'SYNC_DUPLICATES' && latestCallbacks.current.loadDuplicatesCount) {
-        latestCallbacks.current.loadDuplicatesCount();
       }
     };
 

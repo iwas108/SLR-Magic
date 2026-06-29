@@ -5,7 +5,7 @@ import { broadcastSync } from '@/lib/sync-utils';
 interface DeleteProjectConfirmModalProps {
   deleteProjectConfirm: { isOpen: boolean; projectId: string; projectName: string } | null;
   setDeleteProjectConfirm: (val: any | null) => void;
-  loadProjects: () => Promise<void>;
+  loadProjects: () => Promise<any>;
   loadPapers: () => void;
   showToast: (msg: string, type: 'success' | 'error' | 'info' | 'warning') => void;
 }

@@ -7,7 +7,11 @@ export function useProjects(showToast: (msg: string, type: 'success' | 'error' |
   const [activeProjectId, setActiveProjectId] = useState<string>('default-project');
   const [loadingProjects, setLoadingProjects] = useState(true);
 
-  const activeProject = projects.find(p => p.id === activeProjectId);
+  // Connection testing states
+  const [testingProjectConnection, setTestingProjectConnection] = useState(false);
+  const [projectConnectionTestResult, setProjectConnectionTestResult] = useState<{ success: boolean; message: string; details?: string } | null>(null);
+
+  const activeProject = projects.find(p => String(p.id) === String(activeProjectId));
 
   const loadProjects = useCallback(async () => {
     setLoadingProjects(true);
@@ -87,10 +91,10 @@ export function useProjects(showToast: (msg: string, type: 'success' | 'error' |
 
   const updateProject = useCallback(async (id: string, projectData: any, onSuccess?: () => void) => {
     try {
-      const res = await fetch(`/api/projects/${id}`, {
+      const res = await fetch(`/api/projects`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(projectData)
+        body: JSON.stringify({ id, ...projectData })
       });
       if (res.ok) {
         showToast('Project details saved successfully!', 'success');
@@ -131,15 +135,51 @@ export function useProjects(showToast: (msg: string, type: 'success' | 'error' |
     }
   }, [loadProjects, showToast]);
 
+  const handleTestProjectConnection = useCallback(async (provider: string, remoteName: string) => {
+    setTestingProjectConnection(true);
+    setProjectConnectionTestResult(null);
+    try {
+      const res = await fetch('/api/config/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cloud_provider: provider,
+          rclone_remote_name: remoteName || (provider === 'onedrive' ? 'onedrive' : 'gdrive')
+        })
+      });
+      const data = await res.json();
+      setProjectConnectionTestResult({
+        success: data.success,
+        message: data.message,
+        details: data.details
+      });
+    } catch (err: any) {
+      setProjectConnectionTestResult({
+        success: false,
+        message: 'Network error occurred while testing connection.',
+        details: err.message
+      });
+    } finally {
+      setTestingProjectConnection(false);
+    }
+  }, []);
+
   return {
     projects,
+    setProjects,
     activeProjectId,
+    setActiveProjectId,
     activeProject,
     loadingProjects,
+    testingProjectConnection,
+    setTestingProjectConnection,
+    projectConnectionTestResult,
+    setProjectConnectionTestResult,
     loadProjects,
     activateProject,
     createProject,
     updateProject,
-    deleteProject
+    deleteProject,
+    handleTestProjectConnection
   };
 }

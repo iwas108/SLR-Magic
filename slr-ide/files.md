@@ -114,6 +114,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | :--- | :--- | :--- |
 | `types/index.ts` | TypeScript Definitions| Defines strict TypeScript interfaces for core entities: `Paper`, `Project`, `Config`, `ReviewerDecision`, `LedgerCommit`, and `DuplicatePair`. |
 | `lib/db.ts` | Database Client | Exports the singleton `better-sqlite3` database instance, transaction wrappers, PRAGMA enforcements, and configuration helpers. |
+| `lib/db/db-init.ts` | Database Client/Init | Isolation layer handling schema DDL execution, database migrations, and default lookup table seeding. |
 | `lib/llm-operations.ts` | Frontend Utility | Provides helper routines for calculating LLM pricing estimations, managing job payloads, and initiating screening API calls. |
 | `lib/pdf-utils.ts` | Frontend Utility | Contains helper functions for validating PDF paths, checking file accessibility, and managing local preview URIs. |
 | `lib/sync-utils.ts` | Synchronization | Implements the Agnostic BroadcastChannel pattern (`broadcastSync`, `subscribeSyncChannel`) for cross-tab synchronization and reactivity. |
@@ -124,36 +125,37 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/services/process-manager.ts` | Backend Service | Singleton manager for active child process instances, arguments, PIDs, and clean tree termination (`taskkill` / `SIGKILL`). |
 | `lib/services/stream-manager.ts` | Backend Service | Encapsulates Server-Sent Events (SSE) stream lifecycles, HTTP keep-alive headers, and periodic heartbeat pings. |
 | `lib/services/batch-state-tracker.ts`| Backend Service | Thread-safe memory state manager for batch progress counters, with SQLite `configs` persistence checkpoints for batch resume. |
+| `lib/services/batch-pipeline-executor.ts`| Backend Service | Orchestration service for sequential PDF acquisition batches, Ghostscript compression, and cloud synchronizations. |
+| `lib/services/pipeline/subprocess-runner.ts` | Backend Service | Helper service orchestrating python child process execution, NDJSON buffering, and stdout/stderr event forwarding. |
+| `lib/services/pipeline/compressor.ts` | Backend Service | Helper service resolving Ghostscript path environment and executing file compressions. |
+| `lib/services/pipeline/rclone-sync.ts` | Backend Service | Helper service constructing cloud sync command-lines, re-connecting OAuth configs, and updating databases. |
 | `lib/inter-rater/adjudication-calculations.ts` | Domain Library | Pure TypeScript calculation library for Cohen's Kappa, agreement formulas, and data extraction JSON comparisons (zero Next.js dependencies, standalone SPA ready). |
 
 ### State Management Hooks (`src/hooks/`)
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
-| `hooks/AppStateProvider.tsx` | State Provider | React Context provider consolidating top-level SPA state variables and setter functions, eliminating `allProps` prop-drilling. |
 | `hooks/useAppSync.ts` | Custom Hook | Manages global `BroadcastChannel` synchronization subscriptions using the Mutable Ref Pattern (`useRef`) to prevent stale closures. |
-| `hooks/useAssignState.ts` | Custom Hook | Manages local React state, filtering logic, and selection arrays for assigning paper pools to independent blinded reviewers. |
-| `hooks/useCalibration.ts` | Custom Hook | Encapsulates business logic for managing calibration cohorts (`pool_a`, `pool_b`, `pool_c`), reviewer decisions, and commit ledger audits. |
 | `hooks/useIngestion.ts` | Custom Hook | Manages the multi-step CSV ingestion workflow, file parsing buffers, dynamic column mapping state, and import transactions. |
 | `hooks/usePapers.ts` | Custom Hook | Encapsulates paper database queries, server-side pagination (LIMIT/OFFSET), column sorting, search filtering, and CRUD operations. |
-| `hooks/usePipeline.ts` | Custom Hook | Manages PDF batch execution state, EventSource/SSE stream consumption, live statistics calculation, and process cancellation logic. |
 | `hooks/useProjectForm.ts` | Custom Hook | Handles form state, input validation, and submission logic for creating and updating literature review projects. |
 | `hooks/useProjects.ts` | Custom Hook | Manages project listing retrieval, active project switching, and cloud provider (Google Drive / OneDrive) configuration state. |
-| `hooks/useUIState.ts` | Custom Hook | Manages top-level UI state, active tab switching, modal visibility flags, and floating Toast notification dispatches. |
+| `hooks/usePipeline.ts` | Custom Hook | Manages sequential PDF acquisition/OCR batch pipeline state, Server-Sent Events logging, and cancel controllers. |
+| `hooks/useCalibration.ts` | Custom Hook | Manages consensus screening pre-calibration pools, Kappa metrics calculation, and single-paper crawler executions. |
 
 ### UI Components & Features (`src/components/`)
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
 | `components/Sidebar.tsx` | View Component | Renders the primary navigation sidebar, active project selector dropdown, and quick links to main application views. |
 | `components/SettingsModal.tsx` | View Component | Modal interface for configuring global application settings, Rclone paths, Tesseract OCR toggles, and scraper proxy URLs. |
+| `components/features/settings/RcloneSettingsTab.tsx` | View Component | Cloud destination configuration panel and remote test buttons. |
+| `components/features/settings/ScraperSettingsTab.tsx` | View Component | Stealth browser options, delay controls, headed flags, and Tesseract configurations. |
 | `components/InterRaterDashboard.tsx` | View Component | Comprehensive dashboard for adjudicating blinded inter-rater reviews, comparing QA scores, and evaluating data extractions. |
-| `components/features/AssignPapersModal.tsx` | View Component | Modal dialog enabling lead researchers to partition and assign specific paper cohorts to external blinded reviewers. |
 | `components/features/DashboardView.tsx` | View Component | Executive project overview view displaying summary statistics, local PDF acquisition charts, and recent project activity logs. |
 | `components/features/DuplicateReviewModal.tsx`| View Component | Human-in-the-loop modal interface for side-by-side comparison, scoring analysis, and adjudication of candidate duplicate pairs. |
 | `components/features/GlobalLLMSettingsView.tsx`| View Component | Configuration interface for managing global LLM provider API keys, model selections, and base operational parameters. |
 | `components/features/GlobalModals.tsx` | View Component | Unified container component wrapping all application modals to prevent inline rendering clutter within the main page structure. |
 | `components/features/IngestionHubView.tsx` | View Component | Primary view interface for importing new literature databases, reviewing CSV structures, and launching column mapping workflows. |
 | `components/features/IngestionPanel.tsx` | View Component | Interactive sub-panel handling file drag-and-drop, initial CSV parsing, and preview rendering during ingestion. |
-| `components/features/InterRaterModal.tsx` | View Component | Modal dialog for displaying inter-rater specific comparison rules, exclusion criteria definitions, and blinded review parameters. |
 | `components/features/LLMConfigView.tsx` | View Component | View interface for configuring project-scoped LLM prompts, quality assessment rules, and target JSON extraction schemas. |
 | `components/features/LLMOperationsCenter.tsx` | View Component | Monitoring dashboard tracking active LLM screening jobs, batch execution progress, token usage, and real-time cost accumulation. |
 | `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records. |
@@ -161,15 +163,38 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/PreCalibrationView.tsx` | View Component | View interface for managing pre-calibration workflows, tagging specific screening cohorts, and analyzing screening consistency. |
 | `components/features/ProjectManager.tsx` | View Component | Management interface for creating new literature review projects, defining research questions, and updating project metadata. |
 | `components/features/PromptLibraryView.tsx` | View Component | Interface for versioning, organizing, and testing reusable system prompt templates and structured JSON extraction schemas. |
-| `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal encapsulating paper metadata form state, validation, and save handlers (`PUT /api/papers/[id]`). |
+| `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal composing view and edit layouts for paper metadata and previews. |
+| `components/features/modals/paper-details/PaperMetadataView.tsx` | Presentation Component| Read-only details presentation tab inside the paper modal. |
+| `components/features/modals/paper-details/PaperMetadataEdit.tsx` | Presentation Component| Edit details form layout inside the paper modal. |
+| `components/features/modals/paper-details/ParentPaperSelector.tsx` | UI Component | Autocomplete search selector for tracking chained parent paper references. |
+| `components/features/modals/paper-details/PdfPreview.tsx` | UI Component | Inline iframe preview panel for reading cached/downloaded paper PDFs. |
+| `components/features/modals/CreateProjectModal.tsx` | Modal Component| Standalone modal form encapsulating states and inputs for creating new systematic literature review projects. |
+| `components/features/modals/ProjectSettingsModal.tsx`| Modal Component| Standalone tabbed modal for editing project metadata settings, cloud credentials, LLM configuration, and prompts. |
+| `components/features/modals/settings/ProjectMetadataSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering metadata fields. |
+| `components/features/modals/settings/ProjectCalibrationSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering calibration pools, tags, and rules. |
+| `components/features/modals/settings/ProjectSyncSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering Cloud Sync provider and connection test parameters. |
+| `components/features/modals/AdjudicationWorkspaceModal.tsx` | Modal Component| Standalone conflict resolution split-pane adjudication workspace. |
 | `components/features/modals/DeletePaperConfirmModal.tsx` | Modal Component| Standalone modal dialog for confirming permanent deletion of a single paper record (`DELETE /api/papers/[id]`). |
 | `components/features/modals/DeleteProjectConfirmModal.tsx`| Modal Component| Standalone modal dialog for confirming deletion of a literature review project configuration (`DELETE /api/projects/[id]`). |
 | `components/features/modals/DeleteAllPapersConfirmModal.tsx`| Modal Component| Standalone security dialog verifying active project name before executing bulk wipe of all project papers. |
+| `components/features/modals/CsvReviewModal.tsx` | Modal Component | Standalone modal component for reviewing mapped CSV structures and duplicate exclusions prior to importing. |
+| `components/features/modals/FullscreenAssignModal.tsx` | Modal Component| Standalone fullscreen modal composing pool stats header, paper list, and selection assign details view. |
+| `components/features/modals/fullscreen-assign/PoolStatsHeader.tsx` | UI Component | Header statistics and tag breakdown popovers for Pools A, B, and C. |
+| `components/features/modals/fullscreen-assign/PaperSelectionList.tsx` | UI Component | Left-hand paper search, pool filtering, and page checklist container. |
+| `components/features/modals/fullscreen-assign/AssignDetailView.tsx` | UI Component | Right-hand metadata, assignment triggers, and single-paper crawler logs console. |
+| `components/features/modals/FullscreenInterRaterModal.tsx` | Modal Component| Standalone fullscreen modal wrapping the Inter-Rater Dashboard for blinded review evaluation. |
 | `components/features/dashboard/MetricSummaryCards.tsx` | Widget Component| Displays executive metric calculations, total counts, duplicate statistics, and missing PDF percentages in glassmorphic cards. |
 | `components/features/dashboard/LocalPDFStatusChart.tsx`| Widget Component| Renders graphical status distribution bars and legends for `AVAILABLE`, `MISSING`, `FAILED`, and `EXCLUDED` local PDFs. |
 | `components/features/dashboard/ProjectActivityLog.tsx` | Widget Component| Renders chronological project activity items, status badges, timestamp formatting, and empty-state placeholders. |
 | `components/features/dashboard/DashboardQuickActions.tsx`| Widget Component| Houses quick navigation action buttons (Import CSV, Run Batch Pipeline, Review Duplicates, Export Database). |
+| `components/features/dashboard/PipelineProgressPanel.tsx` | Widget Component | Reusable dashboard component to display real-time batch pipeline progress, logs, and speed estimations. |
+| `components/features/dashboard/MinimizedPipelineBanner.tsx`| Widget Component| Floating banner component displaying real-time progress and active step statistics for minimized batch pipeline executions. |
+| `components/features/dashboard/ToastNotifications.tsx` | Widget Component| Fixed floating container component managing and rendering active toast notifications across the application. |
 | `components/features/inter-rater/AgreementMetricsPanel.tsx`| View Component | Renders agreement summary meters, Cohen's Kappa interpretation badges (e.g., Substantial, Almost Perfect), and statistical tables. |
+| `components/features/inter-rater/ActionControls.tsx` | View Component | Blinded calibration template import, export buttons, and ingest roster list UI. |
+| `components/features/inter-rater/DiscrepancyTable.tsx` | View Component | Side-by-side discrepancy matcher table for blinded raters. |
+| `components/features/inter-rater/AuditLedger.tsx` | View Component | Git-like audit ledger of calibration adjudication history. |
+| `components/features/pre-calibration/PoolMetricsPanel.tsx` | UI Component | Reusable presentation component displaying pool size completion meters and agreement scorecard stats. |
 | `components/features/inter-rater/AdjudicationScorecardView.tsx`| View Component | Displays side-by-side rater decision comparison cards, QA score discrepancies, and final adjudication selectors. |
 | `components/features/inter-rater/DataExtractionComparisonView.tsx`| View Component | Displays side-by-side JSON schema tree viewers, discrepancy highlighting, and value merge selector controls. |
 
