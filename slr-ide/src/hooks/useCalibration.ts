@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Paper } from '@/types';
+import { calculateCohensKappa } from '@/lib/inter-rater/adjudication-calculations';
 
 interface UseCalibrationProps {
   papers: Paper[];
@@ -55,6 +56,12 @@ export function useCalibration({
   const [assignLimit, setAssignLimit] = useState(50);
   const [assignTotalPapers, setAssignTotalPapers] = useState(0);
   const [assignTotalPages, setAssignTotalPages] = useState(1);
+  const [assignSearchMode, setAssignSearchMode] = useState<'keyword' | 'semantic'>('keyword');
+  const [vectorIndexStatus, setVectorIndexStatus] = useState<{
+    indexed: boolean;
+    pdf_count: number;
+    paper_count: number;
+  } | null>(null);
 
   // Single paper crawler states (within assignment details pane)
   const [assignLogs, setAssignLogs] = useState<string[]>([]);
@@ -110,16 +117,9 @@ export function useCalibration({
         let agreementRate = 0;
         let kappaStr = 'N/A';
         if (totalReviewed > 0) {
-          agreementRate = ((TP + TN) / totalReviewed) * 100;
-          const p_o = (TP + TN) / totalReviewed;
-          const p_yes = ((TP + FP) * (TP + FN)) / (totalReviewed * totalReviewed);
-          const p_no = ((TN + FN) * (TN + FP)) / (totalReviewed * totalReviewed);
-          const p_e = p_yes + p_no;
-          if (p_e === 1) {
-            kappaStr = '1.000';
-          } else {
-            kappaStr = ((p_o - p_e) / (1 - p_e)).toFixed(3);
-          }
+          const kappaMetrics = calculateCohensKappa(totalReviewed, TP, TN, FP, FN);
+          agreementRate = kappaMetrics.raw_agreement_pct;
+          kappaStr = kappaMetrics.cohens_kappa.toFixed(3);
         }
         setCalStats({ TP, TN, FP, FN, agreementRate, kappa: kappaStr, reviewedCount: reviewed });
       }
@@ -134,31 +134,61 @@ export function useCalibration({
   const loadAssignPapers = useCallback(async () => {
     setAssignLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (assignSearch) params.append('search', assignSearch);
-      
-      if (assignPoolFilter === 'unassigned') {
-        params.append('calibrationPool', 'none');
-      } else if (assignPoolFilter && assignPoolFilter !== 'all') {
-        params.append('calibrationPool', assignPoolFilter);
-      }
-      
-      params.append('page', String(assignPage));
-      params.append('limit', String(assignLimit));
+      if (assignSearchMode === 'semantic' && assignSearch.trim()) {
+        const res = await fetch('/api/vectors/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: assignSearch,
+            pool: assignPoolFilter,
+            k: 200,
+            mode: 'papers'
+          })
+        });
 
-      const res = await fetch(`/api/papers?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setAssignPapers(data.papers || []);
-        setAssignTotalPapers(data.total || 0);
-        setAssignTotalPages(data.totalPages || 1);
+        if (res.ok) {
+          const data = await res.json();
+          const results = data.results || [];
+          
+          const total = results.length;
+          const startIndex = (assignPage - 1) * assignLimit;
+          const sliced = results.slice(startIndex, startIndex + assignLimit);
+
+          setAssignPapers(sliced);
+          setAssignTotalPapers(total);
+          setAssignTotalPages(Math.ceil(total / assignLimit));
+        } else {
+          setAssignPapers([]);
+          setAssignTotalPapers(0);
+          setAssignTotalPages(1);
+        }
+      } else {
+        const params = new URLSearchParams();
+        if (assignSearch) params.append('search', assignSearch);
+        
+        if (assignPoolFilter === 'unassigned') {
+          params.append('calibrationPool', 'none');
+        } else if (assignPoolFilter && assignPoolFilter !== 'all') {
+          params.append('calibrationPool', assignPoolFilter);
+        }
+        
+        params.append('page', String(assignPage));
+        params.append('limit', String(assignLimit));
+
+        const res = await fetch(`/api/papers?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          setAssignPapers(data.papers || []);
+          setAssignTotalPapers(data.total || 0);
+          setAssignTotalPages(data.totalPages || 1);
+        }
       }
     } catch (err) {
       console.error('Error loading papers for pool assignment:', err);
     } finally {
       setAssignLoading(false);
     }
-  }, [assignSearch, assignPoolFilter, assignPage, assignLimit]);
+  }, [assignSearch, assignPoolFilter, assignPage, assignLimit, assignSearchMode]);
 
   // Assign or unassign papers to pools
   const handleAssignPool = useCallback(async (paperId: string, pool: string | null, tag: string | null = null) => {
@@ -334,6 +364,26 @@ export function useCalibration({
     }
   }, [calActivePool, calSearchTerm, calStatusFilter, calPdfFilter, calTagFilter, calSortBy, calSortOrder, calPage, calLimit, activeTab, loadCalPapers]);
 
+  // Fetch vector status
+  const loadVectorStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/vectors/status');
+      if (res.ok) {
+        const data = await res.json();
+        setVectorIndexStatus(data);
+      }
+    } catch (err) {
+      console.error('Error loading vector status:', err);
+    }
+  }, []);
+
+  // Trigger vector status check
+  useEffect(() => {
+    if (showAssignModal) {
+      loadVectorStatus();
+    }
+  }, [showAssignModal, loadVectorStatus]);
+
   // Trigger assignment papers load
   useEffect(() => {
     if (showAssignModal) {
@@ -349,7 +399,7 @@ export function useCalibration({
   // Reset assignment pagination when filter changes
   useEffect(() => {
     setAssignPage(1);
-  }, [assignSearch, assignPoolFilter]);
+  }, [assignSearch, assignPoolFilter, assignSearchMode]);
 
   return {
     calActivePool, setCalActivePool,
@@ -378,6 +428,8 @@ export function useCalibration({
     assignLimit, setAssignLimit,
     assignTotalPapers, setAssignTotalPapers,
     assignTotalPages, setAssignTotalPages,
+    assignSearchMode, setAssignSearchMode,
+    vectorIndexStatus, setVectorIndexStatus,
     
     assignLogs, setAssignLogs,
     assignIsRunning, setAssignIsRunning,
@@ -390,6 +442,7 @@ export function useCalibration({
     loadAssignPapers,
     handleAssignPool,
     runSinglePaperPipeline,
-    handleCalSort
+    handleCalSort,
+    loadVectorStatus
   };
 }

@@ -4,36 +4,41 @@ import React from 'react';
 import { Maximize2, X } from 'lucide-react';
 
 interface MinimizedPipelineBannerProps {
-  operationModal: any;
-  setOperationModal: React.Dispatch<React.SetStateAction<any>>;
-  isModalMinimized: boolean;
-  setIsModalMinimized: React.Dispatch<React.SetStateAction<boolean>>;
+  pipelineHook: {
+    operationModal: any;
+    setOperationModal: React.Dispatch<React.SetStateAction<any>>;
+    isModalMinimized: boolean;
+    setIsModalMinimized: React.Dispatch<React.SetStateAction<boolean>>;
+    pipelineStats: any;
+    currentStep: any;
+    setCurrentStep: React.Dispatch<React.SetStateAction<any>>;
+    getTimeEstimates: () => { avgTime: string; timeLeft: string };
+    indexingState: any;
+    handleResumeOperation: () => void;
+    handleCancelOperation: () => void;
+  };
   activeTab: string;
-  pipelineStats: any;
-  currentStep: any;
-  setCurrentStep: React.Dispatch<React.SetStateAction<any>>;
   formatBytes: (bytes: number) => string;
-  getTimeEstimates: () => { avgTime: string; timeLeft: string };
-  indexingState: any;
-  handleResumeOperation: () => void;
-  handleCancelOperation: () => void;
 }
 
 export default function MinimizedPipelineBanner({
-  operationModal,
-  setOperationModal,
-  isModalMinimized,
-  setIsModalMinimized,
+  pipelineHook,
   activeTab,
-  pipelineStats,
-  currentStep,
-  setCurrentStep,
-  formatBytes,
-  getTimeEstimates,
-  indexingState,
-  handleResumeOperation,
-  handleCancelOperation
+  formatBytes
 }: MinimizedPipelineBannerProps) {
+  const {
+    operationModal,
+    setOperationModal,
+    isModalMinimized,
+    setIsModalMinimized,
+    pipelineStats,
+    currentStep,
+    setCurrentStep,
+    getTimeEstimates,
+    indexingState,
+    handleResumeOperation,
+    handleCancelOperation
+  } = pipelineHook;
 
   if (!operationModal?.isOpen || !isModalMinimized || activeTab === 'full-execution') {
     return null;

@@ -1,5 +1,7 @@
-import React from 'react';
-import { Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Loader2, ChevronLeft, ChevronRight, Cpu } from 'lucide-react';
+import VectorBuildModal from '../VectorBuildModal';
+
 interface PaperSelectionListProps {
   assignSearch: string;
   setAssignSearch: (v: string) => void;
@@ -18,6 +20,10 @@ interface PaperSelectionListProps {
   setAssignPage: React.Dispatch<React.SetStateAction<number>>;
   assignTotalPages: number;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  assignSearchMode: 'keyword' | 'semantic';
+  setAssignSearchMode: React.Dispatch<React.SetStateAction<'keyword' | 'semantic'>>;
+  vectorIndexStatus: { indexed: boolean; pdf_count: number; paper_count: number } | null;
+  loadVectorStatus: () => Promise<void>;
 }
 
 export default function PaperSelectionList({
@@ -37,23 +43,68 @@ export default function PaperSelectionList({
   assignPage,
   setAssignPage,
   assignTotalPages,
-  showToast
+  showToast,
+  assignSearchMode,
+  setAssignSearchMode,
+  vectorIndexStatus,
+  loadVectorStatus
 }: PaperSelectionListProps) {
+  const [showBuildModal, setShowBuildModal] = useState(false);
 
   return (
     <div className="w-96 border-r border-border bg-card/30 flex flex-col overflow-hidden shrink-0">
       {/* Search and pool filter */}
       <div className="p-4 border-b border-border space-y-3 shrink-0">
-        <div className="relative">
-          <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search papers..."
-            value={assignSearch}
-            onChange={(e) => setAssignSearch(e.target.value)}
-            className="w-full bg-secondary/40 border border-border rounded-lg pl-9 pr-4 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold"
-          />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={assignSearchMode === 'semantic' ? "Semantic query..." : "Search papers..."}
+              value={assignSearch}
+              onChange={(e) => setAssignSearch(e.target.value)}
+              className="w-full bg-secondary/40 border border-border rounded-lg pl-9 pr-4 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold"
+            />
+          </div>
+          <div className="flex border border-border rounded-lg overflow-hidden shrink-0 select-none text-[10px] font-bold uppercase tracking-wider bg-secondary/20">
+            <button
+              onClick={() => setAssignSearchMode('keyword')}
+              className={`px-2 py-1 flex items-center transition-colors cursor-pointer ${
+                assignSearchMode === 'keyword' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary/40'
+              }`}
+              title="Keyword Match (SQL LIKE)"
+            >
+              🔤
+            </button>
+            <button
+              onClick={() => setAssignSearchMode('semantic')}
+              className={`px-2 py-1 flex items-center transition-colors cursor-pointer ${
+                assignSearchMode === 'semantic' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary/40'
+              }`}
+              title="Semantic Similarity (turbovec)"
+            >
+              🧠
+            </button>
+          </div>
         </div>
+
+        {assignSearchMode === 'semantic' && vectorIndexStatus && !vectorIndexStatus.indexed && (
+          <div className="p-2.5 border border-amber-500/30 bg-amber-500/10 rounded-lg flex flex-col gap-1.5 text-[9px] animate-in slide-in-from-top-1 duration-200">
+            <div className="flex items-center gap-1.5 font-bold text-amber-500">
+              <Cpu className="w-3.5 h-3.5 animate-pulse" />
+              <span>Vector index not built</span>
+            </div>
+            <p className="text-muted-foreground font-semibold leading-relaxed">
+              To run semantic searches, you need to compile vector embeddings for your corpus.
+            </p>
+            <button
+              onClick={() => setShowBuildModal(true)}
+              className="w-full py-1 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded text-center transition-colors shadow-sm cursor-pointer uppercase tracking-wider text-[8px]"
+            >
+              Build Semantic Index Now
+            </button>
+          </div>
+        )}
 
         {/* mini sub-filter for pool assignment */}
         <div className="grid grid-cols-5 gap-1 bg-secondary/50 p-0.5 rounded-lg border border-border text-[9px] font-bold text-center uppercase tracking-wide">
@@ -100,30 +151,31 @@ export default function PaperSelectionList({
                     setAssignSelectedPaper(paper);
                     setAssignLogs([]);
                     setAssignProgress(0);
-                    setAssignStatusText('');
-                  } else {
-                    showToast('Please wait or cancel the running acquisition process first.', 'warning');
+                    setAssignStatusText('Idle');
                   }
                 }}
-                className={`p-3.5 cursor-pointer transition-all flex flex-col gap-1 border-l-2 select-none ${
-                  isSelected
-                    ? 'bg-secondary/40 border-primary'
-                    : paper.calibration_pool === 'pool_a'
-                    ? 'border-indigo-500 hover:bg-secondary/10'
-                    : paper.calibration_pool === 'pool_b'
-                    ? 'border-emerald-500 hover:bg-secondary/10'
-                    : paper.calibration_pool === 'pool_c'
-                    ? 'border-amber-500 hover:bg-secondary/10'
-                    : 'border-transparent hover:bg-secondary/10'
+                className={`p-3 cursor-pointer select-none transition-colors border-l-4 ${
+                  isSelected ? 'bg-secondary border-primary' : 'hover:bg-secondary/40 border-transparent'
                 }`}
               >
-                <div className="flex justify-between items-start gap-2">
-                  <span className="font-mono text-[9px] font-bold text-muted-foreground shrink-0">{paper.Paper_ID}</span>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5 overflow-hidden">
+                    <span className="font-mono text-[9px] font-bold text-muted-foreground/80 truncate max-w-[120px] bg-secondary/80 px-1 py-0.5 rounded border border-border/40" title={paper.Paper_ID}>{paper.Paper_ID}</span>
+                    {assignSearchMode === 'semantic' && paper.semantic_score !== undefined && (
+                      <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded border font-mono ${
+                        paper.semantic_score >= 0.75 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                        paper.semantic_score >= 0.65 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                        'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                      }`} title={`Cosine Similarity: ${paper.semantic_score.toFixed(4)}`}>
+                        {(paper.semantic_score * 100).toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
                   {paper.calibration_pool && (
-                    <span className={`text-[8px] font-black uppercase tracking-wider px-1 py-0.5 rounded ${
-                      paper.calibration_pool === 'pool_a' ? 'bg-indigo-500/10 text-indigo-400' :
-                      paper.calibration_pool === 'pool_b' ? 'bg-emerald-500/10 text-emerald-400' :
-                      'bg-amber-500/10 text-amber-400'
+                    <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded uppercase tracking-wider ${
+                      paper.calibration_pool === 'pool_a' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' :
+                      paper.calibration_pool === 'pool_b' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                      'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                     }`}>
                       {paper.calibration_pool.replace('_', ' ')}
                     </span>
@@ -158,6 +210,13 @@ export default function PaperSelectionList({
           </button>
         </div>
       </div>
+      
+      <VectorBuildModal
+        isOpen={showBuildModal}
+        onClose={() => setShowBuildModal(false)}
+        loadVectorStatus={loadVectorStatus}
+        showToast={showToast}
+      />
     </div>
   );
 }

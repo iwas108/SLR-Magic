@@ -6,24 +6,31 @@ import InterRaterDashboard from '@/components/InterRaterDashboard';
 interface FullscreenInterRaterModalProps {
   showInterRaterModal: boolean;
   setShowInterRaterModal: React.Dispatch<React.SetStateAction<boolean>>;
-  loadCalPapers: () => void;
-  loadPapers: () => void;
-  activeProjectId: string;
-  projects: any[];
+  projectsHook: {
+    activeProjectId: string;
+    projects: any[];
+  };
+  papersHook: {
+    loadPapers: () => void;
+  };
+  calibrationHook: {
+    loadCalPapers: () => void;
+    setCalActivePool: (pool: 'pool_a' | 'pool_b' | 'pool_c') => void;
+  };
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-  setCalActivePool: (pool: 'pool_a' | 'pool_b' | 'pool_c') => void;
 }
 
 export default function FullscreenInterRaterModal({
   showInterRaterModal,
   setShowInterRaterModal,
-  loadCalPapers,
-  loadPapers,
-  activeProjectId,
-  projects,
-  showToast,
-  setCalActivePool
+  projectsHook,
+  papersHook,
+  calibrationHook,
+  showToast
 }: FullscreenInterRaterModalProps) {
+  const { activeProjectId, projects } = projectsHook;
+  const { loadPapers } = papersHook;
+  const { loadCalPapers, setCalActivePool } = calibrationHook;
 
   if (!showInterRaterModal) return null;
 

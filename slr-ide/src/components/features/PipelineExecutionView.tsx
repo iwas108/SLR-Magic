@@ -4,48 +4,54 @@ import LLMOperationsCenter from './LLMOperationsCenter';
 import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
 
 interface PipelineExecutionViewProps {
-  activeProject: any;
-  loadProjects: () => Promise<any>;
+  projectsHook: {
+    activeProject: any;
+    loadProjects: () => Promise<any>;
+  };
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-  batchSteps: any;
-  setBatchSteps: React.Dispatch<React.SetStateAction<any>>;
-  operationModal: any;
-  runBatchExecution: () => void;
-  cloudProvider: string;
-  cloudName: string;
-  pipelineStats: any;
-  currentStep: any;
-  setCurrentStep: React.Dispatch<React.SetStateAction<any>>;
   formatBytes: (bytes: number) => string;
-  getTimeEstimates: () => { avgTime: string; timeLeft: string };
-  indexingState: any;
-  logEndRef: React.RefObject<HTMLDivElement | null>;
-  handleResumeOperation: () => void;
-  handleCancelOperation: () => void;
-  setOperationModal: React.Dispatch<React.SetStateAction<any>>;
+  pipelineHook: {
+    batchSteps: any;
+    setBatchSteps: React.Dispatch<React.SetStateAction<any>>;
+    operationModal: any;
+    runBatchExecution: () => void;
+    pipelineStats: any;
+    currentStep: any;
+    setCurrentStep: React.Dispatch<React.SetStateAction<any>>;
+    getTimeEstimates: () => { avgTime: string; timeLeft: string };
+    indexingState: any;
+    logEndRef: React.RefObject<HTMLDivElement | null>;
+    handleResumeOperation: () => void;
+    handleCancelOperation: () => void;
+    setOperationModal: React.Dispatch<React.SetStateAction<any>>;
+  };
 }
 
 export default function PipelineExecutionView({
-  activeProject,
-  loadProjects,
+  projectsHook,
   showToast,
-  batchSteps,
-  setBatchSteps,
-  operationModal,
-  runBatchExecution,
-  cloudProvider,
-  cloudName,
-  pipelineStats,
-  currentStep,
-  setCurrentStep,
   formatBytes,
-  getTimeEstimates,
-  indexingState,
-  logEndRef,
-  handleResumeOperation,
-  handleCancelOperation,
-  setOperationModal
+  pipelineHook
 }: PipelineExecutionViewProps) {
+  const { activeProject, loadProjects } = projectsHook;
+  const {
+    batchSteps,
+    setBatchSteps,
+    operationModal,
+    runBatchExecution,
+    pipelineStats,
+    currentStep,
+    setCurrentStep,
+    getTimeEstimates,
+    indexingState,
+    logEndRef,
+    handleResumeOperation,
+    handleCancelOperation,
+    setOperationModal
+  } = pipelineHook;
+
+  const cloudProvider = activeProject?.cloud_provider || 'gdrive';
+  const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
 
   const [activeTab, setActiveTab] = useState<'acquisition' | 'llm'>('acquisition');
 

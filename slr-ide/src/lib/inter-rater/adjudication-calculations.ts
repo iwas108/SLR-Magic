@@ -3,12 +3,15 @@
  * Designed with zero Next.js dependencies to guarantee absolute portability with the standalone inter-rater/ React SPA.
  */
 
-import { AgreementMetricSummary } from '@/types';
+interface QaRule {
+  code: string;
+  is_fatal_flaw?: boolean | number;
+}
 
 /**
  * Helper function to calculate Pool C dynamic decisions based on QA scores and project rules.
  */
-export function calculatePoolCDecision(qaScores: Record<string, { value: any }>, qaRules: any[]) {
+export function calculatePoolCDecision(qaScores: Record<string, { value: unknown }>, qaRules: QaRule[]) {
   let hasFatalFlaw = false;
   let totalScore = 0;
   
@@ -52,7 +55,7 @@ export function calculatePoolCDecision(qaScores: Record<string, { value: any }>,
 /**
  * Get index for 3x3 Confusion Matrix for QA scores: [0.0, 0.5, 1.0]
  */
-export function getScoreIndex(val: any): number {
+export function getScoreIndex(val: unknown): number {
   const num = parseFloat(String(val));
   if (num === 0.5) return 1;
   if (num === 1.0) return 2;
@@ -224,7 +227,7 @@ export function calculateSchemaExactness(
 /**
  * Render summary string of decisions in discrepancy list row for Pool C.
  */
-export function renderPoolCReviewerSummary(qaScoresStr: string, qaRules: any[]): string {
+export function renderPoolCReviewerSummary(qaScoresStr: string, qaRules: QaRule[]): string {
   try {
     const qaScores = JSON.parse(qaScoresStr || '{}');
     let hasFatal = false;

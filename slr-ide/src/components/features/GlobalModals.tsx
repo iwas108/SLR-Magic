@@ -6,18 +6,21 @@ import DeletePaperConfirmModal from './modals/DeletePaperConfirmModal';
 import DeleteProjectConfirmModal from './modals/DeleteProjectConfirmModal';
 import DeleteAllPapersConfirmModal from './modals/DeleteAllPapersConfirmModal';
 interface GlobalModalsProps {
+  projectsHook: {
+    activeProject: any;
+    loadProjects: () => Promise<any>;
+  };
+  papersHook: {
+    paperModal: any;
+    setPaperModal: React.Dispatch<React.SetStateAction<any>>;
+    deleteConfirm: any;
+    setDeleteConfirm: React.Dispatch<React.SetStateAction<any>>;
+    deleteAllConfirm: boolean;
+    setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
+    loadPapers: () => void;
+  };
   deleteProjectConfirm: any;
   setDeleteProjectConfirm: React.Dispatch<React.SetStateAction<any>>;
-  loadProjects: () => Promise<any>;
-  paperModal: any;
-  setPaperModal: React.Dispatch<React.SetStateAction<any>>;
-  hasLocalPdf: boolean;
-  deleteConfirm: any;
-  setDeleteConfirm: React.Dispatch<React.SetStateAction<any>>;
-  deleteAllConfirm: boolean;
-  setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
-  loadPapers: () => void;
-  activeProject: any;
   isSettingsOpen: boolean;
   setIsSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -26,24 +29,32 @@ interface GlobalModalsProps {
 }
 
 export default function GlobalModals({
+  projectsHook,
+  papersHook,
   deleteProjectConfirm,
   setDeleteProjectConfirm,
-  loadProjects,
-  paperModal,
-  setPaperModal,
-  hasLocalPdf,
-  deleteConfirm,
-  setDeleteConfirm,
-  deleteAllConfirm,
-  setDeleteAllConfirm,
-  loadPapers,
-  activeProject,
   isSettingsOpen,
   setIsSettingsOpen,
   showToast,
   showDuplicateModal,
   setShowDuplicateModal
 }: GlobalModalsProps) {
+  const { activeProject, loadProjects } = projectsHook;
+  const {
+    paperModal,
+    setPaperModal,
+    deleteConfirm,
+    setDeleteConfirm,
+    deleteAllConfirm,
+    setDeleteAllConfirm,
+    loadPapers
+  } = papersHook;
+
+  const hasLocalPdf = !!(
+    paperModal.isOpen &&
+    paperModal.paper?.Local_PDF_Path &&
+    ['MATCHED', 'DOWNLOADED', 'SYNCED'].includes(paperModal.paper?.Local_PDF_Status)
+  );
 
   return (
     <>

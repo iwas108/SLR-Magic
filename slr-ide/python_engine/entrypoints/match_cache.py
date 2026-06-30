@@ -88,6 +88,10 @@ def run_matcher():
     row = cursor.fetchone()
     fuzzy_threshold = float(row[0]) / 100.0 if row else 0.90
 
+    cursor.execute("SELECT value FROM configs WHERE key = 'SEMANTIC_MATCH_THRESHOLD'")
+    row_semantic = cursor.fetchone()
+    semantic_threshold = float(row_semantic[0]) if row_semantic else 0.65
+
     cursor.execute("SELECT value FROM configs WHERE key = 'OCR_ENABLED'")
     row_ocr = cursor.fetchone()
     ocr_enabled = row_ocr[0].lower() == 'true' if row_ocr else False
@@ -241,6 +245,27 @@ def run_matcher():
         })
     conn_idx.close()
 
+    # Auto-build PDF Cache Vector Index incrementally
+    try:
+        from python_engine.vector.index_manager import VectorIndexManager
+        from python_engine.vector.id_map import IDMap
+        
+        # Check already indexed
+        conn_id = IDMap.get_connection()
+        cursor_id = conn_id.cursor()
+        cursor_id.execute("SELECT string_id FROM id_map WHERE source = 'pdf_cache'")
+        already_indexed = {r[0] for r in cursor_id.fetchall()}
+        
+        new_pdfs = [rec for rec in cached_records if rec['filename'] not in already_indexed]
+        if new_pdfs:
+            print(json.dumps({"event": "log", "message": f"Auto-indexing {len(new_pdfs)} new PDFs into vector database..."}))
+            sys.stdout.flush()
+            for rec in new_pdfs:
+                VectorIndexManager.add_pdf(rec['filename'], rec['page1_text'])
+    except Exception as e:
+        print(json.dumps({"event": "log", "message": f"Warning: Vector auto-indexing failed: {e}"}))
+        sys.stdout.flush()
+
     # Fetch active project ID and folder name
     cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
     active_proj_row = cursor.fetchone()
@@ -259,12 +284,12 @@ def run_matcher():
 
     if paper_id_arg:
         cursor.execute("""
-            SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path FROM papers
+            SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
             WHERE Project_ID = ? AND Paper_ID = ?
         """, (active_proj_id, paper_id_arg))
     else:
         cursor.execute("""
-            SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path FROM papers
+            SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
             WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING')
         """, (active_proj_id,))
     papers = cursor.fetchall()
@@ -275,7 +300,7 @@ def run_matcher():
     matched_count = 0
 
     for idx, paper in enumerate(papers):
-        paper_id, doi, title, status, local_pdf_status, local_pdf_path = paper
+        paper_id, doi, title, status, local_pdf_status, local_pdf_path, abstract = paper
         
         throttle_print({
             "event": "progress",
@@ -376,6 +401,26 @@ def run_matcher():
                         matched_record = rec
                         match_method = "pdf_metadata_text"
                         break
+
+        # 5. Semantic Vector Match (turbovec)
+        if not matched_record and title:
+            try:
+                from python_engine.vector.index_manager import VectorIndexManager
+                vec_mgr = VectorIndexManager()
+                query_text = f"{title} {abstract}" if abstract else title
+                results = vec_mgr.search_pdf_by_text(query_text, k=3)
+                if results and results[0]['score'] >= semantic_threshold:
+                    matched_filename = results[0]['filename']
+                    for rec in cached_records:
+                        if rec['filename'] == matched_filename:
+                            matched_record = rec
+                            match_method = f"semantic_vector (score: {results[0]['score']:.4f})"
+                            break
+            except Exception as e:
+                throttle_print({
+                    "event": "log",
+                    "message": f"Warning: Stage 5 Semantic Vector match failed: {e}"
+                })
 
         # If matched, point Local_PDF_Path directly to cached_pdf/ matched file
         if matched_record:

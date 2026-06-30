@@ -1,49 +1,7 @@
 import { NextResponse } from 'next/server';
 import db, { getConfig } from '@/lib/db';
 import { createHash } from 'crypto';
-
-// Helper function to calculate Pool C dynamic decisions based on QA scores and project rules
-function calculatePoolCDecision(qaScores: Record<string, { value: any }>, qaRules: any[]) {
-  let hasFatalFlaw = false;
-  let totalScore = 0;
-  
-  const ruleKeys = Object.keys(qaScores);
-  for (const code of ruleKeys) {
-    const scoreVal = parseFloat(String(qaScores[code]?.value || 0));
-    totalScore += scoreVal;
-    
-    // Check if this rule is flagged as a fatal flaw
-    const ruleDef = qaRules.find(r => r.code.toLowerCase() === code.toLowerCase());
-    const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].includes(code.toLowerCase());
-    
-    if (isFatal && scoreVal === 0) {
-      hasFatalFlaw = true;
-    }
-  }
-  
-  const meetsCumulative = totalScore >= 4.5;
-  const decision = (!hasFatalFlaw && meetsCumulative) ? 'Include' : 'Exclude';
-  
-  let exclusionCode = null;
-  if (decision === 'Exclude') {
-    if (hasFatalFlaw) {
-      // Find the first fatal flaw rule that triggered
-      const failedCode = ruleKeys.find(code => {
-        const scoreVal = parseFloat(String(qaScores[code]?.value || 0));
-        const ruleDef = qaRules.find(r => r.code.toLowerCase() === code.toLowerCase());
-        const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].includes(code.toLowerCase());
-        return isFatal && scoreVal === 0;
-      });
-      exclusionCode = `FATAL_FLAW_${failedCode?.toUpperCase() || 'QA'}`;
-    } else {
-      exclusionCode = 'CUMULATIVE_BELOW_4.5';
-    }
-  }
-  
-  const rationale = `Auto-adjudicated Pool C Decision: ${decision}. Total QA Score: ${totalScore.toFixed(1)}/8.0.${decision === 'Exclude' ? ` Exclusion reason: ${exclusionCode}.` : ''}`;
-  
-  return { decision, exclusionCode, rationale };
-}
+import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
 
 export async function POST(request: Request) {
   try {

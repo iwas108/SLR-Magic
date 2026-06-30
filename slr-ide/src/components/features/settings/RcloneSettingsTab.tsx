@@ -84,6 +84,67 @@ export default function RcloneSettingsTab({
           </select>
           <p className="text-[10px] text-muted-foreground">Select whether to incrementally copy new files or perform a strict mirror sync.</p>
         </div>
+
+        <div className="border-t border-border/60 my-4 pt-4 space-y-4">
+          <h4 className="font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+            📦 Database Auto-Backup
+          </h4>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-muted-foreground">Rclone Backup Destination Path</label>
+            <input
+              type="text"
+              className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary font-mono text-[11px]"
+              value={configs.BACKUP_DESTINATION || ''}
+              onChange={(e) => handleChange('BACKUP_DESTINATION', e.target.value)}
+              placeholder="e.g. gdrive:SLR_Magic/Backups/db"
+            />
+            <p className="text-[10px] text-muted-foreground">Specify the Rclone remote destination path where database backup files (slr-ide/db/*) should be copied.</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="backup_auto_enabled"
+              className="w-4 h-4 rounded border-border bg-secondary text-primary focus:ring-primary cursor-pointer"
+              checked={configs.BACKUP_AUTO_ENABLED === 'true'}
+              onChange={(e) => handleChange('BACKUP_AUTO_ENABLED', e.target.checked ? 'true' : 'false')}
+            />
+            <label htmlFor="backup_auto_enabled" className="text-xs font-semibold text-foreground cursor-pointer select-none">
+              Enable Automated Database Backups
+            </label>
+          </div>
+
+          {configs.BACKUP_AUTO_ENABLED === 'true' && (
+            <div className="p-3 bg-secondary/25 border border-border rounded-lg space-y-3 animate-in fade-in duration-200">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-muted-foreground">Backup Trigger</label>
+                <select
+                  className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary text-xs cursor-pointer"
+                  value={configs.BACKUP_TRIGGER || 'interval'}
+                  onChange={(e) => handleChange('BACKUP_TRIGGER', e.target.value)}
+                >
+                  <option value="interval">By Interval (every X minutes)</option>
+                  <option value="change">By Database Changes (1 minute minimum spacing)</option>
+                </select>
+              </div>
+
+              {(configs.BACKUP_TRIGGER || 'interval') === 'interval' && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground">Interval (Minutes)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary text-xs"
+                    value={configs.BACKUP_INTERVAL_MINS || '60'}
+                    onChange={(e) => handleChange('BACKUP_INTERVAL_MINS', e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Backup will be initiated every X minutes if changes are present.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Connection Verification Tool */}

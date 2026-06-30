@@ -6,84 +6,102 @@ import PoolStatsHeader from './fullscreen-assign/PoolStatsHeader';
 import PaperSelectionList from './fullscreen-assign/PaperSelectionList';
 import AssignDetailView from './fullscreen-assign/AssignDetailView';
 interface FullscreenAssignModalProps {
-  showAssignModal: boolean;
-  setShowAssignModal: React.Dispatch<React.SetStateAction<boolean>>;
-  loadCalPapers: () => void;
-  loadPapers: () => void;
-  projects: any[];
-  activeProjectId: string;
-  
-  // Paper Selection List props
-  assignSearch: string;
-  setAssignSearch: (v: string) => void;
-  assignPoolFilter: string;
-  setAssignPoolFilter: (v: string) => void;
-  assignLoading: boolean;
-  assignPapers: any[];
-  assignSelectedPaper: any;
-  setAssignSelectedPaper: React.Dispatch<React.SetStateAction<any>>;
-  assignTotalPapers: number;
-  assignPage: number;
-  setAssignPage: React.Dispatch<React.SetStateAction<number>>;
-  assignTotalPages: number;
+  projectsHook: {
+    projects: any[];
+    activeProjectId: string;
+  };
+  papersHook: {
+    loadPapers: () => void;
+  };
+  calibrationHook: {
+    showAssignModal: boolean;
+    setShowAssignModal: React.Dispatch<React.SetStateAction<boolean>>;
+    loadCalPapers: () => void;
+    assignSearch: string;
+    setAssignSearch: (v: string) => void;
+    assignPoolFilter: string;
+    setAssignPoolFilter: (v: string) => void;
+    assignLoading: boolean;
+    assignPapers: any[];
+    assignSelectedPaper: any;
+    setAssignSelectedPaper: React.Dispatch<React.SetStateAction<any>>;
+    assignTotalPapers: number;
+    assignPage: number;
+    setAssignPage: React.Dispatch<React.SetStateAction<number>>;
+    assignTotalPages: number;
+    assignIsRunning: boolean;
+    assignLogs: any[];
+    setAssignLogs: React.Dispatch<React.SetStateAction<any[]>>;
+    assignProgress: number;
+    setAssignProgress: React.Dispatch<React.SetStateAction<number>>;
+    assignStatusText: string;
+    setAssignStatusText: (v: string) => void;
+    activeAssignDropdown: any;
+    setActiveAssignDropdown: React.Dispatch<React.SetStateAction<any>>;
+    handleAssignPool: (paperId: string, pool: string | null, tag?: string | null) => Promise<void>;
+    runSinglePaperPipeline: (paperId: string) => Promise<void>;
+    assignWaitingLogin: boolean;
+    setAssignWaitingLogin: React.Dispatch<React.SetStateAction<boolean>>;
+    singlePipelineAbortControllerRef: React.MutableRefObject<AbortController | null>;
+    assignSearchMode: 'keyword' | 'semantic';
+    setAssignSearchMode: React.Dispatch<React.SetStateAction<'keyword' | 'semantic'>>;
+    vectorIndexStatus: { indexed: boolean; pdf_count: number; paper_count: number } | null;
+    loadVectorStatus: () => Promise<void>;
+  };
+  pipelineHook: {
+    logEndRef: React.RefObject<HTMLDivElement | null>;
+  };
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-
-  // Assign Detail View props
-  assignIsRunning: boolean;
-  assignLogs: any[];
-  setAssignLogs: React.Dispatch<React.SetStateAction<any[]>>;
-  assignProgress: number;
-  setAssignProgress: React.Dispatch<React.SetStateAction<number>>;
-  assignStatusText: string;
-  setAssignStatusText: (v: string) => void;
-  activeAssignDropdown: any;
-  setActiveAssignDropdown: React.Dispatch<React.SetStateAction<any>>;
-  handleAssignPool: (paperId: string, pool: string | null, tag?: string | null) => Promise<void>;
-  cloudName: string;
-  runSinglePaperPipeline: (paperId: string) => Promise<void>;
-  assignWaitingLogin: boolean;
-  setAssignWaitingLogin: React.Dispatch<React.SetStateAction<boolean>>;
-  singlePipelineAbortControllerRef: React.MutableRefObject<AbortController | null>;
-  logEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function FullscreenAssignModal({
-  showAssignModal,
-  setShowAssignModal,
-  loadCalPapers,
-  loadPapers,
-  projects,
-  activeProjectId,
-  assignSearch,
-  setAssignSearch,
-  assignPoolFilter,
-  setAssignPoolFilter,
-  assignLoading,
-  assignPapers,
-  assignSelectedPaper,
-  setAssignSelectedPaper,
-  assignTotalPapers,
-  assignPage,
-  setAssignPage,
-  assignTotalPages,
-  showToast,
-  assignIsRunning,
-  assignLogs,
-  setAssignLogs,
-  assignProgress,
-  setAssignProgress,
-  assignStatusText,
-  setAssignStatusText,
-  activeAssignDropdown,
-  setActiveAssignDropdown,
-  handleAssignPool,
-  cloudName,
-  runSinglePaperPipeline,
-  assignWaitingLogin,
-  setAssignWaitingLogin,
-  singlePipelineAbortControllerRef,
-  logEndRef
+  projectsHook,
+  papersHook,
+  calibrationHook,
+  pipelineHook,
+  showToast
 }: FullscreenAssignModalProps) {
+  const { projects, activeProjectId } = projectsHook;
+  const { loadPapers } = papersHook;
+  const { logEndRef } = pipelineHook;
+  const {
+    showAssignModal,
+    setShowAssignModal,
+    loadCalPapers,
+    assignSearch,
+    setAssignSearch,
+    assignPoolFilter,
+    setAssignPoolFilter,
+    assignLoading,
+    assignPapers,
+    assignSelectedPaper,
+    setAssignSelectedPaper,
+    assignTotalPapers,
+    assignPage,
+    setAssignPage,
+    assignTotalPages,
+    assignIsRunning,
+    assignLogs,
+    setAssignLogs,
+    assignProgress,
+    setAssignProgress,
+    assignStatusText,
+    setAssignStatusText,
+    activeAssignDropdown,
+    setActiveAssignDropdown,
+    handleAssignPool,
+    runSinglePaperPipeline,
+    assignWaitingLogin,
+    setAssignWaitingLogin,
+    singlePipelineAbortControllerRef,
+    assignSearchMode,
+    setAssignSearchMode,
+    vectorIndexStatus,
+    loadVectorStatus
+  } = calibrationHook;
+
+  const cloudProvider = projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider || 'gdrive';
+  const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
 
   if (!showAssignModal) return null;
 
@@ -133,6 +151,10 @@ export default function FullscreenAssignModal({
           setAssignPage={setAssignPage}
           assignTotalPages={assignTotalPages}
           showToast={showToast}
+          assignSearchMode={assignSearchMode}
+          setAssignSearchMode={setAssignSearchMode}
+          vectorIndexStatus={vectorIndexStatus}
+          loadVectorStatus={loadVectorStatus}
         />
         <AssignDetailView
           projects={projects}

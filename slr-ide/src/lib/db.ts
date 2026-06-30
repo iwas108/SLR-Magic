@@ -50,3 +50,17 @@ export function getAllConfigs(): Record<string, string> {
 }
 
 export default db;
+
+// Start backup scheduler in a deferred task to avoid circular import delays
+if (typeof window === 'undefined') {
+  setTimeout(() => {
+    import('./services/backup-service')
+      .then((m) => {
+        m.startBackupScheduler();
+      })
+      .catch((err) => {
+        console.error('Failed to import and start backup scheduler:', err);
+      });
+  }, 3000);
+}
+

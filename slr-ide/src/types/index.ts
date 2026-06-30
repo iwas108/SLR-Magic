@@ -25,6 +25,8 @@ export interface Paper {
   Human_Extracted_Data?: string | null;
   is_duplicate?: number;
   merged_into_id?: string | null;
+  semantic_score?: number;
+  search_rank?: number;
 }
 
 export interface DuplicatePair {

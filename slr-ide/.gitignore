@@ -50,6 +50,11 @@ chrome_profile/**
 db/*.db
 db/*.sqlite
 db/cache_index.db
+db/*.tvim
+db/vector_id_map.db
+
+# Models Cache
+models/
 
 # Virtual Environment & Python
 venv/

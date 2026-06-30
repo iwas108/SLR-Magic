@@ -13,87 +13,95 @@ import PoolMetricsPanel from './pre-calibration/PoolMetricsPanel';
 
 interface PreCalibrationViewProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-  activeProject: any;
-  projects: any[];
-  activeProjectId: string;
-  paperModal: any;
-  setPaperModal: React.Dispatch<React.SetStateAction<any>>;
-  calActivePool: 'pool_a' | 'pool_b' | 'pool_c';
-  setCalActivePool: React.Dispatch<React.SetStateAction<'pool_a' | 'pool_b' | 'pool_c'>>;
-  calStats: any;
-  calPapers: any[];
-  calLoading: boolean;
-  calSearchTerm: string;
-  setCalSearchTerm: (v: string) => void;
-  calStatusFilter: string;
-  setCalStatusFilter: (v: string) => void;
-  calPdfFilter: string;
-  setCalPdfFilter: (v: string) => void;
-  calPage: number;
-  setCalPage: React.Dispatch<React.SetStateAction<number>>;
-  calLimit: number;
-  setCalLimit: React.Dispatch<React.SetStateAction<number>>;
-  calTotalPapers: number;
-  calTotalPages: number;
-  calSortBy: string;
-  calSortOrder: 'asc' | 'desc';
-  showAssignModal: boolean;
-  setShowAssignModal: React.Dispatch<React.SetStateAction<boolean>>;
+  projectsHook: {
+    projects: any[];
+    activeProjectId: string;
+    activeProject: any;
+  };
+  papersHook: {
+    paperModal: any;
+    setPaperModal: React.Dispatch<React.SetStateAction<any>>;
+  };
+  calibrationHook: {
+    calActivePool: 'pool_a' | 'pool_b' | 'pool_c';
+    setCalActivePool: React.Dispatch<React.SetStateAction<'pool_a' | 'pool_b' | 'pool_c'>>;
+    calStats: any;
+    calPapers: any[];
+    calLoading: boolean;
+    calSearchTerm: string;
+    setCalSearchTerm: (v: string) => void;
+    calStatusFilter: string;
+    setCalStatusFilter: (v: string) => void;
+    calPdfFilter: string;
+    setCalPdfFilter: (v: string) => void;
+    calPage: number;
+    setCalPage: React.Dispatch<React.SetStateAction<number>>;
+    calLimit: number;
+    setCalLimit: React.Dispatch<React.SetStateAction<number>>;
+    calTotalPapers: number;
+    calTotalPages: number;
+    calSortBy: string;
+    calSortOrder: 'asc' | 'desc';
+    showAssignModal: boolean;
+    setShowAssignModal: React.Dispatch<React.SetStateAction<boolean>>;
+    assignIsRunning: boolean;
+    setAssignIsRunning: React.Dispatch<React.SetStateAction<boolean>>;
+    assignStatusText: string;
+    setAssignStatusText: (v: string) => void;
+    setAssignLogs: React.Dispatch<React.SetStateAction<any[]>>;
+    handleCalSort: (field: string) => void;
+    handleAssignPool: (paperId: string, pool: string | null) => Promise<void>;
+    loadCalPapers: () => void;
+    loadAssignPapers: () => void;
+  };
   showInterRaterModal: boolean;
   setShowInterRaterModal: React.Dispatch<React.SetStateAction<boolean>>;
-  assignIsRunning: boolean;
-  setAssignIsRunning: React.Dispatch<React.SetStateAction<boolean>>;
-  assignStatusText: string;
-  setAssignStatusText: (v: string) => void;
-  setAssignLogs: React.Dispatch<React.SetStateAction<any[]>>;
-  handleCalSort: (field: string) => void;
-  handleAssignPool: (paperId: string, pool: string | null) => Promise<void>;
   handleExportCalPoolA: () => void;
-  loadCalPapers: () => void;
-  loadAssignPapers: () => void;
 }
 
 export default function PreCalibrationView({
   showToast,
-  activeProject,
-  projects,
-  activeProjectId,
-  paperModal,
-  setPaperModal,
-  calActivePool,
-  setCalActivePool,
-  calStats,
-  calPapers,
-  calLoading,
-  calSearchTerm,
-  setCalSearchTerm,
-  calStatusFilter,
-  setCalStatusFilter,
-  calPdfFilter,
-  setCalPdfFilter,
-  calPage,
-  setCalPage,
-  calLimit,
-  setCalLimit,
-  calTotalPapers,
-  calTotalPages,
-  calSortBy,
-  calSortOrder,
-  showAssignModal,
-  setShowAssignModal,
+  projectsHook,
+  papersHook,
+  calibrationHook,
   showInterRaterModal,
   setShowInterRaterModal,
-  assignIsRunning,
-  setAssignIsRunning,
-  assignStatusText,
-  setAssignStatusText,
-  setAssignLogs,
-  handleCalSort,
-  handleAssignPool,
-  handleExportCalPoolA,
-  loadCalPapers,
-  loadAssignPapers
+  handleExportCalPoolA
 }: PreCalibrationViewProps) {
+  const { projects, activeProjectId, activeProject } = projectsHook;
+  const { paperModal, setPaperModal } = papersHook;
+  const {
+    calActivePool,
+    setCalActivePool,
+    calStats,
+    calPapers,
+    calLoading,
+    calSearchTerm,
+    setCalSearchTerm,
+    calStatusFilter,
+    setCalStatusFilter,
+    calPdfFilter,
+    setCalPdfFilter,
+    calPage,
+    setCalPage,
+    calLimit,
+    setCalLimit,
+    calTotalPapers,
+    calTotalPages,
+    calSortBy,
+    calSortOrder,
+    showAssignModal,
+    setShowAssignModal,
+    assignIsRunning,
+    setAssignIsRunning,
+    assignStatusText,
+    setAssignStatusText,
+    setAssignLogs,
+    handleCalSort,
+    handleAssignPool,
+    loadCalPapers,
+    loadAssignPapers
+  } = calibrationHook;
 
 
   function LoaderIcon() {

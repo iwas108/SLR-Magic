@@ -65,6 +65,10 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `core/db.py` | Database Interop | Provides lightweight SQLite connection management, pragmas enforcement, and query execution helpers for Python scripts. |
 | `core/events.py` | Real-time IPC | Formats and emits real-time NDJSON event objects to `stdout`, allowing Next.js API routes to stream progress updates to the frontend. |
 | `core/security.py` | Security | Implements cryptographic routines (e.g., AES decryption for locked PDFs) and secure credential/proxy handling. |
+| `vector/__init__.py` | Vector Processing | Package initialization file exposing the vector modules to python engine entrypoints. |
+| `vector/embedder.py` | Vector Processing | Core embedding wrapper for sentence-transformers and local nomic-embed-text-v1.5 model. |
+| `vector/index_manager.py` | Vector Indexing | Manages IdMapIndex creations, additions, updates, removals, and similarity searches. |
+| `vector/id_map.py` | Database Interop | Bidirectional SQLite-backed mapper resolving string IDs to deterministic 63-bit integer keys. |
 
 ### Crawler & Scraper Modules
 | File Path | Architectural Layer | Function & Purpose |
@@ -82,6 +86,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `entrypoints/map_publisher.py` | CLI Subprocess | Normalizes raw publisher string fields from ingested literature datasets into standardized academic publisher entities. |
 | `entrypoints/match_cache.py` | CLI Subprocess | Executes smart cached PDF matching against local libraries using Paper ID, DOI, Title similarity, MD5 hash lookups, and Tesseract OCR fallback. |
 | `entrypoints/scrape_pdfs.py` | CLI Subprocess | Initiates automated bulk PDF acquisition from academic publisher websites for papers marked with `MISSING` local PDF status. |
+| `entrypoints/build_vectors.py` | CLI Subprocess | CLI driver responsible for building and updating vector indices incrementally. |
+| `entrypoints/semantic_search.py` | CLI Subprocess | CLI driver performing semantic searches across the paper corpus and PDF cache. |
+| `entrypoints/find_traps.py` | CLI Subprocess | CLI driver isolating semantic near-miss traps for pre-calibration. |
 
 ### LLM Orchestration & Providers
 | File Path | Architectural Layer | Function & Purpose |
@@ -126,6 +133,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/services/stream-manager.ts` | Backend Service | Encapsulates Server-Sent Events (SSE) stream lifecycles, HTTP keep-alive headers, and periodic heartbeat pings. |
 | `lib/services/batch-state-tracker.ts`| Backend Service | Thread-safe memory state manager for batch progress counters, with SQLite `configs` persistence checkpoints for batch resume. |
 | `lib/services/batch-pipeline-executor.ts`| Backend Service | Orchestration service for sequential PDF acquisition batches, Ghostscript compression, and cloud synchronizations. |
+| `lib/services/backup-service.ts` | Backend Service | Background auto-backup scheduler copying database folder db/* to Rclone remotes by interval or changes. |
 | `lib/services/pipeline/subprocess-runner.ts` | Backend Service | Helper service orchestrating python child process execution, NDJSON buffering, and stdout/stderr event forwarding. |
 | `lib/services/pipeline/compressor.ts` | Backend Service | Helper service resolving Ghostscript path environment and executing file compressions. |
 | `lib/services/pipeline/rclone-sync.ts` | Backend Service | Helper service constructing cloud sync command-lines, re-connecting OAuth configs, and updating databases. |
@@ -178,6 +186,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/DeleteProjectConfirmModal.tsx`| Modal Component| Standalone modal dialog for confirming deletion of a literature review project configuration (`DELETE /api/projects/[id]`). |
 | `components/features/modals/DeleteAllPapersConfirmModal.tsx`| Modal Component| Standalone security dialog verifying active project name before executing bulk wipe of all project papers. |
 | `components/features/modals/CsvReviewModal.tsx` | Modal Component | Standalone modal component for reviewing mapped CSV structures and duplicate exclusions prior to importing. |
+| `components/features/modals/VectorBuildModal.tsx` | Modal Component | Standalone progress and console log dialog for building and updating vector indices. |
 | `components/features/modals/FullscreenAssignModal.tsx` | Modal Component| Standalone fullscreen modal composing pool stats header, paper list, and selection assign details view. |
 | `components/features/modals/fullscreen-assign/PoolStatsHeader.tsx` | UI Component | Header statistics and tag breakdown popovers for Pools A, B, and C. |
 | `components/features/modals/fullscreen-assign/PaperSelectionList.tsx` | UI Component | Left-hand paper search, pool filtering, and page checklist container. |
@@ -203,7 +212,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | :--- | :--- | :--- |
 | `app/globals.css` | Styling | Defines global CSS rules, Tailwind CSS utility layers, custom font styles, and design system color palette variables. |
 | `app/layout.tsx` | Application Layout | Root Next.js layout structure wrapping all pages with standard HTML head elements, font definitions, and global structure. |
-| `app/page.tsx` | Application Root | Main Single Page Application (SPA) entrypoint orchestrating top-level state (`allProps`), view switching, and sidebar integration. |
+| `app/page.tsx` | Application Root | Main Single Page Application (SPA) entrypoint orchestrating active view tabs, sidebar context, and consolidated hook propagation. |
 
 ### Next.js Backend API Routes (`src/app/api/`)
 | File Path | Architectural Layer | Function & Purpose |
@@ -242,3 +251,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/projects/route.ts` | REST Endpoint | Handles GET and POST requests to list all active literature review projects or create new project database records. |
 | `api/projects/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests to retrieve, update, or permanently wipe a specific project configuration and its associated data. |
 | `api/projects/activate/route.ts` | REST Endpoint | Handles POST requests to update the `ACTIVE_PROJECT_ID` value in the SQLite `configs` table, switching the active workspace context. |
+| `api/vectors/search/route.ts` | REST Endpoint | Handles POST requests to run semantic searches on paper/PDF cache vector indexes. |
+| `api/vectors/status/route.ts` | REST Endpoint | Handles GET requests to check vector database index status parameters and count fields. |
+| `api/vectors/build/route.ts` | REST Endpoint | Handles POST requests to spawn the incremental vector index build subprocess and stream progress. |
+| `api/vectors/traps/route.ts` | REST Endpoint | Handles POST requests to trigger the semantic near-miss traps finder. |

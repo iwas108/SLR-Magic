@@ -12,3 +12,5 @@ openai>=1.12.0
 anthropic>=0.18.0
 python-dotenv>=1.0.0
 rapidfuzz>=3.6.0
+turbovec>=0.3.0
+sentence-transformers>=3.0.0

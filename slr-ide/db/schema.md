@@ -186,6 +186,8 @@ Stores user configurations, scraping settings, and cloud sync paths.
 *   `PDF_COMPRESSION_ENABLED`: `false`
 *   `PDF_COMPRESSION_LEVEL`: `/ebook`
 *   `GHOSTSCRIPT_PATH`: ``
+*   `SEMANTIC_MATCH_THRESHOLD`: `0.65`
+*   `EMBEDDING_MODEL`: `nomic-ai/nomic-embed-text-v1.5`
 
 ---
 

@@ -6,74 +6,16 @@ import ProjectMetadataSettings from './settings/ProjectMetadataSettings';
 import ProjectCalibrationSettings from './settings/ProjectCalibrationSettings';
 import ProjectSyncSettings from './settings/ProjectSyncSettings';
 
+import { useProjectForm } from '@/hooks/useProjectForm';
+
 interface ProjectSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   projects: any[];
-  editingProjectId: string | null;
+  project: any;
   loadProjects: () => void;
   showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
-  form: {
-    projectFormName: string;
-    setProjectFormName: (v: string) => void;
-    projectFormManifesto: string;
-    setProjectFormManifesto: (v: string) => void;
-    projectFormObjective: string;
-    setProjectFormObjective: (v: string) => void;
-    projectFormQuestions: string;
-    setProjectFormQuestions: (v: string) => void;
-    projectFormQaDefinition: string;
-    setProjectFormQaDefinition: (v: string) => void;
-    projectFormExclusionCriteria: string;
-    setProjectFormExclusionCriteria: (v: string) => void;
-    projectFormPoolA: string;
-    setProjectFormPoolA: (v: string) => void;
-    projectFormPoolB: string;
-    setProjectFormPoolB: (v: string) => void;
-    projectFormPoolC: string;
-    setProjectFormPoolC: (v: string) => void;
-    projectFormGDriveDest: string;
-    setProjectFormGDriveDest: (v: string) => void;
-    projectFormCloudProvider: string;
-    setProjectFormCloudProvider: (v: string) => void;
-    projectFormRemoteName: string;
-    setProjectFormRemoteName: (v: string) => void;
-    
-    // Pool configurations
-    projectFormPoolTags: any[];
-    handleAddPoolTag: () => void;
-    handleUpdatePoolTag: (idx: number, field: string, val: string) => void;
-    handleRemovePoolTag: (idx: number) => void;
-    
-    projectFormPoolBEcRules: any[];
-    projectFormEcRules: any[];
-    handleAddPoolBEcRule: () => void;
-    handleUpdatePoolBEcRule: (idx: number, field: string, val: string) => void;
-    handleRemovePoolBEcRule: (idx: number) => void;
-    handleAddEcRule: () => void;
-    handleUpdateEcRule: (idx: number, field: string, val: string) => void;
-    handleRemoveEcRule: (idx: number) => void;
-    
-    projectFormPoolBReasoningTemplate: string[];
-    projectFormReasoningTemplate: string[];
-    handleAddPoolBReasoningTemplate: () => void;
-    handleUpdatePoolBReasoningTemplate: (idx: number, val: string) => void;
-    handleRemovePoolBReasoningTemplate: (idx: number) => void;
-    handleAddReasoningTemplate: () => void;
-    handleUpdateReasoningTemplate: (idx: number, val: string) => void;
-    handleRemoveReasoningTemplate: (idx: number) => void;
-    
-    projectFormPoolCQaRules: any[];
-    handleAddPoolCQaRule: () => void;
-    handleUpdatePoolCQaRule: (idx: number, field: string, val: any) => void;
-    handleRemovePoolCQaRule: (idx: number) => void;
-    
-    projectFormPoolCExtractionRules: any[];
-    handleAddPoolCExtractionRule: () => void;
-    handleUpdatePoolCExtractionRule: (idx: number, field: string, val: string) => void;
-    handleRemovePoolCExtractionRule: (idx: number) => void;
-  };
-  handleSaveProjectManifesto: (e: React.FormEvent) => void;
+  onSaveProject: (projectId: string, projectData: any) => Promise<boolean>;
   savingProject: boolean;
   testingProjectConnection: boolean;
   projectConnectionTestResult: { success: boolean; message: string; details?: string } | null;
@@ -84,11 +26,10 @@ export default function ProjectSettingsModal({
   isOpen,
   onClose,
   projects,
-  editingProjectId,
+  project,
   loadProjects,
   showToast,
-  form,
-  handleSaveProjectManifesto,
+  onSaveProject,
   savingProject,
   testingProjectConnection,
   projectConnectionTestResult,
@@ -96,7 +37,99 @@ export default function ProjectSettingsModal({
 }: ProjectSettingsModalProps) {
   const [projectSettingsTab, setProjectSettingsTab] = useState<'metadata' | 'calibration' | 'sync' | 'llm' | 'prompts'>('metadata');
 
+  const form = useProjectForm(project);
+
   if (!isOpen) return null;
+
+  const mappedForm = {
+    projectFormName: form.name,
+    setProjectFormName: form.setName,
+    projectFormManifesto: form.manifesto,
+    setProjectFormManifesto: form.setManifesto,
+    projectFormObjective: form.objective,
+    setProjectFormObjective: form.setObjective,
+    projectFormQuestions: form.questions,
+    setProjectFormQuestions: form.setQuestions,
+    projectFormQaDefinition: form.qaDefinition,
+    setProjectFormQaDefinition: form.setQaDefinition,
+    projectFormExclusionCriteria: form.exclusionCriteria,
+    setProjectFormExclusionCriteria: form.setExclusionCriteria,
+    projectFormPoolA: form.poolA,
+    setProjectFormPoolA: form.setPoolA,
+    projectFormPoolB: form.poolB,
+    setProjectFormPoolB: form.setPoolB,
+    projectFormPoolC: form.poolC,
+    setProjectFormPoolC: form.setPoolC,
+    projectFormGDriveDest: form.gdriveDest,
+    setProjectFormGDriveDest: form.setGdriveDest,
+    projectFormCloudProvider: form.cloudProvider,
+    setProjectFormCloudProvider: form.setCloudProvider,
+    projectFormRemoteName: form.remoteName,
+    setProjectFormRemoteName: form.setRemoteName,
+    
+    // Pool configurations
+    projectFormPoolTags: form.poolTags?.pool_a || [],
+    handleAddPoolTag: () => form.handleAddPoolTag('pool_a'),
+    handleUpdatePoolTag: (idx: number, field: string, val: string) => form.handleUpdatePoolTag('pool_a', idx, field as any, val),
+    handleRemovePoolTag: (idx: number) => form.handleRemovePoolTag('pool_a', idx),
+    
+    projectFormPoolBEcRules: form.poolBEcRules,
+    projectFormEcRules: form.ecRules,
+    handleAddPoolBEcRule: form.handleAddPoolBEcRule,
+    handleUpdatePoolBEcRule: (idx: number, field: string, val: string) => form.handleUpdatePoolBEcRule(idx, field as any, val),
+    handleRemovePoolBEcRule: form.handleRemovePoolBEcRule,
+    handleAddEcRule: form.handleAddEcRule,
+    handleUpdateEcRule: (idx: number, field: string, val: string) => form.handleUpdateEcRule(idx, field as any, val),
+    handleRemoveEcRule: form.handleRemoveEcRule,
+    
+    projectFormPoolBReasoningTemplate: form.poolBReasoningTemplate,
+    projectFormReasoningTemplate: form.reasoningTemplate,
+    handleAddPoolBReasoningTemplate: form.handleAddPoolBReasoningTemplate,
+    handleUpdatePoolBReasoningTemplate: form.handleUpdatePoolBReasoningTemplate,
+    handleRemovePoolBReasoningTemplate: form.handleRemovePoolBReasoningTemplate,
+    handleAddReasoningTemplate: form.handleAddReasoningTemplate,
+    handleUpdateReasoningTemplate: form.handleUpdateReasoningTemplate,
+    handleRemoveReasoningTemplate: form.handleRemoveReasoningTemplate,
+    
+    projectFormPoolCQaRules: form.poolCQaRules,
+    handleAddPoolCQaRule: form.handleAddPoolCQaRule,
+    handleUpdatePoolCQaRule: (idx: number, field: string, val: any) => form.handleUpdatePoolCQaRule(idx, field as any, val),
+    handleRemovePoolCQaRule: form.handleRemovePoolCQaRule,
+    
+    projectFormPoolCExtractionRules: form.poolCExtractionRules,
+    handleAddPoolCExtractionRule: form.handleAddPoolCExtractionRule,
+    handleUpdatePoolCExtractionRule: (idx: number, field: string, val: string) => form.handleUpdatePoolCExtractionRule(idx, field as any, val),
+    handleRemovePoolCExtractionRule: form.handleRemovePoolCExtractionRule
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!project) return;
+    const success = await onSaveProject(project.id, {
+      name: form.name,
+      manifesto: form.manifesto,
+      objective: form.objective,
+      questions: form.questions,
+      qa_definition: form.qaDefinition,
+      exclusion_criteria: form.exclusionCriteria,
+      pool_a_size: Number(form.poolA),
+      pool_b_size: Number(form.poolB),
+      pool_c_size: Number(form.poolC),
+      gdrive_dest_path: form.gdriveDest,
+      cloud_provider: form.cloudProvider,
+      rclone_remote_name: form.remoteName,
+      pool_tags: form.poolTags,
+      ec_rules: form.ecRules,
+      reasoning_template: form.reasoningTemplate,
+      pool_b_ec_rules: form.poolBEcRules,
+      pool_b_reasoning_template: form.poolBReasoningTemplate,
+      pool_c_qa_rules: form.poolCQaRules,
+      pool_c_extraction_rules: form.poolCExtractionRules
+    });
+    if (success) {
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -107,7 +140,7 @@ export default function ProjectSettingsModal({
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-primary" />
             <h3 className="font-bold text-sm text-foreground">
-              Project Settings: <span className="text-primary">{form.projectFormName}</span>
+              Project Settings: <span className="text-primary">{form.name}</span>
             </h3>
           </div>
           <button
@@ -135,23 +168,23 @@ export default function ProjectSettingsModal({
         </div>
 
         {/* Form Container */}
-        <form onSubmit={handleSaveProjectManifesto} className="flex-1 overflow-y-auto flex flex-col min-h-0">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto flex flex-col min-h-0">
           <div className="p-6 space-y-4 flex-1">
             
             {/* Tab Content: Metadata */}
             {projectSettingsTab === 'metadata' && (
-              <ProjectMetadataSettings form={form} />
+              <ProjectMetadataSettings form={mappedForm} />
             )}
 
             {/* Tab Content: Pre-Calibration */}
             {projectSettingsTab === 'calibration' && (
-              <ProjectCalibrationSettings form={form} />
+              <ProjectCalibrationSettings form={mappedForm} />
             )}
 
             {/* Tab Content: Sync */}
             {projectSettingsTab === 'sync' && (
               <ProjectSyncSettings
-                form={form}
+                form={mappedForm}
                 testingProjectConnection={testingProjectConnection}
                 projectConnectionTestResult={projectConnectionTestResult}
                 handleTestProjectConnection={handleTestProjectConnection}
@@ -161,14 +194,14 @@ export default function ProjectSettingsModal({
             {/* Tab Content: LLM Configuration */}
             {projectSettingsTab === 'llm' && (
               <div className="flex-1 min-h-0 h-full">
-                <LLMConfigView activeProject={projects.find((p: any) => String(p.id) === String(editingProjectId))} loadProjects={loadProjects} showToast={showToast} />
+                <LLMConfigView activeProject={project} loadProjects={loadProjects} showToast={showToast} />
               </div>
             )}
 
             {/* Tab Content: Project Prompts */}
             {projectSettingsTab === 'prompts' && (
               <div className="flex-1 min-h-0 h-full">
-                <PromptLibraryView projectId={editingProjectId} showToast={showToast} />
+                <PromptLibraryView projectId={project?.id || null} showToast={showToast} />
               </div>
             )}
           </div>

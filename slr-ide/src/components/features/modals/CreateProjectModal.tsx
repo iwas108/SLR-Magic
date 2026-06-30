@@ -1,49 +1,47 @@
 import React from 'react';
 import { X, Plus, RefreshCw } from 'lucide-react';
+import { useProjectForm } from '@/hooks/useProjectForm';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  form: {
-    name: string;
-    setName: (v: string) => void;
-    folderName: string;
-    setFolderName: (v: string) => void;
-    manifesto: string;
-    setManifesto: (v: string) => void;
-    objective: string;
-    setObjective: (v: string) => void;
-    questions: string;
-    setQuestions: (v: string) => void;
-    qaDefinition: string;
-    setQaDefinition: (v: string) => void;
-    exclusionCriteria: string;
-    setExclusionCriteria: (v: string) => void;
-    poolA: string;
-    setPoolA: (v: string) => void;
-    poolB: string;
-    setPoolB: (v: string) => void;
-    poolC: string;
-    setPoolC: (v: string) => void;
-    gdriveDest: string;
-    setGdriveDest: (v: string) => void;
-    cloudProvider: string;
-    setCloudProvider: (v: string) => void;
-    remoteName: string;
-    setRemoteName: (v: string) => void;
-  };
-  handleCreateProject: (e: React.FormEvent) => void;
+  onCreateProject: (projectData: any) => Promise<boolean>;
   savingProject: boolean;
 }
 
 export default function CreateProjectModal({
   isOpen,
   onClose,
-  form,
-  handleCreateProject,
+  onCreateProject,
   savingProject
 }: CreateProjectModalProps) {
+  const form = useProjectForm();
+
   if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await onCreateProject({
+      name: form.name,
+      folder_name: form.folderName,
+      manifesto: form.manifesto,
+      objective: form.objective,
+      questions: form.questions,
+      qa_definition: form.qaDefinition,
+      exclusion_criteria: form.exclusionCriteria,
+      pool_a_size: Number(form.poolA),
+      pool_b_size: Number(form.poolB),
+      pool_c_size: Number(form.poolC),
+      gdrive_dest_path: form.gdriveDest,
+      cloud_provider: form.cloudProvider,
+      rclone_remote_name: form.remoteName,
+      pool_tags: form.poolTags
+    });
+    if (success) {
+      form.resetForm();
+      onClose();
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -61,7 +59,7 @@ export default function CreateProjectModal({
           </button>
         </div>
 
-        <form onSubmit={handleCreateProject} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Project Name *</label>

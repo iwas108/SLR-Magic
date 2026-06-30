@@ -9,97 +9,66 @@ import {
 } from 'lucide-react';
 import CsvReviewModal from './modals/CsvReviewModal';
 
+import { useIngestion } from '@/hooks/useIngestion';
+
 interface IngestionHubViewProps {
   setShowImport: (show: boolean) => void;
-  // bulk csv ingest props
-  csvFile: File | null;
-  setCsvFile: React.Dispatch<React.SetStateAction<File | null>>;
-  csvHeaders: string[];
-  csvData: string[][];
-  csvSource: string;
-  setCsvSource: (v: string) => void;
-  csvImportDate: string;
-  setCsvImportDate: (v: string) => void;
-  columnMapping: Record<string, string>;
-  setColumnMapping: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  previewPapers: any[];
-  previewStats: { total: number; newCount: number; dupCount: number };
-  importing: boolean;
-  handleCsvSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleImport: () => Promise<void>;
-  // manual ingest props
-  manualSource: string;
-  setManualSource: (v: string) => void;
-  manualImportDate: string;
-  setManualImportDate: (v: string) => void;
-  manualYear: string;
-  setManualYear: (v: string) => void;
-  manualTitle: string;
-  setManualTitle: (v: string) => void;
-  manualAuthors: string;
-  setManualAuthors: (v: string) => void;
-  manualDoi: string;
-  setManualDoi: (v: string) => void;
-  manualAbstract: string;
-  setManualAbstract: (v: string) => void;
-  manualIngesting: boolean;
-  manualParentPaperId: string;
-  setManualParentPaperId: (v: string) => void;
-  manualParentSearch: string;
-  setManualParentSearch: (v: string) => void;
-  showParentSuggestions: boolean;
-  setShowParentSuggestions: (v: boolean) => void;
-  parentPaperSuggestions: any[];
-  setParentPaperSuggestions: React.Dispatch<React.SetStateAction<any[]>>;
-  selectedParentPaper: any;
-  setSelectedParentPaper: (v: any) => void;
-  handleManualIngest: (e: React.FormEvent) => Promise<void>;
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  papers: any[];
+  loadPapers: () => void;
 }
 
 export default function IngestionHubView({
   setShowImport,
-  csvFile,
-  setCsvFile,
-  csvHeaders,
-  csvData,
-  csvSource,
-  setCsvSource,
-  csvImportDate,
-  setCsvImportDate,
-  columnMapping,
-  setColumnMapping,
-  previewPapers,
-  previewStats,
-  importing,
-  handleCsvSelect,
-  handleImport,
-  manualSource,
-  setManualSource,
-  manualImportDate,
-  setManualImportDate,
-  manualYear,
-  setManualYear,
-  manualTitle,
-  setManualTitle,
-  manualAuthors,
-  setManualAuthors,
-  manualDoi,
-  setManualDoi,
-  manualAbstract,
-  setManualAbstract,
-  manualIngesting,
-  manualParentPaperId,
-  setManualParentPaperId,
-  manualParentSearch,
-  setManualParentSearch,
-  showParentSuggestions,
-  setShowParentSuggestions,
-  parentPaperSuggestions,
-  setParentPaperSuggestions,
-  selectedParentPaper,
-  setSelectedParentPaper,
-  handleManualIngest
+  showToast,
+  papers,
+  loadPapers
 }: IngestionHubViewProps) {
+  const ingestion = useIngestion(showToast, papers, loadPapers);
+  
+  const {
+    csvFile,
+    setCsvFile,
+    csvHeaders,
+    csvData,
+    csvSource,
+    setCsvSource,
+    csvImportDate,
+    setCsvImportDate,
+    columnMapping,
+    setColumnMapping,
+    previewPapers,
+    previewStats,
+    importing,
+    handleCsvSelect,
+    handleImport,
+    manualSource,
+    setManualSource,
+    manualImportDate,
+    setManualImportDate,
+    manualYear,
+    setManualYear,
+    manualTitle,
+    setManualTitle,
+    manualAuthors,
+    setManualAuthors,
+    manualDoi,
+    setManualDoi,
+    manualAbstract,
+    setManualAbstract,
+    manualIngesting,
+    manualParentPaperId,
+    setManualParentPaperId,
+    manualParentSearch,
+    setManualParentSearch,
+    showParentSuggestions,
+    setShowParentSuggestions,
+    parentPaperSuggestions,
+    setParentPaperSuggestions,
+    selectedParentPaper,
+    setSelectedParentPaper,
+    handleManualIngest
+  } = ingestion;
 
   const [isReviewModalOpen, setIsReviewModalOpen] = React.useState(false);
   const [reviewPage, setReviewPage] = React.useState(1);
@@ -244,7 +213,7 @@ export default function IngestionHubView({
 
                     <div className="flex justify-end">
                       <button
-                        onClick={handleImport}
+                        onClick={() => handleImport()}
                         disabled={importing || !csvFile || previewStats.newCount === 0}
                         className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
                       >

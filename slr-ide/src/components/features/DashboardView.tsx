@@ -11,17 +11,10 @@ import CreateProjectModal from './modals/CreateProjectModal';
 import ProjectSettingsModal from './modals/ProjectSettingsModal';
 interface DashboardViewProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-  activeProject: any;
-  activeProjectId: string;
-  projects: any[];
-  activateProject: (id: string) => Promise<void>;
-  loadProjects: () => Promise<any>;
   showCreateProjectModal: boolean;
   setShowCreateProjectModal: React.Dispatch<React.SetStateAction<boolean>>;
   showEditProjectModal: boolean;
   setShowEditProjectModal: React.Dispatch<React.SetStateAction<boolean>>;
-  handleCreateProject: (e: React.FormEvent) => Promise<void>;
-  handleSaveProjectManifesto: (e: React.FormEvent) => Promise<void>;
   openProjectSettings: (proj: any) => void;
   savingProject: boolean;
   deletingProject: string | null;
@@ -30,116 +23,27 @@ interface DashboardViewProps {
   deleteProjectConfirmationText: string;
   setDeleteProjectConfirmationText: React.Dispatch<React.SetStateAction<string>>;
   
-  // Project creation form fields & handlers
-  newProjName: string;
-  setNewProjName: React.Dispatch<React.SetStateAction<string>>;
-  newProjFolder: string;
-  setNewProjFolder: React.Dispatch<React.SetStateAction<string>>;
-  newProjManifesto: string;
-  setNewProjManifesto: React.Dispatch<React.SetStateAction<string>>;
-  newProjObjective: string;
-  setNewProjObjective: React.Dispatch<React.SetStateAction<string>>;
-  newProjQuestions: string;
-  setNewProjQuestions: React.Dispatch<React.SetStateAction<string>>;
-  newProjQaDefinition: string;
-  setNewProjQaDefinition: React.Dispatch<React.SetStateAction<string>>;
-  newProjExclusionCriteria: string;
-  setNewProjExclusionCriteria: React.Dispatch<React.SetStateAction<string>>;
-  newProjPoolA: string;
-  setNewProjPoolA: React.Dispatch<React.SetStateAction<string>>;
-  newProjPoolB: string;
-  setNewProjPoolB: React.Dispatch<React.SetStateAction<string>>;
-  newProjPoolC: string;
-  setNewProjPoolC: React.Dispatch<React.SetStateAction<string>>;
-  newProjGDriveDest: string;
-  setNewProjGDriveDest: React.Dispatch<React.SetStateAction<string>>;
-  newProjCloudProvider: string;
-  setNewProjCloudProvider: React.Dispatch<React.SetStateAction<string>>;
-  newProjRemoteName: string;
-  setNewProjRemoteName: React.Dispatch<React.SetStateAction<string>>;
-  newProjPoolTags: any;
-  setNewProjPoolTags: React.Dispatch<React.SetStateAction<any>>;
-
-  // Project settings edit form fields & handlers
-  projectFormName: string;
-  setProjectFormName: React.Dispatch<React.SetStateAction<string>>;
-  projectFormManifesto: string;
-  setProjectFormManifesto: React.Dispatch<React.SetStateAction<string>>;
-  projectFormObjective: string;
-  setProjectFormObjective: React.Dispatch<React.SetStateAction<string>>;
-  projectFormQuestions: string;
-  setProjectFormQuestions: React.Dispatch<React.SetStateAction<string>>;
-  projectFormQaDefinition: string;
-  setProjectFormQaDefinition: React.Dispatch<React.SetStateAction<string>>;
-  projectFormExclusionCriteria: string;
-  setProjectFormExclusionCriteria: React.Dispatch<React.SetStateAction<string>>;
-  projectFormPoolA: string;
-  setProjectFormPoolA: React.Dispatch<React.SetStateAction<string>>;
-  projectFormPoolB: string;
-  setProjectFormPoolB: React.Dispatch<React.SetStateAction<string>>;
-  projectFormPoolC: string;
-  setProjectFormPoolC: React.Dispatch<React.SetStateAction<string>>;
-  projectFormGDriveDest: string;
-  setProjectFormGDriveDest: React.Dispatch<React.SetStateAction<string>>;
-  projectFormCloudProvider: string;
-  setProjectFormCloudProvider: React.Dispatch<React.SetStateAction<string>>;
-  projectFormRemoteName: string;
-  setProjectFormRemoteName: React.Dispatch<React.SetStateAction<string>>;
-  projectFormPoolTags: any;
-  setProjectFormPoolTags: React.Dispatch<React.SetStateAction<any>>;
-  projectFormEcRules: any[];
-  setProjectFormEcRules: React.Dispatch<React.SetStateAction<any[]>>;
-  projectFormReasoningTemplate: string[];
-  setProjectFormReasoningTemplate: React.Dispatch<React.SetStateAction<string[]>>;
-  projectFormPoolBEcRules: any[];
-  setProjectFormPoolBEcRules: React.Dispatch<React.SetStateAction<any[]>>;
-  projectFormPoolBReasoningTemplate: string[];
-  setProjectFormPoolBReasoningTemplate: React.Dispatch<React.SetStateAction<string[]>>;
-  projectFormPoolCQaRules: any[];
-  setProjectFormPoolCQaRules: React.Dispatch<React.SetStateAction<any[]>>;
-  projectFormPoolCExtractionRules: any[];
-  setProjectFormPoolCExtractionRules: React.Dispatch<React.SetStateAction<any[]>>;
-
-  handleAddPoolTag: (pool: any) => void;
-  handleUpdatePoolTag: (pool: any, idx: number, field: any, val: any) => void;
-  handleRemovePoolTag: (pool: any, idx: number) => void;
-  handleAddEcRule: () => void;
-  handleUpdateEcRule: (idx: number, field: any, val: any) => void;
-  handleRemoveEcRule: (idx: number) => void;
-  handleAddReasoningTemplate: () => void;
-  handleUpdateReasoningTemplate: (idx: number, val: string) => void;
-  handleRemoveReasoningTemplate: (idx: number) => void;
-  handleAddPoolBEcRule: () => void;
-  handleUpdatePoolBEcRule: (idx: number, field: any, val: any) => void;
-  handleRemovePoolBEcRule: (idx: number) => void;
-  handleAddPoolBReasoningTemplate: () => void;
-  handleUpdatePoolBReasoningTemplate: (idx: number, val: string) => void;
-  handleRemovePoolBReasoningTemplate: (idx: number) => void;
-  handleAddPoolCQaRule: () => void;
-  handleUpdatePoolCQaRule: (idx: number, field: any, val: any) => void;
-  handleRemovePoolCQaRule: (idx: number) => void;
-  handleAddPoolCExtractionRule: () => void;
-  handleUpdatePoolCExtractionRule: (idx: number, field: any, val: any) => void;
-  handleRemovePoolCExtractionRule: (idx: number) => void;
-  editingProjectId: string | null;
-  handleTestProjectConnection: (provider: string, remote: string) => Promise<void>;
-  testingProjectConnection: boolean;
-  projectConnectionTestResult: any;
+  editingProject: any;
+  projectsHook: {
+    projects: any[];
+    activeProjectId: string;
+    activeProject: any;
+    activateProject: (id: string) => Promise<void>;
+    loadProjects: () => Promise<any>;
+    createProject: (data: any) => Promise<boolean>;
+    updateProject: (id: string, data: any) => Promise<boolean>;
+    handleTestProjectConnection: (provider: string, remoteName: string) => Promise<void>;
+    testingProjectConnection: boolean;
+    projectConnectionTestResult: any;
+  };
 }
 
 export default function DashboardView({
   showToast,
-  activeProject,
-  activeProjectId,
-  projects,
-  activateProject,
-  loadProjects,
   showCreateProjectModal,
   setShowCreateProjectModal,
   showEditProjectModal,
   setShowEditProjectModal,
-  handleCreateProject,
-  handleSaveProjectManifesto,
   openProjectSettings,
   savingProject,
   deletingProject,
@@ -147,98 +51,21 @@ export default function DashboardView({
   setDeleteProjectConfirm,
   deleteProjectConfirmationText,
   setDeleteProjectConfirmationText,
-  newProjName,
-  setNewProjName,
-  newProjFolder,
-  setNewProjFolder,
-  newProjManifesto,
-  setNewProjManifesto,
-  newProjObjective,
-  setNewProjObjective,
-  newProjQuestions,
-  setNewProjQuestions,
-  newProjQaDefinition,
-  setNewProjQaDefinition,
-  newProjExclusionCriteria,
-  setNewProjExclusionCriteria,
-  newProjPoolA,
-  setNewProjPoolA,
-  newProjPoolB,
-  setNewProjPoolB,
-  newProjPoolC,
-  setNewProjPoolC,
-  newProjGDriveDest,
-  setNewProjGDriveDest,
-  newProjCloudProvider,
-  setNewProjCloudProvider,
-  newProjRemoteName,
-  setNewProjRemoteName,
-  newProjPoolTags,
-  setNewProjPoolTags,
-  projectFormName,
-  setProjectFormName,
-  projectFormManifesto,
-  setProjectFormManifesto,
-  projectFormObjective,
-  setProjectFormObjective,
-  projectFormQuestions,
-  setProjectFormQuestions,
-  projectFormQaDefinition,
-  setProjectFormQaDefinition,
-  projectFormExclusionCriteria,
-  setProjectFormExclusionCriteria,
-  projectFormPoolA,
-  setProjectFormPoolA,
-  projectFormPoolB,
-  setProjectFormPoolB,
-  projectFormPoolC,
-  setProjectFormPoolC,
-  projectFormGDriveDest,
-  setProjectFormGDriveDest,
-  projectFormCloudProvider,
-  setProjectFormCloudProvider,
-  projectFormRemoteName,
-  setProjectFormRemoteName,
-  projectFormPoolTags,
-  setProjectFormPoolTags,
-  projectFormEcRules,
-  setProjectFormEcRules,
-  projectFormReasoningTemplate,
-  setProjectFormReasoningTemplate,
-  projectFormPoolBEcRules,
-  setProjectFormPoolBEcRules,
-  projectFormPoolBReasoningTemplate,
-  setProjectFormPoolBReasoningTemplate,
-  projectFormPoolCQaRules,
-  setProjectFormPoolCQaRules,
-  projectFormPoolCExtractionRules,
-  setProjectFormPoolCExtractionRules,
-  handleAddPoolTag,
-  handleUpdatePoolTag,
-  handleRemovePoolTag,
-  handleAddEcRule,
-  handleUpdateEcRule,
-  handleRemoveEcRule,
-  handleAddReasoningTemplate,
-  handleUpdateReasoningTemplate,
-  handleRemoveReasoningTemplate,
-  handleAddPoolBEcRule,
-  handleUpdatePoolBEcRule,
-  handleRemovePoolBEcRule,
-  handleAddPoolBReasoningTemplate,
-  handleUpdatePoolBReasoningTemplate,
-  handleRemovePoolBReasoningTemplate,
-  handleAddPoolCQaRule,
-  handleUpdatePoolCQaRule,
-  handleRemovePoolCQaRule,
-  handleAddPoolCExtractionRule,
-  handleUpdatePoolCExtractionRule,
-  handleRemovePoolCExtractionRule,
-  editingProjectId,
-  handleTestProjectConnection,
-  testingProjectConnection,
-  projectConnectionTestResult
+  editingProject,
+  projectsHook
 }: DashboardViewProps) {
+  const {
+    projects,
+    activeProjectId,
+    activeProject,
+    activateProject,
+    loadProjects,
+    createProject,
+    updateProject,
+    handleTestProjectConnection,
+    testingProjectConnection,
+    projectConnectionTestResult
+  } = projectsHook;
 
   const activeProj = projects.find((p: any) => String(p.id) === String(activeProjectId)) || activeProject;
 
@@ -435,35 +262,7 @@ export default function DashboardView({
         <CreateProjectModal
           isOpen={showCreateProjectModal}
           onClose={() => setShowCreateProjectModal(false)}
-          form={{
-            name: newProjName,
-            setName: setNewProjName,
-            folderName: newProjFolder,
-            setFolderName: setNewProjFolder,
-            manifesto: newProjManifesto,
-            setManifesto: setNewProjManifesto,
-            objective: newProjObjective,
-            setObjective: setNewProjObjective,
-            questions: newProjQuestions,
-            setQuestions: setNewProjQuestions,
-            qaDefinition: newProjQaDefinition,
-            setQaDefinition: setNewProjQaDefinition,
-            exclusionCriteria: newProjExclusionCriteria,
-            setExclusionCriteria: setNewProjExclusionCriteria,
-            poolA: newProjPoolA,
-            setPoolA: setNewProjPoolA,
-            poolB: newProjPoolB,
-            setPoolB: setNewProjPoolB,
-            poolC: newProjPoolC,
-            setPoolC: setNewProjPoolC,
-            gdriveDest: newProjGDriveDest,
-            setGdriveDest: setNewProjGDriveDest,
-            cloudProvider: newProjCloudProvider,
-            setCloudProvider: setNewProjCloudProvider,
-            remoteName: newProjRemoteName,
-            setRemoteName: setNewProjRemoteName
-          }}
-          handleCreateProject={handleCreateProject}
+          onCreateProject={createProject}
           savingProject={savingProject}
         />
 
@@ -471,69 +270,10 @@ export default function DashboardView({
           isOpen={showEditProjectModal}
           onClose={() => setShowEditProjectModal(false)}
           projects={projects}
-          editingProjectId={editingProjectId}
+          project={editingProject}
           loadProjects={loadProjects}
           showToast={showToast}
-          form={{
-            projectFormName,
-            setProjectFormName,
-            projectFormManifesto,
-            setProjectFormManifesto,
-            projectFormObjective,
-            setProjectFormObjective,
-            projectFormQuestions,
-            setProjectFormQuestions,
-            projectFormQaDefinition,
-            setProjectFormQaDefinition,
-            projectFormExclusionCriteria,
-            setProjectFormExclusionCriteria,
-            projectFormPoolA,
-            setProjectFormPoolA,
-            projectFormPoolB,
-            setProjectFormPoolB,
-            projectFormPoolC,
-            setProjectFormPoolC,
-            projectFormGDriveDest,
-            setProjectFormGDriveDest,
-            projectFormCloudProvider,
-            setProjectFormCloudProvider,
-            projectFormRemoteName,
-            setProjectFormRemoteName,
-            
-            projectFormPoolTags,
-            handleAddPoolTag: () => handleAddPoolTag('pool_a'),
-            handleUpdatePoolTag: (idx: number, field: string, val: string) => handleUpdatePoolTag('pool_a', idx, field, val),
-            handleRemovePoolTag: (idx: number) => handleRemovePoolTag('pool_a', idx),
-            
-            projectFormPoolBEcRules,
-            projectFormEcRules,
-            handleAddPoolBEcRule,
-            handleUpdatePoolBEcRule,
-            handleRemovePoolBEcRule,
-            handleAddEcRule,
-            handleUpdateEcRule,
-            handleRemoveEcRule,
-            
-            projectFormPoolBReasoningTemplate,
-            projectFormReasoningTemplate,
-            handleAddPoolBReasoningTemplate,
-            handleUpdatePoolBReasoningTemplate,
-            handleRemovePoolBReasoningTemplate,
-            handleAddReasoningTemplate,
-            handleUpdateReasoningTemplate,
-            handleRemoveReasoningTemplate,
-            
-            projectFormPoolCQaRules,
-            handleAddPoolCQaRule,
-            handleUpdatePoolCQaRule,
-            handleRemovePoolCQaRule,
-            
-            projectFormPoolCExtractionRules,
-            handleAddPoolCExtractionRule,
-            handleUpdatePoolCExtractionRule,
-            handleRemovePoolCExtractionRule
-          }}
-          handleSaveProjectManifesto={handleSaveProjectManifesto}
+          onSaveProject={updateProject}
           savingProject={savingProject}
           testingProjectConnection={testingProjectConnection}
           projectConnectionTestResult={projectConnectionTestResult}
