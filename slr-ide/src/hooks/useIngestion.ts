@@ -27,6 +27,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
   const [previewPapers, setPreviewPapers] = useState<any[]>([]);
   const [previewStats, setPreviewStats] = useState({ total: 0, newCount: 0, dupCount: 0 });
   const [importing, setImporting] = useState(false);
+  const [syncCitations, setSyncCitations] = useState(false);
   const [existingHashes, setExistingHashes] = useState<{ DOI: string; Title: string }[]>([]);
 
   // We load existing hashes when the ingestion view mounts or active project changes
@@ -105,7 +106,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
       
       const targetColumns = [
         'Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 
-        'PDF_Link', 'Status', 'Original_Publisher', 'Publisher'
+        'PDF_Link', 'Status', 'Original_Publisher', 'Publisher', 'citation_count'
       ];
       const initialMapping: Record<string, string> = {};
       
@@ -123,6 +124,15 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
           return;
         }
 
+        if (col === 'citation_count') {
+          const matched = headers.find(h => {
+            const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cleanH === 'citedby' || cleanH === 'citationcount' || cleanH === 'citations' || cleanH === 'cited_by';
+          });
+          initialMapping[col] = matched || '';
+          return;
+        }
+
         if (col === 'Original_Publisher') {
           const matched = headers.find(h => {
             const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -133,10 +143,16 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
         }
         
         if (col === 'Authors') {
-          const matched = headers.find(h => {
+          let matched = headers.find(h => {
             const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return cleanH === 'authors' || cleanH === 'author' || cleanH === 'authorfullnames';
+            return cleanH === 'authorfullnames' || cleanH === 'authorsfullnames';
           });
+          if (!matched) {
+            matched = headers.find(h => {
+              const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return cleanH === 'authors' || cleanH === 'author';
+            });
+          }
           initialMapping[col] = matched || '';
           return;
         }
@@ -205,21 +221,39 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
   const handleImport = async (onSuccess?: () => void) => {
     setImporting(true);
     try {
-      const newPapers = previewPapers.filter(p => !p.isDuplicate).map(p => ({
-        ...p,
-        Import_Source: csvSource || 'CSV Import',
-        Import_Date: csvImportDate || new Date().toISOString().split('T')[0],
-        Source: csvSource || 'CSV Import'
-      }));
+      const papersToSend = syncCitations
+        ? previewPapers.map(p => ({
+            ...p,
+            Import_Source: csvSource || 'CSV Import',
+            Import_Date: csvImportDate || new Date().toISOString().split('T')[0],
+            Source: csvSource || 'CSV Import'
+          }))
+        : previewPapers.filter(p => !p.isDuplicate).map(p => ({
+            ...p,
+            Import_Source: csvSource || 'CSV Import',
+            Import_Date: csvImportDate || new Date().toISOString().split('T')[0],
+            Source: csvSource || 'CSV Import'
+          }));
+
       const res = await fetch('/api/papers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ papers: newPapers })
+        body: JSON.stringify({ 
+          papers: papersToSend,
+          syncCitations: syncCitations
+        })
       });
 
       if (res.ok) {
         const data = await res.json();
-        showToast(`Successfully imported ${data.imported} papers! (Skipped ${data.skipped} duplicates)`, 'success');
+        let msg = `Successfully imported ${data.imported} papers!`;
+        if (data.skipped > 0 && !syncCitations) {
+          msg += ` (Skipped ${data.skipped} duplicates)`;
+        }
+        if (syncCitations && data.updatedCitations > 0) {
+          msg += ` Mapped and synced citation count data for ${data.updatedCitations} existing papers.`;
+        }
+        showToast(msg, 'success');
         setCsvFile(null);
         setCsvHeaders([]);
         setCsvData([]);
@@ -322,6 +356,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
     previewPapers, setPreviewPapers,
     previewStats, setPreviewStats,
     importing, setImporting,
+    syncCitations, setSyncCitations,
     handleCsvSelect,
     handleImport,
     handleManualIngest

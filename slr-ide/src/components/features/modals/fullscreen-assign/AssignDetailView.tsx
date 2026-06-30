@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, CheckCircle2, AlertTriangle, Play, RefreshCw, 
-  Terminal, ExternalLink 
+  Terminal, ExternalLink, X 
 } from 'lucide-react';
 interface AssignDetailViewProps {
   projects: any[];
@@ -23,6 +23,7 @@ interface AssignDetailViewProps {
   setAssignWaitingLogin: React.Dispatch<React.SetStateAction<boolean>>;
   singlePipelineAbortControllerRef: React.MutableRefObject<AbortController | null>;
   logEndRef: React.RefObject<HTMLDivElement | null>;
+  onClose: () => void;
 }
 
 export default function AssignDetailView({
@@ -44,7 +45,8 @@ export default function AssignDetailView({
   assignWaitingLogin,
   setAssignWaitingLogin,
   singlePipelineAbortControllerRef,
-  logEndRef
+  logEndRef,
+  onClose
 }: AssignDetailViewProps) {
   const [proxyBaseUrl, setProxyBaseUrl] = useState('');
 
@@ -108,7 +110,19 @@ export default function AssignDetailView({
   const tags = getActiveProjectPoolTags(assignSelectedPaper.calibration_pool || '');
 
   return (
-    <div className="flex-1 bg-background p-6 overflow-y-auto flex flex-col space-y-6">
+    <div className="flex-1 bg-background p-6 overflow-y-auto flex flex-col space-y-6 border-l border-border/80">
+      {/* Top action header containing Close button */}
+      <div className="flex items-center justify-between shrink-0 select-none pb-2 border-b border-border/40">
+        <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Paper Details Workspace</span>
+        <button
+          onClick={onClose}
+          className="px-3 py-1 bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground text-[10px] font-extrabold rounded-lg border border-border flex items-center gap-1 transition-colors cursor-pointer"
+        >
+          <X className="w-3.5 h-3.5" />
+          Close & Expand List
+        </button>
+      </div>
+
       <div className="flex flex-col space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 w-full pb-8">
         
         {/* Paper Info Section */}

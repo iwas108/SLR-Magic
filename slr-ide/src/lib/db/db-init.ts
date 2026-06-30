@@ -24,6 +24,7 @@ export function initializeDatabase(db: Database.Database): void {
       Human_Rationale TEXT,
       Original_Publisher TEXT,
       Publisher TEXT,
+      citation_count INTEGER DEFAULT 0,
       Human_QA_Scores TEXT,
       Human_Extracted_Data TEXT,
       is_duplicate INTEGER DEFAULT 0,
@@ -252,6 +253,13 @@ export function initializeDatabase(db: Database.Database): void {
   // Add rclone_remote_name column to projects if it doesn't exist (migration fallback)
   try {
     db.exec("ALTER TABLE projects ADD COLUMN rclone_remote_name TEXT");
+  } catch (e) {
+    // Column already exists
+  }
+
+  // Add citation_count column to papers if it doesn't exist (migration fallback)
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN citation_count INTEGER DEFAULT 0");
   } catch (e) {
     // Column already exists
   }

@@ -164,20 +164,20 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
                         <div className="w-1/3">
                           <input
                             type="text"
-                            value={tag.label}
-                            onChange={(e) => onUpdateTag(idx, 'label', e.target.value)}
-                            className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-bold"
-                            placeholder="Tag Label"
+                            value={tag.code || ''}
+                            onChange={(e) => onUpdateTag(idx, 'code', e.target.value)}
+                            className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-bold font-mono"
+                            placeholder="Tag Code (e.g. INC)"
                             required
                           />
                         </div>
                         <div className="flex-1">
                           <input
                             type="text"
-                            value={tag.description}
-                            onChange={(e) => onUpdateTag(idx, 'description', e.target.value)}
+                            value={tag.label || ''}
+                            onChange={(e) => onUpdateTag(idx, 'label', e.target.value)}
                             className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-semibold"
-                            placeholder="Tag Description..."
+                            placeholder="Tag Label (e.g. Include in final review)"
                             required
                           />
                         </div>

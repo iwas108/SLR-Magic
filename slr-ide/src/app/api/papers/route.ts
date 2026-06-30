@@ -121,7 +121,7 @@ export async function GET(request: Request) {
     const total = countRow ? countRow.count : 0;
 
     // 2. Sorting whitelist validation to prevent SQL Injection
-    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'calibration_tag', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', 'Publisher'];
+    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'calibration_tag', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', 'Publisher', 'citation_count'];
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
@@ -148,7 +148,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { papers } = body;
+    const { papers, syncCitations } = body;
 
     if (!Array.isArray(papers)) {
       return NextResponse.json({ error: 'Payload must contain a "papers" array' }, { status: 400 });
@@ -156,20 +156,23 @@ export async function POST(request: Request) {
 
     let importedCount = 0;
     let skippedCount = 0;
+    let updatedCitationsCount = 0;
 
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
 
-    const findByDoiStmt = db.prepare("SELECT Paper_ID FROM papers WHERE DOI = ? AND DOI IS NOT NULL AND DOI != '' AND Project_ID = ?");
-    const findByTitleStmt = db.prepare("SELECT Paper_ID FROM papers WHERE LOWER(REPLACE(Title, ' ', '')) = ? AND Project_ID = ?");
+    const findByDoiStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE DOI = ? AND DOI IS NOT NULL AND DOI != '' AND Project_ID = ?");
+    const findByTitleStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE LOWER(REPLACE(Title, ' ', '')) = ? AND Project_ID = ?");
+    const updateCitationStmt = db.prepare("UPDATE papers SET citation_count = ? WHERE Paper_ID = ?");
+    const updateCitationAndDoiStmt = db.prepare("UPDATE papers SET citation_count = ?, DOI = ? WHERE Paper_ID = ?");
 
     const insertStmt = db.prepare(`
       INSERT INTO papers (
-        Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year, PDF_Link, Status, Local_PDF_Status, Project_ID, Parent_Paper_ID, Original_Publisher, Publisher
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year, PDF_Link, Status, Local_PDF_Status, Project_ID, Parent_Paper_ID, Original_Publisher, Publisher, citation_count
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    // Fetch existing paper IDs to generate new ones if Paper_ID is missing or conflicted
-    const allPaperIds = (db.prepare('SELECT Paper_ID FROM papers WHERE Project_ID = ?').all(activeProjectId) as { Paper_ID: string }[]).map(r => r.Paper_ID);
+    // Fetch all existing paper IDs globally to resolve conflicts on Paper_ID (which is the primary key)
+    const allPaperIds = (db.prepare('SELECT Paper_ID FROM papers').all() as { Paper_ID: string }[]).map(r => r.Paper_ID);
     const paperIdSet = new Set(allPaperIds);
     
     let idCounter = 0;
@@ -198,19 +201,49 @@ export async function POST(request: Request) {
         // Double-key Deduplication:
         // 1. Normalized DOI check (if DOI exists)
         let duplicate = false;
+        let existingPaperId = '';
+        let existingPaperDoi = '';
         if (doi) {
-          const existingDoi = findByDoiStmt.get(doi, activeProjectId);
-          if (existingDoi) duplicate = true;
+          const existingDoi = findByDoiStmt.get(doi, activeProjectId) as { Paper_ID: string; DOI: string } | undefined;
+          if (existingDoi) {
+            duplicate = true;
+            existingPaperId = existingDoi.Paper_ID;
+            existingPaperDoi = existingDoi.DOI;
+          }
         }
 
         // 2. Stripped Title check (lowercase, remove spaces)
         if (!duplicate) {
           const cleanTitle = title.toLowerCase().replace(/\s+/g, '');
-          const existingTitle = findByTitleStmt.get(cleanTitle, activeProjectId);
-          if (existingTitle) duplicate = true;
+          const existingTitle = findByTitleStmt.get(cleanTitle, activeProjectId) as { Paper_ID: string; DOI: string } | undefined;
+          if (existingTitle) {
+            duplicate = true;
+            existingPaperId = existingTitle.Paper_ID;
+            existingPaperDoi = existingTitle.DOI;
+          }
         }
 
         if (duplicate) {
+          if (syncCitations && existingPaperId) {
+            let citationCount = 0;
+            if (paper.citation_count !== undefined && paper.citation_count !== null && paper.citation_count !== '') {
+              const parsedCitations = parseInt(paper.citation_count, 10);
+              if (!isNaN(parsedCitations)) {
+                citationCount = parsedCitations;
+              }
+            }
+            
+            // Check if the current DOI in DB is empty, but incoming CSV has a filled DOI
+            const isDbDoiEmpty = !existingPaperDoi || existingPaperDoi.trim() === '';
+            const isIncomingDoiFilled = !!doi && doi.trim() !== '';
+            
+            if (isDbDoiEmpty && isIncomingDoiFilled) {
+              updateCitationAndDoiStmt.run(citationCount, doi.trim(), existingPaperId);
+            } else {
+              updateCitationStmt.run(citationCount, existingPaperId);
+            }
+            updatedCitationsCount++;
+          }
           skippedCount++;
           continue;
         }
@@ -222,6 +255,17 @@ export async function POST(request: Request) {
           Authors: paper.Authors,
           Year: paper.Year
         });
+
+        // Resolve conflict if the Paper_ID already exists globally in the database
+        if (paperIdSet.has(paperId)) {
+          let suffix = 1;
+          let candidateId = `${paperId}_${suffix}`;
+          while (paperIdSet.has(candidateId)) {
+            suffix++;
+            candidateId = `${paperId}_${suffix}`;
+          }
+          paperId = candidateId;
+        }
         paperIdSet.add(paperId);
 
         // Map values
@@ -237,6 +281,15 @@ export async function POST(request: Request) {
           const parsedYear = parseInt(paper.Year, 10);
           if (!isNaN(parsedYear)) {
             year = parsedYear;
+          }
+        }
+
+        // Safe integer parsing for citation_count
+        let citationCount: number | null = null;
+        if (paper.citation_count !== undefined && paper.citation_count !== null && paper.citation_count !== '') {
+          const parsedCitations = parseInt(paper.citation_count, 10);
+          if (!isNaN(parsedCitations)) {
+            citationCount = parsedCitations;
           }
         }
 
@@ -265,7 +318,8 @@ export async function POST(request: Request) {
           activeProjectId,
           parentPaperId,
           originalPublisher,
-          publisherVal
+          publisherVal,
+          citationCount
         );
         importedCount++;
       }
@@ -277,7 +331,8 @@ export async function POST(request: Request) {
       success: true,
       total: papers.length,
       imported: importedCount,
-      skipped: skippedCount
+      skipped: skippedCount,
+      updatedCitations: updatedCitationsCount
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to import papers' }, { status: 500 });

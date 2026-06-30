@@ -40,6 +40,8 @@ export default function IngestionHubView({
     previewPapers,
     previewStats,
     importing,
+    syncCitations,
+    setSyncCitations,
     handleCsvSelect,
     handleImport,
     manualSource,
@@ -145,6 +147,7 @@ export default function IngestionHubView({
                           { key: 'Year', label: 'Year', req: false },
                           { key: 'Original_Publisher', label: 'Original Publisher', req: false },
                           { key: 'Publisher', label: 'Publisher (Initial Empty)', req: false },
+                          { key: 'citation_count', label: 'Citation Count', req: false },
                           { key: 'PDF_Link', label: 'PDF Link / Cloud URL', req: false },
                           { key: 'Status', label: 'Status (e.g. INCLUDE)', req: false }
                         ].map((col) => {
@@ -211,14 +214,31 @@ export default function IngestionHubView({
                       </div>
                     )}
 
-                    <div className="flex justify-end">
+                    {previewPapers.length > 0 && previewStats.dupCount > 0 && (
+                      <div className="flex items-center gap-2 bg-secondary/15 border border-border/40 p-3 rounded-lg select-none">
+                        <input
+                          type="checkbox"
+                          id="sync-citations-checkbox"
+                          checked={syncCitations}
+                          onChange={(e) => setSyncCitations(e.target.checked)}
+                          className="w-4 h-4 text-primary bg-secondary border-border rounded focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                        />
+                        <label htmlFor="sync-citations-checkbox" className="text-xs font-bold text-foreground cursor-pointer flex-1">
+                          Sync citation counts for existing duplicate papers ({previewStats.dupCount} matches detected)
+                        </label>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 items-center">
                       <button
                         onClick={() => handleImport()}
-                        disabled={importing || !csvFile || previewStats.newCount === 0}
-                        className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                        disabled={importing || !csvFile || (previewStats.newCount === 0 && (!syncCitations || previewStats.dupCount === 0))}
+                        className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                       >
                         {importing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                        Execute Bulk Import ({previewStats.newCount})
+                        {syncCitations && previewStats.newCount === 0 
+                          ? `Sync Citations (${previewStats.dupCount})`
+                          : `Execute Bulk Import (${previewStats.newCount})`}
                       </button>
                     </div>
                   </div>

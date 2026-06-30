@@ -259,26 +259,30 @@ export default function DashboardView({
           </div>
         </div>
 
-        <CreateProjectModal
-          isOpen={showCreateProjectModal}
-          onClose={() => setShowCreateProjectModal(false)}
-          onCreateProject={createProject}
-          savingProject={savingProject}
-        />
+        {showCreateProjectModal && (
+          <CreateProjectModal
+            isOpen={showCreateProjectModal}
+            onClose={() => setShowCreateProjectModal(false)}
+            onCreateProject={createProject}
+            savingProject={savingProject}
+          />
+        )}
 
-        <ProjectSettingsModal
-          isOpen={showEditProjectModal}
-          onClose={() => setShowEditProjectModal(false)}
-          projects={projects}
-          project={editingProject}
-          loadProjects={loadProjects}
-          showToast={showToast}
-          onSaveProject={updateProject}
-          savingProject={savingProject}
-          testingProjectConnection={testingProjectConnection}
-          projectConnectionTestResult={projectConnectionTestResult}
-          handleTestProjectConnection={handleTestProjectConnection}
-        />
+        {showEditProjectModal && editingProject && (
+          <ProjectSettingsModal
+            isOpen={showEditProjectModal}
+            onClose={() => setShowEditProjectModal(false)}
+            projects={projects}
+            project={editingProject}
+            loadProjects={loadProjects}
+            showToast={showToast}
+            onSaveProject={updateProject}
+            savingProject={savingProject}
+            testingProjectConnection={testingProjectConnection}
+            projectConnectionTestResult={projectConnectionTestResult}
+            handleTestProjectConnection={handleTestProjectConnection}
+          />
+        )}
 
       </div>
     </>

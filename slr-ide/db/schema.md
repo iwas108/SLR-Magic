@@ -36,10 +36,12 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `Human_Rationale` | TEXT | | Reviewer annotation or explanation notes |
 | `Original_Publisher` | TEXT | | Original publisher string imported from CSV |
 | `Publisher` | TEXT | | Mapped and normalized publisher name |
+| `citation_count` | INTEGER | DEFAULT 0 | Count of citations ("Cited by") for the paper |
 | `Human_QA_Scores` | TEXT | | JSON string containing QA rules mapped to values and evidence |
 | `Human_Extracted_Data` | TEXT | | JSON string containing extractions mapped to values and evidence |
 | `is_duplicate` | INTEGER | DEFAULT 0 | Flag indicating if this paper is an excluded duplicate (1) or not (0) |
 | `merged_into_id` | TEXT | DEFAULT NULL | Scoped reference pointing to the primary Paper_ID if this is a duplicate |
+
 
 **Indexes**:
 *   `idx_papers_doi`: ON `papers(DOI)` (for fast duplicate checking during import).

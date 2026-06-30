@@ -49,6 +49,8 @@ export function useCalibration({
   const [activeAssignDropdown, setActiveAssignDropdown] = useState<string | null>(null);
   const [assignSearch, setAssignSearch] = useState('');
   const [assignPoolFilter, setAssignPoolFilter] = useState('unassigned');
+  const [assignSortBy, setAssignSortBy] = useState<string>('Paper_ID');
+  const [assignSortOrder, setAssignSortOrder] = useState<'ASC' | 'DESC'>('ASC');
   const [assignPapers, setAssignPapers] = useState<Paper[]>([]);
   const [assignSelectedPaper, setAssignSelectedPaper] = useState<Paper | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
@@ -150,6 +152,29 @@ export function useCalibration({
           const data = await res.json();
           const results = data.results || [];
           
+          // In-memory sorting for semantic results
+          if (assignSortBy === 'Year') {
+            results.sort((a: any, b: any) => {
+              const yA = a.Year || 0;
+              const yB = b.Year || 0;
+              return assignSortOrder === 'DESC' ? yB - yA : yA - yB;
+            });
+          } else if (assignSortBy === 'citation_count') {
+            results.sort((a: any, b: any) => {
+              const cA = a.citation_count || 0;
+              const cB = b.citation_count || 0;
+              return assignSortOrder === 'DESC' ? cB - cA : cA - cB;
+            });
+          } else if (assignSortBy === 'semantic_score') {
+            results.sort((a: any, b: any) => {
+              const sA = a.semantic_score || 0;
+              const sB = b.semantic_score || 0;
+              return assignSortOrder === 'DESC' ? sB - sA : sA - sB;
+            });
+          } else {
+            results.sort((a: any, b: any) => (b.semantic_score || 0) - (a.semantic_score || 0));
+          }
+
           const total = results.length;
           const startIndex = (assignPage - 1) * assignLimit;
           const sliced = results.slice(startIndex, startIndex + assignLimit);
@@ -172,6 +197,8 @@ export function useCalibration({
           params.append('calibrationPool', assignPoolFilter);
         }
         
+        params.append('sortBy', assignSortBy);
+        params.append('sortOrder', assignSortOrder);
         params.append('page', String(assignPage));
         params.append('limit', String(assignLimit));
 
@@ -188,7 +215,7 @@ export function useCalibration({
     } finally {
       setAssignLoading(false);
     }
-  }, [assignSearch, assignPoolFilter, assignPage, assignLimit, assignSearchMode]);
+  }, [assignSearch, assignPoolFilter, assignPage, assignLimit, assignSearchMode, assignSortBy, assignSortOrder]);
 
   // Assign or unassign papers to pools
   const handleAssignPool = useCallback(async (paperId: string, pool: string | null, tag: string | null = null) => {
@@ -401,6 +428,14 @@ export function useCalibration({
     setAssignPage(1);
   }, [assignSearch, assignPoolFilter, assignSearchMode]);
 
+  // Reset sort column if switching search mode
+  useEffect(() => {
+    if (assignSearchMode !== 'semantic' && assignSortBy === 'semantic_score') {
+      setAssignSortBy('Paper_ID');
+      setAssignSortOrder('ASC');
+    }
+  }, [assignSearchMode, assignSortBy]);
+
   return {
     calActivePool, setCalActivePool,
     calPapers, setCalPapers,
@@ -429,6 +464,8 @@ export function useCalibration({
     assignTotalPapers, setAssignTotalPapers,
     assignTotalPages, setAssignTotalPages,
     assignSearchMode, setAssignSearchMode,
+    assignSortBy, setAssignSortBy,
+    assignSortOrder, setAssignSortOrder,
     vectorIndexStatus, setVectorIndexStatus,
     
     assignLogs, setAssignLogs,

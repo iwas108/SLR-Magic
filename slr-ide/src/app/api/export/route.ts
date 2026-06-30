@@ -17,7 +17,8 @@ export async function GET() {
       'Authors',
       'Year',
       'PDF_Link',
-      'Status'
+      'Status',
+      'citation_count'
     ];
 
     // Build CSV safely escaping characters
@@ -35,7 +36,8 @@ export async function GET() {
         paper.Authors || '',
         paper.Year ? String(paper.Year) : '',
         paper.PDF_Link || '',
-        paper.Status || 'PENDING'
+        paper.Status || 'PENDING',
+        paper.citation_count !== undefined && paper.citation_count !== null ? String(paper.citation_count) : '0'
       ];
 
       // Escape quotes and wrap cell contents containing quotes, commas, or newlines in double quotes

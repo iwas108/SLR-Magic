@@ -47,6 +47,10 @@ interface FullscreenAssignModalProps {
     setAssignSearchMode: React.Dispatch<React.SetStateAction<'keyword' | 'semantic'>>;
     vectorIndexStatus: { indexed: boolean; pdf_count: number; paper_count: number } | null;
     loadVectorStatus: () => Promise<void>;
+    assignSortBy: string;
+    setAssignSortBy: React.Dispatch<React.SetStateAction<string>>;
+    assignSortOrder: 'ASC' | 'DESC';
+    setAssignSortOrder: React.Dispatch<React.SetStateAction<'ASC' | 'DESC'>>;
   };
   pipelineHook: {
     logEndRef: React.RefObject<HTMLDivElement | null>;
@@ -97,7 +101,11 @@ export default function FullscreenAssignModal({
     assignSearchMode,
     setAssignSearchMode,
     vectorIndexStatus,
-    loadVectorStatus
+    loadVectorStatus,
+    assignSortBy,
+    setAssignSortBy,
+    assignSortOrder,
+    setAssignSortOrder
   } = calibrationHook;
 
   const cloudProvider = projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider || 'gdrive';
@@ -132,7 +140,7 @@ export default function FullscreenAssignModal({
       </div>
 
       {/* Fullscreen Body split into left list and right details */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden bg-background">
         <PaperSelectionList
           assignSearch={assignSearch}
           setAssignSearch={setAssignSearch}
@@ -155,28 +163,36 @@ export default function FullscreenAssignModal({
           setAssignSearchMode={setAssignSearchMode}
           vectorIndexStatus={vectorIndexStatus}
           loadVectorStatus={loadVectorStatus}
+          isMinimized={!!assignSelectedPaper}
+          assignSortBy={assignSortBy}
+          setAssignSortBy={setAssignSortBy}
+          assignSortOrder={assignSortOrder}
+          setAssignSortOrder={setAssignSortOrder}
         />
-        <AssignDetailView
-          projects={projects}
-          activeProjectId={activeProjectId}
-          assignSelectedPaper={assignSelectedPaper}
-          assignIsRunning={assignIsRunning}
-          assignLogs={assignLogs}
-          setAssignLogs={setAssignLogs}
-          assignProgress={assignProgress}
-          setAssignProgress={setAssignProgress}
-          assignStatusText={assignStatusText}
-          setAssignStatusText={setAssignStatusText}
-          activeAssignDropdown={activeAssignDropdown}
-          setActiveAssignDropdown={setActiveAssignDropdown}
-          handleAssignPool={handleAssignPool}
-          cloudName={cloudName}
-          runSinglePaperPipeline={runSinglePaperPipeline}
-          assignWaitingLogin={assignWaitingLogin}
-          setAssignWaitingLogin={setAssignWaitingLogin}
-          singlePipelineAbortControllerRef={singlePipelineAbortControllerRef}
-          logEndRef={logEndRef}
-        />
+        {assignSelectedPaper && (
+          <AssignDetailView
+            projects={projects}
+            activeProjectId={activeProjectId}
+            assignSelectedPaper={assignSelectedPaper}
+            assignIsRunning={assignIsRunning}
+            assignLogs={assignLogs}
+            setAssignLogs={setAssignLogs}
+            assignProgress={assignProgress}
+            setAssignProgress={setAssignProgress}
+            assignStatusText={assignStatusText}
+            setAssignStatusText={setAssignStatusText}
+            activeAssignDropdown={activeAssignDropdown}
+            setActiveAssignDropdown={setActiveAssignDropdown}
+            handleAssignPool={handleAssignPool}
+            cloudName={cloudName}
+            runSinglePaperPipeline={runSinglePaperPipeline}
+            assignWaitingLogin={assignWaitingLogin}
+            setAssignWaitingLogin={setAssignWaitingLogin}
+            singlePipelineAbortControllerRef={singlePipelineAbortControllerRef}
+            logEndRef={logEndRef}
+            onClose={() => setAssignSelectedPaper(null)}
+          />
+        )}
       </div>
     </div>
   );

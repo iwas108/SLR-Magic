@@ -115,6 +115,7 @@ export default function CsvReviewModal({
                 <th className="p-3 font-semibold w-1/3 min-w-[300px]">Title</th>
                 <th className="p-3 font-semibold">Authors</th>
                 <th className="p-3 font-semibold">Year</th>
+                <th className="p-3 font-semibold">Citations</th>
                 <th className="p-3 font-semibold">DOI</th>
                 <th className="p-3 font-semibold">Original Publisher</th>
                 <th className="p-3 font-semibold">Publisher</th>
@@ -139,6 +140,7 @@ export default function CsvReviewModal({
                     <td className="p-3 font-semibold text-foreground truncate max-w-[300px]" title={p.Title}>{p.Title}</td>
                     <td className="p-3 text-muted-foreground truncate max-w-[150px]" title={p.Authors}>{p.Authors || '—'}</td>
                     <td className="p-3 text-muted-foreground">{p.Year || '—'}</td>
+                    <td className="p-3 text-muted-foreground">{p.citation_count || '—'}</td>
                     <td className="p-3 text-muted-foreground font-mono text-[10px]">{p.DOI || '—'}</td>
                     <td className="p-3 text-muted-foreground truncate max-w-[150px]" title={p.Original_Publisher}>{p.Original_Publisher || '—'}</td>
                     <td className="p-3 text-muted-foreground truncate max-w-[150px]" title={p.Publisher}>{p.Publisher || '—'}</td>
