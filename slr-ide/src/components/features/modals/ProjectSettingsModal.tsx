@@ -68,10 +68,20 @@ export default function ProjectSettingsModal({
     setProjectFormRemoteName: form.setRemoteName,
     
     // Pool configurations
-    projectFormPoolTags: form.poolTags?.pool_a || [],
-    handleAddPoolTag: () => form.handleAddPoolTag('pool_a'),
-    handleUpdatePoolTag: (idx: number, field: string, val: string) => form.handleUpdatePoolTag('pool_a', idx, field as any, val),
-    handleRemovePoolTag: (idx: number) => form.handleRemovePoolTag('pool_a', idx),
+    projectFormPoolTagsA: form.poolTags?.pool_a || [],
+    handleAddPoolTagA: () => form.handleAddPoolTag('pool_a'),
+    handleUpdatePoolTagA: (idx: number, field: string, val: string) => form.handleUpdatePoolTag('pool_a', idx, field as any, val),
+    handleRemovePoolTagA: (idx: number) => form.handleRemovePoolTag('pool_a', idx),
+
+    projectFormPoolTagsB: form.poolTags?.pool_b || [],
+    handleAddPoolTagB: () => form.handleAddPoolTag('pool_b'),
+    handleUpdatePoolTagB: (idx: number, field: string, val: string) => form.handleUpdatePoolTag('pool_b', idx, field as any, val),
+    handleRemovePoolTagB: (idx: number) => form.handleRemovePoolTag('pool_b', idx),
+
+    projectFormPoolTagsC: form.poolTags?.pool_c || [],
+    handleAddPoolTagC: () => form.handleAddPoolTag('pool_c'),
+    handleUpdatePoolTagC: (idx: number, field: string, val: string) => form.handleUpdatePoolTag('pool_c', idx, field as any, val),
+    handleRemovePoolTagC: (idx: number) => form.handleRemovePoolTag('pool_c', idx),
     
     projectFormPoolBEcRules: form.poolBEcRules,
     projectFormEcRules: form.ecRules,

@@ -12,11 +12,21 @@ interface ProjectCalibrationSettingsProps {
     projectFormQaDefinition: string;
     projectFormQuestions: string;
 
-    // Pool tags (Pool A)
-    projectFormPoolTags: any[];
-    handleAddPoolTag: () => void;
-    handleUpdatePoolTag: (idx: number, field: string, val: string) => void;
-    handleRemovePoolTag: (idx: number) => void;
+    // Pool tags (Pool A, B, C)
+    projectFormPoolTagsA: any[];
+    handleAddPoolTagA: () => void;
+    handleUpdatePoolTagA: (idx: number, field: string, val: string) => void;
+    handleRemovePoolTagA: (idx: number) => void;
+
+    projectFormPoolTagsB: any[];
+    handleAddPoolTagB: () => void;
+    handleUpdatePoolTagB: (idx: number, field: string, val: string) => void;
+    handleRemovePoolTagB: (idx: number) => void;
+
+    projectFormPoolTagsC: any[];
+    handleAddPoolTagC: () => void;
+    handleUpdatePoolTagC: (idx: number, field: string, val: string) => void;
+    handleRemovePoolTagC: (idx: number) => void;
 
     // EC Rules (Pool B & C)
     projectFormPoolBEcRules: any[];
@@ -119,13 +129,13 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
           const isPoolB = calibrationSubTab === 'pool_b';
           const isPoolC = calibrationSubTab === 'pool_c';
 
-          const tags = isPoolA ? form.projectFormPoolTags : [];
+          const tags = isPoolA ? form.projectFormPoolTagsA : isPoolB ? form.projectFormPoolTagsB : form.projectFormPoolTagsC;
           const ecRules = isPoolB ? form.projectFormPoolBEcRules : form.projectFormEcRules;
           const reasoningTemplates = isPoolB ? form.projectFormPoolBReasoningTemplate : form.projectFormReasoningTemplate;
 
-          const onAddTag = isPoolA ? form.handleAddPoolTag : () => {};
-          const onUpdateTag = isPoolA ? form.handleUpdatePoolTag : () => {};
-          const onRemoveTag = isPoolA ? form.handleRemovePoolTag : () => {};
+          const onAddTag = isPoolA ? form.handleAddPoolTagA : isPoolB ? form.handleAddPoolTagB : form.handleAddPoolTagC;
+          const onUpdateTag = isPoolA ? form.handleUpdatePoolTagA : isPoolB ? form.handleUpdatePoolTagB : form.handleUpdatePoolTagC;
+          const onRemoveTag = isPoolA ? form.handleRemovePoolTagA : isPoolB ? form.handleRemovePoolTagB : form.handleRemovePoolTagC;
 
           const onAddEcRule = isPoolB ? form.handleAddPoolBEcRule : form.handleAddEcRule;
           const onUpdateEcRule = isPoolB ? form.handleUpdatePoolBEcRule : form.handleUpdateEcRule;
@@ -135,73 +145,84 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
           const onUpdateReasoningTemplate = isPoolB ? form.handleUpdatePoolBReasoningTemplate : form.handleUpdateReasoningTemplate;
           const onRemoveReasoningTemplate = isPoolB ? form.handleRemovePoolBReasoningTemplate : form.handleRemoveReasoningTemplate;
 
-          if (isPoolA) {
-            return (
-              <div className="pt-4 mt-4 border-t border-border/50 space-y-4">
-                <div className="flex items-center justify-between mb-1">
-                  <div>
-                    <h4 className="text-[11px] font-bold text-foreground">Classification Tags (Pool A)</h4>
-                    <p className="text-[9px] text-muted-foreground">Define custom tag labels for fast initial filtering.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onAddTag}
-                    className="px-2.5 py-1 bg-secondary text-foreground hover:bg-secondary/80 border border-border font-bold rounded-lg text-[10px] transition-colors flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add Tag
-                  </button>
+          // Render tags section if applicable
+          const renderTagsSection = (title: string, tagList: any[], onAdd: any, onUpdate: any, onRemove: any) => (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <h4 className="text-[11px] font-bold text-foreground">{title}</h4>
+                  <p className="text-[9px] text-muted-foreground">Define custom tag labels for fast initial filtering.</p>
                 </div>
-
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {tags.length === 0 ? (
-                    <div className="text-[10px] text-muted-foreground italic text-center py-4 border border-dashed border-border/60 rounded-lg bg-secondary/5">
-                      No tags defined. Click 'Add Tag' to create custom classifications.
-                    </div>
-                  ) : (
-                    tags.map((tag: any, idx: any) => (
-                      <div key={idx} className="flex items-center gap-2 bg-secondary/15 border border-border p-2 rounded-lg">
-                        <div className="w-1/3">
-                          <input
-                            type="text"
-                            value={tag.code || ''}
-                            onChange={(e) => onUpdateTag(idx, 'code', e.target.value)}
-                            className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-bold font-mono"
-                            placeholder="Tag Code (e.g. INC)"
-                            required
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <input
-                            type="text"
-                            value={tag.label || ''}
-                            onChange={(e) => onUpdateTag(idx, 'label', e.target.value)}
-                            className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-semibold"
-                            placeholder="Tag Label (e.g. Include in final review)"
-                            required
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onRemoveTag(idx)}
-                          className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-md transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={onAdd}
+                  className="px-2.5 py-1 bg-secondary text-foreground hover:bg-secondary/80 border border-border font-bold rounded-lg text-[10px] transition-colors flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Tag
+                </button>
               </div>
-            );
-          } else if (isPoolB) {
+
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {tagList.length === 0 ? (
+                  <div className="text-[10px] text-muted-foreground italic text-center py-4 border border-dashed border-border/60 rounded-lg bg-secondary/5">
+                    No tags defined. Click 'Add Tag' to create custom classifications.
+                  </div>
+                ) : (
+                  tagList.map((tag: any, idx: any) => (
+                    <div key={idx} className="flex items-center gap-2 bg-secondary/15 border border-border p-2 rounded-lg">
+                      <div className="w-1/3">
+                        <input
+                          type="text"
+                          value={tag.code || ''}
+                          onChange={(e) => onUpdate(idx, 'code', e.target.value)}
+                          className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-bold font-mono"
+                          placeholder="Tag Code (e.g. INC)"
+                          required
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={tag.label || ''}
+                          onChange={(e) => onUpdate(idx, 'label', e.target.value)}
+                          className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-semibold"
+                          placeholder="Tag Label (e.g. Include in final review)"
+                          required
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(idx)}
+                        className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-md transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          );
+
+          if (isPoolA || isPoolB) {
             return (
               <div className="pt-4 mt-4 border-t border-border/50 space-y-6">
+                {renderTagsSection(
+                  isPoolA ? "Classification Tags (Pool A)" : "Classification Tags (Pool B)",
+                  tags,
+                  onAddTag,
+                  onUpdateTag,
+                  onRemoveTag
+                )}
+
                 {/* EC Rules Section */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <h4 className="text-[11px] font-bold text-foreground">Exclusion Criteria Rules (Pool B)</h4>
+                      <h4 className="text-[11px] font-bold text-foreground">
+                        {isPoolA ? "Exclusion Criteria Rules (Pool A)" : "Exclusion Criteria Rules (Pool B)"}
+                      </h4>
                       <p className="text-[9px] text-muted-foreground">Define explicit exclusion rule keys for consensus filtering.</p>
                     </div>
                     <button
@@ -259,7 +280,9 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <h4 className="text-[11px] font-bold text-foreground">Reasoning Templates</h4>
+                      <h4 className="text-[11px] font-bold text-foreground">
+                        {isPoolA ? "Reasoning Templates (Pool A)" : "Reasoning Templates (Pool B)"}
+                      </h4>
                       <p className="text-[9px] text-muted-foreground">Pre-defined rationale strings for review decisions.</p>
                     </div>
                     <button
@@ -307,6 +330,8 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
           } else if (isPoolC) {
             return (
               <div className="pt-4 mt-4 border-t border-border/50 space-y-6">
+                {renderTagsSection("Classification Tags (Pool C)", tags, onAddTag, onUpdateTag, onRemoveTag)}
+
                 {/* QA Rules Section */}
                 <div>
                   <div className="flex items-center justify-between mb-2">

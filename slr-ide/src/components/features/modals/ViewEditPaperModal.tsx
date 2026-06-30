@@ -67,9 +67,19 @@ export default function ViewEditPaperModal({
 
   const getActiveProjectPoolTags = (poolId: string) => {
     if (!activeProject) return [];
-    if (poolId === 'pool_a') return activeProject.Pool_A_Tags || [];
-    if (poolId === 'pool_b') return activeProject.Pool_B_Tags || [];
-    if (poolId === 'pool_c') return activeProject.Pool_C_Tags || [];
+    let parsedTags: { pool_a: any[]; pool_b: any[]; pool_c: any[] } = { pool_a: [], pool_b: [], pool_c: [] };
+    if (activeProject.pool_tags) {
+      try {
+        parsedTags = typeof activeProject.pool_tags === 'string'
+          ? JSON.parse(activeProject.pool_tags)
+          : activeProject.pool_tags;
+      } catch (e) {
+        console.error("Error parsing pool tags in ViewEditPaperModal", e);
+      }
+    }
+    if (poolId === 'pool_a') return parsedTags.pool_a || [];
+    if (poolId === 'pool_b') return parsedTags.pool_b || [];
+    if (poolId === 'pool_c') return parsedTags.pool_c || [];
     return [];
   };
 
