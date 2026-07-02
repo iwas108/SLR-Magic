@@ -29,6 +29,8 @@ interface PaperSelectionListProps {
   setAssignSortBy: React.Dispatch<React.SetStateAction<string>>;
   assignSortOrder: 'ASC' | 'DESC';
   setAssignSortOrder: React.Dispatch<React.SetStateAction<'ASC' | 'DESC'>>;
+  assignSearchTime: number | null;
+  triggerSemanticSearch: () => void;
 }
 
 export default function PaperSelectionList({
@@ -57,7 +59,9 @@ export default function PaperSelectionList({
   assignSortBy,
   setAssignSortBy,
   assignSortOrder,
-  setAssignSortOrder
+  setAssignSortOrder,
+  assignSearchTime,
+  triggerSemanticSearch
 }: PaperSelectionListProps) {
   const [showBuildModal, setShowBuildModal] = useState(false);
 
@@ -72,11 +76,27 @@ export default function PaperSelectionList({
             <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder={assignSearchMode === 'semantic' ? "Semantic query..." : "Search papers..."}
+              placeholder={assignSearchMode === 'semantic' ? "Semantic query (press Enter)..." : "Search papers..."}
               value={assignSearch}
               onChange={(e) => setAssignSearch(e.target.value)}
-              className="w-full bg-secondary/40 border border-border rounded-lg pl-9 pr-4 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && assignSearchMode === 'semantic') {
+                  triggerSemanticSearch();
+                }
+              }}
+              className={`w-full bg-secondary/40 border border-border rounded-lg pl-9 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold ${
+                assignSearchMode === 'semantic' ? 'pr-16' : 'pr-4'
+              }`}
             />
+            {assignSearchMode === 'semantic' && (
+              <button
+                onClick={triggerSemanticSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded text-[9px] font-bold uppercase transition-all duration-200 cursor-pointer select-none active:scale-95"
+                title="Run Semantic Search"
+              >
+                Search
+              </button>
+            )}
           </div>
           <select
             value={assignPoolFilter}
@@ -167,14 +187,47 @@ export default function PaperSelectionList({
             })}
           </div>
         </div>
+
+        {/* Query execution metadata */}
+        {assignSearchTime !== null && !assignLoading && (
+          <div className="mt-2 px-2.5 py-1 bg-secondary/15 border border-border/30 rounded-lg text-[9px] text-muted-foreground font-semibold flex items-center justify-between select-none animate-in fade-in duration-200">
+            <span className="flex items-center gap-1">
+              {assignSearchMode === 'semantic' ? '🧠' : '🔍'}
+              <span>
+                {assignSearchMode === 'semantic' 
+                  ? `Semantic query processed in ${(assignSearchTime / 1000).toFixed(2)}s`
+                  : `Database query processed in ${(assignSearchTime / 1000).toFixed(2)}s`}
+              </span>
+            </span>
+            {assignSearchMode === 'semantic' && (
+              <span className="text-[8px] bg-primary/10 border border-primary/20 text-primary px-1 py-0.2 rounded uppercase font-bold shrink-0">
+                Top 200 Nearest Neighbors
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Papers List */}
       <div className="flex-1 overflow-y-auto divide-y divide-border/60">
         {assignLoading ? (
-          <div className="p-8 text-center text-muted-foreground text-xs flex flex-col items-center gap-2">
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
-            <span>Loading papers database...</span>
+          <div className="p-6 m-4 text-center text-muted-foreground text-xs flex flex-col items-center gap-3 bg-secondary/10 border border-border/40 rounded-xl animate-pulse">
+            <div className="relative">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              {assignSearchMode === 'semantic' && (
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] select-none">🧠</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-bold text-foreground">
+                {assignSearchMode === 'semantic' ? "Semantic Similarity Search" : "Keyword Search"}
+              </span>
+              <span className="text-[9px] text-muted-foreground font-medium leading-relaxed max-w-[280px]">
+                {assignSearchMode === 'semantic' 
+                  ? "Resolving calibration filters, loading nomic-embed model weights, and searching SIMD-accelerated turbovec index..." 
+                  : "Scanning local SQLite index utilising LIKE pattern queries..."}
+              </span>
+            </div>
           </div>
         ) : assignPapers.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground text-xs">

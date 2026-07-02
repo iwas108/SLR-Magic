@@ -9,6 +9,8 @@ interface RcloneSettingsTabProps {
   testing: boolean;
   handleTestConnection: () => void;
   testResult: { success: boolean; message: string; details?: string } | null;
+  backingUp: boolean;
+  handleManualBackup: () => void;
 }
 
 export default function RcloneSettingsTab({
@@ -18,7 +20,9 @@ export default function RcloneSettingsTab({
   handleChange,
   testing,
   handleTestConnection,
-  testResult
+  testResult,
+  backingUp,
+  handleManualBackup
 }: RcloneSettingsTabProps) {
   return (
     <div className="space-y-6 text-xs animate-in fade-in duration-200">
@@ -144,6 +148,30 @@ export default function RcloneSettingsTab({
               )}
             </div>
           )}
+
+          <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-1.5">
+            <span className="text-[10px] text-muted-foreground">
+              Last Backup: {configs.LAST_BACKUP_TIMESTAMP ? new Date(parseInt(configs.LAST_BACKUP_TIMESTAMP, 10)).toLocaleString() : 'Never'}
+            </span>
+            <button
+              onClick={handleManualBackup}
+              disabled={backingUp || !configs.BACKUP_DESTINATION}
+              type="button"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 cursor-pointer select-none active:scale-95"
+            >
+              {backingUp ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Backing up...
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5" />
+                  Backup Now
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

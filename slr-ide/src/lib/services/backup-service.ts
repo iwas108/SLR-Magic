@@ -3,11 +3,20 @@ import path from 'path';
 import { spawn } from 'child_process';
 import db, { getConfig, setConfig, PROJECT_ROOT } from '../db';
 
+function getTotalChanges(): number {
+  try {
+    const row = db.prepare('SELECT total_changes() as count').get() as { count: number } | undefined;
+    return row ? row.count : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
 declare global {
   var backupIntervalHandle: NodeJS.Timeout | undefined;
   var lastBackupTime: number | undefined;
-  var lastCheckedMtime: number | undefined;
-  var ignoreMtimeChange: boolean | undefined;
+  var lastCheckedChanges: number | undefined;
+  var lastCheckedDataVersion: number | undefined;
   var isBackupRunning: boolean | undefined;
 }
 
@@ -26,11 +35,16 @@ export function startBackupScheduler() {
     global.lastBackupTime = persisted ? parseInt(persisted, 10) : Date.now();
   }
 
-  if (global.lastCheckedMtime === undefined) {
-    if (fs.existsSync(dbPath)) {
-      global.lastCheckedMtime = fs.statSync(dbPath).mtimeMs;
-    } else {
-      global.lastCheckedMtime = Date.now();
+  if (global.lastCheckedChanges === undefined) {
+    global.lastCheckedChanges = getTotalChanges();
+  }
+
+  if (global.lastCheckedDataVersion === undefined) {
+    try {
+      const row = db.prepare('PRAGMA data_version').get() as { data_version: number } | undefined;
+      global.lastCheckedDataVersion = row ? row.data_version : 0;
+    } catch (e) {
+      global.lastCheckedDataVersion = 0;
     }
   }
 
@@ -62,22 +76,24 @@ export function startBackupScheduler() {
           await runRcloneBackup(destination);
         }
       } else if (triggerType === 'change') {
-        if (!fs.existsSync(dbPath)) {
-          return;
-        }
+        const currentChanges = getTotalChanges();
+        let currentDataVersion = 0;
+        try {
+          const row = db.prepare('PRAGMA data_version').get() as { data_version: number } | undefined;
+          currentDataVersion = row ? row.data_version : 0;
+        } catch (e) {}
 
-        const currentMtime = fs.statSync(dbPath).mtimeMs;
+        const hasChanged = 
+          currentChanges > (global.lastCheckedChanges || 0) || 
+          currentDataVersion !== (global.lastCheckedDataVersion || 0);
 
-        if (global.ignoreMtimeChange) {
-          return;
-        }
-
-        if (currentMtime > (global.lastCheckedMtime || 0)) {
+        if (hasChanged) {
           // Database changed! Check minimum 1 minute spacing constraint
           const minSpacingMs = 60 * 1000;
           if (now - (global.lastBackupTime || 0) >= minSpacingMs) {
             console.log(`[Backup Service] Triggered by database changes. Last backup: ${new Date(global.lastBackupTime || 0).toLocaleTimeString()}`);
-            global.lastCheckedMtime = currentMtime;
+            global.lastCheckedChanges = currentChanges;
+            global.lastCheckedDataVersion = currentDataVersion;
             await runRcloneBackup(destination);
           }
         }
@@ -192,14 +208,16 @@ export async function runRcloneBackup(destination: string): Promise<boolean> {
       global.lastBackupTime = now;
       
       // Update database persisted timestamp safely
-      global.ignoreMtimeChange = true;
       setConfig('LAST_BACKUP_TIMESTAMP', String(now));
       
-      const dbPath = path.resolve(PROJECT_ROOT, 'db', 'slr.db');
-      if (fs.existsSync(dbPath)) {
-        global.lastCheckedMtime = fs.statSync(dbPath).mtimeMs;
+      // Reset baselines to current database connection state after write
+      global.lastCheckedChanges = getTotalChanges();
+      try {
+        const row = db.prepare('PRAGMA data_version').get() as { data_version: number } | undefined;
+        global.lastCheckedDataVersion = row ? row.data_version : 0;
+      } catch (e) {
+        global.lastCheckedDataVersion = 0;
       }
-      global.ignoreMtimeChange = false;
 
       console.log(`[Backup Service] Database backup process complete. Successes: ${successCount}/${dests.length}`);
       return true;

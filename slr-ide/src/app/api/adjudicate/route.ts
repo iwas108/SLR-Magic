@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db, { getConfig } from '@/lib/db';
 import { createHash } from 'crypto';
 import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
+import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 export async function POST(request: Request) {
   try {
@@ -150,6 +151,9 @@ export async function POST(request: Request) {
         timestamp
       };
     })();
+
+    // Invalidate semantic search cache for the active project
+    clearSemanticSearchCache(activeProjectId);
 
     return NextResponse.json({ success: true, commit: commitEntry });
   } catch (error: any) {

@@ -11,6 +11,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [pdfFilter, setPdfFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -56,6 +57,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status', statusFilter);
       if (pdfFilter) params.append('pdfStatus', pdfFilter);
+      if (sourceFilter) params.append('source', sourceFilter);
       
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
@@ -77,7 +79,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } finally {
       setLoadingPapers(false);
     }
-  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, showToast, loadDuplicatesCount]);
+  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, sourceFilter, showToast, loadDuplicatesCount]);
 
   // Load papers on mount and when filters change
   useEffect(() => {
@@ -87,12 +89,12 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   // Clear selectedPaperIds when filters or search change
   useEffect(() => {
     setSelectedPaperIds([]);
-  }, [searchTerm, statusFilter, pdfFilter]);
+  }, [searchTerm, statusFilter, pdfFilter, sourceFilter]);
 
   // Reset page to 1 when filters or search terms change
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, pdfFilter]);
+  }, [searchTerm, statusFilter, pdfFilter, sourceFilter]);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -263,6 +265,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     searchTerm, setSearchTerm,
     statusFilter, setStatusFilter,
     pdfFilter, setPdfFilter,
+    sourceFilter, setSourceFilter,
     page, setPage,
     limit, setLimit,
     totalPapers,

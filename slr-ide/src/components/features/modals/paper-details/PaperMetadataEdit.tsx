@@ -4,6 +4,7 @@ import ParentPaperSelector from './ParentPaperSelector';
 interface PaperMetadataEditProps {
   paperId: string;
   importDate: string;
+  importSource: string;
   projectId: string;
   editParentPaperId: string;
   setEditParentPaperId: (id: string) => void;
@@ -33,12 +34,17 @@ interface PaperMetadataEditProps {
   setEditCalPool: (val: string) => void;
   editCalTag: string;
   setEditCalTag: (val: string) => void;
+  editCitationCount: string;
+  setEditCitationCount: (val: string) => void;
+  editNotes: string;
+  setEditNotes: (val: string) => void;
   getActiveProjectPoolTags: (poolId: string) => any[];
 }
 
 export default function PaperMetadataEdit({
   paperId,
   importDate,
+  importSource,
   projectId,
   editParentPaperId,
   setEditParentPaperId,
@@ -68,19 +74,24 @@ export default function PaperMetadataEdit({
   setEditCalPool,
   editCalTag,
   setEditCalTag,
+  editCitationCount,
+  setEditCitationCount,
+  editNotes,
+  setEditNotes,
   getActiveProjectPoolTags
 }: PaperMetadataEditProps) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {/* Paper ID */}
         <div>
           <label className="text-[10px] font-bold text-muted-foreground uppercase">Paper ID</label>
           <input
             type="text"
             disabled
-            className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground focus:outline-none font-bold"
+            className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground focus:outline-none font-bold truncate"
             value={paperId}
+            title={paperId}
           />
         </div>
 
@@ -91,7 +102,19 @@ export default function PaperMetadataEdit({
             type="text"
             disabled
             className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground focus:outline-none font-semibold"
-            value={importDate}
+            value={importDate || '—'}
+          />
+        </div>
+
+        {/* Source Scope */}
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Source Scope</label>
+          <input
+            type="text"
+            disabled
+            className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground focus:outline-none font-semibold truncate"
+            value={importSource || '—'}
+            title={importSource}
           />
         </div>
       </div>
@@ -169,8 +192,8 @@ export default function PaperMetadataEdit({
         </div>
       </div>
 
-      {/* Original Publisher & Publisher */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Original Publisher, Publisher & Citations */}
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="text-[10px] font-bold text-muted-foreground uppercase">Original Publisher</label>
           <input
@@ -190,6 +213,17 @@ export default function PaperMetadataEdit({
             onChange={(e) => setEditPublisher(e.target.value)}
           />
         </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Citation Count</label>
+          <input
+            type="number"
+            min="0"
+            className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold font-mono"
+            value={editCitationCount}
+            onChange={(e) => setEditCitationCount(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Abstract */}
@@ -200,6 +234,18 @@ export default function PaperMetadataEdit({
           className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-medium leading-relaxed"
           value={editAbstract}
           onChange={(e) => setEditAbstract(e.target.value)}
+        />
+      </div>
+
+      {/* Notes / Findings */}
+      <div>
+        <label className="text-[10px] font-bold text-muted-foreground uppercase">Notes / Findings</label>
+        <textarea
+          rows={3}
+          className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-medium leading-relaxed"
+          placeholder="Record findings, comments, or extra context here..."
+          value={editNotes}
+          onChange={(e) => setEditNotes(e.target.value)}
         />
       </div>
 

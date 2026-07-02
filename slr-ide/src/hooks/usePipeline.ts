@@ -66,6 +66,7 @@ export function usePipeline({
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const logEndRef = useRef<HTMLDivElement | null>(null);
+  const isStreamActiveRef = useRef(false);
 
   // Time estimator ticker
   useEffect(() => {
@@ -91,6 +92,42 @@ export function usePipeline({
   }, [indexingState]);
 
   const handleBatchEvent = useCallback((data: any) => {
+    if (data.pipelineStats) {
+      setPipelineStats(prev => {
+        if (
+          prev.matched === data.pipelineStats.matched &&
+          prev.downloaded === data.pipelineStats.downloaded &&
+          prev.failed === data.pipelineStats.failed &&
+          prev.current === data.pipelineStats.current &&
+          prev.total === data.pipelineStats.total &&
+          prev.savedSpaceBytes === data.pipelineStats.savedSpaceBytes &&
+          prev.originalSpaceBytes === data.pipelineStats.originalSpaceBytes
+        ) {
+          return prev;
+        }
+        return { ...prev, ...data.pipelineStats };
+      });
+    }
+
+    if (data.pct !== undefined || data.progress !== undefined) {
+      const val = data.pct !== undefined ? data.pct : data.progress;
+      setOperationModal(prev => {
+        if (prev.progress === val) return prev;
+        return { ...prev, progress: val };
+      });
+    }
+
+    if (data.currentItem !== undefined) {
+      setOperationModal(prev => {
+        if (prev.currentItem === data.currentItem) return prev;
+        return { ...prev, currentItem: data.currentItem };
+      });
+    }
+
+    if (data.event === 'progress' && data.current === 1) {
+      setStepStartTime(Date.now());
+    }
+
     if (data.event === 'step_start') {
       setCurrentStep(data.step);
       setStepStartTime(Date.now());
@@ -155,22 +192,9 @@ export function usePipeline({
     } else if (data.event === 'progress') {
       setOperationModal(prev => ({
         ...prev,
-        progress: data.pct || prev.progress,
         statusText: data.message || prev.statusText,
         logs: data.log ? [...prev.logs, data.log].slice(-500) : prev.logs
       }));
-      if (data.currentItem) {
-        setOperationModal(prev => ({
-          ...prev,
-          currentItem: data.currentItem
-        }));
-      }
-      if (data.pipelineStats) {
-        setPipelineStats(prev => ({
-          ...prev,
-          ...data.pipelineStats
-        }));
-      }
     } else if (data.event === 'log') {
       setOperationModal(prev => ({
         ...prev,
@@ -219,6 +243,15 @@ export function usePipeline({
             setStepStartTime(data.stepStartTime);
             setPipelineStats(data.pipelineStats);
             setIndexingState(data.indexingState);
+            if (data.steps && data.steps.length > 0) {
+              setBatchSteps({
+                duplicate_scan: data.steps.includes('duplicate_scan'),
+                scan: data.steps.includes('scan'),
+                scrape: data.steps.includes('scrape'),
+                map_publisher: data.steps.includes('map_publisher'),
+                sync: data.steps.includes('sync')
+              });
+            }
           } else {
             handleBatchEvent(data);
           }
@@ -243,6 +276,9 @@ export function usePipeline({
   }, [loadPapers, loadProjects, handleBatchEvent]);
 
   const subscribeToBatchStream = useCallback(async () => {
+    if (isStreamActiveRef.current) return;
+    isStreamActiveRef.current = true;
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
     try {
@@ -254,6 +290,9 @@ export function usePipeline({
       if (err.name !== 'AbortError') {
         showToast(`Failed to reconnect to batch stream: ${err.message}`, 'error');
       }
+    } finally {
+      isStreamActiveRef.current = false;
+      abortControllerRef.current = null;
     }
   }, [readBatchStream, showToast]);
 
@@ -264,12 +303,24 @@ export function usePipeline({
         const data = await res.json();
         if (data.isExecuting) {
           subscribeToBatchStream();
+        } else {
+          setOperationModal(prev => {
+            if (prev.isExecuting) {
+              return { ...prev, isExecuting: false, progress: 100 };
+            }
+            return prev;
+          });
         }
       }
     } catch (e) {
       console.error('Error checking batch status:', e);
     }
   }, [subscribeToBatchStream]);
+
+  // Check batch status on mount
+  useEffect(() => {
+    checkBatchStatus();
+  }, [checkBatchStatus]);
 
   const runBatchExecution = useCallback(async () => {
     if (operationModal.isExecuting) return;
@@ -325,7 +376,13 @@ export function usePipeline({
         broadcastSync('SYNC_PIPELINE');
         
         if (!resScan.body) throw new Error('No duplicate scan stream returned');
-        await readBatchStream(resScan, controller);
+        isStreamActiveRef.current = true;
+        try {
+          await readBatchStream(resScan, controller);
+        } finally {
+          isStreamActiveRef.current = false;
+          abortControllerRef.current = null;
+        }
 
         if (controller.signal.aborted) {
           return;
@@ -352,7 +409,13 @@ export function usePipeline({
         broadcastSync('SYNC_PIPELINE');
 
         if (!res.body) throw new Error('No body stream returned');
-        await readBatchStream(res, controller);
+        isStreamActiveRef.current = true;
+        try {
+          await readBatchStream(res, controller);
+        } finally {
+          isStreamActiveRef.current = false;
+          abortControllerRef.current = null;
+        }
       }
 
     } catch (err: any) {

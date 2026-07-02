@@ -39,6 +39,8 @@ export default function ViewEditPaperModal({
   const [editCalTag, setEditCalTag] = useState('');
   const [editOriginalPublisher, setEditOriginalPublisher] = useState('');
   const [editPublisher, setEditPublisher] = useState('');
+  const [editCitationCount, setEditCitationCount] = useState('');
+  const [editNotes, setEditNotes] = useState('');
   const [savingPaper, setSavingPaper] = useState(false);
   const [selectedEditParentPaper, setSelectedEditParentPaper] = useState<any>(null);
   const [editParentPaperId, setEditParentPaperId] = useState<string>('');
@@ -57,6 +59,8 @@ export default function ViewEditPaperModal({
       setEditCalTag(paperModal.paper.calibration_tag || '');
       setEditOriginalPublisher(paperModal.paper.Original_Publisher || '');
       setEditPublisher(paperModal.paper.Publisher || '');
+      setEditNotes(paperModal.paper.notes || '');
+      setEditCitationCount(paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0');
       
       const parentId = paperModal.paper.Parent_Paper_ID || '';
       const parentTitle = paperModal.paper.Parent_Paper_Title || '';
@@ -109,7 +113,9 @@ export default function ViewEditPaperModal({
           calibration_pool: editCalPool || null,
           calibration_tag: editCalTag || null,
           Original_Publisher: editOriginalPublisher,
-          Publisher: editPublisher
+          Publisher: editPublisher,
+          citation_count: editCitationCount,
+          notes: editNotes
         })
       });
 
@@ -163,6 +169,7 @@ export default function ViewEditPaperModal({
               <PaperMetadataEdit
                 paperId={paperModal.paper.Paper_ID}
                 importDate={paperModal.paper.Import_Date}
+                importSource={paperModal.paper.Import_Source}
                 projectId={activeProject?.id}
                 editParentPaperId={editParentPaperId}
                 setEditParentPaperId={setEditParentPaperId}
@@ -192,6 +199,10 @@ export default function ViewEditPaperModal({
                 setEditCalPool={setEditCalPool}
                 editCalTag={editCalTag}
                 setEditCalTag={setEditCalTag}
+                editCitationCount={editCitationCount}
+                setEditCitationCount={setEditCitationCount}
+                editNotes={editNotes}
+                setEditNotes={setEditNotes}
                 getActiveProjectPoolTags={getActiveProjectPoolTags}
               />
             ) : (

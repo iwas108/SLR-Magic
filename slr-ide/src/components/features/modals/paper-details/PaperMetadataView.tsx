@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ExternalLink } from 'lucide-react';
 
 interface PaperMetadataViewProps {
@@ -14,13 +14,49 @@ export default function PaperMetadataView({
   showToast,
   getActiveProjectPoolTags
 }: PaperMetadataViewProps) {
+  const [proxyBaseUrl, setProxyBaseUrl] = useState('');
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.SCRAPER_PROXY_BASE_URL) {
+          setProxyBaseUrl(data.SCRAPER_PROXY_BASE_URL);
+        }
+      })
+      .catch((err) => console.error('Error loading proxy config:', err));
+  }, []);
+
+  const getProxyDoiUrl = (doi: string, proxyUrl: string): string => {
+    if (!doi) return '';
+    const cleanDoi = doi.trim();
+    if (!proxyUrl) {
+      return `https://doi.org/${cleanDoi}`;
+    }
+    const cleanProxy = proxyUrl.trim();
+    if (cleanProxy.endsWith('doi.org/') || cleanProxy.endsWith('doi.org')) {
+      const sep = cleanProxy.endsWith('/') ? '' : '/';
+      return `${cleanProxy}${sep}${cleanDoi}`;
+    }
+    if (cleanProxy.includes('doi.org/')) {
+      return `${cleanProxy}${cleanDoi}`;
+    }
+    if (cleanProxy.endsWith('url=')) {
+      return `${cleanProxy}https://doi.org/${cleanDoi}`;
+    }
+    if (cleanProxy.includes('?')) {
+      return `${cleanProxy}&url=${encodeURIComponent(`https://doi.org/${cleanDoi}`)}`;
+    }
+    return `${cleanProxy}/login?url=${encodeURIComponent(`https://doi.org/${cleanDoi}`)}`;
+  };
+
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         {/* Paper ID */}
         <div>
           <label className="text-[10px] font-bold text-muted-foreground uppercase">Paper ID</label>
-          <div className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground font-bold select-text">
+          <div className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground font-bold select-text truncate" title={paper.Paper_ID}>
             {paper.Paper_ID}
           </div>
         </div>
@@ -29,7 +65,15 @@ export default function PaperMetadataView({
         <div>
           <label className="text-[10px] font-bold text-muted-foreground uppercase">Import Date</label>
           <div className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground font-semibold select-text">
-            {paper.Import_Date}
+            {paper.Import_Date || '—'}
+          </div>
+        </div>
+
+        {/* Source Scope */}
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Source Scope</label>
+          <div className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground font-semibold select-text truncate" title={paper.Import_Source || '—'}>
+            {paper.Import_Source || '—'}
           </div>
         </div>
       </div>
@@ -98,8 +142,21 @@ export default function PaperMetadataView({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-[10px] font-bold text-muted-foreground uppercase">DOI</label>
-          <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-mono truncate select-text" title={paper.DOI || '—'}>
-            {paper.DOI || '—'}
+          <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-mono truncate select-text flex items-center justify-between">
+            {paper.DOI ? (
+              <a
+                href={getProxyDoiUrl(paper.DOI, proxyBaseUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-mono inline-flex items-center gap-1 select-text truncate max-w-full"
+                title={proxyBaseUrl ? "Open DOI via library EzProxy redirection" : "Open DOI link"}
+              >
+                <span className="truncate">{paper.DOI}</span>
+                <ExternalLink className="w-3 h-3 shrink-0" />
+              </a>
+            ) : (
+              <span>—</span>
+            )}
           </div>
         </div>
 
@@ -123,8 +180,8 @@ export default function PaperMetadataView({
         </div>
       </div>
 
-      {/* Original Publisher & Publisher */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Original Publisher, Publisher & Citations */}
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="text-[10px] font-bold text-muted-foreground uppercase">Original Publisher</label>
           <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-semibold truncate select-text" title={paper.Original_Publisher || '—'}>
@@ -138,6 +195,13 @@ export default function PaperMetadataView({
             {paper.Publisher || '—'}
           </div>
         </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Citation Count</label>
+          <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-semibold select-text">
+            {paper.citation_count !== undefined && paper.citation_count !== null ? paper.citation_count : '0'}
+          </div>
+        </div>
       </div>
 
       {/* Abstract */}
@@ -145,6 +209,14 @@ export default function PaperMetadataView({
         <label className="text-[10px] font-bold text-muted-foreground uppercase">Abstract</label>
         <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2.5 text-xs text-muted-foreground font-medium leading-relaxed max-h-40 overflow-y-auto whitespace-pre-wrap select-text">
           {paper.Abstract || 'No abstract available.'}
+        </div>
+      </div>
+
+      {/* Notes / Findings */}
+      <div>
+        <label className="text-[10px] font-bold text-muted-foreground uppercase">Notes / Findings</label>
+        <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2.5 text-xs text-muted-foreground font-medium leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap select-text">
+          {paper.notes || <span className="italic text-muted-foreground/45">No notes or findings recorded yet. Click Edit Paper to add notes.</span>}
         </div>
       </div>
 

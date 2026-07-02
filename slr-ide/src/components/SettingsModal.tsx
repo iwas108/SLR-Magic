@@ -21,6 +21,7 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; details?: string } | null>(null);
+  const [backingUp, setBackingUp] = useState(false);
 
   // Load configs on open
   useEffect(() => {
@@ -87,6 +88,36 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
       });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleManualBackup = async () => {
+    setBackingUp(true);
+    try {
+      // Save temp configs first before backing up to make sure destination is updated
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(configs)
+      });
+
+      const res = await fetch('/api/config/backup', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast?.(data.message || 'Database backup completed successfully.', 'success');
+        // Refetch configs to get the updated LAST_BACKUP_TIMESTAMP
+        const configRes = await fetch('/api/config');
+        if (configRes.ok) {
+          const configData = await configRes.json();
+          setConfigs(configData);
+        }
+      } else {
+        showToast?.(data.message || 'Database backup failed.', 'error');
+      }
+    } catch (err: any) {
+      showToast?.(err.message || 'Error executing database backup.', 'error');
+    } finally {
+      setBackingUp(false);
     }
   };
 
@@ -163,6 +194,8 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
               testing={testing}
               handleTestConnection={handleTestConnection}
               testResult={testResult}
+              backingUp={backingUp}
+              handleManualBackup={handleManualBackup}
             />
           ) : activeTab === 'scraper' ? (
             <ScraperSettingsTab

@@ -111,24 +111,43 @@ export async function POST(request: Request) {
         const pushLog = (msg: string) => {
           batchState.logs.push(msg);
           if (batchState.logs.length > 500) batchState.logs.shift();
+          const enriched = {
+            event: 'log',
+            message: msg,
+            pct: batchState.progress,
+            progress: batchState.progress,
+            pipelineStats: batchState.pipelineStats,
+            currentItem: batchState.currentItem
+          };
           try {
-            controller.enqueue(encoder.encode(JSON.stringify({ event: 'log', message: msg }) + '\n'));
+            controller.enqueue(encoder.encode(JSON.stringify(enriched) + '\n'));
           } catch (e) {}
           
           // Broadcast to global listeners (dashboard widget)
           batchState.listeners.forEach(l => {
-            try { l({ event: 'log', message: msg }); } catch (e) {}
+            try { l(enriched); } catch (e) {}
           });
         };
 
         const pushEvent = (evt: any) => {
+          let enriched = evt;
+          if (evt && typeof evt === 'object') {
+            enriched = {
+              ...evt,
+              pct: batchState.progress,
+              progress: batchState.progress,
+              pipelineStats: batchState.pipelineStats,
+              currentItem: batchState.currentItem,
+              message: evt.message || batchState.statusText
+            };
+          }
           try {
-            controller.enqueue(encoder.encode(JSON.stringify(evt) + '\n'));
+            controller.enqueue(encoder.encode(JSON.stringify(enriched) + '\n'));
           } catch (e) {}
           
           // Broadcast to global listeners
           batchState.listeners.forEach(l => {
-            try { l(evt); } catch (e) {}
+            try { l(enriched); } catch (e) {}
           });
         };
 

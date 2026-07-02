@@ -18,6 +18,8 @@ interface PaperDatabaseViewProps {
   setStatusFilter: (v: string) => void;
   pdfFilter: string;
   setPdfFilter: (v: string) => void;
+  sourceFilter: string;
+  setSourceFilter: (v: string) => void;
   setShowImport: (show: boolean) => void;
   setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
   operationModal: any;
@@ -66,6 +68,8 @@ export default function PaperDatabaseView({
   setStatusFilter,
   pdfFilter,
   setPdfFilter,
+  sourceFilter,
+  setSourceFilter,
   setShowImport,
   setDeleteAllConfirm,
   operationModal,
@@ -140,6 +144,18 @@ export default function PaperDatabaseView({
               <option value="DOWNLOADED">DOWNLOADED</option>
               <option value="SYNCED">SYNCED</option>
               <option value="FAILED">FAILED</option>
+            </select>
+
+            <select
+              className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+            >
+              <option value="">All Sources</option>
+              <option value="manual">Manual Ingestion</option>
+              <option value="backward">Backward Snowball</option>
+              <option value="forward">Forward Snowball</option>
+              <option value="csv">CSV Import</option>
             </select>
 
             <button
@@ -218,29 +234,34 @@ export default function PaperDatabaseView({
                 <table className="w-full table-fixed text-left text-xs border-collapse relative">
                   <thead className="sticky top-0 z-10 bg-secondary border-b border-border shadow-sm">
                     <tr className="text-muted-foreground text-[10px] font-bold uppercase">
-                      <th className="p-3 w-[15%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Paper_ID')}>
+                      <th className="p-3 w-[12%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Paper_ID')}>
                         <div className="flex items-center gap-1.5">
                           ID {renderSortIcon('Paper_ID')}
                         </div>
                       </th>
-                      <th className="p-3 w-[30%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Title')}>
+                      <th className="p-3 w-[28%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Title')}>
                         <div className="flex items-center gap-1.5">
                           Title {renderSortIcon('Title')}
                         </div>
                       </th>
-                      <th className="p-3 w-[15%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Authors')}>
+                      <th className="p-3 w-[14%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Authors')}>
                         <div className="flex items-center gap-1.5">
                           Authors {renderSortIcon('Authors')}
                         </div>
                       </th>
-                      <th className="p-3 w-[8%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Year')}>
+                      <th className="p-3 w-[6%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Year')}>
                         <div className="flex items-center gap-1.5">
                           Year {renderSortIcon('Year')}
                         </div>
                       </th>
-                      <th className="p-3 w-[12%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('DOI')}>
+                      <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('DOI')}>
                         <div className="flex items-center gap-1.5">
                           DOI {renderSortIcon('DOI')}
+                        </div>
+                      </th>
+                      <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('citation_count')}>
+                        <div className="flex items-center gap-1.5">
+                          Citations {renderSortIcon('citation_count')}
                         </div>
                       </th>
                       <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Local_PDF_Status')}>
@@ -278,6 +299,9 @@ export default function PaperDatabaseView({
                         <td className="p-3 text-muted-foreground font-semibold truncate">{p.Year || '—'}</td>
                         <td className="p-3 font-mono text-[10px] text-muted-foreground/80 truncate" title={p.DOI || '—'}>
                           {p.DOI || '—'}
+                        </td>
+                        <td className="p-3 font-mono text-xs font-semibold text-muted-foreground truncate">
+                          {p.citation_count !== undefined && p.citation_count !== null ? p.citation_count : '0'}
                         </td>
                         <td className="p-3 truncate">
                           <div className="flex items-center gap-1.5 truncate">

@@ -7,12 +7,13 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvImportDate, setCsvImportDate] = useState('');
   
-  const [manualSource, setManualSource] = useState('Manual Ingestion');
+  const [manualSource, setManualSource] = useState('Backward Snowball');
   const [manualImportDate, setManualImportDate] = useState('');
   const [manualYear, setManualYear] = useState('');
   const [manualTitle, setManualTitle] = useState('');
   const [manualAuthors, setManualAuthors] = useState('');
   const [manualDoi, setManualDoi] = useState('');
+  const [manualCitationCount, setManualCitationCount] = useState('');
   const [manualAbstract, setManualAbstract] = useState('');
   const [manualIngesting, setManualIngesting] = useState(false);
   const [manualParentPaperId, setManualParentPaperId] = useState('');
@@ -47,19 +48,36 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
     loadHashes();
   }, []);
 
-  // Filter parent paper suggestions
+  // Filter parent paper suggestions via database query
   useEffect(() => {
     if (!manualParentSearch.trim()) {
       setParentPaperSuggestions([]);
       return;
     }
-    const lowerSearch = manualParentSearch.toLowerCase();
-    const matches = papers.filter(p => 
-      p.Title?.toLowerCase().includes(lowerSearch) || 
-      p.Paper_ID?.toLowerCase().includes(lowerSearch)
-    ).slice(0, 10);
-    setParentPaperSuggestions(matches);
-  }, [manualParentSearch, papers]);
+
+    let active = true;
+    const fetchSuggestions = async () => {
+      try {
+        const res = await fetch(`/api/papers?search=${encodeURIComponent(manualParentSearch)}&limit=10`);
+        if (res.ok && active) {
+          const data = await res.json();
+          setParentPaperSuggestions(data.papers || []);
+        }
+      } catch (err) {
+        console.error('Error fetching parent paper suggestions:', err);
+      }
+    };
+
+    // Debounce to prevent hammering database on fast typing
+    const timer = setTimeout(() => {
+      fetchSuggestions();
+    }, 200);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [manualParentSearch]);
 
   const handleCsvSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -281,12 +299,14 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
     setManualIngesting(true);
     try {
       const parsedYear = parseInt(manualYear, 10);
+      const parsedCitations = parseInt(manualCitationCount, 10);
       const p = {
         Paper_ID: `TEMP_M_${Date.now()}`,
         Title: manualTitle.trim(),
         Authors: manualAuthors.trim(),
         Year: !isNaN(parsedYear) ? parsedYear : null,
         DOI: manualDoi.trim(),
+        citation_count: !isNaN(parsedCitations) ? parsedCitations : 0,
         Abstract: manualAbstract.trim(),
         Import_Date: manualImportDate || new Date().toISOString().split('T')[0],
         Import_Source: manualSource || 'Manual Ingestion',
@@ -315,6 +335,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
           setManualAuthors('');
           setManualYear('');
           setManualDoi('');
+          setManualCitationCount('');
           setManualAbstract('');
           setManualParentPaperId('');
           setManualParentSearch('');
@@ -343,6 +364,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
     manualTitle, setManualTitle,
     manualAuthors, setManualAuthors,
     manualDoi, setManualDoi,
+    manualCitationCount, setManualCitationCount,
     manualAbstract, setManualAbstract,
     manualIngesting,
     manualParentPaperId, setManualParentPaperId,

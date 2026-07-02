@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db, { getConfig } from '@/lib/db';
 import { createHash } from 'crypto';
 import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
+import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 export async function POST(request: Request) {
   try {
@@ -359,6 +360,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
+    // Invalidate semantic search cache for the active project
+    clearSemanticSearchCache(activeProjectId);
+
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to import blinded review' }, { status: 500 });
@@ -405,6 +409,9 @@ export async function DELETE(request: Request) {
         WHERE Project_ID = ? AND calibration_pool = ?
       `).run(activeProjectId, dbPool);
     })();
+
+    // Invalidate semantic search cache for the active project
+    clearSemanticSearchCache(activeProjectId);
 
     return NextResponse.json({ success: true, message: `Successfully reset all calibration data for ${dbPool.toUpperCase()}` });
   } catch (error: any) {

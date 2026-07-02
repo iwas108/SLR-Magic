@@ -30,7 +30,16 @@ def validate_scraped_pdf(file_path):
     except Exception as e:
         return False, f"Error checking file size: {str(e)}"
 
-    # 2. Text check
+    # 2. PDF Header check
+    try:
+        with open(file_path, 'rb') as f:
+            header = f.read(1024)
+            if b'%PDF-' not in header:
+                return False, "Invalid PDF header. File is not a PDF (likely HTML/text paywall or gatekeeper page)."
+    except Exception as e:
+        return False, f"Error reading file header: {str(e)}"
+
+    # 3. Text check (optional heuristic for booklet rejection)
     text = ""
     if has_pypdf:
         try:
@@ -38,7 +47,9 @@ def validate_scraped_pdf(file_path):
             if len(reader.pages) > 0:
                 text = reader.pages[0].extract_text() or ""
         except Exception as e:
-            return False, f"Error reading PDF via pypdf: {str(e)}"
+            # Since the header starts with %PDF-, the file is a PDF. 
+            # We do not want to reject a valid PDF just because pypdf fails to parse its fonts/text.
+            return True, f"Passed (PDF header valid, but text extraction failed: {str(e)})"
     else:
         return True, "Passed (pypdf not installed, skipped text validation)."
 

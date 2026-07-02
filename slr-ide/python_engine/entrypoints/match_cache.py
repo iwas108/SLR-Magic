@@ -245,26 +245,7 @@ def run_matcher():
         })
     conn_idx.close()
 
-    # Auto-build PDF Cache Vector Index incrementally
-    try:
-        from python_engine.vector.index_manager import VectorIndexManager
-        from python_engine.vector.id_map import IDMap
-        
-        # Check already indexed
-        conn_id = IDMap.get_connection()
-        cursor_id = conn_id.cursor()
-        cursor_id.execute("SELECT string_id FROM id_map WHERE source = 'pdf_cache'")
-        already_indexed = {r[0] for r in cursor_id.fetchall()}
-        
-        new_pdfs = [rec for rec in cached_records if rec['filename'] not in already_indexed]
-        if new_pdfs:
-            print(json.dumps({"event": "log", "message": f"Auto-indexing {len(new_pdfs)} new PDFs into vector database..."}))
-            sys.stdout.flush()
-            for rec in new_pdfs:
-                VectorIndexManager.add_pdf(rec['filename'], rec['page1_text'])
-    except Exception as e:
-        print(json.dumps({"event": "log", "message": f"Warning: Vector auto-indexing failed: {e}"}))
-        sys.stdout.flush()
+    # PDF Cache Vector Index auto-indexing dropped (deterministic matching active)
 
     # Fetch active project ID and folder name
     cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
@@ -402,25 +383,7 @@ def run_matcher():
                         match_method = "pdf_metadata_text"
                         break
 
-        # 5. Semantic Vector Match (turbovec)
-        if not matched_record and title:
-            try:
-                from python_engine.vector.index_manager import VectorIndexManager
-                vec_mgr = VectorIndexManager()
-                query_text = f"{title} {abstract}" if abstract else title
-                results = vec_mgr.search_pdf_by_text(query_text, k=3)
-                if results and results[0]['score'] >= semantic_threshold:
-                    matched_filename = results[0]['filename']
-                    for rec in cached_records:
-                        if rec['filename'] == matched_filename:
-                            matched_record = rec
-                            match_method = f"semantic_vector (score: {results[0]['score']:.4f})"
-                            break
-            except Exception as e:
-                throttle_print({
-                    "event": "log",
-                    "message": f"Warning: Stage 5 Semantic Vector match failed: {e}"
-                })
+
 
         # If matched, point Local_PDF_Path directly to cached_pdf/ matched file
         if matched_record:

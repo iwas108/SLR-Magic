@@ -86,7 +86,8 @@ export default function DashboardPage() {
     loadPapers,
     loadCalPapers: calibrationHook.loadCalPapers,
     loadAssignPapers: calibrationHook.loadAssignPapers,
-    loadDuplicatesCount
+    loadDuplicatesCount,
+    checkBatchStatus: pipelineHook.checkBatchStatus
   });
 
   const applyTheme = useCallback((t: string) => {
@@ -238,6 +239,8 @@ export default function DashboardPage() {
               setStatusFilter={papersHook.setStatusFilter}
               pdfFilter={papersHook.pdfFilter}
               setPdfFilter={papersHook.setPdfFilter}
+              sourceFilter={papersHook.sourceFilter}
+              setSourceFilter={papersHook.setSourceFilter}
               setShowImport={setShowImport}
               setDeleteAllConfirm={papersHook.setDeleteAllConfirm}
               operationModal={pipelineHook.operationModal}

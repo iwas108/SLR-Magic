@@ -64,7 +64,16 @@ export async function runSubprocessStep(
     });
 
     child.stderr?.on('data', (data: any) => {
-      const logMsg = { event: 'log', message: `[${step} Error]: ${data.toString()}`, step };
+      const msgStr = data.toString().trim();
+      if (!msgStr) return;
+      
+      const isWarning = msgStr.toLowerCase().includes('warning') || 
+                        msgStr.toLowerCase().includes('deprecated') || 
+                        msgStr.toLowerCase().includes('deprecation') ||
+                        msgStr.includes('<All keys matched successfully>');
+                        
+      const prefix = isWarning ? 'Warning' : 'Error';
+      const logMsg = { event: 'log', message: `[${step} ${prefix}]: ${msgStr}`, step };
       batchStateTracker.updateStateFromMsg(logMsg);
       streamManager.broadcast(logMsg);
     });

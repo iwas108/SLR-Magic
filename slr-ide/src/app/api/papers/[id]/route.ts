@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 export async function GET(
   request: Request,
@@ -24,7 +25,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { Title, Authors, Year, DOI, Abstract, PDF_Link, Status, Local_PDF_Status, calibration_pool, calibration_tag, Human_Decision, Human_EC_Trigger, Human_Rationale, Parent_Paper_ID, Original_Publisher, Publisher } = body;
+    const { Title, Authors, Year, DOI, Abstract, PDF_Link, Status, Local_PDF_Status, calibration_pool, calibration_tag, Human_Decision, Human_EC_Trigger, Human_Rationale, Parent_Paper_ID, Original_Publisher, Publisher, citation_count, notes } = body;
 
     if (!Title || !Title.trim()) {
       return NextResponse.json({ error: 'Title is mandatory' }, { status: 400 });
@@ -47,6 +48,17 @@ export async function PUT(
       yearVal = currentPaper.Year;
     }
 
+    // Safe integer parsing for citation_count to prevent NaN bindings
+    let citationCountVal: number | null = null;
+    if (citation_count !== undefined && citation_count !== null && citation_count !== '') {
+      const parsedCitations = parseInt(citation_count, 10);
+      if (!isNaN(parsedCitations)) {
+        citationCountVal = parsedCitations;
+      }
+    } else if (citation_count === undefined) {
+      citationCountVal = currentPaper.citation_count;
+    }
+
     const calibrationPoolVal = calibration_pool !== undefined ? calibration_pool : currentPaper.calibration_pool;
     const calibrationTagVal = calibration_tag !== undefined ? calibration_tag : currentPaper.calibration_tag;
     const humanDecisionVal = Human_Decision !== undefined ? Human_Decision : currentPaper.Human_Decision;
@@ -55,6 +67,7 @@ export async function PUT(
     const parentPaperIdVal = Parent_Paper_ID !== undefined ? Parent_Paper_ID : currentPaper.Parent_Paper_ID;
     const originalPublisherVal = Original_Publisher !== undefined ? Original_Publisher : currentPaper.Original_Publisher;
     const publisherVal = Publisher !== undefined ? Publisher : currentPaper.Publisher;
+    const notesVal = notes !== undefined ? notes : currentPaper.notes;
 
     db.prepare(`
       UPDATE papers
@@ -73,7 +86,9 @@ export async function PUT(
           Human_Rationale = ?,
           Parent_Paper_ID = ?,
           Original_Publisher = ?,
-          Publisher = ?
+          Publisher = ?,
+          citation_count = ?,
+          notes = ?
       WHERE Paper_ID = ?
     `).run(
       Title.trim(),
@@ -92,8 +107,14 @@ export async function PUT(
       parentPaperIdVal,
       originalPublisherVal,
       publisherVal,
+      citationCountVal,
+      notesVal,
       id
     );
+
+    if (currentPaper?.Project_ID) {
+      clearSemanticSearchCache(currentPaper.Project_ID);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -108,7 +129,13 @@ export async function DELETE(
   try {
     const { id } = await params;
     
+    const paper = db.prepare('SELECT Project_ID FROM papers WHERE Paper_ID = ?').get(id) as { Project_ID: string } | undefined;
+    
     db.prepare('DELETE FROM papers WHERE Paper_ID = ?').run(id);
+
+    if (paper?.Project_ID) {
+      clearSemanticSearchCache(paper.Project_ID);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

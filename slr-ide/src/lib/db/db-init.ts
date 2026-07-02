@@ -28,7 +28,8 @@ export function initializeDatabase(db: Database.Database): void {
       Human_QA_Scores TEXT,
       Human_Extracted_Data TEXT,
       is_duplicate INTEGER DEFAULT 0,
-      merged_into_id TEXT DEFAULT NULL
+      merged_into_id TEXT DEFAULT NULL,
+      notes TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers (DOI);
@@ -178,6 +179,18 @@ export function initializeDatabase(db: Database.Database): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_dp_project_status ON duplicate_pairs(project_id, status);
+
+    CREATE TABLE IF NOT EXISTS semantic_search_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL,
+      query_text TEXT NOT NULL,
+      pool_filter TEXT NOT NULL,
+      results TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(project_id, query_text, pool_filter),
+      FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_ssc_lookup ON semantic_search_cache (project_id, query_text, pool_filter);
   `);
 
   // Add Project_ID column to papers if it doesn't exist (migration fallback)
@@ -386,6 +399,11 @@ export function initializeDatabase(db: Database.Database): void {
   // Add merged_into_id column to papers if it doesn't exist (migration fallback)
   try {
     db.exec("ALTER TABLE papers ADD COLUMN merged_into_id TEXT DEFAULT NULL");
+  } catch (e) {}
+
+  // Add notes column to papers if it doesn't exist (migration fallback)
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN notes TEXT");
   } catch (e) {}
 
   // Create index idx_papers_is_duplicate if it doesn't exist

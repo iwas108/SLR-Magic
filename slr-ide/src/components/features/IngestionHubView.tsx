@@ -56,6 +56,8 @@ export default function IngestionHubView({
     setManualAuthors,
     manualDoi,
     setManualDoi,
+    manualCitationCount,
+    setManualCitationCount,
     manualAbstract,
     setManualAbstract,
     manualIngesting,
@@ -357,7 +359,7 @@ export default function IngestionHubView({
                 </div>
 
                 <div className="grid grid-cols-4 gap-4">
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Digital Object Identifier (DOI)</label>
                     <input
                       type="text"
@@ -375,6 +377,17 @@ export default function IngestionHubView({
                       onChange={(e) => setManualYear(e.target.value)}
                       className="w-full px-3 py-1.5 text-xs bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-semibold font-mono text-center"
                       placeholder="e.g. 2024"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Citations</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={manualCitationCount}
+                      onChange={(e) => setManualCitationCount(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-semibold font-mono text-center"
+                      placeholder="0"
                     />
                   </div>
                 </div>

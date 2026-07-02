@@ -134,6 +134,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/services/batch-state-tracker.ts`| Backend Service | Thread-safe memory state manager for batch progress counters, with SQLite `configs` persistence checkpoints for batch resume. |
 | `lib/services/batch-pipeline-executor.ts`| Backend Service | Orchestration service for sequential PDF acquisition batches, Ghostscript compression, and cloud synchronizations. |
 | `lib/services/backup-service.ts` | Backend Service | Background auto-backup scheduler copying database folder db/* to Rclone remotes by interval or changes. |
+| `lib/services/semantic-search-cache.ts` | Backend Service | Lightweight SQLite caching system for turbovec semantic searches, fetching up-to-date metadata dynamically on hits. |
 | `lib/services/pipeline/subprocess-runner.ts` | Backend Service | Helper service orchestrating python child process execution, NDJSON buffering, and stdout/stderr event forwarding. |
 | `lib/services/pipeline/compressor.ts` | Backend Service | Helper service resolving Ghostscript path environment and executing file compressions. |
 | `lib/services/pipeline/rclone-sync.ts` | Backend Service | Helper service constructing cloud sync command-lines, re-connecting OAuth configs, and updating databases. |
@@ -221,6 +222,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/adjudicate/ledger/route.ts` | REST Endpoint | Handles GET requests to retrieve the immutable audit log of all calibration adjudication commits for a project. |
 | `api/adjudicate/stats/route.ts` | REST Endpoint | Handles GET requests to calculate inter-rater agreement statistics, Cohen's Kappa, and calibration progress metrics. |
 | `api/config/route.ts` | REST Endpoint | Handles GET and PUT requests to retrieve and update key-value configuration settings in the SQLite `configs` table. |
+| `api/config/backup/route.ts` | REST Endpoint | Handles POST requests to trigger manual database auto-backup to cloud storage remotes using Rclone. |
 | `api/config/env/route.ts` | REST Endpoint | Handles GET requests to verify system environment variables and confirm the existence of required external executables (`rclone`, `tesseract`). |
 | `api/config/test/route.ts` | REST Endpoint | Handles POST requests to test Rclone cloud storage connectivity (Google Drive / OneDrive) by listing remote root directories. |
 | `api/duplicates/route.ts` | REST Endpoint | Handles GET requests to retrieve pending candidate duplicate paper pairs for the active project from `duplicate_pairs`. |

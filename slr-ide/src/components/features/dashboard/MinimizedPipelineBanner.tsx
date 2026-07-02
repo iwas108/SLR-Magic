@@ -61,6 +61,9 @@ export default function MinimizedPipelineBanner({
   } else if (currentStep === 'compress') {
     statsFound = pipelineStats?.current || 0;
     statsNotFound = 0;
+  } else if (currentStep === 'map_publisher') {
+    statsFound = (pipelineStats?.current || 0) - (pipelineStats?.failed || 0);
+    statsNotFound = pipelineStats?.failed || 0;
   } else if (currentStep === 'sync') {
     statsFound = pipelineStats?.current || 0;
     statsNotFound = pipelineStats?.failed || 0;

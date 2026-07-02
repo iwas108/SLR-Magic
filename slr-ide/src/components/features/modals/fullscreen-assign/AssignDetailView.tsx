@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, CheckCircle2, AlertTriangle, Play, RefreshCw, 
-  Terminal, ExternalLink, X 
+  Terminal, ExternalLink, X, Check 
 } from 'lucide-react';
 interface AssignDetailViewProps {
   projects: any[];
@@ -24,6 +24,7 @@ interface AssignDetailViewProps {
   singlePipelineAbortControllerRef: React.MutableRefObject<AbortController | null>;
   logEndRef: React.RefObject<HTMLDivElement | null>;
   onClose: () => void;
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 export default function AssignDetailView({
@@ -46,9 +47,43 @@ export default function AssignDetailView({
   setAssignWaitingLogin,
   singlePipelineAbortControllerRef,
   logEndRef,
-  onClose
+  onClose,
+  showToast
 }: AssignDetailViewProps) {
   const [proxyBaseUrl, setProxyBaseUrl] = useState('');
+  const [notesText, setNotesText] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+
+  useEffect(() => {
+    if (assignSelectedPaper) {
+      setNotesText(assignSelectedPaper.notes || '');
+    }
+  }, [assignSelectedPaper?.Paper_ID]);
+
+  const handleSaveNotes = async () => {
+    if (!assignSelectedPaper) return;
+    setSavingNotes(true);
+    try {
+      const res = await fetch(`/api/papers/${assignSelectedPaper.Paper_ID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          Title: assignSelectedPaper.Title,
+          notes: notesText
+        })
+      });
+      if (res.ok) {
+        showToast('Notes saved successfully', 'success');
+        assignSelectedPaper.notes = notesText;
+      } else {
+        showToast('Failed to save notes', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error saving notes', 'error');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   useEffect(() => {
     fetch('/api/config')
@@ -163,14 +198,15 @@ export default function AssignDetailView({
                             handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, null);
                           }
                         }}
-                        className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase transition-all duration-200 flex items-center gap-1 ${
+                        className={`px-2.5 py-1.5 rounded-md text-[9px] font-extrabold uppercase transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${
                           isAssigned
-                            ? pool.id === 'pool_a' ? 'bg-indigo-50 text-indigo-foreground shadow-sm' :
-                              pool.id === 'pool_b' ? 'bg-emerald-500 text-emerald-foreground shadow-sm' :
-                              'bg-amber-500 text-amber-foreground shadow-sm'
+                            ? pool.id === 'pool_a' ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-500/20' :
+                              pool.id === 'pool_b' ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20' :
+                              'bg-amber-600 text-white shadow-sm ring-2 ring-amber-500/20'
                             : `text-muted-foreground hover:bg-secondary ${pool.color}`
                         }`}
                       >
+                        {isAssigned && <Check className="w-3 h-3 shrink-0" />}
                         <span>{pool.label}</span>
                         {currentTag && (
                           <span className="bg-background/20 px-1 rounded text-[8px] font-bold border border-foreground/10">
@@ -195,23 +231,34 @@ export default function AssignDetailView({
                                 handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, null);
                                 setActiveAssignDropdown(null);
                               }}
-                              className="px-2.5 py-1.5 text-left hover:bg-secondary transition-colors"
+                              className={`px-2.5 py-1.5 text-left hover:bg-secondary transition-colors flex items-center justify-between cursor-pointer ${
+                                isAssigned && !currentTag ? 'text-primary font-extrabold bg-secondary/30' : ''
+                              }`}
                             >
-                              No Tag (General)
+                              <span>No Tag (General)</span>
+                              {isAssigned && !currentTag && <Check className="w-3 h-3 text-primary shrink-0" />}
                             </button>
-                            {poolTags.map((tag) => (
-                              <button
-                                key={tag.code}
-                                type="button"
-                                onClick={() => {
-                                  handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, tag.code);
-                                  setActiveAssignDropdown(null);
-                                }}
-                                className="px-2.5 py-1.5 text-left hover:bg-secondary transition-colors border-t border-border/30"
-                              >
-                                <span className="font-bold text-primary mr-1">{tag.code}</span> - {tag.label}
-                              </button>
-                            ))}
+                            {poolTags.map((tag) => {
+                              const isTagActive = isAssigned && currentTag === tag.code;
+                              return (
+                                <button
+                                  key={tag.code}
+                                  type="button"
+                                  onClick={() => {
+                                    handleAssignPool(assignSelectedPaper.Paper_ID, pool.id, tag.code);
+                                    setActiveAssignDropdown(null);
+                                  }}
+                                  className={`px-2.5 py-1.5 text-left hover:bg-secondary transition-colors border-t border-border/30 flex items-center justify-between cursor-pointer ${
+                                    isTagActive ? 'text-primary font-extrabold bg-secondary/30' : ''
+                                  }`}
+                                >
+                                  <span className="truncate">
+                                    <span className="font-bold text-primary mr-1">{tag.code}</span> - {tag.label}
+                                  </span>
+                                  {isTagActive && <Check className="w-3 h-3 text-primary shrink-0" />}
+                                </button>
+                              );
+                            })}
                           </div>
                         </>
                       )}
@@ -297,6 +344,15 @@ export default function AssignDetailView({
               </span>
             </div>
 
+            {assignSelectedPaper.Local_PDF_Path && (
+              <div className="col-span-2 md:col-span-3">
+                <span className="block text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Local PDF Filename</span>
+                <span className="text-foreground font-mono select-all bg-secondary/30 px-2 py-1 rounded border border-border/40 inline-block break-all">
+                  {assignSelectedPaper.Local_PDF_Path.split('/').pop()?.split('\\').pop()}
+                </span>
+              </div>
+            )}
+
             {assignSelectedPaper.PDF_Link && (
               <div className="col-span-2 md:col-span-3">
                 <span className="block text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Original URL / PDF Link</span>
@@ -350,6 +406,28 @@ export default function AssignDetailView({
               <p className="text-xs xl:text-sm text-foreground font-medium leading-relaxed select-text pt-1">{assignSelectedPaper.Abstract}</p>
             </div>
           )}
+
+          {/* Notes / Findings */}
+          <div className="pt-3 border-t border-border/60">
+            <div className="flex items-center justify-between mb-1.5 select-none">
+              <span className="text-[10px] text-muted-foreground/70 font-bold uppercase tracking-wider block">Notes / Findings</span>
+              <button
+                type="button"
+                onClick={handleSaveNotes}
+                disabled={savingNotes}
+                className="px-2.5 py-0.5 bg-primary/10 hover:bg-primary/20 text-primary text-[9px] font-extrabold uppercase rounded border border-primary/20 transition-colors cursor-pointer"
+              >
+                {savingNotes ? 'Saving...' : 'Save Notes'}
+              </button>
+            </div>
+            <textarea
+              className="w-full bg-secondary/25 border border-border/60 rounded-lg p-2.5 text-xs text-foreground focus:outline-none focus:border-primary font-medium leading-relaxed"
+              rows={3}
+              placeholder="Record findings, comments, or extra context here..."
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* PDF Viewer or Acquisition Panel */}

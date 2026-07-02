@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
-import { PROJECT_ROOT } from '@/lib/db';
+import { PROJECT_ROOT, getConfig } from '@/lib/db';
+import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +12,9 @@ export async function POST(request: Request) {
     } catch {
       // Body might be empty, ignore
     }
+
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    clearSemanticSearchCache(activeProjectId);
 
     const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
     const pythonModule = 'python_engine.entrypoints.build_vectors';

@@ -6,6 +6,7 @@ interface SyncCallbacks {
   loadCalPapers?: () => void;
   loadAssignPapers?: () => void;
   loadDuplicatesCount?: () => void;
+  checkBatchStatus?: () => void;
   [key: string]: any;
 }
 
@@ -40,6 +41,9 @@ export function useAppSync(callbacks: SyncCallbacks) {
       }
       if (type === 'SYNC_ASSIGN' && latestCallbacks.current.loadAssignPapers) {
         latestCallbacks.current.loadAssignPapers();
+      }
+      if (type === 'SYNC_PIPELINE' && latestCallbacks.current.checkBatchStatus) {
+        latestCallbacks.current.checkBatchStatus();
       }
     };
 

@@ -67,9 +67,20 @@ const pushLog = (msg: string) => {
 };
 
 const broadcast = (data: any) => {
+  let enriched = data;
+  if (data && typeof data === 'object') {
+    enriched = {
+      ...data,
+      pct: batchState.progress,
+      progress: batchState.progress,
+      pipelineStats: batchState.pipelineStats,
+      currentItem: batchState.currentItem,
+      message: data.message || batchState.statusText
+    };
+  }
   batchState.listeners.forEach(listener => {
     try {
-      listener(data);
+      listener(enriched);
     } catch (e) {
       // ignore closed connections
     }

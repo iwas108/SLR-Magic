@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import db, { getConfig } from '@/lib/db';
 import crypto from 'crypto';
+import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 function generatePaperId(rawData: { Title?: string; DOI?: string; Authors?: string; Year?: any }): string {
   const authorsField = rawData.Authors || "";
@@ -56,6 +57,7 @@ export async function GET(request: Request) {
     const calibrationPool = searchParams.get('calibrationPool')?.trim() || '';
     const calibrationTag = searchParams.get('calibrationTag')?.trim() || '';
     const publisher = searchParams.get('publisher')?.trim() || '';
+    const source = searchParams.get('source')?.trim() || '';
     
     // Sort parameters
     const sortBy = searchParams.get('sortBy')?.trim() || 'Paper_ID';
@@ -90,6 +92,18 @@ export async function GET(request: Request) {
     if (publisher) {
       filterQuery += ' AND Publisher = ?';
       params.push(publisher);
+    }
+
+    if (source) {
+      if (source === 'manual') {
+        filterQuery += " AND (Import_Source = 'Manual Search' OR Import_Source = 'Manual Ingestion')";
+      } else if (source === 'backward') {
+        filterQuery += " AND Import_Source = 'Backward Snowball'";
+      } else if (source === 'forward') {
+        filterQuery += " AND Import_Source = 'Forward Snowball'";
+      } else if (source === 'csv') {
+        filterQuery += " AND Import_Source NOT IN ('Manual Search', 'Manual Ingestion', 'Backward Snowball', 'Forward Snowball')";
+      }
     }
 
     if (calibrationPool) {
@@ -327,6 +341,9 @@ export async function POST(request: Request) {
 
     transaction();
 
+    // Invalidate semantic search cache for the active project
+    clearSemanticSearchCache(activeProjectId);
+
     return NextResponse.json({
       success: true,
       total: papers.length,
@@ -377,6 +394,10 @@ export async function PUT(request: Request) {
 
     transaction(paperIds);
 
+    // Invalidate semantic search cache for the active project
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    clearSemanticSearchCache(activeProjectId);
+
     return NextResponse.json({ success: true, updatedCount: paperIds.length });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to update papers' }, { status: 500 });
@@ -401,6 +422,9 @@ export async function DELETE(request: Request) {
     const rescuedCount = rescuePdfAssets(paperIds);
 
     db.prepare('DELETE FROM papers WHERE Project_ID = ?').run(activeProjectId);
+
+    // Invalidate semantic search cache for the active project
+    clearSemanticSearchCache(activeProjectId);
 
     return NextResponse.json({ 
       success: true, 

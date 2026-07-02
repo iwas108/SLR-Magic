@@ -51,6 +51,8 @@ interface FullscreenAssignModalProps {
     setAssignSortBy: React.Dispatch<React.SetStateAction<string>>;
     assignSortOrder: 'ASC' | 'DESC';
     setAssignSortOrder: React.Dispatch<React.SetStateAction<'ASC' | 'DESC'>>;
+    assignSearchTime: number | null;
+    triggerSemanticSearch: () => void;
   };
   pipelineHook: {
     logEndRef: React.RefObject<HTMLDivElement | null>;
@@ -105,7 +107,9 @@ export default function FullscreenAssignModal({
     assignSortBy,
     setAssignSortBy,
     assignSortOrder,
-    setAssignSortOrder
+    setAssignSortOrder,
+    assignSearchTime,
+    triggerSemanticSearch
   } = calibrationHook;
 
   const cloudProvider = projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider || 'gdrive';
@@ -168,6 +172,8 @@ export default function FullscreenAssignModal({
           setAssignSortBy={setAssignSortBy}
           assignSortOrder={assignSortOrder}
           setAssignSortOrder={setAssignSortOrder}
+          assignSearchTime={assignSearchTime}
+          triggerSemanticSearch={triggerSemanticSearch}
         />
         {assignSelectedPaper && (
           <AssignDetailView
@@ -191,6 +197,7 @@ export default function FullscreenAssignModal({
             singlePipelineAbortControllerRef={singlePipelineAbortControllerRef}
             logEndRef={logEndRef}
             onClose={() => setAssignSelectedPaper(null)}
+            showToast={showToast}
           />
         )}
       </div>

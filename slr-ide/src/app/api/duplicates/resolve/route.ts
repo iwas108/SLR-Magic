@@ -1,5 +1,6 @@
 import db from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 export async function POST(req: Request) {
   try {
@@ -13,12 +14,19 @@ export async function POST(req: Request) {
       );
     }
 
+    // Retrieve the project_id associated with this duplicate pair
+    const pair = db.prepare('SELECT project_id FROM duplicate_pairs WHERE id = ?').get(pair_id) as { project_id: string } | undefined;
+
     if (action === 'KEEP_BOTH') {
       db.prepare(`
         UPDATE duplicate_pairs
         SET status = 'FALSE_FLAG'
         WHERE id = ?
       `).run(pair_id);
+
+      if (pair?.project_id) {
+        clearSemanticSearchCache(pair.project_id);
+      }
 
       return NextResponse.json({ success: true, message: 'Resolved as false flag (kept both papers).' });
     }
@@ -49,6 +57,10 @@ export async function POST(req: Request) {
       });
 
       resolveTx();
+
+      if (pair?.project_id) {
+        clearSemanticSearchCache(pair.project_id);
+      }
 
       return NextResponse.json({
         success: true,

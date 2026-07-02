@@ -61,9 +61,20 @@ export class StreamManager {
     const globalState = (global as any);
     const state = globalState.batchState;
     if (state && state.listeners) {
+      let enrichedData = data;
+      if (data && typeof data === 'object') {
+        enrichedData = {
+          ...data,
+          pct: state.progress,
+          progress: state.progress,
+          pipelineStats: state.pipelineStats,
+          currentItem: state.currentItem,
+          message: data.message || state.statusText
+        };
+      }
       state.listeners.forEach((listener: any) => {
         try {
-          listener(data);
+          listener(enrichedData);
         } catch (e) {
           // ignore closed connections
         }

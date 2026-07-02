@@ -48,7 +48,11 @@ export function useCalibration({
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [activeAssignDropdown, setActiveAssignDropdown] = useState<string | null>(null);
   const [assignSearch, setAssignSearch] = useState('');
-  const [assignPoolFilter, setAssignPoolFilter] = useState('unassigned');
+  const [debouncedKeywordSearch, setDebouncedKeywordSearch] = useState('');
+  const [activeSemanticQuery, setActiveSemanticQuery] = useState('');
+  const assignAbortControllerRef = useRef<AbortController | null>(null);
+
+  const [assignPoolFilter, setAssignPoolFilter] = useState('all');
   const [assignSortBy, setAssignSortBy] = useState<string>('Paper_ID');
   const [assignSortOrder, setAssignSortOrder] = useState<'ASC' | 'DESC'>('ASC');
   const [assignPapers, setAssignPapers] = useState<Paper[]>([]);
@@ -71,8 +75,36 @@ export function useCalibration({
   const [assignStatusText, setAssignStatusText] = useState('Idle');
   const [assignProgress, setAssignProgress] = useState(0);
   const [assignWaitingLogin, setAssignWaitingLogin] = useState(false);
+  const [assignSearchTime, setAssignSearchTime] = useState<number | null>(null);
 
   const singlePipelineAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Debounce keyword search input
+  useEffect(() => {
+    if (assignSearchMode !== 'keyword') return;
+    const timer = setTimeout(() => {
+      setDebouncedKeywordSearch(assignSearch);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [assignSearch, assignSearchMode]);
+
+  // Reset active query and pagination when switching mode
+  useEffect(() => {
+    setAssignPage(1);
+    if (assignSearchMode === 'keyword') {
+      setDebouncedKeywordSearch(assignSearch);
+    } else {
+      setActiveSemanticQuery('');
+    }
+  }, [assignSearchMode]);
+
+  // Abort on unmount or when modal is closed
+  useEffect(() => {
+    if (!showAssignModal && assignAbortControllerRef.current) {
+      assignAbortControllerRef.current.abort();
+      assignAbortControllerRef.current = null;
+    }
+  }, [showAssignModal]);
 
   // Fetch calibration papers
   const loadCalPapers = useCallback(async () => {
@@ -134,14 +166,26 @@ export function useCalibration({
 
   // Fetch papers for pool assignment
   const loadAssignPapers = useCallback(async () => {
+    if (assignAbortControllerRef.current) {
+      assignAbortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    assignAbortControllerRef.current = controller;
+
     setAssignLoading(true);
+    setAssignSearchTime(null);
+    const startTime = Date.now();
+
+    const currentQuery = assignSearchMode === 'semantic' ? activeSemanticQuery : debouncedKeywordSearch;
+
     try {
-      if (assignSearchMode === 'semantic' && assignSearch.trim()) {
+      if (assignSearchMode === 'semantic' && currentQuery.trim()) {
         const res = await fetch('/api/vectors/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
-            query: assignSearch,
+            query: currentQuery,
             pool: assignPoolFilter,
             k: 200,
             mode: 'papers'
@@ -182,6 +226,7 @@ export function useCalibration({
           setAssignPapers(sliced);
           setAssignTotalPapers(total);
           setAssignTotalPages(Math.ceil(total / assignLimit));
+          setAssignSearchTime(Date.now() - startTime);
         } else {
           setAssignPapers([]);
           setAssignTotalPapers(0);
@@ -189,7 +234,7 @@ export function useCalibration({
         }
       } else {
         const params = new URLSearchParams();
-        if (assignSearch) params.append('search', assignSearch);
+        if (currentQuery) params.append('search', currentQuery);
         
         if (assignPoolFilter === 'unassigned') {
           params.append('calibrationPool', 'none');
@@ -202,20 +247,33 @@ export function useCalibration({
         params.append('page', String(assignPage));
         params.append('limit', String(assignLimit));
 
-        const res = await fetch(`/api/papers?${params.toString()}`);
+        const res = await fetch(`/api/papers?${params.toString()}`, {
+          signal: controller.signal
+        });
         if (res.ok) {
           const data = await res.json();
           setAssignPapers(data.papers || []);
           setAssignTotalPapers(data.total || 0);
           setAssignTotalPages(data.totalPages || 1);
+          setAssignSearchTime(Date.now() - startTime);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return; // Expected cancellation, do not log or update loading state
+      }
       console.error('Error loading papers for pool assignment:', err);
     } finally {
-      setAssignLoading(false);
+      if (assignAbortControllerRef.current === controller) {
+        setAssignLoading(false);
+      }
     }
-  }, [assignSearch, assignPoolFilter, assignPage, assignLimit, assignSearchMode, assignSortBy, assignSortOrder]);
+  }, [assignSearchMode, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignSortBy, assignSortOrder]);
+
+  const triggerSemanticSearch = useCallback(() => {
+    setActiveSemanticQuery(assignSearch);
+    setAssignPage(1);
+  }, [assignSearch]);
 
   // Assign or unassign papers to pools
   const handleAssignPool = useCallback(async (paperId: string, pool: string | null, tag: string | null = null) => {
@@ -244,6 +302,16 @@ export function useCalibration({
       if (res.ok) {
         showToast(`Paper successfully ${pool ? `assigned to ${pool.replace('_', ' ')}` : 'unassigned'}.`, 'success');
         
+        setAssignSelectedPaper(prev => {
+          if (!prev || prev.Paper_ID !== paperId) return prev;
+          return {
+            ...prev,
+            calibration_pool: pool,
+            calibration_tag: tag,
+            Local_PDF_Status: nextPdfStatus
+          };
+        });
+
         await loadProjects();
         if (activeTab === 'pre-calibration') {
           await loadCalPapers();
@@ -259,7 +327,7 @@ export function useCalibration({
     } catch (e: any) {
       showToast(e.message || 'Failed to assign pool', 'error');
     }
-  }, [papers, calPapers, assignPapers, loadProjects, activeTab, loadCalPapers, showAssignModal, loadAssignPapers, loadPapers, showToast]);
+  }, [papers, calPapers, assignPapers, loadProjects, activeTab, loadCalPapers, showAssignModal, loadAssignPapers, loadPapers, showToast, setAssignSelectedPaper]);
 
   // Single paper PDF acquisition pipeline
   const runSinglePaperPipeline = useCallback(async (paperId: string) => {
@@ -353,13 +421,15 @@ export function useCalibration({
         }
       }
 
+      const paperRes = await fetch(`/api/papers/${paperId}`);
+      if (paperRes.ok) {
+        const updatedPaper = await paperRes.json();
+        setAssignSelectedPaper(updatedPaper);
+        setAssignPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
+        setCalPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
+      }
+
       await loadProjects();
-      if (activeTab === 'pre-calibration') {
-        await loadCalPapers();
-      }
-      if (showAssignModal) {
-        await loadAssignPapers();
-      }
       loadPapers();
 
     } catch (err: any) {
@@ -372,7 +442,7 @@ export function useCalibration({
       setAssignIsRunning(false);
       singlePipelineAbortControllerRef.current = null;
     }
-  }, [assignIsRunning, showToast, loadProjects, activeTab, loadCalPapers, showAssignModal, loadAssignPapers, loadPapers]);
+  }, [assignIsRunning, showToast, loadProjects, loadPapers, setAssignSelectedPaper, setAssignPapers, setCalPapers]);
 
   const handleCalSort = useCallback((field: string) => {
     if (calSortBy === field) {
@@ -416,7 +486,7 @@ export function useCalibration({
     if (showAssignModal) {
       loadAssignPapers();
     }
-  }, [showAssignModal, assignSearch, assignPoolFilter, assignPage, assignLimit, loadAssignPapers]);
+  }, [showAssignModal, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, loadAssignPapers]);
 
   // Reset calibration pagination when filter changes
   useEffect(() => {
@@ -426,7 +496,7 @@ export function useCalibration({
   // Reset assignment pagination when filter changes
   useEffect(() => {
     setAssignPage(1);
-  }, [assignSearch, assignPoolFilter, assignSearchMode]);
+  }, [activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignSearchMode]);
 
   // Reset sort column if switching search mode
   useEffect(() => {
@@ -467,6 +537,7 @@ export function useCalibration({
     assignSortBy, setAssignSortBy,
     assignSortOrder, setAssignSortOrder,
     vectorIndexStatus, setVectorIndexStatus,
+    assignSearchTime,
     
     assignLogs, setAssignLogs,
     assignIsRunning, setAssignIsRunning,
@@ -477,6 +548,7 @@ export function useCalibration({
     singlePipelineAbortControllerRef,
     loadCalPapers,
     loadAssignPapers,
+    triggerSemanticSearch,
     handleAssignPool,
     runSinglePaperPipeline,
     handleCalSort,
