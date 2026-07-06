@@ -38,6 +38,30 @@ export async function GET(request: Request) {
     }
 
     if (!fs.existsSync(fullPath)) {
+      // ON-DEMAND SELF-HEALING:
+      // If the file is missing from repo folder (e.g. pdf_library/repo/<folderName>/<Paper_ID>.pdf)
+      // check if it exists in the eternal library (pdf_library/raw/<Paper_ID>.pdf).
+      // If so, copy it to the repo folder on the fly.
+      const match = resolvedPath.match(/^pdf_library\/repo\/([^/]+)\/([^/]+\.pdf)$/);
+      if (match) {
+        const paperId = path.basename(resolvedPath, '.pdf');
+        const rawPath = path.join(/*turbopackIgnore: true*/ PROJECT_ROOT, 'pdf_library', 'raw', `${paperId}.pdf`);
+        if (fs.existsSync(rawPath)) {
+          try {
+            const repoDir = path.dirname(fullPath);
+            if (!fs.existsSync(repoDir)) {
+              fs.mkdirSync(repoDir, { recursive: true });
+            }
+            fs.copyFileSync(rawPath, fullPath);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`Failed to self-heal PDF for serve: ${msg}`);
+          }
+        }
+      }
+    }
+
+    if (!fs.existsSync(fullPath)) {
       return new Response('File not found', { status: 404 });
     }
 

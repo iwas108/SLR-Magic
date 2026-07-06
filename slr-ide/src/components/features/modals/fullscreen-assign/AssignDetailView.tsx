@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, CheckCircle2, AlertTriangle, Play, RefreshCw, 
-  Terminal, ExternalLink, X, Check 
+  Terminal, ExternalLink, X, Check, Copy
 } from 'lucide-react';
+import { broadcastSync } from '@/lib/sync-utils';
+
 interface AssignDetailViewProps {
   projects: any[];
   activeProjectId: string;
   assignSelectedPaper: any;
+  setAssignSelectedPaper: React.Dispatch<React.SetStateAction<any>>;
+  setAssignPapers: React.Dispatch<React.SetStateAction<any[]>>;
   assignIsRunning: boolean;
   assignLogs: any[];
   setAssignLogs: React.Dispatch<React.SetStateAction<any[]>>;
@@ -31,6 +35,8 @@ export default function AssignDetailView({
   projects,
   activeProjectId,
   assignSelectedPaper,
+  setAssignSelectedPaper,
+  setAssignPapers,
   assignIsRunning,
   assignLogs,
   setAssignLogs,
@@ -53,6 +59,32 @@ export default function AssignDetailView({
   const [proxyBaseUrl, setProxyBaseUrl] = useState('');
   const [notesText, setNotesText] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyDetails = async () => {
+    if (!assignSelectedPaper) return;
+    const publisherName = assignSelectedPaper.Publisher || assignSelectedPaper.Original_Publisher || '—';
+    const citationCount = assignSelectedPaper.citation_count !== undefined && assignSelectedPaper.citation_count !== null ? assignSelectedPaper.citation_count : '0';
+    const textToCopy = [
+      `Title: ${assignSelectedPaper.Title || '—'}`,
+      `Authors: ${assignSelectedPaper.Authors || '—'}`,
+      `Year: ${assignSelectedPaper.Year || '—'}`,
+      `DOI: ${assignSelectedPaper.DOI || '—'}`,
+      `Publisher: ${publisherName}`,
+      `Abstract: ${assignSelectedPaper.Abstract || '—'}`,
+      `Citations: ${citationCount}`
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      showToast('Paper details copied to clipboard', 'success');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      showToast('Failed to copy details to clipboard', 'error');
+    }
+  };
 
   useEffect(() => {
     if (assignSelectedPaper) {
@@ -74,12 +106,21 @@ export default function AssignDetailView({
       });
       if (res.ok) {
         showToast('Notes saved successfully', 'success');
-        assignSelectedPaper.notes = notesText;
+        
+        // Update selection and list states immutably
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setAssignSelectedPaper((prev: any) => prev ? { ...prev, notes: notesText } : null);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setAssignPapers((prev: any[]) => prev.map(p => p.Paper_ID === assignSelectedPaper.Paper_ID ? { ...p, notes: notesText } : p));
+        
+        // Broadcast the change to other tabs
+        broadcastSync('SYNC_PAPERS');
       } else {
         showToast('Failed to save notes', 'error');
       }
-    } catch (err: any) {
-      showToast(err.message || 'Error saving notes', 'error');
+    } catch (err) {
+      const error = err as Error;
+      showToast(error.message || 'Error saving notes', 'error');
     } finally {
       setSavingNotes(false);
     }
@@ -132,30 +173,39 @@ export default function AssignDetailView({
   }
 
   const getActiveProjectPoolTags = (poolId: string): { code: string; label: string }[] => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const activeProj = projects.find((p: any) => String(p.id) === String(activeProjectId));
     if (!activeProj || !activeProj.pool_tags) return [];
     try {
       const parsed = typeof activeProj.pool_tags === 'string' ? JSON.parse(activeProj.pool_tags) : activeProj.pool_tags;
       return parsed[poolId] || [];
-    } catch (e) {
+    } catch {
       return [];
     }
   };
-
-  const tags = getActiveProjectPoolTags(assignSelectedPaper.calibration_pool || '');
 
   return (
     <div className="flex-1 bg-background p-6 overflow-y-auto flex flex-col space-y-6 border-l border-border/80">
       {/* Top action header containing Close button */}
       <div className="flex items-center justify-between shrink-0 select-none pb-2 border-b border-border/40">
         <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Paper Details Workspace</span>
-        <button
-          onClick={onClose}
-          className="px-3 py-1 bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground text-[10px] font-extrabold rounded-lg border border-border flex items-center gap-1 transition-colors cursor-pointer"
-        >
-          <X className="w-3.5 h-3.5" />
-          Close & Expand List
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCopyDetails}
+            className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-extrabold rounded-lg border border-primary/20 flex items-center gap-1 transition-all duration-200 cursor-pointer"
+            title="Copy paper metadata to clipboard"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 animate-in zoom-in-50 duration-150" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copied ? 'Copied!' : 'Copy Details'}</span>
+          </button>
+          <button
+            onClick={onClose}
+            className="px-3 py-1 bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground text-[10px] font-extrabold rounded-lg border border-border flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+            Close & Expand List
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 w-full pb-8">
@@ -331,6 +381,12 @@ export default function AssignDetailView({
             <div>
               <span className="block text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Import Source</span>
               <span className="text-foreground font-mono">{assignSelectedPaper.Import_Source || '—'}</span>
+            </div>
+            <div>
+              <span className="block text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Citation Count</span>
+              <span className="text-foreground">
+                📊 {assignSelectedPaper.citation_count !== undefined && assignSelectedPaper.citation_count !== null ? assignSelectedPaper.citation_count : '0'}
+              </span>
             </div>
             <div>
               <span className="block text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Local PDF Status</span>

@@ -63,6 +63,9 @@ export function useCalibration({
   const [assignTotalPapers, setAssignTotalPapers] = useState(0);
   const [assignTotalPages, setAssignTotalPages] = useState(1);
   const [assignSearchMode, setAssignSearchMode] = useState<'keyword' | 'semantic'>('keyword');
+  const [assignExcludeReviews, setAssignExcludeReviews] = useState(false);
+  const [assignPublisherFilter, setAssignPublisherFilter] = useState('all');
+  const [uniquePublishers, setUniquePublishers] = useState<string[]>([]);
   const [vectorIndexStatus, setVectorIndexStatus] = useState<{
     indexed: boolean;
     pdf_count: number;
@@ -188,7 +191,9 @@ export function useCalibration({
             query: currentQuery,
             pool: assignPoolFilter,
             k: 200,
-            mode: 'papers'
+            mode: 'papers',
+            excludeReviews: assignExcludeReviews,
+            publisher: assignPublisherFilter
           })
         });
 
@@ -242,6 +247,10 @@ export function useCalibration({
           params.append('calibrationPool', assignPoolFilter);
         }
         
+        if (assignPublisherFilter && assignPublisherFilter !== 'all') {
+          params.append('publisher', assignPublisherFilter);
+        }
+        
         params.append('sortBy', assignSortBy);
         params.append('sortOrder', assignSortOrder);
         params.append('page', String(assignPage));
@@ -268,7 +277,7 @@ export function useCalibration({
         setAssignLoading(false);
       }
     }
-  }, [assignSearchMode, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignSortBy, assignSortOrder]);
+  }, [assignSearchMode, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignSortBy, assignSortOrder, assignExcludeReviews, assignPublisherFilter]);
 
   const triggerSemanticSearch = useCallback(() => {
     setActiveSemanticQuery(assignSearch);
@@ -278,7 +287,10 @@ export function useCalibration({
   // Assign or unassign papers to pools
   const handleAssignPool = useCallback(async (paperId: string, pool: string | null, tag: string | null = null) => {
     try {
-      const paperObj = papers.find(p => p.Paper_ID === paperId) || calPapers.find(p => p.Paper_ID === paperId) || assignPapers.find(p => p.Paper_ID === paperId);
+      const paperObj = (assignSelectedPaper?.Paper_ID === paperId ? assignSelectedPaper : null) ||
+                       papers.find(p => p.Paper_ID === paperId) ||
+                       calPapers.find(p => p.Paper_ID === paperId) ||
+                       assignPapers.find(p => p.Paper_ID === paperId);
       if (!paperObj) return;
 
       let nextPdfStatus = paperObj.Local_PDF_Status;
@@ -327,7 +339,7 @@ export function useCalibration({
     } catch (e: any) {
       showToast(e.message || 'Failed to assign pool', 'error');
     }
-  }, [papers, calPapers, assignPapers, loadProjects, activeTab, loadCalPapers, showAssignModal, loadAssignPapers, loadPapers, showToast, setAssignSelectedPaper]);
+  }, [papers, calPapers, assignPapers, loadProjects, activeTab, loadCalPapers, showAssignModal, loadAssignPapers, loadPapers, showToast, assignSelectedPaper, setAssignSelectedPaper]);
 
   // Single paper PDF acquisition pipeline
   const runSinglePaperPipeline = useCallback(async (paperId: string) => {
@@ -474,6 +486,14 @@ export function useCalibration({
     }
   }, []);
 
+  // Debounce keyword search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedKeywordSearch(assignSearch);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [assignSearch]);
+
   // Trigger vector status check
   useEffect(() => {
     if (showAssignModal) {
@@ -481,12 +501,29 @@ export function useCalibration({
     }
   }, [showAssignModal, loadVectorStatus]);
 
-  // Trigger assignment papers load
+  // Load unique publishers list on modal mount
+  useEffect(() => {
+    if (showAssignModal) {
+      const fetchPublishers = async () => {
+        try {
+          const res = await fetch('/api/papers?getPublishers=true');
+          if (res.ok) {
+            const data = await res.json();
+            setUniquePublishers(data || []);
+          }
+        } catch (err) {
+          console.error('Failed to fetch publishers:', err);
+        }
+      };
+      fetchPublishers();
+    }
+  }, [showAssignModal]);
+
   useEffect(() => {
     if (showAssignModal) {
       loadAssignPapers();
     }
-  }, [showAssignModal, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, loadAssignPapers]);
+  }, [showAssignModal, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignExcludeReviews, assignPublisherFilter, loadAssignPapers]);
 
   // Reset calibration pagination when filter changes
   useEffect(() => {
@@ -496,7 +533,7 @@ export function useCalibration({
   // Reset assignment pagination when filter changes
   useEffect(() => {
     setAssignPage(1);
-  }, [activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignSearchMode]);
+  }, [activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignSearchMode, assignExcludeReviews, assignPublisherFilter]);
 
   // Reset sort column if switching search mode
   useEffect(() => {
@@ -538,6 +575,9 @@ export function useCalibration({
     assignSortOrder, setAssignSortOrder,
     vectorIndexStatus, setVectorIndexStatus,
     assignSearchTime,
+    assignExcludeReviews, setAssignExcludeReviews,
+    assignPublisherFilter, setAssignPublisherFilter,
+    uniquePublishers, setUniquePublishers,
     
     assignLogs, setAssignLogs,
     assignIsRunning, setAssignIsRunning,

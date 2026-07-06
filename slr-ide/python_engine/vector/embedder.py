@@ -4,13 +4,8 @@ from functools import lru_cache
 
 @lru_cache(maxsize=128)
 def _get_cached_embedding(text: str, is_query: bool, model_name: str) -> np.ndarray:
-    try:
-        from sentence_transformers import SentenceTransformer
-    except ImportError:
-        raise
-    
-    # Load model locally inside the cached function
-    model = SentenceTransformer(model_name, trust_remote_code=True)
+    # Use the singleton model to avoid reloading from disk on cache misses
+    model = TextEmbedder.get_model()
     prefix = "search_query: " if is_query else "search_document: "
     prefixed_text = prefix + text.strip()
     embedding = model.encode(prefixed_text, convert_to_numpy=True, normalize_embeddings=True)

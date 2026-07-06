@@ -1,4 +1,10 @@
 import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
+
+const PROJECT_ROOT = process.cwd().endsWith('slr-ide') 
+  ? process.cwd() 
+  : (fs.existsSync(path.join(process.cwd(), 'slr-ide')) ? path.join(process.cwd(), 'slr-ide') : process.cwd());
 
 export function initializeDatabase(db: Database.Database): void {
   // Initialize schema
@@ -516,7 +522,7 @@ export function initializeDatabase(db: Database.Database): void {
     `).run(defaultProjectId);
   }
 
-  // Migrate legacy PDF paths to the unified pdf_library layout
+  // Migrate legacy PDF paths to the unified pdf_library layout and perform self-healing
   try {
     db.prepare(`
       UPDATE papers 
@@ -541,7 +547,88 @@ export function initializeDatabase(db: Database.Database): void {
       SET Local_PDF_Path = REPLACE(REPLACE(Local_PDF_Path, 'pdf_repo/', 'pdf_library/repo/'), 'pdf_repo\\', 'pdf_library/repo/')
       WHERE Local_PDF_Path LIKE 'pdf_repo/%' OR Local_PDF_Path LIKE 'pdf_repo\\%'
     `).run();
+
+    // Self-healing migration for PDF paths and status consistency
+    const papers = db.prepare(`SELECT Paper_ID, Local_PDF_Status, Local_PDF_Path, Project_ID FROM papers WHERE Local_PDF_Path IS NOT NULL`).all() as {
+      Paper_ID: string;
+      Local_PDF_Status: string;
+      Local_PDF_Path: string;
+      Project_ID: string;
+    }[];
+
+    const rawPdfDir = path.join(PROJECT_ROOT, 'pdf_library', 'raw');
+    if (!fs.existsSync(rawPdfDir)) {
+      fs.mkdirSync(rawPdfDir, { recursive: true });
+    }
+
+    for (const paper of papers) {
+      const { Paper_ID: paperId, Local_PDF_Status: status, Local_PDF_Path: dbPath, Project_ID: projectId } = paper;
+      const normalizedPath = dbPath.replace(/\\/g, '/');
+      const absolutePath = path.join(PROJECT_ROOT, normalizedPath);
+
+      if (status === 'SYNCED') {
+        const project = db.prepare('SELECT folder_name FROM projects WHERE id = ?').get(projectId) as { folder_name: string } | undefined;
+        const folderName = project ? project.folder_name : 'default_project';
+        const expectedRepoPath = `pdf_library/repo/${folderName}/${paperId}.pdf`;
+        const absoluteRepoPath = path.join(PROJECT_ROOT, expectedRepoPath);
+
+        if (fs.existsSync(absoluteRepoPath)) {
+          db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRepoPath, paperId);
+        } else {
+          // If repo path is missing but raw file exists, copy raw file to repo path and update path
+          const rawFilePath = path.join(rawPdfDir, `${paperId}.pdf`);
+          if (fs.existsSync(rawFilePath)) {
+            try {
+              const repoDir = path.dirname(absoluteRepoPath);
+              if (!fs.existsSync(repoDir)) fs.mkdirSync(repoDir, { recursive: true });
+              fs.copyFileSync(rawFilePath, absoluteRepoPath);
+              db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRepoPath, paperId);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.error(`Failed to self-heal copy raw to repo for ${paperId}: ${msg}`);
+            }
+          } else {
+            // Check if file is still in cached/ or somewhere else and heal
+            if (fs.existsSync(absolutePath)) {
+              try {
+                const repoDir = path.dirname(absoluteRepoPath);
+                if (!fs.existsSync(repoDir)) fs.mkdirSync(repoDir, { recursive: true });
+                fs.copyFileSync(absolutePath, absoluteRepoPath);
+                // Also copy to raw/ for eternal library
+                fs.copyFileSync(absolutePath, rawFilePath);
+                db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRepoPath, paperId);
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                console.error(`Failed to self-heal copy legacy to repo for ${paperId}: ${msg}`);
+              }
+            } else {
+              // PDF is completely missing on disk
+              db.prepare(`UPDATE papers SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL, PDF_Link = NULL WHERE Paper_ID = ?`).run(paperId);
+            }
+          }
+        }
+      } else if (status === 'MATCHED' || status === 'DOWNLOADED') {
+        const expectedRawPath = `pdf_library/raw/${paperId}.pdf`;
+        const absoluteRawPath = path.join(PROJECT_ROOT, expectedRawPath);
+
+        if (fs.existsSync(absoluteRawPath)) {
+          db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRawPath, paperId);
+        } else {
+          if (fs.existsSync(absolutePath)) {
+            try {
+              fs.copyFileSync(absolutePath, absoluteRawPath);
+              db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRawPath, paperId);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.error(`Failed to copy legacy path to raw/ for ${paperId}: ${msg}`);
+            }
+          } else {
+            db.prepare(`UPDATE papers SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL, PDF_Link = NULL WHERE Paper_ID = ?`).run(paperId);
+          }
+        }
+      }
+    }
   } catch (e) {
-    console.error("Failed to migrate legacy PDF paths:", e);
+    console.error("Failed to migrate and self-heal PDF paths:", e);
   }
 }

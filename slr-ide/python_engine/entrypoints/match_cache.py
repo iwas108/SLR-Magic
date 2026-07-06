@@ -308,6 +308,34 @@ def run_matcher():
             if has_file:
                 continue
 
+        # Deterministic ID check in the eternal library
+        raw_path = os.path.join(PROJECT_DIR, 'pdf_library', 'raw', f"{paper_id}.pdf")
+        if os.path.exists(raw_path):
+            try:
+                cursor.execute("""
+                    UPDATE papers
+                    SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ?
+                    WHERE Paper_ID = ?
+                """, (f"pdf_library/raw/{paper_id}.pdf", paper_id))
+                conn.commit()
+                matched_count += 1
+                print(json.dumps({
+                    "event": "match",
+                    "paper_id": paper_id,
+                    "title": title,
+                    "filename": f"{paper_id}.pdf",
+                    "method": "eternal_library_deterministic_match"
+                }))
+                sys.stdout.flush()
+                continue
+            except Exception as e:
+                print(json.dumps({
+                    "event": "error",
+                    "paper_id": paper_id,
+                    "message": f"Failed to match via deterministic ID check: {str(e)}"
+                }))
+                sys.stdout.flush()
+
         matched_record = None
         match_method = None
 
@@ -336,20 +364,19 @@ def run_matcher():
             best_ratio = 0
             best_rec = None
             for rec in cached_records:
+                # Check filename similarity
                 sanitized_name = sanitize_string(os.path.splitext(rec['filename'])[0])
                 lenB = len(sanitized_name)
                 
-                # O(1) length pre-check optimization
                 limit = max(fuzzy_threshold, best_ratio)
                 max_possible_ratio = (2.0 * min(lenA, lenB)) / (lenA + lenB) if (lenA + lenB) > 0 else 0
-                if max_possible_ratio < limit:
-                    continue
+                if max_possible_ratio >= limit:
+                    ratio = difflib.SequenceMatcher(None, sanitized_title, sanitized_name).ratio()
+                    if ratio > best_ratio:
+                        best_ratio = ratio
+                        best_rec = rec
                 
-                ratio = difflib.SequenceMatcher(None, sanitized_title, sanitized_name).ratio()
-                if ratio > best_ratio:
-                    best_ratio = ratio
-                    best_rec = rec
-                
+                # Check extracted title similarity
                 if rec['extracted_title']:
                     sanitized_ext_title = sanitize_string(rec['extracted_title'])
                     lenC = len(sanitized_ext_title)
@@ -378,14 +405,18 @@ def run_matcher():
                         "filename": rec['filename']
                     })
 
-                    if sanitized_title in first_page_text_lower:
+                    # Compare spaces-stripped versions to handle sub-word space insertion from PDF text extraction
+                    stripped_title = re.sub(r'\s+', '', sanitized_title)
+                    stripped_text = re.sub(r'\s+', '', first_page_text_lower)
+
+                    if (sanitized_title in first_page_text_lower) or (stripped_title in stripped_text):
                         matched_record = rec
                         match_method = "pdf_metadata_text"
                         break
 
 
 
-        # If matched, point Local_PDF_Path directly to cached_pdf/ matched file
+        # If matched, point Local_PDF_Path directly to raw/ matched file in the eternal library
         if matched_record:
             # Emit progress event immediately for matches to sync UI status
             print(json.dumps({
@@ -398,14 +429,27 @@ def run_matcher():
             sys.stdout.flush()
             matched_file = matched_record['filename']
             src_path = os.path.join(CACHE_DIR, matched_file)
+            dest_path = os.path.join(RAW_DIR, f"{paper_id}.pdf")
 
             try:
-                # Update main SQLite DB - do NOT move file, do NOT delete from cache index
+                if os.path.exists(dest_path):
+                    # Already exists in eternal library, clean up staging duplicate
+                    try:
+                        if os.path.exists(src_path):
+                            os.remove(src_path)
+                    except:
+                        pass
+                else:
+                    # Move the file from cached/ staging to raw/ eternal library
+                    if os.path.exists(src_path):
+                        shutil.move(src_path, dest_path)
+
+                # Update main SQLite DB to point to raw/ path
                 cursor.execute("""
                     UPDATE papers
                     SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ?
                     WHERE Paper_ID = ?
-                """, (f"pdf_library/cached/{matched_file}", paper_id))
+                """, (f"pdf_library/raw/{paper_id}.pdf", paper_id))
                 conn.commit()
 
                 matched_count += 1
@@ -421,7 +465,7 @@ def run_matcher():
                 print(json.dumps({
                     "event": "error",
                     "paper_id": paper_id,
-                    "message": f"Failed to match file: {str(e)}"
+                    "message": f"Failed to move and match file: {str(e)}"
                 }))
                 sys.stdout.flush()
 

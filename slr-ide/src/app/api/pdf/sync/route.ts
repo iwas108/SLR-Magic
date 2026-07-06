@@ -275,11 +275,12 @@ export async function POST(request: Request) {
                 const linkResult = stdout.toString().trim();
                 
                 if (linkResult && linkResult.startsWith('http')) {
+                  const relPath = path.relative(PROJECT_ROOT, localFile).replace(/\\/g, '/');
                   db.prepare(`
                     UPDATE papers
-                    SET PDF_Link = ?, Local_PDF_Status = 'SYNCED'
+                    SET PDF_Link = ?, Local_PDF_Status = 'SYNCED', Local_PDF_Path = ?
                     WHERE Paper_ID = ?
-                  `).run(linkResult, paperId);
+                  `).run(linkResult, relPath, paperId);
 
                   linkedCount++;
                   controller.enqueue(encoder.encode(JSON.stringify({ 

@@ -34,6 +34,8 @@ interface PreCalibrationViewProps {
     setCalStatusFilter: (v: string) => void;
     calPdfFilter: string;
     setCalPdfFilter: (v: string) => void;
+    calTagFilter: string;
+    setCalTagFilter: (v: string) => void;
     calPage: number;
     setCalPage: React.Dispatch<React.SetStateAction<number>>;
     calLimit: number;
@@ -82,6 +84,8 @@ export default function PreCalibrationView({
     setCalStatusFilter,
     calPdfFilter,
     setCalPdfFilter,
+    calTagFilter,
+    setCalTagFilter,
     calPage,
     setCalPage,
     calLimit,
@@ -102,6 +106,18 @@ export default function PreCalibrationView({
     loadCalPapers,
     loadAssignPapers
   } = calibrationHook;
+
+  const getActivePoolTags = (): { code: string; label: string }[] => {
+    if (!activeProject || !activeProject.pool_tags) return [];
+    try {
+      const parsed = typeof activeProject.pool_tags === 'string' ? JSON.parse(activeProject.pool_tags) : activeProject.pool_tags;
+      return parsed[calActivePool] || [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const poolTags = getActivePoolTags();
 
 
   function LoaderIcon() {
@@ -243,6 +259,20 @@ export default function PreCalibrationView({
                     <option value="DOWNLOADED">DOWNLOADED</option>
                     <option value="SYNCED">SYNCED</option>
                   </select>
+
+                  <select
+                    className="bg-secondary/35 border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold transition-colors"
+                    value={calTagFilter}
+                    onChange={(e) => setCalTagFilter(e.target.value)}
+                  >
+                    <option value="">All Cohorts (No Tag Filter)</option>
+                    <option value="none">General (No Tag)</option>
+                    {poolTags.map((tag: any) => (
+                      <option key={tag.code} value={tag.code}>
+                        {tag.code} - {tag.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -328,8 +358,15 @@ export default function PreCalibrationView({
                                 {p.Paper_ID}
                               </td>
                               <td className="p-3">
-                                <div className="font-bold text-foreground truncate" title={p.Title}>
-                                  {p.Title}
+                                <div className="flex items-center gap-2 max-w-full">
+                                  <span className="font-bold text-foreground truncate" title={p.Title}>
+                                    {p.Title}
+                                  </span>
+                                  {p.calibration_tag && (
+                                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                                      {p.calibration_tag}
+                                    </span>
+                                  )}
                                 </div>
                                 {p.Abstract && (
                                   <div className="text-[10px] text-muted-foreground truncate mt-0.5 italic" title={p.Abstract}>

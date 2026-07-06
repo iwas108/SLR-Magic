@@ -101,8 +101,12 @@ class VectorIndexManager:
                     ids.append(int.from_bytes(h[:8], byteorder='big') & 0x7FFFFFFFFFFFFFFF)
                 except Exception:
                     pass
-            if ids:
-                allowlist_ids = np.array(ids, dtype=np.uint64)
+            # Filter allowed IDs to only those actually present in the turbovec index,
+            # since turbovec throws an error if any allowlist ID is missing from the index.
+            ids = [uid for uid in ids if uid in pdf_index]
+            if not ids:
+                return []
+            allowlist_ids = np.array(ids, dtype=np.uint64)
         
         # Search index
         # turbovec search(query, k, allowlist=...)
@@ -154,8 +158,12 @@ class VectorIndexManager:
                     ids.append(int.from_bytes(h[:8], byteorder='big') & 0x7FFFFFFFFFFFFFFF)
                 except Exception:
                     pass
-            if ids:
-                allowlist_ids = np.array(ids, dtype=np.uint64)
+            # Filter allowed IDs to only those actually present in the turbovec index,
+            # since turbovec throws an error if any allowlist ID is missing from the index.
+            ids = [uid for uid in ids if uid in paper_index]
+            if not ids:
+                return []
+            allowlist_ids = np.array(ids, dtype=np.uint64)
         
         kwargs = {}
         if allowlist_ids is not None:

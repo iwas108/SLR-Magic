@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { PROJECT_ROOT } from './db';
+import db, { PROJECT_ROOT } from './db';
 
 export function rescuePdfAssets(paperIds: string[]): number {
   const rawPdfDir = path.join(PROJECT_ROOT, 'pdf_library', 'raw');
@@ -13,6 +13,14 @@ export function rescuePdfAssets(paperIds: string[]): number {
   let rescuedCount = 0;
   for (const paperId of paperIds) {
     if (!paperId) continue;
+
+    // Check if the paper ID is still referenced by other projects
+    const refCountRow = db.prepare('SELECT COUNT(*) as count FROM papers WHERE Paper_ID = ?').get(paperId) as { count: number } | undefined;
+    if (refCountRow && refCountRow.count > 1) {
+      // Still referenced elsewhere, preserve raw file in eternal library
+      continue;
+    }
+
     const rawPath = path.join(rawPdfDir, `${paperId}.pdf`);
     const cachedPath = path.join(cachedPdfDir, `${paperId}.pdf`);
     if (fs.existsSync(rawPath)) {

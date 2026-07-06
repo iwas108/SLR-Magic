@@ -40,7 +40,6 @@ class BrowserHandler:
 
     def start_browser(self):
         options = uc.ChromeOptions()
-        options.add_argument(f"--user-data-dir={self.config.chrome_profile_dir}")
         prefs = {
             "download.default_directory": self.download_dir,
             "download.prompt_for_download": False,
@@ -52,9 +51,9 @@ class BrowserHandler:
         version = get_chrome_version()
         try:
             if version:
-                self.driver = uc.Chrome(options=options, version_main=version)
+                self.driver = uc.Chrome(options=options, version_main=version, user_data_dir=self.config.chrome_profile_dir)
             else:
-                self.driver = uc.Chrome(options=options)
+                self.driver = uc.Chrome(options=options, user_data_dir=self.config.chrome_profile_dir)
         except Exception as e:
             print(json.dumps({"event": "error", "message": f"Failed to start Chrome browser: {str(e)}"}))
             sys.exit(1)

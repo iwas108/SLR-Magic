@@ -82,8 +82,9 @@ def main():
     if total_pdfs > 0:
         print_event({"event": "log", "message": f"Embedding {total_pdfs} new cached PDFs in batches..."})
         batch_size = 32
+        pdf_index = VectorIndexManager.get_pdf_index()
         for idx in range(0, total_pdfs, batch_size):
-            batch = pdf_to_embed_slice = pdfs_to_embed[idx : idx + batch_size]
+            batch = pdfs_to_embed[idx : idx + batch_size]
             filenames = [item[0] for item in batch]
             texts = [item[1] for item in batch]
             
@@ -91,14 +92,12 @@ def main():
             embeddings = TextEmbedder.embed_batch(texts, is_query=False)
             
             # Add to index
-            pdf_index = VectorIndexManager.get_pdf_index()
             ids = []
             for filename in filenames:
                 uint64_id = IDMap.get_or_create_uint64(filename, 'pdf_cache')
                 ids.append(uint64_id)
             
             pdf_index.add_with_ids(embeddings, np.array(ids, dtype=np.uint64))
-            pdf_index.write(PDF_INDEX_PATH)
             
             pdf_vectors_indexed += len(batch)
             print_event({
@@ -107,6 +106,7 @@ def main():
                 "total": total_pdfs,
                 "source": "pdf_cache"
             })
+        pdf_index.write(PDF_INDEX_PATH)
     else:
         print_event({"event": "log", "message": "PDF Cache is already up to date."})
 
@@ -139,6 +139,7 @@ def main():
     if total_papers > 0:
         print_event({"event": "log", "message": f"Embedding {total_papers} new papers in batches..."})
         batch_size = 32
+        paper_index = VectorIndexManager.get_paper_index()
         for idx in range(0, total_papers, batch_size):
             batch = papers_to_embed[idx : idx + batch_size]
             paper_ids = [item[0] for item in batch]
@@ -148,14 +149,12 @@ def main():
             embeddings = TextEmbedder.embed_batch(combined_texts, is_query=False)
             
             # Add to index
-            paper_index = VectorIndexManager.get_paper_index()
             ids = []
             for paper_id in paper_ids:
                 uint64_id = IDMap.get_or_create_uint64(paper_id, 'paper')
                 ids.append(uint64_id)
             
             paper_index.add_with_ids(embeddings, np.array(ids, dtype=np.uint64))
-            paper_index.write(PAPER_INDEX_PATH)
             
             paper_vectors_indexed += len(batch)
             print_event({
@@ -164,6 +163,7 @@ def main():
                 "total": total_papers,
                 "source": "paper_corpus"
             })
+        paper_index.write(PAPER_INDEX_PATH)
     else:
         print_event({"event": "log", "message": "Paper Corpus is already up to date."})
 

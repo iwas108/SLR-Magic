@@ -23,6 +23,7 @@ interface FullscreenAssignModalProps {
     setAssignPoolFilter: (v: string) => void;
     assignLoading: boolean;
     assignPapers: any[];
+    setAssignPapers: React.Dispatch<React.SetStateAction<any[]>>;
     assignSelectedPaper: any;
     setAssignSelectedPaper: React.Dispatch<React.SetStateAction<any>>;
     assignTotalPapers: number;
@@ -53,6 +54,11 @@ interface FullscreenAssignModalProps {
     setAssignSortOrder: React.Dispatch<React.SetStateAction<'ASC' | 'DESC'>>;
     assignSearchTime: number | null;
     triggerSemanticSearch: () => void;
+    assignExcludeReviews: boolean;
+    setAssignExcludeReviews: React.Dispatch<React.SetStateAction<boolean>>;
+    assignPublisherFilter: string;
+    setAssignPublisherFilter: React.Dispatch<React.SetStateAction<string>>;
+    uniquePublishers: string[];
   };
   pipelineHook: {
     logEndRef: React.RefObject<HTMLDivElement | null>;
@@ -80,6 +86,7 @@ export default function FullscreenAssignModal({
     setAssignPoolFilter,
     assignLoading,
     assignPapers,
+    setAssignPapers,
     assignSelectedPaper,
     setAssignSelectedPaper,
     assignTotalPapers,
@@ -109,7 +116,12 @@ export default function FullscreenAssignModal({
     assignSortOrder,
     setAssignSortOrder,
     assignSearchTime,
-    triggerSemanticSearch
+    triggerSemanticSearch,
+    assignExcludeReviews,
+    setAssignExcludeReviews,
+    assignPublisherFilter,
+    setAssignPublisherFilter,
+    uniquePublishers
   } = calibrationHook;
 
   const cloudProvider = projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider || 'gdrive';
@@ -174,12 +186,19 @@ export default function FullscreenAssignModal({
           setAssignSortOrder={setAssignSortOrder}
           assignSearchTime={assignSearchTime}
           triggerSemanticSearch={triggerSemanticSearch}
+          assignExcludeReviews={assignExcludeReviews}
+          setAssignExcludeReviews={setAssignExcludeReviews}
+          assignPublisherFilter={assignPublisherFilter}
+          setAssignPublisherFilter={setAssignPublisherFilter}
+          uniquePublishers={uniquePublishers}
         />
         {assignSelectedPaper && (
           <AssignDetailView
             projects={projects}
             activeProjectId={activeProjectId}
             assignSelectedPaper={assignSelectedPaper}
+            setAssignSelectedPaper={setAssignSelectedPaper}
+            setAssignPapers={setAssignPapers}
             assignIsRunning={assignIsRunning}
             assignLogs={assignLogs}
             setAssignLogs={setAssignLogs}

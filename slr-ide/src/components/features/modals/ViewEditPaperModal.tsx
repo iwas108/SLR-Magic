@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, X, Trash2, Edit2, RefreshCw } from 'lucide-react';
+import { FileText, X, Trash2, Edit2, RefreshCw, Copy, Check } from 'lucide-react';
 import { broadcastSync } from '@/lib/sync-utils';
 
 import PaperMetadataView from './paper-details/PaperMetadataView';
@@ -42,8 +42,34 @@ export default function ViewEditPaperModal({
   const [editCitationCount, setEditCitationCount] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [savingPaper, setSavingPaper] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [selectedEditParentPaper, setSelectedEditParentPaper] = useState<any>(null);
   const [editParentPaperId, setEditParentPaperId] = useState<string>('');
+
+  const handleCopyDetails = async () => {
+    if (!paperModal?.paper) return;
+    const publisherName = paperModal.paper.Publisher || paperModal.paper.Original_Publisher || '—';
+    const citationCount = paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? paperModal.paper.citation_count : '0';
+    const textToCopy = [
+      `Title: ${paperModal.paper.Title || '—'}`,
+      `Authors: ${paperModal.paper.Authors || '—'}`,
+      `Year: ${paperModal.paper.Year || '—'}`,
+      `DOI: ${paperModal.paper.DOI || '—'}`,
+      `Publisher: ${publisherName}`,
+      `Abstract: ${paperModal.paper.Abstract || '—'}`,
+      `Citations: ${citationCount}`
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopied(true);
+      showToast('Paper details copied to clipboard', 'success');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      showToast('Failed to copy details to clipboard', 'error');
+    }
+  };
 
   useEffect(() => {
     if (paperModal?.isOpen && paperModal?.paper) {
@@ -240,6 +266,15 @@ export default function ViewEditPaperModal({
           <div className="flex gap-3">
             {paperModal.mode === 'view' ? (
               <>
+                <button
+                  type="button"
+                  onClick={handleCopyDetails}
+                  className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold rounded-lg border border-primary/20 transition-all duration-200 flex items-center gap-1.5 cursor-pointer"
+                  title="Copy paper metadata to clipboard"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 animate-in zoom-in-50 duration-150" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? 'Copied!' : 'Copy Details'}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setPaperModal((prev: any) => ({ ...prev, mode: 'edit' }))}

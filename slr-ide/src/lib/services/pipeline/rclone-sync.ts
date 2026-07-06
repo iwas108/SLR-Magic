@@ -2,7 +2,7 @@ import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { promisify } from 'util';
-import db from '@/lib/db';
+import db, { PROJECT_ROOT } from '@/lib/db';
 import { processManager } from '@/lib/services/process-manager';
 import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 import { streamManager } from '@/lib/services/stream-manager';
@@ -175,11 +175,12 @@ export async function generateCloudLinks(
         const { stdout } = await execFileAsync(rclonePath, linkArgs);
         const linkResult = stdout.toString().trim();
         if (linkResult && linkResult.startsWith('http')) {
+          const relPath = path.relative(PROJECT_ROOT, localFile).replace(/\\/g, '/');
           db.prepare(`
             UPDATE papers
-            SET PDF_Link = ?, Local_PDF_Status = 'SYNCED'
+            SET PDF_Link = ?, Local_PDF_Status = 'SYNCED', Local_PDF_Path = ?
             WHERE Paper_ID = ?
-          `).run(linkResult, paperId);
+          `).run(linkResult, relPath, paperId);
 
           linkedCount++;
           const successMsg = { 

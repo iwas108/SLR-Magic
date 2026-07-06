@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, Loader2, ChevronLeft, ChevronRight, Cpu, ArrowDown, ArrowUp } from 'lucide-react';
 import VectorBuildModal from '../VectorBuildModal';
 
@@ -31,6 +31,11 @@ interface PaperSelectionListProps {
   setAssignSortOrder: React.Dispatch<React.SetStateAction<'ASC' | 'DESC'>>;
   assignSearchTime: number | null;
   triggerSemanticSearch: () => void;
+  assignExcludeReviews: boolean;
+  setAssignExcludeReviews: React.Dispatch<React.SetStateAction<boolean>>;
+  assignPublisherFilter: string;
+  setAssignPublisherFilter: React.Dispatch<React.SetStateAction<string>>;
+  uniquePublishers: string[];
 }
 
 export default function PaperSelectionList({
@@ -61,9 +66,30 @@ export default function PaperSelectionList({
   assignSortOrder,
   setAssignSortOrder,
   assignSearchTime,
-  triggerSemanticSearch
+  triggerSemanticSearch,
+  assignExcludeReviews,
+  setAssignExcludeReviews,
+  assignPublisherFilter,
+  setAssignPublisherFilter,
+  uniquePublishers
 }: PaperSelectionListProps) {
   const [showBuildModal, setShowBuildModal] = useState(false);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!assignSelectedPaper || !listContainerRef.current) return;
+    
+    const selectedEl = listContainerRef.current.querySelector(
+      `[data-paper-id="${assignSelectedPaper.Paper_ID}"]`
+    ) as HTMLElement;
+    
+    if (selectedEl) {
+      listContainerRef.current.scrollTo({
+        top: selectedEl.offsetTop,
+        behavior: 'smooth'
+      });
+    }
+  }, [assignSelectedPaper?.Paper_ID, assignPapers, assignLoading]);
 
   return (
     <div className={`bg-card/30 flex flex-col overflow-hidden shrink-0 transition-all duration-300 ${
@@ -71,49 +97,67 @@ export default function PaperSelectionList({
     }`}>
       {/* Search and pool filter */}
       <div className="p-4 border-b border-border space-y-3 shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder={assignSearchMode === 'semantic' ? "Semantic query (press Enter)..." : "Search papers..."}
-              value={assignSearch}
-              onChange={(e) => setAssignSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && assignSearchMode === 'semantic') {
-                  triggerSemanticSearch();
-                }
-              }}
-              className={`w-full bg-secondary/40 border border-border rounded-lg pl-9 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold ${
-                assignSearchMode === 'semantic' ? 'pr-16' : 'pr-4'
-              }`}
-            />
-            {assignSearchMode === 'semantic' && (
-              <button
-                onClick={triggerSemanticSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded text-[9px] font-bold uppercase transition-all duration-200 cursor-pointer select-none active:scale-95"
-                title="Run Semantic Search"
-              >
-                Search
-              </button>
-            )}
+        {/* Row 1: Search Input */}
+        <div className="relative w-full">
+          <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder={assignSearchMode === 'semantic' ? "Semantic query (press Enter)..." : "Search papers..."}
+            value={assignSearch}
+            onChange={(e) => setAssignSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && assignSearchMode === 'semantic') {
+                triggerSemanticSearch();
+              }
+            }}
+            className={`w-full bg-secondary/40 border border-border rounded-lg pl-9 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold ${
+              assignSearchMode === 'semantic' ? 'pr-16' : 'pr-4'
+            }`}
+          />
+          {assignSearchMode === 'semantic' && (
+            <button
+              onClick={triggerSemanticSearch}
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded text-[9px] font-bold uppercase transition-all duration-200 cursor-pointer select-none active:scale-95"
+              title="Run Semantic Search"
+            >
+              Search
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: Select Filters and Mode Switcher */}
+        <div className="flex items-center gap-2 justify-between">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <select
+              value={assignPoolFilter}
+              onChange={(e) => setAssignPoolFilter(e.target.value)}
+              className="bg-secondary/40 border border-border rounded-lg px-2 py-1.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none flex-1 min-w-0"
+              title="Filter by Calibration Pool"
+            >
+              <option value="all" className="bg-popover text-popover-foreground">All Papers</option>
+              <option value="unassigned" className="bg-popover text-popover-foreground">Unassigned</option>
+              <option value="pool_a" className="bg-popover text-popover-foreground">Pool A</option>
+              <option value="pool_b" className="bg-popover text-popover-foreground">Pool B</option>
+              <option value="pool_c" className="bg-popover text-popover-foreground">Pool C</option>
+            </select>
+            <select
+              value={assignPublisherFilter}
+              onChange={(e) => setAssignPublisherFilter(e.target.value)}
+              className="bg-secondary/40 border border-border rounded-lg px-2 py-1.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none flex-1 min-w-0"
+              title="Filter by Publisher (Mapped)"
+            >
+              <option value="all" className="bg-popover text-popover-foreground">Publisher (Mapped)</option>
+              {uniquePublishers.map((pub) => (
+                <option key={pub} value={pub} className="bg-popover text-popover-foreground" title={pub}>
+                  {pub}
+                </option>
+              ))}
+            </select>
           </div>
-          <select
-            value={assignPoolFilter}
-            onChange={(e) => setAssignPoolFilter(e.target.value)}
-            className="bg-secondary/40 border border-border rounded-lg px-2.5 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none"
-            title="Filter by Calibration Pool"
-          >
-            <option value="all" className="bg-popover text-popover-foreground">All Pools</option>
-            <option value="unassigned" className="bg-popover text-popover-foreground">Unassigned</option>
-            <option value="pool_a" className="bg-popover text-popover-foreground">Pool A</option>
-            <option value="pool_b" className="bg-popover text-popover-foreground">Pool B</option>
-            <option value="pool_c" className="bg-popover text-popover-foreground">Pool C</option>
-          </select>
           <div className="flex border border-border rounded-lg overflow-hidden shrink-0 select-none text-[10px] font-bold uppercase tracking-wider bg-secondary/20">
             <button
               onClick={() => setAssignSearchMode('keyword')}
-              className={`px-2 py-2 flex items-center transition-colors cursor-pointer ${
+              className={`px-2 py-1.5 flex items-center transition-colors cursor-pointer ${
                 assignSearchMode === 'keyword' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary/40'
               }`}
               title="Keyword Match (SQL LIKE)"
@@ -122,7 +166,7 @@ export default function PaperSelectionList({
             </button>
             <button
               onClick={() => setAssignSearchMode('semantic')}
-              className={`px-2 py-2 flex items-center transition-colors cursor-pointer ${
+              className={`px-2 py-1.5 flex items-center transition-colors cursor-pointer ${
                 assignSearchMode === 'semantic' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary/40'
               }`}
               title="Semantic Similarity (turbovec)"
@@ -131,6 +175,21 @@ export default function PaperSelectionList({
             </button>
           </div>
         </div>
+
+        {assignSearchMode === 'semantic' && (
+          <div className="flex items-center gap-1.5 select-none pt-0.5 animate-in fade-in duration-200">
+            <input
+              type="checkbox"
+              id="excludeReviews"
+              checked={assignExcludeReviews}
+              onChange={(e) => setAssignExcludeReviews(e.target.checked)}
+              className="w-3.5 h-3.5 rounded border-border bg-secondary/40 text-primary focus:ring-0 cursor-pointer"
+            />
+            <label htmlFor="excludeReviews" className="text-[10px] font-bold text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+              Filter out reviews & surveys (increases search precision)
+            </label>
+          </div>
+        )}
 
         {assignSearchMode === 'semantic' && vectorIndexStatus && !vectorIndexStatus.indexed && (
           <div className="p-2.5 border border-amber-500/30 bg-amber-500/10 rounded-lg flex flex-col gap-1.5 text-[9px] animate-in slide-in-from-top-1 duration-200">
@@ -209,7 +268,7 @@ export default function PaperSelectionList({
       </div>
 
       {/* Papers List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-border/60">
+      <div ref={listContainerRef} className="relative flex-1 overflow-y-auto divide-y divide-border/60">
         {assignLoading ? (
           <div className="p-6 m-4 text-center text-muted-foreground text-xs flex flex-col items-center gap-3 bg-secondary/10 border border-border/40 rounded-xl animate-pulse">
             <div className="relative">
@@ -240,6 +299,7 @@ export default function PaperSelectionList({
               return (
                 <div
                   key={paper.Paper_ID}
+                  data-paper-id={paper.Paper_ID}
                   onClick={() => {
                     if (!assignIsRunning) {
                       setAssignSelectedPaper(paper);
@@ -248,8 +308,8 @@ export default function PaperSelectionList({
                       setAssignStatusText('Idle');
                     }
                   }}
-                  className={`p-3 cursor-pointer select-none transition-colors border-l-4 ${
-                    isSelected ? 'bg-secondary border-primary' : 'hover:bg-secondary/40 border-transparent'
+                  className={`p-3 cursor-pointer select-none transition-all duration-200 border-l-4 ${
+                    isSelected ? 'bg-primary/15 border-primary shadow-inner font-semibold' : 'hover:bg-secondary/40 border-transparent'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -283,6 +343,7 @@ export default function PaperSelectionList({
               return (
                 <div
                   key={paper.Paper_ID}
+                  data-paper-id={paper.Paper_ID}
                   className="p-5 hover:bg-secondary/20 transition-all border-b border-border/60 flex flex-col gap-2 relative group"
                 >
                   <div className="flex items-start justify-between gap-4">

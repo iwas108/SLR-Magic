@@ -59,6 +59,8 @@ export async function PUT(
       citationCountVal = currentPaper.citation_count;
     }
 
+    const statusVal = Status !== undefined ? Status : currentPaper.Status;
+    const localPdfStatusVal = Local_PDF_Status !== undefined ? Local_PDF_Status : currentPaper.Local_PDF_Status;
     const calibrationPoolVal = calibration_pool !== undefined ? calibration_pool : currentPaper.calibration_pool;
     const calibrationTagVal = calibration_tag !== undefined ? calibration_tag : currentPaper.calibration_tag;
     const humanDecisionVal = Human_Decision !== undefined ? Human_Decision : currentPaper.Human_Decision;
@@ -97,8 +99,8 @@ export async function PUT(
       DOI !== undefined ? String(DOI).trim() : currentPaper.DOI,
       Abstract !== undefined ? String(Abstract).trim() : currentPaper.Abstract,
       PDF_Link !== undefined ? String(PDF_Link).trim() : currentPaper.PDF_Link,
-      Status || 'PENDING',
-      Local_PDF_Status || 'MISSING',
+      statusVal || 'PENDING',
+      localPdfStatusVal || 'MISSING',
       calibrationPoolVal,
       calibrationTagVal,
       humanDecisionVal,
