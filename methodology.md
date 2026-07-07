@@ -183,13 +183,13 @@ Every prompt utilizes JSON-Embedded Chain of Thought (CoT). The LLM MUST return 
       "locate_rq2_a_autonomy_level": "<string: trace mapping to the 3-tier autonomy spectrum>",
       "locate_rq2_b_control_paradigm": "<string: trace identifying the control mathematical/logic paradigm>",
       "locate_rq3_computational_topologies": "<string: trace mapping to the topology allowlist or novel token>",
-      "locate_rq4_network_protocols": "<string: trace verifying OSI layer and mapping to protocol allowlist>",
+      "locate_rq4_network_protocols": "<string: trace verifying OSI layer/middleware and mapping to allowlist>",
       "locate_rq5_semantic_frameworks": "<string: trace identifying data models or AAS rules>",
       "locate_rq6_forecasting_engines": "<string: trace confirming algorithm names from methodology or results>",
       "locate_rq7_accuracy_metrics": "<string: trace locating statistical validation metrics>",
       "locate_rq8_a_edge_hardware": "<string: trace searching for physical nodes/microcontrollers>",
       "locate_rq8_b_execution_footprint": "<string: trace identifying metrics used to quantify resource drain>",
-      "locate_rq9_deployment_barriers": "<string: trace mapping structural, network, economic, logistical, legal, or social friction points>"
+      "locate_rq9_deployment_barriers": "<string: trace mapping unresolved structural, network, economic, logistical, legal, or social friction points>"
     }
   },
   "extracted_data": {
