@@ -179,27 +179,31 @@ Every prompt utilizes JSON-Embedded Chain of Thought (CoT). The LLM MUST return 
 {
   "logic_trace": {
     "extraction_mapping": {
-      "locate_rq1_operational_domains": "<string: Identify paragraph discussing macro-industrial domains>",
-      "locate_rq2_control_autonomy": "<string: Identify paragraph defining spectrum of open-loop decision support to closed-loop execution>",
-      "locate_rq3_computational_topologies": "<string: Identify section mapping edge, fog, or cloud structural partitioning>",
-      "locate_rq4_network_protocols": "<string: Identify text listing transport-layer communication protocols for state synchronization>",
-      "locate_rq5_semantic_frameworks": "<string: Identify text detailing ontologies, multi-agent graphs, or discrete meta-models representing the physical twin>",
-      "locate_rq6_forecasting_engines": "<string: Identify methodology section detailing algorithmic architectures functioning as predictive engines>",
-      "locate_rq7_accuracy_metrics": "<string: Identify text stating mathematical evaluation metrics for forecasting fidelity>",
-      "locate_rq8_hardware_profiles": "<string: Identify empirical metrics quantifying hardware footprint or execution overhead>",
-      "locate_rq9_deployment_barriers": "<string: Identify text reporting structural, network, techno-economic, or logistical friction points>"
+      "locate_rq1_operational_domains": "<string: trace isolating text and mapping to domain label>",
+      "locate_rq2_a_autonomy_level": "<string: trace mapping to the 3-tier autonomy spectrum>",
+      "locate_rq2_b_control_paradigm": "<string: trace identifying the control mathematical/logic paradigm>",
+      "locate_rq3_computational_topologies": "<string: trace mapping to the topology allowlist or novel token>",
+      "locate_rq4_network_protocols": "<string: trace verifying OSI layer and mapping to protocol allowlist>",
+      "locate_rq5_semantic_frameworks": "<string: trace identifying data models or AAS rules>",
+      "locate_rq6_forecasting_engines": "<string: trace confirming algorithm names from methodology or results>",
+      "locate_rq7_accuracy_metrics": "<string: trace locating statistical validation metrics>",
+      "locate_rq8_a_edge_hardware": "<string: trace searching for physical nodes/microcontrollers>",
+      "locate_rq8_b_execution_footprint": "<string: trace identifying metrics used to quantify resource drain>",
+      "locate_rq9_deployment_barriers": "<string: trace mapping structural, network, economic, logistical, legal, or social friction points>"
     }
   },
   "extracted_data": {
-    "rq1_operational_domains": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" },
-    "rq2_control_autonomy": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" },
-    "rq3_computational_topologies": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" },
-    "rq4_network_protocols": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" },
-    "rq5_semantic_frameworks": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" },
-    "rq6_forecasting_engines": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" },
-    "rq7_accuracy_metrics": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" },
-    "rq8_hardware_profiles": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" },
-    "rq9_deployment_barriers": { "value": "<string or NOT_STATED>", "evidence": "<string: Exact source quote>" }
+    "rq1_operational_domains": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq2_a_autonomy_level": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq2_b_control_paradigm": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq3_computational_topologies": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq4_network_protocols": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq5_semantic_frameworks": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq6_forecasting_engines": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq7_accuracy_metrics": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq8_a_edge_hardware": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq8_b_execution_footprint": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
+    "rq9_deployment_barriers": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" }
   }
 }
 ```

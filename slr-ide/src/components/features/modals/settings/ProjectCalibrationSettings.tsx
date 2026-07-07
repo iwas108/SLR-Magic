@@ -356,49 +356,85 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
                       </div>
                     ) : (
                       form.projectFormPoolCQaRules.map((rule: any, idx: any) => (
-                        <div key={idx} className="flex items-center gap-2 bg-secondary/15 border border-border p-2 rounded-lg">
-                          <div className="w-1/4">
-                            <input
-                              type="text"
-                              value={rule.code}
-                              onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'code', e.target.value)}
-                              className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-bold font-mono"
-                              placeholder="QA Code"
-                              required
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <select
-                              value={rule.question}
-                              onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'question', e.target.value)}
-                              className="w-full px-2 py-1.5 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-semibold"
-                              required
+                        <div key={idx} className="flex flex-col gap-2 bg-secondary/15 border border-border p-3 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <div className="w-1/4">
+                              <input
+                                type="text"
+                                value={rule.code}
+                                onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'code', e.target.value)}
+                                className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-bold font-mono"
+                                placeholder="QA Code"
+                                required
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <select
+                                value={rule.question}
+                                onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'question', e.target.value)}
+                                className="w-full px-2 py-1.5 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-semibold"
+                                required
+                              >
+                                <option value="">-- Select QA Question --</option>
+                                {qaQuestions.map((q: string, qIdx: number) => (
+                                  <option key={qIdx} value={q}>{q}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0 px-2 select-none border-l border-border/50">
+                              <input
+                                type="checkbox"
+                                id={`fatal-flaw-${idx}`}
+                                checked={!!rule.is_fatal_flaw}
+                                onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'is_fatal_flaw', e.target.checked)}
+                                className="w-3 h-3 rounded border-border text-primary bg-secondary/35 focus:ring-primary focus:ring-opacity-25 cursor-pointer"
+                              />
+                              <label htmlFor={`fatal-flaw-${idx}`} className="text-[9px] font-bold text-muted-foreground cursor-pointer uppercase tracking-wider">
+                                Fatal Flaw
+                              </label>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => form.handleRemovePoolCQaRule(idx)}
+                              className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-md transition-colors shrink-0"
                             >
-                              <option value="">-- Select QA Question --</option>
-                              {qaQuestions.map((q: string, qIdx: number) => (
-                                <option key={qIdx} value={q}>{q}</option>
-                              ))}
-                            </select>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0 px-2 select-none border-l border-border/50">
-                            <input
-                              type="checkbox"
-                              id={`fatal-flaw-${idx}`}
-                              checked={!!rule.is_fatal_flaw}
-                              onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'is_fatal_flaw', e.target.checked)}
-                              className="w-3 h-3 rounded border-border text-primary bg-secondary/35 focus:ring-primary focus:ring-opacity-25 cursor-pointer"
-                            />
-                            <label htmlFor={`fatal-flaw-${idx}`} className="text-[9px] font-bold text-muted-foreground cursor-pointer uppercase tracking-wider">
-                              Fatal Flaw
-                            </label>
+                          
+                          {/* Scoring Logic Input Fields */}
+                          <div className="grid grid-cols-3 gap-2 pt-1.5 border-t border-border/20">
+                            <div>
+                              <label className="block text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Score 1.0 Logic</label>
+                              <input
+                                type="text"
+                                value={rule.score_1_logic || ''}
+                                onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'score_1_logic', e.target.value)}
+                                className="w-full px-2 py-1 text-[10px] bg-secondary/25 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-medium"
+                                placeholder="e.g. Fully addressed..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Score 0.5 Logic</label>
+                              <input
+                                type="text"
+                                value={rule.score_05_logic || ''}
+                                onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'score_05_logic', e.target.value)}
+                                className="w-full px-2 py-1 text-[10px] bg-secondary/25 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-medium"
+                                placeholder="e.g. Partially addressed..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Score 0.0 Logic</label>
+                              <input
+                                type="text"
+                                value={rule.score_0_logic || ''}
+                                onChange={(e) => form.handleUpdatePoolCQaRule(idx, 'score_0_logic', e.target.value)}
+                                className="w-full px-2 py-1 text-[10px] bg-secondary/25 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-medium"
+                                placeholder="e.g. Not mentioned..."
+                              />
+                            </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => form.handleRemovePoolCQaRule(idx)}
-                            className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-md transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       ))
                     )}

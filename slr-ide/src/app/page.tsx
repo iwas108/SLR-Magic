@@ -120,6 +120,17 @@ export default function DashboardPage() {
     setShowEditProjectModal(true);
   }, []);
 
+  // Multi-Tab Synchronization: Automatically update the active form data if modified in another tab
+  useEffect(() => {
+    if (editingProject && showEditProjectModal) {
+      const updatedProj = projects.find((p: any) => String(p.id) === String(editingProject.id));
+      if (updatedProj && JSON.stringify(updatedProj) !== JSON.stringify(editingProject)) {
+        setEditingProject(updatedProj);
+        showToast('Project settings were updated in another session. Form data refreshed.', 'info');
+      }
+    }
+  }, [projects, editingProject, showEditProjectModal, showToast]);
+
   // Create Project handler
   const handleCreateProject = useCallback(async (projectData: any) => {
     setSavingProject(true);

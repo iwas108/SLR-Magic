@@ -65,7 +65,7 @@ export interface Project {
   reasoning_template?: string | string[];
   pool_b_ec_rules?: string | { code: string; description: string }[];
   pool_b_reasoning_template?: string | string[];
-  pool_c_qa_rules?: string | { code: string; question: string; is_fatal_flaw?: boolean }[];
+  pool_c_qa_rules?: string | { code: string; question: string; is_fatal_flaw?: boolean; score_0_logic?: string; score_05_logic?: string; score_1_logic?: string }[];
   pool_c_extraction_rules?: string | { json_key: string; question: string }[];
   stats?: any;
   Pool_A_Tags?: any;

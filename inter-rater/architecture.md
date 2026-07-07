@@ -43,6 +43,7 @@ The `inter-rater` project is structured as follows:
   - **`PreScreen.jsx`**: Display panel showing the research criteria (manifesto, questions, criteria) before starting.
   - **`ReviewScreen.jsx`**: Controller for reviewing papers, displaying a dynamic split-screen layout with an abstract reading panel, form inputs, and a floating Research Cookbook reference drawer. Lock to viewport to prevent scrolling lag.
   - **`BlindedReviewForm.jsx`**: Dynamic form that adapts to poolType, rendering QA scales and text extractions alongside standard fields.
+  - **`PdfViewer.jsx`**: Embedded fallback PDF renderer (direct frame / proxy mode) supporting full-text calibration lookup.
 
 ---
 
@@ -158,6 +159,9 @@ Other calibration pools are currently not migrated to this restricted format. Th
 ## 5. UI/UX Design System
 
 The application features a modern styling system using Tailwind CSS:
-- **Page-Level Scrolling Layout**: The review screen uses page-level scrolling to maximize the visible viewport height. Column heights are determined naturally by their content, preventing vertical clipping or double scrollbars.
-- **Theme Engine**: Integrates standard Tailwind utility classes with support for light, dark, and system themes.
+- **Unified Navigation Header**: The active review header (including project details, save indicators, Cookbook reference toggles, paper counters, and theme dropdowns) is merged directly into the top navigation bar to save vertical space.
+- **Viewport-Locked Full-Width Layout**: The review page uses a viewport-locked layout where the main reader takes up 100% of the horizontal space. Navigation is moved into a left-aligned vertical tabs sidebar (w-48), maximizing the vertical height for the PDF reader. PDF reader utility headers ("Viewer Mode" / "Open in Browser") are removed so that the PDF reader iframe occupies 100% of the panel content viewport. Paper details and metadata are consolidated in a dedicated Details tab alongside Abstract and PDF content. Special for CAL_Pool_A, the Paper Details tab link is hidden, and all metadata is rendered directly inside the Abstract tab.
+- **Sliding Evaluation Drawer**: The Blinded Evaluation form is contained inside an overlay sliding side drawer from the right, toggled by a Floating Action Button or key shortcuts (`Space`/`V`/`I`/`E`), allowing the reviewer to check PDF text while writing appraisal rationale. Special for CAL_Pool_C, it dynamically renders dedicated Quality Assessment (QA) scoring lists and Data Extraction input fields mapping to the custom rules defined in the session's exported schema.
+- **Theme Engine**: Integrates standard Tailwind utility classes with support for light, dark, and system themes across all components.
+- **Embedded Offline PDF Reader**: Embedded PDFs are stored as Base64 strings inside the `.slr` file, whitelisted and stored in IndexedDB. At runtime, they are converted into browser-level native `Blob` URLs and loaded inside an `<iframe>` dynamically, bypassing CORS restrictions, cross-origin security blocks, and internet dependency.
 - **Stats Dashboard Grid**: Renders premium high-level cards summarizing global systematic review analytics.

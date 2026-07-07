@@ -207,10 +207,14 @@ export function useProjectForm(initialData?: any) {
   };
 
   const handleAddPoolCQaRule = () => {
-    setPoolCQaRules(prev => [...prev, { code: '', question: '', is_fatal_flaw: false }]);
+    setPoolCQaRules(prev => [...prev, { code: '', question: '', is_fatal_flaw: false, score_0_logic: '', score_05_logic: '', score_1_logic: '' }]);
   };
 
-  const handleUpdatePoolCQaRule = (index: number, field: 'code' | 'question' | 'is_fatal_flaw', value: string | boolean) => {
+  const handleUpdatePoolCQaRule = (
+    index: number,
+    field: 'code' | 'question' | 'is_fatal_flaw' | 'score_0_logic' | 'score_05_logic' | 'score_1_logic',
+    value: string | boolean
+  ) => {
     setPoolCQaRules(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value } as any;

@@ -71,6 +71,7 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 
 ### 3.3 Multi-Tab Synchronization Protocol
 *   **Agnostic Broadcast Pattern**: When implementing or editing features that mutate key workspace states (e.g. project activations, paper edits, pipeline execution state, and inter-rater decisions), you **MUST** trigger synchronization broadcasts using the `broadcastSync` utility from `@/lib/sync-utils`.
+*   **Active State Rehydration (Data Loss Prevention)**: It is **MANDATORY** that forms, modals, and active editing states automatically re-hydrate (refresh) their local data if a `broadcastSync` event updates their parent dataset. You must synchronize the actively-edited object (e.g., `editingProject`, `editingPaper`) against the refreshed main list to prevent a stale tab from saving old data.
 *   **Stale-Closure Prevention (Mutable Ref Pattern)**: When subscribing to `BroadcastChannel` messages in React functional components, do not reference state-dependent getters/setters directly in the message listener. You **MUST** use a mutable `useRef` to store the latest versions of callback functions (e.g. `loadPapers`, `loadProjects`, `checkBatchStatus`) to avoid capturing stale closures.
 
 

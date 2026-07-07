@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import db, { getConfig } from '@/lib/db';
+import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
+import fs from 'fs';
+import path from 'path';
 
 export async function GET(request: Request) {
   try {
@@ -64,6 +66,18 @@ export async function GET(request: Request) {
     }
 
     const blindedPapers = shuffledPapers.map(paper => {
+      let pdfBase64 = null;
+      if (paper.Local_PDF_Path) {
+        const fullPath = path.join(PROJECT_ROOT, paper.Local_PDF_Path);
+        if (fs.existsSync(fullPath)) {
+          try {
+            pdfBase64 = fs.readFileSync(fullPath).toString('base64');
+          } catch (err) {
+            console.error(`Failed to read PDF for paper ${paper.Paper_ID}:`, err);
+          }
+        }
+      }
+
       const base = {
         Paper_ID: paper.Paper_ID || '',
         Title: paper.Title || '',
@@ -73,7 +87,8 @@ export async function GET(request: Request) {
         DOI: paper.DOI || '',
         Publisher: paper.Publisher || '',
         PDF_Link: paper.PDF_Link || '',
-        Local_PDF_Status: paper.Local_PDF_Status || 'IGNORED'
+        Local_PDF_Status: paper.Local_PDF_Status || 'IGNORED',
+        PDF_Base64: pdfBase64
       };
 
       if (dbPool === 'pool_c') {

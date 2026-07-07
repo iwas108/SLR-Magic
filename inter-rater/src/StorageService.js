@@ -12,7 +12,7 @@ db.version(1).stores({
 const STANDARD_METADATA_KEYS = [
   'Title', 'Abstract', 'Authors', 'Year', 'DOI', 'PDF_Link',
   'Import_Source', 'Source', 'Import_Date', 'DOI_Link', 'Link',
-  'Publisher', 'Conference name'
+  'Publisher', 'Conference name', 'PDF_Base64'
 ];
 
 const APPRAISAL_FIELDS = [
@@ -49,14 +49,16 @@ export const StorageService = {
           const papers = await db.papers.where({ sessionId: session.id }).toArray();
           const totalPapers = papers.length;
           
+          const poolType = session.poolType || session.metadata?.pool_type || session.metadata?.poolType || 'CAL_Pool_A';
           const completedPapers = papers.filter((paper) => {
             const app = paper.appraisal || {};
             const decision = app.Human_Decision || app.Reviewer_Decision;
             if (!decision) return false;
             
             // Basic validation
-            const hasBasic = (app.Human_Rationale || app.Reviewer_Reasoning) && 
-                             String(app.Human_Rationale || app.Reviewer_Reasoning).trim() !== '';
+            const hasBasic = decision && (poolType === 'CAL_Pool_C' || 
+                             ((app.Human_Rationale || app.Reviewer_Reasoning) && 
+                              String(app.Human_Rationale || app.Reviewer_Reasoning).trim() !== ''));
             
             if (!hasBasic) return false;
 
@@ -68,20 +70,41 @@ export const StorageService = {
 
             // Stage 2.2/2.3 / CAL_Pool_C dynamic check validation:
             if (decision === 'Include') {
-              const dynamicKeys = Object.keys(app).filter(
-                (k) => !APPRAISAL_FIELDS.includes(k)
-              );
-              for (const key of dynamicKeys) {
-                const item = app[key];
-                if (key.toLowerCase().startsWith('qa')) {
-                  if (item === undefined || item.value === undefined || item.value === '' || 
+              if (poolType === 'CAL_Pool_C') {
+                const qaRules = session.metadata?.qa_rules || session.metadata?.qaRules || [];
+                const qaScores = app.Human_QA_Scores || {};
+                for (const rule of qaRules) {
+                  const item = qaScores[rule.code];
+                  if (item === undefined || item.value === undefined || item.value === null || item.value === '' ||
                       !item.evidence || String(item.evidence).trim() === '') {
                     return false;
                   }
-                } else if (key.toLowerCase().startsWith('rq')) {
-                  if (item === undefined || item.value === undefined || String(item.value).trim() === '' ||
+                }
+                const extRules = session.metadata?.extraction_rules || session.metadata?.extractionRules || [];
+                const extData = app.Human_Extracted_Data || {};
+                for (const rule of extRules) {
+                  const item = extData[rule.json_key];
+                  if (item === undefined || item.value === undefined || item.value === null || String(item.value).trim() === '' ||
                       !item.evidence || String(item.evidence).trim() === '') {
                     return false;
+                  }
+                }
+              } else {
+                const dynamicKeys = Object.keys(app).filter(
+                  (k) => !APPRAISAL_FIELDS.includes(k)
+                );
+                for (const key of dynamicKeys) {
+                  const item = app[key];
+                  if (key.toLowerCase().startsWith('qa')) {
+                    if (item === undefined || item.value === undefined || item.value === '' || 
+                        !item.evidence || String(item.evidence).trim() === '') {
+                      return false;
+                    }
+                  } else if (key.toLowerCase().startsWith('rq')) {
+                    if (item === undefined || item.value === undefined || String(item.value).trim() === '' ||
+                        !item.evidence || String(item.evidence).trim() === '') {
+                      return false;
+                    }
                   }
                 }
               }
@@ -178,7 +201,9 @@ export const StorageService = {
           quality_assurance_definition: metadataBlock.quality_assurance_definition || metadataBlock.qualityAssuranceDefinition || '',
           exclusion_criteria: metadataBlock.exclusion_criteria || metadataBlock.exclusionCriteria || '',
           ec_rules: metadataBlock.ec_rules || metadataBlock.ecRules || [],
-          reasoning_template: metadataBlock.reasoning_template || metadataBlock.reasoningTemplate || []
+          reasoning_template: metadataBlock.reasoning_template || metadataBlock.reasoningTemplate || [],
+          qa_rules: metadataBlock.qa_rules || metadataBlock.qaRules || [],
+          extraction_rules: metadataBlock.extraction_rules || metadataBlock.extractionRules || []
         }
       });
 
@@ -452,7 +477,9 @@ export const StorageService = {
           quality_assurance_definition: newMetadata.quality_assurance_definition || newMetadata.qualityAssuranceDefinition || '',
           exclusion_criteria: newMetadata.exclusion_criteria || newMetadata.exclusionCriteria || '',
           ec_rules: newMetadata.ec_rules || newMetadata.ecRules || [],
-          reasoning_template: newMetadata.reasoning_template || newMetadata.reasoningTemplate || []
+          reasoning_template: newMetadata.reasoning_template || newMetadata.reasoningTemplate || [],
+          qa_rules: newMetadata.qa_rules || newMetadata.qaRules || [],
+          extraction_rules: newMetadata.extraction_rules || newMetadata.extractionRules || []
         };
 
         await db.sessions.update(sId, {
