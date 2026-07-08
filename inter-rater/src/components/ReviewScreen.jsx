@@ -16,17 +16,34 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
   const [saveStatus, setSaveStatus] = useState('saved');
   const [activeLeftTab, setActiveLeftTab] = useState('abstract');
   const [isEvaluationOpen, setIsEvaluationOpen] = useState(false);
+  const drawerScrollRef = useRef(null);
+  const prevScrollTop = useRef(0);
 
   useEffect(() => {
     if (isEvaluationOpen) {
+      const savedScroll = prevScrollTop.current;
       setTimeout(() => {
         const el = document.querySelector('.side-drawer-container textarea, .side-drawer-container input');
         if (el) {
-          el.focus();
+          el.focus({ preventScroll: true });
+        }
+        if (drawerScrollRef.current) {
+          drawerScrollRef.current.scrollTop = savedScroll;
         }
       }, 150);
+    } else {
+      if (drawerScrollRef.current) {
+        prevScrollTop.current = drawerScrollRef.current.scrollTop;
+      }
     }
   }, [isEvaluationOpen]);
+
+  useEffect(() => {
+    prevScrollTop.current = 0;
+    if (drawerScrollRef.current) {
+      drawerScrollRef.current.scrollTop = 0;
+    }
+  }, [currentIndex]);
 
   const loadSessionDataRef = useRef(null);
 
@@ -37,7 +54,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
       const pList = await StorageService.getPapersForSession(sessionId);
       setPapers(pList);
       setCurrentIndex(s.currentIndex || 0);
-      
+
       const pool = s.poolType || s.metadata?.pool_type || '';
       const hasPdf = pList[s.currentIndex || 0]?.standard_metadata?.PDF_Link || pList[s.currentIndex || 0]?.standard_metadata?.PDF_Base64;
       if (pool !== 'CAL_Pool_A' && pool !== 'pool_a' && hasPdf) {
@@ -62,10 +79,10 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
   const handleInputChange = useCallback(async (field, value) => {
     if (papers.length === 0) return;
-    
+
     const activePaper = papers[currentIndex];
     const updates = { [field]: value };
-    
+
     if (field === 'Human_Decision' || field === 'Reviewer_Decision') {
       updates.Human_Decision = value;
       updates.Reviewer_Decision = value;
@@ -82,7 +99,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
     }
 
     const updatedAppraisal = { ...activePaper.appraisal, ...updates };
-    
+
     setPapers(prevPapers => {
       const newPapers = [...prevPapers];
       newPapers[currentIndex] = {
@@ -166,7 +183,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
       return;
     }
     const updatedTemplates = [...currentTemplates, newTemplate];
-    
+
     setSaveStatus('saving');
     try {
       await StorageService.updateSession(sessionId, { reasoning_template: updatedTemplates, reasoningTemplate: updatedTemplates });
@@ -190,7 +207,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
       const nextIndex = currentIndex + 1;
       setCurrentIndex(nextIndex);
       await StorageService.updateSession(sessionId, { currentIndex: nextIndex });
-      
+
       const pool = session?.poolType || session?.metadata?.pool_type || '';
       const hasPdf = papers[nextIndex]?.standard_metadata?.PDF_Link || papers[nextIndex]?.standard_metadata?.PDF_Base64;
       if (pool !== 'CAL_Pool_A' && pool !== 'pool_a' && hasPdf) {
@@ -225,14 +242,14 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
   const isPaperValid = useCallback((paper) => {
     if (!paper) return false;
     const app = paper.appraisal || {};
-    
+
     const decision = app.Human_Decision || app.Reviewer_Decision;
     const rationale = app.Human_Rationale || app.Reviewer_Reasoning;
     const ecTrigger = app.Human_EC_Trigger || app.Reviewer_EC_Code;
 
     const pool = session?.poolType || session?.metadata?.pool_type || '';
     const hasBasic = decision && (pool === 'CAL_Pool_C' || (rationale && String(rationale).trim() !== ''));
-    
+
     if (!hasBasic) return false;
 
     const ecRules = session?.metadata?.ec_rules || session?.metadata?.ecRules || [];
@@ -249,7 +266,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
         for (const rule of qaRules) {
           const item = qaScores[rule.code];
           if (item === undefined || item.value === undefined || item.value === null || item.value === '' ||
-              !item.evidence || String(item.evidence).trim() === '') {
+            !item.evidence || String(item.evidence).trim() === '') {
             return false;
           }
         }
@@ -259,7 +276,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
         for (const rule of extRules) {
           const item = extData[rule.json_key];
           if (item === undefined || item.value === undefined || item.value === null || String(item.value).trim() === '' ||
-              !item.evidence || String(item.evidence).trim() === '') {
+            !item.evidence || String(item.evidence).trim() === '') {
             return false;
           }
         }
@@ -271,13 +288,13 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
         for (const key of dynamicKeys) {
           const item = app[key];
           if (key.toLowerCase().startsWith('qa')) {
-            if (item === undefined || item.value === undefined || item.value === '' || 
-                !item.evidence || String(item.evidence).trim() === '') {
+            if (item === undefined || item.value === undefined || item.value === '' ||
+              !item.evidence || String(item.evidence).trim() === '') {
               return false;
             }
           } else if (key.toLowerCase().startsWith('rq')) {
             if (item === undefined || item.value === undefined || String(item.value).trim() === '' ||
-                !item.evidence || String(item.evidence).trim() === '') {
+              !item.evidence || String(item.evidence).trim() === '') {
               return false;
             }
           }
@@ -301,7 +318,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
     const handleKeyDown = (e) => {
       const activeEl = document.activeElement;
       const isInputActive = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
-      
+
       const key = e.key.toLowerCase();
       const ecRules = session.metadata?.ec_rules || session.metadata?.ecRules || [];
       const paperApp = activePaper?.appraisal || {};
@@ -401,8 +418,8 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
         <div className="max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Left: Brand + Separator + Project Details */}
           <div className="flex items-center gap-3 min-w-0">
-            <span 
-              className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent cursor-pointer shrink-0" 
+            <span
+              className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent cursor-pointer shrink-0"
               onClick={() => onNavigate('dashboard')}
             >
               SLR Magic Inter-Rater
@@ -457,7 +474,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               <span>Research Cookbook</span>
             </button>
 
-            <span className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-350 rounded-lg text-[11px] font-extrabold border border-gray-205 dark:border-gray-700">
+            <span className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-300 dark:text-gray-350 rounded-lg text-[11px] font-extrabold border border-gray-205 dark:border-gray-700">
               Paper {currentIndex + 1} of {papers.length}
             </span>
 
@@ -479,22 +496,21 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
       {/* Main Content Area */}
       <div className="flex-1 min-h-0 w-full max-w-[1800px] mx-auto px-4 sm:px-8 xl:px-12 mt-4 flex flex-col overflow-hidden">
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-row h-full overflow-hidden mb-6 relative">
-          
+
           {/* Vertical left tab bar */}
           <div className="w-48 bg-gray-50/50 dark:bg-gray-900/35 border-r border-gray-200 dark:border-gray-800 p-3 flex flex-col gap-1.5 shrink-0">
             <div className="text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 mb-1 shrink-0">
               Navigation
             </div>
-            
+
             {/* PDF Reader tab: visible if not Pool A and has PDF */}
             {!isPoolA && (activePaper.standard_metadata.PDF_Link || activePaper.standard_metadata.PDF_Base64) && (
               <button
                 onClick={() => setActiveLeftTab('pdf')}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${
-                  activeLeftTab === 'pdf'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                    : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
-                }`}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'pdf'
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
+                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  }`}
               >
                 <span className="text-sm">📄</span>
                 <span className="truncate">PDF Reader</span>
@@ -504,11 +520,10 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
             {/* Abstract tab */}
             <button
               onClick={() => setActiveLeftTab('abstract')}
-              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${
-                activeLeftTab === 'abstract'
-                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
-              }`}
+              className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'abstract'
+                ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
+                : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                }`}
             >
               <span className="text-sm">📝</span>
               <span className="truncate">Abstract</span>
@@ -518,11 +533,10 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
             {ecRules.length > 0 && !isPoolC && (
               <button
                 onClick={() => setActiveLeftTab('ecRules')}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${
-                  activeLeftTab === 'ecRules'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-955/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                    : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
-                }`}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'ecRules'
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-955/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
+                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  }`}
               >
                 <span className="text-sm">🚫</span>
                 <span className="truncate">EC Rules</span>
@@ -533,11 +547,10 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
             {!isPoolA && (
               <button
                 onClick={() => setActiveLeftTab('metadata')}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${
-                  activeLeftTab === 'metadata'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                    : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
-                }`}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'metadata'
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
+                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  }`}
               >
                 <span className="text-sm">ℹ️</span>
                 <span className="truncate">Paper Details</span>
@@ -548,11 +561,10 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
             {isPoolC && qaRules.length > 0 && (
               <button
                 onClick={() => setActiveLeftTab('qaRulesPreview')}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${
-                  activeLeftTab === 'qaRulesPreview'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                    : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
-                }`}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'qaRulesPreview'
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
+                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  }`}
               >
                 <span className="text-sm">⚖️</span>
                 <span className="truncate">QA Schema</span>
@@ -563,11 +575,10 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
             {isPoolC && extractionRules.length > 0 && (
               <button
                 onClick={() => setActiveLeftTab('extractionRulesPreview')}
-                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${
-                  activeLeftTab === 'extractionRulesPreview'
-                    ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                    : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
-                }`}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'extractionRulesPreview'
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
+                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  }`}
               >
                 <span className="text-sm">🧬</span>
                 <span className="truncate">Extraction Schema</span>
@@ -577,23 +588,28 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
           {/* Right side content viewport */}
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-5 relative">
-            {/* Tab contents */}
             <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-              {activeLeftTab === 'pdf' && (activePaper.standard_metadata.PDF_Link || activePaper.standard_metadata.PDF_Base64) ? (
-                <div className="h-full min-h-[450px]">
+              {/* PDF Viewer - kept mounted to preserve scroll/state, toggled via display style */}
+              {!isPoolA && (activePaper.standard_metadata.PDF_Link || activePaper.standard_metadata.PDF_Base64) && (
+                <div
+                  className="h-full min-h-[450px]"
+                  style={{ display: activeLeftTab === 'pdf' ? 'block' : 'none' }}
+                >
                   <PdfViewer
                     url={activePaper.standard_metadata.PDF_Link}
                     base64={activePaper.standard_metadata.PDF_Base64}
                   />
                 </div>
-              ) : activeLeftTab === 'abstract' ? (
+              )}
+
+              {activeLeftTab === 'abstract' ? (
                 <div className="space-y-4">
                   {isPoolA && (
                     <div className="bg-gray-50/50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-855 rounded-xl p-5 space-y-4">
                       <h3 className="text-base font-extrabold text-gray-900 dark:text-white leading-snug">
                         {activePaper.standard_metadata.Title || 'No Title Available'}
                       </h3>
-                      
+
                       <div className="border-t border-gray-150 dark:border-gray-800 pt-3 space-y-2.5 text-xs">
                         {activePaper.standard_metadata.Year && (
                           <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
@@ -642,7 +658,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                     </div>
                   )}
 
-                  <div className="text-sm text-gray-700 dark:text-gray-350 leading-relaxed whitespace-pre-wrap font-normal p-4 bg-gray-50/50 dark:bg-gray-900/40 rounded-xl border border-gray-100 dark:border-gray-855">
+                  <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap font-normal p-4 bg-gray-50/50 dark:bg-gray-900/40 rounded-xl border border-gray-100 dark:border-gray-855">
                     {isPoolA && <h4 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Abstract</h4>}
                     {activePaper.standard_metadata.Abstract || 'No abstract content is available for this paper.'}
                   </div>
@@ -654,7 +670,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                       <span className="inline-block px-2.5 py-0.5 bg-rose-50 text-rose-700 dark:bg-rose-955/40 dark:text-rose-350 border border-rose-100 dark:border-rose-900/40 text-[10px] font-extrabold rounded-md mb-2">
                         {rule.code}
                       </span>
-                      <p className="text-xs text-gray-650 dark:text-gray-305 leading-relaxed font-normal">
+                      <p className="text-xs text-gray-655 dark:text-gray-305 leading-relaxed font-normal">
                         {rule.description}
                       </p>
                     </div>
@@ -668,9 +684,9 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                     </h3>
                   </div>
                   {qaRules.map((rule, idx) => (
-                    <div key={idx} className="p-4 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-155 dark:border-gray-850 rounded-xl space-y-2">
+                    <div key={idx} className="p-4 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-155 dark:border-gray-855 rounded-xl space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-955/40 dark:text-blue-300 border border-blue-100 dark:border-blue-900/40 text-[10px] font-extrabold rounded-md">
+                        <span className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-gray-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/40 text-[10px] font-extrabold rounded-md">
                           {rule.code}
                         </span>
                         <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
@@ -723,7 +739,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                   {extractionRules.map((rule, idx) => (
                     <div key={idx} className="p-4 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-155 dark:border-gray-850 rounded-xl space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 bg-purple-50 text-purple-700 dark:bg-purple-955/40 dark:text-purple-300 border border-purple-100 dark:border-purple-900/40 text-[10px] font-mono font-extrabold rounded-md">
+                        <span className="px-2 py-0.5 bg-purple-50 text-purple-700 dark:bg-gray-700 dark:text-purple-300 border border-purple-100 dark:border-purple-900/40 text-[10px] font-mono font-extrabold rounded-md">
                           {rule.json_key}
                         </span>
                         <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
@@ -743,12 +759,12 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                     </div>
                   ))}
                 </div>
-              ) : (
+              ) : activeLeftTab === 'metadata' || (!isPoolA && activeLeftTab !== 'pdf') ? (
                 <div className="bg-gray-50/50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-855 rounded-xl p-5 space-y-4">
                   <h3 className="text-base font-extrabold text-gray-900 dark:text-white leading-snug">
                     {activePaper.standard_metadata.Title || 'No Title Available'}
                   </h3>
-                  
+
                   <div className="border-t border-gray-150 dark:border-gray-800 pt-3 space-y-2.5 text-xs">
                     {activePaper.standard_metadata.Year && (
                       <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
@@ -775,7 +791,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                       </div>
                     )}
                     {activePaper.standard_metadata.Import_Source && (
-                      <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
+                      <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-855/40">
                         <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Source</span>
                         <span className="text-gray-800 dark:text-gray-200 font-normal">{activePaper.standard_metadata.Import_Source}</span>
                       </div>
@@ -795,7 +811,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                     )}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
 
             {/* Floating Action Button (FAB) inside the content panel */}
@@ -814,7 +830,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
       {/* Side Drawer Backdrop */}
       {isEvaluationOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-900/30 backdrop-blur-[1px] z-45 transition-opacity"
           onClick={() => setIsEvaluationOpen(false)}
         />
@@ -836,7 +852,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
             </svg>
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-5 min-h-0">
+        <div ref={drawerScrollRef} className="flex-1 overflow-y-auto p-5 min-h-0">
           <BlindedReviewForm
             currentRow={activePaper.appraisal}
             handleInputChange={handleInputChange}
@@ -871,7 +887,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
           </button>
         </div>
 
-        <div className="hidden lg:flex items-center gap-2.5 px-4 py-2 bg-gray-50 dark:bg-gray-855 rounded-xl border border-gray-150 dark:border-gray-800 text-[10px] text-gray-500 font-semibold max-w-full overflow-x-auto">
+        <div className="hidden lg:flex items-center gap-2.5 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-150 dark:border-gray-800 text-[10px] text-gray-500 font-semibold max-w-full overflow-x-auto">
           <span className="font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mr-1 shrink-0">Shortcuts:</span>
           <span className="flex items-center gap-1 shrink-0"><kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-sm font-mono text-[9px]">I</kbd> Include</span>
           <span className="flex items-center gap-1 shrink-0"><kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-sm font-mono text-[9px]">E</kbd> Exclude</span>

@@ -27,7 +27,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
   const inclusion_criteria = metadata.inclusion_criteria || metadata.inclusionCriteria || '';
   const exclusion_criteria = metadata.exclusion_criteria || metadata.exclusionCriteria || '';
   const ec_rules = metadata.ec_rules || metadata.ecRules || [];
-  
+
   // New calibration context fields
   const quality_assurance_definition = metadata.quality_assurance_definition || metadata.qualityAssuranceDefinition || '';
   const qa_rules = metadata.qa_rules || metadata.qaRules || [];
@@ -42,13 +42,12 @@ const PreScreen = ({ sessionId, onNavigate }) => {
         <div>
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white">Research Context & Pre-Screen</h2>
-            <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${
-              isPoolC 
-                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300' 
-                : isPoolB 
-                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300' 
+            <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${isPoolC
+              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300'
+              : isPoolB
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
                 : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
-            }`}>
+              }`}>
               {pool_type}
             </span>
           </div>
@@ -66,7 +65,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-6">
           <div>
             <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Project Name</h3>
-            <p className="text-gray-800 dark:text-gray-250 font-semibold text-lg leading-snug">{project_name}</p>
+            <p className="text-gray-800 dark:text-gray-300 font-semibold text-lg leading-snug">{project_name}</p>
           </div>
 
           {research_objective && (
@@ -138,7 +137,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
                     <span className="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-100/30 text-[10px] font-bold rounded mb-2">
                       {rule.code}
                     </span>
-                    <p className="text-xs text-gray-800 dark:text-gray-250 leading-relaxed font-semibold">{rule.question}</p>
+                    <p className="text-xs text-gray-800 dark:text-gray-300 leading-relaxed font-semibold">{rule.question}</p>
                     {((rule.score_1_logic || rule.score1Logic) || (rule.score_05_logic || rule.score05Logic) || (rule.score_0_logic || rule.score0Logic)) && (
                       <div className="mt-2 text-[10px] text-gray-500 dark:text-gray-400 space-y-1 bg-white dark:bg-gray-950 p-2 rounded-lg border dark:border-gray-800 font-semibold leading-relaxed">
                         {(rule.score_1_logic || rule.score1Logic) && (
@@ -177,7 +176,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
                     <span className="inline-block px-2.5 py-0.5 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-100/30 text-[10px] font-mono rounded mb-2">
                       {rule.json_key || rule.key}
                     </span>
-                    <p className="text-xs text-gray-800 dark:text-gray-250 leading-relaxed font-semibold">{rule.question}</p>
+                    <p className="text-xs text-gray-800 dark:text-gray-300 leading-relaxed font-semibold">{rule.question}</p>
                   </div>
                 ))}
               </div>

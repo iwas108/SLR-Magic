@@ -144,7 +144,22 @@ This document tracks all changes, refactors, and feature additions applied to th
 - **QA Score Button Click Selection Fix**:
   - Fixed a bug inside `BlindedReviewForm.jsx` where clicking on `1.0` and `0.0` score buttons successfully updated the database state but failed to toggle the visual highlight state in the DOM. Replaced string-based comparison (`'1' === '1.0'`) with safe numeric comparison (`Number(item.value) === Number(val)`).
 
+## [#012] Fix EACCES Permission Denied Port Error - 2026-07-08
 
+- **Vite Port Re-routing**:
+  - Configured Vite's `server.port` to `3001` in `vite.config.js` to circumvent port `5173` which lies inside Windows/Hyper-V/WinNAT's default excluded port ranges (`5141-5240`). This avoids the `listen EACCES: permission denied 0.0.0.0:5173` crash.
 
+## [#013] PDF Viewer State Preservation & Iframe Src Warning Fix - 2026-07-08
 
+- **Iframe Empty Src Warning Fix**:
+  - Refactored `PdfViewer.jsx` to avoid rendering the iframe element when the compiled embed URL is empty/null (e.g. while base64 string conversion to Blob URL is in progress). This prevents the browser warning regarding empty strings passed to the `src` attribute.
+- **PDF Scroll State Preservation**:
+  - Re-architected tab viewport rendering in `ReviewScreen.jsx` to keep the `PdfViewer` component permanently mounted in the DOM when a PDF exists, toggling its visibility via style display toggle (`display: block` or `display: none`) instead of conditionally unmounting it. This preserves the scroll position and prevents page/iframe reload cycles when the user toggles between the PDF reader and other metadata/abstract tabs.
 
+## [#014] Blinded Evaluation Sidebar Scroll State Preservation - 2026-07-08
+
+- **Sidebar Scroll State Caching**:
+  - Added a ref `prevScrollTop` and attached a ref `drawerScrollRef` to the scrollable container of the `BlindedReviewForm` inside the sliding side drawer.
+  - Cached the active scroll height when closing the evaluation drawer, and restored it upon opening.
+  - Configured `focus({ preventScroll: true })` when focusing input/textarea fields on drawer open to prevent the browser from snapping the scroll back to the focused element.
+  - Reset the scroll position cache back to `0` when switching active papers to ensure a clean evaluation state.
