@@ -94,17 +94,19 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 ### LLM Orchestration & Providers
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
-| `llm/main.py` | LLM Orchestration | Primary CLI entrypoint for executing LLM-powered paper screening, quality assessment, and structured data extraction tasks. |
-| `llm/batch_handler.py` | LLM Orchestration | Manages high-concurrency bulk LLM job batches, implementing rate limit backoffs, error handling, and retry mechanisms. |
-| `llm/queue_handler.py` | LLM Orchestration | Asynchronous queue management mechanism for feeding paper batches to LLM provider endpoints without overwhelming resources. |
-| `llm/database.py` | Database Interop | Interacts with `slr.db` to read paper prompts/schemas and persist LLM screening decisions, QA scores, and extracted JSON payloads. |
-| `llm/budget.py` | Cost Management | Tracks token consumption across models, calculates real-time API financial expenditures, and enforces strict budget thresholds. |
-| `llm/test_budget.py` | Testing | Unit test suite validating the precision of token counting, pricing formulas, and budget cutoff enforcement logic. |
-| `llm/templating.py` | Prompt Management | Loads dynamic prompt templates, injects paper metadata/abstracts, and formats output instructions matching target JSON schemas. |
-| `llm/providers/base.py` | LLM Provider | Abstract Base Class (ABC) defining the mandatory contract and standard execution signatures for all LLM provider wrappers. |
-| `llm/providers/claude.py` | LLM Provider | Concrete wrapper for Anthropic's Claude API, supporting prompt caching, system instructions, and structured JSON output generation. |
-| `llm/providers/gemini.py` | LLM Provider | Concrete wrapper for Google Gemini API, implementing structured JSON schema adherence and native model invocation. |
-| `llm/providers/openai.py` | LLM Provider | Concrete wrapper for OpenAI API, managing GPT-model invocations, JSON mode formatting, and function calling parameters. |
+| `llm/main.py` | LLM Orchestration | Primary CLI entrypoint for executing Gemini Interactions API task executions. |
+| `llm/client.py` | LLM Client | Wrapper for google-genai Client, calling interactions.create with flex-pacing. |
+| `llm/screening.py` | LLM screening | Handles text-only title-abstract screening queries. |
+| `llm/fulltext.py` | LLM screening | Uploads PDF to Gemini Files API and handles full-text screening queries with cleanup. |
+| `llm/extraction.py` | LLM extraction | Executes structured data extraction queries matching custom JSON schemas. |
+| `llm/queue_handler.py` | LLM Queue | Asynchronous queue management mechanism feeding paper batches to Gemini client. |
+| `llm/database.py` | Database Interop | Interacts with `slr.db` to read configs and write decisions. |
+| `llm/budget.py` | Cost Management | Fetches dynamic pricing from Gemini API and verifies budget limits. |
+| `llm/test_budget.py` | Testing | Unit test suite validating pricing and budget cutout enforcement logic. |
+| `llm/templating.py` | Prompt Management | Hydrates prompt templates using Jinja2 context formatting. |
+| `llm/audit.py` | Audit Management | Logs all API interactions, costs, and inputs/outputs to llm_audit_log table. |
+| `llm/schema_registry.py` | Schema Registry | Normalizes JSON schemas into uppercase formats accepted by Gemini. |
+| `llm/vault.py` | Cryptography | Implements AES-256-GCM + PBKDF2 API key vault encryption/decryption. |
 
 ### PDF Processing & Validation
 | File Path | Architectural Layer | Function & Purpose |
@@ -123,7 +125,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `types/index.ts` | TypeScript Definitions| Defines strict TypeScript interfaces for core entities: `Paper`, `Project`, `Config`, `ReviewerDecision`, `LedgerCommit`, and `DuplicatePair`. |
 | `lib/db.ts` | Database Client | Exports the singleton `better-sqlite3` database instance, transaction wrappers, PRAGMA enforcements, and configuration helpers. |
 | `lib/db/db-init.ts` | Database Client/Init | Isolation layer handling schema DDL execution, database migrations, default lookup table seeding, and startup self-healing PDF path migrations. |
-| `lib/llm-operations.ts` | Frontend Utility | Provides helper routines for calculating LLM pricing estimations, managing job payloads, and initiating screening API calls. |
+| `lib/llm-operations.ts` | Frontend Utility | Singleton queue process manager initiating background subprocess execution and SSE log streams. |
+| `lib/vault.ts` | Cryptography | Node.js cryptographic utilities for vault key encryption/decryption matching python formats. |
+| `lib/session.ts` | Session Management | In-memory server-side cache for storing master password inside active sessions. |
 | `lib/pdf-utils.ts` | Frontend Utility | Contains helper functions for validating PDF paths, checking file accessibility, managing local preview URIs, and project-deletion asset rescue. |
 | `lib/sync-utils.ts` | Synchronization | Implements the Agnostic BroadcastChannel pattern (`broadcastSync`, `subscribeSyncChannel`) for cross-tab synchronization and reactivity. |
 
@@ -138,7 +142,6 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/services/semantic-search-cache.ts` | Backend Service | Lightweight SQLite caching system for turbovec semantic searches, fetching up-to-date metadata dynamically on hits. |
 | `lib/services/vector-daemon-manager.ts` | Backend Service | Singleton service orchestrating the lifecycle, crash recovery, and request routing of the persistent Python vector worker daemon. |
 | `lib/services/pipeline/subprocess-runner.ts` | Backend Service | Helper service orchestrating python child process execution, NDJSON buffering, and stdout/stderr event forwarding. |
-| `lib/services/pipeline/compressor.ts` | Backend Service | Helper service resolving Ghostscript path environment and executing file compressions. |
 | `lib/services/pipeline/rclone-sync.ts` | Backend Service | Helper service constructing cloud sync commands, re-connecting OAuth configs, and updating paper local PDF paths to synced repo path upon link generation. |
 | `lib/inter-rater/adjudication-calculations.ts` | Domain Library | Pure TypeScript calculation library for Cohen's Kappa, agreement formulas, and data extraction JSON comparisons (zero Next.js dependencies, standalone SPA ready). |
 
@@ -163,12 +166,11 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/InterRaterDashboard.tsx` | View Component | Comprehensive dashboard for adjudicating blinded inter-rater reviews, comparing QA scores, and evaluating data extractions. |
 | `components/features/DashboardView.tsx` | View Component | Executive project overview view displaying summary statistics, local PDF acquisition charts, and recent project activity logs. |
 | `components/features/DuplicateReviewModal.tsx`| View Component | Human-in-the-loop modal interface for side-by-side comparison, scoring analysis, and adjudication of candidate duplicate pairs. |
-| `components/features/GlobalLLMSettingsView.tsx`| View Component | Configuration interface for managing global LLM provider API keys, model selections, and base operational parameters. |
+| `components/features/GlobalLLMSettingsView.tsx`| View Component | Unified 4-tab LLM dashboard aggregating Vault Settings, Prompt templates + schema editors, Operations controls, and Audit trails. |
 | `components/features/GlobalModals.tsx` | View Component | Unified container component wrapping all application modals to prevent inline rendering clutter within the main page structure. |
 | `components/features/IngestionHubView.tsx` | View Component | Primary view interface for importing new literature databases, reviewing CSV structures, and launching column mapping workflows. |
 | `components/features/IngestionPanel.tsx` | View Component | Interactive sub-panel handling file drag-and-drop, initial CSV parsing, and preview rendering during ingestion. |
-| `components/features/LLMConfigView.tsx` | View Component | View interface for configuring project-scoped LLM prompts, quality assessment rules, and target JSON extraction schemas. |
-| `components/features/LLMOperationsCenter.tsx` | View Component | Monitoring dashboard tracking active LLM screening jobs, batch execution progress, token usage, and real-time cost accumulation. |
+| `components/features/LLMConfigView.tsx` | View Component | View interface for configuring project-scoped LLM budget spend limits. |
 | `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records. |
 | `components/features/PipelineExecutionView.tsx`| View Component | Interface for launching, monitoring, and controlling automated PDF acquisition, OCR indexing, and cloud sync batch pipelines. |
 | `components/features/PreCalibrationView.tsx` | View Component | View interface for managing pre-calibration workflows, tagging specific screening cohorts, cohort tag filtering, and analyzing screening consistency. |
@@ -184,7 +186,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/settings/ProjectMetadataSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering metadata fields. |
 | `components/features/modals/settings/ProjectCalibrationSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering calibration pools, tags, and rules. |
 | `components/features/modals/settings/ProjectSyncSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering Cloud Sync provider and connection test parameters. |
-| `components/features/modals/AdjudicationWorkspaceModal.tsx` | Modal Component| Standalone conflict resolution split-pane adjudication workspace. |
+| `components/features/modals/AdjudicationWorkspaceModal.tsx` | Modal Component| Standalone conflict resolution split-pane workspace with integrated PDF viewer, rich metadata, and fallback downloader. |
 | `components/features/modals/DeletePaperConfirmModal.tsx` | Modal Component| Standalone modal dialog for confirming permanent deletion of a single paper record (`DELETE /api/papers/[id]`). |
 | `components/features/modals/DeleteProjectConfirmModal.tsx`| Modal Component| Standalone modal dialog for confirming deletion of a literature review project configuration (`DELETE /api/projects/[id]`). |
 | `components/features/modals/DeleteAllPapersConfirmModal.tsx`| Modal Component| Standalone security dialog verifying active project name before executing bulk wipe of all project papers. |
@@ -251,7 +253,6 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/pdf/scan/route.ts` | REST Endpoint | Handles POST requests to execute a smart cache match scan (`match_cache.py`) for a single paper against local repositories. |
 | `api/pdf/serve/route.ts` | REST Endpoint | Securely reads and streams local binary PDFs to the iframe previewer with on-demand self-healing PDF recovery. |
 | `api/pdf/single/route.ts` | REST Endpoint | Handles POST requests to execute a complete single-paper PDF acquisition workflow (Scan -> Scrape -> Compress -> Sync). |
-| `api/pdf/sync/route.ts` | REST Endpoint | Runs rclone cloud sync for papers and updates paper local PDF paths to synced repo path upon link generation. |
 | `api/projects/route.ts` | REST Endpoint | Handles GET and POST requests to list all active literature review projects or create new project database records. |
 | `api/projects/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests to retrieve, update, or permanently wipe a specific project configuration and its associated data. |
 | `api/projects/activate/route.ts` | REST Endpoint | Handles POST requests to update the `ACTIVE_PROJECT_ID` value in the SQLite `configs` table, switching the active workspace context. |

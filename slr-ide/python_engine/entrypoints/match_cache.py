@@ -8,7 +8,7 @@ import difflib
 import hashlib
 import time
 
-from python_engine.core.config import PROJECT_DIR, DB_PATH, CACHE_DIR, RAW_DIR, CACHE_INDEX_DB_PATH
+from python_engine.core.config import PROJECT_DIR, DB_PATH, CACHE_DIR, RAW_DIR, REPO_DIR, CACHE_INDEX_DB_PATH
 from python_engine.core.events import throttle_print
 from python_engine.core.security import sanitize_string, sanitize_doi, calculate_md5
 from python_engine.pdf.analyzer import extract_pdf_text_first_page
@@ -123,14 +123,25 @@ def run_matcher():
     """)
     conn_idx.commit()
 
-    # Fetch active PDF files in pdf_library/cached/
-    active_pdf_files = [f for f in os.listdir(CACHE_DIR) if f.lower().endswith('.pdf')]
-    print(json.dumps({"event": "log", "message": f"Scanning pdf_library/cached: found {len(active_pdf_files)} PDF files. Building cache index..."}))
+    # Fetch active PDF files in pdf_library/cached/ and pdf_library/raw/
+    active_pdf_files = []
+    for f in os.listdir(CACHE_DIR):
+        if f.lower().endswith('.pdf'):
+            active_pdf_files.append((f, CACHE_DIR))
+    for f in os.listdir(RAW_DIR):
+        if f.lower().endswith('.pdf'):
+            active_pdf_files.append((f, RAW_DIR))
+
+    print(json.dumps({"event": "log", "message": f"Scanning cached & raw folders: found {len(active_pdf_files)} PDF files. Building cache index..."}))
     sys.stdout.flush()
 
+    active_rel_paths = set()
+
     # Incremental Cache Indexing
-    for idx_f, f in enumerate(active_pdf_files):
-        file_path = os.path.join(CACHE_DIR, f)
+    for idx_f, (f, folder) in enumerate(active_pdf_files):
+        file_path = os.path.join(folder, f)
+        rel_path = os.path.relpath(file_path, PROJECT_DIR).replace('\\', '/')
+        active_rel_paths.add(rel_path)
         try:
             stat = os.stat(file_path)
             file_size = stat.st_size
@@ -139,7 +150,7 @@ def run_matcher():
             continue
 
         # Check if already indexed and unchanged
-        cursor_idx.execute("SELECT file_size, mtime FROM pdf_cache WHERE filename = ?", (f,))
+        cursor_idx.execute("SELECT file_size, mtime FROM pdf_cache WHERE filename = ?", (rel_path,))
         row_idx = cursor_idx.fetchone()
         if row_idx and row_idx[0] == file_size and row_idx[1] == mtime:
             # File unchanged, skip indexing
@@ -217,16 +228,15 @@ def run_matcher():
         cursor_idx.execute("""
             INSERT OR REPLACE INTO pdf_cache (filename, file_hash, file_size, mtime, extracted_doi, extracted_title, page1_text)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (f, file_hash, file_size, mtime, extracted_doi, extracted_title, text))
+        """, (rel_path, file_hash, file_size, mtime, extracted_doi, extracted_title, text))
         conn_idx.commit()
 
     # Delete obsolete index records
     cursor_idx.execute("SELECT filename FROM pdf_cache")
     all_cached_filenames = [r[0] for r in cursor_idx.fetchall()]
-    active_pdf_set = set(active_pdf_files)
     obsolete_count = 0
     for db_f in all_cached_filenames:
-        if db_f not in active_pdf_set:
+        if db_f not in active_rel_paths:
             cursor_idx.execute("DELETE FROM pdf_cache WHERE filename = ?", (db_f,))
             obsolete_count += 1
     if obsolete_count > 0:
@@ -244,8 +254,6 @@ def run_matcher():
             'page1_text': row[4]
         })
     conn_idx.close()
-
-    # PDF Cache Vector Index auto-indexing dropped (deterministic matching active)
 
     # Fetch active project ID and folder name
     cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
@@ -271,9 +279,23 @@ def run_matcher():
     else:
         cursor.execute("""
             SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
-            WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING')
+            WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status != 'IGNORED')
         """, (active_proj_id,))
     papers = cursor.fetchall()
+
+    # Pre-build sets of existing file IDs for O(1) existence checks
+    existing_raw_ids = set()
+    if os.path.exists(RAW_DIR):
+        for f in os.listdir(RAW_DIR):
+            if f.lower().endswith('.pdf'):
+                existing_raw_ids.add(os.path.splitext(f)[0])
+
+    project_repo_dir = os.path.join(REPO_DIR, folder_name)
+    existing_repo_ids = set()
+    if os.path.exists(project_repo_dir):
+        for f in os.listdir(project_repo_dir):
+            if f.lower().endswith('.pdf'):
+                existing_repo_ids.add(os.path.splitext(f)[0])
 
     print(json.dumps({"info": f"Index loaded. Starting matching lookup for {len(papers)} papers in database."}))
     sys.stdout.flush()
@@ -291,24 +313,91 @@ def run_matcher():
             "title": title
         })
 
-        # Safetynet: check if already matched/downloaded/synced and file exists on disk
+        # Check physical existence of the file on disk
+        has_file = False
+        file_found_path = None
+        file_found_status = None
+
+        if local_pdf_path:
+            norm_path = local_pdf_path.replace('\\', '/')
+            if norm_path.startswith('pdf_library/raw/'):
+                pid = os.path.splitext(os.path.basename(norm_path))[0]
+                if pid in existing_raw_ids:
+                    has_file = True
+                    file_found_path = local_pdf_path
+                    file_found_status = local_pdf_status
+            elif norm_path.startswith(f'pdf_library/repo/{folder_name}/'):
+                pid = os.path.splitext(os.path.basename(norm_path))[0]
+                if pid in existing_repo_ids:
+                    has_file = True
+                    file_found_path = local_pdf_path
+                    file_found_status = local_pdf_status
+
+        # If not found where DB points, check standard locations
+        if not has_file and paper_id in existing_raw_ids:
+            has_file = True
+            file_found_path = f"pdf_library/raw/{paper_id}.pdf"
+            file_found_status = 'MATCHED'
+
+        if not has_file and paper_id in existing_repo_ids:
+            has_file = True
+            file_found_path = f"pdf_library/repo/{folder_name}/{paper_id}.pdf"
+            file_found_status = 'SYNCED'
+
+        if has_file:
+            # Self-healing: if file exists on disk but path/status is incorrect or missing in DB, update DB
+            if local_pdf_status != file_found_status or local_pdf_path != file_found_path:
+                try:
+                    cursor.execute("""
+                        UPDATE papers
+                        SET Local_PDF_Status = ?, Local_PDF_Path = ?
+                        WHERE Paper_ID = ?
+                    """, (file_found_status, file_found_path, paper_id))
+                    conn.commit()
+                    print(json.dumps({
+                        "event": "log",
+                        "message": f"Self-healed: updated DB path/status for {paper_id} to {file_found_status} ({file_found_path})"
+                    }))
+                    sys.stdout.flush()
+                except Exception as e:
+                    print(json.dumps({
+                        "event": "log",
+                        "message": f"Failed to self-heal DB entry for {paper_id}: {e}"
+                    }))
+                    sys.stdout.flush()
+            
+            print(json.dumps({
+                "event": "match",
+                "paper_id": paper_id,
+                "title": title,
+                "filename": os.path.basename(file_found_path or f"{paper_id}.pdf"),
+                "method": "existing_file_check"
+            }))
+            sys.stdout.flush()
+            matched_count += 1
+            continue
+
+        # If file does not exist on disk, reset active status to MISSING
         if local_pdf_status in ('MATCHED', 'DOWNLOADED', 'SYNCED'):
-            has_file = False
-            if local_pdf_path:
-                full_path = os.path.join(PROJECT_DIR, local_pdf_path.replace('/', os.sep))
-                if os.path.exists(full_path):
-                    has_file = True
-            
-            if not has_file:
-                raw_path = os.path.join(PROJECT_DIR, 'pdf_library', 'raw', f"{paper_id}.pdf")
-                repo_path = os.path.join(PROJECT_DIR, 'pdf_library', 'repo', folder_name, f"{paper_id}.pdf")
-                if os.path.exists(raw_path) or os.path.exists(repo_path):
-                    has_file = True
-            
-            if has_file:
-                continue
+            try:
+                cursor.execute("""
+                    UPDATE papers
+                    SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL
+                    WHERE Paper_ID = ?
+                """, (paper_id,))
+                conn.commit()
+                local_pdf_status = 'MISSING'
+                local_pdf_path = None
+                print(json.dumps({
+                    "event": "log",
+                    "message": f"Stale file reset: marked {paper_id} as MISSING because it does not exist on disk."
+                }))
+                sys.stdout.flush()
+            except Exception as e:
+                pass
 
         # Deterministic ID check in the eternal library
+
         raw_path = os.path.join(PROJECT_DIR, 'pdf_library', 'raw', f"{paper_id}.pdf")
         if os.path.exists(raw_path):
             try:
@@ -342,7 +431,7 @@ def run_matcher():
         # 1. Exact Paper ID Match
         id_pattern = sanitize_string(paper_id)
         for rec in cached_records:
-            name_only = os.path.splitext(rec['filename'])[0]
+            name_only = os.path.splitext(os.path.basename(rec['filename']))[0]
             if sanitize_string(name_only) == id_pattern:
                 matched_record = rec
                 match_method = "exact_paper_id"
@@ -365,7 +454,7 @@ def run_matcher():
             best_rec = None
             for rec in cached_records:
                 # Check filename similarity
-                sanitized_name = sanitize_string(os.path.splitext(rec['filename'])[0])
+                sanitized_name = sanitize_string(os.path.splitext(os.path.basename(rec['filename']))[0])
                 lenB = len(sanitized_name)
                 
                 limit = max(fuzzy_threshold, best_ratio)
@@ -402,7 +491,7 @@ def run_matcher():
                     # Print comparing event for UI feedback
                     throttle_print({
                         "event": "comparing",
-                        "filename": rec['filename']
+                        "filename": os.path.basename(rec['filename'])
                     })
 
                     # Compare spaces-stripped versions to handle sub-word space insertion from PDF text extraction
@@ -413,8 +502,6 @@ def run_matcher():
                         matched_record = rec
                         match_method = "pdf_metadata_text"
                         break
-
-
 
         # If matched, point Local_PDF_Path directly to raw/ matched file in the eternal library
         if matched_record:
@@ -428,20 +515,20 @@ def run_matcher():
             }))
             sys.stdout.flush()
             matched_file = matched_record['filename']
-            src_path = os.path.join(CACHE_DIR, matched_file)
+            src_path = os.path.join(PROJECT_DIR, matched_file.replace('/', os.sep))
             dest_path = os.path.join(RAW_DIR, f"{paper_id}.pdf")
 
             try:
                 if os.path.exists(dest_path):
                     # Already exists in eternal library, clean up staging duplicate
                     try:
-                        if os.path.exists(src_path):
+                        if os.path.exists(src_path) and src_path != dest_path:
                             os.remove(src_path)
                     except:
                         pass
                 else:
                     # Move the file from cached/ staging to raw/ eternal library
-                    if os.path.exists(src_path):
+                    if os.path.exists(src_path) and src_path != dest_path:
                         shutil.move(src_path, dest_path)
 
                 # Update main SQLite DB to point to raw/ path
@@ -457,7 +544,7 @@ def run_matcher():
                     "event": "match",
                     "paper_id": paper_id,
                     "title": title,
-                    "filename": matched_file,
+                    "filename": os.path.basename(matched_file),
                     "method": match_method
                 }))
                 sys.stdout.flush()

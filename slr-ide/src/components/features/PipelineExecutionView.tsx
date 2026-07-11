@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Play, Minus, X, Database, BrainCircuit } from 'lucide-react';
-import LLMOperationsCenter from './LLMOperationsCenter';
+import GlobalLLMSettingsView from './GlobalLLMSettingsView';
 import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
 
 interface PipelineExecutionViewProps {
@@ -208,7 +208,11 @@ export default function PipelineExecutionView({
 
         {activeTab === 'llm' && (
           <div className="h-full">
-            <LLMOperationsCenter activeProject={activeProject} />
+            <GlobalLLMSettingsView 
+              activeProject={activeProject} 
+              showToast={showToast} 
+              loadProjects={loadProjects} 
+            />
           </div>
         )}
       </div>

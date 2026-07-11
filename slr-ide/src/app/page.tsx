@@ -30,6 +30,11 @@ export default function DashboardPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' | 'warning' | 'info' }[]>([]);
 
+  // Paper Selection & LLM Run parameters
+  const [selectedPaperIds, setSelectedPaperIds] = useState<Set<string>>(new Set());
+  const [preSelectedPaperIds, setPreSelectedPaperIds] = useState<string[]>([]);
+  const [initialSettingsTab, setInitialSettingsTab] = useState<'rclone' | 'scraper'>('rclone');
+
   // Project Modals & Operations States
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
@@ -107,6 +112,17 @@ export default function DashboardPage() {
     applyTheme(savedTheme);
     loadProjects();
   }, [loadProjects, applyTheme]);
+
+  // Clear selection on project or active view tab change
+  useEffect(() => {
+    setSelectedPaperIds(new Set());
+    setPreSelectedPaperIds([]);
+  }, [activeProjectId, activeTab]);
+
+  const handleRunLLMOnSelected = useCallback((paperIds: string[]) => {
+    setPreSelectedPaperIds(paperIds);
+    setActiveTab('full-execution');
+  }, []);
 
   const handleThemeChange = useCallback((newTheme: string) => {
     setTheme(newTheme);
@@ -280,6 +296,9 @@ export default function DashboardPage() {
               renderSortIcon={renderSortIcon}
               setPaperModal={papersHook.setPaperModal}
               setDeleteConfirm={papersHook.setDeleteConfirm}
+              selectedPaperIds={selectedPaperIds}
+              setSelectedPaperIds={setSelectedPaperIds}
+              onRunLLMOnSelected={handleRunLLMOnSelected}
             />
           )}
         </div>
@@ -315,6 +334,8 @@ export default function DashboardPage() {
         showToast={showToast}
         showDuplicateModal={showDuplicateModal}
         setShowDuplicateModal={setShowDuplicateModal}
+        preSelectedPaperIds={preSelectedPaperIds}
+        initialSettingsTab={initialSettingsTab}
       />
       <ToastNotifications toasts={toasts} setToasts={setToasts} />
     </div>

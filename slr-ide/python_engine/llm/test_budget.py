@@ -17,17 +17,9 @@ class TestBudgetEstimator(unittest.TestCase):
         mock_exists.return_value = True
         mock_page_count.return_value = 10
         
-        # Gemini multiplier is 258
-        gemini_tokens = get_pdf_tokens("gemini-1.5-flash", "dummy.pdf")
+        # Gemini multiplier is 258 per page (10 pages * 258 = 2580 tokens)
+        gemini_tokens = get_pdf_tokens("dummy.pdf")
         self.assertEqual(gemini_tokens, 2580)
-        
-        # Claude multiplier is 1600
-        claude_tokens = get_pdf_tokens("claude-3-5-sonnet-latest", "dummy.pdf")
-        self.assertEqual(claude_tokens, 16000)
-        
-        # OpenAI fallback is 800
-        openai_tokens = get_pdf_tokens("gpt-4o", "dummy.pdf")
-        self.assertEqual(openai_tokens, 8000)
 
     @patch('llm.budget.get_pdf_tokens')
     @patch('llm.budget.get_model_pricing')
@@ -36,7 +28,7 @@ class TestBudgetEstimator(unittest.TestCase):
         mock_pricing.return_value = {
             "input_token_price": 0.10,
             "output_token_price": 0.40,
-            "thinking_token_price": 0.40,
+            "thinking_token_price": 0.0,
             "batch_discount": 0.5
         }
         mock_pdf_tokens.return_value = 4000
@@ -45,7 +37,7 @@ class TestBudgetEstimator(unittest.TestCase):
         prompt = "x" * 400 
         
         # Standard mode
-        result = estimate_cost("dummy-model", prompt, "dummy.pdf", batch_mode=False, max_output_tokens=1000)
+        result = estimate_cost("dummy-model", prompt, "dummy.pdf", speed_mode='STANDARD', max_output_tokens=1000)
         
         # input tokens = 100 (text) + 4000 (pdf) = 4100
         self.assertEqual(result["estimated_input_tokens"], 4100)
@@ -54,9 +46,9 @@ class TestBudgetEstimator(unittest.TestCase):
         # cost = (4100/1M * 0.10) + (1000/1M * 0.40) = 0.00041 + 0.0004 = 0.00081
         self.assertAlmostEqual(result["estimated_cost"], 0.00081, places=7)
         
-        # Batch mode (50% discount)
-        result_batch = estimate_cost("dummy-model", prompt, "dummy.pdf", batch_mode=True, max_output_tokens=1000)
-        self.assertAlmostEqual(result_batch["estimated_cost"], 0.000405, places=7)
+        # Flex mode (50% discount)
+        result_flex = estimate_cost("dummy-model", prompt, "dummy.pdf", speed_mode='FLEX', max_output_tokens=1000)
+        self.assertAlmostEqual(result_flex["estimated_cost"], 0.000405, places=7)
 
     @patch('llm.budget.execute_read_one')
     def test_check_budget_limit(self, mock_read_one):

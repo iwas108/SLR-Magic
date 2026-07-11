@@ -90,19 +90,20 @@ graph TD
 *   **Visual Hover Breakdowns**: Renders bottom-up and top-down popover balloons displaying tag count breakdowns on both the Pre-Calibration card summaries and Assign Papers modal header progress bars.
 
 ### 2.5 Centralized Pipeline Dashboard & LLM Operations Center
-*   **Unified Command Center**: The `PipelineExecutionView` merges both the Data Acquisition Pipeline (Scrapers/Sync) and the Semantic LLM Screening pipeline into a single responsive grid dashboard.
+*   **Unified Command Center**: The `PipelineExecutionView` merges both the Data Acquisition Pipeline and the Semantic LLM Screening pipeline into a single grid dashboard.
 *   **LLM Process Management**: Background semantic screening processes run via Python worker scripts. They are tracked and managed through `/api/llm/jobs/active`, allowing Next.js to provide seamless process recovery upon page reloads.
 *   **Real-time Operations Center**: The `LLMOperationsCenter` connects to the Next.js API via Server-Sent Events (SSE). It utilizes robust `AbortController` lifecycles and mutable `useRef` closures to correctly handle React strict-mode re-mounts, hot module reloads, and prevent memory leaks.
 *   **Live Metrics & Budgets**: Features a live auto-scrolling terminal output and tracks dynamic token usage and budget limits through `/api/llm/pricing` configurations.
-*   **Prompt Library Control**: Connects to `/api/llm/prompts` to perform full CRUD operations on `prompt_templates`. System instructions and user templates can be scoped globally or to a specific project.
-*   **Dynamic LLM Parameterization**: Projects configure provider, model_id, and advanced tuning variables (`temperature`, `max_tokens`, `top_p`, `top_k`) saved inside `llm_config` and forwarded to model execution APIs.
-*   **Decoupled API Key Storage**: Global API keys (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`) are stored in `.env.local` via `/api/config/env` rather than the SQLite database, ensuring strict credential hygiene.
+*   **Prompt Library Control**: CRUD operations on `prompt_templates` allow editing of system instructions, user templates, and associated JSON Schemas with client-side syntax validators.
+*   **Secure API Key Vault**: Global API keys are encrypted at rest using AES-256-GCM + PBKDF2 master password derivation in SQLite `api_key_vault`. Node server-side memory caches keys on unlock, and injects them only to environment blocks at spawn time.
+*   **Immutable Audit Trail**: Every LLM execution writes an immutable record detailing the Gemini server-side `interaction_id`, cached tokens, and raw prompt/response structures in `llm_audit_log` table.
 
 ### 2.6 Frontend App Core & UI Layouts
 *   **SPA Dashboard**: Driven by Next.js App Router, React hooks, and Tailwind CSS v4.
 *   **Projects Manager**: Displays project details, cloud configurations, screening progress, PDF acquisition rates, and calibration pool counts in a full-page layout.
 *   **Tabbed Project Settings Modal**: Allows granular editing of metadata (manifesto, questions, and exclusion criteria in enlarged textareas), calibration targets, and cloud sync settings (Google Drive / OneDrive options per-project) via settings gear icons in the project table.
 *   **Fullscreen Inter-Rater Dashboard Modal**: The inter-rater review validation, stats confusion matrix, discrepancy adjudication, and timeline ledger are consolidated inside a fixed, fullscreen backdrop-blurred overlay triggered from the Pre-Calibration Pool A dashboard, complete with an exit button to resume Pre-Calibration sampling.
+*   **Unified 4-Tab LLM Dashboard**: Nested tab panel within SettingsModal aggregating Vault Settings, Prompt templates CRUD + Schema editors, Operations executors, and Audit trails.
 
 ---
 

@@ -1,30 +1,32 @@
 import os
 import sys
-import time
 import json
+import time
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-
-from llm.database import execute_read, execute_write, execute_read_one
+from concurrent.futures import ThreadPoolExecutor
+from llm.database import execute_write, execute_read_one
 from llm.budget import estimate_cost, check_budget_limit, update_project_spend
-from llm.templating import hydrate_template
+from llm.audit import log_interaction
 
-logger = logging.getLogger("QueueHandler")
+logger = logging.getLogger(__name__)
 
 class LLMQueueHandler:
-    def __init__(self, project_id, job_id, adapter, system_instruction, user_template, config):
+    def __init__(self, project_id, job_id, client, system_instruction, user_template, config, task_type):
         self.project_id = project_id
         self.job_id = job_id
-        self.adapter = adapter
+        self.client = client
         self.system_instruction = system_instruction
         self.user_template = user_template
         self.config = config
+        self.task_type = task_type
         
-        self.concurrency = int(config.get("concurrency_limit", 5))
-        self.batch_size = int(config.get("batch_queue_size", 100))
-        self.mode = config.get("mode", "standard")
+        self.model_id = config.get("model_id", "gemini-3.5-flash")
+        self.speed_mode = config.get("speed_mode", "FLEX")
+        self.concurrency = int(config.get("concurrency", 5))
+        self.batch_queue_size = int(config.get("batch_queue_size", 100))
+        self.temperature = float(config.get("temperature", 0.0))
         
         self.run_event = threading.Event()
         self.run_event.set() # True means running
@@ -38,6 +40,7 @@ class LLMQueueHandler:
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.total_thinking_tokens = 0
+        self.total_cached_tokens = 0
         self.total_cost = 0.0
 
     def broadcast_telemetry(self, status, message=None, current_paper=None):
@@ -50,6 +53,7 @@ class LLMQueueHandler:
             "total_input_tokens": self.total_input_tokens,
             "total_output_tokens": self.total_output_tokens,
             "total_thinking_tokens": self.total_thinking_tokens,
+            "total_cached_tokens": self.total_cached_tokens,
             "total_cost": self.total_cost,
         }
         if message:
@@ -59,80 +63,121 @@ class LLMQueueHandler:
             
         print(json.dumps(telemetry), flush=True)
 
-    def process_paper_worker(self, paper):
+    def process_paper_worker(self, paper, prompt_schema):
         paper_id = paper["Paper_ID"]
         title = paper["Title"]
         
-        # 1. Wait if the execution is paused by the budget kill switch
         self.run_event.wait()
         
-        # Double-check safety lock
         with self.lock:
-            if self.is_paused:
-                self.run_event.wait()
+            if not self.run_event.is_set():
+                return
 
-        # 2. Query project variables for template hydration
-        project = execute_read_one("SELECT * FROM projects WHERE id = ?", (self.project_id,))
-        
-        # 3. Hydrate template
-        user_prompt = hydrate_template(self.user_template, project, paper)
-        
-        # 4. Resolve local PDF path
+        # Template prompt hydration
+        from llm.templating import hydrate_template
+        user_prompt = hydrate_template(self.user_template, execute_read_one("SELECT * FROM projects WHERE id = ?", (self.project_id,)), paper)
+
+        # Resolve PDF Path
         pdf_path = paper.get("Local_PDF_Path")
         if pdf_path:
             if not os.path.isabs(pdf_path):
                 SCRAPER_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 pdf_path = os.path.join(os.path.dirname(SCRAPER_DIR), pdf_path)
 
-        # 5. Pre-flight budget check
-        est = estimate_cost(self.adapter.model_id, user_prompt, pdf_path, batch_mode=False)
+        # Resolve previous_interaction_id for multi-turn chaining (Phase 2)
+        prev_row = execute_read_one(
+            """
+            SELECT interaction_id 
+            FROM llm_audit_log 
+            WHERE paper_id = ? AND project_id = ? AND status = 'SUCCESS' AND interaction_id IS NOT NULL 
+            ORDER BY created_at DESC 
+            LIMIT 1
+            """,
+            (paper_id, self.project_id)
+        )
+        previous_interaction_id = prev_row.get("interaction_id") if prev_row else None
+
+        # Pre-flight budget check
+        est = estimate_cost(self.model_id, user_prompt, pdf_path, speed_mode=self.speed_mode)
         est_cost = est["estimated_cost"]
         
         with self.lock:
             ok, msg = check_budget_limit(self.project_id, est_cost)
             if not ok:
-                # Exceeded budget! Halt workers
                 self.is_paused = True
                 self.run_event.clear()
                 
-                # Update DB state to PAUSED_BUDGET
                 execute_write(
                     "UPDATE llm_jobs SET status = 'PAUSED_BUDGET', updated_at = ? WHERE id = ?",
                     (datetime.utcnow().isoformat(), self.job_id)
                 )
-                
-                # Broadcast pause notification
                 self.broadcast_telemetry("PAUSED_BUDGET", f"Budget limit exceeded! {msg}")
-                
-                # Workers block here
                 self.run_event.wait()
                 
-                # Cleared on resume
                 self.is_paused = False
                 self.run_event.set()
 
-        # 6. Execute actual LLM call
         try:
-            logger.info(f"Screening paper {paper_id}: '{title}'")
+            logger.info(f"Processing paper {paper_id}: '{title}' using task type {self.task_type}")
             
-            # Flex pacing delay
-            if self.mode == "flex":
-                time.sleep(2)
-                
-            response = self.adapter.screen_paper(self.system_instruction, user_prompt, pdf_path)
+            # Flex mode rate limiting delays (slightly higher wait)
+            if self.speed_mode == 'FLEX':
+                time.sleep(1.0)
+
+            # Call appropriate adapter flow based on task type (supports new taxonomy & backward compatibility)
+            response = None
+            if self.task_type in ('fast_filter', 'screening'):
+                from llm.screening import screen_title_abstract
+                response = screen_title_abstract(
+                    self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id
+                )
+            elif self.task_type in ('gatekeeper', 'scientist', 'fulltext'):
+                from llm.fulltext import screen_fulltext
+                response = screen_fulltext(
+                    self.client, self.model_id, pdf_path, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id
+                )
+            elif self.task_type in ('miner', 'extraction'):
+                from llm.extraction import extract_structured_data
+                response = extract_structured_data(
+                    self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, pdf_path, self.speed_mode, previous_interaction_id
+                )
+            else:
+                raise ValueError(f"Unsupported task execution type: {self.task_type}")
+
+            if not response or not response.get("success"):
+                err_msg = response.get("error_message") if response else "Unknown Error"
+                raise RuntimeError(err_msg)
+
+            # Calculate cost based on usage metadata and dynamic rates
+            from llm.budget import get_model_pricing
+            pricing = get_model_pricing(self.model_id)
+            input_price = pricing["input_token_price"]
+            output_price = pricing["output_token_price"]
             
-            # 7. Atomically save actual stats & cost
+            if self.speed_mode == 'FLEX':
+                discount = pricing.get("batch_discount", 0.5)
+                input_price *= discount
+                output_price *= discount
+
+            input_tokens = response.get("input_tokens", 0)
+            output_tokens = response.get("output_tokens", 0)
+            thinking_tokens = response.get("thinking_tokens", 0)
+            cached_tokens = response.get("cached_tokens", 0)
+            
+            # Discount applied tokens
+            billable_input_tokens = max(0, input_tokens - cached_tokens)
+            actual_cost = ((billable_input_tokens / 1_000_000.0) * input_price) + ((output_tokens / 1_000_000.0) * output_price)
+
             with self.lock:
                 self.processed_papers += 1
-                self.total_input_tokens += response["input_tokens"]
-                self.total_output_tokens += response["output_tokens"]
-                self.total_thinking_tokens += response["thinking_tokens"]
-                self.total_cost += response["cost"]
+                self.total_input_tokens += input_tokens
+                self.total_output_tokens += output_tokens
+                self.total_thinking_tokens += thinking_tokens
+                self.total_cached_tokens += cached_tokens
+                self.total_cost += actual_cost
                 
-                # Update spend in DB
-                update_project_spend(self.project_id, response["cost"])
+                update_project_spend(self.project_id, actual_cost)
                 
-                # Update job record in SQLite
                 execute_write(
                     """
                     UPDATE llm_jobs 
@@ -144,32 +189,98 @@ class LLMQueueHandler:
                      self.total_thinking_tokens, self.total_cost, datetime.utcnow().isoformat(), self.job_id)
                 )
 
-            # 8. Insert screening decision into reviewer_decisions
+            # Insert decisions or extractions into database
             pool = paper.get("calibration_pool") or "pool_a"
-            execute_write(
-                """
-                INSERT OR REPLACE INTO reviewer_decisions (paper_id, project_id, pool, reviewer_name, decision, ec_trigger, rationale, imported_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (paper_id, self.project_id, pool, self.adapter.model_id, 
-                 response["decision"], response["exclusion_trigger"], response["rationale"], datetime.utcnow().isoformat())
+            decision_text = response.get("decision", "EXCLUDE")
+            ec_trigger = response.get("exclusion_trigger")
+            rationale_text = response.get("rationale", "")
+            struct_out = response.get("structured_output", "")
+
+            # Writes depend on task type: screening/fulltext (and taxonomy equivalents) updates reviewer_decisions.
+            # Structured data extraction/miner updates papers table directly.
+            if self.task_type in ('fast_filter', 'gatekeeper', 'scientist', 'screening', 'fulltext'):
+                execute_write(
+                    """
+                    INSERT OR REPLACE INTO reviewer_decisions (
+                        paper_id, project_id, pool, reviewer_name, decision, ec_trigger, rationale, imported_at, qa_scores, extracted_data
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (paper_id, self.project_id, pool, self.model_id, 
+                     decision_text, ec_trigger, rationale_text, datetime.utcnow().isoformat(),
+                     response.get("qa_scores"), response.get("extracted_data"))
+                )
+            elif self.task_type in ('miner', 'extraction'):
+                execute_write(
+                    "UPDATE papers SET Human_Extracted_Data = ?, Status = 'COMPLETED' WHERE Paper_ID = ?",
+                    (struct_out, paper_id)
+                )
+
+            # Update paper state
+            execute_write("UPDATE papers SET Status = 'COMPLETED' WHERE Paper_ID = ?", (paper_id,))
+
+            # Log interaction to LLM Audit Log
+            log_interaction(
+                paper_id=paper_id,
+                project_id=self.project_id,
+                job_id=self.job_id,
+                interaction_id=response.get("interaction_id"),
+                previous_interaction_id=previous_interaction_id,
+                model_id=self.model_id,
+                task_type=self.task_type,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                thinking_tokens=thinking_tokens,
+                cached_tokens=cached_tokens,
+                cost_usd=actual_cost,
+                flex_discount=0.5 if self.speed_mode == 'FLEX' else 0.0,
+                speed_mode=self.speed_mode,
+                raw_prompt=user_prompt,
+                raw_response=response.get("raw_response", ""),
+                response_schema_name=prompt_schema.get("name", "custom_schema"),
+                structured_output=struct_out,
+                status="SUCCESS",
+                latency_ms=response.get("latency_ms", 0),
+                retry_count=response.get("retry_count", 0)
             )
             
-            # 9. Update paper status to COMPLETED
-            execute_write("UPDATE papers SET Status = 'COMPLETED' WHERE Paper_ID = ?", (paper_id,))
-            
-            # 10. Broadcast progress
-            self.broadcast_telemetry("RUNNING", f"Screened: {title}", current_paper=title)
+            self.broadcast_telemetry("RUNNING", f"Processed: {title}", current_paper=title)
 
         except Exception as e:
-            logger.error(f"Failed to screen paper {paper_id}: {e}")
+            logger.error(f"Failed to process paper {paper_id}: {e}")
             execute_write("UPDATE papers SET Status = 'FAILED' WHERE Paper_ID = ?", (paper_id,))
+            
+            # Log failure to LLM Audit Log
+            log_interaction(
+                paper_id=paper_id,
+                project_id=self.project_id,
+                job_id=self.job_id,
+                interaction_id=None,
+                previous_interaction_id=previous_interaction_id,
+                model_id=self.model_id,
+                task_type=self.task_type,
+                input_tokens=0,
+                output_tokens=0,
+                thinking_tokens=0,
+                cached_tokens=0,
+                cost_usd=0.0,
+                flex_discount=0.0,
+                speed_mode=self.speed_mode,
+                raw_prompt=user_prompt,
+                raw_response="",
+                response_schema_name=prompt_schema.get("name", "custom_schema"),
+                structured_output="",
+                status="ERROR",
+                error_message=str(e),
+                latency_ms=0,
+                retry_count=3
+            )
+            
             self.broadcast_telemetry("RUNNING", f"FAILED: {title} ({e})")
 
-    def run_queue(self, papers_to_screen):
-        self.total_papers = len(papers_to_screen)
+    def run_queue(self, papers_to_process, prompt_schema):
+        self.total_papers = len(papers_to_process)
         
-        # Update job record in SQLite with initial total_papers
         execute_write(
             "UPDATE llm_jobs SET total_papers = ?, status = 'RUNNING', updated_at = ? WHERE id = ?",
             (self.total_papers, datetime.utcnow().isoformat(), self.job_id)
@@ -177,50 +288,31 @@ class LLMQueueHandler:
         
         self.broadcast_telemetry("RUNNING", f"Starting queue processing of {self.total_papers} papers...")
         
-        # Start daemon thread monitoring stdin control inputs
-        stdin_thread = threading.Thread(target=self.handle_stdin_resume_loop, daemon=True)
-        stdin_thread.start()
-
-        # Process in batches of 100
-        for b_idx in range(0, self.total_papers, self.batch_size):
-            batch = papers_to_screen[b_idx : b_idx + self.batch_size]
-            
-            logger.info(f"Processing batch of size {len(batch)}...")
-            
-            # Parallel execution inside batch using ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
-                futures = [executor.submit(self.process_paper_worker, paper) for paper in batch]
-                for future in as_completed(futures):
-                    try:
-                        future.result()
-                    except Exception as e:
-                        logger.error(f"Worker thread error: {e}")
-
-        # Update job to COMPLETED when done
+        # Start resume trigger checker
+        def check_stdin():
+            while self.is_paused or not self.run_event.is_set():
+                try:
+                    line = sys.stdin.readline()
+                    if line:
+                        logger.info("Resume signal caught on stdin.")
+                        self.run_event.set()
+                        break
+                except Exception:
+                    break
+        
+        # Spawn execution threads
+        with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
+            for paper in papers_to_process:
+                # Stale locks check
+                if self.is_paused:
+                    stdin_thread = threading.Thread(target=check_stdin, daemon=True)
+                    stdin_thread.start()
+                    
+                executor.submit(self.process_paper_worker, paper, prompt_schema)
+                
+        # Mark completion
         execute_write(
             "UPDATE llm_jobs SET status = 'COMPLETED', updated_at = ? WHERE id = ?",
             (datetime.utcnow().isoformat(), self.job_id)
         )
         self.broadcast_telemetry("COMPLETED", "Queue execution finished successfully.")
-
-    def handle_stdin_resume_loop(self):
-        """Runs in a background thread, monitoring stdin for resume commands."""
-        while True:
-            line = sys.stdin.readline()
-            if not line:
-                break
-            
-            # Resume trigger
-            if self.is_paused:
-                logger.info("Resume signal received via stdin. Resuming workers...")
-                
-                # Update status back to RUNNING in database
-                execute_write(
-                    "UPDATE llm_jobs SET status = 'RUNNING', updated_at = ? WHERE id = ?",
-                    (datetime.utcnow().isoformat(), self.job_id)
-                )
-                
-                # Release wait block
-                self.is_paused = False
-                self.run_event.set()
-                self.broadcast_telemetry("RUNNING", "Execution resumed by user.")

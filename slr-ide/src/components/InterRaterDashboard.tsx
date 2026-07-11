@@ -152,6 +152,20 @@ export default function InterRaterDashboard({
     fetchStatsAndLedger();
   }, [activeProjectId, activePoolTab]);
 
+  useEffect(() => {
+    if (selectedDiscrepancy && stats?.discrepancies) {
+      const stillExists = stats.discrepancies.some(d => d.paper_id === selectedDiscrepancy.paper_id);
+      if (!stillExists) {
+        if (stats.discrepancies.length > 0) {
+          setSelectedDiscrepancy(stats.discrepancies[0]);
+        } else {
+          setSelectedDiscrepancy(null);
+          showToast('All calibration conflicts resolved for this pool!', 'success');
+        }
+      }
+    }
+  }, [stats, selectedDiscrepancy, showToast]);
+
   const latestAdjudicationLoaders = React.useRef({ fetchStatsAndLedger });
   useEffect(() => {
     latestAdjudicationLoaders.current = { fetchStatsAndLedger };
@@ -363,7 +377,6 @@ export default function InterRaterDashboard({
         isOpen={!!selectedDiscrepancy}
         onClose={closeAdjudicationWorkspace}
         onSuccess={async () => {
-          closeAdjudicationWorkspace();
           await fetchStatsAndLedger();
           loadCalPapers();
           broadcastSync('SYNC_ADJUDICATION');
@@ -376,6 +389,8 @@ export default function InterRaterDashboard({
         extractionRules={extractionRules}
         ecRules={ecRules}
         showToast={showToast}
+        discrepancies={stats?.discrepancies || []}
+        onSelectDiscrepancy={setSelectedDiscrepancy}
       />
     </div>
   );

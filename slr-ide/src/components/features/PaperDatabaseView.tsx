@@ -48,6 +48,9 @@ interface PaperDatabaseViewProps {
   renderSortIcon: (field: string) => React.ReactNode;
   setPaperModal: React.Dispatch<React.SetStateAction<any>>;
   setDeleteConfirm: React.Dispatch<React.SetStateAction<any>>;
+  selectedPaperIds?: Set<string>;
+  setSelectedPaperIds?: React.Dispatch<React.SetStateAction<Set<string>>>;
+  onRunLLMOnSelected?: (paperIds: string[]) => void;
 }
 
 function LoaderIcon() {
@@ -97,12 +100,43 @@ export default function PaperDatabaseView({
   handleSort,
   renderSortIcon,
   setPaperModal,
-  setDeleteConfirm
+  setDeleteConfirm,
+  selectedPaperIds = new Set(),
+  setSelectedPaperIds,
+  onRunLLMOnSelected
 }: PaperDatabaseViewProps) {
+
+  const handleToggleSelect = (paperId: string) => {
+    if (!setSelectedPaperIds) return;
+    const next = new Set(selectedPaperIds);
+    if (next.has(paperId)) {
+      next.delete(paperId);
+    } else {
+      next.add(paperId);
+    }
+    setSelectedPaperIds(next);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (!setSelectedPaperIds || !papers) return;
+    const next = new Set(selectedPaperIds);
+    const pagePaperIds = papers.map((p) => String(p.Paper_ID));
+    const allSelectedOnPage = pagePaperIds.every((id) => next.has(id));
+
+    if (allSelectedOnPage) {
+      pagePaperIds.forEach((id) => next.delete(id));
+    } else {
+      pagePaperIds.forEach((id) => next.add(id));
+    }
+    setSelectedPaperIds(next);
+  };
+
+  const allPageSelected = papers && papers.length > 0 && papers.every(p => selectedPaperIds.has(String(p.Paper_ID)));
+  const somePageSelected = papers && papers.length > 0 && papers.some(p => selectedPaperIds.has(String(p.Paper_ID))) && !allPageSelected;
 
   return (
     <>
-      <div className="h-full flex flex-col bg-card border border-border rounded-xl shadow-lg overflow-hidden animate-in fade-in duration-200">
+      <div className="h-full flex flex-col bg-card border border-border rounded-xl shadow-lg overflow-hidden relative animate-in fade-in duration-200">
 
         {/* Search & Actions Panel */}
         <div className="p-4 border-b border-border bg-secondary/25 flex flex-wrap items-center justify-between gap-3 shrink-0">
@@ -234,52 +268,71 @@ export default function PaperDatabaseView({
                 <table className="w-full table-fixed text-left text-xs border-collapse relative">
                   <thead className="sticky top-0 z-10 bg-secondary border-b border-border shadow-sm">
                     <tr className="text-muted-foreground text-[10px] font-bold uppercase">
-                      <th className="p-3 w-[12%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Paper_ID')}>
+                      <th className="p-3 w-[4%] text-center">
+                        <input
+                          type="checkbox"
+                          className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                          checked={allPageSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = somePageSelected;
+                          }}
+                          onChange={handleToggleSelectAll}
+                        />
+                      </th>
+                      <th className="p-3 w-[11%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Paper_ID')}>
                         <div className="flex items-center gap-1.5">
                           ID {renderSortIcon('Paper_ID')}
                         </div>
                       </th>
-                      <th className="p-3 w-[28%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Title')}>
+                      <th className="p-3 w-[26%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Title')}>
                         <div className="flex items-center gap-1.5">
                           Title {renderSortIcon('Title')}
                         </div>
                       </th>
-                      <th className="p-3 w-[14%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Authors')}>
+                      <th className="p-3 w-[13%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Authors')}>
                         <div className="flex items-center gap-1.5">
                           Authors {renderSortIcon('Authors')}
                         </div>
                       </th>
-                      <th className="p-3 w-[6%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Year')}>
+                      <th className="p-3 w-[5%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Year')}>
                         <div className="flex items-center gap-1.5">
                           Year {renderSortIcon('Year')}
                         </div>
                       </th>
-                      <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('DOI')}>
+                      <th className="p-3 w-[9%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('DOI')}>
                         <div className="flex items-center gap-1.5">
                           DOI {renderSortIcon('DOI')}
                         </div>
                       </th>
-                      <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('citation_count')}>
+                      <th className="p-3 w-[8%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('citation_count')}>
                         <div className="flex items-center gap-1.5">
                           Citations {renderSortIcon('citation_count')}
                         </div>
                       </th>
-                      <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Local_PDF_Status')}>
+                      <th className="p-3 w-[8%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Local_PDF_Status')}>
                         <div className="flex items-center gap-1.5">
                           PDF Status {renderSortIcon('Local_PDF_Status')}
                         </div>
                       </th>
-                      <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Status')}>
+                      <th className="p-3 w-[8%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Status')}>
                         <div className="flex items-center gap-1.5">
                           Status {renderSortIcon('Status')}
                         </div>
                       </th>
-                      <th className="p-3 w-[10%] text-center">Actions</th>
+                      <th className="p-3 w-[8%] text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {papers.map((p: any) => (
                       <tr key={p.Paper_ID} className="h-16 hover:bg-secondary/15 transition-colors group">
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                            checked={selectedPaperIds.has(String(p.Paper_ID))}
+                            onChange={() => handleToggleSelect(String(p.Paper_ID))}
+                          />
+                        </td>
                         <td className="p-3 font-bold text-muted-foreground truncate" title={p.Paper_ID}>
                           {p.Paper_ID}
                         </td>
@@ -443,6 +496,36 @@ export default function PaperDatabaseView({
             </div>
           )}
         </div>
+
+        {/* Floating Bulk Actions Toolbar */}
+        {selectedPaperIds.size > 0 && onRunLLMOnSelected && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-card/95 backdrop-blur border border-primary/30 rounded-xl px-5 py-3 shadow-2xl flex items-center gap-4 z-30 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-center gap-2">
+              <div className="bg-primary/20 text-primary rounded-lg px-2 py-1 font-bold text-xs">
+                {selectedPaperIds.size}
+              </div>
+              <span className="text-xs font-semibold text-foreground">
+                {selectedPaperIds.size === 1 ? 'Paper selected' : 'Papers selected'}
+              </span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <button
+              onClick={() => onRunLLMOnSelected(Array.from(selectedPaperIds))}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Run LLM Pipeline
+            </button>
+            <button
+              onClick={() => {
+                if (setSelectedPaperIds) setSelectedPaperIds(new Set());
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground font-semibold px-2 py-1.5 transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

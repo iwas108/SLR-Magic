@@ -163,3 +163,31 @@ This document tracks all changes, refactors, and feature additions applied to th
   - Cached the active scroll height when closing the evaluation drawer, and restored it upon opening.
   - Configured `focus({ preventScroll: true })` when focusing input/textarea fields on drawer open to prevent the browser from snapping the scroll back to the focused element.
   - Reset the scroll position cache back to `0` when switching active papers to ensure a clean evaluation state.
+
+## [#015] QA Scoring Cumulative Summary & Fatal Gate Indicators - 2026-07-08
+
+- **Real-Time Cumulative Scoring Info**:
+  - Implemented `qaCalculations` memoized hook inside `BlindedReviewForm.jsx` to dynamically sum quality appraisal scores in real time for both Pool C structured fields and non-Pool C dynamic QA fields.
+  - Rendered a premium-styled summary card displaying total scores (e.g. `X.X / 8.0`) and live gate status indicators.
+- **Fatal Flaw Gate Enforcement**:
+  - Incorporated checks against the Stage 2.2 dual-gate quality cutoff definitions (`QA-1`, `QA-2`, `QA-3`, `QA-4`, or `QA-6` cannot be `0.0`).
+  - Warns the reviewer instantly if any fatal flaw gate is triggered or if the cumulative score falls below the required `4.5` threshold.
+
+## [#016] Fix dynamicKeys Initialization Order Bug - 2026-07-08
+
+- **Variable Initialization Order**:
+  - Moved the definition of `dynamicKeys` to the very top of `BlindedReviewForm.jsx` (before `qaCalculations`). This resolves the `ReferenceError: Cannot access 'dynamicKeys' before initialization` crash caused by accessing `dynamicKeys` in `qaCalculations` prior to its declaration.
+
+## [#017] JSON Autofill via Ctrl+J Shortcut & Schema Mapping Engine - 2026-07-09
+
+- **JSON Autofill Modal**:
+  - Implemented `AutofillModal.jsx` featuring a glassmorphic overlay and custom validation panel.
+  - Generates live visual syntax error warnings or success summaries displaying detected review attributes.
+- **Ctrl+J Keybind Event**:
+  - Registered `Ctrl+J` keydown event in `ReviewScreen.jsx` bypassing the form-input active check to trigger the modal instantly from anywhere in the review interface.
+  - Temporarily bypasses standard review shortcuts while the modal is open.
+- **Robust Schema Normalization**:
+  - Maps decisions, exclusion codes, reasoning/rationale, Pool C QA scores, and Data Extraction fields from standard JSON trace structures.
+  - Automatically handles both uppercase/lowercase normalization and flat fallback keys.
+  - Preserves underlying pipeline `logic_trace` blocks in IndexedDB for file parity.
+

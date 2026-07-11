@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Save, X, Check, Loader, Copy, CheckCircle2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, Loader, CheckCircle2, X } from 'lucide-react';
 
 interface Prompt {
   id: string;
@@ -10,6 +10,7 @@ interface Prompt {
   description: string | null;
   system_prompt: string;
   user_prompt_template: string | null;
+  response_schema: string | null;
   is_active: number;
 }
 
@@ -23,6 +24,7 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
   const [loading, setLoading] = useState(true);
   const [editingPrompt, setEditingPrompt] = useState<Partial<Prompt> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
 
   const fetchPrompts = async () => {
     setLoading(true);
@@ -47,9 +49,30 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
     fetchPrompts();
   }, [projectId]);
 
+  const validateSchemaField = (value: string) => {
+    if (!value.trim()) {
+      setSchemaError(null);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(value);
+      if (!parsed.type) {
+        setSchemaError("JSON Schema must specify a 'type' property (usually 'OBJECT')");
+        return;
+      }
+      setSchemaError(null);
+    } catch (e: any) {
+      setSchemaError(`JSON syntax error: ${e.message}`);
+    }
+  };
+
   const handleSave = async () => {
     if (!editingPrompt?.name || !editingPrompt?.system_prompt) {
       showToast?.('Name and System Prompt are required', 'warning');
+      return;
+    }
+    if (schemaError) {
+      showToast?.('Please resolve JSON Schema validation errors first', 'error');
       return;
     }
 
@@ -69,6 +92,7 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
       if (res.ok) {
         showToast?.('Prompt saved successfully', 'success');
         setEditingPrompt(null);
+        setSchemaError(null);
         fetchPrompts();
       } else {
         const errorData = await res.json();
@@ -99,28 +123,31 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
   };
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex flex-col h-full space-y-4 text-xs">
       <div className="flex justify-between items-center pb-2 border-b border-border">
         <div>
-          <h3 className="text-sm font-bold text-foreground">Prompt Library</h3>
+          <h3 className="text-xs font-bold text-foreground">Prompt Library</h3>
           <p className="text-[10px] text-muted-foreground">
             {projectId ? 'Manage project-specific prompts' : 'Manage global shared prompts'}
           </p>
         </div>
         <button
           type="button"
-          onClick={() => setEditingPrompt({ name: '', system_prompt: '', user_prompt_template: '', is_active: 1 })}
+          onClick={() => {
+            setEditingPrompt({ name: '', system_prompt: '', user_prompt_template: '', response_schema: '', is_active: 1 });
+            setSchemaError(null);
+          }}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-md shadow hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
-          Create Prompt
+          <span>Create Prompt</span>
         </button>
       </div>
 
       {loading ? (
         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
-          <Loader className="w-6 h-6 animate-spin text-primary" />
-          <span className="text-xs font-medium">Loading prompts...</span>
+          <Loader className="w-5 h-5 animate-spin text-primary" />
+          <span className="text-[10px] font-medium">Loading prompts...</span>
         </div>
       ) : editingPrompt ? (
         <div className="flex-1 overflow-y-auto bg-secondary/10 border border-border rounded-lg p-4 space-y-4 animate-in fade-in zoom-in-95 duration-200">
@@ -165,7 +192,7 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
             <div>
               <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">System Prompt</label>
               <textarea
-                className="w-full bg-secondary/35 border border-border rounded-md px-3 py-2 text-[11px] font-mono text-foreground focus:border-primary focus:outline-none min-h-[120px]"
+                className="w-full bg-secondary/35 border border-border rounded-md px-3 py-2 text-[11px] font-mono text-foreground focus:border-primary focus:outline-none min-h-[100px]"
                 value={editingPrompt.system_prompt || ''}
                 onChange={(e) => setEditingPrompt({ ...editingPrompt, system_prompt: e.target.value })}
                 placeholder="You are an expert researcher..."
@@ -175,19 +202,36 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
             <div>
               <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">User Prompt Template (Optional)</label>
               <textarea
-                className="w-full bg-secondary/35 border border-border rounded-md px-3 py-2 text-[11px] font-mono text-foreground focus:border-primary focus:outline-none min-h-[80px]"
+                className="w-full bg-secondary/35 border border-border rounded-md px-3 py-2 text-[11px] font-mono text-foreground focus:border-primary focus:outline-none min-h-[60px]"
                 value={editingPrompt.user_prompt_template || ''}
                 onChange={(e) => setEditingPrompt({ ...editingPrompt, user_prompt_template: e.target.value })}
                 placeholder="Analyze this paper: {{text}}"
               />
               <p className="text-[9px] text-muted-foreground mt-1">Use {'{{variables}}'} to denote template insertions.</p>
             </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Structured Output JSON Schema (Optional)</label>
+                {schemaError && <span className="text-[9px] text-red-400 font-semibold">{schemaError}</span>}
+              </div>
+              <textarea
+                className={`w-full bg-secondary/35 border ${schemaError ? 'border-red-500/60' : 'border-border'} rounded-md px-3 py-2 text-[11px] font-mono text-foreground focus:outline-none min-h-[80px]`}
+                value={editingPrompt.response_schema || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEditingPrompt({ ...editingPrompt, response_schema: val });
+                  validateSchemaField(val);
+                }}
+                placeholder='{ "type": "OBJECT", "properties": { ... } }'
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={() => setEditingPrompt(null)}
+              onClick={() => { setEditingPrompt(null); setSchemaError(null); }}
               className="px-3 py-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border text-xs font-semibold rounded-md transition-colors"
             >
               Cancel
@@ -195,11 +239,11 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !!schemaError}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold rounded-md shadow transition-colors disabled:opacity-50"
             >
               {saving ? <Loader className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-              Save Prompt
+              <span>Save Prompt</span>
             </button>
           </div>
         </div>
@@ -231,7 +275,7 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
                 <div className="flex gap-1">
                   <button
                     type="button"
-                    onClick={() => setEditingPrompt(prompt)}
+                    onClick={() => { setEditingPrompt(prompt); setSchemaError(null); }}
                     className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
                     title="Edit Prompt"
                   >

@@ -1,6 +1,7 @@
 import { processManager } from '@/lib/services/process-manager';
 import { streamManager } from '@/lib/services/stream-manager';
 import { batchStateTracker } from '@/lib/services/batch-state-tracker';
+import { getConfig } from '@/lib/db';
 
 export async function runSubprocessStep(
   step: string,
@@ -17,7 +18,10 @@ export async function runSubprocessStep(
   } else if (step === 'scrape') {
     stepStartMsg = `[${stepNum}/${totalSteps}] Starting Bulk PDF Scraper...`;
   } else if (step === 'compress') {
-    stepStartMsg = `[${stepNum}/${totalSteps}] Starting PDF Compression/Processing...`;
+    const isCompressEnabled = getConfig('PDF_COMPRESSION_ENABLED', 'false') === 'true';
+    stepStartMsg = isCompressEnabled
+      ? `[${stepNum}/${totalSteps}] Starting PDF Compression/Processing...`
+      : `[${stepNum}/${totalSteps}] Copying PDFs to Repository...`;
   } else if (step === 'map_publisher') {
     stepStartMsg = `[${stepNum}/${totalSteps}] Starting Publisher Mapping...`;
   }

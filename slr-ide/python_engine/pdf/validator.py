@@ -72,3 +72,17 @@ def validate_scraped_pdf(file_path):
         return False, f"Rejected as invalid paper. Contains conference/TOC keywords: {found_reject_kw} and lacks standard paper markers: {accept_markers}"
 
     return True, "Valid scientific paper."
+
+def validate_compressed_pdf(file_path):
+    if not has_pypdf:
+        return True, "pypdf not installed, skipped integrity validation."
+    try:
+        reader = PdfReader(file_path)
+        if len(reader.pages) == 0:
+            return False, "PDF has 0 pages."
+        # Attempt to read the first page object to verify basic integrity
+        _ = reader.pages[0]
+        return True, "Valid"
+    except Exception as e:
+        return False, f"PDF structural check failed: {str(e)}"
+

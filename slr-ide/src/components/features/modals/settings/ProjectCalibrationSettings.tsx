@@ -11,6 +11,7 @@ interface ProjectCalibrationSettingsProps {
     setProjectFormPoolC: (v: string) => void;
     projectFormQaDefinition: string;
     projectFormQuestions: string;
+    projectFormExclusionCriteria: string;
 
     // Pool tags (Pool A, B, C)
     projectFormPoolTagsA: any[];
@@ -70,6 +71,11 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
     .filter(Boolean);
 
   const researchQuestions = (form.projectFormQuestions || '')
+    .split('\n')
+    .map((line: string) => line.trim())
+    .filter(Boolean);
+
+  const exclusionCriteria = (form.projectFormExclusionCriteria || '')
     .split('\n')
     .map((line: string) => line.trim())
     .filter(Boolean);
@@ -254,14 +260,20 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
                             />
                           </div>
                           <div className="flex-1">
-                            <input
-                              type="text"
+                            <select
                               value={rule.description}
                               onChange={(e) => onUpdateEcRule(idx, 'description', e.target.value)}
-                              className="w-full px-2 py-1 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-semibold"
-                              placeholder="Rule Description..."
+                              className="w-full px-2 py-1.5 text-[11px] bg-secondary/35 border border-border rounded-md text-foreground focus:outline-none focus:border-primary font-semibold"
                               required
-                            />
+                            >
+                              <option value="">-- Select Exclusion Criterion --</option>
+                              {exclusionCriteria.map((criterion: string, cIdx: number) => (
+                                <option key={cIdx} value={criterion}>{criterion}</option>
+                              ))}
+                              {rule.description && !exclusionCriteria.includes(rule.description) && (
+                                <option value={rule.description}>{rule.description}</option>
+                              )}
+                            </select>
                           </div>
                           <button
                             type="button"

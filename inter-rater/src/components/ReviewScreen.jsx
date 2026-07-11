@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService } from '../StorageService';
 import BlindedReviewForm from './BlindedReviewForm';
 import PdfViewer from './PdfViewer';
+import AutofillModal from './features/modals/AutofillModal';
 
 const APPRAISAL_FIELDS = [
   'Reviewer_Decision', 'Reviewer_Reasoning', 'Reviewer_Confidence', 'Reviewer_EC_Code',
@@ -16,6 +17,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
   const [saveStatus, setSaveStatus] = useState('saved');
   const [activeLeftTab, setActiveLeftTab] = useState('abstract');
   const [isEvaluationOpen, setIsEvaluationOpen] = useState(false);
+  const [isAutofillOpen, setIsAutofillOpen] = useState(false);
   const drawerScrollRef = useRef(null);
   const prevScrollTop = useRef(0);
 
@@ -168,6 +170,49 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
     setSaveStatus('saving');
     try {
       await StorageService.updatePaperAppraisal(sessionId, activePaper.Paper_ID, { [nestedKey]: updatedNestedObj });
+      setSaveStatus('saved');
+    } catch (e) {
+      console.error(e);
+      setSaveStatus('error');
+    }
+  }, [papers, currentIndex, sessionId]);
+
+  const handleAutofillAppraisal = useCallback(async (appraisalUpdates) => {
+    if (papers.length === 0) return;
+
+    const activePaper = papers[currentIndex];
+    const updates = { ...appraisalUpdates };
+
+    // Standardize decision and reasoning updates
+    if (updates.Human_Decision !== undefined) {
+      updates.Reviewer_Decision = updates.Human_Decision;
+      if (updates.Human_Decision === 'Include') {
+        updates.Human_EC_Trigger = '';
+        updates.Reviewer_EC_Code = '';
+      }
+    }
+    if (updates.Human_EC_Trigger !== undefined) {
+      updates.Reviewer_EC_Code = updates.Human_EC_Trigger;
+    }
+    if (updates.Human_Rationale !== undefined) {
+      updates.Reviewer_Reasoning = updates.Human_Rationale;
+    }
+
+    const updatedAppraisal = { ...activePaper.appraisal, ...updates };
+
+    setPapers(prevPapers => {
+      const newPapers = [...prevPapers];
+      newPapers[currentIndex] = {
+        ...activePaper,
+        appraisal: updatedAppraisal
+      };
+      return newPapers;
+    });
+
+    setSaveStatus('saving');
+    setIsEvaluationOpen(true); // Open drawer to inspect autofill results
+    try {
+      await StorageService.updatePaperAppraisal(sessionId, activePaper.Paper_ID, updates);
       setSaveStatus('saved');
     } catch (e) {
       console.error(e);
@@ -330,9 +375,18 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
         } else {
           setIsCookbookOpen(false);
         }
+        if (isAutofillOpen) {
+          setIsAutofillOpen(false);
+        }
         if (isInputActive) {
           activeEl.blur();
         }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && key === 'j') {
+        e.preventDefault();
+        setIsAutofillOpen(true);
         return;
       }
 
@@ -340,6 +394,10 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
         e.preventDefault();
         setSaveStatus('saving');
         setTimeout(() => setSaveStatus('saved'), 400);
+        return;
+      }
+
+      if (isAutofillOpen) {
         return;
       }
 
@@ -403,7 +461,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [session, papers.length, currentIndex, activePaper, handleInputChange, handlePrevious, handleNext, handleComplete, isValid, isPoolA, isPoolC, isEvaluationOpen]);
+  }, [session, papers.length, currentIndex, activePaper, handleInputChange, handlePrevious, handleNext, handleComplete, isValid, isPoolA, isPoolC, isEvaluationOpen, isAutofillOpen]);
 
   if (!session || papers.length === 0) return <div className="p-8 text-center text-gray-550 dark:text-gray-400">Loading session data...</div>;
 
@@ -474,7 +532,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               <span>Research Cookbook</span>
             </button>
 
-            <span className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-300 dark:text-gray-350 rounded-lg text-[11px] font-extrabold border border-gray-205 dark:border-gray-700">
+            <span className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-350 rounded-lg text-[11px] font-extrabold border border-gray-205 dark:border-gray-700">
               Paper {currentIndex + 1} of {papers.length}
             </span>
 
@@ -1065,6 +1123,16 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {isAutofillOpen && (
+        <AutofillModal
+          isOpen={isAutofillOpen}
+          onClose={() => setIsAutofillOpen(false)}
+          onAutofill={handleAutofillAppraisal}
+          session={session}
+          currentAppraisal={activePaper?.appraisal}
+        />
       )}
     </div>
   );

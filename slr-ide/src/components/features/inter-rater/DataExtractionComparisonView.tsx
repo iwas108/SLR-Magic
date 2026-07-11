@@ -88,8 +88,8 @@ export default function DataExtractionComparisonView({
               </div>
               <div>
                 <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide">Resolved Evidence</label>
-                <input
-                  type="text"
+                <textarea
+                  rows={2}
                   value={adjudicateExtractedData[key]?.evidence || ''}
                   onChange={(e) => {
                     setAdjudicateExtractedData(prev => ({
@@ -98,7 +98,7 @@ export default function DataExtractionComparisonView({
                     }));
                   }}
                   placeholder="Source quotation..."
-                  className="w-full mt-1 bg-card border border-border text-foreground px-2.5 py-1 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full mt-1 bg-card border border-border text-foreground px-2.5 py-1 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/20 resize-y"
                 />
               </div>
             </div>

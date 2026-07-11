@@ -113,6 +113,59 @@ export function initializeDatabase(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_ledger_project ON calibration_commit_ledger(project_id);
 
+    CREATE TABLE IF NOT EXISTS api_key_vault (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key_name TEXT NOT NULL UNIQUE,
+      encrypted_value TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      tag TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS vault_config (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      password_hash TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS llm_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      paper_id TEXT,
+      project_id TEXT NOT NULL,
+      job_id TEXT,
+      interaction_id TEXT,
+      previous_interaction_id TEXT,
+      model_id TEXT NOT NULL,
+      task_type TEXT NOT NULL,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      thinking_tokens INTEGER DEFAULT 0,
+      cached_tokens INTEGER DEFAULT 0,
+      total_tokens INTEGER DEFAULT 0,
+      cost_usd REAL DEFAULT 0.0,
+      flex_discount REAL DEFAULT 0.0,
+      speed_mode TEXT DEFAULT 'FLEX',
+      prompt_hash TEXT,
+      raw_prompt TEXT,
+      raw_response TEXT,
+      response_schema_name TEXT,
+      structured_output TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      error_message TEXT,
+      error_code TEXT,
+      latency_ms INTEGER,
+      retry_count INTEGER DEFAULT 0,
+      api_version TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_audit_project ON llm_audit_log(project_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_paper ON llm_audit_log(paper_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_job ON llm_audit_log(job_id);
+
     CREATE TABLE IF NOT EXISTS llm_pricing (
       model_id TEXT PRIMARY KEY,
       provider TEXT NOT NULL,
@@ -130,6 +183,8 @@ export function initializeDatabase(db: Database.Database): void {
       description TEXT,
       system_instruction TEXT,
       user_template TEXT NOT NULL,
+      response_schema TEXT,
+      llm_config TEXT DEFAULT '{}',
       is_active INTEGER DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -367,6 +422,20 @@ export function initializeDatabase(db: Database.Database): void {
     // Column already exists
   }
 
+  // Add response_schema column to prompt_templates if it doesn't exist
+  try {
+    db.exec("ALTER TABLE prompt_templates ADD COLUMN response_schema TEXT");
+  } catch (e) {
+    // Column already exists
+  }
+
+  // Add llm_config column to prompt_templates if it doesn't exist
+  try {
+    db.exec("ALTER TABLE prompt_templates ADD COLUMN llm_config TEXT DEFAULT '{}'");
+  } catch (e) {
+    // Column already exists
+  }
+
   // Add Human_QA_Scores column to papers if it doesn't exist (migration fallback)
   try {
     db.exec("ALTER TABLE papers ADD COLUMN Human_QA_Scores TEXT");
@@ -422,67 +491,27 @@ export function initializeDatabase(db: Database.Database): void {
     db.exec("CREATE INDEX IF NOT EXISTS idx_papers_merged_into ON papers (merged_into_id)");
   } catch (e) {}
 
-  // Pre-populate LLM pricing default entries if empty
+  // Seed LLM pricing default entries for active Gemini models
   try {
-    const pricingCount = db.prepare("SELECT COUNT(*) as count FROM llm_pricing").get() as { count: number };
-    if (pricingCount.count === 0) {
-      const insertPricing = db.prepare(`
-        INSERT INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      const now = new Date().toISOString();
-      // prices are USD per 1M tokens
-      insertPricing.run('gemini-1.5-flash', 'gemini', 0.075, 0.30, 0.30, 0.5, now);
-      insertPricing.run('gemini-1.5-pro', 'gemini', 1.25, 5.00, 5.00, 0.5, now);
-      insertPricing.run('gpt-4o', 'openai', 2.50, 10.00, 10.00, 0.5, now);
-      insertPricing.run('gpt-4o-mini', 'openai', 0.15, 0.60, 0.60, 0.5, now);
-      insertPricing.run('claude-3-5-sonnet-latest', 'claude', 3.00, 15.00, 15.00, 0.5, now);
-    }
+    db.exec("DELETE FROM llm_pricing");
+    const insertPricing = db.prepare(`
+      INSERT INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
+      VALUES (?, 'gemini', ?, ?, 0.0, 0.5, ?)
+    `);
+    const now = new Date().toISOString();
+    // Rates are USD per 1M tokens (from Gemini Interactions API pricing documentation)
+    insertPricing.run('gemini-2.5-flash', 0.075, 0.30, now);
+    insertPricing.run('gemini-2.5-pro', 1.25, 5.00, now);
+    insertPricing.run('gemini-1.5-pro', 1.25, 5.00, now);
   } catch (e) {
     console.error("Failed to populate default llm_pricing:", e);
   }
 
-  // Pre-populate default prompt templates if they don't exist
+  // Remove deprecated default/templated prompts from database
   try {
-    const checkStmt = db.prepare("SELECT COUNT(*) as count FROM prompt_templates WHERE id = ?");
-    const insertStmt = db.prepare(`
-      INSERT INTO prompt_templates (id, project_id, name, description, system_instruction, user_template, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-    `);
-    
-    const now = new Date().toISOString();
-
-    // 1. Seed default-screen
-    const hasDefault = checkStmt.get('default-screen') as { count: number };
-    if (hasDefault.count === 0) {
-      insertStmt.run(
-        'default-screen',
-        null, // global
-        'Default Screening Prompt',
-        'Standard screening prompt using project context variables.',
-        'You are an expert scientific screener conducting a systematic literature review (SLR).\nYour task is to review the provided research paper title and abstract (and local text context if available) and decide if it should be INCLUDED or EXCLUDED based on the project exclusion criteria.\n\nCRITICAL: Respond strictly in JSON format as defined below:\n{\n  "decision": "INCLUDE" | "EXCLUDE",\n  "exclusion_trigger": "string or null (specify the rule number/text triggered if EXCLUDE)",\n  "rationale": "detailed academic reasoning for the decision"\n}',
-        'Research Project Context:\n- Objective: {{ objective }}\n- Research Questions: {{ questions }}\n- Exclusion Criteria:\n{{ exclusion_criteria }}\n\nPaper to Evaluate:\n- Title: {{ title }}\n- Abstract: {{ abstract }}\n- DOI: {{ doi }}\n\nPerform a rigorous screening. Output the JSON decision.',
-        now,
-        now
-      );
-    }
-
-    // 2. Seed cot-screen (Chain of Thought)
-    const hasCot = checkStmt.get('cot-screen') as { count: number };
-    if (hasCot.count === 0) {
-      insertStmt.run(
-        'cot-screen',
-        null, // global
-        'Chain of Thought Screen',
-        'Advanced screening using chain-of-thought step-by-step reasoning.',
-        'You are an expert scientific screener conducting a systematic literature review (SLR).\nYour task is to review the provided research paper title and abstract (and local text context if available) and decide if it should be INCLUDED or EXCLUDED based on the project exclusion criteria.\n\nFirst, think step-by-step to analyze the paper against each exclusion criterion.\nThen, output your final decision in the JSON format as defined below:\n{\n  "logic_trace": {\n    "criterion_analysis": "your step-by-step analysis"\n  },\n  "final_evaluation": {\n    "decision": "INCLUDE" | "EXCLUDE",\n    "exclusion_code": "string or null (specify the rule number/text triggered if EXCLUDE)",\n    "reasoning": "detailed academic reasoning for the decision"\n  }\n}',
-        'Research Project Context:\n- Objective: {{ objective }}\n- Research Questions: {{ questions }}\n- Exclusion Criteria:\n{{ exclusion_criteria }}\n\nPaper to Evaluate:\n- Title: {{ title }}\n- Abstract: {{ abstract }}\n- DOI: {{ doi }}\n\nPerform a step-by-step evaluation and output the JSON response.',
-        now,
-        now
-      );
-    }
+    db.exec("DELETE FROM prompt_templates WHERE id IN ('default-screen', 'cot-screen')");
   } catch (e) {
-    console.error("Failed to populate default prompt_templates:", e);
+    console.error("Failed to clean up deprecated default prompts:", e);
   }
 
   // Auto-create a default project if none exist

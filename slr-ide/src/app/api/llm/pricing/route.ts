@@ -50,3 +50,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function PUT(req: Request) {
+  try {
+    const { model_id, input_token_price, output_token_price } = await req.json();
+    if (!model_id) {
+      return NextResponse.json({ success: false, error: 'model_id is required' }, { status: 400 });
+    }
+
+    const stmt = db.prepare(`
+      UPDATE llm_pricing
+      SET input_token_price = ?, output_token_price = ?, updated_at = ?
+      WHERE model_id = ?
+    `);
+    
+    const now = new Date().toISOString();
+    stmt.run(Number(input_token_price), Number(output_token_price), now, model_id);
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Failed to update single model pricing:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}

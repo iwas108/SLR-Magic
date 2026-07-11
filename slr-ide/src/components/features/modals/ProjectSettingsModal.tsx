@@ -172,7 +172,7 @@ export default function ProjectSettingsModal({
                 projectSettingsTab === tab ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {tab === 'sync' ? 'Cloud Sync' : tab === 'llm' ? 'LLM Config' : tab}
+              {tab === 'sync' ? 'Cloud Sync' : tab === 'llm' ? 'Budget Settings' : tab}
             </button>
           ))}
         </div>

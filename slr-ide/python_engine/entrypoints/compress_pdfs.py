@@ -146,15 +146,26 @@ def main():
             success = False
             ratio = 0.0
             new_size = current_size
+            is_compressed = False
 
             if enabled and gs_command:
                 # Run ghostscript compression
                 success = compress_pdf(gs_command, level, pdf, output_path)
                 if success and output_path.exists():
-                    new_size = output_path.stat().st_size
-                    ratio = (1 - (new_size / current_size)) * 100
-                    saved_space += (current_size - new_size)
-                    success = True
+                    from python_engine.pdf.validator import validate_compressed_pdf
+                    is_valid, err_msg = validate_compressed_pdf(str(output_path))
+                    if is_valid:
+                        new_size = output_path.stat().st_size
+                        ratio = (1 - (new_size / current_size)) * 100
+                        saved_space += (current_size - new_size)
+                        is_compressed = True
+                        success = True
+                    else:
+                        print(json.dumps({
+                            "info": f"[WARNING]: Compressed PDF validation failed for {paper_id}: {err_msg}. Falling back to copy original file."
+                        }))
+                        sys.stdout.flush()
+                        success = False
                 else:
                     success = False
             
@@ -164,6 +175,7 @@ def main():
                     shutil.copy2(pdf, output_path)
                     new_size = current_size
                     ratio = 0.0
+                    is_compressed = False
                     success = True
                 except Exception as e:
                     print(json.dumps({"info": f"[ERROR]: Failed to copy file {pdf.name}: {e}"}))
@@ -175,7 +187,7 @@ def main():
                     "mtime": current_mtime,
                     "original_size": current_size,
                     "compressed_size": new_size,
-                    "compressed": enabled
+                    "compressed": is_compressed
                 }
                 processed_count += 1
                 

@@ -26,6 +26,8 @@ interface GlobalModalsProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   showDuplicateModal: boolean;
   setShowDuplicateModal: React.Dispatch<React.SetStateAction<boolean>>;
+  preSelectedPaperIds?: string[];
+  initialSettingsTab?: 'rclone' | 'scraper';
 }
 
 export default function GlobalModals({
@@ -37,7 +39,9 @@ export default function GlobalModals({
   setIsSettingsOpen,
   showToast,
   showDuplicateModal,
-  setShowDuplicateModal
+  setShowDuplicateModal,
+  preSelectedPaperIds,
+  initialSettingsTab
 }: GlobalModalsProps) {
   const { activeProject, loadProjects } = projectsHook;
   const {
@@ -103,6 +107,9 @@ export default function GlobalModals({
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
         showToast={showToast}
+        activeProject={projectsHook.activeProject}
+        preSelectedPaperIds={preSelectedPaperIds}
+        initialTab={initialSettingsTab}
       />
       <DuplicateReviewModal 
         isOpen={showDuplicateModal} 

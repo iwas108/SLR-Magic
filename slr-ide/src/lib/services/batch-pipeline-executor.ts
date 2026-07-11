@@ -4,10 +4,7 @@ import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
 import { streamManager } from '@/lib/services/stream-manager';
 import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 import { runSubprocessStep } from './pipeline/subprocess-runner';
-import { getGhostscriptCommand, compressSinglePDF } from './pipeline/compressor';
 import { runCloudSync, generateCloudLinks } from './pipeline/rclone-sync';
-
-export { getGhostscriptCommand };
 
 export async function runBackgroundExecution(steps: string[], compress: boolean) {
   const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
@@ -63,68 +60,14 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
         batchStateTracker.updateStateFromMsg(stepStartMsg);
         streamManager.broadcast(stepStartMsg);
 
+        // Run Python compressor subprocess unconditionally to prepare the repository (copies or compresses)
         try {
-          const papersToSync = db.prepare(`
-            SELECT Paper_ID, Local_PDF_Path FROM papers
-            WHERE Project_ID = ? AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED')
-          `).all(activeProjectId) as { Paper_ID: string; Local_PDF_Path: string }[];
+          await runSubprocessStep('compress', pythonExe, 'python_engine.entrypoints.compress_pdfs', PROJECT_ROOT, stepNum, totalSteps, batchState);
+          if (batchState.cancelRequested) continue;
 
-          if (papersToSync.length > 0) {
-            const gsCommand = compress ? getGhostscriptCommand() : null;
-            const gsLevel = getConfig('PDF_COMPRESSION_LEVEL', '/ebook');
-
-            if (gsCommand) {
-              const startMsg = { event: 'step_start', step: 'compress', message: 'Compressing PDFs before upload...' };
-              batchStateTracker.updateStateFromMsg(startMsg);
-              streamManager.broadcast(startMsg);
-
-              const startEvent = { event: 'start', step: 'compress', total: papersToSync.length };
-              batchStateTracker.updateStateFromMsg(startEvent);
-              streamManager.broadcast(startEvent);
-            }
-
-            let processedCount = 0;
-            for (const paper of papersToSync) {
-              if (batchState.cancelRequested) break;
-
-              const res = compressSinglePDF(paper, PROJECT_ROOT, pdfRepoDir, gsCommand, gsLevel);
-              if (!res.success) {
-                continue;
-              }
-
-              processedCount++;
-
-              if (gsCommand) {
-                const ratio = res.origSize > 0 ? Math.round(((res.origSize - res.newSize) / res.origSize) * 100) : 0;
-                const progressMsg = {
-                  event: 'progress',
-                  step: 'compress',
-                  current: processedCount,
-                  total: papersToSync.length,
-                  paper_id: paper.Paper_ID,
-                  original_size: res.origSize,
-                  new_size: res.newSize,
-                  ratio: ratio,
-                  skipped: res.skipped
-                };
-                batchStateTracker.updateStateFromMsg(progressMsg);
-                streamManager.broadcast(progressMsg);
-              }
-            }
-
-            if (gsCommand) {
-              const completeMsg = { event: 'step_complete', step: 'compress', message: `Finished processing PDFs. Compressed ${processedCount} files.` };
-              batchStateTracker.updateStateFromMsg(completeMsg);
-              streamManager.broadcast(completeMsg);
-            } else {
-              batchStateTracker.updateStateFromMsg({ event: 'log', message: `Finished processing PDFs. Copied ${processedCount} files.`, step: 'sync' });
-              streamManager.broadcast({ event: 'log', message: `Finished processing PDFs. Copied ${processedCount} files.`, step: 'sync' });
-            }
-
-            const syncStartMsg = { event: 'step_start', step: 'sync', message: 'Syncing Files (Rclone)...' };
-            batchStateTracker.updateStateFromMsg(syncStartMsg);
-            streamManager.broadcast(syncStartMsg);
-          }
+          const syncStartMsg = { event: 'step_start', step: 'sync', message: 'Syncing Files (Rclone)...' };
+          batchStateTracker.updateStateFromMsg(syncStartMsg);
+          streamManager.broadcast(syncStartMsg);
         } catch (err: any) {
           batchStateTracker.updateStateFromMsg({ event: 'log', message: `Warning during pre-sync file processing: ${err.message}`, step: 'sync' });
           streamManager.broadcast({ event: 'log', message: `Warning during pre-sync file processing: ${err.message}`, step: 'sync' });

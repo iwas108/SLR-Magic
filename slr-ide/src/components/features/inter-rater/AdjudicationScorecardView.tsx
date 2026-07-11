@@ -87,10 +87,15 @@ export default function AdjudicationScorecardView({
                   <div className="flex gap-1 mt-1">
                     {[0, 0.5, 1].map(score => {
                       const active = adjudicateQaScores[ruleCode]?.value !== null && parseFloat(String(adjudicateQaScores[ruleCode]?.value)) === score;
+                      const rubricTitle =
+                        score === 0 ? rule.score_0_logic :
+                        score === 0.5 ? rule.score_05_logic :
+                        score === 1 ? rule.score_1_logic : '';
                       return (
                         <button
                           key={score}
                           type="button"
+                          title={rubricTitle || `No description available for score ${score}`}
                           onClick={() => {
                             setAdjudicateQaScores(prev => ({
                               ...prev,
@@ -110,8 +115,8 @@ export default function AdjudicationScorecardView({
 
                 <div className="sm:col-span-2">
                   <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide">Resolved Evidence</label>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={2}
                     value={adjudicateQaScores[ruleCode]?.evidence || ''}
                     onChange={(e) => {
                       setAdjudicateQaScores(prev => ({
@@ -120,7 +125,7 @@ export default function AdjudicationScorecardView({
                       }));
                     }}
                     placeholder="Source quotation..."
-                    className="w-full mt-1 bg-card border border-border text-foreground px-2.5 py-1 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                    className="w-full mt-1 bg-card border border-border text-foreground px-2.5 py-1 rounded-lg text-xs outline-none focus:ring-2 focus:ring-primary/20 resize-y"
                   />
                 </div>
               </div>

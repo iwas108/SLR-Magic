@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Cloud, Sliders, Loader, Cpu, FileText } from 'lucide-react';
-import GlobalLLMSettingsView from './features/GlobalLLMSettingsView';
-import PromptLibraryView from './features/PromptLibraryView';
+import { X, Cloud, Sliders, Loader } from 'lucide-react';
 import RcloneSettingsTab from './features/settings/RcloneSettingsTab';
 import ScraperSettingsTab from './features/settings/ScraperSettingsTab';
 
@@ -11,11 +9,21 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   showToast?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  activeProject?: any;
+  preSelectedPaperIds?: string[];
+  initialTab?: 'rclone' | 'scraper';
 }
 
-export default function SettingsModal({ isOpen, onClose, showToast }: SettingsModalProps) {
+export default function SettingsModal({ 
+  isOpen, 
+  onClose, 
+  showToast, 
+  activeProject, 
+  preSelectedPaperIds, 
+  initialTab 
+}: SettingsModalProps) {
   const [showPathsHelp, setShowPathsHelp] = useState(false);
-  const [activeTab, setActiveTab] = useState<'rclone' | 'scraper' | 'llm' | 'prompts'>('rclone');
+  const [activeTab, setActiveTab] = useState<'rclone' | 'scraper'>('rclone');
   const [configs, setConfigs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,6 +43,14 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
         .catch((err) => console.error('Error loading config:', err));
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialTab) {
+        setActiveTab(initialTab);
+      }
+    }
+  }, [isOpen, preSelectedPaperIds, initialTab]);
 
   const handleChange = (key: string, value: string) => {
     setConfigs((prev) => ({ ...prev, [key]: value }));
@@ -158,24 +174,6 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
             <Sliders className="w-4 h-4" />
             Scraper Settings
           </button>
-          <button
-            onClick={() => setActiveTab('llm')}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
-              activeTab === 'llm' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Cpu className="w-4 h-4" />
-            LLM Engine
-          </button>
-          <button
-            onClick={() => setActiveTab('prompts')}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
-              activeTab === 'prompts' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            Global Prompts
-          </button>
         </div>
 
         {/* Content */}
@@ -202,14 +200,6 @@ export default function SettingsModal({ isOpen, onClose, showToast }: SettingsMo
               configs={configs}
               handleChange={handleChange}
             />
-          ) : activeTab === 'llm' ? (
-            <div className="h-full">
-              <GlobalLLMSettingsView showToast={showToast} />
-            </div>
-          ) : activeTab === 'prompts' ? (
-            <div className="h-full">
-              <PromptLibraryView projectId={null} showToast={showToast} />
-            </div>
           ) : null}
         </div>
 

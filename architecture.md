@@ -41,9 +41,9 @@ graph TD
 
 *   **Role**: The one-stop control hub for the systematic review lifecycle.
 *   **Frontend Core**: Next.js App Router, React, and Tailwind CSS v4. Operates through a clean modular architecture separating functional Views (`DashboardView`, `PipelineExecutionView`, etc.) and Custom Hooks (`useProjects`, `usePapers`, etc.) from the main `page.tsx` entry point.
-*   **Persistence**: SQLite database (`db/slr.db`) for multi-project segmentation and paper metadata. Integrates with `prompt_templates` to store global and project prompts, and `llm_pricing` to compute token costs.
-*   **Pipeline & Execution Engine**: Deterministic ID generators spawning Python Engine subprocesses. Hosts a Centralized Pipeline Dashboard orchestrating Web Scraping (`scrape_pdfs.py`), cloud-based publisher normalization (`map_publisher.py`), Cloud Syncing (`rclone`), and Semantic LLM Screening via live SSE terminal streams and process recovery endpoints.
-*   **Prompt & LLM Configuration**: Facilitates CRUD management of prompts in the Prompt Library (global and project scoped) and dynamically retrieves prompt templates for LLM configs. Configures execution options (`temperature`, `max_tokens`, `top_p`, `top_k`) alongside local environment configurations (`.env.local`).
+*   **Persistence**: SQLite database (`db/slr.db`) for multi-project segmentation and paper metadata. Integrates with `prompt_templates` to store global/project prompts and JSON Schemas, `llm_pricing` to compute token costs, and `api_key_vault` for encrypted credential storage.
+*   **Pipeline & Execution Engine**: Spawns Python Engine subprocesses for scraping, matching, and semantic LLM screening. Hosts a Centralized Pipeline Dashboard orchestrating Web Scraping (`scrape_pdfs.py`), cloud-based publisher normalization (`map_publisher.py`), Cloud Syncing (`rclone`), and Semantic LLM Screening (using Google Gemini's stateful Interactions API) via live SSE terminal streams and process recovery endpoints.
+*   **Credential Vault & Audit Logs**: API keys are encrypted at rest via AES-256-GCM + PBKDF2 derived from a user-provided master password cached in-memory. Every model execution writes to an immutable database audit log table capturing interaction IDs, telemetry costs, and raw payloads.
 *   **Cloud Gateway**: Subprocess execution of `rclone` to compress and upload local PDFs to project-scoped Drive/OneDrive folders and retrieve shareable file links.
 
 ### II. Inter-Rater Blinded Review SPA (`inter-rater/`)

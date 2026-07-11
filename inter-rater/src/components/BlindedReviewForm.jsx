@@ -112,7 +112,148 @@ const BlindedReviewForm = ({
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchVal, setSearchVal] = useState('');
-  
+
+  // Extract all dynamic keys present in the paper record (keys other than standard ones)
+  const dynamicKeys = React.useMemo(() => {
+    if (!currentRow) return [];
+    return Object.keys(currentRow).filter(
+      key => !APPRAISAL_FIELDS.includes(key)
+    );
+  }, [currentRow]);
+
+  // Calculate total score and fatal gates status
+  const qaCalculations = React.useMemo(() => {
+    let sum = 0;
+    let totalQuestions = 0;
+    let fatalFlaw = false;
+    let fatalRulesTriggered = [];
+    let completedCount = 0;
+
+    const fatalCodes = ['QA-1', 'QA-2', 'QA-3', 'QA-4', 'QA-6'];
+
+    if (!currentRow) {
+      return { sum, totalQuestions, completedCount, allCompleted: false, fatalFlaw, fatalRulesTriggered };
+    }
+
+    if (isPoolC && qaRules && qaRules.length > 0) {
+      const qaScores = currentRow.Human_QA_Scores || {};
+      totalQuestions = qaRules.length;
+      qaRules.forEach(rule => {
+        const item = qaScores[rule.code];
+        if (item && item.value !== null && item.value !== undefined && item.value !== '') {
+          const val = Number(item.value);
+          sum += val;
+          completedCount++;
+          if (val === 0.0 && fatalCodes.includes(rule.code)) {
+            fatalFlaw = true;
+            fatalRulesTriggered.push(rule.code);
+          }
+        }
+      });
+    } else {
+      // Non-Pool C
+      const qaKeys = dynamicKeys.filter(key => key.toLowerCase().startsWith('qa'));
+      totalQuestions = qaKeys.length;
+      qaKeys.forEach(key => {
+        const item = currentRow[key];
+        if (item && item.value !== null && item.value !== undefined && item.value !== '') {
+          const val = Number(item.value);
+          sum += val;
+          completedCount++;
+          const normalizedKey = key.toUpperCase().replace('_', '-'); // e.g. "QA_1" -> "QA-1"
+          const isFatal = fatalCodes.some(code => normalizedKey === code || normalizedKey === code.replace('-', '') || normalizedKey.startsWith(code));
+          if (val === 0.0 && isFatal) {
+            fatalFlaw = true;
+            fatalRulesTriggered.push(key.toUpperCase().replace('_', ' '));
+          }
+        }
+      });
+    }
+
+    return {
+      sum,
+      totalQuestions,
+      completedCount,
+      allCompleted: completedCount === totalQuestions && totalQuestions > 0,
+      fatalFlaw,
+      fatalRulesTriggered
+    };
+  }, [isPoolC, qaRules, currentRow, dynamicKeys]);
+
+  const renderQASummaryBox = () => {
+    const { sum, totalQuestions, completedCount, allCompleted, fatalFlaw, fatalRulesTriggered } = qaCalculations;
+    if (totalQuestions === 0) return null;
+
+    const scoreExceedsThreshold = sum >= 4.5;
+    const isExcluded = fatalFlaw || (allCompleted && !scoreExceedsThreshold);
+
+    return (
+      <div className={`mt-4 p-4 rounded-xl border ${
+        isExcluded 
+          ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40 text-rose-800 dark:text-rose-200' 
+          : allCompleted 
+            ? 'bg-emerald-50/50 dark:bg-emerald-955/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-250' 
+            : 'bg-blue-50/40 dark:bg-blue-955/15 border-blue-150 dark:border-blue-900/30 text-blue-850 dark:text-blue-200'
+      } space-y-2.5 transition-all duration-200`}>
+        <div className="flex justify-between items-center">
+          <span className="text-[11px] font-black uppercase tracking-wider opacity-85">
+            QA Scoring Summary
+          </span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white/60 dark:bg-gray-900/40 border border-current/10">
+            {completedCount} / {totalQuestions} Answered
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          {/* Cumulative Score */}
+          <div className="space-y-1">
+            <span className="block text-[10px] font-bold opacity-60 uppercase tracking-wider">Cumulative Score</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-black">{sum.toFixed(1)}</span>
+              <span className="text-[10px] opacity-60">/ {totalQuestions.toFixed(1)}</span>
+            </div>
+            {completedCount > 0 && (
+              <span className={`text-[10px] font-extrabold flex items-center gap-1 ${
+                sum >= 4.5 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+              }`}>
+                {sum >= 4.5 ? '🟢 Pass (≥ 4.5)' : '🔴 Fail (< 4.5)'}
+              </span>
+            )}
+          </div>
+
+          {/* Fatal Flaw Gate */}
+          <div className="space-y-1">
+            <span className="block text-[10px] font-bold opacity-60 uppercase tracking-wider">Fatal Flaw Gate</span>
+            <div className="text-xs font-black flex items-center gap-1.5 h-7">
+              {fatalFlaw ? (
+                <span className="text-rose-650 dark:text-rose-400 flex items-center gap-1 leading-tight text-[11px]">
+                  🚨 Fatal Flaw ({fatalRulesTriggered.join(', ')})
+                </span>
+              ) : completedCount > 0 ? (
+                <span className="text-emerald-650 dark:text-emerald-450 flex items-center gap-1">
+                  🛡️ Clear
+                </span>
+              ) : (
+                <span className="opacity-60 font-semibold text-gray-500">No scores yet</span>
+              )}
+            </div>
+            <span className="block text-[9px] opacity-60 leading-tight">QA-1, 2, 3, 4, 6 cannot be 0.0</span>
+          </div>
+        </div>
+
+        {allCompleted && (
+          <div className={`text-center py-1.5 px-3 rounded-lg text-xs font-extrabold border ${
+            isExcluded 
+              ? 'bg-rose-100/50 dark:bg-rose-950/40 border-rose-200/60' 
+              : 'bg-emerald-100/50 dark:bg-emerald-950/40 border-emerald-200/60'
+          }`}>
+            {isExcluded ? '❌ Automatically Excluded by QA Rules' : '✅ Automatically Included by QA Rules'}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Resolve exclusion criteria rules (from ecRules array or parsed from string)
   const resolvedECRules = React.useMemo(() => {
     if (ecRules && ecRules.length > 0) return ecRules;
@@ -124,13 +265,6 @@ const BlindedReviewForm = ({
     return parseQADefinition(qualityAssuranceDefinition);
   }, [qualityAssuranceDefinition]);
 
-  // Extract all dynamic keys present in the paper record (keys other than standard ones)
-  const dynamicKeys = React.useMemo(() => {
-    if (!currentRow) return [];
-    return Object.keys(currentRow).filter(
-      key => !APPRAISAL_FIELDS.includes(key)
-    );
-  }, [currentRow]);
 
   // Find the matching QA block description for a given key (e.g. qa1_aims)
   const getQABlock = (key) => {
@@ -387,6 +521,7 @@ const BlindedReviewForm = ({
                       </div>
                     );
                   })}
+                  {renderQASummaryBox()}
                 </div>
               )}
 
@@ -456,84 +591,82 @@ const BlindedReviewForm = ({
             </>
           ) : (
             // Non-Pool C Dynamic Fields
-            dynamicKeys.map((key) => {
-              const isQA = key.toLowerCase().startsWith('qa');
-              const block = isQA ? getQABlock(key) : null;
-              const label = block ? block.title : getFallbackLabel(key);
-              const description = block ? block.details.join('\n') : '';
+            <div className="space-y-4">
+              {dynamicKeys.map((key) => {
+                const isQA = key.toLowerCase().startsWith('qa');
+                const block = isQA ? getQABlock(key) : null;
+                const label = block ? block.title : getFallbackLabel(key);
+                const description = block ? block.details.join('\n') : '';
+                const item = currentRow[key] || { value: '', evidence: '' };
 
-              // Retrieve active response (value & evidence)
-              const item = currentRow[key] || { value: '', evidence: '' };
-
-              return (
-                <div key={key} className="bg-gray-50/30 dark:bg-gray-900/20 p-4 rounded-xl border border-gray-150 dark:border-gray-800 space-y-3">
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-900 dark:text-white leading-snug">
-                      {label} <span className="text-red-500">*</span>
-                    </h4>
-                    {description && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 whitespace-pre-wrap leading-normal font-medium bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800/40 p-2.5 rounded-lg">
-                        {description}
-                      </p>
-                    )}
-                  </div>
-
-                  {isQA ? (
-                    // Quality Assurance: Render 1.0, 0.5, 0.0 segmented button options
+                return (
+                  <div key={key} className="bg-gray-50/30 dark:bg-gray-900/20 p-4 rounded-xl border border-gray-150 dark:border-gray-800 space-y-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Score Option</label>
-                      <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl gap-1">
-                        {['1.0', '0.5', '0.0'].map((val) => {
-                          const isSelected = String(item.value) === val;
-                          return (
-                            <button
-                              key={val}
-                              type="button"
-                              onClick={() => handleDynamicChange(key, 'value', val)}
-                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                isSelected
-                                  ? 'bg-blue-600 text-white shadow-sm'
-                                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
-                              }`}
-                            >
-                              {val}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <h4 className="text-sm font-bold text-gray-900 dark:text-white leading-snug">
+                        {label} <span className="text-red-500">*</span>
+                      </h4>
+                      {description && (
+                        <p className="text-xs text-gray-550 dark:text-gray-400 mt-1 whitespace-pre-wrap leading-normal font-medium bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800/40 p-2.5 rounded-lg">
+                          {description}
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    // Data Extraction: Render standard text input for value
+
+                    {isQA ? (
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Score Option</label>
+                        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl gap-1">
+                          {['1.0', '0.5', '0.0'].map((val) => {
+                            const isSelected = String(item.value) === val;
+                            return (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => handleDynamicChange(key, 'value', val)}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white shadow-sm'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                                }`}
+                              >
+                                {val}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label htmlFor={`val-${key}`} className="block text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Extracted Value</label>
+                        <input
+                          type="text"
+                          id={`val-${key}`}
+                          placeholder="Enter extracted parameter..."
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs transition-all text-gray-800 dark:text-gray-200"
+                          value={item.value || ''}
+                          onChange={(e) => handleDynamicChange(key, 'value', e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
+
                     <div>
-                      <label htmlFor={`val-${key}`} className="block text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Extracted Value</label>
-                      <input
-                        type="text"
-                        id={`val-${key}`}
-                        placeholder="Enter extracted parameter..."
+                      <label htmlFor={`ev-${key}`} className="block text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Text Evidence / Quote</label>
+                      <textarea
+                        id={`ev-${key}`}
+                        rows="2.5"
+                        placeholder="Extract the justifying quote or evidence from full-text..."
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs transition-all text-gray-800 dark:text-gray-200"
-                        value={item.value || ''}
-                        onChange={(e) => handleDynamicChange(key, 'value', e.target.value)}
+                        value={item.evidence || ''}
+                        onChange={(e) => handleDynamicChange(key, 'evidence', e.target.value)}
                         required
                       />
                     </div>
-                  )}
-
-                  {/* Evidence field */}
-                  <div>
-                    <label htmlFor={`ev-${key}`} className="block text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Text Evidence / Quote</label>
-                    <textarea
-                      id={`ev-${key}`}
-                      rows="2.5"
-                      placeholder="Extract the justifying quote or evidence from full-text..."
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs transition-all text-gray-800 dark:text-gray-200"
-                      value={item.evidence || ''}
-                      onChange={(e) => handleDynamicChange(key, 'evidence', e.target.value)}
-                      required
-                    />
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+              {renderQASummaryBox()}
+            </div>
           )}
         </div>
       )}

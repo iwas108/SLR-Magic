@@ -49,6 +49,55 @@ export function getAllConfigs(): Record<string, string> {
   return configs;
 }
 
+// Vault helpers
+export function isVaultInitialized(): boolean {
+  const row = db.prepare('SELECT COUNT(*) as count FROM vault_config').get() as { count: number } | undefined;
+  return row ? row.count > 0 : false;
+}
+
+export function getVaultPasswordHash(): string | null {
+  const row = db.prepare('SELECT password_hash FROM vault_config LIMIT 1').get() as { password_hash: string } | undefined;
+  return row ? row.password_hash : null;
+}
+
+export function setVaultPassword(hash: string): void {
+  db.prepare("INSERT OR REPLACE INTO vault_config (id, password_hash, created_at) VALUES (1, ?, datetime('now'))").run(hash);
+}
+
+export interface VaultKeyRow {
+  key_name: string;
+  encrypted_value: string;
+  salt: string;
+  iv: string;
+  tag: string;
+}
+
+export function getVaultKey(name: string): VaultKeyRow | null {
+  return db.prepare('SELECT key_name, encrypted_value, salt, iv, tag FROM api_key_vault WHERE key_name = ?').get(name) as VaultKeyRow | null;
+}
+
+export function saveVaultKey(key: VaultKeyRow): void {
+  db.prepare(`
+    INSERT INTO api_key_vault (key_name, encrypted_value, salt, iv, tag, created_at, updated_at)
+    VALUES (@key_name, @encrypted_value, @salt, @iv, @tag, datetime('now'), datetime('now'))
+    ON CONFLICT(key_name) DO UPDATE SET
+      encrypted_value = excluded.encrypted_value,
+      salt = excluded.salt,
+      iv = excluded.iv,
+      tag = excluded.tag,
+      updated_at = datetime('now')
+  `).run(key);
+}
+
+export function deleteVaultKey(name: string): void {
+  db.prepare('DELETE FROM api_key_vault WHERE key_name = ?').run(name);
+}
+
+export function listVaultKeyNames(): string[] {
+  const rows = db.prepare('SELECT key_name FROM api_key_vault ORDER BY key_name ASC').all() as { key_name: string }[];
+  return rows.map(r => r.key_name);
+}
+
 export default db;
 
 // Start backup scheduler in a deferred task to avoid circular import delays

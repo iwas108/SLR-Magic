@@ -26,6 +26,8 @@ def compress_pdf(gs_executable, level, input_file, output_file):
         "-sDEVICE=pdfwrite",
         "-dCompatibilityLevel=1.4",
         f"-dPDFSETTINGS={level}",
+        "-dEmbedAllFonts=true",
+        "-dSubsetFonts=false",
         "-dNOPAUSE",
         "-dQUIET",
         "-dBATCH",

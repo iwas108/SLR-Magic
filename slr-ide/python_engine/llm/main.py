@@ -9,8 +9,10 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from llm.database import execute_read, execute_write, execute_read_one
-from llm.providers import get_provider_adapter
+from llm.client import GeminiClient
 from llm.queue_handler import LLMQueueHandler
+from llm.schema_registry import validate_json_schema
+from llm.budget import sync_all_models_from_api
 
 # Configure logging
 logging.basicConfig(
@@ -38,87 +40,114 @@ def fail_job(job_id, project_id, error_message):
     sys.exit(1)
 
 def main():
-    parser = argparse.ArgumentParser(description="SLR Magic LLM Screening Orchestrator")
+    parser = argparse.ArgumentParser(description="SLR Magic Gemini Interactions API Orchestrator")
     parser.add_argument('--project-id', required=True, help="Active Project ID")
     parser.add_argument('--job-id', required=True, help="Unique LLM execution Job ID")
-    parser.add_argument('--mode', default='standard', choices=['standard', 'flex', 'batch'], help="Execution mode")
-    parser.add_argument('--action', default='screen', choices=['screen', 'check-batch'], help="Action to execute")
+    parser.add_argument('--task-type', default='fast_filter', choices=['fast_filter', 'gatekeeper', 'scientist', 'miner', 'screening', 'fulltext', 'extraction'], help="Type of LLM task")
+    parser.add_argument('--action', default='screen', choices=['screen', 'refresh-pricing'], help="Action to execute")
+    parser.add_argument('--limit', type=int, default=0, help="Max number of papers to screen")
+    parser.add_argument('--offset', type=int, default=0, help="Offset of papers to skip")
+    parser.add_argument('--paper-ids', default='', help="Comma-separated list of Paper IDs to run")
+    parser.add_argument('--template-id', default='', help="Prompt Template ID override")
     args = parser.parse_args()
 
     job_id = args.job_id
     project_id = args.project_id
-    mode = args.mode
+    task_type = args.task_type
     action = args.action
 
-    if action == 'check-batch':
-        from llm.batch_handler import harvest_active_batches
-        harvest_active_batches()
-        sys.exit(0)
+    logger.info(f"Starting Gemini Orchestrator for project {project_id}, job {job_id}, task {task_type}")
 
-    logger.info(f"Starting LLM Orchestrator for project {project_id}, job {job_id}, mode {mode}, action {action}")
+    # Resolve API Key
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        fail_job(job_id, project_id, "Gemini API Key is missing. Unlock the vault first.")
+
+    # Instantiate Gemini client
+    try:
+        client = GeminiClient(api_key=api_key)
+    except Exception as init_err:
+        fail_job(job_id, project_id, f"Failed to initialize GeminiClient: {init_err}")
+
+    # Action: refresh-pricing
+    if action == 'refresh-pricing':
+        try:
+            synced = sync_all_models_from_api(client)
+            print(json.dumps({
+                "status": "SUCCESS",
+                "message": f"Successfully synced {len(synced)} Gemini models directly from the API."
+            }), flush=True)
+            sys.exit(0)
+        except Exception as e:
+            print(json.dumps({"status": "FAILED", "message": f"Failed to refresh pricing: {e}"}), flush=True)
+            sys.exit(1)
 
     # 1. Fetch active project details from SQLite
     project = execute_read_one("SELECT * FROM projects WHERE id = ?", (project_id,))
     if not project:
         fail_job(job_id, project_id, f"Project '{project_id}' not found in database.")
 
-    # 2. Parse LLM configuration JSON
-    llm_config_str = project.get("llm_config") or "{}"
-    try:
-        llm_config = json.loads(llm_config_str)
-    except Exception as parse_err:
-        logger.error(f"Failed to parse llm_config: {llm_config_str}")
-        llm_config = {}
+    # 2. Resolve prompt template (must be supplied by user)
+    selected_template_id = args.template_id
+    if not selected_template_id:
+        fail_job(job_id, project_id, "No prompt template specified. A template must always be selected to execute the pipeline.")
 
-    # Extract configuration options with fallbacks
-    provider = llm_config.get("provider", "gemini")
-    model_id = llm_config.get("model_id", "gemini-1.5-flash")
-    prompt_template_id = llm_config.get("prompt_template_id", "default-screen")
-    concurrency_limit = int(llm_config.get("concurrency_limit", 5))
-    batch_queue_size = int(llm_config.get("batch_queue_size", 100))
-    temperature = float(llm_config.get("temperature", 0.0))
-    max_tokens = int(llm_config.get("max_tokens", 2000))
-    top_p = llm_config.get("top_p")
-    if top_p is not None:
-        top_p = float(top_p)
-    top_k = llm_config.get("top_k")
-    if top_k is not None:
-        try:
-            top_k = int(top_k)
-        except (ValueError, TypeError):
-            top_k = None
-
-    # 3. Resolve API Keys from process environment block
-    provider_lower = provider.lower()
-    api_key = None
-    if provider_lower == 'gemini':
-        api_key = os.environ.get("GEMINI_API_KEY")
-    elif provider_lower == 'openai':
-        api_key = os.environ.get("OPENAI_API_KEY")
-    elif provider_lower in ('claude', 'anthropic'):
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-
-    if not api_key:
-        fail_job(
-            job_id, 
-            project_id, 
-            f"API Key for provider '{provider}' is missing. Please set the appropriate environment variable (GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY)."
-        )
-
-    # 4. Resolve prompt template
-    template_row = execute_read_one("SELECT * FROM prompt_templates WHERE id = ?", (prompt_template_id,))
+    template_row = execute_read_one("SELECT * FROM prompt_templates WHERE id = ?", (selected_template_id,))
     if not template_row:
-        # Fall back to global default template if custom not found
-        template_row = execute_read_one("SELECT * FROM prompt_templates WHERE id = 'default-screen'")
-        
-    if not template_row:
-        fail_job(job_id, project_id, "No prompt templates found in prompt_templates database table.")
+        fail_job(job_id, project_id, f"Prompt template '{selected_template_id}' not found in database.")
 
     system_instruction = template_row.get("system_instruction") or ""
     user_template = template_row.get("user_template") or ""
 
-    # 5. Fetch papers pending screening
-    papers = execute_read("SELECT * FROM papers WHERE Project_ID = ? AND Status = 'PENDING'", (project_id,))
+    # 3. Parse LLM configuration JSON from the selected template
+    llm_config_str = template_row.get("llm_config") or "{}"
+    try:
+        llm_config = json.loads(llm_config_str)
+    except Exception as parse_err:
+        logger.error(f"Failed to parse llm_config from template: {llm_config_str}")
+        llm_config = {}
+
+    # Extract configuration options
+    model_id = llm_config.get("model_id") or "gemini-2.5-flash"
+    temperature = float(llm_config.get("temperature", 0.0))
+    max_output_tokens = int(llm_config.get("max_tokens", 2000))
+    top_p = float(llm_config.get("top_p", 0.9))
+    top_k = int(llm_config.get("top_k", 40))
+    
+    concurrency_limit = 5
+    batch_queue_size = 100
+
+    # Resolve and normalize execution/speed mode (Standard vs Flex)
+    raw_mode = llm_config.get("execution_mode", "flex").upper()
+    speed_mode = raw_mode
+    if speed_mode not in ['FLEX', 'STANDARD']:
+        speed_mode = 'FLEX'
+
+    # 4. Resolve JSON Schema from prompt template
+    schema_str = template_row.get("response_schema")
+    is_valid, err_msg, prompt_schema = validate_json_schema(schema_str)
+    if not is_valid:
+        fail_job(job_id, project_id, f"JSON Schema validation failed for prompt template '{selected_template_id}': {err_msg}")
+
+    # 5. Fetch papers pending screening with range/selection constraints
+    if args.paper_ids:
+        # User specified concrete Paper IDs. Fetch all pending papers and filter in memory to avoid parameter limit exceptions.
+        parsed_ids = [p_id.strip() for p_id in args.paper_ids.split(",") if p_id.strip()]
+        all_papers = execute_read("SELECT * FROM papers WHERE Project_ID = ? AND Status = 'PENDING' ORDER BY rowid ASC", (project_id,))
+        id_set = set(parsed_ids)
+        papers = [p for p in all_papers if p["Paper_ID"] in id_set]
+    else:
+        # Standard range/limit batch query
+        query = "SELECT * FROM papers WHERE Project_ID = ? AND Status = 'PENDING' ORDER BY rowid ASC"
+        params = [project_id]
+        if args.limit > 0:
+            query += " LIMIT ?"
+            params.append(args.limit)
+        if args.offset > 0:
+            query += " OFFSET ?"
+            params.append(args.offset)
+        papers = execute_read(query, tuple(params))
+
     if not papers:
         # No work to do, close job as complete immediately
         execute_write(
@@ -126,7 +155,7 @@ def main():
             INSERT OR REPLACE INTO llm_jobs (id, project_id, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (job_id, project_id, model_id, mode, "COMPLETED", 0, 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
+            (job_id, project_id, model_id, speed_mode, "COMPLETED", 0, 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
         )
         print(json.dumps({
             "status": "COMPLETED",
@@ -134,7 +163,7 @@ def main():
             "project_id": project_id,
             "processed_papers": 0,
             "total_papers": 0,
-            "message": "No pending papers found for screening."
+            "message": "No pending papers found for processing."
         }), flush=True)
         sys.exit(0)
 
@@ -144,74 +173,31 @@ def main():
         INSERT OR REPLACE INTO llm_jobs (id, project_id, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (job_id, project_id, model_id, mode, "RUNNING", len(papers), 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
+        (job_id, project_id, model_id, speed_mode, "RUNNING", len(papers), 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
     )
 
-    # If running in cloud batch mode, submit the batch job and exit early
-    if mode == 'batch':
-        print(json.dumps({
-            "status": "RUNNING", 
-            "job_id": job_id, 
-            "project_id": project_id,
-            "message": "Submitting cloud batch prediction job..."
-        }), flush=True)
-        
-        try:
-            from llm.batch_handler import submit_batch_job
-            cloud_id = submit_batch_job(project_id, job_id, provider, model_id, system_instruction, user_template, papers, llm_config)
-            
-            # Update parent job status to PROCESSING_BATCH
-            execute_write(
-                "UPDATE llm_jobs SET status = 'PROCESSING_BATCH', updated_at = ? WHERE id = ?",
-                (datetime.utcnow().isoformat(), job_id)
-            )
-            
-            print(json.dumps({
-                "status": "PROCESSING_BATCH",
-                "job_id": job_id,
-                "project_id": project_id,
-                "message": f"Successfully submitted cloud batch job. Cloud ID: {cloud_id}"
-            }), flush=True)
-            sys.exit(0)
-            
-        except Exception as batch_err:
-            logger.error(f"Failed to submit batch: {batch_err}")
-            fail_job(job_id, project_id, f"Batch submission failed: {batch_err}")
-
-    # 7. Instantiate provider adapter
-    config_params = {
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "top_p": top_p,
-        "top_k": top_k,
-        "batch_mode": (mode == 'batch'),
-        "mode": mode
-    }
-    
-    try:
-        adapter = get_provider_adapter(provider, model_id, api_key, config_params)
-    except Exception as factory_err:
-        fail_job(job_id, project_id, f"Failed to load adapter factory: {factory_err}")
-
-    # 8. Start Queue Handler
+    # 7. Start Queue Handler
     config_queue = {
-        "concurrency_limit": concurrency_limit,
+        "model_id": model_id,
+        "speed_mode": speed_mode,
+        "concurrency": concurrency_limit,
         "batch_queue_size": batch_queue_size,
-        "mode": mode
+        "temperature": temperature
     }
     
     handler = LLMQueueHandler(
         project_id=project_id,
         job_id=job_id,
-        adapter=adapter,
+        client=client,
         system_instruction=system_instruction,
         user_template=user_template,
-        config=config_queue
+        config=config_queue,
+        task_type=task_type
     )
 
     try:
         # Process the paper list
-        handler.run_queue(papers)
+        handler.run_queue(papers, prompt_schema)
     except Exception as run_err:
         logger.error(f"Error running queue: {run_err}")
         execute_write("UPDATE llm_jobs SET status = 'FAILED', error_message = ? WHERE id = ?", (str(run_err), job_id))

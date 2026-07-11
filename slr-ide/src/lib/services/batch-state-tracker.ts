@@ -227,7 +227,10 @@ export class BatchStateTracker {
         state.pipelineStats.current = parsed.current;
         state.progress = percent;
         state.currentItem = `${parsed.paper_id}.pdf`;
-        state.statusText = `Compressing: file ${parsed.current} of ${parsed.total}...`;
+        const isCompressEnabled = getConfig('PDF_COMPRESSION_ENABLED', 'false') === 'true';
+        state.statusText = isCompressEnabled
+          ? `Compressing: file ${parsed.current} of ${parsed.total}...`
+          : `Copying: file ${parsed.current} of ${parsed.total}...`;
         
         const origSize = parsed.original_size || 0;
         const newSize = parsed.new_size || 0;
