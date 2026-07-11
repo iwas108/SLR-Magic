@@ -112,7 +112,7 @@ function InteractionChainVisualizer({ projectId, paperId, currentLogId }: Intera
                 <div className="grid grid-cols-2 gap-3 text-[9px] pt-1">
                   <div>
                     <span className="font-bold text-muted-foreground block mb-0.5">Prompt:</span>
-                    <div className="max-h-20 overflow-y-auto bg-black/35 p-1.5 rounded text-muted-foreground select-all leading-normal whitespace-pre-wrap">
+                    <div className="max-h-24 overflow-y-auto bg-secondary/40 dark:bg-black/45 border border-border/50 rounded-lg text-foreground select-all leading-normal whitespace-pre-wrap font-mono p-2">
                       {turn.raw_prompt}
                     </div>
                   </div>
@@ -122,7 +122,7 @@ function InteractionChainVisualizer({ projectId, paperId, currentLogId }: Intera
                       {turn.status === 'SUCCESS' ? (
                         <JSONViewer data={turn.structured_output || turn.raw_response} />
                       ) : (
-                        <pre className="p-1.5 rounded bg-red-950/20 text-red-400 font-mono text-[9px] whitespace-pre-wrap">{turn.error_message}</pre>
+                        <pre className="p-2 rounded-lg bg-red-500/10 dark:bg-red-950/35 border border-red-500/20 text-red-600 dark:text-red-200 font-mono text-[9px] whitespace-pre-wrap leading-normal">{turn.error_message}</pre>
                       )}
                     </div>
                   </div>
@@ -235,10 +235,13 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
                         </td>
                         <td className="p-3 font-mono text-[10px] text-muted-foreground">{log.model_id}</td>
                         <td className="p-3 capitalize">{log.task_type}</td>
-                        <td className="p-3 text-right font-mono">
-                          {log.total_tokens.toLocaleString()}
+                        <td className="p-3 text-right font-mono" title={`In: ${log.input_tokens.toLocaleString()} | Think: ${log.thinking_tokens.toLocaleString()} | Out: ${log.output_tokens.toLocaleString()} | Cached: ${log.cached_tokens.toLocaleString()}`}>
+                          <div>{log.total_tokens.toLocaleString()}</div>
+                          {log.thinking_tokens > 0 && (
+                            <div className="text-[8px] text-purple-400">({log.thinking_tokens} think)</div>
+                          )}
                           {log.cached_tokens > 0 && (
-                            <span className="text-[9px] text-green-400 ml-1">({log.cached_tokens} cached)</span>
+                            <div className="text-[8px] text-green-400">({log.cached_tokens} cached)</div>
                           )}
                         </td>
                         <td className="p-3 text-right font-mono text-emerald-400 font-medium">
@@ -276,9 +279,27 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
                                 <span className="text-foreground">{new Date(log.created_at).toLocaleString()}</span>
                               </div>
                             </div>
+                            <div className="grid grid-cols-4 gap-4 p-2 bg-secondary/20 rounded-lg border border-border/40">
+                              <div>
+                                <span className="font-bold text-muted-foreground block mb-0.5">Input Tokens:</span>
+                                <span className="text-foreground">{log.input_tokens ? log.input_tokens.toLocaleString() : '0'}</span>
+                              </div>
+                              <div>
+                                <span className="font-bold text-muted-foreground block mb-0.5">Thinking Tokens:</span>
+                                <span className="text-foreground">{log.thinking_tokens ? log.thinking_tokens.toLocaleString() : '0'}</span>
+                              </div>
+                              <div>
+                                <span className="font-bold text-muted-foreground block mb-0.5">Output Tokens:</span>
+                                <span className="text-foreground">{log.output_tokens ? log.output_tokens.toLocaleString() : '0'}</span>
+                              </div>
+                              <div>
+                                <span className="font-bold text-muted-foreground block mb-0.5">Cached Tokens:</span>
+                                <span className="text-foreground">{log.cached_tokens ? log.cached_tokens.toLocaleString() : '0'}</span>
+                              </div>
+                            </div>
                             <div className="space-y-1">
                               <span className="font-bold text-muted-foreground block">Hydrated Prompt:</span>
-                              <pre className="p-2.5 bg-black/40 border border-border/60 rounded-lg max-h-48 overflow-y-auto whitespace-pre-wrap text-[9px] text-muted-foreground select-all font-mono">
+                              <pre className="p-2.5 bg-secondary/40 dark:bg-black/45 border border-border/50 rounded-lg max-h-48 overflow-y-auto whitespace-pre-wrap text-[9px] text-foreground select-all font-mono">
                                 {log.raw_prompt}
                               </pre>
                             </div>
@@ -289,8 +310,8 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
                               </div>
                             ) : (
                               <div className="space-y-1">
-                                <span className="font-bold text-red-400 block">Execution Error:</span>
-                                <pre className="p-2.5 bg-red-950/20 border border-red-500/20 rounded-lg text-red-400 whitespace-pre-wrap font-mono">
+                                <span className="font-bold text-red-500 dark:text-red-400 block">Execution Error:</span>
+                                <pre className="p-2.5 bg-red-500/10 dark:bg-red-950/35 border border-red-500/20 rounded-lg text-red-600 dark:text-red-200 whitespace-pre-wrap font-mono text-[9px] leading-normal">
                                   {log.error_message}
                                 </pre>
                               </div>

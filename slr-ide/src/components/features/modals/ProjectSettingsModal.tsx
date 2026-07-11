@@ -8,6 +8,40 @@ import ProjectSyncSettings from './settings/ProjectSyncSettings';
 
 import { useProjectForm } from '@/hooks/useProjectForm';
 
+function getPathsFromSchema(schemaStr?: string | null): string[] {
+  if (!schemaStr) return [];
+  try {
+    const schema = JSON.parse(schemaStr);
+    const paths: string[] = [];
+
+    function traverse(obj: any, currentPath: string = '') {
+      if (!obj || typeof obj !== 'object') return;
+
+      if (obj.type === 'object' && obj.properties) {
+        Object.keys(obj.properties).forEach(key => {
+          const newPath = currentPath ? `${currentPath}.${key}` : key;
+          const prop = obj.properties[key];
+          traverse(prop, newPath);
+        });
+      } else if (obj.properties) {
+        Object.keys(obj.properties).forEach(key => {
+          const newPath = currentPath ? `${currentPath}.${key}` : key;
+          traverse(obj.properties[key], newPath);
+        });
+      } else {
+        if (currentPath) {
+          paths.push(currentPath);
+        }
+      }
+    }
+
+    traverse(schema);
+    return paths;
+  } catch (e) {
+    return [];
+  }
+}
+
 interface ProjectSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -38,6 +72,50 @@ export default function ProjectSettingsModal({
   const [projectSettingsTab, setProjectSettingsTab] = useState<'metadata' | 'calibration' | 'sync' | 'llm' | 'prompts'>('metadata');
 
   const form = useProjectForm(project);
+
+  const [promptsList, setPromptsList] = useState<any[]>([]);
+  const [manualModes, setManualModes] = useState<Record<string, boolean>>({});
+
+  const [defaultPrompts, setDefaultPrompts] = useState<Record<string, string>>(() => {
+    try {
+      const cfg = project?.llm_config ? JSON.parse(project.llm_config) : {};
+      return cfg.default_prompts || {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [schemaMappings, setSchemaMappings] = useState<Record<string, { decision: string; exclusion_trigger: string; rationale: string }>>(() => {
+    try {
+      const cfg = project?.llm_config ? JSON.parse(project.llm_config) : {};
+      return cfg.schema_mappings || {};
+    } catch {
+      return {};
+    }
+  });
+
+  React.useEffect(() => {
+    try {
+      const cfg = project?.llm_config ? JSON.parse(project.llm_config) : {};
+      setDefaultPrompts(cfg.default_prompts || {});
+      setSchemaMappings(cfg.schema_mappings || {});
+    } catch {
+      setDefaultPrompts({});
+      setSchemaMappings({});
+    }
+  }, [project]);
+
+  React.useEffect(() => {
+    if (!isOpen || !project?.id) return;
+    fetch(`/api/llm/prompts?project_id=${project.id}&include_global=true`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setPromptsList(data.prompts || []);
+        }
+      })
+      .catch(err => console.error('Failed to load prompts in modal:', err));
+  }, [isOpen, project?.id]);
 
   if (!isOpen) return null;
 
@@ -115,6 +193,18 @@ export default function ProjectSettingsModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!project) return;
+    
+    let currentLlmConfig = {};
+    try {
+      currentLlmConfig = project.llm_config ? JSON.parse(project.llm_config) : {};
+    } catch {}
+    
+    const updatedLlmConfig = {
+      ...currentLlmConfig,
+      default_prompts: defaultPrompts,
+      schema_mappings: schemaMappings
+    };
+
     const success = await onSaveProject(project.id, {
       name: form.name,
       manifesto: form.manifesto,
@@ -134,7 +224,8 @@ export default function ProjectSettingsModal({
       pool_b_ec_rules: form.poolBEcRules,
       pool_b_reasoning_template: form.poolBReasoningTemplate,
       pool_c_qa_rules: form.poolCQaRules,
-      pool_c_extraction_rules: form.poolCExtractionRules
+      pool_c_extraction_rules: form.poolCExtractionRules,
+      llm_config: JSON.stringify(updatedLlmConfig)
     });
     if (success) {
       onClose();
@@ -210,8 +301,117 @@ export default function ProjectSettingsModal({
 
             {/* Tab Content: Project Prompts */}
             {projectSettingsTab === 'prompts' && (
-              <div className="flex-1 min-h-0 h-full">
-                <PromptLibraryView projectId={project?.id || null} showToast={showToast} />
+              <div className="flex-1 flex flex-col space-y-4 min-h-0 overflow-y-auto max-h-[60vh] pr-1">
+                <div className="bg-secondary/15 border border-border/60 rounded-xl p-4 space-y-4 shrink-0">
+                  <h4 className="font-bold text-xs text-foreground uppercase tracking-wider">Default Stage Prompts &amp; Schema Mapping</h4>
+                  <p className="text-[10px] text-muted-foreground">Select the default template executed for each stage, and configure key paths to map output JSON to mandatory database columns.</p>
+                  
+                  <div className="space-y-4">
+                    {([
+                      { id: 'fast_filter', name: 'Fast Filter', desc: 'Metadata Screening', hasMapping: true },
+                      { id: 'gatekeeper', name: 'Gatekeeper', desc: 'PDF Screening', hasMapping: true },
+                      { id: 'scientist', name: 'Scientist', desc: 'Quality Assessment', hasMapping: true },
+                      { id: 'miner', name: 'Miner', desc: 'Structured Data Extraction', hasMapping: false }
+                    ] as const).map((stage) => (
+                      <div key={stage.id} className="p-3 bg-card border border-border/40 rounded-lg space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-bold text-xs text-foreground">{stage.name}</span>
+                            <span className="text-[10px] text-muted-foreground ml-2">({stage.desc})</span>
+                          </div>
+                          <select
+                            value={defaultPrompts[stage.id] || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDefaultPrompts(prev => ({ ...prev, [stage.id]: val }));
+                            }}
+                            className="bg-secondary/35 border border-border rounded-md px-2.5 py-1 text-xs outline-none font-semibold text-foreground w-64"
+                          >
+                            <option value="">-- No Default Selected --</option>
+                            {promptsList.map((p) => (
+                              <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {stage.hasMapping && defaultPrompts[stage.id] && (() => {
+                          const selectedPrompt = promptsList.find(p => p.id === defaultPrompts[stage.id]);
+                          const schemaPaths = getPathsFromSchema(selectedPrompt?.response_schema);
+                          
+                          const renderField = (key: 'decision' | 'exclusion_trigger' | 'rationale', label: string, placeholder: string) => {
+                            const fieldKey = `${stage.id}_${key}`;
+                            const isManual = manualModes[fieldKey] || schemaPaths.length === 0;
+                            const currentValue = schemaMappings[stage.id]?.[key] || '';
+                            
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <label className="block text-[9px] font-bold text-muted-foreground uppercase">{label}</label>
+                                  {schemaPaths.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setManualModes(prev => ({ ...prev, [fieldKey]: !isManual }))}
+                                      className="text-[8px] text-primary hover:underline font-bold"
+                                    >
+                                      {isManual ? 'Use Schema' : 'Manual'}
+                                    </button>
+                                  )}
+                                </div>
+                                {isManual ? (
+                                  <input
+                                    type="text"
+                                    placeholder={placeholder}
+                                    value={currentValue}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setSchemaMappings(prev => ({
+                                        ...prev,
+                                        [stage.id]: { ...(prev[stage.id] || { decision: '', exclusion_trigger: '', rationale: '' }), [key]: val }
+                                      }));
+                                    }}
+                                    className="w-full bg-secondary/20 border border-border/60 rounded px-2 py-1 text-[10px] text-foreground font-mono focus:outline-none"
+                                  />
+                                ) : (
+                                  <select
+                                    value={currentValue}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setSchemaMappings(prev => ({
+                                        ...prev,
+                                        [stage.id]: { ...(prev[stage.id] || { decision: '', exclusion_trigger: '', rationale: '' }), [key]: val }
+                                      }));
+                                    }}
+                                    className="w-full bg-secondary/20 border border-border/60 rounded px-2 py-1.5 text-[10px] text-foreground font-mono focus:outline-none"
+                                  >
+                                    <option value="">-- Select Path --</option>
+                                    {schemaPaths.map(path => (
+                                      <option key={path} value={path}>{path}</option>
+                                    ))}
+                                    {currentValue && !schemaPaths.includes(currentValue) && (
+                                      <option value={currentValue}>{currentValue} (Custom)</option>
+                                    )}
+                                  </select>
+                                )}
+                              </div>
+                            );
+                          };
+
+                          return (
+                            <div className="grid grid-cols-3 gap-3 border-t border-border/30 pt-2 animate-in fade-in duration-150">
+                              {renderField('decision', 'Decision Key Path', 'e.g. final_evaluation.decision')}
+                              {renderField('exclusion_trigger', 'Exclusion Trigger Key Path', 'e.g. final_evaluation.exclusion_code')}
+                              {renderField('rationale', 'Rationale Key Path', 'e.g. final_evaluation.reasoning')}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="border-t border-border/40 pt-4 shrink-0">
+                  <PromptLibraryView projectId={project?.id || null} showToast={showToast} />
+                </div>
               </div>
             )}
           </div>

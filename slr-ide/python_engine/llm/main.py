@@ -20,6 +20,9 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[logging.StreamHandler(sys.stderr)]
 )
+# Mute noisy and sensitive third-party logs (prevent leaking key in URLs)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger("LLMMainOrchestrator")
 
 def fail_job(job_id, project_id, error_message):
@@ -49,17 +52,21 @@ def main():
     parser.add_argument('--offset', type=int, default=0, help="Offset of papers to skip")
     parser.add_argument('--paper-ids', default='', help="Comma-separated list of Paper IDs to run")
     parser.add_argument('--template-id', default='', help="Prompt Template ID override")
+    parser.add_argument('--status-filter', default='0', help="Target paper pipeline Status filter code ('0', '1', '2', etc.)")
     args = parser.parse_args()
 
     job_id = args.job_id
     project_id = args.project_id
     task_type = args.task_type
     action = args.action
+    status_filter = args.status_filter
 
-    logger.info(f"Starting Gemini Orchestrator for project {project_id}, job {job_id}, task {task_type}")
+    logger.info(f"Starting Gemini Orchestrator for project {project_id}, job {job_id}, task {task_type}, status filter {status_filter}")
 
     # Resolve API Key
     api_key = os.environ.get("GEMINI_API_KEY")
+    if "GOOGLE_API_KEY" in os.environ:
+        del os.environ["GOOGLE_API_KEY"]
     if not api_key:
         fail_job(job_id, project_id, "Gemini API Key is missing. Unlock the vault first.")
 
@@ -129,24 +136,24 @@ def main():
     if not is_valid:
         fail_job(job_id, project_id, f"JSON Schema validation failed for prompt template '{selected_template_id}': {err_msg}")
 
-    # 5. Fetch papers pending screening with range/selection constraints
+    # 5. Fetch papers pending screening with range/selection constraints matching status_filter
     if args.paper_ids:
-        # User specified concrete Paper IDs. Fetch all pending papers and filter in memory to avoid parameter limit exceptions.
-        parsed_ids = [p_id.strip() for p_id in args.paper_ids.split(",") if p_id.strip()]
-        all_papers = execute_read("SELECT * FROM papers WHERE Project_ID = ? AND Status = 'PENDING' ORDER BY rowid ASC", (project_id,))
-        id_set = set(parsed_ids)
-        papers = [p for p in all_papers if p["Paper_ID"] in id_set]
+      # User specified concrete Paper IDs. Fetch all pending papers and filter in memory to avoid parameter limit exceptions.
+      parsed_ids = [p_id.strip() for p_id in args.paper_ids.split(",") if p_id.strip()]
+      all_papers = execute_read("SELECT * FROM papers WHERE Project_ID = ? AND Status = ? ORDER BY rowid ASC", (project_id, status_filter))
+      id_set = set(parsed_ids)
+      papers = [p for p in all_papers if p["Paper_ID"] in id_set]
     else:
-        # Standard range/limit batch query
-        query = "SELECT * FROM papers WHERE Project_ID = ? AND Status = 'PENDING' ORDER BY rowid ASC"
-        params = [project_id]
-        if args.limit > 0:
-            query += " LIMIT ?"
-            params.append(args.limit)
-        if args.offset > 0:
-            query += " OFFSET ?"
-            params.append(args.offset)
-        papers = execute_read(query, tuple(params))
+      # Standard range/limit batch query
+      query = "SELECT * FROM papers WHERE Project_ID = ? AND Status = ? ORDER BY rowid ASC"
+      params = [project_id, status_filter]
+      if args.limit > 0:
+        query += " LIMIT ?"
+        params.append(args.limit)
+      if args.offset > 0:
+        query += " OFFSET ?"
+        params.append(args.offset)
+      papers = execute_read(query, tuple(params))
 
     if not papers:
         # No work to do, close job as complete immediately
@@ -176,13 +183,27 @@ def main():
         (job_id, project_id, model_id, speed_mode, "RUNNING", len(papers), 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
     )
 
+    # Parse project llm_config for custom schema mappings
+    project_llm_config_str = project.get("llm_config") or "{}"
+    try:
+        project_llm_config = json.loads(project_llm_config_str)
+    except Exception:
+        project_llm_config = {}
+    schema_mapping = project_llm_config.get("schema_mappings", {}).get(task_type, {})
+
     # 7. Start Queue Handler
     config_queue = {
         "model_id": model_id,
         "speed_mode": speed_mode,
         "concurrency": concurrency_limit,
         "batch_queue_size": batch_queue_size,
-        "temperature": temperature
+        "temperature": temperature,
+        "max_output_tokens": max_output_tokens,
+        "top_p": top_p,
+        "top_k": top_k,
+        "request_delay": float(llm_config.get("request_delay", 1.0)),
+        "interaction_chaining": bool(llm_config.get("interaction_chaining", True)),
+        "schema_mapping": schema_mapping
     }
     
     handler = LLMQueueHandler(

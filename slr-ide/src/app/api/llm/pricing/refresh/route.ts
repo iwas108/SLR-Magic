@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { NextResponse } from 'next/server';
 import { PROJECT_ROOT, getVaultKey } from '@/lib/db';
-import { getSessionMasterPassword, hasSessionMasterPassword } from '@/lib/session';
+import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
 import db from '@/lib/db';
 
@@ -28,7 +28,8 @@ export async function POST() {
         tag: keyRow.tag,
       }, password);
     } catch (decryptErr) {
-      return NextResponse.json({ error: 'Failed to decrypt Gemini API Key.' }, { status: 500 });
+      clearSessionMasterPassword();
+      return NextResponse.json({ error: 'Failed to decrypt Gemini API Key. Vault locked.' }, { status: 401 });
     }
 
     const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
@@ -37,6 +38,9 @@ export async function POST() {
     if (!fs.existsSync(pythonExe) || !fs.existsSync(mainScript)) {
       return NextResponse.json({ error: 'Python environment or main script not found.' }, { status: 500 });
     }
+
+    let stdoutData = '';
+    let stderrData = '';
 
     // Spawn Python synchronously or asynchronously with wait to refresh pricing
     await new Promise<void>((resolve, reject) => {
@@ -53,9 +57,35 @@ export async function POST() {
         }
       });
 
+      child.stdout.on('data', (data) => {
+        stdoutData += data.toString();
+      });
+
+      child.stderr.on('data', (data) => {
+        stderrData += data.toString();
+      });
+
       child.on('close', (code) => {
         if (code === 0) resolve();
-        else reject(new Error(`Python process exited with code ${code}`));
+        else {
+          let errorMsg = '';
+          const lines = stdoutData.split('\n');
+          for (const line of lines) {
+            try {
+              const parsed = JSON.parse(line.trim());
+              if (parsed && parsed.message) {
+                errorMsg = parsed.message;
+                break;
+              }
+            } catch (e) {
+              // Ignore line parsing errors
+            }
+          }
+          if (!errorMsg) {
+            errorMsg = stderrData.trim() || stdoutData.trim() || `Python process exited with code ${code}`;
+          }
+          reject(new Error(errorMsg));
+        }
       });
       child.on('error', (err) => reject(err));
     });
@@ -70,7 +100,9 @@ export async function POST() {
     });
 
   } catch (error: any) {
-    console.error('Error refreshing pricing:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    const errorMsg = sanitizeApiKey(error.message || 'Internal Server Error');
+    console.error('Error refreshing pricing:', errorMsg);
+    clearSessionMasterPassword(); // Lock the vault to force re-authentication
+    return NextResponse.json({ error: errorMsg }, { status: 401 });
   }
 }

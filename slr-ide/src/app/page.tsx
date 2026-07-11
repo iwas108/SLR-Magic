@@ -116,7 +116,9 @@ export default function DashboardPage() {
   // Clear selection on project or active view tab change
   useEffect(() => {
     setSelectedPaperIds(new Set());
-    setPreSelectedPaperIds([]);
+    if (activeTab !== 'full-execution') {
+      setPreSelectedPaperIds([]);
+    }
   }, [activeProjectId, activeTab]);
 
   const handleRunLLMOnSelected = useCallback((paperIds: string[]) => {
@@ -248,6 +250,8 @@ export default function DashboardPage() {
               showToast={showToast}
               formatBytes={formatBytes}
               pipelineHook={pipelineHook}
+              preSelectedPaperIds={preSelectedPaperIds}
+              setPreSelectedPaperIds={setPreSelectedPaperIds}
             />
           ) : showImport ? (
             <IngestionHubView
@@ -268,6 +272,8 @@ export default function DashboardPage() {
               setPdfFilter={papersHook.setPdfFilter}
               sourceFilter={papersHook.sourceFilter}
               setSourceFilter={papersHook.setSourceFilter}
+              decisionFilter={papersHook.decisionFilter}
+              setDecisionFilter={papersHook.setDecisionFilter}
               setShowImport={setShowImport}
               setDeleteAllConfirm={papersHook.setDeleteAllConfirm}
               operationModal={pipelineHook.operationModal}
@@ -299,6 +305,8 @@ export default function DashboardPage() {
               selectedPaperIds={selectedPaperIds}
               setSelectedPaperIds={setSelectedPaperIds}
               onRunLLMOnSelected={handleRunLLMOnSelected}
+              showToast={showToast}
+              loadPapers={loadPapers}
             />
           )}
         </div>

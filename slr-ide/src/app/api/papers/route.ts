@@ -124,6 +124,35 @@ export async function GET(request: Request) {
       }
     }
 
+    const decision = searchParams.get('decision')?.trim() || '';
+    if (decision) {
+      if (decision === 'INCLUDE') {
+        filterQuery += ` AND (
+          Human_Decision = 'INCLUDE' OR 
+          (Human_Decision IS NULL AND (
+            SELECT decision FROM reviewer_decisions 
+            WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+            ORDER BY imported_at DESC LIMIT 1
+          ) = 'INCLUDE')
+        )`;
+      } else if (decision === 'EXCLUDE') {
+        filterQuery += ` AND (
+          Human_Decision = 'EXCLUDE' OR 
+          (Human_Decision IS NULL AND (
+            SELECT decision FROM reviewer_decisions 
+            WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+            ORDER BY imported_at DESC LIMIT 1
+          ) = 'EXCLUDE')
+        )`;
+      } else if (decision === 'UNADJUDICATED') {
+        filterQuery += ` AND Human_Decision IS NULL AND (
+          SELECT decision FROM reviewer_decisions 
+          WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+          ORDER BY imported_at DESC LIMIT 1
+        ) IS NULL`;
+      }
+    }
+
     // Check if only IDs matching the current query filters are requested
     if (searchParams.get('onlyIds') === 'true') {
       const rows = db.prepare(`SELECT Paper_ID ${filterQuery}`).all(...params) as { Paper_ID: string }[];
@@ -139,9 +168,16 @@ export async function GET(request: Request) {
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    // 3. Paginated and sorted query execution
+    // 3. Paginated and sorted query execution with AI decisions subqueries
     const offset = (page - 1) * limit;
-    const dataQuery = `SELECT *, (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title ${filterQuery} ORDER BY ${safeSortBy} ${safeSortOrder} LIMIT ? OFFSET ?`;
+    const dataQuery = `
+      SELECT *, 
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,
+             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0 as reviewer_decisions_exist
+      ${filterQuery} 
+      ORDER BY ${safeSortBy} ${safeSortOrder} 
+      LIMIT ? OFFSET ?
+    `;
     const dataParams = [...params, limit, offset];
 
     const papers = db.prepare(dataQuery).all(...dataParams);
@@ -359,14 +395,14 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { paperIds, status, localPdfStatus } = body;
+    const { paperIds, status, localPdfStatus, humanDecision } = body;
 
     if (!Array.isArray(paperIds) || paperIds.length === 0) {
       return NextResponse.json({ error: 'Payload must contain a non-empty "paperIds" array' }, { status: 400 });
     }
 
-    if (status === undefined && localPdfStatus === undefined) {
-      return NextResponse.json({ error: 'Payload must specify at least one attribute to update ("status" or "localPdfStatus")' }, { status: 400 });
+    if (status === undefined && localPdfStatus === undefined && humanDecision === undefined) {
+      return NextResponse.json({ error: 'Payload must specify at least one attribute to update ("status", "localPdfStatus" or "humanDecision")' }, { status: 400 });
     }
 
     const updates: string[] = [];
@@ -380,6 +416,15 @@ export async function PUT(request: Request) {
     if (localPdfStatus !== undefined) {
       updates.push('Local_PDF_Status = ?');
       params.push(localPdfStatus);
+    }
+
+    if (humanDecision !== undefined) {
+      if (humanDecision === 'CLEAR') {
+        updates.push('Human_Decision = NULL, Human_EC_Trigger = NULL, Human_Rationale = NULL');
+      } else {
+        updates.push('Human_Decision = ?');
+        params.push(humanDecision);
+      }
     }
 
     const setClause = updates.join(', ');

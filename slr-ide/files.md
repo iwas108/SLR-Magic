@@ -171,14 +171,14 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/IngestionHubView.tsx` | View Component | Primary view interface for importing new literature databases, reviewing CSV structures, and launching column mapping workflows. |
 | `components/features/IngestionPanel.tsx` | View Component | Interactive sub-panel handling file drag-and-drop, initial CSV parsing, and preview rendering during ingestion. |
 | `components/features/LLMConfigView.tsx` | View Component | View interface for configuring project-scoped LLM budget spend limits. |
-| `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records. |
+| `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records, featuring bulk override and pipeline stage operations. |
 | `components/features/PipelineExecutionView.tsx`| View Component | Interface for launching, monitoring, and controlling automated PDF acquisition, OCR indexing, and cloud sync batch pipelines. |
 | `components/features/PreCalibrationView.tsx` | View Component | View interface for managing pre-calibration workflows, tagging specific screening cohorts, cohort tag filtering, and analyzing screening consistency. |
 | `components/features/ProjectManager.tsx` | View Component | Management interface for creating new literature review projects, defining research questions, and updating project metadata. |
 | `components/features/PromptLibraryView.tsx` | View Component | Interface for versioning, organizing, and testing reusable system prompt templates and structured JSON extraction schemas. |
-| `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal composing view and edit layouts for paper metadata and previews. |
-| `components/features/modals/paper-details/PaperMetadataView.tsx` | Presentation Component| Read-only details presentation tab inside the paper modal. |
-| `components/features/modals/paper-details/PaperMetadataEdit.tsx` | Presentation Component| Edit details form layout inside the paper modal. |
+| `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal composing view and edit layouts for paper metadata, decisions, and previews. |
+| `components/features/modals/paper-details/PaperMetadataView.tsx` | Presentation Component| Read-only details presentation tab inside the paper modal with status and decision displays. |
+| `components/features/modals/paper-details/PaperMetadataEdit.tsx` | Presentation Component| Edit details form layout inside the paper modal with status, stage, and decision override fields. |
 | `components/features/modals/paper-details/ParentPaperSelector.tsx` | UI Component | Autocomplete search selector for tracking chained parent paper references. |
 | `components/features/modals/paper-details/PdfPreview.tsx` | UI Component | Inline iframe preview panel for reading cached/downloaded paper PDFs. |
 | `components/features/modals/CreateProjectModal.tsx` | Modal Component| Standalone modal form encapsulating states and inputs for creating new systematic literature review projects. |

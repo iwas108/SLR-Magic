@@ -1,4 +1,5 @@
 import { ChildProcess, exec } from 'child_process';
+import { clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 
 export interface LLMJobState {
   id: string;
@@ -36,7 +37,7 @@ export class LLMOperationsManager {
     }
 
     const processStdout = (chunk: Buffer) => {
-      const text = chunk.toString();
+      const text = sanitizeApiKey(chunk.toString());
       const lines = text.split(/\r?\n/);
       for (const line of lines) {
         if (!line.trim()) continue;
@@ -53,10 +54,17 @@ export class LLMOperationsManager {
 
     childProcess.stdout?.on('data', processStdout);
     childProcess.stderr?.on('data', (chunk) => {
-      const text = chunk.toString();
+      const text = sanitizeApiKey(chunk.toString());
       console.error(`[Job ${jobId} STDERR]:`, text);
-      job!.logs.push(`ERROR: ${text}`);
-      this.broadcast(jobId, `ERROR: ${text}`);
+      // Python's logging module routes ALL levels (INFO, WARNING, ERROR …) to
+      // stderr. Do NOT blindly prefix every line with "ERROR:" – instead pass
+      // the line through as-is so the UI can display the correct severity.
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        job!.logs.push(line);
+        this.broadcast(jobId, line);
+      }
     });
 
     childProcess.on('exit', (code, signal) => {
@@ -67,6 +75,7 @@ export class LLMOperationsManager {
         } else {
           job!.status = 'FAILED';
           job!.error = `Exit code ${code}`;
+          clearSessionMasterPassword(); // Auto-lock vault on background failures
         }
       }
       job!.process = null;

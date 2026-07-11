@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Minus, X, Database, BrainCircuit } from 'lucide-react';
 import GlobalLLMSettingsView from './GlobalLLMSettingsView';
 import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
@@ -25,13 +25,17 @@ interface PipelineExecutionViewProps {
     handleCancelOperation: () => void;
     setOperationModal: React.Dispatch<React.SetStateAction<any>>;
   };
+  preSelectedPaperIds?: string[];
+  setPreSelectedPaperIds?: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 export default function PipelineExecutionView({
   projectsHook,
   showToast,
   formatBytes,
-  pipelineHook
+  pipelineHook,
+  preSelectedPaperIds,
+  setPreSelectedPaperIds
 }: PipelineExecutionViewProps) {
   const { activeProject, loadProjects } = projectsHook;
   const {
@@ -53,7 +57,15 @@ export default function PipelineExecutionView({
   const cloudProvider = activeProject?.cloud_provider || 'gdrive';
   const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
 
-  const [activeTab, setActiveTab] = useState<'acquisition' | 'llm'>('acquisition');
+  const [activeTab, setActiveTab] = useState<'acquisition' | 'llm'>(
+    preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'llm' : 'acquisition'
+  );
+
+  useEffect(() => {
+    if (preSelectedPaperIds && preSelectedPaperIds.length > 0) {
+      setActiveTab('llm');
+    }
+  }, [preSelectedPaperIds]);
 
   let statsFound = 0;
   let statsNotFound = 0;
@@ -212,6 +224,7 @@ export default function PipelineExecutionView({
               activeProject={activeProject} 
               showToast={showToast} 
               loadProjects={loadProjects} 
+              preSelectedPaperIds={preSelectedPaperIds}
             />
           </div>
         )}

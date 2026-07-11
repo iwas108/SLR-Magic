@@ -21,3 +21,9 @@ export function clearSessionMasterPassword(): void {
 export function hasSessionMasterPassword(): boolean {
   return globalForSession.cachedMasterPassword !== null;
 }
+
+export function sanitizeApiKey(text: string): string {
+  if (!text) return text;
+  // Redact standard Gemini API keys starting with AIzaSy
+  return text.replace(/AIzaSy[a-zA-Z0-9-_]{33}/g, '[REDACTED_API_KEY]');
+}

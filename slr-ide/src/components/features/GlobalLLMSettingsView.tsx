@@ -34,6 +34,8 @@ interface Prompt {
   top_p?: number;
   top_k?: number;
   execution_mode?: string;
+  request_delay?: number;
+  interaction_chaining?: boolean;
 }
 
 interface GlobalLLMSettingsViewProps {
@@ -82,14 +84,69 @@ export default function GlobalLLMSettingsView({
   const [metrics, setMetrics] = useState({ total: 0, processed: 0, cost: 0.0, tokens: 0 });
   const [connecting, setConnecting] = useState(false);
   const [taskType, setTaskType] = useState<'fast_filter' | 'gatekeeper' | 'scientist' | 'miner'>('fast_filter');
+  const [statusFilter, setStatusFilter] = useState<string>('0');
   const [paperSelectionMode, setPaperSelectionMode] = useState<'all' | 'limit' | 'range' | 'selected'>(
     preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'selected' : 'all'
   );
   const [batchLimit, setBatchLimit] = useState<number>(10);
   const [indexOffset, setIndexOffset] = useState<number>(0);
-  const [overrideTemplateId, setOverrideTemplateId] = useState<string>('');
+  const activeTemplateId = (() => {
+    try {
+      const cfg = activeProject?.llm_config ? JSON.parse(activeProject.llm_config) : {};
+      return cfg.default_prompts?.[taskType] || '';
+    } catch {
+      return '';
+    }
+  })();
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
   const [confirmStep, setConfirmStep] = useState<1 | 2>(1);
+
+  // Sync statusFilter whenever taskType changes
+  useEffect(() => {
+    const defaults: Record<string, string> = {
+      fast_filter: '0',
+      gatekeeper: '1',
+      scientist: '2',
+      miner: '3'
+    };
+    setStatusFilter(defaults[taskType] || '0');
+  }, [taskType]);
+
+  const getPromptValidation = () => {
+    if (!activeTemplateId) {
+      return {
+        isValid: false,
+        error: `No default prompt template configured for stage '${taskType}' in Project Settings. Please configure it under the Prompts tab first.`
+      };
+    }
+    const selectedPrompt = prompts.find(p => p.id === activeTemplateId);
+    if (!selectedPrompt) {
+      return {
+        isValid: false,
+        error: `The default prompt template configured for '${taskType}' ('${activeTemplateId}') was not found in the prompt library.`
+      };
+    }
+
+    if (taskType !== 'fast_filter') {
+      return { isValid: true, error: null };
+    }
+
+    const userPrompt = selectedPrompt.user_prompt_template || '';
+    const hasTitle = /\{\{\s*title\s*\}\}/i.test(userPrompt);
+    const hasAbstract = /\{\{\s*abstract\s*\}\}/i.test(userPrompt);
+
+    if (!hasTitle || !hasAbstract) {
+      const missing = [];
+      if (!hasTitle) missing.push('{{title}}');
+      if (!hasAbstract) missing.push('{{abstract}}');
+      return {
+        isValid: false,
+        error: `Prompt placeholder safety error: The user prompt template is missing the required metadata placeholder(s): ${missing.join(', ')}. Without these, the LLM will not receive the papers' context, causing compliance logic to fail.`
+      };
+    }
+    return { isValid: true, error: null };
+  };
+  const promptValidation = getPromptValidation();
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -105,6 +162,10 @@ export default function GlobalLLMSettingsView({
       if (data.unlocked) {
         // List saved keys in vault
         const keyRes = await fetch('/api/vault/keys');
+        if (keyRes.status === 401) {
+          setVaultUnlocked(false);
+          return;
+        }
         const keyData = await keyRes.json();
         setConfiguredKeys(keyData.keys || []);
       }
@@ -133,9 +194,6 @@ export default function GlobalLLMSettingsView({
       if (data.success) {
         const loadedPrompts = data.prompts || [];
         setPrompts(loadedPrompts);
-        if (loadedPrompts.length > 0 && !overrideTemplateId) {
-          setOverrideTemplateId(loadedPrompts[0].id);
-        }
       }
     } catch (err) {
       console.error(err);
@@ -235,6 +293,10 @@ export default function GlobalLLMSettingsView({
         body: JSON.stringify({ keyName: 'GEMINI_API_KEY', plainValue: apiKey })
       });
       const data = await res.json();
+      if (res.status === 401) {
+        setVaultUnlocked(false);
+        loadVaultState();
+      }
       if (!res.ok) throw new Error(data.error);
 
       showToast?.('Gemini API key encrypted and saved successfully!', 'success');
@@ -250,6 +312,10 @@ export default function GlobalLLMSettingsView({
     try {
       const res = await fetch('/api/llm/pricing/refresh', { method: 'POST' });
       const data = await res.json();
+      if (res.status === 401) {
+        setVaultUnlocked(false);
+        loadVaultState();
+      }
       if (data.success) {
         showToast?.('Model list refreshed from Gemini API', 'success');
         setPricingModels(data.pricing || []);
@@ -323,7 +389,9 @@ export default function GlobalLLMSettingsView({
         max_tokens: Number(editingPrompt.max_tokens !== undefined ? editingPrompt.max_tokens : 2000),
         top_p: Number(editingPrompt.top_p !== undefined ? editingPrompt.top_p : 0.9),
         top_k: editingPrompt.top_k !== undefined ? Number(editingPrompt.top_k) : 40,
-        execution_mode: editingPrompt.execution_mode || 'flex'
+        execution_mode: editingPrompt.execution_mode || 'flex',
+        request_delay: editingPrompt.request_delay !== undefined ? Number(editingPrompt.request_delay) : 1.0,
+        interaction_chaining: editingPrompt.interaction_chaining !== undefined ? editingPrompt.interaction_chaining : true
       };
 
       const res = await fetch('/api/llm/prompts', {
@@ -374,7 +442,9 @@ export default function GlobalLLMSettingsView({
       max_tokens: config.max_tokens !== undefined ? config.max_tokens : 2000,
       top_p: config.top_p !== undefined ? config.top_p : 0.9,
       top_k: config.top_k !== undefined ? config.top_k : 40,
-      execution_mode: config.execution_mode || 'flex'
+      execution_mode: config.execution_mode || 'flex',
+      request_delay: config.request_delay !== undefined ? config.request_delay : 1.0,
+      interaction_chaining: config.interaction_chaining !== undefined ? config.interaction_chaining : true
     });
     setEditorTab('info');
   };
@@ -413,7 +483,8 @@ export default function GlobalLLMSettingsView({
               const data = JSON.parse(dataStr);
               handleSSEEvent(data);
             } catch (e) {
-              // Ignore heartbeats
+              // Rescue plain text log events that fail JSON.parse
+              handleSSEEvent({ status: 'INFO', message: dataStr });
             }
           }
         }
@@ -428,8 +499,12 @@ export default function GlobalLLMSettingsView({
   };
 
   const handleSSEEvent = (data: any) => {
-    if (data.status) {
+    const jobExecutionStatuses = ['RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', 'PAUSED_BUDGET'];
+    if (data.status && jobExecutionStatuses.includes(data.status)) {
       setJobStatus(data.status);
+      if (data.status === 'FAILED') {
+        loadVaultState();
+      }
     }
     if (data.message) {
       setLogs(prev => [...prev, data]);
@@ -440,7 +515,7 @@ export default function GlobalLLMSettingsView({
         total: data.total_papers || 0,
         processed: data.processed_papers,
         cost: data.total_cost || 0,
-        tokens: data.total_input_tokens + data.total_output_tokens
+        tokens: (data.total_input_tokens || 0) + (data.total_output_tokens || 0)
       });
     }
   };
@@ -464,6 +539,7 @@ export default function GlobalLLMSettingsView({
       };
 
       if (action === 'start') {
+        payload.statusFilter = statusFilter;
         if (paperSelectionMode === 'limit') {
           payload.limit = batchLimit;
         } else if (paperSelectionMode === 'range') {
@@ -473,8 +549,8 @@ export default function GlobalLLMSettingsView({
           payload.paperIds = preSelectedPaperIds;
         }
 
-        if (overrideTemplateId) {
-          payload.templateId = overrideTemplateId;
+        if (activeTemplateId) {
+          payload.templateId = activeTemplateId;
         }
       }
 
@@ -485,6 +561,10 @@ export default function GlobalLLMSettingsView({
       });
 
       const result = await res.json();
+      if (res.status === 401) {
+        setVaultUnlocked(false);
+        loadVaultState();
+      }
       if (!res.ok) throw new Error(result.error);
 
       if (action === 'start' || action === 'resume') {
@@ -1001,6 +1081,7 @@ export default function GlobalLLMSettingsView({
                                 <option value="gemini-2.5-flash">gemini-2.5-flash</option>
                                 <option value="gemini-2.5-pro">gemini-2.5-pro</option>
                                 <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                                <option value="gemma-2-27b-it">gemma-2-27b-it</option>
                               </>
                             )}
                           </select>
@@ -1082,6 +1163,36 @@ export default function GlobalLLMSettingsView({
                           />
                           <span className="text-[9px] text-muted-foreground/60 block px-1">Limits token selection pool size. Default: 40.</span>
                         </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Request Delay (seconds)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={editingPrompt.request_delay !== undefined ? editingPrompt.request_delay : 1.0}
+                            onChange={(e) => setEditingPrompt(prev => ({ ...prev, request_delay: e.target.value !== '' ? Number(e.target.value) : 0.0 }))}
+                            className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-mono"
+                          />
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Throttling delay between API calls to prevent 429 errors.</span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Interaction Chaining</label>
+                          <div className="flex items-center gap-2 h-[32px] bg-secondary/30 border border-border/60 rounded-xl px-3 mt-0.5">
+                            <input
+                              type="checkbox"
+                              id="interaction_chaining_chk"
+                              checked={editingPrompt.interaction_chaining !== undefined ? editingPrompt.interaction_chaining : true}
+                              onChange={(e) => setEditingPrompt(prev => ({ ...prev, interaction_chaining: e.target.checked }))}
+                              className="accent-primary w-3.5 h-3.5"
+                            />
+                            <label htmlFor="interaction_chaining_chk" className="text-xs font-semibold text-foreground select-none cursor-pointer">
+                              Enable Chaining
+                            </label>
+                          </div>
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Chain new calls to previous interaction context.</span>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1145,42 +1256,77 @@ export default function GlobalLLMSettingsView({
                 </div>
               </div>
 
-              {/* Row 2: Prompt Template Selection */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">2. Select Prompt Template</span>
-                  <select
-                    value={overrideTemplateId}
-                    onChange={(e) => setOverrideTemplateId(e.target.value)}
-                    disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                    className={`w-full bg-secondary/40 border ${!overrideTemplateId ? 'border-amber-500/80 bg-amber-500/5' : 'border-border/80'} rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold`}
-                  >
-                    <option value="">-- Select a Prompt Template --</option>
-                    {prompts.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
-                    ))}
-                  </select>
-                  {!overrideTemplateId && (
-                    <span className="text-[9px] text-amber-500 font-bold block px-1 animate-pulse">A prompt template is required to execute this stage.</span>
+              {/* Row 2: Default Prompt Template Info */}
+              <div className="bg-secondary/10 border border-border/40 rounded-lg p-3 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Active Default Prompt</span>
+                  {activeTemplateId ? (() => {
+                    const activePrompt = prompts.find(p => p.id === activeTemplateId);
+                    return activePrompt ? (
+                      <span className="font-semibold text-xs text-foreground">
+                        {activePrompt.name} <span className="text-muted-foreground font-mono text-[10px]">({activePrompt.id})</span>
+                      </span>
+                    ) : (
+                      <span className="font-semibold text-xs text-amber-500">
+                        Configured template ({activeTemplateId}) not found
+                      </span>
+                    );
+                  })() : (
+                    <span className="font-semibold text-xs text-amber-500">
+                      No default prompt configured for this stage
+                    </span>
                   )}
                 </div>
+                {activeTemplateId && prompts.find(p => p.id === activeTemplateId) && (() => {
+                  const activePrompt = prompts.find(p => p.id === activeTemplateId);
+                  const parsedConfig = (() => {
+                    try {
+                      return activePrompt?.llm_config ? JSON.parse(activePrompt.llm_config) : {};
+                    } catch { return {}; }
+                  })();
+                  return (
+                    <div className="text-right">
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Configured Model</span>
+                      <span className="font-mono text-xs font-bold text-primary">{parsedConfig.model_id || 'gemini-2.5-flash'}</span>
+                    </div>
+                  );
+                })()}
+              </div>
 
-                {/* Row 3: Paper Selection Mode Selector */}
-                <div className="space-y-1.5">
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">3. Paper Range / Selection Mode</span>
-                  <select
-                    value={paperSelectionMode}
-                    onChange={(e) => setPaperSelectionMode(e.target.value as any)}
-                    disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                    className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
-                  >
-                    <option value="all">All Pending Papers</option>
-                    <option value="limit">Limit Batch Size</option>
-                    <option value="range">Index Range (Offset + Limit)</option>
-                    {preSelectedPaperIds && preSelectedPaperIds.length > 0 && (
-                      <option value="selected">Pre-selected Papers ({preSelectedPaperIds.length})</option>
-                    )}
-                  </select>
+                {/* Row 3: Paper Selection Mode Selector & Target Paper Status */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">3. Paper Range / Selection Mode</span>
+                    <select
+                      value={paperSelectionMode}
+                      onChange={(e) => setPaperSelectionMode(e.target.value as any)}
+                      disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                      className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
+                    >
+                      <option value="all">All Pending Papers</option>
+                      <option value="limit">Limit Batch Size</option>
+                      <option value="range">Index Range (Offset + Limit)</option>
+                      {preSelectedPaperIds && preSelectedPaperIds.length > 0 && (
+                        <option value="selected">Manual Select ({preSelectedPaperIds.length} papers)</option>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">3b. Target Paper Status</span>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                      className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
+                    >
+                      <option value="0">Status 0: Unprocessed</option>
+                      <option value="1">Status 1: Passed Fast Filter</option>
+                      <option value="2">Status 2: Passed Gatekeeper</option>
+                      <option value="3">Status 3: Passed Scientist</option>
+                      <option value="4">Status 4: Passed Miner</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -1243,54 +1389,254 @@ export default function GlobalLLMSettingsView({
                   </button>
                 </div>
               )}
-            </div>
 
-            {/* Run Actions and Metrics Row */}
-            <div className="flex items-center justify-between border-t border-border/40 pt-3">
-              <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                Status: <span className="text-foreground">{jobStatus}</span>
-              </div>
-              <div className="flex gap-2">
-                {['IDLE', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(jobStatus) ? (
-                  <button
-                    disabled={!overrideTemplateId}
-                    onClick={() => { setShowLaunchConfirm(true); setConfirmStep(1); }}
-                    className="px-4 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-lg shadow-primary/10 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed"
-                  >
-                    <Play className="w-3.5 h-3.5" />
-                    <span>Launch Stage execution</span>
-                  </button>
-                ) : (
-                  <>
-                    {jobStatus === 'PAUSED_BUDGET' ? (
+            {/* ── Inline Confirm Panel (replaces action buttons when active) ── */}
+            {showLaunchConfirm ? (() => {
+              const activeTemplate = prompts.find(p => p.id === activeTemplateId);
+              const templateConfig = (() => {
+                try { return activeTemplate?.llm_config ? JSON.parse(activeTemplate.llm_config) : {}; }
+                catch { return {}; }
+              })();
+              const activeModel = templateConfig.model_id || {
+                fast_filter: 'gemini-3.5-flash',
+                gatekeeper: 'gemini-3.1-pro-preview',
+                scientist: 'gemini-3.1-pro-preview',
+                miner: 'gemini-3.1-pro-preview'
+              }[taskType];
+              const activeExecutionMode = templateConfig.execution_mode || 'FLEX';
+              const stageInfo = {
+                fast_filter: { name: 'Fast Filter', desc: 'Metadata Screening', model: activeModel },
+                gatekeeper: { name: 'Gatekeeper', desc: 'PDF Screening', model: activeModel },
+                scientist: { name: 'Scientist', desc: 'Quality Assessment QA', model: activeModel },
+                miner: { name: 'Miner', desc: 'Structured Data Extraction', model: activeModel }
+              }[taskType];
+              return (
+                <div className="border border-border/60 rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  {/* Inline header */}
+                  <div className="px-4 py-2.5 bg-primary/5 border-b border-border/60 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Play className="w-3.5 h-3.5 text-primary" />
+                      <span className="font-bold text-foreground text-xs">
+                        {confirmStep === 1 ? 'Confirm Execution — Step 1: Targets' : 'Confirm Execution — Step 2: Prompt Details'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-2 py-0.5 font-bold rounded bg-primary/15 text-primary">Step {confirmStep} of 2</span>
                       <button
-                        onClick={() => handleAction('resume')}
-                        className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all hover:scale-105"
+                        type="button"
+                        onClick={() => setShowLaunchConfirm(false)}
+                        className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
                       >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Resume (Cleared Budget)</span>
+                        <X className="w-3.5 h-3.5" />
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => handleAction('pause')}
-                        className="px-4 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all"
-                        disabled
-                      >
-                        <Pause className="w-3.5 h-3.5" />
-                        <span>Pause</span>
-                      </button>
+                    </div>
+                  </div>
+
+                  {/* Step content */}
+                  <div className="p-4 space-y-3 text-xs">
+                    {confirmStep === 1 && (
+                      <div className="space-y-3 animate-in fade-in duration-150">
+                        {!promptValidation.isValid && (
+                          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold text-red-400 block text-xs">Prompt Design Error</span>
+                              <p className="text-[10px] text-muted-foreground leading-normal mt-0.5">
+                                {promptValidation.error}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Stage & Model */}
+                          <div className="p-3 bg-secondary/10 border border-border/40 rounded-lg space-y-1">
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase">1. Pipeline Stage &amp; Model</span>
+                            <div className="font-bold text-foreground text-xs">{stageInfo.name}</div>
+                            <div className="text-[10px] text-muted-foreground">{stageInfo.desc} • <span className="font-mono text-primary font-bold">{stageInfo.model}</span></div>
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              <span className="text-[9px] font-bold text-muted-foreground">Speed tier:</span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                                activeExecutionMode === 'STANDARD'
+                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+                                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              }`}>
+                                {activeExecutionMode === 'STANDARD' ? 'standard' : 'flex (50% discount)'}
+                              </span>
+                            </div>
+                          </div>
+                          {/* API Key */}
+                          <div className={`p-3 border rounded-lg space-y-1 ${
+                            configuredKeys.includes('GEMINI_API_KEY')
+                              ? 'bg-emerald-500/5 border-emerald-500/20'
+                              : 'bg-red-500/5 border-red-500/20'
+                          }`}>
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase">2. API Key / Vault Status</span>
+                            <div className="flex items-center gap-1.5 font-bold text-xs">
+                              {configuredKeys.includes('GEMINI_API_KEY') ? (
+                                <><ShieldCheck className="w-4 h-4 text-emerald-400 animate-pulse" /><span className="text-emerald-400">Vault Key Unlocked</span></>
+                              ) : (
+                                <><AlertTriangle className="w-4 h-4 text-red-400" /><span className="text-red-400">API Key Missing</span></>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {configuredKeys.includes('GEMINI_API_KEY') ? 'Decrypted in memory' : 'Configure in Tab 1 first'}
+                            </div>
+                          </div>
+                        </div>
+                        {/* Target paper range */}
+                        <div className="p-3 bg-secondary/10 border border-border/40 rounded-lg space-y-1">
+                          <span className="text-[9px] font-bold text-muted-foreground uppercase">3. Target Paper Count &amp; Mode</span>
+                          <div className="font-bold text-foreground text-xs">
+                            {paperSelectionMode === 'all' && 'All Pending Papers in Project'}
+                            {paperSelectionMode === 'limit' && `Limit Batch Size: Run first ${batchLimit} pending papers`}
+                            {paperSelectionMode === 'range' && `Index Range: Run ${batchLimit} papers starting from index offset ${indexOffset}`}
+                            {paperSelectionMode === 'selected' && `Manual Select: Run on ${preSelectedPaperIds?.length || 0} papers`}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Papers will be executed sequentially matching database chronological rowid ordering.
+                          </div>
+                        </div>
+                      </div>
                     )}
+
+                    {confirmStep === 2 && (
+                      <div className="space-y-3 animate-in fade-in duration-150">
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block border-b border-border/30 pb-1">4. Complete Prompt &amp; Rules Preview</span>
+                        {!promptValidation.isValid && (
+                          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold text-red-400 block text-xs">Prompt Design Error</span>
+                              <p className="text-[10px] text-muted-foreground leading-normal mt-0.5">
+                                {promptValidation.error}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {activeTemplateId ? (() => {
+                          const selectedPrompt = prompts.find(p => p.id === activeTemplateId);
+                          if (!selectedPrompt) return <div className="text-red-400 font-bold">Configured template not found.</div>;
+                          return (
+                            <div className="space-y-3">
+                              <div className="p-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+                                <span className="text-[10px] text-primary font-bold block mb-0.5">Template: {selectedPrompt.name}</span>
+                                <span className="text-[9px] text-muted-foreground block">{selectedPrompt.description || 'No description.'}</span>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] text-muted-foreground font-bold block">System Instructions:</span>
+                                <div className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-zinc-100 whitespace-pre-wrap select-all border-l-2 border-l-primary/60 leading-relaxed">
+                                  {selectedPrompt.system_prompt}
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] text-muted-foreground font-bold block">User Template (Jinja2 format):</span>
+                                <div className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-zinc-100 whitespace-pre-wrap select-all border-l-2 border-l-primary/60 leading-relaxed">
+                                  {selectedPrompt.user_prompt_template}
+                                </div>
+                              </div>
+                              {selectedPrompt.response_schema && (
+                                <div className="space-y-1">
+                                  <span className="text-[10px] text-muted-foreground font-bold block">Structured Output JSON Schema:</span>
+                                  <pre className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-emerald-400 select-all border-l-2 border-l-emerald-500/60 leading-relaxed">
+                                    {(() => { try { return JSON.stringify(JSON.parse(selectedPrompt.response_schema), null, 2); } catch { return selectedPrompt.response_schema; } })()}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })() : (
+                          <div className="p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg flex gap-2">
+                            <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold text-yellow-400 block">Using Default Project Config Templates</span>
+                              <p className="text-[10px] text-muted-foreground leading-normal">
+                                This stage will run using the default system prompts defined in python execution files, combined with project rules.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Inline footer */}
+                  <div className="px-4 py-2.5 border-t border-border/60 bg-secondary/10 flex justify-between items-center">
+                    <div>
+                      {confirmStep === 2 && (
+                        <button type="button" onClick={() => setConfirmStep(1)}
+                          className="px-3 py-1.5 border border-border rounded-lg hover:bg-secondary/40 font-bold transition-all text-xs">
+                          ← Previous
+                        </button>
+                      )}
+                      {confirmStep === 1 && (
+                        <button type="button" onClick={() => setShowLaunchConfirm(false)}
+                          className="px-3 py-1.5 border border-border rounded-lg hover:bg-secondary/40 font-bold transition-all text-xs">
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      {confirmStep === 1 && (
+                        <button type="button"
+                          disabled={!promptValidation.isValid}
+                          onClick={() => setConfirmStep(2)}
+                          className="px-3 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition-all hover:scale-105 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed text-xs">
+                          Next →
+                        </button>
+                      )}
+                      {confirmStep === 2 && (
+                        <button
+                          type="button"
+                          disabled={!configuredKeys.includes('GEMINI_API_KEY') || !promptValidation.isValid}
+                          onClick={() => { setShowLaunchConfirm(false); handleAction('start'); }}
+                          className="px-3 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg flex items-center gap-1.5 transition-all hover:scale-105 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed text-xs"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Start Stage Execution</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })() : (
+              /* ── Normal run actions row ── */
+              <div className="flex items-center justify-between border-t border-border/40 pt-3">
+                <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                  Status: <span className="text-foreground">{jobStatus}</span>
+                </div>
+                <div className="flex gap-2">
+                  {['IDLE', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(jobStatus) ? (
                     <button
-                      onClick={() => handleAction('cancel')}
-                      className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all hover:scale-105"
+                      disabled={!activeTemplateId || connecting || !promptValidation.isValid}
+                      onClick={() => { setShowLaunchConfirm(true); setConfirmStep(1); }}
+                      className="px-4 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-lg shadow-primary/10 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed"
                     >
-                      <XCircle className="w-3.5 h-3.5" />
-                      <span>Terminate Run</span>
+                      {connecting ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                      <span>{connecting ? 'Initializing…' : 'Launch Stage execution'}</span>
                     </button>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      {jobStatus === 'PAUSED_BUDGET' ? (
+                        <button onClick={() => handleAction('resume')}
+                          className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all hover:scale-105">
+                          <Play className="w-3.5 h-3.5" /><span>Resume (Cleared Budget)</span>
+                        </button>
+                      ) : (
+                        <button onClick={() => handleAction('pause')} disabled
+                          className="px-4 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all">
+                          <Pause className="w-3.5 h-3.5" /><span>Pause</span>
+                        </button>
+                      )}
+                      <button onClick={() => handleAction('cancel')}
+                        className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all hover:scale-105">
+                        <XCircle className="w-3.5 h-3.5" /><span>Terminate Run</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Performance metrics dashboard widgets */}
             <div className="grid grid-cols-4 gap-3">
@@ -1327,32 +1673,22 @@ export default function GlobalLLMSettingsView({
                   Execution Logs
                 </span>
                 <button
-                  onClick={() => {
-                    const el = document.getElementById('llm-exec-logs');
-                    if (el) el.scrollTop = el.scrollHeight;
-                  }}
+                  onClick={() => { const el = document.getElementById('llm-exec-logs'); if (el) el.scrollTop = el.scrollHeight; }}
                   className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
                   title="Scroll to bottom"
                 >
                   ↓ Scroll to end
                 </button>
               </div>
-              {/* Terminal-style log panel with resize handle */}
               <div
                 id="llm-exec-logs"
                 className="overflow-y-auto font-mono text-[10px] leading-relaxed select-text"
                 style={{
-                  height: '200px',
-                  minHeight: '100px',
-                  maxHeight: '600px',
-                  resize: 'vertical',
+                  height: '200px', minHeight: '100px', maxHeight: '600px', resize: 'vertical',
                   background: 'linear-gradient(135deg, #0d1117 0%, #0f1923 100%)',
-                  border: '1px solid rgba(99,110,123,0.25)',
-                  borderRadius: '10px',
-                  padding: '12px 14px',
-                  boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6)',
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: 'rgba(99,110,123,0.3) transparent',
+                  border: '1px solid rgba(99,110,123,0.25)', borderRadius: '10px',
+                  padding: '12px 14px', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6)',
+                  scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,110,123,0.3) transparent',
                 }}
               >
                 {logs.length === 0 ? (
@@ -1362,7 +1698,7 @@ export default function GlobalLLMSettingsView({
                 ) : (
                   <div className="flex flex-col gap-0.5">
                     {logs.map((l, i) => {
-                      let color = '#8b949e'; // default: muted grey
+                      let color = '#8b949e';
                       let prefix = '  ';
                       if (l.status === 'ERROR') { color = '#ff6b6b'; prefix = '✗ '; }
                       else if (l.status === 'COMPLETED' || l.status === 'SUCCESS') { color = '#3fb950'; prefix = '✓ '; }
@@ -1391,213 +1727,6 @@ export default function GlobalLLMSettingsView({
           <LLMAuditLogView activeProject={activeProject} showToast={showToast} />
         )}
 
-        {/* --- LAUNCH STAGE EXECUTION CONFIRMATION MODAL --- */}
-        {showLaunchConfirm && (() => {
-          const stageInfo = {
-            fast_filter: { name: 'Fast Filter', desc: 'Metadata Screening', model: 'Gemini 3.5 Flash' },
-            gatekeeper: { name: 'Gatekeeper', desc: 'PDF Screening', model: 'Gemini 3.1 Pro Preview' },
-            scientist: { name: 'Scientist', desc: 'Quality Assessment QA', model: 'Gemini 3.1 Pro Preview' },
-            miner: { name: 'Miner', desc: 'Structured Data Extraction', model: 'Gemini 3.1 Pro Preview' }
-          }[taskType];
-
-          return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200">
-              <div className="bg-background/95 border border-border/80 rounded-2xl max-w-5xl w-full h-[90vh] flex flex-col shadow-2xl overflow-hidden scale-in-center">
-                
-                {/* Header */}
-                <div className="p-4 border-b border-border/60 bg-secondary/20 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Play className="w-5 h-5 text-primary" />
-                    <div>
-                      <h3 className="font-bold text-foreground text-sm">
-                        {confirmStep === 1 ? 'Confirm Stage Execution - Step 1: Targets' : 'Confirm Stage Execution - Step 2: Prompt Details'}
-                      </h3>
-                      <p className="text-[10px] text-muted-foreground">Verify pipeline configurations before running the LLM orchestrator.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] px-2 py-0.5 font-bold rounded bg-primary/15 text-primary">
-                      Step {confirmStep} of 2
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowLaunchConfirm(false)}
-                      className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Scrollable Plan details */}
-                <div className="p-5 overflow-y-auto space-y-4 text-xs flex-1 min-h-0">
-                  
-                  {confirmStep === 1 && (
-                    <div className="space-y-4 animate-in fade-in duration-150">
-                      {/* Stage & Key Status Widgets */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl space-y-1">
-                          <span className="text-[9px] font-bold text-muted-foreground uppercase">1. Pipeline Stage & Model</span>
-                          <div className="font-bold text-foreground text-xs">{stageInfo.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{stageInfo.desc} • <span className="font-mono text-primary font-bold">{stageInfo.model}</span></div>
-                        </div>
-
-                        <div className={`p-3 border rounded-xl space-y-1 ${
-                          configuredKeys.includes('GEMINI_API_KEY') 
-                            ? 'bg-emerald-500/5 border-emerald-500/20' 
-                            : 'bg-red-500/5 border-red-500/20'
-                        }`}>
-                          <span className="text-[9px] font-bold text-muted-foreground uppercase">2. API Key / Vault Status</span>
-                          <div className="flex items-center gap-1.5 font-bold text-xs">
-                            {configuredKeys.includes('GEMINI_API_KEY') ? (
-                              <>
-                                <ShieldCheck className="w-4 h-4 text-emerald-400 animate-pulse" />
-                                <span className="text-emerald-400">Vault Key Unlocked</span>
-                              </>
-                            ) : (
-                              <>
-                                <AlertTriangle className="w-4 h-4 text-red-400" />
-                                <span className="text-red-400">API Key Missing</span>
-                              </>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {configuredKeys.includes('GEMINI_API_KEY') ? 'Decrypted in memory' : 'Configure in Tab 1 first'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Target paper range */}
-                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl space-y-1">
-                        <span className="text-[9px] font-bold text-muted-foreground uppercase">3. Target Paper Count & Mode</span>
-                        <div className="font-bold text-foreground text-xs">
-                          {paperSelectionMode === 'all' && 'All Pending Papers in Project'}
-                          {paperSelectionMode === 'limit' && `Limit Batch Size: Run first ${batchLimit} pending papers`}
-                          {paperSelectionMode === 'range' && `Index Range: Run ${batchLimit} papers starting from index offset ${indexOffset}`}
-                          {paperSelectionMode === 'selected' && `Pre-selected Checkbox List: Run on ${preSelectedPaperIds?.length || 0} papers`}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground mt-0.5">
-                          Papers will be executed sequentially matching database chronological rowid ordering.
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {confirmStep === 2 && (
-                    <div className="space-y-4 animate-in fade-in duration-150">
-                      {/* Prompt Verification section */}
-                      <div className="space-y-3">
-                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block border-b border-border/30 pb-1">4. Complete Prompt & Rules Preview</span>
-                        
-                        {overrideTemplateId ? (
-                          (() => {
-                            const selectedPrompt = prompts.find(p => p.id === overrideTemplateId);
-                            if (!selectedPrompt) return <div className="text-red-400 font-bold">Override template not found.</div>;
-                            return (
-                              <div className="space-y-4">
-                                <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl">
-                                  <span className="text-[10px] text-primary font-bold block mb-1">Override Template Selected: {selectedPrompt.name}</span>
-                                  <span className="text-[9px] text-muted-foreground block">{selectedPrompt.description || 'No description.'}</span>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                  <span className="text-[10px] text-muted-foreground font-bold block">System Instructions:</span>
-                                  <div className="max-h-48 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-zinc-100 whitespace-pre-wrap select-all border-l-2 border-l-primary/60 leading-relaxed">
-                                    {selectedPrompt.system_prompt}
-                                  </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                  <span className="text-[10px] text-muted-foreground font-bold block">User Template (Jinja2 format):</span>
-                                  <div className="max-h-48 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-zinc-100 whitespace-pre-wrap select-all border-l-2 border-l-primary/60 leading-relaxed">
-                                    {selectedPrompt.user_prompt_template}
-                                  </div>
-                                </div>
-
-                                {selectedPrompt.response_schema && (
-                                  <div className="space-y-1.5">
-                                    <span className="text-[10px] text-muted-foreground font-bold block">Structured Output JSON Schema:</span>
-                                    <pre className="max-h-48 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-emerald-400 select-all border-l-2 border-l-emerald-500/60 leading-relaxed">
-                                      {(() => {
-                                        try {
-                                          return JSON.stringify(JSON.parse(selectedPrompt.response_schema), null, 2);
-                                        } catch (e) {
-                                          return selectedPrompt.response_schema;
-                                        }
-                                      })()}
-                                    </pre>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()
-                        ) : (
-                          <div className="p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-xl space-y-1">
-                            <span className="font-bold text-yellow-400 block">Using Default Project Config Templates</span>
-                            <p className="text-[10px] text-muted-foreground leading-normal">
-                              This stage will run using the default system prompts defined in python execution files, combined with project rules (e.g. active exclusion criteria checklist rules for Screening, QA metrics, or data miner specifications).
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-
-                {/* Footer */}
-                <div className="p-4 border-t border-border/60 bg-secondary/20 flex justify-between items-center">
-                  <div>
-                    {confirmStep === 2 && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmStep(1)}
-                        className="px-4 py-1.5 border border-border rounded-xl hover:bg-secondary/40 font-bold transition-all text-xs"
-                      >
-                        Previous Step
-                      </button>
-                    )}
-                    {confirmStep === 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowLaunchConfirm(false)}
-                        className="px-4 py-1.5 border border-border rounded-xl hover:bg-secondary/40 font-bold transition-all text-xs"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                  <div>
-                    {confirmStep === 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmStep(2)}
-                        className="px-4 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl transition-all hover:scale-105 text-xs font-bold"
-                      >
-                        Next Step
-                      </button>
-                    )}
-                    {confirmStep === 2 && (
-                      <button
-                        type="button"
-                        disabled={!configuredKeys.includes('GEMINI_API_KEY')}
-                        onClick={() => {
-                          setShowLaunchConfirm(false);
-                          handleAction('start');
-                        }}
-                        className="px-4 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl flex items-center gap-1.5 transition-all hover:scale-105 disabled:opacity-40 text-xs"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Start Stage Execution</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          );
-        })()}
 
       </div>
     </div>

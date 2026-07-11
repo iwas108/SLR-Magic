@@ -220,8 +220,8 @@ export default function PaperMetadataView({
         </div>
       </div>
 
-      {/* PDF Status & Review Status */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* PDF Status, Pipeline Stage, Screening Decision, AI Decision & Decision Override */}
+      <div className="grid grid-cols-5 gap-4">
         <div>
           <label className="text-[10px] font-bold text-muted-foreground uppercase">Local PDF Status</label>
           <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-semibold flex items-center gap-2">
@@ -239,15 +239,86 @@ export default function PaperMetadataView({
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-muted-foreground uppercase">Review Status</label>
-          <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-semibold">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Pipeline Stage</label>
+          <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-semibold truncate" title={
+            {
+              '0': '0: Initial',
+              '1': '1: Fast Filter',
+              '2': '2: Gatekeeper',
+              '3': '3: Scientist',
+              '4': '4: Miner'
+            }[String(paper.Status)] || String(paper.Status)
+          }>
             <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
-              paper.Status === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-              paper.Status === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
-              'bg-secondary border-border text-muted-foreground'
+              {
+                '0': 'bg-slate-500/10 border-slate-500/20 text-slate-400',
+                '1': 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                '2': 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+                '3': 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+                '4': 'bg-pink-500/10 border-pink-500/20 text-pink-400'
+              }[String(paper.Status)] || 'bg-secondary border-border text-muted-foreground'
             }`}>
-              {paper.Status}
+              {{
+                '0': '0: Initial',
+                '1': '1: Fast Filter',
+                '2': '2: Gatekeeper',
+                '3': '3: Scientist',
+                '4': '4: Miner'
+              }[String(paper.Status)] || String(paper.Status)}
             </span>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Screening Decision</label>
+          <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-semibold">
+            {(() => {
+              const res = (paper.Human_Decision || paper.AI_Decision || 'PENDING').toUpperCase();
+              return (
+                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
+                  res === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                  res === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                  res === 'QA_WAIT' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                  'bg-secondary border-border text-muted-foreground'
+                }`}>
+                  {res}
+                </span>
+              );
+            })()}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">AI Decision</label>
+          <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-semibold">
+            {paper.AI_Decision ? (
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
+                paper.AI_Decision.toUpperCase() === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                paper.AI_Decision.toUpperCase() === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                'bg-secondary border-border text-muted-foreground'
+              }`} title={paper.AI_Rationale || undefined}>
+                {paper.AI_Decision}
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-muted-foreground/50 uppercase italic">Undecided</span>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Decision Override</label>
+          <div className="bg-secondary/25 border border-border rounded-lg px-3 py-2 text-xs text-foreground font-semibold">
+            {paper.Human_Decision && (!paper.calibration_pool || paper.reviewer_decisions_exist) ? (
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
+                paper.Human_Decision.toUpperCase() === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                paper.Human_Decision.toUpperCase() === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                'bg-amber-500/10 border-amber-500/20 text-amber-400'
+              }`}>
+                {paper.Human_Decision}
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-muted-foreground/50 uppercase italic">None (Auto)</span>
+            )}
           </div>
         </div>
       </div>

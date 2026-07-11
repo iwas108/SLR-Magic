@@ -41,6 +41,7 @@ export default function ViewEditPaperModal({
   const [editPublisher, setEditPublisher] = useState('');
   const [editCitationCount, setEditCitationCount] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editHumanDecision, setEditHumanDecision] = useState('');
   const [savingPaper, setSavingPaper] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedEditParentPaper, setSelectedEditParentPaper] = useState<any>(null);
@@ -87,6 +88,7 @@ export default function ViewEditPaperModal({
       setEditPublisher(paperModal.paper.Publisher || '');
       setEditNotes(paperModal.paper.notes || '');
       setEditCitationCount(paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0');
+      setEditHumanDecision(paperModal.paper.Human_Decision || '');
       
       const parentId = paperModal.paper.Parent_Paper_ID || '';
       const parentTitle = paperModal.paper.Parent_Paper_Title || '';
@@ -141,7 +143,8 @@ export default function ViewEditPaperModal({
           Original_Publisher: editOriginalPublisher,
           Publisher: editPublisher,
           citation_count: editCitationCount,
-          notes: editNotes
+          notes: editNotes,
+          Human_Decision: editHumanDecision || null
         })
       });
 
@@ -229,7 +232,12 @@ export default function ViewEditPaperModal({
                 setEditCitationCount={setEditCitationCount}
                 editNotes={editNotes}
                 setEditNotes={setEditNotes}
+                editHumanDecision={editHumanDecision}
+                setEditHumanDecision={setEditHumanDecision}
                 getActiveProjectPoolTags={getActiveProjectPoolTags}
+                aiDecision={paperModal.paper.AI_Decision}
+                aiEcTrigger={paperModal.paper.AI_EC_Trigger}
+                aiRationale={paperModal.paper.AI_Rationale}
               />
             ) : (
               <PaperMetadataView

@@ -20,7 +20,7 @@ export function initializeDatabase(db: Database.Database): void {
       Authors TEXT,
       Year INTEGER,
       PDF_Link TEXT,
-      Status TEXT NOT NULL DEFAULT 'PENDING',
+      Status TEXT NOT NULL DEFAULT '0',
       Local_PDF_Status TEXT NOT NULL DEFAULT 'IGNORED',
       Local_PDF_Path TEXT,
       Project_ID TEXT,
@@ -35,6 +35,11 @@ export function initializeDatabase(db: Database.Database): void {
       Human_Extracted_Data TEXT,
       is_duplicate INTEGER DEFAULT 0,
       merged_into_id TEXT DEFAULT NULL,
+      AI_Decision TEXT,
+      AI_EC_Trigger TEXT,
+      AI_Rationale TEXT,
+      AI_QA_Scores TEXT,
+      AI_Extracted_Data TEXT,
       notes TEXT
     );
 
@@ -491,18 +496,45 @@ export function initializeDatabase(db: Database.Database): void {
     db.exec("CREATE INDEX IF NOT EXISTS idx_papers_merged_into ON papers (merged_into_id)");
   } catch (e) {}
 
-  // Seed LLM pricing default entries for active Gemini models
+  // Self-healing migration for paper Status column: convert 'PENDING', 'COMPLETED', 'FAILED' to '0'
   try {
-    db.exec("DELETE FROM llm_pricing");
-    const insertPricing = db.prepare(`
-      INSERT INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
-      VALUES (?, 'gemini', ?, ?, 0.0, 0.5, ?)
+    db.exec(`
+      UPDATE papers SET Status = '0' WHERE Status = 'PENDING';
+      UPDATE papers SET Status = '0' WHERE Status = 'COMPLETED';
+      UPDATE papers SET Status = '0' WHERE Status = 'FAILED';
     `);
-    const now = new Date().toISOString();
-    // Rates are USD per 1M tokens (from Gemini Interactions API pricing documentation)
-    insertPricing.run('gemini-2.5-flash', 0.075, 0.30, now);
-    insertPricing.run('gemini-2.5-pro', 1.25, 5.00, now);
-    insertPricing.run('gemini-1.5-pro', 1.25, 5.00, now);
+    console.log("Successfully migrated legacy paper Status values to '0'");
+  } catch (e) {
+    console.error("Failed to migrate legacy paper Status values:", e);
+  }
+
+  // Add AI columns to papers table if they do not exist
+  const aiColumns = ['AI_Decision', 'AI_EC_Trigger', 'AI_Rationale', 'AI_QA_Scores', 'AI_Extracted_Data'];
+  for (const col of aiColumns) {
+    try {
+      db.exec(`ALTER TABLE papers ADD COLUMN ${col} TEXT`);
+      console.log(`Added column ${col} to papers table successfully.`);
+    } catch (e) {
+      // Column already exists
+    }
+  }
+
+  // Seed LLM pricing default entries for active Gemini models if empty
+  try {
+    const pricingCount = db.prepare("SELECT COUNT(*) as count FROM llm_pricing").get() as { count: number };
+    if (pricingCount.count === 0) {
+      const insertPricing = db.prepare(`
+        INSERT INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
+        VALUES (?, 'gemini', ?, ?, 0.0, 0.5, ?)
+      `);
+      const now = new Date().toISOString();
+      // Rates are USD per 1M tokens (from Gemini Interactions API pricing documentation)
+      insertPricing.run('gemini-2.5-flash', 0.075, 0.30, now);
+      insertPricing.run('gemini-2.5-pro', 1.25, 5.00, now);
+      insertPricing.run('gemini-1.5-pro', 1.25, 5.00, now);
+      insertPricing.run('gemma-2-27b-it', 0.00, 0.00, now);
+      console.log("Seeded default llm_pricing entries.");
+    }
   } catch (e) {
     console.error("Failed to populate default llm_pricing:", e);
   }
@@ -659,5 +691,81 @@ export function initializeDatabase(db: Database.Database): void {
     }
   } catch (e) {
     console.error("Failed to migrate and self-heal PDF paths:", e);
+  }
+
+  // Self-healing migration for AI decisions in reviewer_decisions from llm_audit_log
+  try {
+    const rdRows = db.prepare(`
+      SELECT id, paper_id, project_id, reviewer_name, decision, ec_trigger, rationale 
+      FROM reviewer_decisions 
+      WHERE reviewer_name LIKE '%gemini%' 
+         OR reviewer_name LIKE '%gpt%' 
+         OR reviewer_name LIKE '%claude%'
+    `).all() as {
+      id: number;
+      paper_id: string;
+      project_id: string;
+      reviewer_name: string;
+      decision: string | null;
+      ec_trigger: string | null;
+      rationale: string | null;
+    }[];
+
+    let fixedCount = 0;
+    const selectAuditStmt = db.prepare(`
+      SELECT structured_output 
+      FROM llm_audit_log 
+      WHERE paper_id = ? AND project_id = ? AND status = 'SUCCESS' 
+      ORDER BY created_at DESC LIMIT 1
+    `);
+
+    const updateDecisionStmt = db.prepare(`
+      UPDATE reviewer_decisions 
+      SET decision = ?, ec_trigger = ?, rationale = ? 
+      WHERE id = ?
+    `);
+
+    for (const row of rdRows) {
+      const auditLog = selectAuditStmt.get(row.paper_id, row.project_id) as { structured_output: string } | undefined;
+      if (auditLog && auditLog.structured_output) {
+        try {
+          const parsed = JSON.parse(auditLog.structured_output);
+          let decision = parsed.decision;
+          let ecTrigger = parsed.exclusion_trigger || parsed.exclusion_code;
+          let rationale = parsed.rationale || parsed.reasoning;
+
+          if (!decision || !rationale) {
+            for (const key of ["final_evaluation", "evaluation", "result"]) {
+              const sub = parsed[key];
+              if (sub && typeof sub === 'object') {
+                if (!decision) decision = sub.decision;
+                if (!ecTrigger) ecTrigger = sub.exclusion_trigger || sub.exclusion_code;
+                if (!rationale) rationale = sub.rationale || sub.reasoning;
+              }
+            }
+          }
+
+          const targetDecision = decision || "EXCLUDE";
+          const targetEcTrigger = ecTrigger || "NONE";
+          const targetRationale = rationale || "";
+
+          if (
+            row.decision !== targetDecision ||
+            row.ec_trigger !== targetEcTrigger ||
+            row.rationale !== targetRationale
+          ) {
+            updateDecisionStmt.run(targetDecision, targetEcTrigger, targetRationale, row.id);
+            fixedCount++;
+          }
+        } catch (err) {
+          // Ignore parse errors on individual rows
+        }
+      }
+    }
+    if (fixedCount > 0) {
+      console.log(`Self-healing: corrected ${fixedCount} AI screening decision mismatch(es) in reviewer_decisions.`);
+    }
+  } catch (e) {
+    console.error("Failed to execute self-healing migration for AI decisions:", e);
   }
 }

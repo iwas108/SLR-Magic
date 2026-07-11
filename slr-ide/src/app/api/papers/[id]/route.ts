@@ -8,7 +8,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const paper = db.prepare('SELECT *, (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title FROM papers WHERE Paper_ID = ?').get(id);
+    const paper = db.prepare(`
+      SELECT *, 
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,
+             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0 as reviewer_decisions_exist
+      FROM papers 
+      WHERE Paper_ID = ?
+    `).get(id);
     if (!paper) {
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }

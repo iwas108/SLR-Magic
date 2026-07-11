@@ -12,6 +12,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   const [statusFilter, setStatusFilter] = useState('');
   const [pdfFilter, setPdfFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
+  const [decisionFilter, setDecisionFilter] = useState('');
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -58,6 +59,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
       if (statusFilter) params.append('status', statusFilter);
       if (pdfFilter) params.append('pdfStatus', pdfFilter);
       if (sourceFilter) params.append('source', sourceFilter);
+      if (decisionFilter) params.append('decision', decisionFilter);
       
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
@@ -79,7 +81,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } finally {
       setLoadingPapers(false);
     }
-  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, sourceFilter, showToast, loadDuplicatesCount]);
+  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, showToast, loadDuplicatesCount]);
 
   // Load papers on mount and when filters change
   useEffect(() => {
@@ -89,12 +91,12 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   // Clear selectedPaperIds when filters or search change
   useEffect(() => {
     setSelectedPaperIds([]);
-  }, [searchTerm, statusFilter, pdfFilter, sourceFilter]);
+  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter]);
 
   // Reset page to 1 when filters or search terms change
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, pdfFilter, sourceFilter]);
+  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter]);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -240,7 +242,8 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
         onlyIds: 'true',
         search: searchTerm,
         status: statusFilter,
-        pdfStatus: pdfFilter
+        pdfStatus: pdfFilter,
+        decision: decisionFilter
       });
       const res = await fetch(`/api/papers?${query}`);
       if (res.ok) {
@@ -253,7 +256,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } catch (err: any) {
       showToast(`Error selecting all papers: ${err.message || err}`, 'error');
     }
-  }, [searchTerm, statusFilter, pdfFilter, showToast]);
+  }, [searchTerm, statusFilter, pdfFilter, decisionFilter, showToast]);
 
   return {
     papers,
@@ -266,6 +269,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     statusFilter, setStatusFilter,
     pdfFilter, setPdfFilter,
     sourceFilter, setSourceFilter,
+    decisionFilter, setDecisionFilter,
     page, setPage,
     limit, setLimit,
     totalPapers,

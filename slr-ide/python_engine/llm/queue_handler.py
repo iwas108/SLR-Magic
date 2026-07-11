@@ -23,10 +23,16 @@ class LLMQueueHandler:
         self.task_type = task_type
         
         self.model_id = config.get("model_id", "gemini-3.5-flash")
+        self.schema_mapping = config.get("schema_mapping", {})
         self.speed_mode = config.get("speed_mode", "FLEX")
         self.concurrency = int(config.get("concurrency", 5))
         self.batch_queue_size = int(config.get("batch_queue_size", 100))
         self.temperature = float(config.get("temperature", 0.0))
+        self.max_output_tokens = int(config.get("max_output_tokens", 2000))
+        self.top_p = float(config.get("top_p")) if config.get("top_p") is not None else None
+        self.top_k = int(config.get("top_k")) if config.get("top_k") is not None else None
+        self.request_delay = float(config.get("request_delay", 1.0))
+        self.interaction_chaining = bool(config.get("interaction_chaining", True))
         
         self.run_event = threading.Event()
         self.run_event.set() # True means running
@@ -73,6 +79,17 @@ class LLMQueueHandler:
             if not self.run_event.is_set():
                 return
 
+        # Determine target pipeline stage status
+        next_status = "0"
+        if self.task_type in ('fast_filter', 'screening'):
+            next_status = "1"
+        elif self.task_type in ('gatekeeper', 'fulltext'):
+            next_status = "2"
+        elif self.task_type in ('scientist',):
+            next_status = "3"
+        elif self.task_type in ('miner', 'extraction'):
+            next_status = "4"
+
         # Template prompt hydration
         from llm.templating import hydrate_template
         user_prompt = hydrate_template(self.user_template, execute_read_one("SELECT * FROM projects WHERE id = ?", (self.project_id,)), paper)
@@ -85,17 +102,23 @@ class LLMQueueHandler:
                 pdf_path = os.path.join(os.path.dirname(SCRAPER_DIR), pdf_path)
 
         # Resolve previous_interaction_id for multi-turn chaining (Phase 2)
-        prev_row = execute_read_one(
-            """
-            SELECT interaction_id 
-            FROM llm_audit_log 
-            WHERE paper_id = ? AND project_id = ? AND status = 'SUCCESS' AND interaction_id IS NOT NULL 
-            ORDER BY created_at DESC 
-            LIMIT 1
-            """,
-            (paper_id, self.project_id)
-        )
-        previous_interaction_id = prev_row.get("interaction_id") if prev_row else None
+        # CRITICAL GUARD: Only chain if the previous interaction used the exact same JSON schema and chaining is enabled.
+        # Otherwise, the model inherits the legacy chat context and ignores the new response_schema format.
+        previous_interaction_id = None
+        if self.interaction_chaining:
+            schema_name = prompt_schema.get("name") or prompt_schema.get("title") or "custom_schema"
+            prev_row = execute_read_one(
+                """
+                SELECT interaction_id 
+                FROM llm_audit_log 
+                WHERE paper_id = ? AND project_id = ? AND status = 'SUCCESS' 
+                  AND response_schema_name = ? AND interaction_id IS NOT NULL 
+                ORDER BY created_at DESC 
+                LIMIT 1
+                """,
+                (paper_id, self.project_id, schema_name)
+            )
+            previous_interaction_id = prev_row.get("interaction_id") if prev_row else None
 
         # Pre-flight budget check
         est = estimate_cost(self.model_id, user_prompt, pdf_path, speed_mode=self.speed_mode)
@@ -120,26 +143,31 @@ class LLMQueueHandler:
         try:
             logger.info(f"Processing paper {paper_id}: '{title}' using task type {self.task_type}")
             
-            # Flex mode rate limiting delays (slightly higher wait)
-            if self.speed_mode == 'FLEX':
-                time.sleep(1.0)
+            # Throttling delay between API calls to prevent 429 rate limit errors
+            if self.request_delay > 0.0:
+                time.sleep(self.request_delay)
 
             # Call appropriate adapter flow based on task type (supports new taxonomy & backward compatibility)
             response = None
             if self.task_type in ('fast_filter', 'screening'):
                 from llm.screening import screen_title_abstract
                 response = screen_title_abstract(
-                    self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id
+                    self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id,
+                    temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
+                    schema_mapping=self.schema_mapping, request_delay=self.request_delay
                 )
             elif self.task_type in ('gatekeeper', 'scientist', 'fulltext'):
                 from llm.fulltext import screen_fulltext
                 response = screen_fulltext(
-                    self.client, self.model_id, pdf_path, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id
+                    self.client, self.model_id, pdf_path, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id,
+                    temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
+                    schema_mapping=self.schema_mapping, request_delay=self.request_delay
                 )
             elif self.task_type in ('miner', 'extraction'):
                 from llm.extraction import extract_structured_data
                 response = extract_structured_data(
-                    self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, pdf_path, self.speed_mode, previous_interaction_id
+                    self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, pdf_path, self.speed_mode, previous_interaction_id,
+                    temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k
                 )
             else:
                 raise ValueError(f"Unsupported task execution type: {self.task_type}")
@@ -159,10 +187,10 @@ class LLMQueueHandler:
                 input_price *= discount
                 output_price *= discount
 
-            input_tokens = response.get("input_tokens", 0)
-            output_tokens = response.get("output_tokens", 0)
-            thinking_tokens = response.get("thinking_tokens", 0)
-            cached_tokens = response.get("cached_tokens", 0)
+            input_tokens    = response.get("input_tokens")    or 0
+            output_tokens   = response.get("output_tokens")   or 0
+            thinking_tokens = response.get("thinking_tokens") or 0
+            cached_tokens   = response.get("cached_tokens")   or 0
             
             # Discount applied tokens
             billable_input_tokens = max(0, input_tokens - cached_tokens)
@@ -190,34 +218,38 @@ class LLMQueueHandler:
                 )
 
             # Insert decisions or extractions into database
-            pool = paper.get("calibration_pool") or "pool_a"
+            calibration_pool = paper.get("calibration_pool") or ""
+            is_calibration_paper = calibration_pool in ("pool_a", "pool_b", "pool_c")
             decision_text = response.get("decision", "EXCLUDE")
             ec_trigger = response.get("exclusion_trigger")
             rationale_text = response.get("rationale", "")
             struct_out = response.get("structured_output", "")
 
-            # Writes depend on task type: screening/fulltext (and taxonomy equivalents) updates reviewer_decisions.
-            # Structured data extraction/miner updates papers table directly.
+            # Save AI results directly to dedicated AI_ columns in the papers table
             if self.task_type in ('fast_filter', 'gatekeeper', 'scientist', 'screening', 'fulltext'):
                 execute_write(
                     """
-                    INSERT OR REPLACE INTO reviewer_decisions (
-                        paper_id, project_id, pool, reviewer_name, decision, ec_trigger, rationale, imported_at, qa_scores, extracted_data
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    UPDATE papers
+                    SET AI_Decision = ?,
+                        AI_EC_Trigger = ?,
+                        AI_Rationale = ?,
+                        AI_QA_Scores = ?,
+                        AI_Extracted_Data = ?
+                    WHERE Paper_ID = ?
                     """,
-                    (paper_id, self.project_id, pool, self.model_id, 
-                     decision_text, ec_trigger, rationale_text, datetime.utcnow().isoformat(),
-                     response.get("qa_scores"), response.get("extracted_data"))
+                    (decision_text, ec_trigger, rationale_text,
+                     response.get("qa_scores"), response.get("extracted_data"), paper_id)
                 )
+                logger.info(f"AI screening decision for paper {paper_id} saved to papers table AI_ columns.")
             elif self.task_type in ('miner', 'extraction'):
                 execute_write(
-                    "UPDATE papers SET Human_Extracted_Data = ?, Status = 'COMPLETED' WHERE Paper_ID = ?",
+                    "UPDATE papers SET AI_Extracted_Data = ? WHERE Paper_ID = ?",
                     (struct_out, paper_id)
                 )
+                logger.info(f"AI extracted data for paper {paper_id} saved to papers.AI_Extracted_Data.")
 
-            # Update paper state
-            execute_write("UPDATE papers SET Status = 'COMPLETED' WHERE Paper_ID = ?", (paper_id,))
+            # Update paper state to next stage status code
+            execute_write("UPDATE papers SET Status = ? WHERE Paper_ID = ?", (next_status, paper_id))
 
             # Log interaction to LLM Audit Log
             log_interaction(
@@ -248,7 +280,7 @@ class LLMQueueHandler:
 
         except Exception as e:
             logger.error(f"Failed to process paper {paper_id}: {e}")
-            execute_write("UPDATE papers SET Status = 'FAILED' WHERE Paper_ID = ?", (paper_id,))
+            execute_write("UPDATE papers SET Status = ? WHERE Paper_ID = ?", (paper.get("Status", "0"), paper_id))
             
             # Log failure to LLM Audit Log
             log_interaction(

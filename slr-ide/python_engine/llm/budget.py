@@ -1,7 +1,8 @@
 import os
+import sys
 from datetime import datetime, timedelta
 from pypdf import PdfReader
-from llm.database import execute_read_one, execute_write
+from llm.database import execute_read, execute_read_one, execute_write
 
 def get_pdf_page_count(pdf_path):
     """Reads PDF and returns page count. Returns 0 if reading fails."""
@@ -32,7 +33,8 @@ def resolve_model_prices(model_id: str) -> tuple:
         "gemini-2.5-flash": (0.075, 0.30),
         "gemini-2.5-pro": (1.25, 5.00),
         "gemini-1.5-flash": (0.075, 0.30),
-        "gemini-1.5-pro": (1.25, 5.00)
+        "gemini-1.5-pro": (1.25, 5.00),
+        "gemma": (0.00, 0.00)
     }
     
     for key, rates in pricing_matrix.items():
@@ -40,6 +42,8 @@ def resolve_model_prices(model_id: str) -> tuple:
             return rates
             
     # Fallback based on model tiers
+    if "gemma" in name_lower:
+        return 0.00, 0.00
     is_pro = "pro" in name_lower or "ultra" in name_lower
     input_price = 1.25 if is_pro else 0.075
     output_price = 5.00 if is_pro else 0.30
@@ -90,7 +94,7 @@ def refresh_pricing_from_api(client, model_id: str) -> dict:
             "updated_at": now
         }
     except Exception as e:
-        print(f"Failed to refresh pricing from Gemini API: {e}")
+        sys.stderr.write(f"Failed to refresh pricing from Gemini API: {e}\n")
         return get_model_pricing(model_id)
 
 def sync_all_models_from_api(client) -> list:
@@ -108,7 +112,7 @@ def sync_all_models_from_api(client) -> list:
                 model_name = model_name[len("models/"):]
                 
             name_lower = model_name.lower()
-            if "gemini" not in name_lower:
+            if "gemini" not in name_lower and "gemma" not in name_lower:
                 continue
             
             # Exclude experimental, tuning, embedding, and text-embedding models
@@ -133,19 +137,44 @@ def sync_all_models_from_api(client) -> list:
             })
             
         if to_insert:
-            # Use INSERT OR IGNORE so existing rows (with manually-set prices) are preserved.
-            # Only genuinely new models that do not yet exist in the table will be inserted.
+            # Insert new models or update their updatedAt, but do not overwrite input_token_price/output_token_price if they already exist
+            # For each model, we check if it already exists:
+            # - If it exists, we do nothing to input_token_price and output_token_price, but we can update updated_at if we want.
+            # - If it does not exist, we insert it.
             for item in to_insert:
-                execute_write(
-                    """
-                    INSERT OR IGNORE INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
-                    VALUES (?, 'gemini', ?, ?, 0.0, 0.5, ?)
-                    """,
-                    item
-                )
-        return synced_models
+                model_name, input_price, output_price, now_time = item
+                existing = execute_read_one("SELECT model_id FROM llm_pricing WHERE model_id = ?", (model_name,))
+                if not existing:
+                    execute_write(
+                        """
+                        INSERT INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
+                        VALUES (?, 'gemini', ?, ?, 0.0, 0.5, ?)
+                        """,
+                        (model_name, input_price, output_price, now_time)
+                    )
+        
+        # Also clean up models that are no longer returned by the API? 
+        # Wait, the user request says: "when the user click reload models, the data will be updated (only the model list), but do not reset the pricing because it is manually inputted by user."
+        # If a model exists in DB but is no longer returned by list, should we delete it? 
+        # Usually it is safer to delete obsolete models so the list matches the API, but if the user manually configured it, they might want to keep it or we might delete it. Let's do:
+        # Delete models from llm_pricing that are NOT in the synced_models list, to ensure the data is synced.
+        # But wait! If we delete, we might lose their manually inputted prices if they want to keep it?
+        # "only the model list" suggests aligning the model list with the API (adding new ones, removing obsolete ones), but keeping pricing for ones that remain.
+        # Let's delete obsolete ones to keep the list clean:
+        all_db_models = [row["model_id"] for row in execute_read("SELECT model_id FROM llm_pricing", ())]
+        active_model_ids = {m["model_id"] for m in synced_models}
+        for db_model in all_db_models:
+            if db_model not in active_model_ids:
+                execute_write("DELETE FROM llm_pricing WHERE model_id = ?", (db_model,))
+
+        # Now, return the final current state of llm_pricing from DB so the UI gets the correct actual values (manually edited + newly synced)
+        final_pricing = []
+        rows = execute_read("SELECT * FROM llm_pricing", ())
+        for r in rows:
+            final_pricing.append(dict(r))
+        return final_pricing
     except Exception as e:
-        print(f"Failed to sync models from Gemini API: {e}")
+        sys.stderr.write(f"Failed to sync models from Gemini API: {e}\n")
         raise e
 
 def estimate_cost(model_id, prompt_text, pdf_path=None, speed_mode='FLEX', max_output_tokens=1000):

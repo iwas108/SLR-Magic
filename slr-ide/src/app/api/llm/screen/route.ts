@@ -3,14 +3,15 @@ import path from 'path';
 import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
 import { PROJECT_ROOT, getVaultKey } from '@/lib/db';
-import { getSessionMasterPassword, hasSessionMasterPassword } from '@/lib/session';
+import db from '@/lib/db';
+import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
 import { operationsManager } from '@/lib/llm-operations';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { projectId, jobId, taskType, action, limit, offset, paperIds, templateId } = body;
+    const { projectId, jobId, taskType, action, limit, offset, paperIds, templateId, statusFilter } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
@@ -62,7 +63,8 @@ export async function POST(req: NextRequest) {
         tag: keyRow.tag,
       }, password);
     } catch (decryptErr) {
-      return NextResponse.json({ error: 'Failed to decrypt Gemini API Key. Master password may be invalid or corrupt.' }, { status: 500 });
+      clearSessionMasterPassword();
+      return NextResponse.json({ error: 'Failed to decrypt Gemini API Key. Master password may be invalid or corrupt. Vault locked.' }, { status: 401 });
     }
 
     // Determine absolute paths relative to project root
@@ -74,6 +76,25 @@ export async function POST(req: NextRequest) {
     }
     if (!fs.existsSync(mainScript)) {
       return NextResponse.json({ error: `Main script not found at ${mainScript}` }, { status: 500 });
+    }
+
+    let resolvedTemplateId = templateId;
+    if (!resolvedTemplateId) {
+      try {
+        const project = db.prepare('SELECT llm_config FROM projects WHERE id = ?').get(projectId) as any;
+        if (project && project.llm_config) {
+          const config = JSON.parse(project.llm_config);
+          resolvedTemplateId = config.default_prompts?.[taskType || 'fast_filter'];
+        }
+      } catch (err) {
+        console.error('Failed to load project default prompts:', err);
+      }
+    }
+
+    if (!resolvedTemplateId) {
+      return NextResponse.json({ 
+        error: `No default prompt template configured for stage '${taskType || 'fast_filter'}' in Project Settings.` 
+      }, { status: 400 });
     }
 
     // Construct command line arguments
@@ -93,8 +114,37 @@ export async function POST(req: NextRequest) {
     if (paperIds && Array.isArray(paperIds) && paperIds.length > 0) {
       args.push('--paper-ids', paperIds.join(','));
     }
-    if (templateId) {
-      args.push('--template-id', templateId);
+    if (resolvedTemplateId) {
+      args.push('--template-id', resolvedTemplateId);
+    }
+    if (statusFilter !== undefined && statusFilter !== null) {
+      args.push('--status-filter', String(statusFilter));
+    }
+
+    // Resolve model and mode details from template to write initial job record
+    let modelId = 'gemini-2.5-flash';
+    let executionMode = 'flex';
+    if (resolvedTemplateId) {
+      try {
+        const template = db.prepare('SELECT llm_config FROM prompt_templates WHERE id = ?').get(resolvedTemplateId) as any;
+        if (template && template.llm_config) {
+          const config = JSON.parse(template.llm_config);
+          modelId = config.model_id || modelId;
+          executionMode = config.execution_mode || executionMode;
+        }
+      } catch (e) {
+        console.error('Failed to resolve template config for initial job insert:', e);
+      }
+    }
+
+    // Insert an initial job record to database immediately to avoid client race conditions
+    try {
+      db.prepare(`
+        INSERT OR REPLACE INTO llm_jobs (id, project_id, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'STARTING', 0, 0, datetime('now'), datetime('now'))
+      `).run(jobId, projectId, modelId, executionMode);
+    } catch (e) {
+      console.error('Failed to insert initial job record:', e);
     }
 
     // Spawn the background Python process with injected API key env variable
@@ -116,7 +166,8 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Error in LLM control route:', error);
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    const errorMsg = sanitizeApiKey(error.message || 'Internal Server Error');
+    console.error('Error in LLM control route:', errorMsg);
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

@@ -13,7 +13,11 @@ def extract_structured_data(
     response_schema: dict,
     pdf_path: str = None,
     speed_mode: str = 'FLEX',
-    previous_interaction_id: str = None
+    previous_interaction_id: str = None,
+    temperature: float = 0.0,
+    max_output_tokens: int = 2000,
+    top_p: float = None,
+    top_k: int = None
 ) -> dict:
     """Executes a generic structured data extraction query, supporting optional PDF uploads."""
     
@@ -23,6 +27,11 @@ def extract_structured_data(
         if pdf_path and os.path.exists(pdf_path):
             logger.info(f"Uploading PDF for extraction: {pdf_path}")
             file_ref = client.client.files.upload(file=pdf_path)
+            
+            # Poll and block until file is ACTIVE
+            from llm.client import wait_for_file_active
+            wait_for_file_active(client.client, file_ref.name)
+            
             pdf_uri = file_ref.uri
 
         result = client.create_interaction(
@@ -34,7 +43,10 @@ def extract_structured_data(
             pdf_file_uri=pdf_uri,
             previous_interaction_id=previous_interaction_id,
             store=True,
-            temperature=0.0
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            top_p=top_p,
+            top_k=top_k
         )
         
         if not result["success"]:
@@ -43,8 +55,9 @@ def extract_structured_data(
         # Validate structured JSON format
         output_text = result["output_text"].strip()
         try:
+            from llm.client import safe_json_loads
             # Parse to ensure it is valid JSON
-            json.loads(output_text)
+            safe_json_loads(output_text)
             result["structured_output"] = output_text
         except Exception as e:
             logger.warning(f"Structured extraction response is not valid JSON: {e}. Output: {output_text}")

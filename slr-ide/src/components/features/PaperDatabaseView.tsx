@@ -8,6 +8,7 @@ import {
   Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield
 } from 'lucide-react';
 import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
+import { broadcastSync } from '@/lib/sync-utils';
 
 interface PaperDatabaseViewProps {
   duplicatesCount: number;
@@ -20,6 +21,8 @@ interface PaperDatabaseViewProps {
   setPdfFilter: (v: string) => void;
   sourceFilter: string;
   setSourceFilter: (v: string) => void;
+  decisionFilter: string;
+  setDecisionFilter: (v: string) => void;
   setShowImport: (show: boolean) => void;
   setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
   operationModal: any;
@@ -51,6 +54,8 @@ interface PaperDatabaseViewProps {
   selectedPaperIds?: Set<string>;
   setSelectedPaperIds?: React.Dispatch<React.SetStateAction<Set<string>>>;
   onRunLLMOnSelected?: (paperIds: string[]) => void;
+  showToast?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  loadPapers?: () => void;
 }
 
 function LoaderIcon() {
@@ -73,6 +78,8 @@ export default function PaperDatabaseView({
   setPdfFilter,
   sourceFilter,
   setSourceFilter,
+  decisionFilter,
+  setDecisionFilter,
   setShowImport,
   setDeleteAllConfirm,
   operationModal,
@@ -103,8 +110,135 @@ export default function PaperDatabaseView({
   setDeleteConfirm,
   selectedPaperIds = new Set(),
   setSelectedPaperIds,
-  onRunLLMOnSelected
+  onRunLLMOnSelected,
+  showToast,
+  loadPapers
 }: PaperDatabaseViewProps) {
+
+  const [filterType, setFilterType] = React.useState('none');
+  const [filterValue, setFilterValue] = React.useState('');
+  const [bulkType, setBulkType] = React.useState('');
+  const [bulkValue, setBulkValue] = React.useState('');
+
+  React.useEffect(() => {
+    if (statusFilter) {
+      setFilterType('stage');
+      setFilterValue(statusFilter);
+    } else if (decisionFilter) {
+      setFilterType('decision');
+      setFilterValue(decisionFilter);
+    } else if (pdfFilter) {
+      setFilterType('pdf');
+      setFilterValue(pdfFilter);
+    } else if (sourceFilter) {
+      setFilterType('source');
+      setFilterValue(sourceFilter);
+    } else {
+      setFilterType('none');
+      setFilterValue('');
+    }
+  }, [statusFilter, decisionFilter, pdfFilter, sourceFilter]);
+
+  const handleFilterTypeChange = (type: string) => {
+    setFilterType(type);
+    setFilterValue('');
+    setStatusFilter('');
+    setDecisionFilter('');
+    setPdfFilter('');
+    setSourceFilter('');
+  };
+
+  const handleFilterValueChange = (val: string) => {
+    setFilterValue(val);
+    setStatusFilter(filterType === 'stage' ? val : '');
+    setDecisionFilter(filterType === 'decision' ? val : '');
+    setPdfFilter(filterType === 'pdf' ? val : '');
+    setSourceFilter(filterType === 'source' ? val : '');
+  };
+
+  const handleDecisionOverride = async (paper: any, val: string) => {
+    const payload = {
+      Title: paper.Title,
+      Human_Decision: val === 'CLEAR' ? null : val,
+      Human_EC_Trigger: val === 'CLEAR' ? null : paper.Human_EC_Trigger,
+      Human_Rationale: val === 'CLEAR' ? null : paper.Human_Rationale
+    };
+    try {
+      const res = await fetch(`/api/papers/${paper.Paper_ID}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error();
+      loadPapers?.();
+      showToast?.('Decision override updated successfully', 'success');
+      broadcastSync('SYNC_PAPERS');
+    } catch (e) {
+      showToast?.('Failed to update decision override', 'error');
+    }
+  };
+
+  const handleBulkOverride = async (decisionVal: string) => {
+    try {
+      const ids = Array.from(selectedPaperIds);
+      const confirmMsg = `Are you sure you want to apply a decision override of "${decisionVal}" to ${ids.length} selected paper(s)?`;
+      if (!window.confirm(confirmMsg)) return;
+
+      const res = await fetch('/api/papers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paperIds: ids,
+          humanDecision: decisionVal
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to apply bulk overrides');
+      }
+      showToast?.(`Successfully applied override to ${ids.length} papers.`, 'success');
+      setSelectedPaperIds?.(new Set());
+      loadPapers?.();
+      broadcastSync('SYNC_PAPERS');
+    } catch (e: any) {
+      showToast?.(e.message || 'Operation failed', 'error');
+    }
+  };
+
+  const handleBulkStageChange = async (stageVal: string) => {
+    try {
+      const ids = Array.from(selectedPaperIds);
+      const stageLabels: Record<string, string> = {
+        '0': '0: Unprocessed',
+        '1': '1: Fast Filter (Metadata)',
+        '2': '2: Passed Gatekeeper (PDF)',
+        '3': '3: Passed Scientist (QA)',
+        '4': '4: Passed Miner (Extraction)'
+      };
+      const targetLabel = stageLabels[stageVal] || stageVal;
+      const confirmMsg = `Are you sure you want to change the pipeline stage to "${targetLabel}" for ${ids.length} selected paper(s)?`;
+      if (!window.confirm(confirmMsg)) return;
+
+      const res = await fetch('/api/papers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paperIds: ids,
+          status: stageVal
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to change pipeline stage');
+      }
+      showToast?.(`Successfully changed pipeline stage for ${ids.length} papers.`, 'success');
+      setSelectedPaperIds?.(new Set());
+      loadPapers?.();
+      broadcastSync('SYNC_PAPERS');
+    } catch (e: any) {
+      showToast?.(e.message || 'Operation failed', 'error');
+    }
+  };
 
   const handleToggleSelect = (paperId: string) => {
     if (!setSelectedPaperIds) return;
@@ -141,56 +275,18 @@ export default function PaperDatabaseView({
         {/* Search & Actions Panel */}
         <div className="p-4 border-b border-border bg-secondary/25 flex flex-wrap items-center justify-between gap-3 shrink-0">
 
-          {/* Search field */}
-          <div className="relative w-72">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              className="w-full bg-secondary border border-border rounded-lg pl-9 pr-4 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
-              placeholder="Search ID, Title, DOI, Authors..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="flex items-center gap-3">
-            <select
-              className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All Statuses</option>
-              <option value="PENDING">PENDING</option>
-              <option value="INCLUDE">INCLUDE</option>
-              <option value="EXCLUDE">EXCLUDE</option>
-            </select>
-
-            <select
-              className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
-              value={pdfFilter}
-              onChange={(e) => setPdfFilter(e.target.value)}
-            >
-              <option value="">All PDF Status</option>
-              <option value="IGNORED">IGNORED</option>
-              <option value="MISSING">MISSING</option>
-              <option value="MATCHED">MATCHED</option>
-              <option value="DOWNLOADED">DOWNLOADED</option>
-              <option value="SYNCED">SYNCED</option>
-              <option value="FAILED">FAILED</option>
-            </select>
-
-            <select
-              className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value)}
-            >
-              <option value="">All Sources</option>
-              <option value="manual">Manual Ingestion</option>
-              <option value="backward">Backward Snowball</option>
-              <option value="forward">Forward Snowball</option>
-              <option value="csv">CSV Import</option>
-            </select>
+          {/* Left Side: Search Bar, Ingestion Hub & Export CSV */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative w-72">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                className="w-full bg-secondary border border-border rounded-lg pl-9 pr-4 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                placeholder="Search ID, Title, DOI, Authors..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
 
             <button
               onClick={() => setShowImport(true)}
@@ -199,6 +295,77 @@ export default function PaperDatabaseView({
               <Upload className="w-3.5 h-3.5" />
               Ingestion Hub
             </button>
+
+            <a
+              href="/api/export"
+              download
+              className="px-3 py-2 bg-secondary text-foreground border border-border hover:bg-secondary/80 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export CSV
+            </a>
+          </div>
+
+          {/* Right Side: Combined Filters, Review Duplicates, Combined Bulk Operations, Delete All */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Combined Filters */}
+            <div className="flex items-center gap-1.5">
+              <select
+                className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                value={filterType}
+                onChange={(e) => handleFilterTypeChange(e.target.value)}
+              >
+                <option value="none">No Filter</option>
+                <option value="stage">Pipeline Stage</option>
+                <option value="decision">Screening Decision</option>
+                <option value="pdf">PDF Status</option>
+                <option value="source">Source Scope</option>
+              </select>
+
+              {filterType !== 'none' && (
+                <select
+                  className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold animate-in slide-in-from-left-2 duration-150"
+                  value={filterValue}
+                  onChange={(e) => handleFilterValueChange(e.target.value)}
+                >
+                  <option value="">Select Value...</option>
+                  {filterType === 'stage' && (
+                    <>
+                      <option value="0">0: Unprocessed</option>
+                      <option value="1">1: Fast Filter (Metadata)</option>
+                      <option value="2">2: Passed Gatekeeper (PDF)</option>
+                      <option value="3">3: Passed Scientist (QA)</option>
+                      <option value="4">4: Passed Miner (Extraction)</option>
+                    </>
+                  )}
+                  {filterType === 'decision' && (
+                    <>
+                      <option value="INCLUDE">INCLUDE</option>
+                      <option value="EXCLUDE">EXCLUDE</option>
+                      <option value="UNADJUDICATED">Unadjudicated</option>
+                    </>
+                  )}
+                  {filterType === 'pdf' && (
+                    <>
+                      <option value="IGNORED">IGNORED</option>
+                      <option value="MISSING">MISSING</option>
+                      <option value="MATCHED">MATCHED</option>
+                      <option value="DOWNLOADED">DOWNLOADED</option>
+                      <option value="SYNCED">SYNCED</option>
+                      <option value="FAILED">FAILED</option>
+                    </>
+                  )}
+                  {filterType === 'source' && (
+                    <>
+                      <option value="manual">Manual Ingestion</option>
+                      <option value="backward">Backward Snowball</option>
+                      <option value="forward">Forward Snowball</option>
+                      <option value="csv">CSV Import</option>
+                    </>
+                  )}
+                </select>
+              )}
+            </div>
 
             {duplicatesCount > 0 && (
               <button
@@ -210,14 +377,59 @@ export default function PaperDatabaseView({
               </button>
             )}
 
-            <a
-              href="/api/export"
-              download
-              className="px-3 py-2 bg-secondary text-foreground border border-border hover:bg-secondary/80 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Export CSV
-            </a>
+            {/* Combined Bulk Operations */}
+            {selectedPaperIds.size > 0 && (
+              <div className="flex items-center gap-1.5 border-l border-border pl-3">
+                <span className="text-[10px] text-muted-foreground font-bold uppercase">Selected ({selectedPaperIds.size}):</span>
+                <select
+                  value={bulkType}
+                  onChange={(e) => {
+                    setBulkType(e.target.value);
+                    setBulkValue('');
+                  }}
+                  className="bg-primary/10 text-primary border border-primary/25 rounded-lg px-2.5 py-1.5 text-[10px] focus:outline-none focus:border-primary font-bold transition-all"
+                >
+                  <option value="" className="bg-background text-foreground">Bulk Action...</option>
+                  <option value="decision" className="bg-background text-foreground">Decision Override</option>
+                  <option value="stage" className="bg-background text-foreground">Pipeline Stage Change</option>
+                </select>
+
+                {bulkType && (
+                  <select
+                    value={bulkValue}
+                    onChange={async (e) => {
+                      const val = e.target.value;
+                      if (!val) return;
+                      if (bulkType === 'decision') {
+                        await handleBulkOverride(val);
+                      } else if (bulkType === 'stage') {
+                        await handleBulkStageChange(val);
+                      }
+                      setBulkValue('');
+                      setBulkType('');
+                    }}
+                    className="bg-primary/10 text-primary border border-primary/25 rounded-lg px-2.5 py-1.5 text-[10px] focus:outline-none focus:border-primary font-bold transition-all ml-1.5 animate-in slide-in-from-left-2 duration-150"
+                  >
+                    <option value="" className="bg-background text-foreground">Select Value...</option>
+                    {bulkType === 'decision' ? (
+                      <>
+                        <option value="INCLUDE" className="bg-background text-emerald-400 font-bold">Override to INCLUDE</option>
+                        <option value="EXCLUDE" className="bg-background text-red-400 font-bold">Override to EXCLUDE</option>
+                        <option value="CLEAR" className="bg-background text-muted-foreground font-semibold">Clear Overrides</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="0" className="bg-background text-foreground">0: Unprocessed</option>
+                        <option value="1" className="bg-background text-foreground">1: Fast Filter (Metadata)</option>
+                        <option value="2" className="bg-background text-foreground">2: Passed Gatekeeper (PDF)</option>
+                        <option value="3" className="bg-background text-foreground">3: Passed Scientist (QA)</option>
+                        <option value="4" className="bg-background text-foreground">4: Passed Miner (Extraction)</option>
+                      </>
+                    )}
+                  </select>
+                )}
+              </div>
+            )}
 
             <button
               onClick={() => setDeleteAllConfirm(true)}
@@ -229,6 +441,7 @@ export default function PaperDatabaseView({
             </button>
           </div>
         </div>
+
 
         {/* Data Table */}
         <div className="flex-1 flex flex-col overflow-hidden bg-card">
@@ -279,17 +492,17 @@ export default function PaperDatabaseView({
                           onChange={handleToggleSelectAll}
                         />
                       </th>
-                      <th className="p-3 w-[11%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Paper_ID')}>
+                      <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Paper_ID')}>
                         <div className="flex items-center gap-1.5">
                           ID {renderSortIcon('Paper_ID')}
                         </div>
                       </th>
-                      <th className="p-3 w-[26%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Title')}>
+                      <th className="p-3 w-[28%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Title')}>
                         <div className="flex items-center gap-1.5">
                           Title {renderSortIcon('Title')}
                         </div>
                       </th>
-                      <th className="p-3 w-[13%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Authors')}>
+                      <th className="p-3 w-[12%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Authors')}>
                         <div className="flex items-center gap-1.5">
                           Authors {renderSortIcon('Authors')}
                         </div>
@@ -304,7 +517,7 @@ export default function PaperDatabaseView({
                           DOI {renderSortIcon('DOI')}
                         </div>
                       </th>
-                      <th className="p-3 w-[8%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('citation_count')}>
+                      <th className="p-3 w-[6%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('citation_count')}>
                         <div className="flex items-center gap-1.5">
                           Citations {renderSortIcon('citation_count')}
                         </div>
@@ -314,9 +527,9 @@ export default function PaperDatabaseView({
                           PDF Status {renderSortIcon('Local_PDF_Status')}
                         </div>
                       </th>
-                      <th className="p-3 w-[8%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Status')}>
+                      <th className="p-3 w-[10%] cursor-pointer hover:bg-secondary/30 select-none" onClick={() => handleSort('Status')}>
                         <div className="flex items-center gap-1.5">
-                          Status {renderSortIcon('Status')}
+                          Stage {renderSortIcon('Status')}
                         </div>
                       </th>
                       <th className="p-3 w-[8%] text-center">Actions</th>
@@ -381,13 +594,31 @@ export default function PaperDatabaseView({
                           </div>
                         </td>
                         <td className="p-3 truncate">
-                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${p.Status === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                            p.Status === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
-                              'bg-secondary border-border text-muted-foreground'
-                            }`}>
-                            {p.Status}
-                          </span>
+                          {(() => {
+                            const badgeStyle = {
+                              '0': 'bg-slate-500/10 border-slate-500/20 text-slate-400',
+                              '1': 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                              '2': 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+                              '3': 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+                              '4': 'bg-pink-500/10 border-pink-500/20 text-pink-400',
+                            }[String(p.Status)] || 'bg-secondary border-border text-muted-foreground';
+
+                            const label = {
+                              '0': '0: Initial',
+                              '1': '1: Fast Filter',
+                              '2': '2: Gatekeeper',
+                              '3': '3: Scientist',
+                              '4': '4: Miner',
+                            }[String(p.Status)] || String(p.Status);
+
+                            return (
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${badgeStyle}`}>
+                                {label}
+                              </span>
+                            );
+                          })()}
                         </td>
+
                         <td className="p-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button

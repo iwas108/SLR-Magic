@@ -38,7 +38,12 @@ interface PaperMetadataEditProps {
   setEditCitationCount: (val: string) => void;
   editNotes: string;
   setEditNotes: (val: string) => void;
+  editHumanDecision: string;
+  setEditHumanDecision: (val: string) => void;
   getActiveProjectPoolTags: (poolId: string) => any[];
+  aiDecision?: string;
+  aiEcTrigger?: string;
+  aiRationale?: string;
 }
 
 export default function PaperMetadataEdit({
@@ -78,7 +83,12 @@ export default function PaperMetadataEdit({
   setEditCitationCount,
   editNotes,
   setEditNotes,
-  getActiveProjectPoolTags
+  editHumanDecision,
+  setEditHumanDecision,
+  getActiveProjectPoolTags,
+  aiDecision,
+  aiEcTrigger,
+  aiRationale
 }: PaperMetadataEditProps) {
   return (
     <>
@@ -249,8 +259,8 @@ export default function PaperMetadataEdit({
         />
       </div>
 
-      {/* PDF Status & Review Status */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* PDF Status, Pipeline Stage & Decision Override */}
+      <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="text-[10px] font-bold text-muted-foreground uppercase">Local PDF Status</label>
           <select
@@ -268,16 +278,58 @@ export default function PaperMetadataEdit({
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-muted-foreground uppercase">Review Status</label>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Pipeline Stage</label>
           <select
             className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
             value={editStatus}
             onChange={(e) => setEditStatus(e.target.value)}
           >
-            <option value="PENDING">PENDING</option>
+            <option value="0">0: Initial</option>
+            <option value="1">1: Fast Filter</option>
+            <option value="2">2: Gatekeeper</option>
+            <option value="3">3: Scientist</option>
+            <option value="4">4: Miner</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">Decision Override</label>
+          <select
+            className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+            value={editHumanDecision}
+            onChange={(e) => setEditHumanDecision(e.target.value)}
+          >
+            <option value="">Auto (Use AI Decision)</option>
             <option value="INCLUDE">INCLUDE</option>
             <option value="EXCLUDE">EXCLUDE</option>
+            <option value="QA_WAIT">QA_WAIT</option>
           </select>
+        </div>
+      </div>
+
+      {/* AI Decision Read-Only Info */}
+      <div className="grid grid-cols-3 gap-4 bg-secondary/15 border border-border/40 rounded-xl p-3.5">
+        <div className="col-span-1">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">AI Decision</label>
+          <div className="mt-1">
+            {aiDecision ? (
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${
+                aiDecision === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                aiDecision === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                'bg-secondary border-border text-muted-foreground'
+              }`}>
+                {aiDecision} {aiEcTrigger && aiEcTrigger !== 'NONE' ? `(${aiEcTrigger})` : ''}
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold text-muted-foreground/40 uppercase italic">Undecided</span>
+            )}
+          </div>
+        </div>
+        <div className="col-span-2">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase">AI Rationale</label>
+          <p className="mt-1 text-[11px] font-medium text-muted-foreground leading-relaxed max-h-24 overflow-y-auto pr-1">
+            {aiRationale || <span className="italic text-muted-foreground/35">—</span>}
+          </p>
         </div>
       </div>
 

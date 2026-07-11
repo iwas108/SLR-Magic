@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getVaultKey } from '@/lib/db';
-import { getSessionMasterPassword, hasSessionMasterPassword } from '@/lib/session';
+import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
 
 export async function POST(request: Request) {
@@ -25,12 +25,18 @@ export async function POST(request: Request) {
     }
 
     // Decrypt in-memory
-    const plainValue = await decryptKey({
-      ciphertext: keyRow.encrypted_value,
-      salt: keyRow.salt,
-      iv: keyRow.iv,
-      tag: keyRow.tag,
-    }, password);
+    let plainValue: string;
+    try {
+      plainValue = await decryptKey({
+        ciphertext: keyRow.encrypted_value,
+        salt: keyRow.salt,
+        iv: keyRow.iv,
+        tag: keyRow.tag,
+      }, password);
+    } catch (decryptErr) {
+      clearSessionMasterPassword();
+      return NextResponse.json({ error: 'Failed to decrypt key. Vault locked.' }, { status: 401 });
+    }
 
     return NextResponse.json({ success: true, plainValue });
   } catch (error: any) {
