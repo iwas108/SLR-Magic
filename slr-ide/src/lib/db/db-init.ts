@@ -40,6 +40,12 @@ export function initializeDatabase(db: Database.Database): void {
       AI_Rationale TEXT,
       AI_QA_Scores TEXT,
       AI_Extracted_Data TEXT,
+      manual_decision TEXT,
+      manual_ec_trigger TEXT,
+      manual_rationale TEXT,
+      manual_stage TEXT,
+      manual_qa_scores TEXT,
+      manual_extracted_data TEXT,
       notes TEXT
     );
 
@@ -511,6 +517,24 @@ export function initializeDatabase(db: Database.Database): void {
   // Add AI columns to papers table if they do not exist
   const aiColumns = ['AI_Decision', 'AI_EC_Trigger', 'AI_Rationale', 'AI_QA_Scores', 'AI_Extracted_Data'];
   for (const col of aiColumns) {
+    try {
+      db.exec(`ALTER TABLE papers ADD COLUMN ${col} TEXT`);
+      console.log(`Added column ${col} to papers table successfully.`);
+    } catch (e) {
+      // Column already exists
+    }
+  }
+
+  // Add manual screening columns to papers table if they do not exist
+  const manualColumns = [
+    'manual_decision',
+    'manual_ec_trigger',
+    'manual_rationale',
+    'manual_stage',
+    'manual_qa_scores',
+    'manual_extracted_data'
+  ];
+  for (const col of manualColumns) {
     try {
       db.exec(`ALTER TABLE papers ADD COLUMN ${col} TEXT`);
       console.log(`Added column ${col} to papers table successfully.`);

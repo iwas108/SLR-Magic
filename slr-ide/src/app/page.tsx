@@ -20,6 +20,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { usePapers } from '@/hooks/usePapers';
 import { usePipeline } from '@/hooks/usePipeline';
 import { useCalibration } from '@/hooks/useCalibration';
+import { useManualScreening } from '@/hooks/useManualScreening';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -85,6 +86,9 @@ export default function DashboardPage() {
     activeTab
   });
 
+  // Instantiating hook: Manual Screening
+  const manualScreeningHook = useManualScreening(showToast, activeProjectId);
+
   // Register multi-tab synchronization BroadcastChannel handler
   useAppSync({
     loadProjects,
@@ -92,7 +96,8 @@ export default function DashboardPage() {
     loadCalPapers: calibrationHook.loadCalPapers,
     loadAssignPapers: calibrationHook.loadAssignPapers,
     loadDuplicatesCount,
-    checkBatchStatus: pipelineHook.checkBatchStatus
+    checkBatchStatus: pipelineHook.checkBatchStatus,
+    loadScreeningPapers: manualScreeningHook.loadScreeningPapers
   });
 
   const applyTheme = useCallback((t: string) => {
@@ -250,6 +255,7 @@ export default function DashboardPage() {
               showToast={showToast}
               formatBytes={formatBytes}
               pipelineHook={pipelineHook}
+              manualScreeningHook={manualScreeningHook}
               preSelectedPaperIds={preSelectedPaperIds}
               setPreSelectedPaperIds={setPreSelectedPaperIds}
             />

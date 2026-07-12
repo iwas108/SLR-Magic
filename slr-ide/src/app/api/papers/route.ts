@@ -124,6 +124,26 @@ export async function GET(request: Request) {
       }
     }
 
+    const manualStage = searchParams.get('manualStage')?.trim() || '';
+    if (manualStage) {
+      if (manualStage === 'none') {
+        filterQuery += ' AND (manual_stage IS NULL OR manual_stage = \'\')';
+      } else {
+        filterQuery += ' AND manual_stage = ?';
+        params.push(manualStage);
+      }
+    }
+
+    const manualDecision = searchParams.get('manualDecision')?.trim() || '';
+    if (manualDecision) {
+      if (manualDecision === 'none') {
+        filterQuery += ' AND (manual_decision IS NULL OR manual_decision = \'\')';
+      } else {
+        filterQuery += ' AND manual_decision = ?';
+        params.push(manualDecision);
+      }
+    }
+
     const decision = searchParams.get('decision')?.trim() || '';
     if (decision) {
       if (decision === 'INCLUDE') {
@@ -164,7 +184,7 @@ export async function GET(request: Request) {
     const total = countRow ? countRow.count : 0;
 
     // 2. Sorting whitelist validation to prevent SQL Injection
-    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'calibration_tag', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', 'Publisher', 'citation_count'];
+    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'Status', 'calibration_pool', 'calibration_tag', 'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', 'Publisher', 'citation_count', 'manual_decision', 'manual_stage'];
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 

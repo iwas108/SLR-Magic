@@ -240,6 +240,33 @@ export default function PaperDatabaseView({
     }
   };
 
+  const handleBulkPdfStatusChange = async (pdfStatusVal: string) => {
+    try {
+      const ids = Array.from(selectedPaperIds);
+      const confirmMsg = `Are you sure you want to change the Local PDF Status to "${pdfStatusVal}" for ${ids.length} selected paper(s)?`;
+      if (!window.confirm(confirmMsg)) return;
+
+      const res = await fetch('/api/papers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paperIds: ids,
+          localPdfStatus: pdfStatusVal
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to change local PDF status');
+      }
+      showToast?.(`Successfully changed local PDF status for ${ids.length} papers.`, 'success');
+      setSelectedPaperIds?.(new Set());
+      loadPapers?.();
+      broadcastSync('SYNC_PAPERS');
+    } catch (e: any) {
+      showToast?.(e.message || 'Operation failed', 'error');
+    }
+  };
+
   const handleToggleSelect = (paperId: string) => {
     if (!setSelectedPaperIds) return;
     const next = new Set(selectedPaperIds);
@@ -392,6 +419,7 @@ export default function PaperDatabaseView({
                   <option value="" className="bg-background text-foreground">Bulk Action...</option>
                   <option value="decision" className="bg-background text-foreground">Decision Override</option>
                   <option value="stage" className="bg-background text-foreground">Pipeline Stage Change</option>
+                  <option value="pdfStatus" className="bg-background text-foreground">Local PDF Status</option>
                 </select>
 
                 {bulkType && (
@@ -404,6 +432,8 @@ export default function PaperDatabaseView({
                         await handleBulkOverride(val);
                       } else if (bulkType === 'stage') {
                         await handleBulkStageChange(val);
+                      } else if (bulkType === 'pdfStatus') {
+                        await handleBulkPdfStatusChange(val);
                       }
                       setBulkValue('');
                       setBulkType('');
@@ -417,13 +447,21 @@ export default function PaperDatabaseView({
                         <option value="EXCLUDE" className="bg-background text-red-400 font-bold">Override to EXCLUDE</option>
                         <option value="CLEAR" className="bg-background text-muted-foreground font-semibold">Clear Overrides</option>
                       </>
-                    ) : (
+                    ) : bulkType === 'stage' ? (
                       <>
                         <option value="0" className="bg-background text-foreground">0: Unprocessed</option>
                         <option value="1" className="bg-background text-foreground">1: Fast Filter (Metadata)</option>
                         <option value="2" className="bg-background text-foreground">2: Passed Gatekeeper (PDF)</option>
                         <option value="3" className="bg-background text-foreground">3: Passed Scientist (QA)</option>
                         <option value="4" className="bg-background text-foreground">4: Passed Miner (Extraction)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="IGNORED" className="bg-background text-foreground">IGNORED</option>
+                        <option value="MISSING" className="bg-background text-foreground">MISSING</option>
+                        <option value="MATCHED" className="bg-background text-foreground">MATCHED</option>
+                        <option value="DOWNLOADED" className="bg-background text-foreground">DOWNLOADED</option>
+                        <option value="SYNCED" className="bg-background text-foreground">SYNCED</option>
                       </>
                     )}
                   </select>

@@ -41,6 +41,12 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `Human_Extracted_Data` | TEXT | | JSON string containing extractions mapped to values and evidence |
 | `is_duplicate` | INTEGER | DEFAULT 0 | Flag indicating if this paper is an excluded duplicate (1) or not (0) |
 | `merged_into_id` | TEXT | DEFAULT NULL | Scoped reference pointing to the primary Paper_ID if this is a duplicate |
+| `manual_decision` | TEXT | | Manual screening decision input (`INCLUDE`, `EXCLUDE`, `QA_WAIT`) |
+| `manual_ec_trigger` | TEXT | | Manual screening exclusion criteria trigger code |
+| `manual_rationale` | TEXT | | Manual screening annotation/explanation notes |
+| `manual_stage` | TEXT | | Manual screening pipeline stage watermark (`fast_filter`, `gatekeeper`, `scientist`, `miner`) |
+| `manual_qa_scores` | TEXT | | JSON string containing manual quality appraisal scores and evidence |
+| `manual_extracted_data` | TEXT | | JSON string containing manual extracted data and evidence |
 
 
 **Indexes**:
@@ -311,4 +317,7 @@ Stores potential duplicate pairs identified by the fuzzy heuristic matching engi
 *   Added `is_duplicate` and `merged_into_id` columns to `papers` table.
 *   Added `duplicate_pairs` table to hold potential duplicate pairs and status.
 *   Added indexes `idx_papers_is_duplicate`, `idx_papers_merged_into`, and `idx_dp_project_status`.
+
+### Manual Screening Pipeline Migration (2026-07-12)
+*   Added `manual_decision`, `manual_ec_trigger`, `manual_rationale`, `manual_stage`, `manual_qa_scores`, and `manual_extracted_data` columns to `papers` table to support manual screening data collection.
 

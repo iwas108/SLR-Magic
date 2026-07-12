@@ -31,7 +31,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { Title, Authors, Year, DOI, Abstract, PDF_Link, Status, Local_PDF_Status, calibration_pool, calibration_tag, Human_Decision, Human_EC_Trigger, Human_Rationale, Parent_Paper_ID, Original_Publisher, Publisher, citation_count, notes } = body;
+    const { Title, Authors, Year, DOI, Abstract, PDF_Link, Status, Local_PDF_Status, calibration_pool, calibration_tag, Human_Decision, Human_EC_Trigger, Human_Rationale, Parent_Paper_ID, Original_Publisher, Publisher, citation_count, notes, manual_decision, manual_ec_trigger, manual_rationale, manual_stage, manual_qa_scores, manual_extracted_data } = body;
 
     if (!Title || !Title.trim()) {
       return NextResponse.json({ error: 'Title is mandatory' }, { status: 400 });
@@ -76,6 +76,12 @@ export async function PUT(
     const originalPublisherVal = Original_Publisher !== undefined ? Original_Publisher : currentPaper.Original_Publisher;
     const publisherVal = Publisher !== undefined ? Publisher : currentPaper.Publisher;
     const notesVal = notes !== undefined ? notes : currentPaper.notes;
+    const manualDecisionVal = manual_decision !== undefined ? manual_decision : currentPaper.manual_decision;
+    const manualEcVal = manual_ec_trigger !== undefined ? manual_ec_trigger : currentPaper.manual_ec_trigger;
+    const manualRatVal = manual_rationale !== undefined ? manual_rationale : currentPaper.manual_rationale;
+    const manualStageVal = manual_stage !== undefined ? manual_stage : currentPaper.manual_stage;
+    const manualQaVal = manual_qa_scores !== undefined ? manual_qa_scores : currentPaper.manual_qa_scores;
+    const manualExtVal = manual_extracted_data !== undefined ? manual_extracted_data : currentPaper.manual_extracted_data;
 
     db.prepare(`
       UPDATE papers
@@ -96,7 +102,13 @@ export async function PUT(
           Original_Publisher = ?,
           Publisher = ?,
           citation_count = ?,
-          notes = ?
+          notes = ?,
+          manual_decision = ?,
+          manual_ec_trigger = ?,
+          manual_rationale = ?,
+          manual_stage = ?,
+          manual_qa_scores = ?,
+          manual_extracted_data = ?
       WHERE Paper_ID = ?
     `).run(
       Title.trim(),
@@ -117,6 +129,12 @@ export async function PUT(
       publisherVal,
       citationCountVal,
       notesVal,
+      manualDecisionVal,
+      manualEcVal,
+      manualRatVal,
+      manualStageVal,
+      manualQaVal,
+      manualExtVal,
       id
     );
 

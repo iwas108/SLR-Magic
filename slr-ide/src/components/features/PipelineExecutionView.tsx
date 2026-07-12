@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Minus, X, Database, BrainCircuit } from 'lucide-react';
+import { Play, Minus, X, Database, BrainCircuit, UserCheck } from 'lucide-react';
 import GlobalLLMSettingsView from './GlobalLLMSettingsView';
 import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
+import ManualScreeningView from './manual-screening/ManualScreeningView';
 
 interface PipelineExecutionViewProps {
   projectsHook: {
     activeProject: any;
+    projects: any[];
+    activeProjectId: string;
     loadProjects: () => Promise<any>;
   };
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -25,6 +28,7 @@ interface PipelineExecutionViewProps {
     handleCancelOperation: () => void;
     setOperationModal: React.Dispatch<React.SetStateAction<any>>;
   };
+  manualScreeningHook: any;
   preSelectedPaperIds?: string[];
   setPreSelectedPaperIds?: React.Dispatch<React.SetStateAction<string[]>>;
 }
@@ -34,6 +38,7 @@ export default function PipelineExecutionView({
   showToast,
   formatBytes,
   pipelineHook,
+  manualScreeningHook,
   preSelectedPaperIds,
   setPreSelectedPaperIds
 }: PipelineExecutionViewProps) {
@@ -57,7 +62,7 @@ export default function PipelineExecutionView({
   const cloudProvider = activeProject?.cloud_provider || 'gdrive';
   const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
 
-  const [activeTab, setActiveTab] = useState<'acquisition' | 'llm'>(
+  const [activeTab, setActiveTab] = useState<'acquisition' | 'llm' | 'manual'>(
     preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'llm' : 'acquisition'
   );
 
@@ -114,6 +119,17 @@ export default function PipelineExecutionView({
         >
           <BrainCircuit className="w-4 h-4" />
           LLM Pipeline Operations
+        </button>
+        <button
+          onClick={() => setActiveTab('manual')}
+          className={`flex items-center gap-2 pb-2 transition-all relative ${
+            activeTab === 'manual'
+              ? 'text-foreground border-b-2 border-primary font-black'
+              : 'text-muted-foreground hover:text-foreground font-semibold'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          Manual Screening Pipeline
         </button>
       </div>
 
@@ -225,6 +241,16 @@ export default function PipelineExecutionView({
               showToast={showToast} 
               loadProjects={loadProjects} 
               preSelectedPaperIds={preSelectedPaperIds}
+            />
+          </div>
+        )}
+
+        {activeTab === 'manual' && (
+          <div className="h-full">
+            <ManualScreeningView
+              projectsHook={projectsHook}
+              manualScreeningHook={manualScreeningHook}
+              showToast={showToast}
             />
           </div>
         )}

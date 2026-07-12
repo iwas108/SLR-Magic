@@ -181,7 +181,33 @@ class Navigator:
                     self.driver.switch_to.window(orig_handle)
                     time.sleep(2)
 
-        return False
+    def _robust_click(self, element, wait_after=3):
+        """
+        Robustly click a Selenium WebElement by:
+        1. Ensuring it is scrolled into view.
+        2. Attempting standard click.
+        3. Falling back to JavaScript click if standard click fails/intercepted.
+        """
+        try:
+            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+            time.sleep(0.5)
+        except:
+            pass
+
+        clicked = False
+        try:
+            element.click()
+            clicked = True
+        except:
+            try:
+                self.driver.execute_script("arguments[0].click();", element)
+                clicked = True
+            except:
+                pass
+
+        if wait_after > 0:
+            time.sleep(wait_after)
+        return clicked
 
     def _handle_ieee(self):
         try:
@@ -201,8 +227,7 @@ class Navigator:
                     self.driver.switch_to.frame(frame)
                     if len(self.driver.find_elements(By.ID, "open-button")) > 0:
                         btn = self.driver.find_element(By.ID, "open-button")
-                        btn.click()
-                        time.sleep(5)
+                        self._robust_click(btn, wait_after=5)
                         self.driver.switch_to.default_content()
                         return True
                     self.driver.switch_to.default_content()
@@ -216,21 +241,18 @@ class Navigator:
         try:
             try:
                 ereader_btn = self.driver.find_element(By.CSS_SELECTOR, "a.btn--eReader, a.btn--ereader")
-                ereader_btn.click()
-                time.sleep(5)
+                self._robust_click(ereader_btn, wait_after=5)
             except:
                 pass
             try:
                 download_btn = self.driver.find_element(By.CSS_SELECTOR, "a.navbar-download")
-                download_btn.click()
-                time.sleep(5)
-                return True
+                if self._robust_click(download_btn, wait_after=5):
+                    return True
             except:
                 try:
                     download_btn = self.driver.find_element(By.XPATH, "//span[contains(@class, 'material-icons') and contains(text(), 'get_app')]/..")
-                    download_btn.click()
-                    time.sleep(5)
-                    return True
+                    if self._robust_click(download_btn, wait_after=5):
+                        return True
                 except:
                     pass
             current_url = self.driver.current_url
@@ -249,25 +271,20 @@ class Navigator:
             clicked = False
             try:
                 link = self.driver.find_element(By.XPATH, "//a[contains(text(), 'Article - full text') and contains(@href, 'showpdf')]")
-                link.click()
-                clicked = True
+                clicked = self._robust_click(link, wait_after=3)
             except:
                 try:
                     link = self.driver.find_element(By.PARTIAL_LINK_TEXT, "Article - full text")
-                    link.click()
-                    clicked = True
+                    clicked = self._robust_click(link, wait_after=3)
                 except:
                     pass
-            time.sleep(3)
             try:
                 checkbox = self.driver.find_element(By.NAME, "ipbasedconfirmatie")
                 if checkbox:
                     if not checkbox.is_selected():
-                        checkbox.click()
-                        time.sleep(0.5)
+                        self._robust_click(checkbox, wait_after=0.5)
                     btn = self.driver.find_element(By.XPATH, "//input[@value='Continue']")
-                    btn.click()
-                    time.sleep(3)
+                    self._robust_click(btn, wait_after=3)
             except:
                 pass
             try:
@@ -282,9 +299,8 @@ class Navigator:
             try:
                 open_btn = self.driver.find_element(By.XPATH, "//a[contains(text(), 'Open')] | //input[@value='Open'] | //button[contains(text(), 'Open')]")
                 if open_btn:
-                    open_btn.click()
-                    time.sleep(5)
-                    return True
+                    if self._robust_click(open_btn, wait_after=5):
+                        return True
             except:
                 pass
             return clicked

@@ -27,6 +27,18 @@ export interface Paper {
   merged_into_id?: string | null;
   semantic_score?: number;
   search_rank?: number;
+  manual_decision?: string | null;
+  manual_ec_trigger?: string | null;
+  manual_rationale?: string | null;
+  manual_stage?: string | null;
+  manual_qa_scores?: string | null;
+  manual_extracted_data?: string | null;
+  notes?: string | null;
+  AI_Decision?: string | null;
+  AI_EC_Trigger?: string | null;
+  AI_Rationale?: string | null;
+  AI_QA_Scores?: string | null;
+  AI_Extracted_Data?: string | null;
 }
 
 export interface DuplicatePair {

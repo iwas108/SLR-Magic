@@ -407,6 +407,7 @@ export function usePipeline({
         });
 
         broadcastSync('SYNC_PIPELINE');
+        broadcastSync('SYNC_PAPERS');
 
         if (!res.body) throw new Error('No body stream returned');
         isStreamActiveRef.current = true;

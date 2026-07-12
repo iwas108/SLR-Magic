@@ -155,6 +155,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `hooks/useProjects.ts` | Custom Hook | Manages project listing retrieval, active project switching, and cloud provider (Google Drive / OneDrive) configuration state. |
 | `hooks/usePipeline.ts` | Custom Hook | Manages sequential PDF acquisition/OCR batch pipeline state, Server-Sent Events logging, and cancel controllers. |
 | `hooks/useCalibration.ts` | Custom Hook | Manages consensus screening pre-calibration pools, Kappa metrics calculation, and single-paper crawler executions. |
+| `hooks/useManualScreening.ts` | Custom Hook | State and business logic manager for the manual screening pipeline workspace, handling semantic filtering and CRUD updates. |
 
 ### UI Components & Features (`src/components/`)
 | File Path | Architectural Layer | Function & Purpose |
@@ -174,6 +175,10 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records, featuring bulk override and pipeline stage operations. |
 | `components/features/PipelineExecutionView.tsx`| View Component | Interface for launching, monitoring, and controlling automated PDF acquisition, OCR indexing, and cloud sync batch pipelines. |
 | `components/features/PreCalibrationView.tsx` | View Component | View interface for managing pre-calibration workflows, tagging specific screening cohorts, cohort tag filtering, and analyzing screening consistency. |
+| `components/features/manual-screening/ManualScreeningStatsHeader.tsx` | UI Component | Top bar summary calculations showing active manual stages and result metrics with fullscreen controls. |
+| `components/features/manual-screening/ManualScreeningList.tsx` | UI Component | Left-hand panel matching list with keyword/semantic filters and sorting drop-downs. |
+| `components/features/manual-screening/ManualScreeningDetailView.tsx` | Presentation Component | Right-hand dashboard displaying metadata, inline PDF previews, and manual stage decision editors (QA and variables extraction). |
+| `components/features/manual-screening/ManualScreeningView.tsx` | View Component | Main manual screening dashboard container providing fullscreen swap modes. |
 | `components/features/ProjectManager.tsx` | View Component | Management interface for creating new literature review projects, defining research questions, and updating project metadata. |
 | `components/features/PromptLibraryView.tsx` | View Component | Interface for versioning, organizing, and testing reusable system prompt templates and structured JSON extraction schemas. |
 | `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal composing view and edit layouts for paper metadata, decisions, and previews. |
@@ -245,6 +250,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/llm/screen/route.ts` | REST Endpoint | Handles POST requests to initiate a single-paper LLM screening or data extraction execution. |
 | `api/llm/screen/logs/route.ts` | REST Endpoint | Handles GET requests to retrieve raw prompt payloads, LLM completions, and execution logs for a specific screening job. |
 | `api/papers/route.ts` | REST Endpoint | Handles GET requests for querying, filtering, sorting, and server-side paginating paper records from `slr.db`. |
+| `api/papers/manual-screening/route.ts` | REST Endpoint | Handles GET requests to filter, sort, search, and paginate manual screening papers workspace list. |
 | `api/papers/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests for retrieving, updating, or permanently deleting a single paper record by its `Paper_ID`. |
 | `api/pdf/batch/route.ts` | REST Endpoint | Handles POST/GET requests to spawn the unified sequential PDF batch pipeline (Scan, Scrape, Compress, Sync) and stream live NDJSON logs. |
 | `api/pdf/batch/cancel/route.ts` | REST Endpoint | Handles POST requests to terminate active PDF batch child process trees (`taskkill` / `SIGKILL`) and set cancellation flags. |
