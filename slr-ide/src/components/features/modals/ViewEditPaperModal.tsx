@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FileText, X, Trash2, Edit2, RefreshCw, Copy, Check } from 'lucide-react';
 import { broadcastSync } from '@/lib/sync-utils';
 
@@ -72,30 +72,62 @@ export default function ViewEditPaperModal({
     }
   };
 
+  const lastLoadedPaperRef = useRef<any | null>(null);
+
   useEffect(() => {
     if (paperModal?.isOpen && paperModal?.paper) {
-      setEditTitle(paperModal.paper.Title || '');
-      setEditAuthors(paperModal.paper.Authors || '');
-      setEditYear(paperModal.paper.Year !== null ? String(paperModal.paper.Year) : '');
-      setEditDoi(paperModal.paper.DOI || '');
-      setEditAbstract(paperModal.paper.Abstract || '');
-      setEditPdfLink(paperModal.paper.PDF_Link || '');
-      setEditPdfStatus(paperModal.paper.Local_PDF_Status || 'MISSING');
-      setEditStatus(paperModal.paper.Status || 'PENDING');
-      setEditCalPool(paperModal.paper.calibration_pool || '');
-      setEditCalTag(paperModal.paper.calibration_tag || '');
-      setEditOriginalPublisher(paperModal.paper.Original_Publisher || '');
-      setEditPublisher(paperModal.paper.Publisher || '');
-      setEditNotes(paperModal.paper.notes || '');
-      setEditCitationCount(paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0');
-      setEditHumanDecision(paperModal.paper.Human_Decision || '');
-      
-      const parentId = paperModal.paper.Parent_Paper_ID || '';
-      const parentTitle = paperModal.paper.Parent_Paper_Title || '';
-      setEditParentPaperId(parentId);
-      setSelectedEditParentPaper(parentId ? { Paper_ID: parentId, Title: parentTitle } : null);
+      const paperId = paperModal.paper.Paper_ID;
+      const isNewPaper = !lastLoadedPaperRef.current || lastLoadedPaperRef.current.Paper_ID !== paperId;
+
+      // Determine if key database fields for inputs changed (from another tab sync)
+      const dbValuesChanged = lastLoadedPaperRef.current && (
+        lastLoadedPaperRef.current.Title !== paperModal.paper.Title ||
+        lastLoadedPaperRef.current.Authors !== paperModal.paper.Authors ||
+        lastLoadedPaperRef.current.Year !== paperModal.paper.Year ||
+        lastLoadedPaperRef.current.DOI !== paperModal.paper.DOI ||
+        lastLoadedPaperRef.current.Abstract !== paperModal.paper.Abstract ||
+        lastLoadedPaperRef.current.PDF_Link !== paperModal.paper.PDF_Link ||
+        lastLoadedPaperRef.current.Local_PDF_Status !== paperModal.paper.Local_PDF_Status ||
+        lastLoadedPaperRef.current.Status !== paperModal.paper.Status ||
+        lastLoadedPaperRef.current.calibration_pool !== paperModal.paper.calibration_pool ||
+        lastLoadedPaperRef.current.calibration_tag !== paperModal.paper.calibration_tag ||
+        lastLoadedPaperRef.current.notes !== paperModal.paper.notes ||
+        lastLoadedPaperRef.current.citation_count !== paperModal.paper.citation_count ||
+        lastLoadedPaperRef.current.Human_Decision !== paperModal.paper.Human_Decision
+      );
+
+      lastLoadedPaperRef.current = paperModal.paper;
+
+      if (isNewPaper || dbValuesChanged) {
+        setEditTitle(paperModal.paper.Title || '');
+        setEditAuthors(paperModal.paper.Authors || '');
+        setEditYear(paperModal.paper.Year !== null ? String(paperModal.paper.Year) : '');
+        setEditDoi(paperModal.paper.DOI || '');
+        setEditAbstract(paperModal.paper.Abstract || '');
+        setEditPdfLink(paperModal.paper.PDF_Link || '');
+        setEditPdfStatus(paperModal.paper.Local_PDF_Status || 'MISSING');
+        setEditStatus(paperModal.paper.Status || 'PENDING');
+        setEditCalPool(paperModal.paper.calibration_pool || '');
+        setEditCalTag(paperModal.paper.calibration_tag || '');
+        setEditOriginalPublisher(paperModal.paper.Original_Publisher || '');
+        setEditPublisher(paperModal.paper.Publisher || '');
+        setEditNotes(paperModal.paper.notes || '');
+        setEditCitationCount(paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0');
+        setEditHumanDecision(paperModal.paper.Human_Decision || '');
+        
+        const parentId = paperModal.paper.Parent_Paper_ID || '';
+        const parentTitle = paperModal.paper.Parent_Paper_Title || '';
+        setEditParentPaperId(parentId);
+        setSelectedEditParentPaper(parentId ? { Paper_ID: parentId, Title: parentTitle } : null);
+
+        if (dbValuesChanged && !isNewPaper) {
+          showToast('Paper details were updated in another session. Form refreshed.', 'info');
+        }
+      }
+    } else if (!paperModal?.isOpen) {
+      lastLoadedPaperRef.current = null;
     }
-  }, [paperModal?.isOpen, paperModal?.paper, paperModal?.mode]);
+  }, [paperModal?.isOpen, paperModal?.paper, paperModal?.mode, showToast]);
 
   const getActiveProjectPoolTags = (poolId: string) => {
     if (!activeProject) return [];

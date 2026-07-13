@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNdjsonStream } from './useNdjsonStream';
 import { Paper } from '@/types';
 import { calculateCohensKappa } from '@/lib/inter-rater/adjudication-calculations';
 
@@ -80,7 +81,61 @@ export function useCalibration({
   const [assignWaitingLogin, setAssignWaitingLogin] = useState(false);
   const [assignSearchTime, setAssignSearchTime] = useState<number | null>(null);
 
-  const singlePipelineAbortControllerRef = useRef<AbortController | null>(null);
+  const { connect: connectNdjson, cancelStream: cancelSinglePipeline, abortControllerRef } = useNdjsonStream({
+    onEvent: (parsed) => {
+      if (parsed.event === 'log') {
+        setAssignLogs(prev => [...prev, parsed.message]);
+      } else if (parsed.event === 'step_start') {
+        setAssignStatusText(parsed.message);
+        if (parsed.step === 'scan') {
+          setAssignProgress(15);
+        } else if (parsed.step === 'scrape') {
+          setAssignProgress(45);
+        }
+      } else if (parsed.event === 'step_complete') {
+        setAssignStatusText(parsed.message);
+      } else if (parsed.event === 'waiting_login') {
+        setAssignWaitingLogin(true);
+        setAssignStatusText(parsed.message);
+      } else if (parsed.event === 'resume') {
+        setAssignWaitingLogin(false);
+      } else if (parsed.event === 'paper_success') {
+        setAssignProgress(90);
+        showToast('Paper PDF acquired successfully!', 'success');
+      } else if (parsed.event === 'paper_fail') {
+        setAssignProgress(100);
+        showToast(`Scrape failed: ${parsed.error}`, 'error');
+      } else if (parsed.event === 'complete') {
+        setAssignProgress(100);
+        setAssignStatusText(parsed.message);
+        showToast(parsed.message, 'success');
+      } else if (parsed.event === 'error') {
+        setAssignProgress(100);
+        setAssignStatusText(parsed.message);
+        showToast(parsed.message, 'error');
+      }
+    },
+    onComplete: async () => {
+      if (assignSelectedPaper) {
+        const paperId = assignSelectedPaper.Paper_ID;
+        const paperRes = await fetch(`/api/papers/${paperId}`);
+        if (paperRes.ok) {
+          const updatedPaper = await paperRes.json();
+          setAssignSelectedPaper(updatedPaper);
+          setAssignPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
+          setCalPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
+        }
+
+        await loadProjects();
+        loadPapers();
+      }
+      setAssignIsRunning(false);
+    },
+    onError: (err) => {
+      showToast(err.message || 'Failed to run single paper matching/scraping', 'error');
+      setAssignIsRunning(false);
+    }
+  });
 
   // Debounce keyword search input
   useEffect(() => {
@@ -355,106 +410,20 @@ export function useCalibration({
     setAssignWaitingLogin(false);
 
     try {
-      const abortController = new AbortController();
-      singlePipelineAbortControllerRef.current = abortController;
-
-      const res = await fetch('/api/pdf/single', {
+      await connectNdjson('/api/pdf/single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paperId }),
-        signal: abortController.signal
+        body: JSON.stringify({ paperId })
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        showToast(errData.error || 'Failed to run single paper matching/scraping', 'error');
-        setAssignIsRunning(false);
-        return;
-      }
-
-      if (!res.body) {
-        showToast('Streaming response not available.', 'error');
-        setAssignIsRunning(false);
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const parsed = JSON.parse(line);
-            
-            if (parsed.event === 'log') {
-              setAssignLogs(prev => [...prev, parsed.message]);
-            } else if (parsed.event === 'step_start') {
-              setAssignStatusText(parsed.message);
-              if (parsed.step === 'scan') {
-                setAssignProgress(15);
-              } else if (parsed.step === 'scrape') {
-                setAssignProgress(45);
-              }
-            } else if (parsed.event === 'step_complete') {
-              setAssignStatusText(parsed.message);
-            } else if (parsed.event === 'waiting_login') {
-              setAssignWaitingLogin(true);
-              setAssignStatusText(parsed.message);
-            } else if (parsed.event === 'resume') {
-              setAssignWaitingLogin(false);
-            } else if (parsed.event === 'paper_success') {
-              setAssignProgress(90);
-              showToast('Paper PDF acquired successfully!', 'success');
-            } else if (parsed.event === 'paper_fail') {
-              setAssignProgress(100);
-              showToast(`Scrape failed: ${parsed.error}`, 'error');
-            } else if (parsed.event === 'complete') {
-              setAssignProgress(100);
-              setAssignStatusText(parsed.message);
-              showToast(parsed.message, 'success');
-            } else if (parsed.event === 'error') {
-              setAssignProgress(100);
-              setAssignStatusText(parsed.message);
-              showToast(parsed.message, 'error');
-            }
-          } catch (e) {
-            setAssignLogs(prev => [...prev, line]);
-          }
-        }
-      }
-
-      const paperRes = await fetch(`/api/papers/${paperId}`);
-      if (paperRes.ok) {
-        const updatedPaper = await paperRes.json();
-        setAssignSelectedPaper(updatedPaper);
-        setAssignPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
-        setCalPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
-      }
-
-      await loadProjects();
-      loadPapers();
-
     } catch (err: any) {
       if (err.name === 'AbortError') {
         showToast('Pipeline cancelled by user.', 'info');
       } else {
-        showToast(err.message || 'Error running pipeline', 'error');
+        showToast(`Pipeline execution failed: ${err.message}`, 'error');
       }
-    } finally {
       setAssignIsRunning(false);
-      singlePipelineAbortControllerRef.current = null;
     }
-  }, [assignIsRunning, showToast, loadProjects, loadPapers, setAssignSelectedPaper, setAssignPapers, setCalPapers]);
+  }, [assignIsRunning, showToast, loadProjects, loadPapers, assignSelectedPaper, connectNdjson]);
 
   const handleCalSort = useCallback((field: string) => {
     if (calSortBy === field) {
@@ -585,7 +554,7 @@ export function useCalibration({
     assignProgress, setAssignProgress,
     assignWaitingLogin, setAssignWaitingLogin,
     
-    singlePipelineAbortControllerRef,
+    singlePipelineAbortControllerRef: abortControllerRef,
     loadCalPapers,
     loadAssignPapers,
     triggerSemanticSearch,

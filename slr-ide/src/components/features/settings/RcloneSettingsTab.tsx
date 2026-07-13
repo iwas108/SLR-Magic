@@ -129,9 +129,23 @@ export default function RcloneSettingsTab({
                   onChange={(e) => handleChange('BACKUP_TRIGGER', e.target.value)}
                 >
                   <option value="interval">By Interval (every X minutes)</option>
-                  <option value="change">By Database Changes (1 minute minimum spacing)</option>
+                  <option value="change">By Database Changes</option>
                 </select>
               </div>
+
+              {(configs.BACKUP_TRIGGER || 'interval') === 'change' && (
+                <div className="space-y-1.5 animate-in fade-in duration-200">
+                  <label className="block text-xs font-semibold text-muted-foreground">Minimum Spacing (Minutes)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary text-xs"
+                    value={configs.BACKUP_CHANGE_MIN_SPACING_MINS || '1'}
+                    onChange={(e) => handleChange('BACKUP_CHANGE_MIN_SPACING_MINS', e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Minimum spacing between backups when database changes occur.</p>
+                </div>
+              )}
 
               {(configs.BACKUP_TRIGGER || 'interval') === 'interval' && (
                 <div className="space-y-1.5">

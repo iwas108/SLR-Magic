@@ -5,6 +5,7 @@ import {
   Lock, KeyRound, Key, RefreshCw, Loader, AlertTriangle, ShieldCheck, 
   BookOpen, Terminal, Database, Play, Pause, XCircle, ChevronRight, Save, Eye, EyeOff, Trash2, Plus, Info, X, Sparkles
 } from 'lucide-react';
+import { useSseStream } from '@/hooks/useSseStream';
 import LLMAuditLogView from './LLMAuditLogView';
 import { subscribeSyncChannel, broadcastSync } from '@/lib/sync-utils';
 import { useGlobalPipelineLock } from '@/hooks/useGlobalPipelineLock';
@@ -184,8 +185,12 @@ export default function GlobalLLMSettingsView({
   };
   const promptValidation = getPromptValidation();
 
-  const logEndRef = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const { connect: connectSseStream, abortControllerRef } = useSseStream({
+    onEvent: (data) => handleSSEEvent(data),
+    onError: (err) => setLogs(prev => [...prev, { status: 'ERROR', message: `Telemetry disconnect: ${err.message}` }]),
+    onComplete: () => setConnecting(false)
+  });
 
   // Load configuration and vault state
   const loadVaultState = async () => {
@@ -289,7 +294,9 @@ export default function GlobalLLMSettingsView({
   }, []);
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
   }, [logs]);
 
   // Handle Vault Passwords
@@ -495,50 +502,11 @@ export default function GlobalLLMSettingsView({
 
   // --- TAB 3: OPERATIONS & STREAM CONTROLLER ---
   const connectSSE = async (targetJobId: string) => {
-    if (abortControllerRef.current) abortControllerRef.current.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
     setConnecting(true);
-
     try {
-      const response = await fetch(`/api/llm/screen/logs?jobId=${targetJobId}`, {
-        signal: controller.signal
-      });
-      setConnecting(false);
-
-      if (!response.body) throw new Error('No body stream returned');
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const chunks = buffer.split('\n\n');
-        buffer = chunks.pop() || '';
-
-        for (const chunk of chunks) {
-          if (chunk.startsWith('data: ')) {
-            const dataStr = chunk.replace('data: ', '').trim();
-            if (dataStr === '[DONE]') continue;
-            try {
-              const data = JSON.parse(dataStr);
-              handleSSEEvent(data);
-            } catch (e) {
-              // Rescue plain text log events that fail JSON.parse
-              handleSSEEvent({ status: 'INFO', message: dataStr });
-            }
-          }
-        }
-      }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        setLogs(prev => [...prev, { status: 'ERROR', message: `Telemetry disconnect: ${err.message}` }]);
-      }
+      await connectSseStream(`/api/llm/screen/logs?jobId=${targetJobId}`);
     } finally {
-      setConnecting(false);
+      // connecting state is handled by onDisconnect in the hook, but we keep this just in case
     }
   };
 
@@ -1876,7 +1844,7 @@ export default function GlobalLLMSettingsView({
                     <Terminal className="w-3 h-3 text-muted-foreground" />
                     <span className="text-[9px] font-mono text-muted-foreground uppercase font-bold tracking-wider">Execution Log Stream</span>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1.5 leading-relaxed">
+                  <div ref={logContainerRef} className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1.5 leading-relaxed">
                     {logs.length === 0 ? (
                       <div className="text-muted-foreground/40 italic">Waiting for execution to start...</div>
                     ) : (
@@ -1903,7 +1871,6 @@ export default function GlobalLLMSettingsView({
                         </div>
                       ))
                     )}
-                    <div ref={logEndRef} />
                   </div>
                 </div>
               </>

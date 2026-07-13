@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { broadcastSync } from '@/lib/sync-utils';
+import { useNdjsonStream } from './useNdjsonStream';
 
 interface UsePipelineProps {
   loadPapers: () => void;
@@ -64,7 +65,7 @@ export function usePipeline({
     total: number;
   } | null>(null);
 
-  const abortControllerRef = useRef<AbortController | null>(null);
+
   const logEndRef = useRef<HTMLDivElement | null>(null);
   const isStreamActiveRef = useRef(false);
 
@@ -203,11 +204,58 @@ export function usePipeline({
     }
   }, []);
 
-  const readBatchStream = useCallback(async (res: Response, controller: AbortController) => {
-    if (!res.body) return;
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+  const { connect: connectNdjson, abortControllerRef, cancelStream } = useNdjsonStream({
+    onEvent: (data) => {
+      if (data.event === 'restore') {
+        setOperationModal({
+          isOpen: true,
+          type: 'scrape',
+          title: 'Batch PDF Pipeline Execution',
+          progress: data.progress,
+          statusText: data.statusText,
+          logs: data.logs ? data.logs.slice(-500) : [],
+          currentItem: data.currentItem,
+          isExecuting: data.isExecuting,
+          isWaitingLogin: data.isWaitingLogin
+        });
+        setCurrentStep(data.currentStep);
+        setStepStartTime(data.stepStartTime);
+        setPipelineStats(data.pipelineStats);
+        setIndexingState(data.indexingState);
+        if (data.steps && data.steps.length > 0) {
+          setBatchSteps({
+            duplicate_scan: data.steps.includes('duplicate_scan'),
+            scan: data.steps.includes('scan'),
+            scrape: data.steps.includes('scrape'),
+            map_publisher: data.steps.includes('map_publisher'),
+            sync: data.steps.includes('sync')
+          });
+        }
+      } else {
+        handleBatchEvent(data);
+      }
+    },
+    onComplete: () => {
+      setOperationModal(prev => ({
+        ...prev,
+        progress: 100,
+        isExecuting: false
+      }));
+      loadPapers();
+      loadProjects();
+      broadcastSync('SYNC_PIPELINE');
+      broadcastSync('SYNC_PAPERS');
+      isStreamActiveRef.current = false;
+    },
+    onError: (err) => {
+      showToast(`Failed to reconnect to batch stream: ${err.message}`, 'error');
+      isStreamActiveRef.current = false;
+    }
+  });
+
+  const subscribeToBatchStream = useCallback(async () => {
+    if (isStreamActiveRef.current) return;
+    isStreamActiveRef.current = true;
 
     setOperationModal(prev => ({
       ...prev,
@@ -215,86 +263,8 @@ export function usePipeline({
       isExecuting: true
     }));
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const data = JSON.parse(line);
-          if (data.event === 'restore') {
-            setOperationModal({
-              isOpen: true,
-              type: 'scrape',
-              title: 'Batch PDF Pipeline Execution',
-              progress: data.progress,
-              statusText: data.statusText,
-              logs: data.logs ? data.logs.slice(-500) : [],
-              currentItem: data.currentItem,
-              isExecuting: data.isExecuting,
-              isWaitingLogin: data.isWaitingLogin
-            });
-            setCurrentStep(data.currentStep);
-            setStepStartTime(data.stepStartTime);
-            setPipelineStats(data.pipelineStats);
-            setIndexingState(data.indexingState);
-            if (data.steps && data.steps.length > 0) {
-              setBatchSteps({
-                duplicate_scan: data.steps.includes('duplicate_scan'),
-                scan: data.steps.includes('scan'),
-                scrape: data.steps.includes('scrape'),
-                map_publisher: data.steps.includes('map_publisher'),
-                sync: data.steps.includes('sync')
-              });
-            }
-          } else {
-            handleBatchEvent(data);
-          }
-        } catch (e) {
-          setOperationModal(prev => ({
-            ...prev,
-            logs: [...prev.logs, line].slice(-500)
-          }));
-        }
-      }
-    }
-
-    setOperationModal(prev => ({
-      ...prev,
-      progress: 100,
-      isExecuting: false
-    }));
-    loadPapers();
-    loadProjects();
-    broadcastSync('SYNC_PIPELINE');
-    broadcastSync('SYNC_PAPERS');
-  }, [loadPapers, loadProjects, handleBatchEvent]);
-
-  const subscribeToBatchStream = useCallback(async () => {
-    if (isStreamActiveRef.current) return;
-    isStreamActiveRef.current = true;
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    try {
-      const res = await fetch('/api/pdf/batch?stream=true', {
-        signal: controller.signal
-      });
-      await readBatchStream(res, controller);
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        showToast(`Failed to reconnect to batch stream: ${err.message}`, 'error');
-      }
-    } finally {
-      isStreamActiveRef.current = false;
-      abortControllerRef.current = null;
-    }
-  }, [readBatchStream, showToast]);
+    connectNdjson('/api/pdf/batch?stream=true');
+  }, [connectNdjson]);
 
   const checkBatchStatus = useCallback(async () => {
     try {
@@ -367,26 +337,15 @@ export function usePipeline({
           logs: ['>>> Launching Duplicate Paper Detection...']
         }));
         
-        const resScan = await fetch('/api/duplicates/scan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal
-        });
-        
         broadcastSync('SYNC_PIPELINE');
-        
-        if (!resScan.body) throw new Error('No duplicate scan stream returned');
         isStreamActiveRef.current = true;
-        try {
-          await readBatchStream(resScan, controller);
-        } finally {
-          isStreamActiveRef.current = false;
-          abortControllerRef.current = null;
-        }
+        
+        await connectNdjson('/api/duplicates/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
 
-        if (controller.signal.aborted) {
-          return;
-        }
+        isStreamActiveRef.current = false;
       }
 
       // Step 2: Next steps in batch execution
@@ -399,24 +358,16 @@ export function usePipeline({
           isExecuting: true
         }));
 
-        const res = await fetch('/api/pdf/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ steps: otherSteps, compress: compressOnSync }),
-          signal: controller.signal
-        });
-
         broadcastSync('SYNC_PIPELINE');
         broadcastSync('SYNC_PAPERS');
 
-        if (!res.body) throw new Error('No body stream returned');
         isStreamActiveRef.current = true;
-        try {
-          await readBatchStream(res, controller);
-        } finally {
-          isStreamActiveRef.current = false;
-          abortControllerRef.current = null;
-        }
+        await connectNdjson('/api/pdf/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ steps: otherSteps, compress: compressOnSync })
+        });
+        isStreamActiveRef.current = false;
       }
 
     } catch (err: any) {
@@ -430,7 +381,7 @@ export function usePipeline({
       }
       loadPapers();
     }
-  }, [batchSteps, compressOnSync, loadPapers, operationModal.isExecuting, readBatchStream, showToast]);
+  }, [batchSteps, compressOnSync, loadPapers, operationModal.isExecuting, connectNdjson, showToast]);
 
   const handleCancelOperation = useCallback(async () => {
     if (abortControllerRef.current) {

@@ -296,6 +296,26 @@ export class BatchStateTracker {
       }
     }
   }
+
+  public updateScrapingProgress(projectId: string): void {
+    const state = this.getState();
+    const totalRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND DOI IS NOT NULL AND DOI != ''`).get(projectId) as { c: number };
+    const leftRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND DOI IS NOT NULL AND DOI != '' AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING' OR Local_PDF_Status = 'IN_PROGRESS')`).get(projectId) as { c: number };
+    const doneRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND Local_PDF_Status = 'DOWNLOADED'`).get(projectId) as { c: number };
+    const failedRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND Local_PDF_Status = 'FAILED'`).get(projectId) as { c: number };
+
+    const total = totalRow.c;
+    const completed = total - leftRow.c;
+    
+    state.pipelineStats.total = total;
+    state.pipelineStats.current = completed;
+    state.pipelineStats.downloaded = doneRow.c;
+    state.pipelineStats.failed = failedRow.c;
+    
+    if (total > 0) {
+      state.progress = Math.round((completed / total) * 100);
+    }
+  }
 }
 
 export const batchStateTracker = BatchStateTracker.getInstance();

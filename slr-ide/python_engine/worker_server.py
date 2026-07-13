@@ -317,18 +317,45 @@ class Navigator:
         self.driver = browser_handler.driver
 
     def cascade_find_pdf(self, current_url):
+        if "ieee" in current_url:
+            print(json.dumps({"event": "log", "message": "Triggering IEEE Xplore specialized handler..."}))
+            sys.stdout.flush()
+            if self._handle_ieee():
+                return "ALREADY_DOWNLOADED"
+        elif "acm.org" in current_url:
+            print(json.dumps({"event": "log", "message": "Triggering ACM specialized handler..."}))
+            sys.stdout.flush()
+            if self._handle_acm():
+                return "ALREADY_DOWNLOADED"
+        elif "actahort" in current_url:
+            print(json.dumps({"event": "log", "message": "Triggering Acta Horticulturae specialized handler..."}))
+            sys.stdout.flush()
+            if self._handle_acta_hort():
+                return "ALREADY_DOWNLOADED"
+
         visited_urls = {current_url}
+        print(json.dumps({"event": "log", "message": "Initiating stateful backtracking download crawler..."}))
+        sys.stdout.flush()
         if self._backtrack_search(depth=0, max_depth=3, visited=visited_urls):
             return "ALREADY_DOWNLOADED"
+            
         return None
 
     def _backtrack_search(self, depth, max_depth, visited):
-        if self.browser.check_download_occurred(): return True
-        if depth >= max_depth: return False
+        if self.browser.check_download_occurred():
+            print(json.dumps({"event": "log", "message": f"[DFS Depth {depth}] PDF successfully downloaded!"}))
+            sys.stdout.flush()
+            return True
+
+        if depth >= max_depth:
+            return False
 
         curr_url = self.driver.current_url.lower()
-        wrong_keywords = ["login", "sign-in", "signin", "purchase", "subscribe", "paywall", "register", "checkout"]
-        if depth > 0 and any(kw in curr_url for kw in wrong_keywords): return False
+        wrong_keywords = ["login", "sign-in", "signin", "purchase", "subscribe", "paywall", "register", "checkout", "cart", "cookie-consent"]
+        if depth > 0 and any(kw in curr_url for kw in wrong_keywords):
+            print(json.dumps({"event": "log", "message": f"[DFS Depth {depth}] Wrong direction detected: {curr_url}. Backtracking..."}))
+            sys.stdout.flush()
+            return False
 
         accept_cookies(self.driver)
         check_and_click_checkboxes(self.driver)
@@ -339,43 +366,57 @@ class Navigator:
             if meta_pdf and meta_pdf.get('content'):
                 pdf_url = meta_pdf['content']
                 orig_url = self.driver.current_url
+                print(json.dumps({"event": "log", "message": f"[DFS Depth {depth}] Found citation_pdf_url meta tag: {pdf_url}"}))
+                sys.stdout.flush()
                 self.driver.get(pdf_url)
-                if self.browser.wait_for_immediate_download(4.0): return True
+                if self.browser.wait_for_immediate_download(4.0):
+                    return True
                 self.driver.get(orig_url)
                 time.sleep(2)
-        except:
+        except Exception as e:
             pass
 
         candidates = find_candidate_elements(self.driver, curr_url)
-        if not candidates: return False
+        if not candidates:
+            return False
 
         for idx, (element, label, score, abs_href) in enumerate(candidates):
             try:
-                if not element.is_displayed(): continue
-            except: continue
+                if not element.is_displayed():
+                    continue
+            except:
+                continue
 
             orig_url = self.driver.current_url
+            print(json.dumps({"event": "log", "message": f"[DFS Depth {depth}] Click candidate {idx+1}/{len(candidates)}: '{label}' (Score: {score})"}))
+            sys.stdout.flush()
+
             clicked_ok = False
             try:
                 element.click()
                 clicked_ok = True
-            except:
+            except Exception as click_err:
                 try:
                     self.driver.execute_script("arguments[0].click();", element)
                     clicked_ok = True
-                except: pass
+                except:
+                    pass
 
-            if self.browser.wait_for_immediate_download(4.0): return True
+            if self.browser.wait_for_immediate_download(4.0):
+                return True
 
             if abs_href and any(pi in abs_href.lower() for pi in [".pdf", "/pdf/"]):
                 try:
                     self.driver.get(abs_href)
-                    if self.browser.wait_for_immediate_download(4.0): return True
-                except: pass
+                    if self.browser.wait_for_immediate_download(4.0):
+                        return True
+                except:
+                    pass
                 try:
                     self.driver.get(orig_url)
                     time.sleep(2)
-                except: pass
+                except:
+                    pass
             elif not clicked_ok:
                 continue
 
@@ -383,7 +424,8 @@ class Navigator:
             if new_url != orig_url:
                 if new_url not in visited:
                     visited.add(new_url)
-                    if self._backtrack_search(depth + 1, max_depth, visited): return True
+                    if self._backtrack_search(depth + 1, max_depth, visited):
+                        return True
                     self.driver.back()
                     time.sleep(3)
                 else:
@@ -396,11 +438,172 @@ class Navigator:
                     new_handle = [h for h in handles if h != orig_handle][0]
                     self.driver.switch_to.window(new_handle)
                     time.sleep(3)
-                    if self.browser.check_download_occurred(): return True
-                    if self._backtrack_search(depth + 1, max_depth, visited): return True
+                    if self.browser.check_download_occurred():
+                        return True
+                    if self._backtrack_search(depth + 1, max_depth, visited):
+                        return True
                     self.driver.close()
                     self.driver.switch_to.window(orig_handle)
                     time.sleep(2)
+
+    def _robust_click(self, element, wait_after=3):
+        try:
+            self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+            time.sleep(0.5)
+        except:
+            pass
+
+        clicked = False
+        try:
+            element.click()
+            clicked = True
+        except:
+            try:
+                self.driver.execute_script("arguments[0].click();", element)
+                clicked = True
+            except:
+                pass
+
+        if wait_after > 0:
+            time.sleep(wait_after)
+        return clicked
+
+    def _handle_ieee(self):
+        try:
+            page_text = ""
+            try:
+                page_text = self.driver.page_source
+            except:
+                pass
+                
+            is_blocked = "challenge" in self.driver.current_url.lower() or \
+                         "challenge" in page_text.lower() or \
+                         "attempts exceeded" in page_text.lower() or \
+                         "max challenge attempts" in page_text.lower()
+                         
+            if is_blocked:
+                print(json.dumps({"event": "log", "message": "[IEEE] Detected challenge or white page. Attempting refresh..."}))
+                sys.stdout.flush()
+                try:
+                    self.driver.refresh()
+                    time.sleep(5)
+                    page_text = self.driver.page_source
+                except Exception as e:
+                    print(json.dumps({"event": "log", "message": f"[IEEE] Refresh failed: {str(e)}"}))
+                    sys.stdout.flush()
+
+            curr_url_lower = self.driver.current_url.lower()
+            
+            if "stamp.jsp" not in curr_url_lower and "getpdf.jsp" not in curr_url_lower:
+                match = re.search(r'document/(\d+)', self.driver.current_url)
+                if match:
+                    doc_id = match.group(1)
+                    base = self.driver.current_url.split('/document')[0]
+                    stamp = f"{base}/stamp/stamp.jsp?tp=&arnumber={doc_id}"
+                    print(json.dumps({"event": "log", "message": f"[IEEE] Redirecting directly to stamp URL: {stamp}"}))
+                    sys.stdout.flush()
+                    self.driver.get(stamp)
+                    time.sleep(4)
+                else:
+                    meta_match = re.search(r'ieeexplore\.ieee\.org/document/(\d+)', page_text)
+                    if meta_match:
+                        doc_id = meta_match.group(1)
+                        base = "https://ieeexplore.ieee.org"
+                        if "ezproxy" in self.driver.current_url:
+                            base = self.driver.current_url.split('/document')[0] if '/document' in self.driver.current_url else self.driver.current_url
+                        stamp = f"{base}/stamp/stamp.jsp?tp=&arnumber={doc_id}"
+                        print(json.dumps({"event": "log", "message": f"[IEEE] Found doc_id in page source. Redirecting to stamp URL: {stamp}"}))
+                        sys.stdout.flush()
+                        self.driver.get(stamp)
+                        time.sleep(4)
+
+            iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
+            for frame in iframes:
+                try:
+                    self.driver.switch_to.frame(frame)
+                    if len(self.driver.find_elements(By.ID, "open-button")) > 0:
+                        btn = self.driver.find_element(By.ID, "open-button")
+                        self._robust_click(btn, wait_after=5)
+                        self.driver.switch_to.default_content()
+                        return True
+                    self.driver.switch_to.default_content()
+                except:
+                    self.driver.switch_to.default_content()
+        except Exception as e:
+            print(json.dumps({"event": "log", "message": f"[IEEE] Error in _handle_ieee: {str(e)}"}))
+            sys.stdout.flush()
+            self.driver.switch_to.default_content()
+        return False
+
+    def _handle_acm(self):
+        try:
+            try:
+                ereader_btn = self.driver.find_element(By.CSS_SELECTOR, "a.btn--eReader, a.btn--ereader")
+                self._robust_click(ereader_btn, wait_after=5)
+            except:
+                pass
+            try:
+                download_btn = self.driver.find_element(By.CSS_SELECTOR, "a.navbar-download")
+                if self._robust_click(download_btn, wait_after=5):
+                    return True
+            except:
+                try:
+                    download_btn = self.driver.find_element(By.XPATH, "//span[contains(@class, 'material-icons') and contains(text(), 'get_app')]/..")
+                    if self._robust_click(download_btn, wait_after=5):
+                        return True
+                except:
+                    pass
+            current_url = self.driver.current_url
+            if "/doi/epdf/" in current_url:
+                pdf_url = current_url.replace("/doi/epdf/", "/doi/pdf/")
+                if "?download=true" not in pdf_url:
+                    pdf_url += "?download=true"
+                self.driver.get(pdf_url)
+                return True
+        except:
+            pass
+        return False
+
+    def _handle_acta_hort(self):
+        try:
+            clicked = False
+            try:
+                link = self.driver.find_element(By.XPATH, "//a[contains(text(), 'Article - full text') and contains(@href, 'showpdf')]")
+                clicked = self._robust_click(link, wait_after=3)
+            except:
+                try:
+                    link = self.driver.find_element(By.PARTIAL_LINK_TEXT, "Article - full text")
+                    clicked = self._robust_click(link, wait_after=3)
+                except:
+                    pass
+            try:
+                checkbox = self.driver.find_element(By.NAME, "ipbasedconfirmatie")
+                if checkbox:
+                    if not checkbox.is_selected():
+                        self._robust_click(checkbox, wait_after=0.5)
+                    btn = self.driver.find_element(By.XPATH, "//input[@value='Continue']")
+                    self._robust_click(btn, wait_after=3)
+            except:
+                pass
+            try:
+                frames = self.driver.find_elements(By.NAME, "actabottom")
+                if frames:
+                    src = frames[0].get_attribute("src")
+                    if src:
+                        self.driver.get(src)
+                        time.sleep(3)
+            except:
+                pass
+            try:
+                open_btn = self.driver.find_element(By.XPATH, "//a[contains(text(), 'Open')] | //input[@value='Open'] | //button[contains(text(), 'Open')]")
+                if open_btn:
+                    if self._robust_click(open_btn, wait_after=5):
+                        return True
+            except:
+                pass
+            return clicked
+        except:
+            pass
         return False
 
 # ==============================================================================
@@ -426,6 +629,9 @@ def get_chrome_version():
                 except: continue
     except: pass
     return None
+
+class ProxyRateLimitException(Exception):
+    pass
 
 class BrowserHandler:
     def __init__(self, download_dir, config):
@@ -478,6 +684,38 @@ class BrowserHandler:
         except:
             return False
 
+    def ensure_healthy_session(self):
+        """
+        Ensures the browser session is active and healthy.
+        Attempts to open a new tab and close older handles first (preserving session/login).
+        If that fails, it stops and restarts the browser.
+        Returns: True if session recovered via tab recovery, False if it was completely restarted.
+        """
+        if not self.driver:
+            self.start_browser()
+            return False
+
+        try:
+            old_handles = self.driver.window_handles
+            self.driver.switch_to.new_window('tab')
+            time.sleep(1)
+            
+            new_handle = self.driver.current_window_handle
+            for handle in old_handles:
+                try:
+                    self.driver.switch_to.window(handle)
+                    self.driver.close()
+                except:
+                    pass
+            self.driver.switch_to.window(new_handle)
+            return True
+        except Exception as e:
+            print(f"[Browser] Tab recovery failed: {str(e)}. Restarting Chrome browser...")
+            try: self.stop_browser()
+            except: pass
+            self.start_browser()
+            return False
+
     def clear_download_folder(self):
         if os.path.exists(self.download_dir):
             for f in glob.glob(os.path.join(self.download_dir, "*")):
@@ -521,6 +759,15 @@ class BrowserHandler:
         try:
             self.driver.get(target_url)
             time.sleep(5)
+
+            try:
+                if "too many downloads" in self.driver.page_source.lower():
+                    raise ProxyRateLimitException("Too many downloads")
+            except ProxyRateLimitException:
+                raise
+            except:
+                pass
+
             current_url = self.driver.current_url.lower()
             pdf_url = self.navigator.cascade_find_pdf(current_url)
 
@@ -529,10 +776,22 @@ class BrowserHandler:
                 result_file = self.wait_for_download()
             elif pdf_url:
                 self.driver.get(pdf_url)
+                time.sleep(5)
+                try:
+                    if "too many downloads" in self.driver.page_source.lower():
+                        raise ProxyRateLimitException("Too many downloads")
+                except ProxyRateLimitException:
+                    raise
+                except:
+                    pass
                 result_file = self.wait_for_download()
             return result_file
+        except ProxyRateLimitException:
+            self.cleanup_tabs(main_handle)
+            raise
         except Exception as e:
             print(f"Browser navigation error for {doi}: {str(e)}")
+            self.cleanup_tabs(main_handle)
             return None
 
 # ==============================================================================
@@ -722,32 +981,29 @@ def worker_loop():
                         if STATUS != "SCRAPING":
                             break # Cancelled mid-batch
 
-                        if browser and not browser.is_alive():
-                            print("\n[WARNING] Chrome browser crashed or was closed. Safety net triggered!")
-                            try: browser.stop_browser()
-                            except: pass
-                            browser.start_browser()
-                            
-                            # Re-trigger proxy login if needed
-                            if config.proxy_base_url and config.proxy_base_url.strip() and config.proxy_base_url.strip().lower().rstrip('/') != "https://doi.org":
-                                print(f"[INFO] Re-authenticating via proxy: {config.proxy_base_url}")
-                                try:
-                                    browser.driver.get(config.proxy_base_url)
-                                    time.sleep(5)
-                                    current_url = browser.driver.current_url.lower()
-                                    if "login" in current_url or "auth" in current_url or "signin" in current_url:
-                                        print("\n" + "="*60)
-                                        print(" [ACTION REQUIRED] Please log in via the newly opened Chrome window.")
-                                        print(" Once you have successfully logged in, click the 'Resume'")
-                                        print(" button in the SLR Magic IDE (or send a /resume request).")
-                                        print("="*60 + "\n")
-                                        
-                                        STATUS = "WAITING_LOGIN"
-                                        while STATUS == "WAITING_LOGIN" and IS_RUNNING:
-                                            time.sleep(1)
-                                        print("[INFO] Login step passed. Resuming scraping pipeline...")
-                                except Exception as e:
-                                    print(f"[ERROR] Failed to navigate to proxy on restart: {e}")
+                        if browser:
+                            recovered_via_tab = browser.ensure_healthy_session()
+                            if not recovered_via_tab:
+                                # Only re-authenticate and request login if it was a hard restart
+                                if config.proxy_base_url and config.proxy_base_url.strip() and config.proxy_base_url.strip().lower().rstrip('/') != "https://doi.org":
+                                    print(f"[INFO] Re-authenticating via proxy: {config.proxy_base_url}")
+                                    try:
+                                        browser.driver.get(config.proxy_base_url)
+                                        time.sleep(5)
+                                        current_url = browser.driver.current_url.lower()
+                                        if "login" in current_url or "auth" in current_url or "signin" in current_url:
+                                            print("\n" + "="*60)
+                                            print(" [ACTION REQUIRED] Please log in via the newly opened Chrome window.")
+                                            print(" Once you have successfully logged in, click the 'Resume'")
+                                            print(" button in the SLR Magic IDE (or send a /resume request).")
+                                            print("="*60 + "\n")
+                                            
+                                            STATUS = "WAITING_LOGIN"
+                                            while STATUS == "WAITING_LOGIN" and IS_RUNNING:
+                                                time.sleep(1)
+                                            print("[INFO] Login step passed. Resuming scraping pipeline...")
+                                    except Exception as e:
+                                        print(f"[ERROR] Failed to navigate to proxy on restart: {e}")
                             
                         paper_id = paper['paper_id']
                         doi_raw = paper.get('doi', '')
@@ -759,7 +1015,22 @@ def worker_loop():
                         doi = extract_doi_value(doi_raw)
                         
                         browser.clear_download_folder()
-                        downloaded = browser.attempt_download(doi)
+                        try:
+                            downloaded = browser.attempt_download(doi)
+                        except ProxyRateLimitException:
+                            print("[WARNING] Proxy rate limit reached ('Too many downloads'). Pausing loop for 30 minutes...")
+                            
+                            sleep_needed = 1800
+                            slept = 0
+                            while slept < sleep_needed and STATUS == "SCRAPING" and IS_RUNNING:
+                                time.sleep(5)
+                                slept += 5
+                                
+                            # Retry
+                            try:
+                                downloaded = browser.attempt_download(doi)
+                            except Exception as retry_err:
+                                downloaded = None
                         
                         result_payload = {
                             "worker_id": WORKER_ID,

@@ -97,35 +97,49 @@ export default function PaperSelectionList({
     }`}>
       {/* Search and pool filter */}
       <div className="p-4 border-b border-border space-y-3 shrink-0">
-        {/* Row 1: Search Input */}
-        <div className="relative w-full">
-          <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder={assignSearchMode === 'semantic' ? "Semantic query (press Enter)..." : "Search papers..."}
-            value={assignSearch}
-            onChange={(e) => setAssignSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && assignSearchMode === 'semantic') {
-                triggerSemanticSearch();
-              }
-            }}
-            className={`w-full bg-secondary/40 border border-border rounded-lg pl-9 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold ${
-              assignSearchMode === 'semantic' ? 'pr-16' : 'pr-4'
+        {/* Row 1: Search Input & Mode Switcher */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={assignSearchMode === 'semantic' ? "Semantic query (press Enter)..." : "Search papers..."}
+              value={assignSearch}
+              onChange={(e) => setAssignSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && assignSearchMode === 'semantic') {
+                  triggerSemanticSearch();
+                }
+              }}
+              className={`w-full bg-secondary/40 border border-border rounded-xl pl-9 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold ${
+                assignSearchMode === 'semantic' ? 'pr-16' : 'pr-4'
+              }`}
+            />
+            {assignSearchMode === 'semantic' && (
+              <button
+                onClick={triggerSemanticSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded text-[9px] font-bold uppercase transition-all duration-200 cursor-pointer select-none active:scale-95"
+                title="Run Semantic Search"
+              >
+                Search
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setAssignSearchMode(prev => prev === 'keyword' ? 'semantic' : 'keyword')}
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0 ${
+              assignSearchMode === 'semantic'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary border border-border text-muted-foreground hover:text-foreground'
             }`}
-          />
-          {assignSearchMode === 'semantic' && (
-            <button
-              onClick={triggerSemanticSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded text-[9px] font-bold uppercase transition-all duration-200 cursor-pointer select-none active:scale-95"
-              title="Run Semantic Search"
-            >
-              Search
-            </button>
-          )}
+            title="Toggle between Keyword filter and Vector Semantic Search"
+          >
+            <Cpu className="w-4 h-4" />
+            <span>{assignSearchMode === 'semantic' ? 'Semantic' : 'Keyword'}</span>
+          </button>
         </div>
 
-        {/* Row 2: Select Filters and Mode Switcher */}
+        {/* Row 2: Select Filters */}
         <div className="flex items-center gap-2 justify-between">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <select
@@ -153,26 +167,6 @@ export default function PaperSelectionList({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="flex border border-border rounded-lg overflow-hidden shrink-0 select-none text-[10px] font-bold uppercase tracking-wider bg-secondary/20">
-            <button
-              onClick={() => setAssignSearchMode('keyword')}
-              className={`px-2 py-1.5 flex items-center transition-colors cursor-pointer ${
-                assignSearchMode === 'keyword' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary/40'
-              }`}
-              title="Keyword Match (SQL LIKE)"
-            >
-              🔤
-            </button>
-            <button
-              onClick={() => setAssignSearchMode('semantic')}
-              className={`px-2 py-1.5 flex items-center transition-colors cursor-pointer ${
-                assignSearchMode === 'semantic' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary/40'
-              }`}
-              title="Semantic Similarity (turbovec)"
-            >
-              🧠
-            </button>
           </div>
         </div>
 

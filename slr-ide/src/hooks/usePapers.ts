@@ -258,6 +258,16 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     }
   }, [searchTerm, statusFilter, pdfFilter, decisionFilter, showToast]);
 
+  // Active State Rehydration: Sync paperModal.paper with list updates (e.g. PDF path / status changes in background)
+  useEffect(() => {
+    if (paperModal.isOpen && paperModal.paper && papers.length > 0) {
+      const updated = papers.find(p => p.Paper_ID === paperModal.paper?.Paper_ID);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(paperModal.paper)) {
+        setPaperModal(prev => ({ ...prev, paper: updated }));
+      }
+    }
+  }, [papers, paperModal.isOpen, paperModal.paper]);
+
   return {
     papers,
     setPapers,

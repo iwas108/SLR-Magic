@@ -38,6 +38,11 @@ export async function POST(request: Request) {
         });
 
         child.on('close', (code) => {
+          if (code === 0) {
+            controller.enqueue(encoder.encode(JSON.stringify({ event: 'complete', message: 'Vector indexing finished.', isTerminal: true }) + '\n'));
+          } else {
+            controller.enqueue(encoder.encode(JSON.stringify({ event: 'error', message: `Vector indexing failed with code ${code}`, isTerminal: true }) + '\n'));
+          }
           controller.close();
         });
 

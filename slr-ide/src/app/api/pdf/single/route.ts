@@ -307,12 +307,12 @@ export async function POST(request: Request) {
         const success = finalPaper && (finalPaper.Local_PDF_Status === 'MATCHED' || finalPaper.Local_PDF_Status === 'DOWNLOADED' || finalPaper.Local_PDF_Status === 'SYNCED');
 
         if (batchState.cancelRequested) {
-          pushEvent({ event: 'complete', message: 'Acquisition cancelled by user.' });
+          pushEvent({ event: 'complete', message: 'Acquisition cancelled by user.', isTerminal: true });
         } else if (success) {
           batchState.progress = 100;
-          pushEvent({ event: 'complete', message: 'PDF acquired successfully!' });
+          pushEvent({ event: 'complete', message: 'PDF acquired successfully!', isTerminal: true });
         } else {
-          pushEvent({ event: 'error', message: 'Failed to acquire PDF.' });
+          pushEvent({ event: 'error', message: 'Failed to acquire PDF.', isTerminal: true });
         }
 
         // Reset execution state

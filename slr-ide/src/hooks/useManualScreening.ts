@@ -40,38 +40,62 @@ export function useManualScreening(
   const [screeningError, setScreeningError] = useState<string | null>(null);
 
   // Setup form states when paper selection changes
+  const lastLoadedPaperRef = useRef<Paper | null>(null);
+
+  // Setup form states when paper selection changes
   useEffect(() => {
     if (screeningSelectedPaper) {
-      setManualDecision(screeningSelectedPaper.manual_decision || '');
-      setManualEcTrigger(screeningSelectedPaper.manual_ec_trigger || '');
-      setManualRationale(screeningSelectedPaper.manual_rationale || '');
-      setManualStage(screeningSelectedPaper.manual_stage || 'fast_filter');
+      const isNewPaper = !lastLoadedPaperRef.current || lastLoadedPaperRef.current.Paper_ID !== screeningSelectedPaper.Paper_ID;
       
-      // Safe parsing of JSON fields
-      let parsedQa: Record<string, { value: number | null; evidence: string }> = {};
-      if (screeningSelectedPaper.manual_qa_scores) {
-        try {
-          parsedQa = typeof screeningSelectedPaper.manual_qa_scores === 'string'
-            ? JSON.parse(screeningSelectedPaper.manual_qa_scores)
-            : screeningSelectedPaper.manual_qa_scores;
-        } catch (e) {
-          console.error("Failed to parse manual_qa_scores JSON", e);
-        }
-      }
-      setManualQaScores(parsedQa);
+      // Determine if the form fields in the database actually changed (e.g. from another tab sync)
+      const dbValuesChanged = lastLoadedPaperRef.current && (
+        lastLoadedPaperRef.current.manual_decision !== screeningSelectedPaper.manual_decision ||
+        lastLoadedPaperRef.current.manual_ec_trigger !== screeningSelectedPaper.manual_ec_trigger ||
+        lastLoadedPaperRef.current.manual_rationale !== screeningSelectedPaper.manual_rationale ||
+        lastLoadedPaperRef.current.manual_stage !== screeningSelectedPaper.manual_stage ||
+        JSON.stringify(lastLoadedPaperRef.current.manual_qa_scores) !== JSON.stringify(screeningSelectedPaper.manual_qa_scores) ||
+        JSON.stringify(lastLoadedPaperRef.current.manual_extracted_data) !== JSON.stringify(screeningSelectedPaper.manual_extracted_data)
+      );
 
-      let parsedExt: Record<string, { value: string; evidence: string }> = {};
-      if (screeningSelectedPaper.manual_extracted_data) {
-        try {
-          parsedExt = typeof screeningSelectedPaper.manual_extracted_data === 'string'
-            ? JSON.parse(screeningSelectedPaper.manual_extracted_data)
-            : screeningSelectedPaper.manual_extracted_data;
-        } catch (e) {
-          console.error("Failed to parse manual_extracted_data JSON", e);
+      lastLoadedPaperRef.current = screeningSelectedPaper;
+
+      if (isNewPaper || dbValuesChanged) {
+        setManualDecision(screeningSelectedPaper.manual_decision || '');
+        setManualEcTrigger(screeningSelectedPaper.manual_ec_trigger || '');
+        setManualRationale(screeningSelectedPaper.manual_rationale || '');
+        setManualStage(screeningSelectedPaper.manual_stage || 'fast_filter');
+        
+        // Safe parsing of JSON fields
+        let parsedQa: Record<string, { value: number | null; evidence: string }> = {};
+        if (screeningSelectedPaper.manual_qa_scores) {
+          try {
+            parsedQa = typeof screeningSelectedPaper.manual_qa_scores === 'string'
+              ? JSON.parse(screeningSelectedPaper.manual_qa_scores)
+              : screeningSelectedPaper.manual_qa_scores;
+          } catch (e) {
+            console.error("Failed to parse manual_qa_scores JSON", e);
+          }
+        }
+        setManualQaScores(parsedQa);
+
+        let parsedExt: Record<string, { value: string; evidence: string }> = {};
+        if (screeningSelectedPaper.manual_extracted_data) {
+          try {
+            parsedExt = typeof screeningSelectedPaper.manual_extracted_data === 'string'
+              ? JSON.parse(screeningSelectedPaper.manual_extracted_data)
+              : screeningSelectedPaper.manual_extracted_data;
+          } catch (e) {
+            console.error("Failed to parse manual_extracted_data JSON", e);
+          }
+        }
+        setManualExtractedData(parsedExt);
+
+        if (dbValuesChanged && !isNewPaper) {
+          showToast('Screening data was updated in another session. Form refreshed.', 'info');
         }
       }
-      setManualExtractedData(parsedExt);
     } else {
+      lastLoadedPaperRef.current = null;
       setManualDecision('');
       setManualEcTrigger('');
       setManualRationale('');
@@ -79,7 +103,17 @@ export function useManualScreening(
       setManualQaScores({});
       setManualExtractedData({});
     }
-  }, [screeningSelectedPaper]);
+  }, [screeningSelectedPaper, showToast]);
+
+  // Active State Rehydration: Sync selected paper with list updates (e.g. PDF path / status changes in background)
+  useEffect(() => {
+    if (screeningSelectedPaper && screeningPapers.length > 0) {
+      const updated = screeningPapers.find(p => p.Paper_ID === screeningSelectedPaper.Paper_ID);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(screeningSelectedPaper)) {
+        setScreeningSelectedPaper(updated);
+      }
+    }
+  }, [screeningPapers, screeningSelectedPaper]);
 
   // Load normal paginated list
   const loadScreeningPapers = useCallback(async () => {

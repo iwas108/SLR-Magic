@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, GitCommit, RefreshCw, FileText, Eye, Download, AlertCircle, ExternalLink, Play } from 'lucide-react';
+import { useNdjsonStream } from '@/hooks/useNdjsonStream';
 import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
 import AdjudicationScorecardView from '@/components/features/inter-rater/AdjudicationScorecardView';
 import DataExtractionComparisonView from '@/components/features/inter-rater/DataExtractionComparisonView';
@@ -56,7 +57,7 @@ export default function AdjudicationWorkspaceModal({
   const [crawlerLogs, setCrawlerLogs] = useState<string[]>([]);
   const [crawlerProgress, setCrawlerProgress] = useState(0);
   const [crawlerStatusText, setCrawlerStatusText] = useState('');
-  const singlePipelineAbortControllerRef = React.useRef<AbortController | null>(null);
+
 
   // State to track if the current configuration has been committed
   const [lastCommittedState, setLastCommittedState] = useState<string | null>(null);
@@ -97,14 +98,22 @@ export default function AdjudicationWorkspaceModal({
     }
   };
 
+  const lastLoadedDiscrepancyRef = useRef<any | null>(null);
+
   // Initialize resolved structures on mount or when discrepancy changes
   useEffect(() => {
     if (isOpen && discrepancy) {
-      setAdjudicateDecision('Include');
-      setAdjudicateEc('');
-      setAdjudicateRationale('');
-      setCommitMessage('');
-      setLastCommittedState(null); // Enable commit button on loaded paper
+      const isNewPaper = !lastLoadedDiscrepancyRef.current || lastLoadedDiscrepancyRef.current.paper_id !== discrepancy.paper_id;
+      
+      const dbValuesChanged = lastLoadedDiscrepancyRef.current && (
+        lastLoadedDiscrepancyRef.current.resolved_decision !== discrepancy.resolved_decision ||
+        lastLoadedDiscrepancyRef.current.resolved_ec !== discrepancy.resolved_ec ||
+        lastLoadedDiscrepancyRef.current.resolved_rationale !== discrepancy.resolved_rationale ||
+        JSON.stringify(lastLoadedDiscrepancyRef.current.r1_qa_scores) !== JSON.stringify(discrepancy.r1_qa_scores) ||
+        JSON.stringify(lastLoadedDiscrepancyRef.current.r2_qa_scores) !== JSON.stringify(discrepancy.r2_qa_scores)
+      );
+
+      lastLoadedDiscrepancyRef.current = discrepancy;
 
       // Setup initial paper details from discrepancy query with robust casing fallback
       const details = {
@@ -120,54 +129,68 @@ export default function AdjudicationWorkspaceModal({
       };
       setLocalPaperDetails(details);
 
-      // Immediately fetch complete and fresh paper details from the API
-      refreshPaperDetails();
+      if (isNewPaper || dbValuesChanged) {
+        setAdjudicateDecision(discrepancy.resolved_decision || 'Include');
+        setAdjudicateEc(discrepancy.resolved_ec || '');
+        setAdjudicateRationale(discrepancy.resolved_rationale || '');
+        setCommitMessage('');
+        setLastCommittedState(null); // Enable commit button on loaded paper
+        refreshPaperDetails();
 
-      // Default to Abstract & Details tab first
-      setActiveLeftTab('details');
+        if (isNewPaper) {
+          // Default to Abstract & Details tab first
+          setActiveLeftTab('details');
 
-      // Reset crawler logs
-      setCrawlerIsRunning(false);
-      setCrawlerWaitingLogin(false);
-      setCrawlerLogs([]);
-      setCrawlerProgress(0);
-      setCrawlerStatusText('');
+          // Reset crawler logs
+          setCrawlerIsRunning(false);
+          setCrawlerWaitingLogin(false);
+          setCrawlerLogs([]);
+          setCrawlerProgress(0);
+          setCrawlerStatusText('');
+        }
 
-      if (activePoolTab === 'pool_c') {
-        setAdjudicationWorkspaceTab('qa');
-        // Initialize resolved structures using Alpha (r1) as starting baseline
-        const r1_qa = JSON.parse(discrepancy.r1_qa_scores || '{}');
-        const r2_qa = JSON.parse(discrepancy.r2_qa_scores || '{}');
-        const qaInit: any = {};
-        qaRules.forEach(rule => {
-          const v1 = r1_qa[rule.code]?.value;
-          const v2 = r2_qa[rule.code]?.value;
-          const ev1 = r1_qa[rule.code]?.evidence || '';
-          const ev2 = r2_qa[rule.code]?.evidence || '';
-          qaInit[rule.code] = {
-            value: v1 === v2 ? v1 : v1 !== undefined ? v1 : null,
-            evidence: v1 === v2 ? ev1 : ev1 || ev2
-          };
-        });
-        setAdjudicateQaScores(qaInit);
+        if (activePoolTab === 'pool_c') {
+          if (isNewPaper) setAdjudicationWorkspaceTab('qa');
+          // Initialize resolved structures using Alpha (r1) as starting baseline
+          const r1_qa = JSON.parse(discrepancy.r1_qa_scores || '{}');
+          const r2_qa = JSON.parse(discrepancy.r2_qa_scores || '{}');
+          const qaInit: any = {};
+          qaRules.forEach(rule => {
+            const v1 = r1_qa[rule.code]?.value;
+            const v2 = r2_qa[rule.code]?.value;
+            const ev1 = r1_qa[rule.code]?.evidence || '';
+            const ev2 = r2_qa[rule.code]?.evidence || '';
+            qaInit[rule.code] = {
+              value: v1 === v2 ? v1 : v1 !== undefined ? v1 : null,
+              evidence: v1 === v2 ? ev1 : ev1 || ev2
+            };
+          });
+          setAdjudicateQaScores(qaInit);
 
-        const r1_ext = JSON.parse(discrepancy.r1_extracted_data || '{}');
-        const r2_ext = JSON.parse(discrepancy.r2_extracted_data || '{}');
-        const extInit: any = {};
-        extractionRules.forEach(rule => {
-          const v1 = r1_ext[rule.json_key]?.value || '';
-          const v2 = r2_ext[rule.json_key]?.value || '';
-          const ev1 = r1_ext[rule.json_key]?.evidence || '';
-          const ev2 = r2_ext[rule.json_key]?.evidence || '';
-          extInit[rule.json_key] = {
-            value: v1 === v2 ? v1 : v1 || v2,
-            evidence: v1 === v2 ? ev1 : ev1 || ev2
-          };
-        });
-        setAdjudicateExtractedData(extInit);
+          const r1_ext = JSON.parse(discrepancy.r1_extracted_data || '{}');
+          const r2_ext = JSON.parse(discrepancy.r2_extracted_data || '{}');
+          const extInit: any = {};
+          extractionRules.forEach(rule => {
+            const v1 = r1_ext[rule.json_key]?.value || '';
+            const v2 = r2_ext[rule.json_key]?.value || '';
+            const ev1 = r1_ext[rule.json_key]?.evidence || '';
+            const ev2 = r2_ext[rule.json_key]?.evidence || '';
+            extInit[rule.json_key] = {
+              value: v1 === v2 ? v1 : v1 || v2,
+              evidence: v1 === v2 ? ev1 : ev1 || ev2
+            };
+          });
+          setAdjudicateExtractedData(extInit);
+        }
+
+        if (dbValuesChanged && !isNewPaper) {
+          showToast('Adjudication data was updated in another session. Form refreshed.', 'info');
+        }
       }
+    } else if (!isOpen) {
+      lastLoadedDiscrepancyRef.current = null;
     }
-  }, [isOpen, discrepancy, activePoolTab, qaRules, extractionRules]);
+  }, [isOpen, discrepancy, activePoolTab, qaRules, extractionRules, showToast]);
 
   // Real-time Preview calculation of dynamic gates for the workspace
   const previewDecision = React.useMemo(() => {
@@ -175,107 +198,67 @@ export default function AdjudicationWorkspaceModal({
     return calculatePoolCDecision(adjudicateQaScores, qaRules);
   }, [adjudicateQaScores, qaRules, activePoolTab]);
 
+  const { connect: connectNdjson, cancelStream: cancelSinglePaperPipeline } = useNdjsonStream({
+    onEvent: (parsed) => {
+      if (parsed.event === 'log') {
+        setCrawlerLogs(prev => [...prev, parsed.message]);
+      } else if (parsed.event === 'progress') {
+        setCrawlerProgress(parsed.pct || 0);
+        if (parsed.message) setCrawlerStatusText(parsed.message);
+      } else if (parsed.event === 'step_start' || parsed.event === 'step_complete') {
+        if (parsed.message) setCrawlerStatusText(parsed.message);
+        setCrawlerLogs(prev => [...prev, `[STEP]: ${parsed.message}`]);
+      } else if (parsed.event === 'waiting_login') {
+        setCrawlerWaitingLogin(true);
+        setCrawlerStatusText(parsed.message);
+      } else if (parsed.event === 'resume') {
+        setCrawlerWaitingLogin(false);
+        setCrawlerStatusText('Resuming...');
+      } else if (parsed.event === 'complete') {
+        setCrawlerProgress(100);
+        setCrawlerStatusText('Success!');
+        setCrawlerLogs(prev => [...prev, '✓ PDF acquisition finished successfully.']);
+        showToast('PDF acquired successfully!', 'success');
+      } else if (parsed.event === 'error') {
+        setCrawlerLogs(prev => [...prev, `✗ Error: ${parsed.message}`]);
+        showToast(parsed.message || 'Failed to acquire PDF', 'error');
+      }
+    },
+    onComplete: async () => {
+      await refreshPaperDetails();
+      setActiveLeftTab('pdf');
+      setCrawlerIsRunning(false);
+      setCrawlerWaitingLogin(false);
+    },
+    onError: (err) => {
+      showToast(err.message || 'Error acquiring PDF', 'error');
+      setCrawlerLogs(prev => [...prev, `Error: ${err.message}`]);
+      setCrawlerIsRunning(false);
+      setCrawlerWaitingLogin(false);
+    }
+  });
+
   const runSinglePaperPipeline = async () => {
     if (!discrepancy) return;
-    if (crawlerIsRunning) {
-      showToast('A PDF acquisition process is already active.', 'warning');
-      return;
-    }
-
+    if (!discrepancy?.paper_id) return;
     setCrawlerIsRunning(true);
-    setCrawlerWaitingLogin(false);
     setCrawlerLogs([]);
     setCrawlerProgress(0);
-    setCrawlerStatusText('Starting single paper acquisition...');
+    setCrawlerStatusText('Starting acquisition...');
+    setCrawlerWaitingLogin(false);
 
     try {
-      const abortController = new AbortController();
-      singlePipelineAbortControllerRef.current = abortController;
-
-      const res = await fetch('/api/pdf/single', {
+      await connectNdjson('/api/pdf/single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paperId: discrepancy.paper_id }),
-        signal: abortController.signal
+        body: JSON.stringify({ paperId: discrepancy.paper_id })
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        showToast(errData.error || 'Failed to run single paper matching/scraping', 'error');
-        setCrawlerIsRunning(false);
-        return;
-      }
-
-      if (!res.body) {
-        showToast('Streaming response not available.', 'error');
-        setCrawlerIsRunning(false);
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const parsed = JSON.parse(line);
-            if (parsed.event === 'log') {
-              setCrawlerLogs(prev => [...prev, parsed.message]);
-            } else if (parsed.event === 'progress') {
-              setCrawlerProgress(parsed.pct || 0);
-              if (parsed.message) setCrawlerStatusText(parsed.message);
-            } else if (parsed.event === 'step_start' || parsed.event === 'step_complete') {
-              if (parsed.message) setCrawlerStatusText(parsed.message);
-              setCrawlerLogs(prev => [...prev, `[STEP]: ${parsed.message}`]);
-            } else if (parsed.event === 'waiting_login') {
-              setCrawlerWaitingLogin(true);
-              setCrawlerStatusText(parsed.message);
-            } else if (parsed.event === 'resume') {
-              setCrawlerWaitingLogin(false);
-              setCrawlerStatusText('Resuming...');
-            } else if (parsed.event === 'complete') {
-              setCrawlerProgress(100);
-              setCrawlerStatusText('Success!');
-              setCrawlerLogs(prev => [...prev, '✓ PDF acquisition finished successfully.']);
-              showToast('PDF acquired successfully!', 'success');
-              await refreshPaperDetails();
-              setActiveLeftTab('pdf');
-            } else if (parsed.event === 'error') {
-              setCrawlerLogs(prev => [...prev, `✗ Error: ${parsed.message}`]);
-              showToast(parsed.message || 'Failed to acquire PDF', 'error');
-            }
-          } catch (e) {
-            setCrawlerLogs(prev => [...prev, line]);
-          }
-        }
-      }
     } catch (err: any) {
       if (err.name === 'AbortError') {
         setCrawlerLogs(prev => [...prev, 'Process aborted by user.']);
-      } else {
-        showToast(err.message || 'Error acquiring PDF', 'error');
-        setCrawlerLogs(prev => [...prev, `Error: ${err.message}`]);
       }
-    } finally {
       setCrawlerIsRunning(false);
       setCrawlerWaitingLogin(false);
-      singlePipelineAbortControllerRef.current = null;
-    }
-  };
-
-  const cancelSinglePaperPipeline = () => {
-    if (singlePipelineAbortControllerRef.current) {
-      singlePipelineAbortControllerRef.current.abort();
     }
   };
 

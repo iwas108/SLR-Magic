@@ -166,17 +166,17 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
     }
 
     if (batchState.cancelRequested) {
-      const cancelMsg = { event: 'error', message: 'Pipeline cancelled by user.' };
+      const cancelMsg = { event: 'error', message: 'Pipeline cancelled by user.', isTerminal: true };
       batchStateTracker.updateStateFromMsg(cancelMsg);
       streamManager.broadcast(cancelMsg);
     } else {
-      const finalMsg = { event: 'complete', message: 'All requested batch operations completed.' };
+      const finalMsg = { event: 'complete', message: 'All requested batch operations completed.', isTerminal: true };
       batchStateTracker.updateStateFromMsg(finalMsg);
       streamManager.broadcast(finalMsg);
     }
 
   } catch (err: any) {
-    const errorMsg = { event: 'error', message: `Pipeline crash: ${err.message}` };
+    const errorMsg = { event: 'error', message: `Pipeline crash: ${err.message}`, isTerminal: true };
     batchStateTracker.updateStateFromMsg(errorMsg);
     streamManager.broadcast(errorMsg);
   } finally {

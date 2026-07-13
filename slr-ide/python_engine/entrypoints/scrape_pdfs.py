@@ -8,7 +8,7 @@ import shutil
 
 from python_engine.core.config import DB_PATH, PROJECT_DIR
 from python_engine.crawler.config import ScraperConfig
-from python_engine.crawler.browser import BrowserHandler
+from python_engine.crawler.browser import BrowserHandler, ProxyRateLimitException
 from python_engine.pdf.validator import validate_scraped_pdf, extract_doi_value
 
 DOWNLOAD_DIR = os.path.join(PROJECT_DIR, 'pdf_library', 'downloads')
@@ -94,35 +94,30 @@ def main():
     fail_count = 0
 
     for i, paper in enumerate(papers):
-        if browser and not browser.is_alive():
-            print(json.dumps({
-                "event": "log",
-                "message": "[WARNING] Chrome browser crashed or was closed. Safety net triggered! Restarting..."
-            }))
-            sys.stdout.flush()
-            try: browser.stop_browser()
-            except: pass
-            browser.start_browser()
-            
-            if config.proxy_base_url and config.proxy_base_url.strip() and config.proxy_base_url.strip().lower().rstrip('/') != "https://doi.org":
-                print(json.dumps({"event": "log", "message": f"Re-authenticating via proxy: {config.proxy_base_url}"}))
-                sys.stdout.flush()
-                try:
-                    browser.driver.get(config.proxy_base_url)
-                    time.sleep(5)
-                    current_url = browser.driver.current_url.lower()
-                    if "login" in current_url or "auth" in current_url or "signin" in current_url:
-                        print(json.dumps({
-                            "event": "waiting_login",
-                            "message": "Please log in via the opened browser window. Once complete, click the Resume button in the app."
-                        }))
-                        sys.stdout.flush()
-                        sys.stdin.readline()
-                        print(json.dumps({"event": "log", "message": "Login wait complete. Resuming scraping pipeline..."}))
-                        sys.stdout.flush()
-                except Exception as e:
-                    print(json.dumps({"event": "log", "message": f"Warning: Failed to navigate to proxy on restart: {str(e)}"}))
+        if browser:
+            # ensure_healthy_session will try tab recovery first.
+            # If it returns False, it restarted the browser completely, which requires proxy login re-trigger.
+            recovered_via_tab = browser.ensure_healthy_session()
+            if not recovered_via_tab:
+                if config.proxy_base_url and config.proxy_base_url.strip() and config.proxy_base_url.strip().lower().rstrip('/') != "https://doi.org":
+                    print(json.dumps({"event": "log", "message": f"Re-authenticating via proxy: {config.proxy_base_url}"}))
                     sys.stdout.flush()
+                    try:
+                        browser.driver.get(config.proxy_base_url)
+                        time.sleep(5)
+                        current_url = browser.driver.current_url.lower()
+                        if "login" in current_url or "auth" in current_url or "signin" in current_url:
+                            print(json.dumps({
+                                "event": "waiting_login",
+                                "message": "Please log in via the opened browser window. Once complete, click the Resume button in the app."
+                            }))
+                            sys.stdout.flush()
+                            sys.stdin.readline()
+                            print(json.dumps({"event": "log", "message": "Login wait complete. Resuming scraping pipeline..."}))
+                            sys.stdout.flush()
+                    except Exception as e:
+                        print(json.dumps({"event": "log", "message": f"Warning: Failed to navigate to proxy on restart: {str(e)}"}))
+                        sys.stdout.flush()
 
         paper_id, doi_raw, title = paper
         doi = extract_doi_value(doi_raw)
@@ -136,7 +131,29 @@ def main():
         }))
 
         browser.clear_download_folder()
-        downloaded = browser.attempt_download(doi)
+        try:
+            downloaded = browser.attempt_download(doi)
+        except ProxyRateLimitException:
+            print(json.dumps({
+                "event": "log",
+                "message": "[WARNING] Proxy rate limit reached ('Too many downloads'). Pausing loop for 30 minutes..."
+            }))
+            sys.stdout.flush()
+            
+            # Tell IDE we are sleeping
+            print(json.dumps({
+                "event": "sleep",
+                "duration": 1800
+            }))
+            sys.stdout.flush()
+            
+            time.sleep(1800)
+            
+            # Retry
+            try:
+                downloaded = browser.attempt_download(doi)
+            except Exception as retry_err:
+                downloaded = None
 
         if downloaded and os.path.exists(downloaded):
             # Validate the PDF

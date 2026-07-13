@@ -91,7 +91,7 @@ export class LLMOperationsManager {
       const { pipelineLock } = require('@/lib/services/pipeline-lock');
       pipelineLock.release();
       
-      this.broadcast(jobId, JSON.stringify({ status: job!.status, error: job!.error }));
+      this.broadcast(jobId, JSON.stringify({ status: job!.status, error: job!.error, isTerminal: true }));
     });
   }
 
@@ -172,7 +172,7 @@ export class LLMOperationsManager {
       } catch (err) {
         console.error(`Failed to update DB for cancelled job ${jobId}:`, err);
       }
-      this.broadcast(jobId, JSON.stringify({ status: 'CANCELLED', info: 'Execution terminated by user' }));
+      this.broadcast(jobId, JSON.stringify({ status: 'CANCELLED', info: 'Execution terminated by user', isTerminal: true }));
       return true;
     } else {
       // Orphaned job in DB

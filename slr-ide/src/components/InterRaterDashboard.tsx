@@ -154,14 +154,16 @@ export default function InterRaterDashboard({
 
   useEffect(() => {
     if (selectedDiscrepancy && stats?.discrepancies) {
-      const stillExists = stats.discrepancies.some(d => d.paper_id === selectedDiscrepancy.paper_id);
-      if (!stillExists) {
+      const updated = stats.discrepancies.find(d => d.paper_id === selectedDiscrepancy.paper_id);
+      if (!updated) {
         if (stats.discrepancies.length > 0) {
           setSelectedDiscrepancy(stats.discrepancies[0]);
         } else {
           setSelectedDiscrepancy(null);
           showToast('All calibration conflicts resolved for this pool!', 'success');
         }
+      } else if (JSON.stringify(updated) !== JSON.stringify(selectedDiscrepancy)) {
+        setSelectedDiscrepancy(updated);
       }
     }
   }, [stats, selectedDiscrepancy, showToast]);

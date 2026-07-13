@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         ...worker,
         status: newStatus,
         last_seen_at: now,
-        telemetry: data
+        telemetry: data.telemetry || data
       });
     } catch (err: any) {
       // If poll fails, mark as offline

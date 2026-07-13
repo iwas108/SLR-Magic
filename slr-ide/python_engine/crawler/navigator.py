@@ -211,16 +211,56 @@ class Navigator:
 
     def _handle_ieee(self):
         try:
+            # 1. Detect if we are blocked by a challenge or white error page
+            page_text = ""
+            try:
+                page_text = self.driver.page_source
+            except:
+                pass
+                
+            is_blocked = "challenge" in self.driver.current_url.lower() or \
+                         "challenge" in page_text.lower() or \
+                         "attempts exceeded" in page_text.lower() or \
+                         "max challenge attempts" in page_text.lower()
+                         
+            if is_blocked:
+                print(json.dumps({"event": "log", "message": "[IEEE] Detected challenge or white page. Attempting refresh..."}))
+                sys.stdout.flush()
+                try:
+                    self.driver.refresh()
+                    time.sleep(5)
+                    page_text = self.driver.page_source
+                except Exception as e:
+                    print(json.dumps({"event": "log", "message": f"[IEEE] Refresh failed: {str(e)}"}))
+                    sys.stdout.flush()
+
             curr_url_lower = self.driver.current_url.lower()
+            
+            # 2. Extract document ID and navigate directly to stamp URL
             if "stamp.jsp" not in curr_url_lower and "getpdf.jsp" not in curr_url_lower:
                 match = re.search(r'document/(\d+)', self.driver.current_url)
                 if match:
                     doc_id = match.group(1)
                     base = self.driver.current_url.split('/document')[0]
                     stamp = f"{base}/stamp/stamp.jsp?tp=&arnumber={doc_id}"
+                    print(json.dumps({"event": "log", "message": f"[IEEE] Redirecting directly to stamp URL: {stamp}"}))
+                    sys.stdout.flush()
                     self.driver.get(stamp)
                     time.sleep(4)
+                else:
+                    meta_match = re.search(r'ieeexplore\.ieee\.org/document/(\d+)', page_text)
+                    if meta_match:
+                        doc_id = meta_match.group(1)
+                        base = "https://ieeexplore.ieee.org"
+                        if "ezproxy" in self.driver.current_url:
+                            base = self.driver.current_url.split('/document')[0] if '/document' in self.driver.current_url else self.driver.current_url
+                        stamp = f"{base}/stamp/stamp.jsp?tp=&arnumber={doc_id}"
+                        print(json.dumps({"event": "log", "message": f"[IEEE] Found doc_id in page source. Redirecting to stamp URL: {stamp}"}))
+                        sys.stdout.flush()
+                        self.driver.get(stamp)
+                        time.sleep(4)
 
+            # 3. Handle PDF open button within iframe
             iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
             for frame in iframes:
                 try:
@@ -233,7 +273,9 @@ class Navigator:
                     self.driver.switch_to.default_content()
                 except:
                     self.driver.switch_to.default_content()
-        except:
+        except Exception as e:
+            print(json.dumps({"event": "log", "message": f"[IEEE] Error in _handle_ieee: {str(e)}"}))
+            sys.stdout.flush()
             self.driver.switch_to.default_content()
         return False
 

@@ -8,6 +8,9 @@ import sys
 import json
 from python_engine.crawler.navigator import Navigator
 
+class ProxyRateLimitException(Exception):
+    pass
+
 def get_chrome_version():
     system = platform.system()
     try:
@@ -73,6 +76,39 @@ class BrowserHandler:
             _ = self.driver.current_url
             return True
         except:
+            return False
+
+    def ensure_healthy_session(self):
+        """
+        Ensures the browser session is active and healthy.
+        Attempts to open a new tab and close older handles first (preserving session/login).
+        If that fails, it stops and restarts the browser.
+        Returns: True if session recovered via tab recovery, False if it was completely restarted.
+        """
+        if not self.driver:
+            self.start_browser()
+            return False
+
+        try:
+            old_handles = self.driver.window_handles
+            self.driver.switch_to.new_window('tab')
+            time.sleep(1)
+            
+            new_handle = self.driver.current_window_handle
+            for handle in old_handles:
+                try:
+                    self.driver.switch_to.window(handle)
+                    self.driver.close()
+                except:
+                    pass
+            self.driver.switch_to.window(new_handle)
+            return True
+        except Exception as e:
+            print(json.dumps({"event": "log", "message": f"[Browser] Tab recovery failed: {str(e)}. Restarting browser..."}))
+            sys.stdout.flush()
+            try: self.stop_browser()
+            except: pass
+            self.start_browser()
             return False
 
     def clear_download_folder(self):
@@ -151,6 +187,14 @@ class BrowserHandler:
             self.driver.get(target_url)
             time.sleep(5)
 
+            try:
+                if "too many downloads" in self.driver.page_source.lower():
+                    raise ProxyRateLimitException("Too many downloads")
+            except ProxyRateLimitException:
+                raise
+            except:
+                pass
+
             current_url = self.driver.current_url.lower()
 
             pdf_url = self.navigator.cascade_find_pdf(current_url)
@@ -160,11 +204,22 @@ class BrowserHandler:
                 result_file = self.wait_for_download()
             elif pdf_url:
                 self.driver.get(pdf_url)
+                time.sleep(5)
+                try:
+                    if "too many downloads" in self.driver.page_source.lower():
+                        raise ProxyRateLimitException("Too many downloads")
+                except ProxyRateLimitException:
+                    raise
+                except:
+                    pass
                 result_file = self.wait_for_download()
 
             self.cleanup_tabs(main_handle)
             return result_file
 
+        except ProxyRateLimitException:
+            self.cleanup_tabs(main_handle)
+            raise
         except Exception as e:
             print(json.dumps({"event": "error", "message": f"Browser navigation error for {doi}: {str(e)}"}))
             self.cleanup_tabs(main_handle)

@@ -3,6 +3,7 @@ import db from '@/lib/db';
 import { globalEventManager } from '@/lib/services/global-event-manager';
 import { remoteWorkerManager } from '@/lib/services/remote-worker-manager';
 import { streamManager } from '@/lib/services/stream-manager';
+import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 import fs from 'fs';
 import path from 'path';
 
@@ -89,6 +90,12 @@ export async function POST(req: Request) {
       }
     } else {
       return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 });
+    }
+
+    // Refresh telemetry and progress metrics in batchStateTracker
+    const paperRow = db.prepare(`SELECT Project_ID FROM papers WHERE Paper_ID = ?`).get(paper_id) as { Project_ID: string } | undefined;
+    if (paperRow) {
+      batchStateTracker.updateScrapingProgress(paperRow.Project_ID);
     }
 
     globalEventManager.broadcast({ type: 'SYNC_PAPERS' });

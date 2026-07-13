@@ -88,8 +88,9 @@ export function startBackupScheduler() {
           currentDataVersion !== (global.lastCheckedDataVersion || 0);
 
         if (hasChanged) {
-          // Database changed! Check minimum 1 minute spacing constraint
-          const minSpacingMs = 60 * 1000;
+          // Database changed! Check minimum spacing constraint
+          const minSpacingMins = Math.max(1, parseInt(getConfig('BACKUP_CHANGE_MIN_SPACING_MINS', '1'), 10));
+          const minSpacingMs = minSpacingMins * 60 * 1000;
           if (now - (global.lastBackupTime || 0) >= minSpacingMs) {
             console.log(`[Backup Service] Triggered by database changes. Last backup: ${new Date(global.lastBackupTime || 0).toLocaleTimeString()}`);
             global.lastCheckedChanges = currentChanges;
