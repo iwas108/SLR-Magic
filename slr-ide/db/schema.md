@@ -25,7 +25,7 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `Year` | INTEGER | | Publication year |
 | `PDF_Link` | TEXT | | Public Google Drive link or download URL |
 | `Status` | TEXT | NOT NULL DEFAULT 'PENDING' | Status matching Google Sheet: `PENDING`, `INCLUDE`, `EXCLUDE`, etc. |
-| `Local_PDF_Status` | TEXT | NOT NULL DEFAULT 'IGNORED' | Status of local PDF: `IGNORED`, `MISSING`, `MATCHED`, `DOWNLOADED`, `SYNCED` |
+| `Local_PDF_Status` | TEXT | NOT NULL DEFAULT 'IGNORED' | Status of local PDF: `IGNORED`, `MISSING`, `MATCHED`, `DOWNLOADED`, `SYNCED`, `IN_PROGRESS`, `FAILED` |
 | `Local_PDF_Path` | TEXT | | Local path to PDF file if available |
 | `Project_ID` | TEXT | | Reference link to the project |
 | `Parent_Paper_ID` | TEXT | | Optional reference link to parent paper for snowballing chaining |
@@ -47,6 +47,8 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `manual_stage` | TEXT | | Manual screening pipeline stage watermark (`fast_filter`, `gatekeeper`, `scientist`, `miner`) |
 | `manual_qa_scores` | TEXT | | JSON string containing manual quality appraisal scores and evidence |
 | `manual_extracted_data` | TEXT | | JSON string containing manual extracted data and evidence |
+| `remote_worker_id` | TEXT | DEFAULT NULL | UUID of the remote worker that claimed this paper |
+| `scrape_claimed_at` | TEXT | DEFAULT NULL | Timestamp when the paper was claimed by a remote worker |
 
 
 **Indexes**:
@@ -171,6 +173,22 @@ Stores cloud provider specific batch processing metadata and file identifiers.
 
 ---
 
+### Table: `remote_workers`
+Stores registered remote worker nodes for distributed PDF scraping.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | TEXT | PRIMARY KEY | Unique UUID identifier for the worker |
+| `label` | TEXT | NOT NULL | User-facing display name (e.g., "Laptop B") |
+| `host` | TEXT | NOT NULL | Worker HTTP server URL (e.g., "http://192.168.1.42:7291") |
+| `session_token` | TEXT | | Bearer token generated during pairing (NULL if not paired) |
+| `status` | TEXT | NOT NULL DEFAULT 'OFFLINE' | Current worker status: `OFFLINE`, `IDLE`, `SCRAPING`, `WAITING_LOGIN`, `ERROR` |
+| `last_seen_at` | TEXT | | ISO timestamp of the last successful heartbeat poll |
+| `is_enabled` | INTEGER | NOT NULL DEFAULT 1 | Whether the worker is active (1) or paused (0) |
+| `created_at` | TEXT | NOT NULL | Timestamp of registration |
+
+---
+
 ### Table: `configs`
 Stores user configurations, scraping settings, and cloud sync paths.
 
@@ -196,6 +214,8 @@ Stores user configurations, scraping settings, and cloud sync paths.
 *   `GHOSTSCRIPT_PATH`: ``
 *   `SEMANTIC_MATCH_THRESHOLD`: `0.65`
 *   `EMBEDDING_MODEL`: `nomic-ai/nomic-embed-text-v1.5`
+*   `REMOTE_WORKER_BATCH_SIZE`: `10`
+*   `REMOTE_WORKER_LOCAL_SCRAPER_ENABLED`: `true`
 
 ---
 
@@ -320,4 +340,10 @@ Stores potential duplicate pairs identified by the fuzzy heuristic matching engi
 
 ### Manual Screening Pipeline Migration (2026-07-12)
 *   Added `manual_decision`, `manual_ec_trigger`, `manual_rationale`, `manual_stage`, `manual_qa_scores`, and `manual_extracted_data` columns to `papers` table to support manual screening data collection.
+
+### Distributed Remote Scraper (2026-07-12)
+*   Added `remote_workers` table.
+*   Added `remote_worker_id` and `scrape_claimed_at` columns to `papers`.
+*   Added `IN_PROGRESS` as a valid status for `Local_PDF_Status`.
+*   Added `REMOTE_WORKER_BATCH_SIZE` and `REMOTE_WORKER_LOCAL_SCRAPER_ENABLED` keys to `configs` defaults.
 

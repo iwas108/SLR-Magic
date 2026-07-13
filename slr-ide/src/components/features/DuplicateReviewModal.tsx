@@ -192,42 +192,59 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
           </div>
         </div>
 
-        {/* Navigation */}
-        {pairs.length > 1 && (
-          <div className="flex items-center gap-2 border border-border/80 bg-background/50 rounded-lg px-2 py-1 shadow-sm text-xs">
+        {/* Navigation & Actions */}
+        <div className="flex items-center gap-3">
+          {activePair && (
             <button
               onClick={() => {
-                setCurrentIndex(prev => (prev - 1 + pairs.length) % pairs.length);
-                setPrimaryOverride(null);
+                const text = `Paper 1:\nTitle: ${activePair.paper1?.Title || 'N/A'}\nDOI: ${activePair.paper1?.DOI || 'N/A'}\nAbstract: ${activePair.paper1?.Abstract || 'N/A'}\n\nPaper 2:\nTitle: ${activePair.paper2?.Title || 'N/A'}\nDOI: ${activePair.paper2?.DOI || 'N/A'}\nAbstract: ${activePair.paper2?.Abstract || 'N/A'}`;
+                navigator.clipboard.writeText(text);
+                showToast('Copied both paper details to clipboard!', 'info');
               }}
-              disabled={loading}
-              className="p-1 hover:bg-secondary rounded cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-secondary/80 border border-border text-foreground hover:text-foreground rounded-lg font-bold text-xs cursor-pointer transition-colors shadow-sm"
+              title="Copy details of both papers to clipboard"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <Copy className="w-3.5 h-3.5 text-primary" />
+              Copy Both Details
             </button>
-            <span className="font-semibold text-muted-foreground">
-              {currentIndex + 1} / {pairs.length}
-            </span>
-            <button
-              onClick={() => {
-                setCurrentIndex(prev => (prev + 1) % pairs.length);
-                setPrimaryOverride(null);
-              }}
-              disabled={loading}
-              className="p-1 hover:bg-secondary rounded cursor-pointer disabled:opacity-50"
-            >
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+          )}
 
-        <button
-          onClick={onClose}
-          disabled={loading}
-          className="p-1.5 hover:bg-secondary border border-border/60 hover:border-border rounded-lg cursor-pointer transition-all disabled:opacity-50"
-        >
-          <X className="w-4 h-4" />
-        </button>
+          {pairs.length > 1 && (
+            <div className="flex items-center gap-2 border border-border/80 bg-background/50 rounded-lg px-2 py-1 shadow-sm text-xs">
+              <button
+                onClick={() => {
+                  setCurrentIndex(prev => (prev - 1 + pairs.length) % pairs.length);
+                  setPrimaryOverride(null);
+                }}
+                disabled={loading}
+                className="p-1 hover:bg-secondary rounded cursor-pointer disabled:opacity-50"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <span className="font-semibold text-muted-foreground">
+                {currentIndex + 1} / {pairs.length}
+              </span>
+              <button
+                onClick={() => {
+                  setCurrentIndex(prev => (prev + 1) % pairs.length);
+                  setPrimaryOverride(null);
+                }}
+                disabled={loading}
+                className="p-1 hover:bg-secondary rounded cursor-pointer disabled:opacity-50"
+              >
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="p-1.5 hover:bg-secondary border border-border/60 hover:border-border rounded-lg cursor-pointer transition-all disabled:opacity-50"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Main workspace */}

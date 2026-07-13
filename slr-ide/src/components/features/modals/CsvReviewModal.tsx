@@ -13,6 +13,8 @@ interface CsvReviewModalProps {
   setReviewSearch: React.Dispatch<React.SetStateAction<string>>;
   reviewStatusFilter: string;
   setReviewStatusFilter: React.Dispatch<React.SetStateAction<string>>;
+  purgeMode?: boolean;
+  purgeCandidates?: { safe: any[]; processed: any[]; blocked: any[] };
 }
 
 export default function CsvReviewModal({
@@ -26,10 +28,31 @@ export default function CsvReviewModal({
   reviewSearch,
   setReviewSearch,
   reviewStatusFilter,
-  setReviewStatusFilter
+  setReviewStatusFilter,
+  purgeMode = false,
+  purgeCandidates
 }: CsvReviewModalProps) {
   // Filtered review papers
   const filteredReviewPapers = React.useMemo(() => {
+    if (purgeMode && purgeCandidates) {
+      const allCandidates = [
+        ...purgeCandidates.safe.map(p => ({ ...p, purgeStatus: 'safe' })),
+        ...purgeCandidates.processed.map(p => ({ ...p, purgeStatus: 'processed' })),
+        ...purgeCandidates.blocked.map(p => ({ ...p, purgeStatus: 'blocked' }))
+      ];
+      return allCandidates.filter((p: any) => {
+        const matchesSearch = 
+          p.Title?.toLowerCase().includes(reviewSearch.toLowerCase()) || 
+          p.Paper_ID?.toLowerCase().includes(reviewSearch.toLowerCase());
+        const matchesStatus = 
+          reviewStatusFilter === 'all' || 
+          (reviewStatusFilter === 'safe' && p.purgeStatus === 'safe') || 
+          (reviewStatusFilter === 'processed' && p.purgeStatus === 'processed') || 
+          (reviewStatusFilter === 'blocked' && p.purgeStatus === 'blocked');
+        return matchesSearch && matchesStatus;
+      });
+    }
+
     return previewPapers.filter((p: any) => {
       const matchesSearch = 
         p.Title?.toLowerCase().includes(reviewSearch.toLowerCase()) || 
@@ -40,7 +63,7 @@ export default function CsvReviewModal({
         (reviewStatusFilter === 'duplicate' && p.isDuplicate);
       return matchesSearch && matchesStatus;
     });
-  }, [previewPapers, reviewSearch, reviewStatusFilter]);
+  }, [previewPapers, reviewSearch, reviewStatusFilter, purgeMode, purgeCandidates]);
 
   const totalReviewPages = Math.ceil(filteredReviewPapers.length / reviewLimit);
   const paginatedReviewPapers = filteredReviewPapers.slice((reviewPage - 1) * reviewLimit, reviewPage * reviewLimit);
@@ -85,9 +108,20 @@ export default function CsvReviewModal({
                 onChange={(e) => { setReviewStatusFilter(e.target.value); setReviewPage(1); }}
                 className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-primary"
               >
-                <option value="all">All Records</option>
-                <option value="new">New Papers Only</option>
-                <option value="duplicate">Duplicates Only</option>
+                {purgeMode ? (
+                  <>
+                    <option value="all">All Candidates</option>
+                    <option value="safe">Safe to Delete</option>
+                    <option value="processed">Processed (Warning)</option>
+                    <option value="blocked">Blocked (Pools)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="all">All Records</option>
+                    <option value="new">New Papers Only</option>
+                    <option value="duplicate">Duplicates Only</option>
+                  </>
+                )}
               </select>
             </div>
             <div className="flex items-center gap-2">
@@ -126,7 +160,21 @@ export default function CsvReviewModal({
                 paginatedReviewPapers.map((p: any, idx: number) => (
                   <tr key={idx} className="hover:bg-secondary/20 transition-colors">
                     <td className="p-3 pl-4">
-                      {p.isDuplicate ? (
+                      {purgeMode ? (
+                        p.purgeStatus === 'blocked' ? (
+                          <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/20 text-red-400 rounded text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 w-fit" title={`In calibration pool: ${p.calibration_pool || 'Reviewer decisions exist'}`}>
+                            <AlertTriangle className="w-3.5 h-3.5" /> Blocked
+                          </span>
+                        ) : p.purgeStatus === 'processed' ? (
+                          <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 w-fit" title={`AI Status: ${p.Status || 'PENDING'}, Manual Decision: ${p.manual_decision || 'N/A'}`}>
+                            <AlertTriangle className="w-3.5 h-3.5" /> Warning
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 w-fit">
+                            <Check className="w-3.5 h-3.5" /> Safe
+                          </span>
+                        )
+                      ) : p.isDuplicate ? (
                         <span className="px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 w-fit">
                           <AlertTriangle className="w-3 h-3" /> Skip
                         </span>

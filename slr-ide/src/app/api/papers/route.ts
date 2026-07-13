@@ -148,28 +148,36 @@ export async function GET(request: Request) {
     if (decision) {
       if (decision === 'INCLUDE') {
         filterQuery += ` AND (
-          Human_Decision = 'INCLUDE' OR 
-          (Human_Decision IS NULL AND (
-            SELECT decision FROM reviewer_decisions 
+          UPPER(Human_Decision) = 'INCLUDE' OR 
+          (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
+          (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
+          (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
+            SELECT UPPER(decision) FROM reviewer_decisions 
             WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
             ORDER BY imported_at DESC LIMIT 1
           ) = 'INCLUDE')
         )`;
       } else if (decision === 'EXCLUDE') {
         filterQuery += ` AND (
-          Human_Decision = 'EXCLUDE' OR 
-          (Human_Decision IS NULL AND (
-            SELECT decision FROM reviewer_decisions 
+          UPPER(Human_Decision) = 'EXCLUDE' OR 
+          (Human_Decision IS NULL AND UPPER(manual_decision) = 'EXCLUDE') OR
+          (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'EXCLUDE') OR
+          (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
+            SELECT UPPER(decision) FROM reviewer_decisions 
             WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
             ORDER BY imported_at DESC LIMIT 1
           ) = 'EXCLUDE')
         )`;
       } else if (decision === 'UNADJUDICATED') {
-        filterQuery += ` AND Human_Decision IS NULL AND (
-          SELECT decision FROM reviewer_decisions 
-          WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-          ORDER BY imported_at DESC LIMIT 1
-        ) IS NULL`;
+        filterQuery += ` AND (
+          Human_Decision IS NULL AND 
+          manual_decision IS NULL AND 
+          AI_Decision IS NULL AND (
+            SELECT decision FROM reviewer_decisions 
+            WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+            ORDER BY imported_at DESC LIMIT 1
+          ) IS NULL
+        )`;
       }
     }
 

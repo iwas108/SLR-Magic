@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import LLMAuditLogView from './LLMAuditLogView';
 import { subscribeSyncChannel, broadcastSync } from '@/lib/sync-utils';
+import { useGlobalPipelineLock } from '@/hooks/useGlobalPipelineLock';
 
 interface ModelPricing {
   model_id: string;
@@ -36,6 +37,8 @@ interface Prompt {
   execution_mode?: string;
   request_delay?: number;
   interaction_chaining?: boolean;
+  concurrency?: number;
+  timeout_seconds?: number;
 }
 
 interface GlobalLLMSettingsViewProps {
@@ -55,6 +58,8 @@ export default function GlobalLLMSettingsView({
     preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'operations' : 'settings'
   );
   const [loading, setLoading] = useState(true);
+
+  const { isLocked, forceUnlock } = useGlobalPipelineLock();
 
   // --- TAB 1: VAULT SETTINGS STATE ---
   const [vaultInitialized, setVaultInitialized] = useState(false);
@@ -80,16 +85,22 @@ export default function GlobalLLMSettingsView({
   // --- TAB 3: OPERATIONS STATE ---
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string>('IDLE');
+
+  // Disable triggering if locked by another pipeline and we are not currently running
+  const isLlmLocked = isLocked && !['RUNNING', 'PAUSED_BUDGET', 'PAUSED_USER', 'PENDING'].includes(jobStatus);
+
   const [logs, setLogs] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState({ total: 0, processed: 0, cost: 0.0, tokens: 0 });
+  const [metrics, setMetrics] = useState({ total: 0, processed: 0, cost: 0.0, tokens: 0, included: 0, excluded: 0, exclusion_reasons: {} as Record<string, number>, avgExecutionTimeMs: 0 });
   const [connecting, setConnecting] = useState(false);
   const [taskType, setTaskType] = useState<'fast_filter' | 'gatekeeper' | 'scientist' | 'miner'>('fast_filter');
   const [statusFilter, setStatusFilter] = useState<string>('0');
-  const [paperSelectionMode, setPaperSelectionMode] = useState<'all' | 'limit' | 'range' | 'selected'>(
+  const [decisionFilter, setDecisionFilter] = useState<string>('ALL');
+  const [paperSelectionMode, setPaperSelectionMode] = useState<'all' | 'all_project' | 'limit' | 'range' | 'selected'>(
     preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'selected' : 'all'
   );
   const [batchLimit, setBatchLimit] = useState<number>(10);
   const [indexOffset, setIndexOffset] = useState<number>(0);
+  const [targetCount, setTargetCount] = useState<number | null>(null);
   const activeTemplateId = (() => {
     try {
       const cfg = activeProject?.llm_config ? JSON.parse(activeProject.llm_config) : {};
@@ -110,7 +121,32 @@ export default function GlobalLLMSettingsView({
       miner: '3'
     };
     setStatusFilter(defaults[taskType] || '0');
+    setDecisionFilter('ALL');
   }, [taskType]);
+
+  useEffect(() => {
+    if (!activeProject?.id) return;
+    
+    if (paperSelectionMode === 'selected') {
+      setTargetCount(preSelectedPaperIds?.length || 0);
+      return;
+    }
+
+    const fetchCount = async () => {
+      try {
+        const effectiveStatus = paperSelectionMode === 'all_project' ? 'ALL' : statusFilter;
+        const res = await fetch(`/api/llm/count?projectId=${activeProject.id}&statusFilter=${effectiveStatus}&decisionFilter=${decisionFilter}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTargetCount(data.count);
+        }
+      } catch (err) {
+        console.error('Failed to fetch target count', err);
+      }
+    };
+    
+    fetchCount();
+  }, [activeProject?.id, statusFilter, decisionFilter, paperSelectionMode, preSelectedPaperIds]);
 
   const getPromptValidation = () => {
     if (!activeTemplateId) {
@@ -216,7 +252,11 @@ export default function GlobalLLMSettingsView({
           total: activeJob.total_papers || 0,
           processed: activeJob.processed_papers || 0,
           cost: activeJob.total_cost || 0,
-          tokens: (activeJob.total_input_tokens || 0) + (activeJob.total_output_tokens || 0)
+          tokens: (activeJob.total_input_tokens || 0) + (activeJob.total_output_tokens || 0),
+          included: activeJob.included_papers || 0,
+          excluded: activeJob.excluded_papers || 0,
+          exclusion_reasons: activeJob.exclusion_reasons || {},
+          avgExecutionTimeMs: activeJob.average_execution_time_ms || 0
         });
         connectSSE(activeJob.id);
       } else {
@@ -391,7 +431,9 @@ export default function GlobalLLMSettingsView({
         top_k: editingPrompt.top_k !== undefined ? Number(editingPrompt.top_k) : 40,
         execution_mode: editingPrompt.execution_mode || 'flex',
         request_delay: editingPrompt.request_delay !== undefined ? Number(editingPrompt.request_delay) : 1.0,
-        interaction_chaining: editingPrompt.interaction_chaining !== undefined ? editingPrompt.interaction_chaining : true
+        interaction_chaining: editingPrompt.interaction_chaining !== undefined ? editingPrompt.interaction_chaining : true,
+        concurrency: editingPrompt.concurrency !== undefined ? Number(editingPrompt.concurrency) : 5,
+        timeout_seconds: editingPrompt.timeout_seconds !== undefined ? Number(editingPrompt.timeout_seconds) : 900
       };
 
       const res = await fetch('/api/llm/prompts', {
@@ -444,7 +486,9 @@ export default function GlobalLLMSettingsView({
       top_k: config.top_k !== undefined ? config.top_k : 40,
       execution_mode: config.execution_mode || 'flex',
       request_delay: config.request_delay !== undefined ? config.request_delay : 1.0,
-      interaction_chaining: config.interaction_chaining !== undefined ? config.interaction_chaining : true
+      interaction_chaining: config.interaction_chaining !== undefined ? config.interaction_chaining : true,
+      concurrency: config.concurrency !== undefined ? config.concurrency : 5,
+      timeout_seconds: config.timeout_seconds !== undefined ? config.timeout_seconds : 900
     });
     setEditorTab('info');
   };
@@ -499,7 +543,7 @@ export default function GlobalLLMSettingsView({
   };
 
   const handleSSEEvent = (data: any) => {
-    const jobExecutionStatuses = ['RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', 'PAUSED_BUDGET'];
+    const jobExecutionStatuses = ['RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', 'PAUSED_BUDGET', 'PAUSED_USER'];
     if (data.status && jobExecutionStatuses.includes(data.status)) {
       setJobStatus(data.status);
       if (data.status === 'FAILED') {
@@ -515,7 +559,11 @@ export default function GlobalLLMSettingsView({
         total: data.total_papers || 0,
         processed: data.processed_papers,
         cost: data.total_cost || 0,
-        tokens: (data.total_input_tokens || 0) + (data.total_output_tokens || 0)
+        tokens: (data.total_input_tokens || 0) + (data.total_output_tokens || 0),
+        included: data.included_papers || 0,
+        excluded: data.excluded_papers || 0,
+        exclusion_reasons: data.exclusion_reasons || {},
+        avgExecutionTimeMs: data.average_execution_time_ms || 0
       });
     }
   };
@@ -526,7 +574,7 @@ export default function GlobalLLMSettingsView({
       targetJobId = `job-${Date.now()}`;
       setJobId(targetJobId);
       setLogs([{ status: 'STARTING', message: 'Initializing pipeline orchestrator...' }]);
-      setMetrics({ total: 0, processed: 0, cost: 0.0, tokens: 0 });
+      setMetrics({ total: 0, processed: 0, cost: 0.0, tokens: 0, included: 0, excluded: 0, exclusion_reasons: {}, avgExecutionTimeMs: 0 });
       setJobStatus('STARTING');
     }
 
@@ -539,7 +587,9 @@ export default function GlobalLLMSettingsView({
       };
 
       if (action === 'start') {
-        payload.statusFilter = statusFilter;
+        payload.statusFilter = paperSelectionMode === 'all_project' ? 'ALL' : statusFilter;
+        payload.decisionFilter = decisionFilter;
+
         if (paperSelectionMode === 'limit') {
           payload.limit = batchLimit;
         } else if (paperSelectionMode === 'range') {
@@ -572,6 +622,8 @@ export default function GlobalLLMSettingsView({
       } else if (action === 'cancel') {
         setJobStatus('CANCELLED');
         setLogs(prev => [...prev, { status: 'CANCELLED', message: 'Execution cancelled by user.' }]);
+      } else if (action === 'pause') {
+        setJobStatus('PAUSED_USER');
       }
       
       // Broadcast state sync change to other tabs
@@ -1194,6 +1246,34 @@ export default function GlobalLLMSettingsView({
                           <span className="text-[9px] text-muted-foreground/60 block px-1">Chain new calls to previous interaction context.</span>
                         </div>
                       </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Thread Concurrency</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={editingPrompt.concurrency !== undefined ? editingPrompt.concurrency : 5}
+                            onChange={(e) => setEditingPrompt(prev => ({ ...prev, concurrency: e.target.value !== '' ? Number(e.target.value) : 5 }))}
+                            className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-mono"
+                          />
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Number of parallel papers to send. Min: 1, Max: 20. Default: 5.</span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">API Request Timeout (s)</label>
+                          <input
+                            type="number"
+                            min="10"
+                            max="3600"
+                            value={editingPrompt.timeout_seconds !== undefined ? editingPrompt.timeout_seconds : 900}
+                            onChange={(e) => setEditingPrompt(prev => ({ ...prev, timeout_seconds: e.target.value !== '' ? Number(e.target.value) : 900 }))}
+                            className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-mono"
+                          />
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Wait time before aborting and retrying a hanging request. Default: 900s.</span>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -1226,501 +1306,612 @@ export default function GlobalLLMSettingsView({
         {/* --- OPERATIONS TAB --- */}
         {activeTab === 'operations' && (
           <div className="space-y-5 animate-in fade-in duration-200">
-            {/* Top Control Panel */}
-            <div className="bg-secondary/10 border border-border/40 rounded-xl p-4 space-y-4">
-              
-              {/* Row 1: Stage Taxonomy Selector */}
-              <div className="space-y-2">
-                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">1. Select Pipeline Stage</span>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { id: 'fast_filter', name: 'Fast Filter', desc: 'Metadata (Flash)' },
-                    { id: 'gatekeeper', name: 'Gatekeeper', desc: 'PDF Screen (Pro)' },
-                    { id: 'scientist', name: 'Scientist', desc: 'QA Check (Pro)' },
-                    { id: 'miner', name: 'Miner', desc: 'Extraction (Pro)' },
-                  ].map((stage) => (
-                    <button
-                      key={stage.id}
-                      disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                      onClick={() => setTaskType(stage.id as any)}
-                      className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all ${
-                        taskType === stage.id
-                          ? 'border-primary bg-primary/10 text-primary shadow-sm font-bold scale-[1.02]'
-                          : 'border-border/60 bg-secondary/20 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <span className="text-xs font-bold">{stage.name}</span>
-                      <span className="text-[9px] mt-0.5 opacity-80">{stage.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Row 2: Default Prompt Template Info */}
-              <div className="bg-secondary/10 border border-border/40 rounded-lg p-3 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Active Default Prompt</span>
-                  {activeTemplateId ? (() => {
-                    const activePrompt = prompts.find(p => p.id === activeTemplateId);
-                    return activePrompt ? (
-                      <span className="font-semibold text-xs text-foreground">
-                        {activePrompt.name} <span className="text-muted-foreground font-mono text-[10px]">({activePrompt.id})</span>
-                      </span>
-                    ) : (
-                      <span className="font-semibold text-xs text-amber-500">
-                        Configured template ({activeTemplateId}) not found
-                      </span>
-                    );
-                  })() : (
-                    <span className="font-semibold text-xs text-amber-500">
-                      No default prompt configured for this stage
-                    </span>
-                  )}
-                </div>
-                {activeTemplateId && prompts.find(p => p.id === activeTemplateId) && (() => {
-                  const activePrompt = prompts.find(p => p.id === activeTemplateId);
-                  const parsedConfig = (() => {
-                    try {
-                      return activePrompt?.llm_config ? JSON.parse(activePrompt.llm_config) : {};
-                    } catch { return {}; }
+            {showLaunchConfirm ? (
+              <div className="bg-secondary/10 border border-border/40 rounded-xl p-4 space-y-4">
+                {(() => {
+                  const activeTemplate = prompts.find(p => p.id === activeTemplateId);
+                  const templateConfig = (() => {
+                    try { return activeTemplate?.llm_config ? JSON.parse(activeTemplate.llm_config) : {}; }
+                    catch { return {}; }
                   })();
+                  const activeModel = templateConfig.model_id || {
+                    fast_filter: 'gemini-3.5-flash',
+                    gatekeeper: 'gemini-3.1-pro-preview',
+                    scientist: 'gemini-3.1-pro-preview',
+                    miner: 'gemini-3.1-pro-preview'
+                  }[taskType];
+                  const activeExecutionMode = templateConfig.execution_mode || 'FLEX';
+                  const stageInfo = {
+                    fast_filter: { name: 'Fast Filter', desc: 'Metadata Screening', model: activeModel },
+                    gatekeeper: { name: 'Gatekeeper', desc: 'PDF Screening', model: activeModel },
+                    scientist: { name: 'Scientist', desc: 'Quality Assessment QA', model: activeModel },
+                    miner: { name: 'Miner', desc: 'Structured Data Extraction', model: activeModel }
+                  }[taskType];
                   return (
-                    <div className="text-right">
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Configured Model</span>
-                      <span className="font-mono text-xs font-bold text-primary">{parsedConfig.model_id || 'gemini-2.5-flash'}</span>
+                    <div className="border border-border/60 rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      {/* Inline header */}
+                      <div className="px-4 py-2.5 bg-primary/5 border-b border-border/60 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Play className="w-3.5 h-3.5 text-primary" />
+                          <span className="font-bold text-foreground text-xs">
+                            {confirmStep === 1 ? 'Confirm Execution — Step 1: Targets' : 'Confirm Execution — Step 2: Prompt Details'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] px-2 py-0.5 font-bold rounded bg-primary/15 text-primary">Step {confirmStep} of 2</span>
+                          <button
+                            type="button"
+                            onClick={() => setShowLaunchConfirm(false)}
+                            className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Step content */}
+                      <div className="p-4 space-y-3 text-xs">
+                        {confirmStep === 1 && (
+                          <div className="space-y-3 animate-in fade-in duration-150">
+                            {!promptValidation.isValid && (
+                              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-2">
+                                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="font-bold text-red-400 block text-xs">Prompt Design Error</span>
+                                  <p className="text-[10px] text-muted-foreground leading-normal mt-0.5">
+                                    {promptValidation.error}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Stage & Model */}
+                              <div className="p-3 bg-secondary/10 border border-border/40 rounded-lg space-y-1">
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase">1. Pipeline Stage &amp; Model</span>
+                                <div className="font-bold text-foreground text-xs">{stageInfo.name}</div>
+                                <div className="text-[10px] text-muted-foreground">{stageInfo.desc} • <span className="font-mono text-primary font-bold">{stageInfo.model}</span></div>
+                                <div className="flex items-center gap-1.5 pt-0.5">
+                                  <span className="text-[9px] font-bold text-muted-foreground">Speed tier:</span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                                    activeExecutionMode === 'STANDARD'
+                                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
+                                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  }`}>
+                                    {activeExecutionMode === 'STANDARD' ? 'standard' : 'flex (50% discount)'}
+                                  </span>
+                                </div>
+                              </div>
+                              {/* API Key */}
+                              <div className={`p-3 border rounded-lg space-y-1 ${
+                                configuredKeys.includes('GEMINI_API_KEY')
+                                  ? 'bg-emerald-500/5 border-emerald-500/20'
+                                  : 'bg-red-500/5 border-red-500/20'
+                              }`}>
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase">2. API Key / Vault Status</span>
+                                <div className="flex items-center gap-1.5 font-bold text-xs">
+                                  {configuredKeys.includes('GEMINI_API_KEY') ? (
+                                    <><ShieldCheck className="w-4 h-4 text-emerald-400 animate-pulse" /><span className="text-emerald-400">Vault Key Unlocked</span></>
+                                  ) : (
+                                    <><AlertTriangle className="w-4 h-4 text-red-400" /><span className="text-red-400">API Key Missing</span></>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {configuredKeys.includes('GEMINI_API_KEY') ? 'Decrypted in memory' : 'Configure in Tab 1 first'}
+                                </div>
+                              </div>
+                            </div>
+                            {/* Target paper range */}
+                            <div className="p-3 bg-secondary/10 border border-border/40 rounded-lg space-y-1 relative">
+                              <div className="absolute right-3 top-3">
+                                {targetCount !== null && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary">
+                                    {targetCount} {targetCount === 1 ? 'Paper' : 'Papers'}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase">2. Target Paper Count &amp; Mode</span>
+                              <div className="font-bold text-foreground text-xs">
+                                {paperSelectionMode === 'all' && 'All Pending Papers in Project'}
+                                {paperSelectionMode === 'all_project' && 'All Papers in Project (Ignore Status)'}
+                                {paperSelectionMode === 'limit' && `Limit Batch Size: Run first ${batchLimit} pending papers`}
+                                {paperSelectionMode === 'range' && `Index Range: Run ${batchLimit} papers starting from index offset ${indexOffset}`}
+                                {paperSelectionMode === 'selected' && `Manual Select: Run on ${preSelectedPaperIds?.length || 0} papers`}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                Papers will be executed sequentially matching database chronological rowid ordering.
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {confirmStep === 2 && (
+                          <div className="space-y-3 animate-in fade-in duration-150">
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block border-b border-border/30 pb-1">4. Complete Prompt &amp; Rules Preview</span>
+                            {!promptValidation.isValid && (
+                              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-2">
+                                <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="font-bold text-red-400 block text-xs">Prompt Design Error</span>
+                                  <p className="text-[10px] text-muted-foreground leading-normal mt-0.5">
+                                    {promptValidation.error}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            {activeTemplateId ? (() => {
+                              const selectedPrompt = prompts.find(p => p.id === activeTemplateId);
+                              if (!selectedPrompt) return <div className="text-red-400 font-bold">Configured template not found.</div>;
+                              return (
+                                <div className="space-y-3">
+                                  <div className="p-2.5 bg-primary/5 border border-primary/20 rounded-lg">
+                                    <span className="text-[10px] text-primary font-bold block mb-0.5">Template: {selectedPrompt.name}</span>
+                                    <span className="text-[9px] text-muted-foreground block">{selectedPrompt.description || 'No description.'}</span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] text-muted-foreground font-bold block">System Instructions:</span>
+                                    <div className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-zinc-100 whitespace-pre-wrap select-all border-l-2 border-l-primary/60 leading-relaxed">
+                                      {selectedPrompt.system_prompt}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] text-muted-foreground font-bold block">User Template (Jinja2 format):</span>
+                                    <div className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-zinc-100 whitespace-pre-wrap select-all border-l-2 border-l-primary/60 leading-relaxed">
+                                      {selectedPrompt.user_prompt_template}
+                                    </div>
+                                  </div>
+                                  {selectedPrompt.response_schema && (
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] text-muted-foreground font-bold block">Structured Output JSON Schema:</span>
+                                      <pre className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-emerald-400 select-all border-l-2 border-l-emerald-500/60 leading-relaxed">
+                                        {(() => { try { return JSON.stringify(JSON.parse(selectedPrompt.response_schema), null, 2); } catch { return selectedPrompt.response_schema; } })()}
+                                      </pre>
+                                    </div>
+                                  )}
+                                  {(() => {
+                                      let configObj: any = {};
+                                      try { if (selectedPrompt.llm_config) configObj = JSON.parse(selectedPrompt.llm_config); } catch (e) {}
+                                      return (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-border/30 mt-2">
+                                          <div className="bg-secondary/20 p-2 rounded border border-border/40">
+                                            <span className="text-[9px] text-muted-foreground block uppercase">Concurrency</span>
+                                            <span className="font-bold font-mono text-xs text-foreground">{configObj.concurrency || 5}</span>
+                                          </div>
+                                          <div className="bg-secondary/20 p-2 rounded border border-border/40">
+                                            <span className="text-[9px] text-muted-foreground block uppercase">Timeout (s)</span>
+                                            <span className="font-bold font-mono text-xs text-foreground">{configObj.timeout_seconds || 900}</span>
+                                          </div>
+                                          <div className="bg-secondary/20 p-2 rounded border border-border/40">
+                                            <span className="text-[9px] text-muted-foreground block uppercase">Req Delay (s)</span>
+                                            <span className="font-bold font-mono text-xs text-foreground">{configObj.request_delay !== undefined ? configObj.request_delay : 1.0}</span>
+                                          </div>
+                                          <div className="bg-secondary/20 p-2 rounded border border-border/40">
+                                            <span className="text-[9px] text-muted-foreground block uppercase">Max Tokens</span>
+                                            <span className="font-bold font-mono text-xs text-foreground">{configObj.max_tokens || 2000}</span>
+                                          </div>
+                                        </div>
+                                      );
+                                  })()}
+                                </div>
+                              );
+                            })() : (
+                              <div className="p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg flex gap-2">
+                                <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="font-bold text-yellow-400 block">Using Default Project Config Templates</span>
+                                  <p className="text-[10px] text-muted-foreground leading-normal">
+                                    This stage will run using the default system prompts defined in python execution files, combined with project rules.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Inline footer */}
+                      <div className="px-4 py-2.5 border-t border-border/60 bg-secondary/10 flex justify-between items-center">
+                        <div>
+                          {confirmStep === 2 && (
+                            <button type="button" onClick={() => setConfirmStep(1)}
+                              className="px-3 py-1.5 border border-border rounded-lg hover:bg-secondary/40 font-bold transition-all text-xs">
+                              ← Previous
+                            </button>
+                          )}
+                          {confirmStep === 1 && (
+                            <button type="button" onClick={() => setShowLaunchConfirm(false)}
+                              className="px-3 py-1.5 border border-border rounded-lg hover:bg-secondary/40 font-bold transition-all text-xs">
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                        <div>
+                          {confirmStep === 1 && (
+                            <button type="button"
+                              disabled={!promptValidation.isValid}
+                              onClick={() => setConfirmStep(2)}
+                              className="px-3 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition-all hover:scale-105 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed text-xs">
+                              Next →
+                            </button>
+                          )}
+                          {confirmStep === 2 && (
+                            <button
+                              type="button"
+                              disabled={!configuredKeys.includes('GEMINI_API_KEY') || !promptValidation.isValid || isLlmLocked}
+                              onClick={() => { setShowLaunchConfirm(false); handleAction('start'); }}
+                              className="px-3 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg flex items-center gap-1.5 transition-all hover:scale-105 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed text-xs"
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                              <span>Start Stage Execution</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}
               </div>
-
-                {/* Row 3: Paper Selection Mode Selector & Target Paper Status */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">3. Paper Range / Selection Mode</span>
-                    <select
-                      value={paperSelectionMode}
-                      onChange={(e) => setPaperSelectionMode(e.target.value as any)}
-                      disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                      className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
-                    >
-                      <option value="all">All Pending Papers</option>
-                      <option value="limit">Limit Batch Size</option>
-                      <option value="range">Index Range (Offset + Limit)</option>
-                      {preSelectedPaperIds && preSelectedPaperIds.length > 0 && (
-                        <option value="selected">Manual Select ({preSelectedPaperIds.length} papers)</option>
-                      )}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">3b. Target Paper Status</span>
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                      className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
-                    >
-                      <option value="0">Status 0: Unprocessed</option>
-                      <option value="1">Status 1: Passed Fast Filter</option>
-                      <option value="2">Status 2: Passed Gatekeeper</option>
-                      <option value="3">Status 3: Passed Scientist</option>
-                      <option value="4">Status 4: Passed Miner</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Row 4: Conditionally Render Selection Parameters */}
-              {paperSelectionMode === 'limit' && (
-                <div className="grid grid-cols-3 gap-3 pt-1 animate-in slide-in-from-top-2 duration-200">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-muted-foreground font-bold uppercase">Batch Size (Count)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={batchLimit}
-                      onChange={(e) => setBatchLimit(Math.max(1, parseInt(e.target.value) || 1))}
-                      disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                      className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1 text-xs text-foreground outline-none font-bold"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {paperSelectionMode === 'range' && (
-                <div className="grid grid-cols-2 gap-4 pt-1 animate-in slide-in-from-top-2 duration-200">
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-muted-foreground font-bold uppercase">Start Offset (Chronological Index)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={indexOffset}
-                      onChange={(e) => setIndexOffset(Math.max(0, parseInt(e.target.value) || 0))}
-                      disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                      className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1 text-xs text-foreground outline-none font-bold"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-muted-foreground font-bold uppercase">Max Papers to Run</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={batchLimit}
-                      onChange={(e) => setBatchLimit(Math.max(1, parseInt(e.target.value) || 1))}
-                      disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                      className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1 text-xs text-foreground outline-none font-bold"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {paperSelectionMode === 'selected' && preSelectedPaperIds && (
-                <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-xs text-muted-foreground flex items-center justify-between animate-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-primary" />
-                    <span>Selected <strong>{preSelectedPaperIds.length} papers</strong> from the database view checkmarks.</span>
-                  </div>
-                  <button
-                    onClick={() => setPaperSelectionMode('all')}
-                    disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                    className="text-[10px] text-primary hover:underline font-bold"
-                  >
-                    Switch to All
-                  </button>
-                </div>
-              )}
-
-            {/* ── Inline Confirm Panel (replaces action buttons when active) ── */}
-            {showLaunchConfirm ? (() => {
-              const activeTemplate = prompts.find(p => p.id === activeTemplateId);
-              const templateConfig = (() => {
-                try { return activeTemplate?.llm_config ? JSON.parse(activeTemplate.llm_config) : {}; }
-                catch { return {}; }
-              })();
-              const activeModel = templateConfig.model_id || {
-                fast_filter: 'gemini-3.5-flash',
-                gatekeeper: 'gemini-3.1-pro-preview',
-                scientist: 'gemini-3.1-pro-preview',
-                miner: 'gemini-3.1-pro-preview'
-              }[taskType];
-              const activeExecutionMode = templateConfig.execution_mode || 'FLEX';
-              const stageInfo = {
-                fast_filter: { name: 'Fast Filter', desc: 'Metadata Screening', model: activeModel },
-                gatekeeper: { name: 'Gatekeeper', desc: 'PDF Screening', model: activeModel },
-                scientist: { name: 'Scientist', desc: 'Quality Assessment QA', model: activeModel },
-                miner: { name: 'Miner', desc: 'Structured Data Extraction', model: activeModel }
-              }[taskType];
-              return (
-                <div className="border border-border/60 rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                  {/* Inline header */}
-                  <div className="px-4 py-2.5 bg-primary/5 border-b border-border/60 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Play className="w-3.5 h-3.5 text-primary" />
-                      <span className="font-bold text-foreground text-xs">
-                        {confirmStep === 1 ? 'Confirm Execution — Step 1: Targets' : 'Confirm Execution — Step 2: Prompt Details'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] px-2 py-0.5 font-bold rounded bg-primary/15 text-primary">Step {confirmStep} of 2</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowLaunchConfirm(false)}
-                        className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-all"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Step content */}
-                  <div className="p-4 space-y-3 text-xs">
-                    {confirmStep === 1 && (
-                      <div className="space-y-3 animate-in fade-in duration-150">
-                        {!promptValidation.isValid && (
-                          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-2">
-                            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                            <div>
-                              <span className="font-bold text-red-400 block text-xs">Prompt Design Error</span>
-                              <p className="text-[10px] text-muted-foreground leading-normal mt-0.5">
-                                {promptValidation.error}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-2 gap-3">
-                          {/* Stage & Model */}
-                          <div className="p-3 bg-secondary/10 border border-border/40 rounded-lg space-y-1">
-                            <span className="text-[9px] font-bold text-muted-foreground uppercase">1. Pipeline Stage &amp; Model</span>
-                            <div className="font-bold text-foreground text-xs">{stageInfo.name}</div>
-                            <div className="text-[10px] text-muted-foreground">{stageInfo.desc} • <span className="font-mono text-primary font-bold">{stageInfo.model}</span></div>
-                            <div className="flex items-center gap-1.5 pt-0.5">
-                              <span className="text-[9px] font-bold text-muted-foreground">Speed tier:</span>
-                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
-                                activeExecutionMode === 'STANDARD'
-                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20'
-                                  : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              }`}>
-                                {activeExecutionMode === 'STANDARD' ? 'standard' : 'flex (50% discount)'}
-                              </span>
-                            </div>
-                          </div>
-                          {/* API Key */}
-                          <div className={`p-3 border rounded-lg space-y-1 ${
-                            configuredKeys.includes('GEMINI_API_KEY')
-                              ? 'bg-emerald-500/5 border-emerald-500/20'
-                              : 'bg-red-500/5 border-red-500/20'
-                          }`}>
-                            <span className="text-[9px] font-bold text-muted-foreground uppercase">2. API Key / Vault Status</span>
-                            <div className="flex items-center gap-1.5 font-bold text-xs">
-                              {configuredKeys.includes('GEMINI_API_KEY') ? (
-                                <><ShieldCheck className="w-4 h-4 text-emerald-400 animate-pulse" /><span className="text-emerald-400">Vault Key Unlocked</span></>
-                              ) : (
-                                <><AlertTriangle className="w-4 h-4 text-red-400" /><span className="text-red-400">API Key Missing</span></>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground">
-                              {configuredKeys.includes('GEMINI_API_KEY') ? 'Decrypted in memory' : 'Configure in Tab 1 first'}
-                            </div>
-                          </div>
-                        </div>
-                        {/* Target paper range */}
-                        <div className="p-3 bg-secondary/10 border border-border/40 rounded-lg space-y-1">
-                          <span className="text-[9px] font-bold text-muted-foreground uppercase">3. Target Paper Count &amp; Mode</span>
-                          <div className="font-bold text-foreground text-xs">
-                            {paperSelectionMode === 'all' && 'All Pending Papers in Project'}
-                            {paperSelectionMode === 'limit' && `Limit Batch Size: Run first ${batchLimit} pending papers`}
-                            {paperSelectionMode === 'range' && `Index Range: Run ${batchLimit} papers starting from index offset ${indexOffset}`}
-                            {paperSelectionMode === 'selected' && `Manual Select: Run on ${preSelectedPaperIds?.length || 0} papers`}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            Papers will be executed sequentially matching database chronological rowid ordering.
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {confirmStep === 2 && (
-                      <div className="space-y-3 animate-in fade-in duration-150">
-                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block border-b border-border/30 pb-1">4. Complete Prompt &amp; Rules Preview</span>
-                        {!promptValidation.isValid && (
-                          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-2">
-                            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                            <div>
-                              <span className="font-bold text-red-400 block text-xs">Prompt Design Error</span>
-                              <p className="text-[10px] text-muted-foreground leading-normal mt-0.5">
-                                {promptValidation.error}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        {activeTemplateId ? (() => {
-                          const selectedPrompt = prompts.find(p => p.id === activeTemplateId);
-                          if (!selectedPrompt) return <div className="text-red-400 font-bold">Configured template not found.</div>;
-                          return (
-                            <div className="space-y-3">
-                              <div className="p-2.5 bg-primary/5 border border-primary/20 rounded-lg">
-                                <span className="text-[10px] text-primary font-bold block mb-0.5">Template: {selectedPrompt.name}</span>
-                                <span className="text-[9px] text-muted-foreground block">{selectedPrompt.description || 'No description.'}</span>
-                              </div>
-                              <div className="space-y-1">
-                                <span className="text-[10px] text-muted-foreground font-bold block">System Instructions:</span>
-                                <div className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-zinc-100 whitespace-pre-wrap select-all border-l-2 border-l-primary/60 leading-relaxed">
-                                  {selectedPrompt.system_prompt}
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <span className="text-[10px] text-muted-foreground font-bold block">User Template (Jinja2 format):</span>
-                                <div className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-zinc-100 whitespace-pre-wrap select-all border-l-2 border-l-primary/60 leading-relaxed">
-                                  {selectedPrompt.user_prompt_template}
-                                </div>
-                              </div>
-                              {selectedPrompt.response_schema && (
-                                <div className="space-y-1">
-                                  <span className="text-[10px] text-muted-foreground font-bold block">Structured Output JSON Schema:</span>
-                                  <pre className="max-h-40 overflow-y-auto bg-zinc-950 border border-zinc-800 rounded-lg p-3 font-mono text-[11px] text-emerald-400 select-all border-l-2 border-l-emerald-500/60 leading-relaxed">
-                                    {(() => { try { return JSON.stringify(JSON.parse(selectedPrompt.response_schema), null, 2); } catch { return selectedPrompt.response_schema; } })()}
-                                  </pre>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })() : (
-                          <div className="p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg flex gap-2">
-                            <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-                            <div>
-                              <span className="font-bold text-yellow-400 block">Using Default Project Config Templates</span>
-                              <p className="text-[10px] text-muted-foreground leading-normal">
-                                This stage will run using the default system prompts defined in python execution files, combined with project rules.
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Inline footer */}
-                  <div className="px-4 py-2.5 border-t border-border/60 bg-secondary/10 flex justify-between items-center">
-                    <div>
-                      {confirmStep === 2 && (
-                        <button type="button" onClick={() => setConfirmStep(1)}
-                          className="px-3 py-1.5 border border-border rounded-lg hover:bg-secondary/40 font-bold transition-all text-xs">
-                          ← Previous
-                        </button>
-                      )}
-                      {confirmStep === 1 && (
-                        <button type="button" onClick={() => setShowLaunchConfirm(false)}
-                          className="px-3 py-1.5 border border-border rounded-lg hover:bg-secondary/40 font-bold transition-all text-xs">
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                    <div>
-                      {confirmStep === 1 && (
-                        <button type="button"
-                          disabled={!promptValidation.isValid}
-                          onClick={() => setConfirmStep(2)}
-                          className="px-3 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg transition-all hover:scale-105 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed text-xs">
-                          Next →
-                        </button>
-                      )}
-                      {confirmStep === 2 && (
+            ) : (
+              <>
+                {/* Top Control Panel */}
+                <div className="bg-secondary/10 border border-border/40 rounded-xl p-4 space-y-4">
+                  
+                  {/* Row 1: Stage Taxonomy Selector */}
+                  <div className="space-y-2">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">1. Select Pipeline Stage</span>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: 'fast_filter', name: 'Fast Filter', desc: 'Metadata (Flash)' },
+                        { id: 'gatekeeper', name: 'Gatekeeper', desc: 'PDF Screen (Pro)' },
+                        { id: 'scientist', name: 'Scientist', desc: 'QA Check (Pro)' },
+                        { id: 'miner', name: 'Miner', desc: 'Extraction (Pro)' },
+                      ].map((stage) => (
                         <button
-                          type="button"
-                          disabled={!configuredKeys.includes('GEMINI_API_KEY') || !promptValidation.isValid}
-                          onClick={() => { setShowLaunchConfirm(false); handleAction('start'); }}
-                          className="px-3 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg flex items-center gap-1.5 transition-all hover:scale-105 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed text-xs"
+                          key={stage.id}
+                          disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                          onClick={() => setTaskType(stage.id as any)}
+                          className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-all ${
+                            taskType === stage.id
+                              ? 'border-primary bg-primary/10 text-primary shadow-sm font-bold scale-[1.02]'
+                              : 'border-border/60 bg-secondary/20 hover:bg-secondary/40 text-muted-foreground hover:text-foreground'
+                          }`}
                         >
-                          <Play className="w-3.5 h-3.5" />
-                          <span>Start Stage Execution</span>
+                          <span className="text-xs font-bold">{stage.name}</span>
+                          <span className="text-[9px] mt-0.5 opacity-80">{stage.desc}</span>
                         </button>
-                      )}
+                      ))}
                     </div>
                   </div>
-                </div>
-              );
-            })() : (
-              /* ── Normal run actions row ── */
-              <div className="flex items-center justify-between border-t border-border/40 pt-3">
-                <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                  Status: <span className="text-foreground">{jobStatus}</span>
-                </div>
-                <div className="flex gap-2">
-                  {['IDLE', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(jobStatus) ? (
-                    <button
-                      disabled={!activeTemplateId || connecting || !promptValidation.isValid}
-                      onClick={() => { setShowLaunchConfirm(true); setConfirmStep(1); }}
-                      className="px-4 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-lg shadow-primary/10 transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed"
-                    >
-                      {connecting ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                      <span>{connecting ? 'Initializing…' : 'Launch Stage execution'}</span>
-                    </button>
-                  ) : (
-                    <>
-                      {jobStatus === 'PAUSED_BUDGET' ? (
-                        <button onClick={() => handleAction('resume')}
-                          className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all hover:scale-105">
-                          <Play className="w-3.5 h-3.5" /><span>Resume (Cleared Budget)</span>
-                        </button>
-                      ) : (
-                        <button onClick={() => handleAction('pause')} disabled
-                          className="px-4 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all">
-                          <Pause className="w-3.5 h-3.5" /><span>Pause</span>
-                        </button>
+
+                  {/* Row 2: Default Prompt Template Info */}
+                  <div className="bg-secondary/10 border border-border/40 rounded-lg p-3 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Active Default Prompt</span>
+                      {activeTemplateId ? (() => {
+                        const activePrompt = prompts.find(p => p.id === activeTemplateId);
+                        return activePrompt ? (
+                          <span className="font-semibold text-xs text-foreground">
+                            {activePrompt.name} <span className="text-muted-foreground font-mono text-[10px]">({activePrompt.id})</span>
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-xs text-amber-500">
+                            Configured template ({activeTemplateId}) not found
+                          </span>
+                        );
+                      })() : (
+                        <span className="font-semibold text-xs text-amber-500">
+                          No default prompt configured for this stage
+                        </span>
                       )}
-                      <button onClick={() => handleAction('cancel')}
-                        className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all hover:scale-105">
-                        <XCircle className="w-3.5 h-3.5" /><span>Terminate Run</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Performance metrics dashboard widgets */}
-            <div className="grid grid-cols-4 gap-3">
-              <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
-                <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Processed</span>
-                <span className="text-sm font-bold text-foreground font-mono">{metrics.processed} / {metrics.total}</span>
-              </div>
-              <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
-                <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Total Cost</span>
-                <span className="text-sm font-bold text-emerald-400 font-mono">${metrics.cost.toFixed(4)}</span>
-              </div>
-              <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
-                <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Tokens</span>
-                <span className="text-sm font-bold text-foreground font-mono">{metrics.tokens.toLocaleString()}</span>
-              </div>
-              <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
-                <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Job status</span>
-                <span className={`inline-flex items-center mt-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold ${
-                  jobStatus === 'COMPLETED' ? 'bg-green-500/10 text-green-400' :
-                  jobStatus === 'RUNNING' || jobStatus === 'STARTING' ? 'bg-primary/10 text-primary animate-pulse' :
-                  jobStatus === 'PAUSED_BUDGET' ? 'bg-yellow-500/10 text-yellow-400' :
-                  jobStatus === 'FAILED' ? 'bg-red-500/10 text-red-400' : 'bg-secondary/40 text-muted-foreground'
-                }`}>
-                  {jobStatus}
-                </span>
-              </div>
-            </div>
-
-            {/* Subprocess Console Screen */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-                  Execution Logs
-                </span>
-                <button
-                  onClick={() => { const el = document.getElementById('llm-exec-logs'); if (el) el.scrollTop = el.scrollHeight; }}
-                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  title="Scroll to bottom"
-                >
-                  ↓ Scroll to end
-                </button>
-              </div>
-              <div
-                id="llm-exec-logs"
-                className="overflow-y-auto font-mono text-[10px] leading-relaxed select-text"
-                style={{
-                  height: '200px', minHeight: '100px', maxHeight: '600px', resize: 'vertical',
-                  background: 'linear-gradient(135deg, #0d1117 0%, #0f1923 100%)',
-                  border: '1px solid rgba(99,110,123,0.25)', borderRadius: '10px',
-                  padding: '12px 14px', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6)',
-                  scrollbarWidth: 'thin', scrollbarColor: 'rgba(99,110,123,0.3) transparent',
-                }}
-              >
-                {logs.length === 0 ? (
-                  <span style={{ color: 'rgba(125,133,144,0.55)' }} className="italic">
-                    No active logs. Select options and click Launch Stage execution to start.
-                  </span>
-                ) : (
-                  <div className="flex flex-col gap-0.5">
-                    {logs.map((l, i) => {
-                      let color = '#8b949e';
-                      let prefix = '  ';
-                      if (l.status === 'ERROR') { color = '#ff6b6b'; prefix = '✗ '; }
-                      else if (l.status === 'COMPLETED' || l.status === 'SUCCESS') { color = '#3fb950'; prefix = '✓ '; }
-                      else if (l.status === 'WARNING') { color = '#e3b341'; prefix = '⚠ '; }
-                      else if (l.status === 'PROGRESS' || l.status === 'RUNNING') { color = '#58a6ff'; prefix = '› '; }
-                      const ts = l.timestamp ? `[${new Date(l.timestamp).toLocaleTimeString()}] ` : '';
+                    </div>
+                    {activeTemplateId && prompts.find(p => p.id === activeTemplateId) && (() => {
+                      const activePrompt = prompts.find(p => p.id === activeTemplateId);
+                      const parsedConfig = (() => {
+                        try {
+                          return activePrompt?.llm_config ? JSON.parse(activePrompt.llm_config) : {};
+                        } catch { return {}; }
+                      })();
                       return (
-                        <div key={i} className="whitespace-pre-wrap leading-relaxed" style={{ color }}>
-                          <span style={{ color: 'rgba(125,133,144,0.45)', fontSize: '9px', userSelect: 'none' }}>{ts}</span>
-                          <span>{prefix}</span>
-                          <span>{l.message || JSON.stringify(l)}</span>
+                        <div className="text-right">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Configured Model</span>
+                          <span className="font-mono text-xs font-bold text-primary">{parsedConfig.model_id || 'gemini-2.5-flash'}</span>
                         </div>
                       );
-                    })}
+                    })()}
                   </div>
-                )}
-                <div ref={logEndRef} />
-              </div>
-              <p className="text-[9px] text-muted-foreground/40 text-right">Drag bottom-right corner to resize</p>
-            </div>
+
+                  {/* Row 2: Paper Selection Mode Selector & Target Paper Status */}
+                  <div className={`grid gap-4 ${['fast_filter', 'gatekeeper'].includes(taskType) ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                    <div className="space-y-1.5 relative">
+                      <div className="absolute right-0 top-0">
+                        {targetCount !== null && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/20 text-primary inline-block -mt-1">
+                            {targetCount} {targetCount === 1 ? 'paper' : 'papers'} target
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">2. Paper Range / Selection Mode</span>
+                      <select
+                        value={paperSelectionMode}
+                        onChange={(e) => setPaperSelectionMode(e.target.value as any)}
+                        disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                        className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
+                      >
+                        <option value="all">All Pending Papers</option>
+                        <option value="all_project">All Project Papers (Ignore Status)</option>
+                        <option value="limit">Limit Batch Size</option>
+                        <option value="range">Index Range (Offset + Limit)</option>
+                        {preSelectedPaperIds && preSelectedPaperIds.length > 0 && (
+                          <option value="selected">Manual Select ({preSelectedPaperIds.length} papers)</option>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">2b. Target Paper Status</span>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                        className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
+                      >
+                        <option value="0">Status 0: Unprocessed</option>
+                        <option value="1">Status 1: Passed Fast Filter</option>
+                        <option value="2">Status 2: Passed Gatekeeper</option>
+                        <option value="3">Status 3: Passed Scientist</option>
+                        <option value="4">Status 4: Passed Miner</option>
+                      </select>
+                    </div>
+
+                    {['fast_filter', 'gatekeeper'].includes(taskType) && (
+                      <div className="space-y-1.5 animate-in slide-in-from-right-2 duration-200">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">2c. Target Screening Decision</span>
+                        <select
+                          value={decisionFilter}
+                          onChange={(e) => setDecisionFilter(e.target.value)}
+                          disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                          className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
+                        >
+                          <option value="ALL">Any Decision</option>
+                          <option value="PENDING">Pending</option>
+                          <option value="INCLUDE">Included</option>
+                          <option value="EXCLUDE">Excluded</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 4: Conditionally Render Selection Parameters */}
+                  {paperSelectionMode === 'limit' && (
+                    <div className="grid grid-cols-3 gap-3 pt-1 animate-in slide-in-from-top-2 duration-200">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground font-bold uppercase">Batch Size (Count)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={batchLimit}
+                          onChange={(e) => setBatchLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                          disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                          className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1 text-xs text-foreground outline-none font-bold"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {paperSelectionMode === 'range' && (
+                    <div className="grid grid-cols-2 gap-4 pt-1 animate-in slide-in-from-top-2 duration-200">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground font-bold uppercase">Start Offset (Chronological Index)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={indexOffset}
+                          onChange={(e) => setIndexOffset(Math.max(0, parseInt(e.target.value) || 0))}
+                          disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                          className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1 text-xs text-foreground outline-none font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground font-bold uppercase">Max Papers to Run</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={batchLimit}
+                          onChange={(e) => setBatchLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                          disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                          className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1 text-xs text-foreground outline-none font-bold"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {paperSelectionMode === 'selected' && preSelectedPaperIds && (
+                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-xs text-muted-foreground flex items-center justify-between animate-in slide-in-from-top-2 duration-200">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        <span>Selected <strong>{preSelectedPaperIds.length} papers</strong> from the database view checkmarks.</span>
+                      </div>
+                      <button
+                        onClick={() => setPaperSelectionMode('all')}
+                        disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                        className="text-[10px] text-primary hover:underline font-bold"
+                      >
+                        Switch to All
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ── Normal run actions row ── */}
+                  <div className="flex items-center justify-between border-t border-border/40 pt-3">
+                    <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
+                      Status: <span className="text-foreground">{jobStatus}</span>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      {['IDLE', 'COMPLETED', 'FAILED', 'CANCELLED'].includes(jobStatus) ? (
+                        <>
+                          {isLlmLocked && (
+                            <div className="flex items-center gap-2 mr-2">
+                              <span className="text-red-500 font-semibold text-[10px] animate-pulse">Another pipeline is running</span>
+                              <button onClick={forceUnlock} className="px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded text-[9px] uppercase font-bold transition-all shadow-sm">
+                                Force Unlock
+                              </button>
+                            </div>
+                          )}
+                          <button
+                            disabled={!activeTemplateId || connecting || !promptValidation.isValid || isLlmLocked}
+                            onClick={() => { setShowLaunchConfirm(true); setConfirmStep(1); }}
+                            className={`px-4 py-1.5 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-lg transition-all ${isLlmLocked ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed opacity-50 shadow-none' : 'bg-primary hover:bg-primary/95 text-primary-foreground shadow-primary/10 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed'}`}
+                          >
+                            {connecting ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                            <span>{connecting ? 'Initializing…' : 'Launch Stage execution'}</span>
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex gap-2">
+                          {['PAUSED_BUDGET', 'PAUSED_USER'].includes(jobStatus) ? (
+                            <button onClick={() => handleAction('resume')}
+                              className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all hover:scale-105">
+                              <Play className="w-3.5 h-3.5" /><span>Resume (Cleared Budget)</span>
+                            </button>
+                          ) : (
+                            <button onClick={() => handleAction('pause')}
+                              className="px-4 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all">
+                              <Pause className="w-3.5 h-3.5" /><span>Pause</span>
+                            </button>
+                          )}
+                          <button onClick={() => handleAction('cancel')}
+                            className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all hover:scale-105">
+                            <XCircle className="w-3.5 h-3.5" /><span>Terminate Run</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Performance metrics dashboard widgets */}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
+                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Processed</span>
+                      <span className="text-sm font-bold text-foreground font-mono">{metrics.processed} / {metrics.total}</span>
+                    </div>
+                    <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
+                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Total Cost</span>
+                      <span className="text-sm font-bold text-emerald-400 font-mono">${metrics.cost.toFixed(4)}</span>
+                    </div>
+                    <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
+                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Tokens</span>
+                      <span className="text-sm font-bold text-foreground font-mono">{metrics.tokens.toLocaleString()}</span>
+                    </div>
+                    <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
+                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Job status</span>
+                      <span className={`inline-flex items-center mt-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold ${
+                        jobStatus === 'COMPLETED' ? 'bg-green-500/10 text-green-400' :
+                        jobStatus === 'RUNNING' || jobStatus === 'STARTING' ? 'bg-primary/10 text-primary animate-pulse' :
+                        ['PAUSED_BUDGET', 'PAUSED_USER'].includes(jobStatus) ? 'bg-yellow-500/10 text-yellow-400' :
+                        jobStatus === 'FAILED' ? 'bg-red-500/10 text-red-400' : 'bg-secondary/40 text-muted-foreground'
+                      }`}>
+                        {jobStatus}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* ETA & Avg Time Row */}
+                  {(jobStatus === 'RUNNING' || ['PAUSED_BUDGET', 'PAUSED_USER'].includes(jobStatus) || jobStatus === 'COMPLETED') && metrics.processed > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase">Avg Time / Paper</span>
+                        <span className="text-sm font-bold text-foreground font-mono">
+                          {(metrics.avgExecutionTimeMs / 1000).toFixed(1)}s
+                        </span>
+                      </div>
+                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase">Est. Time Remaining</span>
+                        <span className="text-sm font-bold text-foreground font-mono">
+                          {(() => {
+                            const remaining = metrics.total - metrics.processed;
+                            if (remaining <= 0) return '0s';
+                            const etaSecs = Math.round((remaining * metrics.avgExecutionTimeMs) / 1000);
+                            if (etaSecs > 60) {
+                              const mins = Math.floor(etaSecs / 60);
+                              const secs = etaSecs % 60;
+                              return `${mins}m ${secs}s`;
+                            }
+                            return `${etaSecs}s`;
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {['fast_filter', 'gatekeeper'].includes(taskType) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
+                        <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-emerald-500">Included Papers</span>
+                        <span className="text-sm font-bold text-foreground font-mono">{metrics.included}</span>
+                      </div>
+                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
+                        <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-rose-500">Excluded Papers</span>
+                        <span className="text-sm font-bold text-foreground font-mono">{metrics.excluded}</span>
+                        {metrics.excluded > 0 && Object.keys(metrics.exclusion_reasons || {}).length > 0 && (
+                          <div className="text-[10px] text-left mt-2 space-y-1.5 border-t border-border/40 pt-2">
+                            {Object.entries(metrics.exclusion_reasons).map(([reason, count]) => (
+                              <div key={reason} className="flex justify-between items-center bg-secondary/30 px-2.5 py-1.5 rounded">
+                                <span className="truncate max-w-[120px] font-medium" title={reason}>{reason}</span>
+                                <span className="font-mono font-bold">
+                                  {count as number} <span className="text-muted-foreground opacity-70">({((count as number) / metrics.excluded * 100).toFixed(1)}%)</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Subprocess Console Screen */}
+                <div className="bg-[#0c0c0c] border border-border/40 rounded-xl overflow-hidden flex flex-col h-64">
+                  <div className="bg-secondary/20 px-3 py-1.5 border-b border-border/40 flex items-center gap-2">
+                    <Terminal className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-[9px] font-mono text-muted-foreground uppercase font-bold tracking-wider">Execution Log Stream</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1.5 leading-relaxed">
+                    {logs.length === 0 ? (
+                      <div className="text-muted-foreground/40 italic">Waiting for execution to start...</div>
+                    ) : (
+                      logs.map((log, i) => (
+                        <div key={i} className={`flex gap-2`}>
+                          <span className="text-muted-foreground/40 shrink-0">[{new Date().toLocaleTimeString()}]</span>
+                          <span className={`font-bold shrink-0 w-[100px] ${
+                            log.status === 'ERROR' || log.status === 'FAILED' ? 'text-red-500' :
+                            log.status === 'WARNING' || ['PAUSED_BUDGET', 'PAUSED_USER'].includes(log.status) ? 'text-amber-500' :
+                            log.status === 'COMPLETED' ? 'text-emerald-500' :
+                            log.status === 'RUNNING' ? 'text-blue-400' :
+                            'text-zinc-500'
+                          }`}>
+                            {log.status}
+                          </span>
+                          <span className={`break-words ${
+                            log.status === 'ERROR' || log.status === 'FAILED' ? 'text-red-400 font-bold' : 
+                            log.status === 'WARNING' || ['PAUSED_BUDGET', 'PAUSED_USER'].includes(log.status) ? 'text-amber-500' : 
+                            'text-zinc-300'
+                          }`}>
+                            {log.message}
+                            {log.current_paper && <span className="text-primary/70 ml-1">({log.current_paper})</span>}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                    <div ref={logEndRef} />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
+
+
 
         {/* --- AUDIT TRAIL TAB --- */}
         {activeTab === 'audit' && (

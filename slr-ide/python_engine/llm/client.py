@@ -36,29 +36,7 @@ def safe_json_loads(text: str) -> dict:
         pass
         
     # Attempt parsing with strict=False to handle raw newlines / control characters
-    try:
-        return json.loads(text, strict=False)
-    except json.JSONDecodeError:
-        pass
-
-    # Try simple auto-repair of unterminated strings or trailing issues
-    test_text = text
-    if test_text.count('"') % 2 != 0:
-        test_text += '"'
-    
-    open_braces = test_text.count('{') - test_text.count('}')
-    if open_braces > 0:
-        test_text += '}' * open_braces
-        
-    open_brackets = test_text.count('[') - test_text.count(']')
-    if open_brackets > 0:
-        test_text += ']' * open_brackets
-        
-    try:
-        return json.loads(test_text, strict=False)
-    except json.JSONDecodeError:
-        # Fallback to the strict=False call to throw standard informative error
-        return json.loads(text, strict=False)
+    return json.loads(text, strict=False)
 
 def wait_for_file_active(client, file_name: str, timeout_seconds: int = 45) -> None:
     """Polls the Gemini Files API until the uploaded file state is ACTIVE."""
@@ -95,7 +73,7 @@ def wait_for_file_active(client, file_name: str, timeout_seconds: int = 45) -> N
     raise TimeoutError(f"Gemini file activation timed out after {timeout_seconds} seconds.")
 
 class GeminiClient:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, timeout_seconds: float = 900.0):
         if not api_key:
             raise ValueError("API key must be provided to initialize GeminiClient")
         
@@ -107,8 +85,13 @@ class GeminiClient:
             del os.environ["GOOGLE_API_KEY"]
         os.environ["GEMINI_API_KEY"] = api_key
         
-        # Initialize the new google-genai Client
-        self.client = genai.Client(api_key=api_key)
+        # Initialize the new google-genai Client with the configured timeout
+        # to prevent the Python thread from hanging indefinitely if the TCP connection drops silently.
+        # NOTE: The google-genai SDK's HttpOptions expects the timeout parameter in milliseconds!
+        self.client = genai.Client(
+            api_key=api_key,
+            http_options={'timeout': int(timeout_seconds * 1000)}
+        )
 
     # ──────────────────────────────────────────────────────────────────────────
     # Internal: Gemini Interactions API path (supports store / service_tier /

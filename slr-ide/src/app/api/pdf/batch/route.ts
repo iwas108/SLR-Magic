@@ -3,9 +3,17 @@ import { NextResponse } from 'next/server';
 import { streamManager } from '@/lib/services/stream-manager';
 import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 import { runBackgroundExecution } from '@/lib/services/batch-pipeline-executor';
+import { pipelineLock } from '@/lib/services/pipeline-lock';
 
 export async function POST(req: Request) {
   try {
+    if (pipelineLock.isLocked()) {
+      return new Response(JSON.stringify({ error: 'Another pipeline is currently running. Please wait for it to complete.' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     let body = { steps: ['scan', 'scrape', 'sync'] };
     try {
       body = await req.json();
@@ -37,6 +45,7 @@ export async function POST(req: Request) {
 
     batchStateTracker.resetBatchState(steps);
 
+    pipelineLock.acquire();
     runBackgroundExecution(steps, compress);
 
     return streamManager.createEventStream(() => batchStateTracker.getState());

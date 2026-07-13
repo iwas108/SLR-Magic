@@ -252,6 +252,8 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/papers/route.ts` | REST Endpoint | Handles GET requests for querying, filtering, sorting, and server-side paginating paper records from `slr.db`. |
 | `api/papers/manual-screening/route.ts` | REST Endpoint | Handles GET requests to filter, sort, search, and paginate manual screening papers workspace list. |
 | `api/papers/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests for retrieving, updating, or permanently deleting a single paper record by its `Paper_ID`. |
+| `api/papers/purge-check/route.ts` | REST Endpoint | Handles POST requests to match current project database papers against an incoming CSV list and return candidate papers for deletion. |
+| `api/papers/purge/route.ts` | REST Endpoint | Handles POST requests to execute bulk deletion of selected papers, their corresponding duplicate papers, and project-scoped PDF files. |
 | `api/pdf/batch/route.ts` | REST Endpoint | Handles POST/GET requests to spawn the unified sequential PDF batch pipeline (Scan, Scrape, Compress, Sync) and stream live NDJSON logs. |
 | `api/pdf/batch/cancel/route.ts` | REST Endpoint | Handles POST requests to terminate active PDF batch child process trees (`taskkill` / `SIGKILL`) and set cancellation flags. |
 | `api/pdf/batch/resume/route.ts` | REST Endpoint | Handles POST requests to resume an interrupted or paused PDF batch execution pipeline from its last recorded checkpoint. |
@@ -266,3 +268,13 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/vectors/status/route.ts` | REST Endpoint | Handles GET requests to check vector database index status parameters and count fields. |
 | `api/vectors/build/route.ts` | REST Endpoint | Handles POST requests to spawn the incremental vector index build subprocess and stream progress. |
 | `api/vectors/traps/route.ts` | REST Endpoint | Handles POST requests to trigger the semantic near-miss traps finder. |
+| \slr-ide/src/app/api/remote-worker/claim/route.ts\ | Backend API | Endpoint for remote workers to claim batches of missing papers |
+| \slr-ide/src/app/api/remote-worker/result/route.ts\ | Backend API | Endpoint for remote workers to submit downloaded PDFs and status |
+| \slr-ide/src/app/api/remote-worker/download-script/route.ts\ | Backend API | Endpoint to serve the standalone Python worker script |
+| \slr-ide/src/app/api/remote-worker/settings/route.ts\ | Backend API | Endpoint to manage remote worker configuration settings |
+| \slr-ide/src/lib/services/remote-worker-manager.ts\ | Core Services | Singleton service orchestrating worker pools, heartbeats, and reclaims |
+| \slr-ide/src/hooks/useRemoteWorkers.ts\ | React Hooks | Custom hook to interface with the remote worker API |
+| \slr-ide/src/components/features/remote-workers/WorkerCard.tsx\ | Frontend Component | Displays remote worker node status and telemetry |
+| \slr-ide/src/components/features/remote-workers/RemoteWorkersView.tsx\ | Frontend Component | Interactive table/dashboard for managing connected remote workers |
+| \slr-ide/src/components/features/remote-workers/RemoteWorkerSettingsPanel.tsx\ | Frontend Component | Panel for tuning global remote worker execution settings |
+| \slr-ide/python_engine/worker_server.py\ | Python Engine | Standalone Flask-based worker script that performs distributed scraping |

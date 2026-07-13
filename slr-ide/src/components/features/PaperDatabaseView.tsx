@@ -5,7 +5,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, Eye, Edit2, ChevronLeft, ChevronRight,
   Minus, Maximize2, LayoutDashboard, Plus, Edit, Folder, Calendar, CheckCircle2,
   TrendingUp, BarChart3, Cloud, Database, ShieldAlert, Terminal, ArrowRightLeft,
-  Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield
+  Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield, Filter
 } from 'lucide-react';
 import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
 import { broadcastSync } from '@/lib/sync-utils';
@@ -115,46 +115,17 @@ export default function PaperDatabaseView({
   loadPapers
 }: PaperDatabaseViewProps) {
 
-  const [filterType, setFilterType] = React.useState('none');
-  const [filterValue, setFilterValue] = React.useState('');
+  const [showFilters, setShowFilters] = React.useState(false);
   const [bulkType, setBulkType] = React.useState('');
   const [bulkValue, setBulkValue] = React.useState('');
 
-  React.useEffect(() => {
-    if (statusFilter) {
-      setFilterType('stage');
-      setFilterValue(statusFilter);
-    } else if (decisionFilter) {
-      setFilterType('decision');
-      setFilterValue(decisionFilter);
-    } else if (pdfFilter) {
-      setFilterType('pdf');
-      setFilterValue(pdfFilter);
-    } else if (sourceFilter) {
-      setFilterType('source');
-      setFilterValue(sourceFilter);
-    } else {
-      setFilterType('none');
-      setFilterValue('');
-    }
-  }, [statusFilter, decisionFilter, pdfFilter, sourceFilter]);
-
-  const handleFilterTypeChange = (type: string) => {
-    setFilterType(type);
-    setFilterValue('');
+  const clearAllFilters = () => {
     setStatusFilter('');
     setDecisionFilter('');
     setPdfFilter('');
     setSourceFilter('');
   };
 
-  const handleFilterValueChange = (val: string) => {
-    setFilterValue(val);
-    setStatusFilter(filterType === 'stage' ? val : '');
-    setDecisionFilter(filterType === 'decision' ? val : '');
-    setPdfFilter(filterType === 'pdf' ? val : '');
-    setSourceFilter(filterType === 'source' ? val : '');
-  };
 
   const handleDecisionOverride = async (paper: any, val: string) => {
     const payload = {
@@ -335,62 +306,78 @@ export default function PaperDatabaseView({
 
           {/* Right Side: Combined Filters, Review Duplicates, Combined Bulk Operations, Delete All */}
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Combined Filters */}
-            <div className="flex items-center gap-1.5">
-              <select
-                className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
-                value={filterType}
-                onChange={(e) => handleFilterTypeChange(e.target.value)}
+            {/* Advanced Filters */}
+            <div className="relative flex items-center gap-1.5">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`px-3 py-2 border rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  showFilters || statusFilter || decisionFilter || pdfFilter || sourceFilter
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-secondary text-foreground border-border hover:bg-secondary/80'
+                }`}
               >
-                <option value="none">No Filter</option>
-                <option value="stage">Pipeline Stage</option>
-                <option value="decision">Screening Decision</option>
-                <option value="pdf">PDF Status</option>
-                <option value="source">Source Scope</option>
-              </select>
+                <Filter className="w-3.5 h-3.5" />
+                Filters
+                {(statusFilter || decisionFilter || pdfFilter || sourceFilter) && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/20 text-[10px]">
+                    {[statusFilter, decisionFilter, pdfFilter, sourceFilter].filter(Boolean).length}
+                  </span>
+                )}
+              </button>
 
-              {filterType !== 'none' && (
-                <select
-                  className="bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold animate-in slide-in-from-left-2 duration-150"
-                  value={filterValue}
-                  onChange={(e) => handleFilterValueChange(e.target.value)}
-                >
-                  <option value="">Select Value...</option>
-                  {filterType === 'stage' && (
-                    <>
+              {showFilters && (
+                <div className="absolute top-full right-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-xl z-50 p-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">Advanced Filters</span>
+                    <button onClick={clearAllFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear All</button>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Pipeline Stage</label>
+                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                      <option value="">Any Stage</option>
                       <option value="0">0: Unprocessed</option>
                       <option value="1">1: Fast Filter (Metadata)</option>
                       <option value="2">2: Passed Gatekeeper (PDF)</option>
                       <option value="3">3: Passed Scientist (QA)</option>
                       <option value="4">4: Passed Miner (Extraction)</option>
-                    </>
-                  )}
-                  {filterType === 'decision' && (
-                    <>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Screening Decision</label>
+                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)}>
+                      <option value="">Any Decision</option>
                       <option value="INCLUDE">INCLUDE</option>
                       <option value="EXCLUDE">EXCLUDE</option>
                       <option value="UNADJUDICATED">Unadjudicated</option>
-                    </>
-                  )}
-                  {filterType === 'pdf' && (
-                    <>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">PDF Status</label>
+                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={pdfFilter} onChange={(e) => setPdfFilter(e.target.value)}>
+                      <option value="">Any PDF Status</option>
                       <option value="IGNORED">IGNORED</option>
                       <option value="MISSING">MISSING</option>
                       <option value="MATCHED">MATCHED</option>
                       <option value="DOWNLOADED">DOWNLOADED</option>
                       <option value="SYNCED">SYNCED</option>
                       <option value="FAILED">FAILED</option>
-                    </>
-                  )}
-                  {filterType === 'source' && (
-                    <>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Source Scope</label>
+                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+                      <option value="">Any Source</option>
                       <option value="manual">Manual Ingestion</option>
                       <option value="backward">Backward Snowball</option>
                       <option value="forward">Forward Snowball</option>
                       <option value="csv">CSV Import</option>
-                    </>
-                  )}
-                </select>
+                    </select>
+                  </div>
+                </div>
               )}
             </div>
 

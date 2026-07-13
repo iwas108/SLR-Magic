@@ -263,6 +263,17 @@ export function initializeDatabase(db: Database.Database): void {
       FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_ssc_lookup ON semantic_search_cache (project_id, query_text, pool_filter);
+
+    CREATE TABLE IF NOT EXISTS remote_workers (
+      id          TEXT PRIMARY KEY,
+      label       TEXT NOT NULL,
+      host        TEXT NOT NULL,
+      session_token TEXT,
+      status      TEXT NOT NULL DEFAULT 'OFFLINE',
+      last_seen_at TEXT,
+      is_enabled  INTEGER NOT NULL DEFAULT 1,
+      created_at  TEXT NOT NULL
+    );
   `);
 
   // Add Project_ID column to papers if it doesn't exist (migration fallback)
@@ -504,12 +515,13 @@ export function initializeDatabase(db: Database.Database): void {
 
   // Self-healing migration for paper Status column: convert 'PENDING', 'COMPLETED', 'FAILED' to '0'
   try {
-    db.exec(`
-      UPDATE papers SET Status = '0' WHERE Status = 'PENDING';
-      UPDATE papers SET Status = '0' WHERE Status = 'COMPLETED';
-      UPDATE papers SET Status = '0' WHERE Status = 'FAILED';
-    `);
-    console.log("Successfully migrated legacy paper Status values to '0'");
+    const i1 = db.prepare("UPDATE papers SET Status = '0' WHERE Status = 'PENDING'").run();
+    const i2 = db.prepare("UPDATE papers SET Status = '0' WHERE Status = 'COMPLETED'").run();
+    const i3 = db.prepare("UPDATE papers SET Status = '0' WHERE Status = 'FAILED'").run();
+    const total = i1.changes + i2.changes + i3.changes;
+    if (total > 0) {
+      console.log(`Successfully migrated ${total} legacy paper Status values to '0'`);
+    }
   } catch (e) {
     console.error("Failed to migrate legacy paper Status values:", e);
   }
@@ -541,6 +553,37 @@ export function initializeDatabase(db: Database.Database): void {
     } catch (e) {
       // Column already exists
     }
+  }
+
+  // Add remote worker columns to papers table if they do not exist
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN remote_worker_id TEXT DEFAULT NULL");
+  } catch (e) {}
+  
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN scrape_claimed_at TEXT DEFAULT NULL");
+  } catch (e) {}
+
+  // Self-healing migration for stuck IN_PROGRESS remote worker claims
+  try {
+    const info = db.prepare("UPDATE papers SET Local_PDF_Status = 'MISSING', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Local_PDF_Status = 'IN_PROGRESS'").run();
+    if (info.changes > 0) {
+      console.log(`Successfully reset ${info.changes} papers stuck in IN_PROGRESS back to MISSING.`);
+    }
+  } catch (e) {
+    console.error("Failed to reset stuck IN_PROGRESS papers:", e);
+  }
+
+  // Seed default remote worker configs if missing
+  try {
+    db.prepare(`
+      INSERT OR IGNORE INTO configs (key, value)
+      VALUES 
+        ('REMOTE_WORKER_BATCH_SIZE', '10'),
+        ('REMOTE_WORKER_LOCAL_SCRAPER_ENABLED', 'true')
+    `).run();
+  } catch (e) {
+    console.error("Failed to seed default remote worker configs:", e);
   }
 
   // Seed LLM pricing default entries for active Gemini models if empty
@@ -609,7 +652,9 @@ export function initializeDatabase(db: Database.Database): void {
 
   // Migrate legacy PDF paths to the unified pdf_library layout and perform self-healing
   try {
-    db.prepare(`
+    const isMigrated = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_LEGACY_PDF_PATHS_DONE'").get() as { value: string } | undefined;
+    if (!isMigrated || isMigrated.value !== 'true') {
+      db.prepare(`
       UPDATE papers 
       SET Local_PDF_Path = REPLACE(REPLACE(Local_PDF_Path, 'cached_pdf/', 'pdf_library/cached/'), 'cached_pdf\\', 'pdf_library/cached/')
       WHERE Local_PDF_Path LIKE 'cached_pdf/%' OR Local_PDF_Path LIKE 'cached_pdf\\%'
@@ -713,13 +758,18 @@ export function initializeDatabase(db: Database.Database): void {
         }
       }
     }
-  } catch (e) {
-    console.error("Failed to migrate and self-heal PDF paths:", e);
+    db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('MIGRATION_LEGACY_PDF_PATHS_DONE', 'true')").run();
+    console.log("Completed legacy PDF paths migration and self-healing.");
   }
+} catch (e) {
+  console.error("Failed to migrate and self-heal PDF paths:", e);
+}
 
   // Self-healing migration for AI decisions in reviewer_decisions from llm_audit_log
   try {
-    const rdRows = db.prepare(`
+    const isAiMigrated = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_LEGACY_AI_DECISIONS_DONE'").get() as { value: string } | undefined;
+    if (!isAiMigrated || isAiMigrated.value !== 'true') {
+      const rdRows = db.prepare(`
       SELECT id, paper_id, project_id, reviewer_name, decision, ec_trigger, rationale 
       FROM reviewer_decisions 
       WHERE reviewer_name LIKE '%gemini%' 
@@ -788,6 +838,8 @@ export function initializeDatabase(db: Database.Database): void {
     }
     if (fixedCount > 0) {
       console.log(`Self-healing: corrected ${fixedCount} AI screening decision mismatch(es) in reviewer_decisions.`);
+    }
+    db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('MIGRATION_LEGACY_AI_DECISIONS_DONE', 'true')").run();
     }
   } catch (e) {
     console.error("Failed to execute self-healing migration for AI decisions:", e);

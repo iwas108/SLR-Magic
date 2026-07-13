@@ -10,7 +10,7 @@ export async function GET() {
       const stats = db.prepare(`
         SELECT 
           COUNT(CASE WHEN is_duplicate IS NULL OR is_duplicate = 0 THEN 1 END) as total,
-          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Status IN ('INCLUDE', 'EXCLUDE') THEN 1 ELSE 0 END) as screened,
+          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND CAST(Status AS INTEGER) >= 1 THEN 1 ELSE 0 END) as screened,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as acquired,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND calibration_pool = 'pool_a' THEN 1 ELSE 0 END) as pool_a_count,
@@ -40,10 +40,127 @@ export async function GET() {
           tagStats[p][tag] = row.count;
         }
       }
+
+      const stageStatsRows = db.prepare(`
+        SELECT 
+          Status as stage,
+          SUM(CASE WHEN (
+            UPPER(Human_Decision) = 'INCLUDE' OR 
+            (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
+              SELECT UPPER(decision) FROM reviewer_decisions 
+              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+              ORDER BY imported_at DESC LIMIT 1
+            ) = 'INCLUDE')
+          ) THEN 1 ELSE 0 END) as included,
+          SUM(CASE WHEN (
+            UPPER(Human_Decision) = 'EXCLUDE' OR 
+            (Human_Decision IS NULL AND UPPER(manual_decision) = 'EXCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'EXCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
+              SELECT UPPER(decision) FROM reviewer_decisions 
+              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+              ORDER BY imported_at DESC LIMIT 1
+            ) = 'EXCLUDE')
+          ) THEN 1 ELSE 0 END) as excluded,
+          SUM(CASE WHEN (
+            (UPPER(Human_Decision) = 'INCLUDE' OR 
+            (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
+              SELECT UPPER(decision) FROM reviewer_decisions 
+              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+              ORDER BY imported_at DESC LIMIT 1
+            ) = 'INCLUDE')) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED')
+          ) THEN 1 ELSE 0 END) as inc_has_pdf,
+          SUM(CASE WHEN (
+            (UPPER(Human_Decision) = 'INCLUDE' OR 
+            (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
+              SELECT UPPER(decision) FROM reviewer_decisions 
+              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+              ORDER BY imported_at DESC LIMIT 1
+            ) = 'INCLUDE')) AND (DOI IS NULL OR DOI = '')
+          ) THEN 1 ELSE 0 END) as inc_no_doi,
+          SUM(CASE WHEN (
+            (UPPER(Human_Decision) = 'INCLUDE' OR 
+            (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
+              SELECT UPPER(decision) FROM reviewer_decisions 
+              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+              ORDER BY imported_at DESC LIMIT 1
+            ) = 'INCLUDE')) AND Local_PDF_Status = 'FAILED'
+          ) THEN 1 ELSE 0 END) as inc_pdf_failed,
+          COUNT(*) as total_in_stage
+        FROM papers 
+        WHERE Project_ID = ? AND Status IN ('1', '2') AND (is_duplicate IS NULL OR is_duplicate = 0)
+        GROUP BY Status
+      `).all(proj.id) as { stage: string; included: number; excluded: number; inc_has_pdf: number; inc_no_doi: number; inc_pdf_failed: number; total_in_stage: number }[];
+
+      const stageECStatsRows = db.prepare(`
+        SELECT 
+          Status as stage,
+          COALESCE(
+            Human_EC_Trigger, 
+            manual_ec_trigger, 
+            AI_EC_Trigger, 
+            (SELECT ec_trigger FROM reviewer_decisions 
+             WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+             ORDER BY imported_at DESC LIMIT 1)
+          ) as ec_trigger,
+          COUNT(*) as count
+        FROM papers 
+        WHERE Project_ID = ? AND Status IN ('1', '2') AND (is_duplicate IS NULL OR is_duplicate = 0)
+        AND (
+            UPPER(Human_Decision) = 'EXCLUDE' OR 
+            (Human_Decision IS NULL AND UPPER(manual_decision) = 'EXCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'EXCLUDE') OR
+            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
+              SELECT UPPER(decision) FROM reviewer_decisions 
+              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
+              ORDER BY imported_at DESC LIMIT 1
+            ) = 'EXCLUDE')
+        )
+        GROUP BY Status, ec_trigger
+      `).all(proj.id) as { stage: string; ec_trigger: string | null; count: number }[];
+
+      const ecBreakdown: Record<string, Record<string, number>> = {
+        '1': {},
+        '2': {}
+      };
+
+      for (const row of stageECStatsRows) {
+        const s = row.stage;
+        const trigger = row.ec_trigger || 'Unspecified';
+        if (ecBreakdown[s]) {
+          ecBreakdown[s][trigger] = (ecBreakdown[s][trigger] || 0) + row.count;
+        }
+      }
+
+      const stageStats: Record<string, { included: number; excluded: number; unprocessed: number; total: number; ecBreakdown: Record<string, number>; inc_has_pdf?: number; inc_no_doi?: number; inc_pdf_failed?: number; }> = {
+        '1': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: ecBreakdown['1'], inc_has_pdf: 0, inc_no_doi: 0, inc_pdf_failed: 0 },
+        '2': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: ecBreakdown['2'], inc_has_pdf: 0, inc_no_doi: 0, inc_pdf_failed: 0 }
+      };
+
+      for (const row of stageStatsRows) {
+        const s = row.stage;
+        if (stageStats[s]) {
+          stageStats[s].included = row.included;
+          stageStats[s].excluded = row.excluded;
+          stageStats[s].total = row.total_in_stage;
+          stageStats[s].unprocessed = row.total_in_stage - row.included - row.excluded;
+          stageStats[s].inc_has_pdf = row.inc_has_pdf || 0;
+          stageStats[s].inc_no_doi = row.inc_no_doi || 0;
+          stageStats[s].inc_pdf_failed = row.inc_pdf_failed || 0;
+        }
+      }
       
       return {
         ...proj,
-        stats: stats ? { ...stats, tagStats } : { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0, tagStats }
+        stats: stats ? { ...stats, tagStats, stageStats } : { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0, tagStats, stageStats }
       };
     });
 

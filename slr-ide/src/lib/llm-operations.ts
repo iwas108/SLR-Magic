@@ -1,11 +1,12 @@
 import { ChildProcess, exec } from 'child_process';
 import { clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
+import db from '@/lib/db';
 
 export interface LLMJobState {
   id: string;
   projectId: string;
   process: ChildProcess | null;
-  status: 'PENDING' | 'RUNNING' | 'PAUSED_BUDGET' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  status: 'PENDING' | 'RUNNING' | 'PAUSED_BUDGET' | 'PAUSED_USER' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   logs: string[];
   listeners: Set<(data: string) => void>;
   error: string | null;
@@ -79,6 +80,17 @@ export class LLMOperationsManager {
         }
       }
       job!.process = null;
+
+      try {
+        db.prepare(`UPDATE llm_jobs SET status = ? WHERE id = ?`).run(job!.status, jobId);
+      } catch (err) {
+        console.error(`Failed to update DB on job exit ${jobId}:`, err);
+      }
+      
+      // Auto-release the global pipeline lock
+      const { pipelineLock } = require('@/lib/services/pipeline-lock');
+      pipelineLock.release();
+      
       this.broadcast(jobId, JSON.stringify({ status: job!.status, error: job!.error }));
     });
   }
@@ -116,11 +128,23 @@ export class LLMOperationsManager {
 
   resumeJob(jobId: string) {
     const job = this.jobs.get(jobId);
-    if (job && job.process && job.status === 'PAUSED_BUDGET') {
+    if (job && job.process && (job.status === 'PAUSED_BUDGET' || job.status === 'PAUSED_USER')) {
       console.log(`Resuming job ${jobId}...`);
       job.status = 'RUNNING';
-      job.process.stdin?.write('\n');
+      job.process.stdin?.write('RESUME\n');
       this.broadcast(jobId, JSON.stringify({ status: 'RUNNING', info: 'Resuming processing' }));
+      return true;
+    }
+    return false;
+  }
+
+  pauseJob(jobId: string) {
+    const job = this.jobs.get(jobId);
+    if (job && job.process && job.status === 'RUNNING') {
+      console.log(`Pausing job ${jobId}...`);
+      job.status = 'PAUSED_USER';
+      job.process.stdin?.write('PAUSE\n');
+      this.broadcast(jobId, JSON.stringify({ status: 'PAUSED_USER', info: 'Pausing processing...' }));
       return true;
     }
     return false;
@@ -143,10 +167,22 @@ export class LLMOperationsManager {
         }
         job.process = null;
       }
-      this.broadcast(jobId, JSON.stringify({ status: 'CANCELLED' }));
+      try {
+        db.prepare(`UPDATE llm_jobs SET status = 'CANCELLED' WHERE id = ?`).run(jobId);
+      } catch (err) {
+        console.error(`Failed to update DB for cancelled job ${jobId}:`, err);
+      }
+      this.broadcast(jobId, JSON.stringify({ status: 'CANCELLED', info: 'Execution terminated by user' }));
       return true;
+    } else {
+      // Orphaned job in DB
+      try {
+        db.prepare(`UPDATE llm_jobs SET status = 'CANCELLED' WHERE id = ?`).run(jobId);
+      } catch (err) {
+        console.error(`Failed to update DB for orphaned cancelled job ${jobId}:`, err);
+      }
+      return true; // Return true to let the UI know it was cancelled
     }
-    return false;
   }
 
   private broadcast(jobId: string, data: string) {
@@ -167,7 +203,12 @@ declare global {
   var llmOperationsManager: LLMOperationsManager | undefined;
 }
 
-export const operationsManager = globalThis.llmOperationsManager || new LLMOperationsManager();
+let _manager = globalThis.llmOperationsManager;
+if (!_manager || typeof _manager.pauseJob !== 'function') {
+  _manager = new LLMOperationsManager();
+}
+
+export const operationsManager = _manager;
 if (process.env.NODE_ENV !== 'production') {
   globalThis.llmOperationsManager = operationsManager;
 }

@@ -31,6 +31,11 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
   const [syncCitations, setSyncCitations] = useState(false);
   const [existingHashes, setExistingHashes] = useState<{ DOI: string; Title: string }[]>([]);
 
+  // Purge Mode States
+  const [purgeMode, setPurgeMode] = useState(false);
+  const [purgeCandidates, setPurgeCandidates] = useState<{ safe: any[]; processed: any[]; blocked: any[] }>({ safe: [], processed: [], blocked: [] });
+  const [loadingPurgeCheck, setLoadingPurgeCheck] = useState(false);
+
   // We load existing hashes when the ingestion view mounts or active project changes
   const loadHashes = async () => {
     try {
@@ -234,7 +239,33 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
     setPreviewPapers(checkedPapers);
     setPreviewStats({ total: parsedPapers.length, newCount, dupCount });
 
-  }, [columnMapping, csvData, existingHashes, csvFile]);
+    if (purgeMode) {
+      setLoadingPurgeCheck(true);
+      fetch('/api/papers/purge-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csvPapers: parsedPapers })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setPurgeCandidates({
+            safe: data.safe || [],
+            processed: data.processed || [],
+            blocked: data.blocked || []
+          });
+        }
+      })
+      .catch(err => {
+        console.error('Error running purge check:', err);
+        showToast('Failed to run purge matching check', 'error');
+      })
+      .finally(() => {
+        setLoadingPurgeCheck(false);
+      });
+    }
+
+  }, [columnMapping, csvData, existingHashes, csvFile, purgeMode]);
 
   const handleImport = async (onSuccess?: () => void) => {
     setImporting(true);
@@ -284,6 +315,42 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
       }
     } catch (err: any) {
       showToast(`Error importing papers: ${err.message || err}`, 'error');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handlePurge = async (onSuccess?: () => void) => {
+    setImporting(true);
+    try {
+      const paperIdsToDelete = [
+        ...purgeCandidates.safe.map(p => p.Paper_ID),
+        ...purgeCandidates.processed.map(p => p.Paper_ID)
+      ];
+
+      const res = await fetch('/api/papers/purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperIds: paperIdsToDelete })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        showToast(`Successfully purged ${data.deletedPapers} papers! (Deleted ${data.deletedPdfs} project PDFs)`, 'success');
+        setCsvFile(null);
+        setCsvHeaders([]);
+        setCsvData([]);
+        setPreviewPapers([]);
+        setPurgeCandidates({ safe: [], processed: [], blocked: [] });
+        broadcastSync('SYNC_PAPERS');
+        if (loadPapers) loadPapers();
+        if (onSuccess) onSuccess();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(`Failed to purge papers: ${errData.error || res.statusText || 'Unknown error'}`, 'error');
+      }
+    } catch (err: any) {
+      showToast(`Error purging papers: ${err.message || err}`, 'error');
     } finally {
       setImporting(false);
     }
@@ -379,8 +446,12 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
     previewStats, setPreviewStats,
     importing, setImporting,
     syncCitations, setSyncCitations,
+    purgeMode, setPurgeMode,
+    purgeCandidates, setPurgeCandidates,
+    loadingPurgeCheck,
     handleCsvSelect,
     handleImport,
+    handlePurge,
     handleManualIngest
   };
 }

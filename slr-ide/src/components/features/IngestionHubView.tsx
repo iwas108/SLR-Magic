@@ -71,7 +71,12 @@ export default function IngestionHubView({
     setParentPaperSuggestions,
     selectedParentPaper,
     setSelectedParentPaper,
-    handleManualIngest
+    handleManualIngest,
+    purgeMode,
+    setPurgeMode,
+    purgeCandidates,
+    handlePurge,
+    loadingPurgeCheck
   } = ingestion;
 
   const [isReviewModalOpen, setIsReviewModalOpen] = React.useState(false);
@@ -79,6 +84,29 @@ export default function IngestionHubView({
   const [reviewLimit, setReviewLimit] = React.useState(50);
   const [reviewSearch, setReviewSearch] = React.useState('');
   const [reviewStatusFilter, setReviewStatusFilter] = React.useState('all');
+
+  const [activeProjectName, setActiveProjectName] = React.useState('');
+  const [showPurgeConfirm, setShowPurgeConfirm] = React.useState(false);
+  const [confirmProjectName, setConfirmProjectName] = React.useState('');
+
+  React.useEffect(() => {
+    const fetchActiveProject = async () => {
+      try {
+        const res = await fetch('/api/projects');
+        if (res.ok) {
+          const data = await res.json();
+          const activeId = data.activeProjectId || 'default-project';
+          const active = data.projects?.find((p: any) => String(p.id) === String(activeId));
+          if (active) {
+            setActiveProjectName(active.name);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching active project name:', err);
+      }
+    };
+    fetchActiveProject();
+  }, []);
 
 
   return (
@@ -101,8 +129,25 @@ export default function IngestionHubView({
               <div>
                 <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <Upload className="w-4 h-4 text-primary" />
-                  Bulk CSV Ingest
+                  {purgeMode ? 'Bulk CSV Purge (Reverse Import)' : 'Bulk CSV Ingest'}
                 </h4>
+
+                {/* Purge Mode Toggle */}
+                <div className="flex items-center gap-2 mb-4 bg-secondary/15 border border-border/40 p-3 rounded-lg select-none">
+                  <input
+                    type="checkbox"
+                    id="purge-mode-checkbox"
+                    checked={purgeMode}
+                    onChange={(e) => {
+                      setPurgeMode(e.target.checked);
+                      setReviewStatusFilter('all');
+                    }}
+                    className="w-4 h-4 text-primary bg-secondary border-border rounded focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  />
+                  <label htmlFor="purge-mode-checkbox" className="text-xs font-bold text-foreground cursor-pointer flex-1">
+                    Enable Purge Mode (Delete records not in CSV)
+                  </label>
+                </div>
 
                 {!csvFile ? (
                   <div className="flex flex-col items-center justify-center border-2 border-dashed border-border/80 rounded-lg py-12 px-6 bg-secondary/5 hover:bg-secondary/15 transition-colors cursor-pointer group relative">
@@ -194,7 +239,7 @@ export default function IngestionHubView({
                     </div>
 
                     {/* Deduplication & Preview Summary */}
-                    {previewPapers.length > 0 && (
+                    {previewPapers.length > 0 && !purgeMode && (
                       <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-4">
                           <button onClick={() => setIsReviewModalOpen(true)} className="bg-secondary/20 hover:bg-secondary/40 transition-colors border border-border hover:border-primary/50 rounded-lg p-3 text-center cursor-pointer">
@@ -216,7 +261,37 @@ export default function IngestionHubView({
                       </div>
                     )}
 
-                    {previewPapers.length > 0 && previewStats.dupCount > 0 && (
+                    {/* Purge Candidate Summary */}
+                    {previewPapers.length > 0 && purgeMode && (
+                      <div className="space-y-4">
+                        {loadingPurgeCheck ? (
+                          <div className="flex items-center justify-center py-6 gap-2 text-xs text-muted-foreground font-semibold">
+                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                            Running reverse purge matching analysis...
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-4">
+                            <button onClick={() => { setReviewStatusFilter('safe'); setIsReviewModalOpen(true); }} className="bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors border border-emerald-500/10 hover:border-emerald-500/30 rounded-lg p-3 text-center cursor-pointer">
+                              <span className="text-[10px] text-emerald-400 font-semibold uppercase">Safe to Delete</span>
+                              <div className="text-lg font-black text-emerald-400 mt-0.5">{purgeCandidates.safe.length}</div>
+                              <span className="text-[9px] text-primary mt-1 block">Click to review</span>
+                            </button>
+                            <button onClick={() => { setReviewStatusFilter('processed'); setIsReviewModalOpen(true); }} className="bg-amber-500/5 hover:bg-amber-500/10 transition-colors border border-amber-500/10 hover:border-amber-500/30 rounded-lg p-3 text-center cursor-pointer">
+                              <span className="text-[10px] text-amber-500/80 font-semibold uppercase">Processed (Warning)</span>
+                              <div className="text-lg font-black text-amber-500 mt-0.5">{purgeCandidates.processed.length}</div>
+                              <span className="text-[9px] text-primary mt-1 block">Click to review</span>
+                            </button>
+                            <button onClick={() => { setReviewStatusFilter('blocked'); setIsReviewModalOpen(true); }} className="bg-red-500/5 hover:bg-red-500/10 transition-colors border border-red-500/10 hover:border-red-500/30 rounded-lg p-3 text-center cursor-pointer">
+                              <span className="text-[10px] text-red-500 font-semibold uppercase">Blocked (Pools)</span>
+                              <div className="text-lg font-black text-red-500 mt-0.5">{purgeCandidates.blocked.length}</div>
+                              <span className="text-[9px] text-primary mt-1 block">Click to review</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {previewPapers.length > 0 && previewStats.dupCount > 0 && !purgeMode && (
                       <div className="flex items-center gap-2 bg-secondary/15 border border-border/40 p-3 rounded-lg select-none">
                         <input
                           type="checkbox"
@@ -232,16 +307,27 @@ export default function IngestionHubView({
                     )}
 
                     <div className="flex justify-end gap-3 items-center">
-                      <button
-                        onClick={() => handleImport()}
-                        disabled={importing || !csvFile || (previewStats.newCount === 0 && (!syncCitations || previewStats.dupCount === 0))}
-                        className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
-                      >
-                        {importing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                        {syncCitations && previewStats.newCount === 0 
-                          ? `Sync Citations (${previewStats.dupCount})`
-                          : `Execute Bulk Import (${previewStats.newCount})`}
-                      </button>
+                      {purgeMode ? (
+                        <button
+                          onClick={() => setShowPurgeConfirm(true)}
+                          disabled={importing || loadingPurgeCheck || !csvFile || (purgeCandidates.safe.length === 0 && purgeCandidates.processed.length === 0)}
+                          className="px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                        >
+                          {importing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                          Execute Reverse Purge ({purgeCandidates.safe.length + purgeCandidates.processed.length})
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleImport()}
+                          disabled={importing || !csvFile || (previewStats.newCount === 0 && (!syncCitations || previewStats.dupCount === 0))}
+                          className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                        >
+                          {importing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                          {syncCitations && previewStats.newCount === 0 
+                            ? `Sync Citations (${previewStats.dupCount})`
+                            : `Execute Bulk Import (${previewStats.newCount})`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -464,7 +550,92 @@ export default function IngestionHubView({
         setReviewSearch={setReviewSearch}
         reviewStatusFilter={reviewStatusFilter}
         setReviewStatusFilter={setReviewStatusFilter}
+        purgeMode={purgeMode}
+        purgeCandidates={purgeCandidates}
       />
+
+      {showPurgeConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-card w-full max-w-md rounded-xl border border-destructive/30 shadow-2xl p-6 space-y-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-destructive">
+              <ShieldAlert className="w-6 h-6 animate-bounce" />
+              <h3 className="font-bold text-base text-foreground">Confirm Reverse Purge Deletion</h3>
+            </div>
+            
+            <div className="space-y-3 text-xs text-muted-foreground">
+              <p>
+                You are about to delete papers from the database that do not exist in the uploaded CSV.
+              </p>
+              
+              <div className="bg-secondary/40 border border-border rounded-lg p-3 space-y-2">
+                <div className="flex justify-between font-semibold">
+                  <span className="text-emerald-400">Safe to delete:</span>
+                  <span className="text-foreground">{purgeCandidates.safe.length}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span className="text-amber-400">Processed (Screened / Overridden):</span>
+                  <span className="text-foreground">{purgeCandidates.processed.length}</span>
+                </div>
+                <div className="flex justify-between font-semibold border-t border-border pt-1">
+                  <span className="text-red-400">Blocked (Inter-rater Pool):</span>
+                  <span className="text-foreground">{purgeCandidates.blocked.length} (Will NOT be deleted)</span>
+                </div>
+              </div>
+              
+              {purgeCandidates.processed.length > 0 && (
+                <div className="flex gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 p-2.5 rounded-lg select-none">
+                  <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block text-[11px] uppercase tracking-wider">Processed Papers Warning</span>
+                    <span className="text-[10px]">
+                      {purgeCandidates.processed.length} papers have already been evaluated via manual or AI screening. These will be permanently deleted.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                Type the project name <span className="text-foreground font-mono font-bold select-all bg-secondary px-1 py-0.5 rounded">"{activeProjectName}"</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={confirmProjectName}
+                onChange={(e) => setConfirmProjectName(e.target.value)}
+                placeholder="Type active project name..."
+                className="w-full px-3 py-2 text-xs bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:border-destructive font-semibold font-mono"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPurgeConfirm(false);
+                  setConfirmProjectName('');
+                }}
+                className="px-4 py-2 border border-border text-xs font-semibold rounded-lg hover:bg-secondary text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!activeProjectName || confirmProjectName !== activeProjectName || importing}
+                onClick={async () => {
+                  await handlePurge(() => {
+                    setShowPurgeConfirm(false);
+                    setConfirmProjectName('');
+                  });
+                }}
+                className="px-4 py-2 bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-bold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                Confirm & Purge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

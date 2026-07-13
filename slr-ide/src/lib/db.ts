@@ -18,7 +18,7 @@ const dbPath = path.join(dbDir, 'slr.db');
 
 // Enable better-sqlite3 instance
 const db = new Database(dbPath, { 
-  verbose: process.env.NODE_ENV === 'development' ? console.log : undefined,
+  verbose: process.env.DEBUG_DB === 'true' ? console.log : undefined,
   timeout: 5000
 });
 db.pragma('foreign_keys = ON');

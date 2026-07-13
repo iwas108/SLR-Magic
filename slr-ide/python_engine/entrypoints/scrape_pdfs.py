@@ -94,6 +94,36 @@ def main():
     fail_count = 0
 
     for i, paper in enumerate(papers):
+        if browser and not browser.is_alive():
+            print(json.dumps({
+                "event": "log",
+                "message": "[WARNING] Chrome browser crashed or was closed. Safety net triggered! Restarting..."
+            }))
+            sys.stdout.flush()
+            try: browser.stop_browser()
+            except: pass
+            browser.start_browser()
+            
+            if config.proxy_base_url and config.proxy_base_url.strip() and config.proxy_base_url.strip().lower().rstrip('/') != "https://doi.org":
+                print(json.dumps({"event": "log", "message": f"Re-authenticating via proxy: {config.proxy_base_url}"}))
+                sys.stdout.flush()
+                try:
+                    browser.driver.get(config.proxy_base_url)
+                    time.sleep(5)
+                    current_url = browser.driver.current_url.lower()
+                    if "login" in current_url or "auth" in current_url or "signin" in current_url:
+                        print(json.dumps({
+                            "event": "waiting_login",
+                            "message": "Please log in via the opened browser window. Once complete, click the Resume button in the app."
+                        }))
+                        sys.stdout.flush()
+                        sys.stdin.readline()
+                        print(json.dumps({"event": "log", "message": "Login wait complete. Resuming scraping pipeline..."}))
+                        sys.stdout.flush()
+                except Exception as e:
+                    print(json.dumps({"event": "log", "message": f"Warning: Failed to navigate to proxy on restart: {str(e)}"}))
+                    sys.stdout.flush()
+
         paper_id, doi_raw, title = paper
         doi = extract_doi_value(doi_raw)
 

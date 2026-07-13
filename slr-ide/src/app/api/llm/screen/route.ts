@@ -7,20 +7,26 @@ import db from '@/lib/db';
 import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
 import { operationsManager } from '@/lib/llm-operations';
+import { pipelineLock } from '@/lib/services/pipeline-lock';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { projectId, jobId, taskType, action, limit, offset, paperIds, templateId, statusFilter } = body;
+    const { projectId, jobId, taskType, action, limit, offset, paperIds, templateId, statusFilter, decisionFilter } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
     }
 
-    // Handle interactive controls (resume/cancel)
+    // Handle interactive controls (resume/pause/cancel)
     if (action === 'resume') {
       const ok = operationsManager.resumeJob(jobId);
       return NextResponse.json({ success: ok, status: ok ? 'RUNNING' : 'FAILED' });
+    }
+
+    if (action === 'pause') {
+      const ok = operationsManager.pauseJob(jobId);
+      return NextResponse.json({ success: ok, status: ok ? 'PAUSED_USER' : 'FAILED' });
     }
 
     if (action === 'cancel') {
@@ -30,6 +36,13 @@ export async function POST(req: NextRequest) {
 
     if (!projectId) {
       return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
+    }
+
+    // Check Global Pipeline Lock
+    if (pipelineLock.isLocked()) {
+      return NextResponse.json({ 
+        error: 'Another pipeline is currently running. Please wait for it to complete.' 
+      }, { status: 409 });
     }
 
     // Race condition prevention: Check if any job is currently active or starting
@@ -42,6 +55,8 @@ export async function POST(req: NextRequest) {
         error: 'Another LLM job is currently running. Please wait for it to complete.' 
       }, { status: 409 });
     }
+
+    pipelineLock.acquire();
 
     // Retrieve and decrypt Gemini API key in-memory
     if (!hasSessionMasterPassword()) {
@@ -119,6 +134,9 @@ export async function POST(req: NextRequest) {
     }
     if (statusFilter !== undefined && statusFilter !== null) {
       args.push('--status-filter', String(statusFilter));
+    }
+    if (decisionFilter !== undefined && decisionFilter !== null && decisionFilter !== 'ALL') {
+      args.push('--decision-filter', String(decisionFilter));
     }
 
     // Resolve model and mode details from template to write initial job record

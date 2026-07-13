@@ -6,7 +6,7 @@ import logging
 import threading
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from llm.database import execute_write, execute_read_one
+from llm.database import execute_write, execute_read_one, execute_read
 from llm.budget import estimate_cost, check_budget_limit, update_project_spend
 from llm.audit import log_interaction
 
@@ -48,6 +48,10 @@ class LLMQueueHandler:
         self.total_thinking_tokens = 0
         self.total_cached_tokens = 0
         self.total_cost = 0.0
+        self.included_papers = 0
+        self.excluded_papers = 0
+        self.exclusion_reasons = {}
+        self.total_latency_ms = 0
 
     def broadcast_telemetry(self, status, message=None, current_paper=None):
         telemetry = {
@@ -61,6 +65,10 @@ class LLMQueueHandler:
             "total_thinking_tokens": self.total_thinking_tokens,
             "total_cached_tokens": self.total_cached_tokens,
             "total_cost": self.total_cost,
+            "included_papers": self.included_papers,
+            "excluded_papers": self.excluded_papers,
+            "exclusion_reasons": self.exclusion_reasons,
+            "average_execution_time_ms": self.total_latency_ms / max(1, self.processed_papers),
         }
         if message:
             telemetry["message"] = message
@@ -139,6 +147,8 @@ class LLMQueueHandler:
                 
                 self.is_paused = False
                 self.run_event.set()
+            elif "WARNING_BUDGET" in msg:
+                self.broadcast_telemetry("WARNING", f"⚠️ {msg}")
 
         try:
             logger.info(f"Processing paper {paper_id}: '{title}' using task type {self.task_type}")
@@ -203,6 +213,7 @@ class LLMQueueHandler:
                 self.total_thinking_tokens += thinking_tokens
                 self.total_cached_tokens += cached_tokens
                 self.total_cost += actual_cost
+                self.total_latency_ms += response.get("latency_ms", 0)
                 
                 update_project_spend(self.project_id, actual_cost)
                 
@@ -226,6 +237,14 @@ class LLMQueueHandler:
             struct_out = response.get("structured_output", "")
 
             # Save AI results directly to dedicated AI_ columns in the papers table
+            with self.lock:
+                if decision_text.upper() == "INCLUDE":
+                    self.included_papers += 1
+                else:
+                    self.excluded_papers += 1
+                    if ec_trigger:
+                        self.exclusion_reasons[ec_trigger] = self.exclusion_reasons.get(ec_trigger, 0) + 1
+
             if self.task_type in ('fast_filter', 'gatekeeper', 'scientist', 'screening', 'fulltext'):
                 execute_write(
                     """
@@ -320,26 +339,67 @@ class LLMQueueHandler:
         
         self.broadcast_telemetry("RUNNING", f"Starting queue processing of {self.total_papers} papers...")
         
-        # Start resume trigger checker
-        def check_stdin():
-            while self.is_paused or not self.run_event.is_set():
+        # Calculate initial included/excluded stats from audit log for resumed jobs
+        try:
+            stats_rows = execute_read(
+                """
+                SELECT json_extract(structured_output, '$.decision') as decision,
+                       json_extract(structured_output, '$.exclusion_trigger') as ec_trigger,
+                       COUNT(*) as count
+                FROM llm_audit_log
+                WHERE job_id = ? AND status = 'SUCCESS'
+                GROUP BY decision, ec_trigger
+                """,
+                (self.job_id,)
+            )
+            for row in stats_rows:
+                decision = (row["decision"] or "").upper()
+                count = row["count"]
+                if decision == "INCLUDE":
+                    self.included_papers += count
+                else:
+                    self.excluded_papers += count
+                    ec = row["ec_trigger"]
+                    if ec:
+                        self.exclusion_reasons[ec] = self.exclusion_reasons.get(ec, 0) + count
+        except Exception as e:
+            logger.error(f"Failed to load initial stats from audit log: {e}")
+        
+        # Start continuous stdin command listener
+        def stdin_listener():
+            while True:
                 try:
                     line = sys.stdin.readline()
-                    if line:
+                    if not line:
+                        break # EOF
+                    cmd = line.strip()
+                    if cmd == 'PAUSE':
+                        logger.info("Pause signal caught on stdin.")
+                        self.is_paused = True
+                        self.run_event.clear()
+                        execute_write(
+                            "UPDATE llm_jobs SET status = 'PAUSED_USER', updated_at = ? WHERE id = ?",
+                            (datetime.utcnow().isoformat(), self.job_id)
+                        )
+                        self.broadcast_telemetry("PAUSED_USER", "Job manually paused by user.")
+                    elif cmd == 'RESUME' or cmd == '':
                         logger.info("Resume signal caught on stdin.")
+                        self.is_paused = False
                         self.run_event.set()
-                        break
+                        execute_write(
+                            "UPDATE llm_jobs SET status = 'RUNNING', updated_at = ? WHERE id = ?",
+                            (datetime.utcnow().isoformat(), self.job_id)
+                        )
+                        self.broadcast_telemetry("RUNNING", "Job resumed.")
                 except Exception:
                     break
+        
+        stdin_thread = threading.Thread(target=stdin_listener, daemon=True)
+        stdin_thread.start()
         
         # Spawn execution threads
         with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
             for paper in papers_to_process:
-                # Stale locks check
-                if self.is_paused:
-                    stdin_thread = threading.Thread(target=check_stdin, daemon=True)
-                    stdin_thread.start()
-                    
                 executor.submit(self.process_paper_worker, paper, prompt_schema)
                 
         # Mark completion

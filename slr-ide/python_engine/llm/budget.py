@@ -220,9 +220,12 @@ def check_budget_limit(project_id, estimated_cost):
     limit = project.get('project_budget_limit') or 0.0
     current = project.get('project_current_spend') or 0.0
     
-    if limit > 0.0 and (current + estimated_cost) > limit:
-        return False, f"Cost limit exceeded. Spend: ${current:.4f}, Est. Cost: ${estimated_cost:.4f}, Limit: ${limit:.4f}"
-        
+    if limit > 0.0:
+        if (current + estimated_cost) > limit:
+            return False, f"Cost limit exceeded. Spend: ${current:.4f}, Est. Cost: ${estimated_cost:.4f}, Limit: ${limit:.4f}"
+        elif (current + estimated_cost) >= 0.9 * limit:
+            return True, f"WARNING_BUDGET: Budget at 90% capacity. Spend: ${current:.4f}, Limit: ${limit:.4f}"
+            
     return True, "Within budget"
 
 def update_project_spend(project_id, actual_cost):

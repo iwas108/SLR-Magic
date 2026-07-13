@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Minus, X, Database, BrainCircuit, UserCheck } from 'lucide-react';
+import { Play, Minus, X, Database, BrainCircuit, UserCheck, Server } from 'lucide-react';
 import GlobalLLMSettingsView from './GlobalLLMSettingsView';
 import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
 import ManualScreeningView from './manual-screening/ManualScreeningView';
+import { RemoteWorkersView } from './remote-workers/RemoteWorkersView';
+import { useGlobalPipelineLock } from '@/hooks/useGlobalPipelineLock';
 
 interface PipelineExecutionViewProps {
   projectsHook: {
@@ -62,7 +64,12 @@ export default function PipelineExecutionView({
   const cloudProvider = activeProject?.cloud_provider || 'gdrive';
   const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
 
-  const [activeTab, setActiveTab] = useState<'acquisition' | 'llm' | 'manual'>(
+  const { isLocked, forceUnlock } = useGlobalPipelineLock();
+  
+  // Disable triggering if locked by another pipeline
+  const isScraperLocked = isLocked && !operationModal?.isExecuting;
+
+  const [activeTab, setActiveTab] = useState<'acquisition' | 'llm' | 'manual' | 'workers'>(
     preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'llm' : 'acquisition'
   );
 
@@ -131,6 +138,17 @@ export default function PipelineExecutionView({
           <UserCheck className="w-4 h-4" />
           Manual Screening Pipeline
         </button>
+        <button
+          onClick={() => setActiveTab('workers')}
+          className={`flex items-center gap-2 pb-2 transition-all relative ${
+            activeTab === 'workers'
+              ? 'text-foreground border-b-2 border-primary font-black'
+              : 'text-muted-foreground hover:text-foreground font-semibold'
+          }`}
+        >
+          <Server className="w-4 h-4" />
+          Remote Workers
+        </button>
       </div>
 
       {/* Main Content Area */}
@@ -141,73 +159,83 @@ export default function PipelineExecutionView({
                 <h3 className="font-semibold text-sm">Data Acquisition Pipeline</h3>
                 <div className="flex items-center gap-4 text-xs">
                   <div className="flex items-center gap-4 border border-border/80 bg-background rounded-lg px-3 py-1.5 shadow-sm">
-                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         checked={batchSteps?.duplicate_scan || false}
-                        disabled={operationModal?.isExecuting}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
                         onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, duplicate_scan: e.target.checked }))}
-                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                       Execute and Review Anti-Duplicate Job
                     </label>
 
-                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         checked={batchSteps?.scan || false}
-                        disabled={operationModal?.isExecuting}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
                         onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, scan: e.target.checked }))}
-                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                       Match Cache
                     </label>
 
-                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         checked={batchSteps?.scrape || false}
-                        disabled={operationModal?.isExecuting}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
                         onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, scrape: e.target.checked }))}
-                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                       Scrape PDFs
                     </label>
 
-                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
                       <input
                         type="checkbox"
                         checked={batchSteps?.map_publisher || false}
-                        disabled={operationModal?.isExecuting}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
                         onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, map_publisher: e.target.checked }))}
-                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       />
                       Map Publisher
                     </label>
 
-                    <label className={`flex items-center gap-1.5 font-semibold transition-colors group relative flex ${operationModal?.isExecuting ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`} title={`${cloudName} Cloud Synchronization`}>
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors group relative flex ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`} title={`${cloudName} Cloud Synchronization`}>
                       <input
                         type="checkbox"
                         checked={batchSteps?.sync || false}
-                        disabled={operationModal?.isExecuting}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
                         onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, sync: e.target.checked }))}
-                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                       />
-                      <span className={batchSteps?.sync ? (operationModal?.isExecuting ? "text-amber-500/50" : "text-amber-500") : ""}>Sync Cloud</span>
+                      <span className={batchSteps?.sync ? (operationModal?.isExecuting || isScraperLocked ? "text-amber-500/50" : "text-amber-500") : ""}>Sync Cloud</span>
                     </label>
                   </div>
-                  <button
-                    onClick={runBatchExecution}
-                    disabled={operationModal?.isExecuting}
-                    className={`px-3 py-1.5 font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px] ${operationModal?.isExecuting ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed opacity-50 shadow-none' : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'}`}
-                  >
+                  <div className="flex items-center gap-2">
+                    {isScraperLocked && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-500 font-semibold text-[10px] animate-pulse">Another pipeline is running</span>
+                        <button onClick={forceUnlock} className="px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded text-[9px] uppercase font-bold transition-all shadow-sm">
+                          Force Unlock
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      onClick={runBatchExecution}
+                      disabled={operationModal?.isExecuting || isScraperLocked}
+                      className={`px-3 py-1.5 font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px] ${operationModal?.isExecuting || isScraperLocked ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed opacity-50 shadow-none' : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'}`}
+                    >
                     <Play className="w-3.5 h-3.5 fill-current" />
                     Execute Pipeline
                   </button>
                 </div>
-             </div>
+              </div>
+            </div>
 
-             <div className="flex-1 overflow-hidden p-4">
+            <div className="flex-1 overflow-hidden p-4">
                 {operationModal?.isOpen ? (
                   <PipelineProgressPanel
                     operationModal={operationModal}
@@ -252,6 +280,12 @@ export default function PipelineExecutionView({
               manualScreeningHook={manualScreeningHook}
               showToast={showToast}
             />
+          </div>
+        )}
+
+        {activeTab === 'workers' && (
+          <div className="h-full bg-card border border-border/60 rounded-xl shadow-sm p-6 overflow-y-auto">
+            <RemoteWorkersView isPipelineRunning={operationModal?.isExecuting} />
           </div>
         )}
       </div>

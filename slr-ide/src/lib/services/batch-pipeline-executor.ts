@@ -5,6 +5,7 @@ import { streamManager } from '@/lib/services/stream-manager';
 import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 import { runSubprocessStep } from './pipeline/subprocess-runner';
 import { runCloudSync, generateCloudLinks } from './pipeline/rclone-sync';
+import { remoteWorkerManager } from '@/lib/services/remote-worker-manager';
 
 export async function runBackgroundExecution(steps: string[], compress: boolean) {
   const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
@@ -48,7 +49,67 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
       }
 
       if (step === 'scan' || step === 'scrape' || step === 'compress' || step === 'map_publisher') {
-        await runSubprocessStep(step, pythonExe, pythonModule, PROJECT_ROOT, stepNum, totalSteps, batchState);
+        if (step === 'scrape') {
+          const onlineWorkers = remoteWorkerManager.getOnlineWorkers();
+          const localEnabled = getConfig('REMOTE_WORKER_LOCAL_SCRAPER_ENABLED', 'true') === 'true';
+
+          if (onlineWorkers.length > 0) {
+            const msg = `Starting dispatch to ${onlineWorkers.length} remote worker(s)...`;
+            batchStateTracker.updateStateFromMsg({ event: 'log', message: msg, step: 'scrape' });
+            streamManager.broadcast({ event: 'log', message: msg, step: 'scrape' });
+            await remoteWorkerManager.startDispatch(activeProjectId);
+          }
+
+          try {
+            if (localEnabled || onlineWorkers.length === 0) {
+              await runSubprocessStep(step, pythonExe, pythonModule, PROJECT_ROOT, stepNum, totalSteps, batchState);
+            } else {
+              // Local scraper is disabled, but we have remote workers. 
+              // We must block this orchestration thread until all papers are processed or user cancels.
+              const stepStartMsg = { event: 'step_start', step: 'scrape', message: `[${stepNum}/${totalSteps}] Orchestrating remote scraping...` };
+              batchStateTracker.updateStateFromMsg(stepStartMsg);
+              streamManager.broadcast(stepStartMsg);
+
+              let loopCount = 0;
+              while (!batchState.cancelRequested) {
+                const totalRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND DOI IS NOT NULL AND DOI != ''`).get(activeProjectId) as { c: number };
+                const leftRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND DOI IS NOT NULL AND DOI != '' AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING' OR Local_PDF_Status = 'IN_PROGRESS')`).get(activeProjectId) as { c: number };
+                
+                if (leftRow.c === 0) break;
+                
+                if (loopCount % 2 === 0) { // Broadcast progress roughly every 4 seconds
+                  const doneRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND Local_PDF_Status = 'DOWNLOADED'`).get(activeProjectId) as { c: number };
+                  const failedRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND Local_PDF_Status = 'FAILED'`).get(activeProjectId) as { c: number };
+                  
+                  streamManager.broadcast({ 
+                    event: 'progress', 
+                    step: 'scrape', 
+                    current: totalRow.c - leftRow.c, 
+                    total: totalRow.c, 
+                    downloaded: doneRow.c, 
+                    failed: failedRow.c 
+                  });
+                }
+                
+                await new Promise(r => setTimeout(r, 2000));
+                loopCount++;
+              }
+              
+              if (batchState.cancelRequested) {
+                 batchStateTracker.updateStateFromMsg({ event: 'log', message: 'Scrape step cancelled by user.', step: 'scrape' });
+              }
+            }
+          } finally {
+            if (onlineWorkers.length > 0) {
+               const stopMsg = 'Stopping remote worker dispatch...';
+               batchStateTracker.updateStateFromMsg({ event: 'log', message: stopMsg, step: 'scrape' });
+               streamManager.broadcast({ event: 'log', message: stopMsg, step: 'scrape' });
+               await remoteWorkerManager.stopDispatch();
+            }
+          }
+        } else {
+          await runSubprocessStep(step, pythonExe, pythonModule, PROJECT_ROOT, stepNum, totalSteps, batchState);
+        }
       }
 
       else if (step === 'sync') {
@@ -122,5 +183,9 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
     batchState.isExecuting = false;
     batchState.activeChild = null;
     batchState.listeners = [];
+    
+    // Auto-release the global pipeline lock when execution finishes or crashes
+    const { pipelineLock } = require('@/lib/services/pipeline-lock');
+    pipelineLock.release();
   }
 }

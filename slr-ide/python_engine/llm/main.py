@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--paper-ids', default='', help="Comma-separated list of Paper IDs to run")
     parser.add_argument('--template-id', default='', help="Prompt Template ID override")
     parser.add_argument('--status-filter', default='0', help="Target paper pipeline Status filter code ('0', '1', '2', etc.)")
+    parser.add_argument('--decision-filter', default='ALL', help="Target paper AI decision filter ('ALL', 'PENDING', 'INCLUDE', 'EXCLUDE')")
     args = parser.parse_args()
 
     job_id = args.job_id
@@ -60,8 +61,9 @@ def main():
     task_type = args.task_type
     action = args.action
     status_filter = args.status_filter
+    decision_filter = args.decision_filter
 
-    logger.info(f"Starting Gemini Orchestrator for project {project_id}, job {job_id}, task {task_type}, status filter {status_filter}")
+    logger.info(f"Starting Gemini Orchestrator for project {project_id}, job {job_id}, task {task_type}, status filter {status_filter}, decision filter {decision_filter}")
 
     # Resolve API Key
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -120,6 +122,13 @@ def main():
     max_output_tokens = int(llm_config.get("max_tokens", 2000))
     top_p = float(llm_config.get("top_p", 0.9))
     top_k = int(llm_config.get("top_k", 40))
+    timeout_seconds = float(llm_config.get("timeout_seconds", 900.0))
+    
+    # Re-instantiate client with user-configured timeout
+    try:
+        client = GeminiClient(api_key=api_key, timeout_seconds=timeout_seconds)
+    except Exception as init_err:
+        fail_job(job_id, project_id, f"Failed to initialize GeminiClient with config: {init_err}")
     
     concurrency_limit = 5
     batch_queue_size = 100
@@ -139,14 +148,34 @@ def main():
     # 5. Fetch papers pending screening with range/selection constraints matching status_filter
     if args.paper_ids:
       # User specified concrete Paper IDs. Fetch all pending papers and filter in memory to avoid parameter limit exceptions.
+      if status_filter == 'ALL':
+          query = "SELECT * FROM papers WHERE Project_ID = ?"
+          params = [project_id]
+      else:
+          query = "SELECT * FROM papers WHERE Project_ID = ? AND Status = ?"
+          params = [project_id, status_filter]
+      if decision_filter != 'ALL':
+          query += " AND IFNULL(AI_Decision, 'PENDING') = ?"
+          params.append(decision_filter)
+      query += " ORDER BY rowid ASC"
+      all_papers = execute_read(query, tuple(params))
       parsed_ids = [p_id.strip() for p_id in args.paper_ids.split(",") if p_id.strip()]
-      all_papers = execute_read("SELECT * FROM papers WHERE Project_ID = ? AND Status = ? ORDER BY rowid ASC", (project_id, status_filter))
       id_set = set(parsed_ids)
       papers = [p for p in all_papers if p["Paper_ID"] in id_set]
     else:
       # Standard range/limit batch query
-      query = "SELECT * FROM papers WHERE Project_ID = ? AND Status = ? ORDER BY rowid ASC"
-      params = [project_id, status_filter]
+      if status_filter == 'ALL':
+          query = "SELECT * FROM papers WHERE Project_ID = ?"
+          params = [project_id]
+      else:
+          query = "SELECT * FROM papers WHERE Project_ID = ? AND Status = ?"
+          params = [project_id, status_filter]
+      if decision_filter != 'ALL':
+          query += " AND IFNULL(AI_Decision, 'PENDING') = ?"
+          params.append(decision_filter)
+      query += " ORDER BY rowid ASC"
+      
+      # We must apply LIMIT/OFFSET after ORDER BY
       if args.limit > 0:
         query += " LIMIT ?"
         params.append(args.limit)

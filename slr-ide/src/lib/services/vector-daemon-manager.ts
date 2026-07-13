@@ -88,14 +88,14 @@ export class VectorDaemonManager {
           this.handleUnexpectedShutdown(err);
         });
 
-        // Setup a safety timeout of 30 seconds for model loading
+        // Setup a safety timeout of 120 seconds for model loading
         const timeout = setTimeout(() => {
           if (!this.isReady) {
-            console.error('[VectorDaemonManager]: Safety timeout triggered. Daemon failed to start in 30s.');
+            console.error('[VectorDaemonManager]: Safety timeout triggered. Daemon failed to start in 120s.');
             this.stop();
-            reject(new Error('Model loading timeout (30 seconds) exceeded.'));
+            reject(new Error('Model loading timeout (120 seconds) exceeded.'));
           }
-        }, 30000);
+        }, 120000);
 
         // Keep reference of resolver/rejecter for cleanup if needed
         // but resolve will trigger when we receive {"status": "ready"}

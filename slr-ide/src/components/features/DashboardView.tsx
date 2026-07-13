@@ -118,6 +118,7 @@ export default function DashboardView({
                   <th className="py-3 px-3 text-center">Screening rate</th>
                   <th className="py-3 px-3 text-center">PDF Acquisition</th>
                   <th className="py-3 px-3 text-center">Calibration Pools</th>
+                  <th className="py-3 px-3 text-center">Budget Spent</th>
                   <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -133,6 +134,10 @@ export default function DashboardView({
                   const projCloudProvider = proj.cloud_provider || 'gdrive';
                   const projRemote = proj.rclone_remote_name || (projCloudProvider === 'onedrive' ? 'onedrive' : 'gdrive');
                   const projDest = proj.gdrive_dest_path || 'SLR_Magic/PDFs';
+
+                  const budgetLimit = proj.project_budget_limit || 0;
+                  const currentSpend = proj.project_current_spend || 0;
+                  const spendPct = budgetLimit > 0 ? Math.round((currentSpend / budgetLimit) * 100) : 0;
 
                   return (
                     <tr key={proj.id} className={`hover:bg-secondary/15 transition-colors ${isActive ? 'bg-primary/5' : ''}`}>
@@ -215,6 +220,20 @@ export default function DashboardView({
                           <div className="flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
                             <span className="font-bold text-foreground/80">Pool C:</span> {stats.pool_c_count} <span className="text-[9px] text-muted-foreground/50">/ {proj.pool_c_size || 20}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-3 text-center">
+                        <div className="inline-flex flex-col items-center gap-1.5 min-w-[100px]">
+                          <div className="text-[11px] font-mono font-bold text-foreground">
+                            ${currentSpend.toFixed(2)} <span className="text-muted-foreground font-normal">/ ${budgetLimit.toFixed(2)}</span>
+                          </div>
+                          <div className={`text-[9px] font-bold px-1 py-0.5 rounded ${spendPct > 90 ? 'text-red-500 bg-red-500/10' : 'text-indigo-500 bg-indigo-500/10'}`}>
+                            {spendPct}% spent
+                          </div>
+                          <div className="w-24 bg-secondary rounded-full h-1.5 overflow-hidden border border-border/30">
+                            <div className={`h-1.5 rounded-full transition-all duration-300 ${spendPct > 90 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(spendPct, 100)}%` }} />
                           </div>
                         </div>
                       </td>

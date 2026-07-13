@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 import Sidebar from '@/components/Sidebar';
@@ -99,6 +99,75 @@ export default function DashboardPage() {
     checkBatchStatus: pipelineHook.checkBatchStatus,
     loadScreeningPapers: manualScreeningHook.loadScreeningPapers
   });
+
+  // Mutable ref for SSE callbacks to prevent stale closures and connection leaks (Rule 3.3)
+  const sseCallbacksRef = useRef({
+    loadPapers,
+    loadProjects,
+    loadCalPapers: calibrationHook.loadCalPapers,
+    loadAssignPapers: calibrationHook.loadAssignPapers,
+    loadScreeningPapers: manualScreeningHook.loadScreeningPapers
+  });
+
+  useEffect(() => {
+    sseCallbacksRef.current = {
+      loadPapers,
+      loadProjects,
+      loadCalPapers: calibrationHook.loadCalPapers,
+      loadAssignPapers: calibrationHook.loadAssignPapers,
+      loadScreeningPapers: manualScreeningHook.loadScreeningPapers
+    };
+  });
+
+  // Global SSE Event Listener for Server-to-Client synchronization
+  useEffect(() => {
+    let active = true;
+    let reconnectTimeout: NodeJS.Timeout;
+    const abortController = new AbortController();
+
+    const connect = async () => {
+      try {
+        const res = await fetch('/api/events', { signal: abortController.signal });
+        if (!res.body) return;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (active) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const data = JSON.parse(line);
+              if (data.type === 'SYNC_PAPERS') {
+                const cb = sseCallbacksRef.current;
+                cb.loadPapers();
+                cb.loadProjects();
+                cb.loadCalPapers();
+                cb.loadAssignPapers();
+                cb.loadScreeningPapers();
+              }
+            } catch (e) {}
+          }
+        }
+      } catch (e: any) {
+        if (e.name === 'AbortError') return;
+        if (active) reconnectTimeout = setTimeout(connect, 3000);
+      }
+    };
+    connect();
+    return () => {
+      active = false;
+      abortController.abort();
+      clearTimeout(reconnectTimeout);
+    };
+  }, []);
 
   const applyTheme = useCallback((t: string) => {
     const root = document.documentElement;

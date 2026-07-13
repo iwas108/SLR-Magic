@@ -67,6 +67,14 @@ class BrowserHandler:
             except:
                 pass
 
+    def is_alive(self):
+        if not self.driver: return False
+        try:
+            _ = self.driver.current_url
+            return True
+        except:
+            return False
+
     def clear_download_folder(self):
         if os.path.exists(self.download_dir):
             for f in glob.glob(os.path.join(self.download_dir, "*")):
