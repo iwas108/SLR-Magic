@@ -31,7 +31,8 @@ def screen_fulltext(
     top_p: float = None,
     top_k: int = None,
     schema_mapping: dict = None,
-    request_delay: float = 1.0
+    request_delay: float = 1.0,
+    thinking_level: str = "none"
 ) -> dict:
     """Executes a full-text screening/QA query, uploading the PDF to Gemini Files API
     and ensuring cleanup afterwards.
@@ -66,7 +67,8 @@ def screen_fulltext(
             max_output_tokens=max_output_tokens,
             top_p=top_p,
             top_k=top_k,
-            request_delay=request_delay
+            request_delay=request_delay,
+            thinking_level=thinking_level
         )
         
         if not result["success"]:

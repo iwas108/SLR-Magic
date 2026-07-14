@@ -40,6 +40,7 @@ interface Prompt {
   interaction_chaining?: boolean;
   concurrency?: number;
   timeout_seconds?: number;
+  thinking_level?: string;
 }
 
 interface GlobalLLMSettingsViewProps {
@@ -439,8 +440,9 @@ export default function GlobalLLMSettingsView({
         execution_mode: editingPrompt.execution_mode || 'flex',
         request_delay: editingPrompt.request_delay !== undefined ? Number(editingPrompt.request_delay) : 1.0,
         interaction_chaining: editingPrompt.interaction_chaining !== undefined ? editingPrompt.interaction_chaining : true,
-        concurrency: editingPrompt.concurrency !== undefined ? Number(editingPrompt.concurrency) : 5,
-        timeout_seconds: editingPrompt.timeout_seconds !== undefined ? Number(editingPrompt.timeout_seconds) : 900
+        concurrency: editingPrompt.concurrency !== undefined ? Number(editingPrompt.concurrency) : 1,
+        timeout_seconds: editingPrompt.timeout_seconds !== undefined ? Number(editingPrompt.timeout_seconds) : 900,
+        thinking_level: editingPrompt.thinking_level || 'none'
       };
 
       const res = await fetch('/api/llm/prompts', {
@@ -494,8 +496,9 @@ export default function GlobalLLMSettingsView({
       execution_mode: config.execution_mode || 'flex',
       request_delay: config.request_delay !== undefined ? config.request_delay : 1.0,
       interaction_chaining: config.interaction_chaining !== undefined ? config.interaction_chaining : true,
-      concurrency: config.concurrency !== undefined ? config.concurrency : 5,
-      timeout_seconds: config.timeout_seconds !== undefined ? config.timeout_seconds : 900
+      concurrency: config.concurrency !== undefined ? config.concurrency : 1,
+      timeout_seconds: config.timeout_seconds !== undefined ? config.timeout_seconds : 900,
+      thinking_level: config.thinking_level || 'none'
     });
     setEditorTab('info');
   };
@@ -1082,7 +1085,7 @@ export default function GlobalLLMSettingsView({
                   {/* Tab 4: LLM Configuration */}
                   {editorTab === 'config' && (
                     <div className="space-y-4 animate-in fade-in duration-150">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Gemini Model</label>
                           <select
@@ -1119,6 +1122,22 @@ export default function GlobalLLMSettingsView({
                             <option value="standard">Standard Mode (Real-time)</option>
                           </select>
                           <span className="text-[9px] text-muted-foreground/60 block px-1">Flex mode offers 50% discount on Gemini speed rate limits.</span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Thinking Level</label>
+                          <select
+                            value={editingPrompt.thinking_level || 'none'}
+                            onChange={(e) => setEditingPrompt(prev => ({ ...prev, thinking_level: e.target.value }))}
+                            className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-bold"
+                          >
+                            <option value="none">None</option>
+                            <option value="minimal">Minimal</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Enable complex reasoning (reduces output errors).</span>
                         </div>
                       </div>
 
@@ -1222,11 +1241,11 @@ export default function GlobalLLMSettingsView({
                             type="number"
                             min="1"
                             max="20"
-                            value={editingPrompt.concurrency !== undefined ? editingPrompt.concurrency : 5}
-                            onChange={(e) => setEditingPrompt(prev => ({ ...prev, concurrency: e.target.value !== '' ? Number(e.target.value) : 5 }))}
+                            value={editingPrompt.concurrency !== undefined ? editingPrompt.concurrency : 1}
+                            onChange={(e) => setEditingPrompt(prev => ({ ...prev, concurrency: e.target.value !== '' ? Number(e.target.value) : 1 }))}
                             className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-mono"
                           />
-                          <span className="text-[9px] text-muted-foreground/60 block px-1">Number of parallel papers to send. Min: 1, Max: 20. Default: 5.</span>
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Number of parallel papers to send. Min: 1, Max: 20. Default: 1.</span>
                         </div>
 
                         <div className="space-y-1">
@@ -1442,7 +1461,7 @@ export default function GlobalLLMSettingsView({
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t border-border/30 mt-2">
                                           <div className="bg-secondary/20 p-2 rounded border border-border/40">
                                             <span className="text-[9px] text-muted-foreground block uppercase">Concurrency</span>
-                                            <span className="font-bold font-mono text-xs text-foreground">{configObj.concurrency || 5}</span>
+                                            <span className="font-bold font-mono text-xs text-foreground">{configObj.concurrency || 1}</span>
                                           </div>
                                           <div className="bg-secondary/20 p-2 rounded border border-border/40">
                                             <span className="text-[9px] text-muted-foreground block uppercase">Timeout (s)</span>

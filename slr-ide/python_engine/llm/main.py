@@ -130,8 +130,8 @@ def main():
     except Exception as init_err:
         fail_job(job_id, project_id, f"Failed to initialize GeminiClient with config: {init_err}")
     
-    concurrency_limit = 5
-    batch_queue_size = 100
+    concurrency_limit = int(llm_config.get("concurrency", 1))
+    batch_queue_size = int(llm_config.get("batch_queue_size", 100))
 
     # Resolve and normalize execution/speed mode (Standard vs Flex)
     raw_mode = llm_config.get("execution_mode", "flex").upper()

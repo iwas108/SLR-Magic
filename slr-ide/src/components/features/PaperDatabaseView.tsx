@@ -249,18 +249,40 @@ export default function PaperDatabaseView({
     setSelectedPaperIds(next);
   };
 
-  const handleToggleSelectAll = () => {
-    if (!setSelectedPaperIds || !papers) return;
-    const next = new Set(selectedPaperIds);
-    const pagePaperIds = papers.map((p) => String(p.Paper_ID));
-    const allSelectedOnPage = pagePaperIds.every((id) => next.has(id));
+  const [isSelectingAll, setIsSelectingAll] = React.useState(false);
 
-    if (allSelectedOnPage) {
-      pagePaperIds.forEach((id) => next.delete(id));
+  const handleToggleSelectAll = async () => {
+    if (!setSelectedPaperIds || !papers || isSelectingAll) return;
+    
+    // allPageSelected is calculated below, but we can evaluate it here
+    const isAllPageSelected = papers && papers.length > 0 && papers.every(p => selectedPaperIds.has(String(p.Paper_ID)));
+
+    if (isAllPageSelected) {
+      setSelectedPaperIds(new Set());
     } else {
-      pagePaperIds.forEach((id) => next.add(id));
+      setIsSelectingAll(true);
+      try {
+        const query = new URLSearchParams({
+          onlyIds: 'true',
+          search: searchTerm,
+          status: statusFilter,
+          pdfStatus: pdfFilter,
+          source: sourceFilter,
+          decision: decisionFilter
+        });
+        const res = await fetch(`/api/papers?${query}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setSelectedPaperIds(new Set(data));
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching all IDs:", err);
+      } finally {
+        setIsSelectingAll(false);
+      }
     }
-    setSelectedPaperIds(next);
   };
 
   const allPageSelected = papers && papers.length > 0 && papers.every(p => selectedPaperIds.has(String(p.Paper_ID)));
@@ -509,10 +531,11 @@ export default function PaperDatabaseView({
                       <th className="p-3 w-[4%] text-center">
                         <input
                           type="checkbox"
-                          className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                          className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           checked={allPageSelected}
+                          disabled={isSelectingAll}
                           ref={(el) => {
-                            if (el) el.indeterminate = somePageSelected;
+                            if (el) el.indeterminate = somePageSelected && !isSelectingAll;
                           }}
                           onChange={handleToggleSelectAll}
                         />

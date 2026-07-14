@@ -110,10 +110,16 @@ class GeminiClient:
         max_output_tokens: int,
         top_p: float,
         top_k: int,
+        thinking_level: str = "none",
     ) -> dict:
+        thinking_cfg = {"thinking_summaries": "none"}
+        if thinking_level and thinking_level.lower() != "none":
+            thinking_cfg["thinking_level"] = thinking_level
+
         gen_config: dict = {
             "temperature": temperature,
             "max_output_tokens": max_output_tokens,
+            "thinking_config": thinking_cfg,
         }
         if top_p is not None:
             gen_config["top_p"] = top_p
@@ -277,6 +283,7 @@ class GeminiClient:
         top_p: float = None,
         top_k: int = None,
         request_delay: float = 1.0,
+        thinking_level: str = "none",
     ):
         """Unified LLM call. Routes to Gemma (generate_content) or Gemini
         (Interactions API) automatically based on model_id prefix."""
@@ -326,6 +333,7 @@ class GeminiClient:
                         max_output_tokens=max_output_tokens,
                         top_p=top_p,
                         top_k=top_k,
+                        thinking_level=thinking_level,
                     )
 
                 latency_ms = int((time.time() - start_time) * 1000)

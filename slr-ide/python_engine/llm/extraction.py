@@ -17,7 +17,8 @@ def extract_structured_data(
     temperature: float = 0.0,
     max_output_tokens: int = 2000,
     top_p: float = None,
-    top_k: int = None
+    top_k: int = None,
+    thinking_level: str = "none"
 ) -> dict:
     """Executes a generic structured data extraction query, supporting optional PDF uploads."""
     
@@ -46,7 +47,8 @@ def extract_structured_data(
             temperature=temperature,
             max_output_tokens=max_output_tokens,
             top_p=top_p,
-            top_k=top_k
+            top_k=top_k,
+            thinking_level=thinking_level
         )
         
         if not result["success"]:

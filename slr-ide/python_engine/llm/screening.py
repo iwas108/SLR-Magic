@@ -29,7 +29,8 @@ def screen_title_abstract(
     top_p: float = None,
     top_k: int = None,
     schema_mapping: dict = None,
-    request_delay: float = 1.0
+    request_delay: float = 1.0,
+    thinking_level: str = "none"
 ) -> dict:
     """Executes a title-abstract (text-only) screening query using Gemini Interactions API."""
     
@@ -46,7 +47,8 @@ def screen_title_abstract(
         max_output_tokens=max_output_tokens,
         top_p=top_p,
         top_k=top_k,
-        request_delay=request_delay
+        request_delay=request_delay,
+        thinking_level=thinking_level
     )
     
     if not result["success"]:

@@ -64,6 +64,7 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
       const sortedEc = Object.entries(stageData.ecBreakdown).sort((a, b) => b[1] - a[1]);
       const top3 = sortedEc.slice(0, 3);
       const otherCount = sortedEc.slice(3).reduce((acc, curr) => acc + curr[1], 0);
+      const otherDetails = sortedEc.slice(3).map(([trigger, count]) => `${trigger}: ${count}`).join('\n');
       
       topEcList = (
         <div className="mt-2 text-[9px] text-muted-foreground border-t border-border pt-2 grid grid-cols-2 gap-1">
@@ -77,7 +78,7 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
             );
           })}
           {otherCount > 0 && (
-            <div className="flex justify-between items-center bg-secondary/50 px-1.5 py-0.5 rounded">
+            <div className="flex justify-between items-center bg-secondary/50 px-1.5 py-0.5 rounded" title={otherDetails}>
               <span className="truncate max-w-[80px]">Other</span>
               <span className="font-mono text-rose-500">{otherCount} ({Math.round((otherCount / stageData.excluded) * 100)}%)</span>
             </div>

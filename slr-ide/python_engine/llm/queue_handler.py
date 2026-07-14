@@ -25,7 +25,7 @@ class LLMQueueHandler:
         self.model_id = config.get("model_id", "gemini-3.5-flash")
         self.schema_mapping = config.get("schema_mapping", {})
         self.speed_mode = config.get("speed_mode", "FLEX")
-        self.concurrency = int(config.get("concurrency", 5))
+        self.concurrency = int(config.get("concurrency", 1))
         self.batch_queue_size = int(config.get("batch_queue_size", 100))
         self.temperature = float(config.get("temperature", 0.0))
         self.max_output_tokens = int(config.get("max_output_tokens", 2000))
@@ -33,6 +33,7 @@ class LLMQueueHandler:
         self.top_k = int(config.get("top_k")) if config.get("top_k") is not None else None
         self.request_delay = float(config.get("request_delay", 1.0))
         self.interaction_chaining = bool(config.get("interaction_chaining", True))
+        self.thinking_level = config.get("thinking_level", "none")
         
         self.run_event = threading.Event()
         self.run_event.set() # True means running
@@ -164,20 +165,21 @@ class LLMQueueHandler:
                 response = screen_title_abstract(
                     self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id,
                     temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
-                    schema_mapping=self.schema_mapping, request_delay=self.request_delay
+                    schema_mapping=self.schema_mapping, request_delay=self.request_delay, thinking_level=self.thinking_level
                 )
             elif self.task_type in ('gatekeeper', 'scientist', 'fulltext'):
                 from llm.fulltext import screen_fulltext
                 response = screen_fulltext(
                     self.client, self.model_id, pdf_path, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id,
                     temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
-                    schema_mapping=self.schema_mapping, request_delay=self.request_delay
+                    schema_mapping=self.schema_mapping, request_delay=self.request_delay, thinking_level=self.thinking_level
                 )
             elif self.task_type in ('miner', 'extraction'):
                 from llm.extraction import extract_structured_data
                 response = extract_structured_data(
                     self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, pdf_path, self.speed_mode, previous_interaction_id,
-                    temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k
+                    temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
+                    thinking_level=self.thinking_level
                 )
             else:
                 raise ValueError(f"Unsupported task execution type: {self.task_type}")
