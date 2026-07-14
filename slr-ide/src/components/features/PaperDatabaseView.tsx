@@ -7,7 +7,6 @@ import {
   TrendingUp, BarChart3, Cloud, Database, ShieldAlert, Terminal, ArrowRightLeft,
   Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield, Filter
 } from 'lucide-react';
-import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
 import { broadcastSync } from '@/lib/sync-utils';
 
 interface PaperDatabaseViewProps {
@@ -23,22 +22,11 @@ interface PaperDatabaseViewProps {
   setSourceFilter: (v: string) => void;
   decisionFilter: string;
   setDecisionFilter: (v: string) => void;
+  ecTriggerFilter: string;
+  setEcTriggerFilter: (v: string) => void;
   setShowImport: (show: boolean) => void;
   setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
-  operationModal: any;
-  setOperationModal: React.Dispatch<React.SetStateAction<any>>;
-  currentStep: any;
-  setCurrentStep: React.Dispatch<React.SetStateAction<any>>;
-  pipelineStats: any;
-  indexingState: any;
-  logEndRef: React.RefObject<HTMLDivElement | null>;
-  formatBytes: (bytes: number) => string;
-  getTimeEstimates: () => { avgTime: string; timeLeft: string };
-  handleResumeOperation: () => void;
-  handleCancelOperation: () => void;
   cloudName: string;
-  isModalMinimized: boolean;
-  setIsModalMinimized: React.Dispatch<React.SetStateAction<boolean>>;
   loadingPapers: boolean;
   papers: any[];
   totalPapers: number;
@@ -80,22 +68,11 @@ export default function PaperDatabaseView({
   setSourceFilter,
   decisionFilter,
   setDecisionFilter,
+  ecTriggerFilter,
+  setEcTriggerFilter,
   setShowImport,
   setDeleteAllConfirm,
-  operationModal,
-  setOperationModal,
-  currentStep,
-  setCurrentStep,
-  pipelineStats,
-  indexingState,
-  logEndRef,
-  formatBytes,
-  getTimeEstimates,
-  handleResumeOperation,
-  handleCancelOperation,
   cloudName,
-  isModalMinimized,
-  setIsModalMinimized,
   loadingPapers,
   papers,
   totalPapers,
@@ -118,12 +95,31 @@ export default function PaperDatabaseView({
   const [showFilters, setShowFilters] = React.useState(false);
   const [bulkType, setBulkType] = React.useState('');
   const [bulkValue, setBulkValue] = React.useState('');
+  const [ecTriggerOptions, setEcTriggerOptions] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    async function fetchEcTriggers() {
+      try {
+        const res = await fetch('/api/papers?getEcTriggers=true');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setEcTriggerOptions(data);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching EC triggers:", err);
+      }
+    }
+    fetchEcTriggers();
+  }, [papers]);
 
   const clearAllFilters = () => {
     setStatusFilter('');
     setDecisionFilter('');
     setPdfFilter('');
     setSourceFilter('');
+    setEcTriggerFilter('');
   };
 
 
@@ -333,16 +329,16 @@ export default function PaperDatabaseView({
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`px-3 py-2 border rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  showFilters || statusFilter || decisionFilter || pdfFilter || sourceFilter
+                  showFilters || statusFilter || decisionFilter || pdfFilter || sourceFilter || ecTriggerFilter
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-secondary text-foreground border-border hover:bg-secondary/80'
                 }`}
               >
                 <Filter className="w-3.5 h-3.5" />
                 Filters
-                {(statusFilter || decisionFilter || pdfFilter || sourceFilter) && (
+                {(statusFilter || decisionFilter || pdfFilter || sourceFilter || ecTriggerFilter) && (
                   <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/20 text-[10px]">
-                    {[statusFilter, decisionFilter, pdfFilter, sourceFilter].filter(Boolean).length}
+                    {[statusFilter, decisionFilter, pdfFilter, sourceFilter, ecTriggerFilter].filter(Boolean).length}
                   </span>
                 )}
               </button>
@@ -372,7 +368,7 @@ export default function PaperDatabaseView({
                       <option value="">Any Decision</option>
                       <option value="INCLUDE">INCLUDE</option>
                       <option value="EXCLUDE">EXCLUDE</option>
-                      <option value="UNADJUDICATED">Unadjudicated</option>
+                      <option value="UNADJUDICATED">Is Empty (Undecided)</option>
                     </select>
                   </div>
 
@@ -397,6 +393,17 @@ export default function PaperDatabaseView({
                       <option value="backward">Backward Snowball</option>
                       <option value="forward">Forward Snowball</option>
                       <option value="csv">CSV Import</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Exclusion Criterion</label>
+                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold font-mono" value={ecTriggerFilter} onChange={(e) => setEcTriggerFilter(e.target.value)}>
+                      <option value="" className="font-sans font-semibold">Any Exclusion Code</option>
+                      <option value="none" className="font-sans font-semibold">None (No Exclusion Code)</option>
+                      {ecTriggerOptions.map(code => (
+                        <option key={code} value={code}>{code}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -480,7 +487,7 @@ export default function PaperDatabaseView({
 
             <button
               onClick={() => setDeleteAllConfirm(true)}
-              disabled={operationModal.isExecuting}
+              disabled={loadingPapers}
               className="px-3 py-2 bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -492,24 +499,7 @@ export default function PaperDatabaseView({
 
         {/* Data Table */}
         <div className="flex-1 flex flex-col overflow-hidden bg-card">
-          {operationModal.isOpen && !isModalMinimized ? (
-            <PipelineProgressPanel
-              operationModal={operationModal}
-              setOperationModal={setOperationModal}
-              currentStep={currentStep}
-              setCurrentStep={setCurrentStep}
-              pipelineStats={pipelineStats}
-              indexingState={indexingState}
-              logEndRef={logEndRef}
-              formatBytes={formatBytes}
-              getTimeEstimates={getTimeEstimates}
-              handleResumeOperation={handleResumeOperation}
-              handleCancelOperation={handleCancelOperation}
-              cloudName={cloudName}
-              isMinimizable={true}
-              setIsModalMinimized={setIsModalMinimized}
-            />
-          ) : loadingPapers ? (
+          {loadingPapers ? (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-3">
               <LoaderIcon />
               <span className="text-xs font-medium">Loading papers database...</span>

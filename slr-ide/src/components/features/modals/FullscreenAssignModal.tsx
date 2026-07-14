@@ -58,7 +58,13 @@ interface FullscreenAssignModalProps {
     setAssignExcludeReviews: React.Dispatch<React.SetStateAction<boolean>>;
     assignPublisherFilter: string;
     setAssignPublisherFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignStageFilter: string;
+    setAssignStageFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignDecisionFilter: string;
+    setAssignDecisionFilter: React.Dispatch<React.SetStateAction<string>>;
     uniquePublishers: string[];
+    uniqueManualStages: string[];
+    uniqueManualDecisions: string[];
   };
   pipelineHook: {
     logEndRef: React.RefObject<HTMLDivElement | null>;
@@ -121,7 +127,13 @@ export default function FullscreenAssignModal({
     setAssignExcludeReviews,
     assignPublisherFilter,
     setAssignPublisherFilter,
-    uniquePublishers
+    assignStageFilter,
+    setAssignStageFilter,
+    assignDecisionFilter,
+    setAssignDecisionFilter,
+    uniquePublishers,
+    uniqueManualStages,
+    uniqueManualDecisions
   } = calibrationHook;
 
   const cloudProvider = projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider || 'gdrive';
@@ -190,7 +202,13 @@ export default function FullscreenAssignModal({
           setAssignExcludeReviews={setAssignExcludeReviews}
           assignPublisherFilter={assignPublisherFilter}
           setAssignPublisherFilter={setAssignPublisherFilter}
+          assignStageFilter={assignStageFilter}
+          setAssignStageFilter={setAssignStageFilter}
+          assignDecisionFilter={assignDecisionFilter}
+          setAssignDecisionFilter={setAssignDecisionFilter}
           uniquePublishers={uniquePublishers}
+          uniqueManualStages={uniqueManualStages}
+          uniqueManualDecisions={uniqueManualDecisions}
         />
         {assignSelectedPaper && (
           <AssignDetailView

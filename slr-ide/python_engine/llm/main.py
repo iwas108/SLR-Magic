@@ -123,6 +123,7 @@ def main():
     top_p = float(llm_config.get("top_p", 0.9))
     top_k = int(llm_config.get("top_k", 40))
     timeout_seconds = float(llm_config.get("timeout_seconds", 900.0))
+    discount = float(llm_config.get("discount", 0.0))
     
     # Re-instantiate client with user-configured timeout
     try:
@@ -146,6 +147,7 @@ def main():
         fail_job(job_id, project_id, f"JSON Schema validation failed for prompt template '{selected_template_id}': {err_msg}")
 
     # 5. Fetch papers pending screening with range/selection constraints matching status_filter
+    requires_pdf = task_type in ('gatekeeper', 'scientist', 'miner', 'fulltext', 'extraction')
     if args.paper_ids:
       # User specified concrete Paper IDs. Fetch all pending papers and filter in memory to avoid parameter limit exceptions.
       if status_filter == 'ALL':
@@ -157,7 +159,9 @@ def main():
       if decision_filter != 'ALL':
           query += " AND IFNULL(AI_Decision, 'PENDING') = ?"
           params.append(decision_filter)
-      query += " ORDER BY rowid ASC"
+      if requires_pdf:
+          query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
+      query += " ORDER BY Paper_ID ASC"
       all_papers = execute_read(query, tuple(params))
       parsed_ids = [p_id.strip() for p_id in args.paper_ids.split(",") if p_id.strip()]
       id_set = set(parsed_ids)
@@ -173,7 +177,9 @@ def main():
       if decision_filter != 'ALL':
           query += " AND IFNULL(AI_Decision, 'PENDING') = ?"
           params.append(decision_filter)
-      query += " ORDER BY rowid ASC"
+      if requires_pdf:
+          query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
+      query += " ORDER BY Paper_ID ASC"
       
       # We must apply LIMIT/OFFSET after ORDER BY
       if args.limit > 0:
@@ -219,6 +225,7 @@ def main():
     except Exception:
         project_llm_config = {}
     schema_mapping = project_llm_config.get("schema_mappings", {}).get(task_type, {})
+    project_tax = float(project.get("project_tax") or 0.0)
 
     # 7. Start Queue Handler
     config_queue = {
@@ -230,9 +237,12 @@ def main():
         "max_output_tokens": max_output_tokens,
         "top_p": top_p,
         "top_k": top_k,
+        "thinking_level": llm_config.get("thinking_level", "none"),
         "request_delay": float(llm_config.get("request_delay", 1.0)),
         "interaction_chaining": bool(llm_config.get("interaction_chaining", True)),
-        "schema_mapping": schema_mapping
+        "schema_mapping": schema_mapping,
+        "discount": discount,
+        "tax_rate": project_tax
     }
     
     handler = LLMQueueHandler(

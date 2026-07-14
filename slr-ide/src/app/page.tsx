@@ -349,22 +349,11 @@ export default function DashboardPage() {
               setSourceFilter={papersHook.setSourceFilter}
               decisionFilter={papersHook.decisionFilter}
               setDecisionFilter={papersHook.setDecisionFilter}
+              ecTriggerFilter={papersHook.ecTriggerFilter}
+              setEcTriggerFilter={papersHook.setEcTriggerFilter}
               setShowImport={setShowImport}
               setDeleteAllConfirm={papersHook.setDeleteAllConfirm}
-              operationModal={pipelineHook.operationModal}
-              setOperationModal={pipelineHook.setOperationModal}
-              currentStep={pipelineHook.currentStep}
-              setCurrentStep={pipelineHook.setCurrentStep}
-              pipelineStats={pipelineHook.pipelineStats}
-              indexingState={pipelineHook.indexingState}
-              logEndRef={pipelineHook.logEndRef}
-              formatBytes={formatBytes}
-              getTimeEstimates={pipelineHook.getTimeEstimates}
-              handleResumeOperation={pipelineHook.handleResumeOperation}
-              handleCancelOperation={pipelineHook.handleCancelOperation}
               cloudName={projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider === 'onedrive' ? 'OneDrive' : 'Google Drive'}
-              isModalMinimized={pipelineHook.isModalMinimized}
-              setIsModalMinimized={pipelineHook.setIsModalMinimized}
               loadingPapers={papersHook.loadingPapers}
               papers={papersHook.papers}
               totalPapers={papersHook.totalPapers}

@@ -34,6 +34,8 @@ class LLMQueueHandler:
         self.request_delay = float(config.get("request_delay", 1.0))
         self.interaction_chaining = bool(config.get("interaction_chaining", True))
         self.thinking_level = config.get("thinking_level", "none")
+        self.discount = float(config.get("discount", 0.0))
+        self.tax_rate = float(config.get("tax_rate", 0.0))
         
         self.run_event = threading.Event()
         self.run_event.set() # True means running
@@ -130,7 +132,7 @@ class LLMQueueHandler:
             previous_interaction_id = prev_row.get("interaction_id") if prev_row else None
 
         # Pre-flight budget check
-        est = estimate_cost(self.model_id, user_prompt, pdf_path, speed_mode=self.speed_mode)
+        est = estimate_cost(self.model_id, user_prompt, pdf_path, speed_mode=self.speed_mode, discount=self.discount, tax_rate=self.tax_rate)
         est_cost = est["estimated_cost"]
         
         with self.lock:
@@ -194,10 +196,9 @@ class LLMQueueHandler:
             input_price = pricing["input_token_price"]
             output_price = pricing["output_token_price"]
             
-            if self.speed_mode == 'FLEX':
-                discount = pricing.get("batch_discount", 0.5)
-                input_price *= discount
-                output_price *= discount
+            price_multiplier = 1.0 - self.discount
+            input_price *= price_multiplier
+            output_price *= price_multiplier
 
             input_tokens    = response.get("input_tokens")    or 0
             output_tokens   = response.get("output_tokens")   or 0
@@ -206,7 +207,8 @@ class LLMQueueHandler:
             
             # Discount applied tokens
             billable_input_tokens = max(0, input_tokens - cached_tokens)
-            actual_cost = ((billable_input_tokens / 1_000_000.0) * input_price) + ((output_tokens / 1_000_000.0) * output_price)
+            raw_cost = ((billable_input_tokens / 1_000_000.0) * input_price) + ((output_tokens / 1_000_000.0) * output_price)
+            actual_cost = raw_cost * (1.0 + self.tax_rate)
 
             with self.lock:
                 self.processed_papers += 1
@@ -230,9 +232,6 @@ class LLMQueueHandler:
                      self.total_thinking_tokens, self.total_cost, datetime.utcnow().isoformat(), self.job_id)
                 )
 
-            # Insert decisions or extractions into database
-            calibration_pool = paper.get("calibration_pool") or ""
-            is_calibration_paper = calibration_pool in ("pool_a", "pool_b", "pool_c")
             decision_text = response.get("decision", "EXCLUDE")
             ec_trigger = response.get("exclusion_trigger")
             rationale_text = response.get("rationale", "")
@@ -286,7 +285,7 @@ class LLMQueueHandler:
                 thinking_tokens=thinking_tokens,
                 cached_tokens=cached_tokens,
                 cost_usd=actual_cost,
-                flex_discount=0.5 if self.speed_mode == 'FLEX' else 0.0,
+                flex_discount=self.discount,
                 speed_mode=self.speed_mode,
                 raw_prompt=user_prompt,
                 raw_response=response.get("raw_response", ""),
@@ -317,7 +316,7 @@ class LLMQueueHandler:
                 thinking_tokens=0,
                 cached_tokens=0,
                 cost_usd=0.0,
-                flex_discount=0.0,
+                flex_discount=self.discount,
                 speed_mode=self.speed_mode,
                 raw_prompt=user_prompt,
                 raw_response="",

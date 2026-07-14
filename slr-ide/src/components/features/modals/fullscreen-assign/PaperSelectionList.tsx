@@ -34,8 +34,14 @@ interface PaperSelectionListProps {
   assignExcludeReviews: boolean;
   setAssignExcludeReviews: React.Dispatch<React.SetStateAction<boolean>>;
   assignPublisherFilter: string;
-  setAssignPublisherFilter: React.Dispatch<React.SetStateAction<string>>;
+  setAssignPublisherFilter: (val: string) => void;
+  assignStageFilter: string;
+  setAssignStageFilter: (val: string) => void;
+  assignDecisionFilter: string;
+  setAssignDecisionFilter: (val: string) => void;
   uniquePublishers: string[];
+  uniqueManualStages: string[];
+  uniqueManualDecisions: string[];
 }
 
 export default function PaperSelectionList({
@@ -71,7 +77,13 @@ export default function PaperSelectionList({
   setAssignExcludeReviews,
   assignPublisherFilter,
   setAssignPublisherFilter,
-  uniquePublishers
+  assignStageFilter,
+  setAssignStageFilter,
+  assignDecisionFilter,
+  setAssignDecisionFilter,
+  uniquePublishers,
+  uniqueManualStages,
+  uniqueManualDecisions
 }: PaperSelectionListProps) {
   const [showBuildModal, setShowBuildModal] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
@@ -165,6 +177,36 @@ export default function PaperSelectionList({
                 <option key={pub} value={pub} className="bg-popover text-popover-foreground" title={pub}>
                   {pub}
                 </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Row 3: Manual Pipeline Filters */}
+        <div className="flex items-center gap-2 justify-between">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <select
+              value={assignStageFilter}
+              onChange={(e) => setAssignStageFilter(e.target.value)}
+              className="bg-secondary/40 border border-border rounded-lg px-2 py-1.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none flex-1 min-w-0"
+              title="Filter by Manual Stage"
+            >
+              <option value="" className="bg-popover text-popover-foreground">Manual Stage</option>
+              <option value="none" className="bg-popover text-popover-foreground">None Assigned</option>
+              {uniqueManualStages.map(stage => (
+                <option key={stage} value={stage} className="bg-popover text-popover-foreground">{stage}</option>
+              ))}
+            </select>
+            <select
+              value={assignDecisionFilter}
+              onChange={(e) => setAssignDecisionFilter(e.target.value)}
+              className="bg-secondary/40 border border-border rounded-lg px-2 py-1.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none flex-1 min-w-0"
+              title="Filter by Screening Result"
+            >
+              <option value="" className="bg-popover text-popover-foreground">Screening Result</option>
+              <option value="none" className="bg-popover text-popover-foreground">Unscreened (Pending)</option>
+              {uniqueManualDecisions.map(dec => (
+                <option key={dec} value={dec} className="bg-popover text-popover-foreground">{dec}</option>
               ))}
             </select>
           </div>

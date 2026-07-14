@@ -49,8 +49,59 @@ export function initializeDatabase(db: Database.Database): void {
       notes TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS calibration_papers (
+      Paper_ID TEXT PRIMARY KEY,
+      Import_Date TEXT NOT NULL,
+      Import_Source TEXT NOT NULL,
+      Source TEXT,
+      DOI TEXT,
+      Title TEXT NOT NULL,
+      Abstract TEXT,
+      Authors TEXT,
+      Year INTEGER,
+      PDF_Link TEXT,
+      Status TEXT NOT NULL DEFAULT '0',
+      Local_PDF_Status TEXT NOT NULL DEFAULT 'IGNORED',
+      Local_PDF_Path TEXT,
+      Project_ID TEXT,
+      Parent_Paper_ID TEXT,
+      remote_worker_id TEXT,
+      scrape_claimed_at TEXT,
+      calibration_pool TEXT,
+      calibration_tag TEXT,
+      Human_Decision TEXT,
+      Human_EC_Trigger TEXT,
+      Human_Rationale TEXT,
+      Original_Publisher TEXT,
+      Publisher TEXT,
+      citation_count INTEGER DEFAULT 0,
+      Human_QA_Scores TEXT,
+      Human_Extracted_Data TEXT,
+      is_duplicate INTEGER DEFAULT 0,
+      merged_into_id TEXT DEFAULT NULL,
+      AI_Decision TEXT,
+      AI_EC_Trigger TEXT,
+      AI_Rationale TEXT,
+      AI_QA_Scores TEXT,
+      AI_Extracted_Data TEXT,
+      manual_decision TEXT,
+      manual_ec_trigger TEXT,
+      manual_rationale TEXT,
+      manual_stage TEXT,
+      manual_qa_scores TEXT,
+      manual_extracted_data TEXT,
+      notes TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers (DOI);
     CREATE INDEX IF NOT EXISTS idx_papers_title ON papers (Title);
+    CREATE INDEX IF NOT EXISTS idx_papers_is_duplicate ON papers (is_duplicate);
+    CREATE INDEX IF NOT EXISTS idx_papers_merged_into ON papers (merged_into_id);
+
+    CREATE INDEX IF NOT EXISTS idx_cal_papers_doi ON calibration_papers (DOI);
+    CREATE INDEX IF NOT EXISTS idx_cal_papers_title ON calibration_papers (Title);
+    CREATE INDEX IF NOT EXISTS idx_cal_papers_is_duplicate ON calibration_papers (is_duplicate);
+    CREATE INDEX IF NOT EXISTS idx_cal_papers_merged_into ON calibration_papers (merged_into_id);
 
     CREATE TABLE IF NOT EXISTS configs (
       key TEXT PRIMARY KEY,
@@ -81,6 +132,7 @@ export function initializeDatabase(db: Database.Database): void {
       pool_c_extraction_rules TEXT,
       project_budget_limit REAL DEFAULT 0.0,
       project_current_spend REAL DEFAULT 0.0,
+      project_tax REAL DEFAULT 0.0,
       llm_config TEXT DEFAULT '{}',
       created_at TEXT NOT NULL
     );
@@ -99,7 +151,7 @@ export function initializeDatabase(db: Database.Database): void {
       extracted_data TEXT,
       UNIQUE(paper_id, project_id, pool, reviewer_name),
       FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
+      FOREIGN KEY(paper_id) REFERENCES calibration_papers(Paper_ID) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_rd_paper ON reviewer_decisions(paper_id, project_id);
     CREATE INDEX IF NOT EXISTS idx_rd_reviewer ON reviewer_decisions(reviewer_name, project_id);
@@ -120,7 +172,7 @@ export function initializeDatabase(db: Database.Database): void {
       resolved_qa_scores TEXT,
       resolved_extracted_data TEXT,
       FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
+      FOREIGN KEY(paper_id) REFERENCES calibration_papers(Paper_ID) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_ledger_project ON calibration_commit_ledger(project_id);
 
@@ -173,9 +225,27 @@ export function initializeDatabase(db: Database.Database): void {
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS manual_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      paper_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      manual_stage TEXT NOT NULL,
+      decision TEXT NOT NULL,
+      ec_trigger TEXT,
+      rationale TEXT,
+      qa_scores TEXT,
+      extracted_data TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_audit_project ON llm_audit_log(project_id);
     CREATE INDEX IF NOT EXISTS idx_audit_paper ON llm_audit_log(paper_id);
     CREATE INDEX IF NOT EXISTS idx_audit_job ON llm_audit_log(job_id);
+    
+    CREATE INDEX IF NOT EXISTS idx_manual_audit_project ON manual_audit_log(project_id);
+    CREATE INDEX IF NOT EXISTS idx_manual_audit_paper ON manual_audit_log(paper_id);
 
     CREATE TABLE IF NOT EXISTS llm_pricing (
       model_id TEXT PRIMARY KEY,
@@ -388,6 +458,17 @@ export function initializeDatabase(db: Database.Database): void {
     // Column already exists
   }
 
+  // Add missing columns to calibration_papers to maintain exact schema parity with papers
+  try {
+    db.exec("ALTER TABLE calibration_papers ADD COLUMN Parent_Paper_ID TEXT");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE calibration_papers ADD COLUMN remote_worker_id TEXT");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE calibration_papers ADD COLUMN scrape_claimed_at TEXT");
+  } catch (e) {}
+
   // Add project_budget_limit column to projects if it doesn't exist (migration fallback)
   try {
     db.exec("ALTER TABLE projects ADD COLUMN project_budget_limit REAL DEFAULT 0.0");
@@ -398,6 +479,13 @@ export function initializeDatabase(db: Database.Database): void {
   // Add project_current_spend column to projects if it doesn't exist (migration fallback)
   try {
     db.exec("ALTER TABLE projects ADD COLUMN project_current_spend REAL DEFAULT 0.0");
+  } catch (e) {
+    // Column already exists
+  }
+
+  // Add project_tax column to projects if it doesn't exist (migration fallback)
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN project_tax REAL DEFAULT 0.0");
   } catch (e) {
     // Column already exists
   }

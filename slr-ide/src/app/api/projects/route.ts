@@ -13,16 +13,16 @@ export async function GET() {
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND CAST(Status AS INTEGER) >= 1 THEN 1 ELSE 0 END) as screened,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as acquired,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced,
-          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND calibration_pool = 'pool_a' THEN 1 ELSE 0 END) as pool_a_count,
-          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND calibration_pool = 'pool_b' THEN 1 ELSE 0 END) as pool_b_count,
-          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND calibration_pool = 'pool_c' THEN 1 ELSE 0 END) as pool_c_count,
+          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_a' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_a_count,
+          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_b' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_b_count,
+          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_c' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_c_count,
           SUM(CASE WHEN is_duplicate = 1 THEN 1 ELSE 0 END) as duplicates
         FROM papers WHERE Project_ID = ?
-      `).get(proj.id) as any;
+      `).get(proj.id, proj.id, proj.id, proj.id) as any;
 
       const tagRows = db.prepare(`
         SELECT calibration_pool, calibration_tag, COUNT(*) as count 
-        FROM papers 
+        FROM calibration_papers 
         WHERE Project_ID = ? AND calibration_pool IS NOT NULL AND (is_duplicate IS NULL OR is_duplicate = 0)
         GROUP BY calibration_pool, calibration_tag
       `).all(proj.id) as { calibration_pool: string; calibration_tag: string | null; count: number }[];
@@ -42,90 +42,98 @@ export async function GET() {
       }
 
       const stageStatsRows = db.prepare(`
+        WITH combined_logs AS (
+          SELECT paper_id, task_type, 
+                 UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision,
+                 UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger,
+                 created_at,
+                 0 as priority
+          FROM llm_audit_log
+          WHERE project_id = ? AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+          UNION ALL
+          SELECT paper_id, manual_stage as task_type,
+                 UPPER(decision) as decision,
+                 UPPER(ec_trigger) as ec_trigger,
+                 created_at,
+                 1 as priority
+          FROM manual_audit_log
+          WHERE project_id = ?
+        ),
+        ranked_decisions AS (
+          SELECT *, ROW_NUMBER() OVER(PARTITION BY paper_id, task_type ORDER BY priority DESC, created_at DESC) as rn
+          FROM combined_logs
+        )
         SELECT 
-          Status as stage,
-          SUM(CASE WHEN (
-            UPPER(Human_Decision) = 'INCLUDE' OR 
-            (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
-              SELECT UPPER(decision) FROM reviewer_decisions 
-              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-              ORDER BY imported_at DESC LIMIT 1
-            ) = 'INCLUDE')
-          ) THEN 1 ELSE 0 END) as included,
-          SUM(CASE WHEN (
-            UPPER(Human_Decision) = 'EXCLUDE' OR 
-            (Human_Decision IS NULL AND UPPER(manual_decision) = 'EXCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'EXCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
-              SELECT UPPER(decision) FROM reviewer_decisions 
-              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-              ORDER BY imported_at DESC LIMIT 1
-            ) = 'EXCLUDE')
-          ) THEN 1 ELSE 0 END) as excluded,
-          SUM(CASE WHEN (
-            (UPPER(Human_Decision) = 'INCLUDE' OR 
-            (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
-              SELECT UPPER(decision) FROM reviewer_decisions 
-              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-              ORDER BY imported_at DESC LIMIT 1
-            ) = 'INCLUDE')) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED')
-          ) THEN 1 ELSE 0 END) as inc_has_pdf,
-          SUM(CASE WHEN (
-            (UPPER(Human_Decision) = 'INCLUDE' OR 
-            (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
-              SELECT UPPER(decision) FROM reviewer_decisions 
-              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-              ORDER BY imported_at DESC LIMIT 1
-            ) = 'INCLUDE')) AND (DOI IS NULL OR DOI = '')
-          ) THEN 1 ELSE 0 END) as inc_no_doi,
-          SUM(CASE WHEN (
-            (UPPER(Human_Decision) = 'INCLUDE' OR 
-            (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
-              SELECT UPPER(decision) FROM reviewer_decisions 
-              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-              ORDER BY imported_at DESC LIMIT 1
-            ) = 'INCLUDE')) AND Local_PDF_Status = 'FAILED'
-          ) THEN 1 ELSE 0 END) as inc_pdf_failed,
-          COUNT(*) as total_in_stage
-        FROM papers 
-        WHERE Project_ID = ? AND Status IN ('1', '2') AND (is_duplicate IS NULL OR is_duplicate = 0)
-        GROUP BY Status
-      `).all(proj.id) as { stage: string; included: number; excluded: number; inc_has_pdf: number; inc_no_doi: number; inc_pdf_failed: number; total_in_stage: number }[];
+          CASE d.task_type 
+            WHEN 'fast_filter' THEN '1' 
+            WHEN 'gatekeeper' THEN '2' 
+            ELSE d.task_type 
+          END as stage,
+          SUM(CASE WHEN d.decision LIKE 'INCLUDE%' THEN 1 ELSE 0 END) as included,
+          SUM(CASE WHEN d.decision LIKE 'EXCLUDE%' THEN 1 ELSE 0 END) as excluded,
+          SUM(CASE WHEN d.decision LIKE 'INCLUDE%' AND p.Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as inc_has_pdf,
+          SUM(CASE WHEN d.decision LIKE 'INCLUDE%' AND (p.DOI IS NULL OR p.DOI = '') THEN 1 ELSE 0 END) as inc_no_doi,
+          SUM(CASE WHEN d.decision LIKE 'INCLUDE%' AND p.Local_PDF_Status = 'FAILED' THEN 1 ELSE 0 END) as inc_pdf_failed
+        FROM ranked_decisions d
+        JOIN papers p ON p.Paper_ID = d.paper_id
+        WHERE d.rn = 1 AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) AND d.task_type IN ('fast_filter', 'gatekeeper')
+        GROUP BY d.task_type
+      `).all(proj.id, proj.id) as { stage: string; included: number; excluded: number; inc_has_pdf: number; inc_no_doi: number; inc_pdf_failed: number; }[];
 
       const stageECStatsRows = db.prepare(`
-        SELECT 
-          Status as stage,
-          COALESCE(
-            Human_EC_Trigger, 
-            manual_ec_trigger, 
-            AI_EC_Trigger, 
-            (SELECT ec_trigger FROM reviewer_decisions 
-             WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-             ORDER BY imported_at DESC LIMIT 1)
-          ) as ec_trigger,
-          COUNT(*) as count
-        FROM papers 
-        WHERE Project_ID = ? AND Status IN ('1', '2') AND (is_duplicate IS NULL OR is_duplicate = 0)
-        AND (
-            UPPER(Human_Decision) = 'EXCLUDE' OR 
-            (Human_Decision IS NULL AND UPPER(manual_decision) = 'EXCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'EXCLUDE') OR
-            (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
-              SELECT UPPER(decision) FROM reviewer_decisions 
-              WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-              ORDER BY imported_at DESC LIMIT 1
-            ) = 'EXCLUDE')
+        WITH combined_logs AS (
+          SELECT paper_id, task_type, 
+                 UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision,
+                 UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger,
+                 created_at,
+                 0 as priority
+          FROM llm_audit_log
+          WHERE project_id = ? AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+          UNION ALL
+          SELECT paper_id, manual_stage as task_type,
+                 UPPER(decision) as decision,
+                 UPPER(ec_trigger) as ec_trigger,
+                 created_at,
+                 1 as priority
+          FROM manual_audit_log
+          WHERE project_id = ?
+        ),
+        ranked_decisions AS (
+          SELECT *, ROW_NUMBER() OVER(PARTITION BY paper_id, task_type ORDER BY priority DESC, created_at DESC) as rn
+          FROM combined_logs
         )
-        GROUP BY Status, ec_trigger
-      `).all(proj.id) as { stage: string; ec_trigger: string | null; count: number }[];
+        SELECT 
+          CASE d.task_type 
+            WHEN 'fast_filter' THEN '1' 
+            WHEN 'gatekeeper' THEN '2' 
+            ELSE d.task_type 
+          END as stage,
+          COALESCE(d.ec_trigger, 'Unspecified') as ec_trigger,
+          COUNT(p.Paper_ID) as count
+        FROM ranked_decisions d
+        JOIN papers p ON p.Paper_ID = d.paper_id
+        WHERE d.rn = 1 AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) 
+          AND d.task_type IN ('fast_filter', 'gatekeeper')
+          AND d.decision LIKE 'EXCLUDE%'
+        GROUP BY d.task_type, d.ec_trigger
+      `).all(proj.id, proj.id) as { stage: string; ec_trigger: string | null; count: number }[];
+
+      const unprocessedRows = db.prepare(`
+        SELECT p.Status as stage, COUNT(p.Paper_ID) as unprocessed
+        FROM papers p
+        WHERE p.Project_ID = ? AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) AND p.Status IN ('1', '2')
+          AND NOT EXISTS (
+            SELECT 1 FROM llm_audit_log l 
+            WHERE l.paper_id = p.Paper_ID AND l.status = 'SUCCESS' AND json_valid(l.structured_output) = 1
+              AND ((p.Status = '1' AND l.task_type = 'fast_filter') OR (p.Status = '2' AND l.task_type = 'gatekeeper'))
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM manual_audit_log m
+            WHERE m.paper_id = p.Paper_ID 
+              AND ((p.Status = '1' AND m.manual_stage = 'fast_filter') OR (p.Status = '2' AND m.manual_stage = 'gatekeeper'))
+          )
+        GROUP BY p.Status
+      `).all(proj.id) as { stage: string; unprocessed: number }[];
 
       const ecBreakdown: Record<string, Record<string, number>> = {
         '1': {},
@@ -150,13 +158,26 @@ export async function GET() {
         if (stageStats[s]) {
           stageStats[s].included = row.included;
           stageStats[s].excluded = row.excluded;
-          stageStats[s].total = row.total_in_stage;
-          stageStats[s].unprocessed = row.total_in_stage - row.included - row.excluded;
           stageStats[s].inc_has_pdf = row.inc_has_pdf || 0;
           stageStats[s].inc_no_doi = row.inc_no_doi || 0;
           stageStats[s].inc_pdf_failed = row.inc_pdf_failed || 0;
         }
       }
+
+      for (const row of unprocessedRows) {
+        const s = row.stage;
+        if (s === '1' && stageStats[s]) {
+          stageStats[s].unprocessed = row.unprocessed;
+        }
+      }
+
+      // Calculate totals based on actual processed + unprocessed
+      stageStats['1'].total = stageStats['1'].included + stageStats['1'].excluded + stageStats['1'].unprocessed;
+      
+      // OPTION 2: Stage 2 baseline (Total) is the number of Stage 1 Included papers that HAVE a PDF.
+      // Unprocessed is then defined as the papers that successfully reached Stage 2 but haven't been gated yet.
+      stageStats['2'].total = stageStats['1'].inc_has_pdf || 0;
+      stageStats['2'].unprocessed = Math.max(0, stageStats['2'].total - stageStats['2'].included - stageStats['2'].excluded);
       
       return {
         ...proj,
@@ -191,6 +212,7 @@ export async function POST(request: Request) {
       ec_rules,
       reasoning_template,
       project_budget_limit,
+      project_tax,
       llm_config
     } = body;
 
@@ -227,11 +249,12 @@ export async function POST(request: Request) {
     const poolCExtractionRules = body.pool_c_extraction_rules ? (typeof body.pool_c_extraction_rules === 'string' ? body.pool_c_extraction_rules : JSON.stringify(body.pool_c_extraction_rules)) : '[]';
     const budgetLimit = project_budget_limit !== undefined ? parseFloat(project_budget_limit) : 5.0;
     const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
+    const taxRate = project_tax !== undefined ? parseFloat(project_tax) : 0.0;
 
-    db.prepare(`
+      db.prepare(`
       INSERT INTO projects (
-        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, llm_config, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, project_tax, llm_config, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       name.trim(),
@@ -255,6 +278,7 @@ export async function POST(request: Request) {
       poolCQaRules,
       poolCExtractionRules,
       budgetLimit,
+      taxRate,
       llmConfigStr,
       new Date().toISOString()
     );
@@ -290,6 +314,7 @@ export async function PUT(request: Request) {
       pool_c_qa_rules,
       pool_c_extraction_rules,
       project_budget_limit,
+      project_tax,
       llm_config
     } = body;
 
@@ -316,6 +341,7 @@ export async function PUT(request: Request) {
     const poolCExtractionRules = pool_c_extraction_rules ? (typeof pool_c_extraction_rules === 'string' ? pool_c_extraction_rules : JSON.stringify(pool_c_extraction_rules)) : '[]';
     const budgetLimit = project_budget_limit !== undefined ? parseFloat(project_budget_limit) : 5.0;
     const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
+    const taxRate = project_tax !== undefined ? parseFloat(project_tax) : 0.0;
 
     db.prepare(`
       UPDATE projects
@@ -339,6 +365,7 @@ export async function PUT(request: Request) {
           pool_c_qa_rules = ?,
           pool_c_extraction_rules = ?,
           project_budget_limit = ?,
+          project_tax = ?,
           llm_config = ?
       WHERE id = ?
     `).run(
@@ -362,6 +389,7 @@ export async function PUT(request: Request) {
       poolCQaRules,
       poolCExtractionRules,
       budgetLimit,
+      taxRate,
       llmConfigStr,
       id
     );

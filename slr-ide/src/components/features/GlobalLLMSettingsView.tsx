@@ -41,6 +41,7 @@ interface Prompt {
   concurrency?: number;
   timeout_seconds?: number;
   thinking_level?: string;
+  discount?: number;
 }
 
 interface GlobalLLMSettingsViewProps {
@@ -123,7 +124,7 @@ export default function GlobalLLMSettingsView({
       miner: '3'
     };
     setStatusFilter(defaults[taskType] || '0');
-    setDecisionFilter('ALL');
+    setDecisionFilter(taskType === 'fast_filter' ? 'ALL' : 'INCLUDE');
   }, [taskType]);
 
   useEffect(() => {
@@ -442,7 +443,8 @@ export default function GlobalLLMSettingsView({
         interaction_chaining: editingPrompt.interaction_chaining !== undefined ? editingPrompt.interaction_chaining : true,
         concurrency: editingPrompt.concurrency !== undefined ? Number(editingPrompt.concurrency) : 1,
         timeout_seconds: editingPrompt.timeout_seconds !== undefined ? Number(editingPrompt.timeout_seconds) : 900,
-        thinking_level: editingPrompt.thinking_level || 'none'
+        thinking_level: editingPrompt.thinking_level || 'none',
+        discount: Number(editingPrompt.discount !== undefined ? editingPrompt.discount : 0.0)
       };
 
       const res = await fetch('/api/llm/prompts', {
@@ -498,7 +500,8 @@ export default function GlobalLLMSettingsView({
       interaction_chaining: config.interaction_chaining !== undefined ? config.interaction_chaining : true,
       concurrency: config.concurrency !== undefined ? config.concurrency : 1,
       timeout_seconds: config.timeout_seconds !== undefined ? config.timeout_seconds : 900,
-      thinking_level: config.thinking_level || 'none'
+      thinking_level: config.thinking_level || 'none',
+      discount: config.discount !== undefined ? config.discount : 0.0
     });
     setEditorTab('info');
   };
@@ -1163,7 +1166,7 @@ export default function GlobalLLMSettingsView({
                           <input
                             type="number"
                             min="1"
-                            max="16000"
+                            max="64000"
                             value={editingPrompt.max_tokens !== undefined ? editingPrompt.max_tokens : 2000}
                             onChange={(e) => setEditingPrompt(prev => ({ ...prev, max_tokens: Number(e.target.value) }))}
                             className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-mono"
@@ -1234,7 +1237,7 @@ export default function GlobalLLMSettingsView({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Thread Concurrency</label>
                           <input
@@ -1259,6 +1262,20 @@ export default function GlobalLLMSettingsView({
                             className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-mono"
                           />
                           <span className="text-[9px] text-muted-foreground/60 block px-1">Wait time before aborting and retrying a hanging request. Default: 900s.</span>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Discount Rate</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={editingPrompt.discount !== undefined ? editingPrompt.discount : 0.0}
+                            onChange={(e) => setEditingPrompt(prev => ({ ...prev, discount: e.target.value !== '' ? Number(e.target.value) : 0.0 }))}
+                            className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-mono"
+                          />
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Apply multiplier discount on cost calculations. 0.0 means no discount, 0.5 is 50% discount. Default: 0.0.</span>
                         </div>
                       </div>
                     </div>

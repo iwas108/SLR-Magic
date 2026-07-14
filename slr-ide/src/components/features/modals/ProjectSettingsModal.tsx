@@ -225,10 +225,12 @@ export default function ProjectSettingsModal({
       pool_b_reasoning_template: form.poolBReasoningTemplate,
       pool_c_qa_rules: form.poolCQaRules,
       pool_c_extraction_rules: form.poolCExtractionRules,
+      project_budget_limit: Number(form.projectBudgetLimit),
+      project_tax: Number(form.projectTax),
       llm_config: JSON.stringify(updatedLlmConfig)
     });
     if (success) {
-      onClose();
+      showToast('Project configuration saved successfully', 'success');
     }
   };
 
@@ -295,7 +297,16 @@ export default function ProjectSettingsModal({
             {/* Tab Content: LLM Configuration */}
             {projectSettingsTab === 'llm' && (
               <div className="flex-1 min-h-0 h-full">
-                <LLMConfigView activeProject={project} loadProjects={loadProjects} showToast={showToast} />
+                <LLMConfigView 
+                  activeProject={project} 
+                  loadProjects={loadProjects} 
+                  showToast={showToast}
+                  budgetLimit={form.projectBudgetLimit}
+                  setBudgetLimit={form.setProjectBudgetLimit}
+                  taxRate={form.projectTax}
+                  setTaxRate={form.setProjectTax}
+                  isInsideModal={true}
+                />
               </div>
             )}
 

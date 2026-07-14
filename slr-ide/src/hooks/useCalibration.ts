@@ -66,7 +66,13 @@ export function useCalibration({
   const [assignSearchMode, setAssignSearchMode] = useState<'keyword' | 'semantic'>('keyword');
   const [assignExcludeReviews, setAssignExcludeReviews] = useState(false);
   const [assignPublisherFilter, setAssignPublisherFilter] = useState('all');
+  const [assignStageFilter, setAssignStageFilter] = useState('');
+  const [assignDecisionFilter, setAssignDecisionFilter] = useState('');
+  
   const [uniquePublishers, setUniquePublishers] = useState<string[]>([]);
+  const [uniqueManualStages, setUniqueManualStages] = useState<string[]>([]);
+  const [uniqueManualDecisions, setUniqueManualDecisions] = useState<string[]>([]);
+  
   const [vectorIndexStatus, setVectorIndexStatus] = useState<{
     indexed: boolean;
     pdf_count: number;
@@ -188,15 +194,15 @@ export function useCalibration({
         setCalTotalPages(data.totalPages || 1);
       }
 
-      // Fetch all Pool A papers to compute consensus scorecard metrics (bypassing pagination)
-      const statsRes = await fetch(`/api/papers?calibrationPool=pool_a&limit=1000`);
+      // Fetch all active pool papers to compute consensus scorecard metrics (bypassing pagination)
+      const statsRes = await fetch(`/api/papers?calibrationPool=${calActivePool}&limit=1000`);
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        const poolAPapers = statsData.papers || [];
+        const poolPapers = statsData.papers || [];
         let TP = 0, TN = 0, FP = 0, FN = 0, reviewed = 0;
-        for (const p of poolAPapers) {
-          const hDec = p.Human_Decision;
-          const aiDec = p.Status;
+        for (const p of poolPapers) {
+          const hDec = (p.Human_Decision || '').toUpperCase();
+          const aiDec = (p.AI_Decision || '').toUpperCase();
           if (hDec) {
             reviewed++;
             if (hDec === 'INCLUDE' && aiDec === 'INCLUDE') TP++;
@@ -254,7 +260,22 @@ export function useCalibration({
 
         if (res.ok) {
           const data = await res.json();
-          const results = data.results || [];
+          let results = data.results || [];
+          
+          if (assignDecisionFilter) {
+            results = results.filter((p: Paper) => 
+              assignDecisionFilter === 'none' 
+                ? (!p.manual_decision || p.manual_decision === '') 
+                : p.manual_decision === assignDecisionFilter
+            );
+          }
+          if (assignStageFilter) {
+            results = results.filter((p: Paper) => 
+              assignStageFilter === 'none' 
+                ? (!p.manual_stage || p.manual_stage === '') 
+                : p.manual_stage === assignStageFilter
+            );
+          }
           
           // In-memory sorting for semantic results
           if (assignSortBy === 'Year') {
@@ -304,6 +325,14 @@ export function useCalibration({
         
         if (assignPublisherFilter && assignPublisherFilter !== 'all') {
           params.append('publisher', assignPublisherFilter);
+        }
+
+        if (assignStageFilter) {
+          params.append('manualStage', assignStageFilter);
+        }
+
+        if (assignDecisionFilter) {
+          params.append('manualDecision', assignDecisionFilter);
         }
         
         params.append('sortBy', assignSortBy);
@@ -484,7 +513,27 @@ export function useCalibration({
           console.error('Failed to fetch publishers:', err);
         }
       };
+      const fetchStages = async () => {
+        try {
+          const res = await fetch('/api/papers?getManualStages=true');
+          if (res.ok) {
+            const data = await res.json();
+            setUniqueManualStages(data || []);
+          }
+        } catch (err) {}
+      };
+      const fetchDecisions = async () => {
+        try {
+          const res = await fetch('/api/papers?getManualDecisions=true');
+          if (res.ok) {
+            const data = await res.json();
+            setUniqueManualDecisions(data || []);
+          }
+        } catch (err) {}
+      };
       fetchPublishers();
+      fetchStages();
+      fetchDecisions();
     }
   }, [showAssignModal]);
 
@@ -492,7 +541,7 @@ export function useCalibration({
     if (showAssignModal) {
       loadAssignPapers();
     }
-  }, [showAssignModal, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignExcludeReviews, assignPublisherFilter, loadAssignPapers]);
+  }, [showAssignModal, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignExcludeReviews, assignPublisherFilter, assignStageFilter, assignDecisionFilter, loadAssignPapers]);
 
   // Reset calibration pagination when filter changes
   useEffect(() => {
@@ -545,8 +594,12 @@ export function useCalibration({
     vectorIndexStatus, setVectorIndexStatus,
     assignSearchTime,
     assignExcludeReviews, setAssignExcludeReviews,
+    assignStageFilter, setAssignStageFilter,
+    assignDecisionFilter, setAssignDecisionFilter,
     assignPublisherFilter, setAssignPublisherFilter,
     uniquePublishers, setUniquePublishers,
+    uniqueManualStages, setUniqueManualStages,
+    uniqueManualDecisions, setUniqueManualDecisions,
     
     assignLogs, setAssignLogs,
     assignIsRunning, setAssignIsRunning,

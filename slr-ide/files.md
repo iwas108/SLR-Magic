@@ -52,6 +52,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `migrate.js` | Database / Migration | Node.js execution script responsible for running DDL schema creation and initializing default tables/configurations in `slr.db`. |
 | `test_epoch3.py` | Testing | Automated test suite verifying the correctness of frontend UI components, state orchestration, and synchronization logic from Epoch 3. |
 | `test_epoch4.py` | Testing | Automated test suite validating inter-rater adjudication logic, QA scoring, data extraction structures, and ledger commits from Epoch 4. |
+| `recalculate_costs.js` | Utility / Database | One-time database utility script to recalculate LLM costs in audit logs and project spends. |
 
 ---
 

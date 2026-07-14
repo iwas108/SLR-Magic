@@ -60,7 +60,7 @@ def get_model_pricing(model_id: str) -> dict:
             "input_token_price": input_price,
             "output_token_price": output_price,
             "thinking_token_price": 0.0,
-            "batch_discount": 0.5
+            "batch_discount": 0.0
         }
     return dict(pricing)
 
@@ -79,7 +79,7 @@ def refresh_pricing_from_api(client, model_id: str) -> dict:
         execute_write(
             """
             INSERT OR REPLACE INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
-            VALUES (?, 'gemini', ?, ?, 0.0, 0.5, ?)
+            VALUES (?, 'gemini', ?, ?, 0.0, 0.0, ?)
             """,
             (model_id, input_price, output_price, now)
         )
@@ -90,7 +90,7 @@ def refresh_pricing_from_api(client, model_id: str) -> dict:
             "input_token_price": input_price,
             "output_token_price": output_price,
             "thinking_token_price": 0.0,
-            "batch_discount": 0.5,
+            "batch_discount": 0.0,
             "updated_at": now
         }
     except Exception as e:
@@ -132,7 +132,7 @@ def sync_all_models_from_api(client) -> list:
                 "input_token_price": input_price,
                 "output_token_price": output_price,
                 "thinking_token_price": 0.0,
-                "batch_discount": 0.5,
+                "batch_discount": 0.0,
                 "updated_at": now
             })
             
@@ -148,7 +148,7 @@ def sync_all_models_from_api(client) -> list:
                     execute_write(
                         """
                         INSERT INTO llm_pricing (model_id, provider, input_token_price, output_token_price, thinking_token_price, batch_discount, updated_at)
-                        VALUES (?, 'gemini', ?, ?, 0.0, 0.5, ?)
+                        VALUES (?, 'gemini', ?, ?, 0.0, 0.0, ?)
                         """,
                         (model_name, input_price, output_price, now_time)
                     )
@@ -177,7 +177,7 @@ def sync_all_models_from_api(client) -> list:
         sys.stderr.write(f"Failed to sync models from Gemini API: {e}\n")
         raise e
 
-def estimate_cost(model_id, prompt_text, pdf_path=None, speed_mode='FLEX', max_output_tokens=1000):
+def estimate_cost(model_id, prompt_text, pdf_path=None, speed_mode='FLEX', max_output_tokens=1000, discount=0.0, tax_rate=0.0):
     """Estimates the token usage and cost for a given prompt and optional PDF."""
     pricing = get_model_pricing(model_id)
     
@@ -192,15 +192,15 @@ def estimate_cost(model_id, prompt_text, pdf_path=None, speed_mode='FLEX', max_o
     input_rate = pricing["input_token_price"]
     output_rate = pricing["output_token_price"]
     
-    # Apply 50% Flex discount if speed_mode is FLEX
-    if speed_mode == 'FLEX':
-        discount = pricing.get("batch_discount", 0.5)
-        input_rate *= discount
-        output_rate *= discount
+    # Apply discount multiplier
+    price_multiplier = 1.0 - discount
+    input_rate *= price_multiplier
+    output_rate *= price_multiplier
         
     input_cost = (total_input_tokens / 1_000_000.0) * input_rate
     output_cost = (max_output_tokens / 1_000_000.0) * output_rate
-    estimated_cost = input_cost + output_cost
+    raw_estimated = input_cost + output_cost
+    estimated_cost = raw_estimated * (1.0 + tax_rate)
     
     return {
         "estimated_input_tokens": total_input_tokens,

@@ -15,7 +15,9 @@ export async function POST(request: Request) {
 
     // Fetch all existing papers in the active project
     const dbPapers = db.prepare(`
-      SELECT Paper_ID, Title, DOI, Status, Human_Decision, manual_decision, manual_stage, calibration_pool, is_duplicate, merged_into_id,
+      SELECT Paper_ID, Title, DOI, Status, Human_Decision, manual_decision, manual_stage,
+             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
+             is_duplicate, merged_into_id,
              (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) as reviewer_decisions_count
       FROM papers
       WHERE Project_ID = ?

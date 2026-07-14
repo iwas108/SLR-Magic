@@ -35,15 +35,19 @@ export function calculatePoolCDecision(qaScores: Record<string, { value: unknown
   let exclusionCode: string | null = null;
   if (decision === 'Exclude') {
     if (hasFatalFlaw) {
-      const failedCode = ruleKeys.find(code => {
+      const failedCodes = ruleKeys.filter(code => {
         const scoreVal = parseFloat(String(qaScores[code]?.value || 0));
         const ruleDef = qaRules.find(r => r.code.toLowerCase() === code.toLowerCase());
         const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].includes(code.toLowerCase());
         return isFatal && scoreVal === 0;
       });
-      exclusionCode = `FATAL_FLAW_${failedCode?.toUpperCase() || 'QA'}`;
+      exclusionCode = failedCodes.map(code => {
+        const codeUpper = code.toUpperCase();
+        const m = codeUpper.match(/^QA(\d+)$/);
+        return m ? `QA-${m[1]}` : codeUpper;
+      }).join(', ');
     } else {
-      exclusionCode = 'CUMULATIVE_BELOW_4.5';
+      exclusionCode = 'QA-CUMULATIVE';
     }
   }
   

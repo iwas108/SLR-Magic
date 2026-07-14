@@ -716,6 +716,23 @@ class BrowserHandler:
             self.start_browser()
             return False
 
+    def cleanup_tabs(self, main_handle):
+        try:
+            if not self.driver or not main_handle:
+                return
+            handles = self.driver.window_handles
+            if len(handles) > 1:
+                for h in handles:
+                    if h != main_handle:
+                        try:
+                            self.driver.switch_to.window(h)
+                            self.driver.close()
+                        except:
+                            pass
+                self.driver.switch_to.window(main_handle)
+        except Exception as e:
+            print(f"Warning during tab cleanup: {str(e)}")
+
     def clear_download_folder(self):
         if os.path.exists(self.download_dir):
             for f in glob.glob(os.path.join(self.download_dir, "*")):

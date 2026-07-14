@@ -27,16 +27,17 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
     inc_has_pdf?: number;
     inc_no_doi?: number;
     inc_pdf_failed?: number;
-  }, totalRawPapers: number) => {
-    if (totalRawPapers === 0) return <div className="text-[10px] text-muted-foreground mt-2">No papers in this project</div>;
+  }, showPdfBreakdown: boolean = true) => {
+    const stageTotal = stageData.total || 0;
+    if (stageTotal === 0) return <div className="text-[10px] text-muted-foreground mt-2">No papers in this stage</div>;
     
-    const actualUnprocessed = totalRawPapers - stageData.included - stageData.excluded;
-    const incPct = Math.round((stageData.included / totalRawPapers) * 100);
-    const excPct = Math.round((stageData.excluded / totalRawPapers) * 100);
+    const actualUnprocessed = stageData.unprocessed;
+    const incPct = Math.round((stageData.included / stageTotal) * 100);
+    const excPct = Math.round((stageData.excluded / stageTotal) * 100);
     const unpPct = Math.max(0, 100 - incPct - excPct);
 
     let incBreakdownList = null;
-    if (stageData.included > 0 && stageData.inc_has_pdf !== undefined) {
+    if (showPdfBreakdown && stageData.included > 0 && stageData.inc_has_pdf !== undefined) {
       const hasPdfPct = Math.round((stageData.inc_has_pdf / stageData.included) * 100) || 0;
       const noDoiPct = Math.round((stageData.inc_no_doi! / stageData.included) * 100) || 0;
       const failedPdfPct = Math.round((stageData.inc_pdf_failed! / stageData.included) * 100) || 0;
@@ -78,9 +79,19 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
             );
           })}
           {otherCount > 0 && (
-            <div className="flex justify-between items-center bg-secondary/50 px-1.5 py-0.5 rounded" title={otherDetails}>
+            <div className="group relative flex justify-between items-center bg-secondary/50 px-1.5 py-0.5 rounded cursor-help">
               <span className="truncate max-w-[80px]">Other</span>
               <span className="font-mono text-rose-500">{otherCount} ({Math.round((otherCount / stageData.excluded) * 100)}%)</span>
+              
+              <div className="absolute bottom-full right-0 mb-1 hidden group-hover:flex flex-col bg-popover text-popover-foreground border border-border text-[9px] p-2 rounded shadow-md w-max z-50">
+                <div className="font-bold border-b border-border/50 pb-1 mb-1 text-left">Other Exclusions</div>
+                {sortedEc.slice(3).map(([trigger, count], idx) => (
+                  <div key={idx} className="flex justify-between gap-4">
+                    <span>{trigger}</span>
+                    <span className="font-mono text-rose-500">{count}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -181,7 +192,7 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
             <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Stage 1: Fast Filter Metrics</span>
             <PieChart className="w-4 h-4 text-blue-500/70" />
           </div>
-          {renderStageBar(stage1, stats.total)}
+          {renderStageBar(stage1, true)}
         </div>
 
         {/* Stage 2 Metrics Card */}
@@ -190,7 +201,7 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
             <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Stage 2: Gatekeeper Metrics</span>
             <PieChart className="w-4 h-4 text-purple-500/70" />
           </div>
-          {renderStageBar(stage2, stats.total)}
+          {renderStageBar(stage2, false)}
         </div>
       </div>
     </div>

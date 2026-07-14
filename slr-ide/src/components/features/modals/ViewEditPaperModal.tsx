@@ -42,6 +42,8 @@ export default function ViewEditPaperModal({
   const [editCitationCount, setEditCitationCount] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editHumanDecision, setEditHumanDecision] = useState('');
+  const [editHumanEcTrigger, setEditHumanEcTrigger] = useState('');
+  const [editHumanRationale, setEditHumanRationale] = useState('');
   const [savingPaper, setSavingPaper] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedEditParentPaper, setSelectedEditParentPaper] = useState<any>(null);
@@ -93,7 +95,9 @@ export default function ViewEditPaperModal({
         lastLoadedPaperRef.current.calibration_tag !== paperModal.paper.calibration_tag ||
         lastLoadedPaperRef.current.notes !== paperModal.paper.notes ||
         lastLoadedPaperRef.current.citation_count !== paperModal.paper.citation_count ||
-        lastLoadedPaperRef.current.Human_Decision !== paperModal.paper.Human_Decision
+        lastLoadedPaperRef.current.Human_Decision !== paperModal.paper.Human_Decision ||
+        lastLoadedPaperRef.current.Human_EC_Trigger !== paperModal.paper.Human_EC_Trigger ||
+        lastLoadedPaperRef.current.Human_Rationale !== paperModal.paper.Human_Rationale
       );
 
       lastLoadedPaperRef.current = paperModal.paper;
@@ -114,6 +118,8 @@ export default function ViewEditPaperModal({
         setEditNotes(paperModal.paper.notes || '');
         setEditCitationCount(paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0');
         setEditHumanDecision(paperModal.paper.Human_Decision || '');
+        setEditHumanEcTrigger(paperModal.paper.Human_EC_Trigger || '');
+        setEditHumanRationale(paperModal.paper.Human_Rationale || '');
         
         const parentId = paperModal.paper.Parent_Paper_ID || '';
         const parentTitle = paperModal.paper.Parent_Paper_Title || '';
@@ -176,7 +182,9 @@ export default function ViewEditPaperModal({
           Publisher: editPublisher,
           citation_count: editCitationCount,
           notes: editNotes,
-          Human_Decision: editHumanDecision || null
+          Human_Decision: editHumanDecision || null,
+          Human_EC_Trigger: editHumanDecision === 'EXCLUDE' ? (editHumanEcTrigger || null) : null,
+          Human_Rationale: editHumanDecision === 'EXCLUDE' ? (editHumanRationale || null) : null
         })
       });
 
@@ -201,10 +209,8 @@ export default function ViewEditPaperModal({
   if (!paperModal?.isOpen || !paperModal?.paper) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className={`w-full bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 animate-in zoom-in-95 duration-200 ${
-        hasLocalPdf ? 'max-w-7xl h-[85vh]' : 'max-w-2xl max-h-[90vh]'
-      }`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-screen h-screen bg-card border-none shadow-2xl overflow-hidden flex flex-col transition-all duration-300 animate-in zoom-in-95 duration-200">
         
         {/* Modal Header */}
         <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/25 shrink-0">
@@ -225,8 +231,9 @@ export default function ViewEditPaperModal({
         {/* Modal Body wrapper for optional two column layout */}
         <div className={`flex-1 flex overflow-hidden ${hasLocalPdf ? 'flex-col lg:flex-row' : 'flex-col'}`}>
           {/* Modal Content / Form */}
-          <form onSubmit={handleSavePaper} className={`flex-1 overflow-y-auto p-6 space-y-4 ${hasLocalPdf ? 'lg:border-r border-border' : ''}`}>
-            {paperModal.mode === 'edit' ? (
+          <form onSubmit={handleSavePaper} className={`flex-1 overflow-y-auto ${hasLocalPdf ? 'lg:border-r border-border p-6' : 'p-6 flex justify-center'}`}>
+            <div className={`w-full ${hasLocalPdf ? '' : 'max-w-5xl space-y-4'}`}>
+              {paperModal.mode === 'edit' ? (
               <PaperMetadataEdit
                 paperId={paperModal.paper.Paper_ID}
                 importDate={paperModal.paper.Import_Date}
@@ -266,6 +273,10 @@ export default function ViewEditPaperModal({
                 setEditNotes={setEditNotes}
                 editHumanDecision={editHumanDecision}
                 setEditHumanDecision={setEditHumanDecision}
+                editHumanEcTrigger={editHumanEcTrigger}
+                setEditHumanEcTrigger={setEditHumanEcTrigger}
+                editHumanRationale={editHumanRationale}
+                setEditHumanRationale={setEditHumanRationale}
                 getActiveProjectPoolTags={getActiveProjectPoolTags}
                 aiDecision={paperModal.paper.AI_Decision}
                 aiEcTrigger={paperModal.paper.AI_EC_Trigger}
@@ -282,6 +293,7 @@ export default function ViewEditPaperModal({
             
             {/* Hidden submit button to support Enter key save in edit mode */}
             {paperModal.mode === 'edit' && <input type="submit" className="hidden" />}
+            </div>
           </form>
 
           {/* Right Column (PDF Viewer) */}

@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
     // Fetch papers in this project and in the selected pool
     const papers = db.prepare(`
-      SELECT * FROM papers 
+      SELECT * FROM calibration_papers 
       WHERE Project_ID = ? AND calibration_pool = ?
     `).all(activeProjectId, dbPool) as any[];
 

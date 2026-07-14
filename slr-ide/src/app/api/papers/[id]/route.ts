@@ -119,8 +119,8 @@ export async function PUT(
       PDF_Link !== undefined ? String(PDF_Link).trim() : currentPaper.PDF_Link,
       statusVal || 'PENDING',
       localPdfStatusVal || 'MISSING',
-      calibrationPoolVal,
-      calibrationTagVal,
+      null, // calibration_pool is kept NULL on the main papers table
+      null, // calibration_tag is kept NULL on the main papers table
       humanDecisionVal,
       humanEcVal,
       humanRatVal,
@@ -137,6 +137,41 @@ export async function PUT(
       manualExtVal,
       id
     );
+
+    // Process manual audit logging
+    if (manual_decision !== undefined && manual_stage !== undefined && currentPaper?.Project_ID) {
+      if (manual_stage) {
+        db.prepare(`
+          INSERT INTO manual_audit_log (
+            paper_id, project_id, manual_stage, decision, ec_trigger, rationale, qa_scores, extracted_data, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          id,
+          currentPaper.Project_ID,
+          manualStageVal,
+          manualDecisionVal,
+          manualEcVal,
+          manualRatVal,
+          manualQaVal,
+          manualExtVal,
+          new Date().toISOString()
+        );
+      }
+    }
+
+    // Process dedicated calibration_papers table cloning
+    if (calibrationPoolVal && ['pool_a', 'pool_b', 'pool_c'].includes(calibrationPoolVal)) {
+      const existing = db.prepare("SELECT 1 FROM calibration_papers WHERE Paper_ID = ?").get(id);
+      if (!existing) {
+        // Clone the newly updated papers row to calibration_papers
+        db.prepare("INSERT INTO calibration_papers SELECT * FROM papers WHERE Paper_ID = ?").run(id);
+      }
+      // Set the calibration fields on the clone
+      db.prepare("UPDATE calibration_papers SET calibration_pool = ?, calibration_tag = ? WHERE Paper_ID = ?").run(calibrationPoolVal, calibrationTagVal, id);
+    } else {
+      // Clear the clone if no longer assigned to a calibration pool
+      db.prepare("DELETE FROM calibration_papers WHERE Paper_ID = ?").run(id);
+    }
 
     if (currentPaper?.Project_ID) {
       clearSemanticSearchCache(currentPaper.Project_ID);

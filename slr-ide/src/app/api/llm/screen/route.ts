@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Spawn the background Python process with injected API key env variable
-    const child = spawn(pythonExe, args, {
+    const child = spawn(pythonExe, ['-u', ...args], {
       cwd: path.join(PROJECT_ROOT, 'python_engine'),
       env: {
         ...process.env,

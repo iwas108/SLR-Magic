@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Project } from '@/types';
 
 export function useProjectForm(initialData?: any) {
@@ -28,94 +28,132 @@ export function useProjectForm(initialData?: any) {
   const [poolBReasoningTemplate, setPoolBReasoningTemplate] = useState<string[]>([]);
   const [poolCQaRules, setPoolCQaRules] = useState<{ code: string; question: string; is_fatal_flaw?: boolean }[]>([]);
   const [poolCExtractionRules, setPoolCExtractionRules] = useState<{ json_key: string; question: string }[]>([]);
+  const [projectBudgetLimit, setProjectBudgetLimit] = useState(initialData?.project_budget_limit !== undefined ? String(initialData?.project_budget_limit) : '5.0');
+  const [projectTax, setProjectTax] = useState(initialData?.project_tax !== undefined ? String(initialData?.project_tax) : '0.0');
+
+  const lastLoadedProjectRef = useRef<any | null>(null);
 
   useEffect(() => {
     if (initialData) {
-      setName(initialData.name || '');
-      setManifesto(initialData.manifesto || '');
-      setObjective(initialData.objective || '');
-      setQuestions(initialData.questions || '');
-      setQaDefinition(initialData.qa_definition || '');
-      setExclusionCriteria(initialData.exclusion_criteria || '');
-      setPoolA(initialData.pool_a_size !== undefined ? String(initialData.pool_a_size) : '50');
-      setPoolB(initialData.pool_b_size !== undefined ? String(initialData.pool_b_size) : '30');
-      setPoolC(initialData.pool_c_size !== undefined ? String(initialData.pool_c_size) : '20');
-      setGdriveDest(initialData.gdrive_dest_path || 'SLR_Magic/PDFs');
-      setCloudProvider(initialData.cloud_provider || 'gdrive');
-      setRemoteName(initialData.rclone_remote_name || '');
+      const isNewProject = !lastLoadedProjectRef.current || String(lastLoadedProjectRef.current.id) !== String(initialData.id);
+      
+      const dbValuesChanged = lastLoadedProjectRef.current && (
+        lastLoadedProjectRef.current.name !== initialData.name ||
+        lastLoadedProjectRef.current.manifesto !== initialData.manifesto ||
+        lastLoadedProjectRef.current.objective !== initialData.objective ||
+        lastLoadedProjectRef.current.questions !== initialData.questions ||
+        lastLoadedProjectRef.current.qa_definition !== initialData.qa_definition ||
+        lastLoadedProjectRef.current.exclusion_criteria !== initialData.exclusion_criteria ||
+        String(lastLoadedProjectRef.current.pool_a_size) !== String(initialData.pool_a_size) ||
+        String(lastLoadedProjectRef.current.pool_b_size) !== String(initialData.pool_b_size) ||
+        String(lastLoadedProjectRef.current.pool_c_size) !== String(initialData.pool_c_size) ||
+        lastLoadedProjectRef.current.gdrive_dest_path !== initialData.gdrive_dest_path ||
+        lastLoadedProjectRef.current.cloud_provider !== initialData.cloud_provider ||
+        lastLoadedProjectRef.current.rclone_remote_name !== initialData.rclone_remote_name ||
+        String(lastLoadedProjectRef.current.project_budget_limit) !== String(initialData.project_budget_limit) ||
+        String(lastLoadedProjectRef.current.project_tax) !== String(initialData.project_tax) ||
+        JSON.stringify(lastLoadedProjectRef.current.pool_tags) !== JSON.stringify(initialData.pool_tags) ||
+        JSON.stringify(lastLoadedProjectRef.current.ec_rules) !== JSON.stringify(initialData.ec_rules) ||
+        JSON.stringify(lastLoadedProjectRef.current.reasoning_template) !== JSON.stringify(initialData.reasoning_template) ||
+        JSON.stringify(lastLoadedProjectRef.current.pool_b_ec_rules) !== JSON.stringify(initialData.pool_b_ec_rules) ||
+        JSON.stringify(lastLoadedProjectRef.current.pool_b_reasoning_template) !== JSON.stringify(initialData.pool_b_reasoning_template) ||
+        JSON.stringify(lastLoadedProjectRef.current.pool_c_qa_rules) !== JSON.stringify(initialData.pool_c_qa_rules) ||
+        JSON.stringify(lastLoadedProjectRef.current.pool_c_extraction_rules) !== JSON.stringify(initialData.pool_c_extraction_rules)
+      );
 
-      let parsedTags = { pool_a: [] as any[], pool_b: [] as any[], pool_c: [] as any[] };
-      if (initialData.pool_tags) {
-        try {
-          parsedTags = typeof initialData.pool_tags === 'string' ? JSON.parse(initialData.pool_tags) : initialData.pool_tags;
-        } catch (e) {
-          console.error("Error parsing pool tags", e);
-        }
-      }
-      parsedTags.pool_a = parsedTags.pool_a || [];
-      parsedTags.pool_b = parsedTags.pool_b || [];
-      parsedTags.pool_c = parsedTags.pool_c || [];
-      setPoolTags(parsedTags);
+      lastLoadedProjectRef.current = initialData;
 
-      let parsedRules = [];
-      if (initialData.ec_rules) {
-        try {
-          parsedRules = typeof initialData.ec_rules === 'string' ? JSON.parse(initialData.ec_rules) : initialData.ec_rules;
-        } catch (e) {
-          console.error("Error parsing ec rules", e);
-        }
-      }
-      setEcRules(parsedRules || []);
+      if (isNewProject || dbValuesChanged) {
+        setName(initialData.name || '');
+        setManifesto(initialData.manifesto || '');
+        setObjective(initialData.objective || '');
+        setQuestions(initialData.questions || '');
+        setQaDefinition(initialData.qa_definition || '');
+        setExclusionCriteria(initialData.exclusion_criteria || '');
+        setPoolA(initialData.pool_a_size !== undefined ? String(initialData.pool_a_size) : '50');
+        setPoolB(initialData.pool_b_size !== undefined ? String(initialData.pool_b_size) : '30');
+        setPoolC(initialData.pool_c_size !== undefined ? String(initialData.pool_c_size) : '20');
+        setGdriveDest(initialData.gdrive_dest_path || 'SLR_Magic/PDFs');
+        setCloudProvider(initialData.cloud_provider || 'gdrive');
+        setRemoteName(initialData.rclone_remote_name || '');
+        setProjectBudgetLimit(initialData.project_budget_limit !== undefined ? String(initialData.project_budget_limit) : '5.0');
+        setProjectTax(initialData.project_tax !== undefined ? String(initialData.project_tax) : '0.0');
 
-      let parsedReasoning = [];
-      if (initialData.reasoning_template) {
-        try {
-          parsedReasoning = typeof initialData.reasoning_template === 'string' ? JSON.parse(initialData.reasoning_template) : initialData.reasoning_template;
-        } catch (e) {
-          console.error("Error parsing reasoning template", e);
+        let parsedTags = { pool_a: [] as any[], pool_b: [] as any[], pool_c: [] as any[] };
+        if (initialData.pool_tags) {
+          try {
+            parsedTags = typeof initialData.pool_tags === 'string' ? JSON.parse(initialData.pool_tags) : initialData.pool_tags;
+          } catch (e) {
+            console.error("Error parsing pool tags", e);
+          }
         }
-      }
-      setReasoningTemplate(parsedReasoning || []);
+        parsedTags.pool_a = parsedTags.pool_a || [];
+        parsedTags.pool_b = parsedTags.pool_b || [];
+        parsedTags.pool_c = parsedTags.pool_c || [];
+        setPoolTags(parsedTags);
 
-      let parsedPoolBEc = [];
-      if (initialData.pool_b_ec_rules) {
-        try {
-          parsedPoolBEc = typeof initialData.pool_b_ec_rules === 'string' ? JSON.parse(initialData.pool_b_ec_rules) : initialData.pool_b_ec_rules;
-        } catch (e) {
-          console.error("Error parsing pool_b_ec_rules", e);
+        let parsedRules = [];
+        if (initialData.ec_rules) {
+          try {
+            parsedRules = typeof initialData.ec_rules === 'string' ? JSON.parse(initialData.ec_rules) : initialData.ec_rules;
+          } catch (e) {
+            console.error("Error parsing ec rules", e);
+          }
         }
-      }
-      setPoolBEcRules(parsedPoolBEc || []);
+        setEcRules(parsedRules || []);
 
-      let parsedPoolBReasoning = [];
-      if (initialData.pool_b_reasoning_template) {
-        try {
-          parsedPoolBReasoning = typeof initialData.pool_b_reasoning_template === 'string' ? JSON.parse(initialData.pool_b_reasoning_template) : initialData.pool_b_reasoning_template;
-        } catch (e) {
-          console.error("Error parsing pool_b_reasoning_template", e);
+        let parsedReasoning = [];
+        if (initialData.reasoning_template) {
+          try {
+            parsedReasoning = typeof initialData.reasoning_template === 'string' ? JSON.parse(initialData.reasoning_template) : initialData.reasoning_template;
+          } catch (e) {
+            console.error("Error parsing reasoning template", e);
+          }
         }
-      }
-      setPoolBReasoningTemplate(parsedPoolBReasoning || []);
+        setReasoningTemplate(parsedReasoning || []);
 
-      let parsedPoolCQa = [];
-      if (initialData.pool_c_qa_rules) {
-        try {
-          parsedPoolCQa = typeof initialData.pool_c_qa_rules === 'string' ? JSON.parse(initialData.pool_c_qa_rules) : initialData.pool_c_qa_rules;
-        } catch (e) {
-          console.error("Error parsing pool_c_qa_rules", e);
+        let parsedPoolBEc = [];
+        if (initialData.pool_b_ec_rules) {
+          try {
+            parsedPoolBEc = typeof initialData.pool_b_ec_rules === 'string' ? JSON.parse(initialData.pool_b_ec_rules) : initialData.pool_b_ec_rules;
+          } catch (e) {
+            console.error("Error parsing pool_b_ec_rules", e);
+          }
         }
-      }
-      setPoolCQaRules(parsedPoolCQa || []);
+        setPoolBEcRules(parsedPoolBEc || []);
 
-      let parsedPoolCExtraction = [];
-      if (initialData.pool_c_extraction_rules) {
-        try {
-          parsedPoolCExtraction = typeof initialData.pool_c_extraction_rules === 'string' ? JSON.parse(initialData.pool_c_extraction_rules) : initialData.pool_c_extraction_rules;
-        } catch (e) {
-          console.error("Error parsing pool_c_extraction_rules", e);
+        let parsedPoolBReasoning = [];
+        if (initialData.pool_b_reasoning_template) {
+          try {
+            parsedPoolBReasoning = typeof initialData.pool_b_reasoning_template === 'string' ? JSON.parse(initialData.pool_b_reasoning_template) : initialData.pool_b_reasoning_template;
+          } catch (e) {
+            console.error("Error parsing pool_b_reasoning_template", e);
+          }
         }
+        setPoolBReasoningTemplate(parsedPoolBReasoning || []);
+
+        let parsedPoolCQa = [];
+        if (initialData.pool_c_qa_rules) {
+          try {
+            parsedPoolCQa = typeof initialData.pool_c_qa_rules === 'string' ? JSON.parse(initialData.pool_c_qa_rules) : initialData.pool_c_qa_rules;
+          } catch (e) {
+            console.error("Error parsing pool_c_qa_rules", e);
+          }
+        }
+        setPoolCQaRules(parsedPoolCQa || []);
+
+        let parsedPoolCExtraction = [];
+        if (initialData.pool_c_extraction_rules) {
+          try {
+            parsedPoolCExtraction = typeof initialData.pool_c_extraction_rules === 'string' ? JSON.parse(initialData.pool_c_extraction_rules) : initialData.pool_c_extraction_rules;
+          } catch (e) {
+            console.error("Error parsing pool_c_extraction_rules", e);
+          }
+        }
+        setPoolCExtractionRules(parsedPoolCExtraction || []);
       }
-      setPoolCExtractionRules(parsedPoolCExtraction || []);
+    } else {
+      lastLoadedProjectRef.current = null;
     }
   }, [initialData]);
 
@@ -376,6 +414,8 @@ export function useProjectForm(initialData?: any) {
     poolBReasoningTemplate, setPoolBReasoningTemplate,
     poolCQaRules, setPoolCQaRules,
     poolCExtractionRules, setPoolCExtractionRules,
+    projectBudgetLimit, setProjectBudgetLimit,
+    projectTax, setProjectTax,
     resetForm,
     handleAddPoolTag, handleUpdatePoolTag, handleRemovePoolTag,
     handleAddEcRule, handleUpdateEcRule, handleRemoveEcRule,

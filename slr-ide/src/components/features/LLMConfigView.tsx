@@ -5,11 +5,38 @@ interface LLMConfigViewProps {
   activeProject: any;
   loadProjects: () => void;
   showToast: (msg: string, type: 'success'|'error'|'info'|'warning') => void;
+  budgetLimit?: string;
+  setBudgetLimit?: (v: string) => void;
+  taxRate?: string;
+  setTaxRate?: (v: string) => void;
+  isInsideModal?: boolean;
 }
 
-export default function LLMConfigView({ activeProject, loadProjects, showToast }: LLMConfigViewProps) {
+export default function LLMConfigView({ 
+  activeProject, 
+  loadProjects, 
+  showToast,
+  budgetLimit: propBudgetLimit,
+  setBudgetLimit: propSetBudgetLimit,
+  taxRate: propTaxRate,
+  setTaxRate: propSetTaxRate,
+  isInsideModal = false
+}: LLMConfigViewProps) {
   const [saving, setSaving] = useState(false);
-  const [budgetLimit, setBudgetLimit] = useState(activeProject?.project_budget_limit || 5.0);
+  const [localBudgetLimit, setLocalBudgetLimit] = useState(activeProject?.project_budget_limit || 5.0);
+  const [localTaxRate, setLocalTaxRate] = useState(activeProject?.project_tax !== undefined ? activeProject.project_tax : 0.0);
+
+  const budgetLimit = isInsideModal ? (propBudgetLimit ?? '5.0') : localBudgetLimit;
+  const setBudgetLimit = isInsideModal ? (propSetBudgetLimit ?? (() => {})) : setLocalBudgetLimit;
+  const taxRate = isInsideModal ? (propTaxRate ?? '0.0') : localTaxRate;
+  const setTaxRate = isInsideModal ? (propSetTaxRate ?? (() => {})) : setLocalTaxRate;
+
+  React.useEffect(() => {
+    if (!isInsideModal) {
+      setLocalBudgetLimit(activeProject?.project_budget_limit || 5.0);
+      setLocalTaxRate(activeProject?.project_tax !== undefined ? activeProject.project_tax : 0.0);
+    }
+  }, [activeProject, isInsideModal]);
 
   if (!activeProject) return null;
 
@@ -21,7 +48,8 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...activeProject,
-          project_budget_limit: Number(budgetLimit)
+          project_budget_limit: Number(budgetLimit),
+          project_tax: Number(taxRate)
         })
       });
 
@@ -51,15 +79,17 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Project Spend Limits</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg shadow hover:bg-primary/90 hover:shadow-md transition-all disabled:opacity-50"
-        >
-          <Save className="w-3.5 h-3.5" />
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
+        {!isInsideModal && (
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg shadow hover:bg-primary/90 hover:shadow-md transition-all disabled:opacity-50"
+          >
+            <Save className="w-3.5 h-3.5" />
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 p-6 space-y-6 text-xs">
@@ -81,6 +111,26 @@ export default function LLMConfigView({ activeProject, loadProjects, showToast }
                   value={budgetLimit} 
                   onChange={(e) => setBudgetLimit(e.target.value)}
                   className="w-full bg-background border border-destructive/30 rounded-lg pl-7 pr-3 py-2 font-mono text-sm font-bold text-foreground focus:ring-1 focus:ring-destructive outline-none transition-shadow"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-secondary/10 border border-border/80 rounded-xl p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1 space-y-1">
+                <label className="text-sm font-bold text-foreground">Tax Rate (fraction/percentage)</label>
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  Apply a tax rate multiplier to the calculated token spends (e.g. 0.20 for 20% tax).
+                </p>
+              </div>
+              <div className="relative w-32">
+                <input 
+                  type="number" 
+                  min="0" max="1" step="0.01"
+                  value={taxRate} 
+                  onChange={(e) => setTaxRate(e.target.value)}
+                  className="w-full bg-background border border-border/60 rounded-lg px-3 py-2 font-mono text-sm font-bold text-foreground focus:ring-1 focus:ring-primary outline-none transition-shadow text-right"
                 />
               </div>
             </div>

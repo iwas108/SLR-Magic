@@ -44,10 +44,11 @@ def main():
                 if args.pool:
                     pool_lower = args.pool.lower()
                     if pool_lower == 'none':
-                        query_parts.append("AND (calibration_pool IS NULL OR calibration_pool = '')")
+                        query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)")
+                        params.append(active_project_id)
                     elif pool_lower != 'all':
-                        query_parts.append("AND calibration_pool = ?")
-                        params.append(pool_lower)
+                        query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)")
+                        params.extend([active_project_id, pool_lower])
                         
                 if args.exclude_reviews:
                     query_parts.append("AND Title NOT LIKE '%review%' AND (Abstract IS NULL OR Abstract NOT LIKE '%survey%')")

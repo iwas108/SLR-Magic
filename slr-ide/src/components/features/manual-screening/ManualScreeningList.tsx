@@ -29,8 +29,10 @@ interface ManualScreeningListProps {
   screeningTotalPages: number;
   screeningSearchTime: number | null;
   triggerSemanticSearch: () => void;
-  isMinimized: boolean;
+  isMinimized?: boolean;
   uniquePublishers: string[];
+  uniqueManualStages: string[];
+  uniqueManualDecisions: string[];
 }
 
 export default function ManualScreeningList({
@@ -60,8 +62,10 @@ export default function ManualScreeningList({
   screeningTotalPages,
   screeningSearchTime,
   triggerSemanticSearch,
-  isMinimized,
-  uniquePublishers
+  isMinimized = false,
+  uniquePublishers,
+  uniqueManualStages,
+  uniqueManualDecisions
 }: ManualScreeningListProps) {
   const listContainerRef = useRef<HTMLDivElement>(null);
 
@@ -149,9 +153,9 @@ export default function ManualScreeningList({
             >
               <option value="">All Results</option>
               <option value="none">Unscreened (Pending)</option>
-              <option value="INCLUDE">INCLUDE</option>
-              <option value="EXCLUDE">EXCLUDE</option>
-              <option value="QA_WAIT">QA_WAIT</option>
+              {uniqueManualDecisions.map(dec => (
+                <option key={dec} value={dec}>{dec}</option>
+              ))}
             </select>
           </div>
 
@@ -165,10 +169,9 @@ export default function ManualScreeningList({
             >
               <option value="">All Stages</option>
               <option value="none">None Assigned</option>
-              <option value="fast_filter">Fast Filter</option>
-              <option value="gatekeeper">Gatekeeper</option>
-              <option value="scientist">Scientist</option>
-              <option value="miner">Miner</option>
+              {uniqueManualStages.map(stage => (
+                <option key={stage} value={stage}>{stage}</option>
+              ))}
             </select>
           </div>
 

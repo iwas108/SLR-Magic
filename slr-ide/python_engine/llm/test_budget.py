@@ -24,20 +24,20 @@ class TestBudgetEstimator(unittest.TestCase):
     @patch('llm.budget.get_pdf_tokens')
     @patch('llm.budget.get_model_pricing')
     def test_estimate_cost(self, mock_pricing, mock_pdf_tokens):
-        # Mock pricing: input = $0.10/1M, output = $0.40/1M, discount = 0.5
+        # Mock pricing: input = $0.10/1M, output = $0.40/1M, discount = 0.0
         mock_pricing.return_value = {
             "input_token_price": 0.10,
             "output_token_price": 0.40,
             "thinking_token_price": 0.0,
-            "batch_discount": 0.5
+            "batch_discount": 0.0
         }
         mock_pdf_tokens.return_value = 4000
         
         # Prompt length is 400 chars -> 100 estimated tokens
         prompt = "x" * 400 
         
-        # Standard mode
-        result = estimate_cost("dummy-model", prompt, "dummy.pdf", speed_mode='STANDARD', max_output_tokens=1000)
+        # Standard mode (no discount / 0 discount)
+        result = estimate_cost("dummy-model", prompt, "dummy.pdf", speed_mode='STANDARD', max_output_tokens=1000, discount=0.0, tax_rate=0.0)
         
         # input tokens = 100 (text) + 4000 (pdf) = 4100
         self.assertEqual(result["estimated_input_tokens"], 4100)
@@ -46,8 +46,8 @@ class TestBudgetEstimator(unittest.TestCase):
         # cost = (4100/1M * 0.10) + (1000/1M * 0.40) = 0.00041 + 0.0004 = 0.00081
         self.assertAlmostEqual(result["estimated_cost"], 0.00081, places=7)
         
-        # Flex mode (50% discount)
-        result_flex = estimate_cost("dummy-model", prompt, "dummy.pdf", speed_mode='FLEX', max_output_tokens=1000)
+        # Flex mode (50% discount passed explicitly)
+        result_flex = estimate_cost("dummy-model", prompt, "dummy.pdf", speed_mode='FLEX', max_output_tokens=1000, discount=0.5, tax_rate=0.0)
         self.assertAlmostEqual(result_flex["estimated_cost"], 0.000405, places=7)
 
     @patch('llm.budget.execute_read_one')

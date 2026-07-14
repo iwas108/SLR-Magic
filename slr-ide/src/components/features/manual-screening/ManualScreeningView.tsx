@@ -22,6 +22,8 @@ export default function ManualScreeningView({
   const { projects, activeProjectId } = projectsHook;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [uniquePublishers, setUniquePublishers] = useState<string[]>([]);
+  const [uniqueManualStages, setUniqueManualStages] = useState<string[]>([]);
+  const [uniqueManualDecisions, setUniqueManualDecisions] = useState<string[]>([]);
 
   const {
     screeningPapers,
@@ -80,6 +82,24 @@ export default function ManualScreeningView({
         }
       })
       .catch(err => console.error("Error fetching publishers", err));
+
+    fetch('/api/papers?getManualStages=true')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setUniqueManualStages(data);
+        }
+      })
+      .catch(err => console.error("Error fetching manual stages", err));
+
+    fetch('/api/papers?getManualDecisions=true')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setUniqueManualDecisions(data);
+        }
+      })
+      .catch(err => console.error("Error fetching manual decisions", err));
   }, [activeProjectId, screeningPapers.length]);
 
   const handleFullscreenToggle = () => {
@@ -117,6 +137,8 @@ export default function ManualScreeningView({
         triggerSemanticSearch={triggerSemanticSearch}
         isMinimized={!!screeningSelectedPaper}
         uniquePublishers={uniquePublishers}
+        uniqueManualStages={uniqueManualStages}
+        uniqueManualDecisions={uniqueManualDecisions}
       />
       {screeningSelectedPaper && (
         <ManualScreeningDetailView

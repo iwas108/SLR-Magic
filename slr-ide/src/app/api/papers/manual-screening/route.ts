@@ -52,10 +52,11 @@ export async function GET(request: Request) {
 
     if (calibrationPool) {
       if (calibrationPool === 'none') {
-        filterQuery += ' AND (calibration_pool IS NULL OR calibration_pool = \'\')';
+        filterQuery += ' AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)';
+        params.push(activeProjectId);
       } else {
-        filterQuery += ' AND calibration_pool = ?';
-        params.push(calibrationPool);
+        filterQuery += ' AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)';
+        params.push(activeProjectId, calibrationPool);
       }
     }
 
@@ -94,6 +95,8 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit;
     const dataQuery = `
       SELECT *, 
+             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
+             (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,
              (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,
              (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0 as reviewer_decisions_exist
       ${filterQuery} 

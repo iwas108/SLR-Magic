@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
     const selectPaperStmt = db.prepare(`
       SELECT Paper_ID, Human_Decision, Human_EC_Trigger, Human_Rationale, Human_QA_Scores, Human_Extracted_Data
-      FROM papers 
+      FROM calibration_papers 
       WHERE Paper_ID = ? AND Project_ID = ? AND calibration_pool = ?
     `);
 
@@ -104,12 +104,13 @@ export async function POST(request: Request) {
     `);
 
     const updatePaperDecisionStmt = db.prepare(`
-      UPDATE papers 
+      UPDATE calibration_papers 
       SET Human_Decision = ?, 
           Human_EC_Trigger = ?, 
           Human_Rationale = ?,
           Human_QA_Scores = ?,
-          Human_Extracted_Data = ?
+          Human_Extracted_Data = ?,
+          Status = ?
       WHERE Paper_ID = ? AND Project_ID = ?
     `);
 
@@ -197,7 +198,7 @@ export async function POST(request: Request) {
       // Update master decisions for ALL papers in the project's target pool
       const allPoolPapers = db.prepare(`
         SELECT *
-        FROM papers 
+        FROM calibration_papers 
         WHERE Project_ID = ? AND calibration_pool = ?
       `).all(activeProjectId, dbPool) as any[];
 
@@ -303,14 +304,30 @@ export async function POST(request: Request) {
         }
 
         // If any field changed, update paper and write to audit ledger
+        const targetStatus = dbPool === 'pool_c' ? '4' : (dbPool === 'pool_b' ? '2' : '1');
         if (
           newDecision !== paper.Human_Decision ||
           newEC !== paper.Human_EC_Trigger ||
           newRationale !== paper.Human_Rationale ||
           newQAScores !== paper.Human_QA_Scores ||
-          newExtractedData !== paper.Human_Extracted_Data
+          newExtractedData !== paper.Human_Extracted_Data ||
+          paper.Status !== targetStatus
         ) {
-          updatePaperDecisionStmt.run(newDecision, newEC, newRationale, newQAScores, newExtractedData, paperId, activeProjectId);
+          updatePaperDecisionStmt.run(newDecision, newEC, newRationale, newQAScores, newExtractedData, targetStatus, paperId, activeProjectId);
+
+          // Equalize AI decisions based on Stage
+          if (targetStatus === '2') {
+            const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'gatekeeper' AND status = 'SUCCESS' LIMIT 1").get(paperId, activeProjectId);
+            if (!hasLog) {
+              db.prepare("UPDATE calibration_papers SET AI_Decision = NULL, AI_EC_Trigger = NULL, AI_Rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
+            }
+          } else if (targetStatus === '4') {
+            const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'scientist' AND status = 'SUCCESS' LIMIT 1").get(paperId, activeProjectId);
+            const hasScores = paper.AI_QA_Scores && paper.AI_QA_Scores !== '{}';
+            if (!hasLog && !hasScores) {
+              db.prepare("UPDATE calibration_papers SET AI_Decision = NULL, AI_EC_Trigger = NULL, AI_Rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
+            }
+          }
 
           const previousState = JSON.stringify({
             Human_Decision: paper.Human_Decision,
@@ -400,7 +417,7 @@ export async function DELETE(request: Request) {
 
       // 3. Reset papers master decisions for calibration pool
       db.prepare(`
-        UPDATE papers 
+        UPDATE calibration_papers 
         SET Human_Decision = NULL, 
             Human_EC_Trigger = NULL, 
             Human_Rationale = NULL,

@@ -53,10 +53,11 @@ def run_search(params):
                 if pool:
                     pool_lower = pool.lower()
                     if pool_lower == 'none':
-                        query_parts.append("AND (calibration_pool IS NULL OR calibration_pool = '')")
+                        query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)")
+                        sql_params.append(active_project_id)
                     elif pool_lower != 'all':
-                        query_parts.append("AND calibration_pool = ?")
-                        sql_params.append(pool_lower)
+                        query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)")
+                        sql_params.extend([active_project_id, pool_lower])
                         
                 if exclude_reviews:
                     query_parts.append("AND Title NOT LIKE '%review%' AND (Abstract IS NULL OR Abstract NOT LIKE '%survey%')")
@@ -161,8 +162,8 @@ def run_traps(params):
     # Get allowlist of UNASSIGNED papers
     try:
         cursor.execute(
-            "SELECT Paper_ID FROM papers WHERE Project_ID = ? AND (calibration_pool IS NULL OR calibration_pool = '') AND (is_duplicate IS NULL OR is_duplicate = 0) AND Paper_ID != ?",
-            (active_project_id, seed)
+            "SELECT Paper_ID FROM papers WHERE Project_ID = ? AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?) AND (is_duplicate IS NULL OR is_duplicate = 0) AND Paper_ID != ?",
+            (active_project_id, active_project_id, seed)
         )
         allowlist_ids = [r[0] for r in cursor.fetchall()]
     except Exception as e:

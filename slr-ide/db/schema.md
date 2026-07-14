@@ -173,6 +173,76 @@ Stores cloud provider specific batch processing metadata and file identifiers.
 
 ---
 
+### Table: `llm_audit_log`
+Stores immutable audit trails of all LLM interactions, decisions, and token costs.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique audit log ID |
+| `paper_id` | TEXT | | Reference to `papers(Paper_ID)` |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `job_id` | TEXT | | Reference to batch `llm_jobs` if applicable |
+| `interaction_id` | TEXT | | Upstream provider interaction/generation ID |
+| `previous_interaction_id` | TEXT | | For chaining multi-turn context |
+| `model_id` | TEXT | NOT NULL | LLM model used |
+| `task_type` | TEXT | NOT NULL | e.g. `fast_filter`, `gatekeeper`, `scientist` |
+| `input_tokens` | INTEGER | DEFAULT 0 | Input token count |
+| `output_tokens` | INTEGER | DEFAULT 0 | Output token count |
+| `thinking_tokens` | INTEGER | DEFAULT 0 | Thinking token count |
+| `cached_tokens` | INTEGER | DEFAULT 0 | Cached token count |
+| `total_tokens` | INTEGER | DEFAULT 0 | Total token count |
+| `cost_usd` | REAL | DEFAULT 0.0 | Calculated cost |
+| `flex_discount` | REAL | DEFAULT 0.0 | Discount applied |
+| `speed_mode` | TEXT | DEFAULT 'FLEX' | e.g. 'FLEX', 'FAST' |
+| `prompt_hash` | TEXT | | Hash of the raw prompt |
+| `raw_prompt` | TEXT | | Full prompt sent to LLM |
+| `raw_response` | TEXT | | Full raw text response from LLM |
+| `response_schema_name` | TEXT | | Expected JSON schema name |
+| `structured_output` | TEXT | | Extracted JSON payload |
+| `status` | TEXT | NOT NULL DEFAULT 'PENDING' | Status: `SUCCESS`, `ERROR`, etc. |
+| `error_message` | TEXT | | Error details if failed |
+| `error_code` | TEXT | | Provider error code |
+| `latency_ms` | INTEGER | | Time taken to generate response |
+| `retry_count` | INTEGER | DEFAULT 0 | Number of retries |
+| `api_version` | TEXT | | API version used |
+| `created_at` | TEXT | NOT NULL | Timestamp |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+
+**Indexes**:
+*   `idx_audit_project`: ON `llm_audit_log(project_id)`
+*   `idx_audit_paper`: ON `llm_audit_log(paper_id)`
+*   `idx_audit_job`: ON `llm_audit_log(job_id)`
+
+---
+
+### Table: `manual_audit_log`
+Stores immutable audit trails of all manual screening decisions per stage.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique audit log ID |
+| `paper_id` | TEXT | NOT NULL | Reference to `papers(Paper_ID)` |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `manual_stage` | TEXT | NOT NULL | e.g. `fast_filter`, `gatekeeper`, `scientist` |
+| `decision` | TEXT | NOT NULL | The manual decision (`INCLUDE`, `EXCLUDE`, `QA_WAIT`) |
+| `ec_trigger` | TEXT | | Exclusion criteria trigger code |
+| `rationale` | TEXT | | Manual annotation notes |
+| `qa_scores` | TEXT | | JSON string containing QA rules mapped to values and evidence |
+| `extracted_data` | TEXT | | JSON string containing extractions mapped to values and evidence |
+| `created_at` | TEXT | NOT NULL | Timestamp of decision |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+*   `FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE`
+
+**Indexes**:
+*   `idx_manual_audit_project`: ON `manual_audit_log(project_id)`
+*   `idx_manual_audit_paper`: ON `manual_audit_log(paper_id)`
+
+---
+
 ### Table: `remote_workers`
 Stores registered remote worker nodes for distributed PDF scraping.
 

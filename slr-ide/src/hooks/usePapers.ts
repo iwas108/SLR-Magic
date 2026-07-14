@@ -13,6 +13,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   const [pdfFilter, setPdfFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [decisionFilter, setDecisionFilter] = useState('');
+  const [ecTriggerFilter, setEcTriggerFilter] = useState('');
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -60,6 +61,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
       if (pdfFilter) params.append('pdfStatus', pdfFilter);
       if (sourceFilter) params.append('source', sourceFilter);
       if (decisionFilter) params.append('decision', decisionFilter);
+      if (ecTriggerFilter) params.append('ecTrigger', ecTriggerFilter);
       
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
@@ -81,7 +83,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } finally {
       setLoadingPapers(false);
     }
-  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, showToast, loadDuplicatesCount]);
+  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, ecTriggerFilter, showToast, loadDuplicatesCount]);
 
   // Load papers on mount and when filters change
   useEffect(() => {
@@ -91,12 +93,12 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   // Clear selectedPaperIds when filters or search change
   useEffect(() => {
     setSelectedPaperIds([]);
-  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter]);
+  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, ecTriggerFilter]);
 
   // Reset page to 1 when filters or search terms change
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter]);
+  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, ecTriggerFilter]);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -243,7 +245,9 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
         search: searchTerm,
         status: statusFilter,
         pdfStatus: pdfFilter,
-        decision: decisionFilter
+        source: sourceFilter,
+        decision: decisionFilter,
+        ecTrigger: ecTriggerFilter
       });
       const res = await fetch(`/api/papers?${query}`);
       if (res.ok) {
@@ -256,7 +260,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } catch (err: any) {
       showToast(`Error selecting all papers: ${err.message || err}`, 'error');
     }
-  }, [searchTerm, statusFilter, pdfFilter, decisionFilter, showToast]);
+  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, ecTriggerFilter, showToast]);
 
   // Active State Rehydration: Sync paperModal.paper with list updates (e.g. PDF path / status changes in background)
   useEffect(() => {
@@ -280,6 +284,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     pdfFilter, setPdfFilter,
     sourceFilter, setSourceFilter,
     decisionFilter, setDecisionFilter,
+    ecTriggerFilter, setEcTriggerFilter,
     page, setPage,
     limit, setLimit,
     totalPapers,

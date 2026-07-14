@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       WHERE Project_ID = ? 
         AND Paper_ID IN (${placeHolders})
         AND (
-          calibration_pool IS NOT NULL AND calibration_pool != ''
+          Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = papers.Project_ID)
           OR (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0
         )
     `).get(activeProjectId, ...paperIds) as { count: number } | undefined;

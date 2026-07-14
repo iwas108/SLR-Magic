@@ -180,7 +180,7 @@ class GeminiClient:
             "interaction_id": getattr(interaction, "id", None),
             "output_text": output_text,
             "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
+            "output_tokens": output_tokens + thinking_tokens, # Sum of output + thought tokens
             "thinking_tokens": thinking_tokens,
             "cached_tokens": cached_tokens,
         }
@@ -259,7 +259,7 @@ class GeminiClient:
             "interaction_id": None,  # Gemma has no interaction chaining
             "output_text": output_text,
             "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
+            "output_tokens": output_tokens + thinking_tokens, # Sum of output + thought tokens
             "thinking_tokens": thinking_tokens,
             "cached_tokens": cached_tokens,
         }

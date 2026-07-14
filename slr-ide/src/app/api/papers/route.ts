@@ -51,13 +51,49 @@ export async function GET(request: Request) {
       return NextResponse.json(rows.map(r => r.Publisher));
     }
 
+    if (searchParams.get('getManualStages') === 'true') {
+      const rows = db.prepare("SELECT DISTINCT manual_stage FROM papers WHERE Project_ID = ? AND manual_stage IS NOT NULL AND manual_stage != '' ORDER BY manual_stage ASC").all(activeProjectId) as { manual_stage: string }[];
+      return NextResponse.json(rows.map(r => r.manual_stage));
+    }
+
+    if (searchParams.get('getManualDecisions') === 'true') {
+      const rows = db.prepare("SELECT DISTINCT manual_decision FROM papers WHERE Project_ID = ? AND manual_decision IS NOT NULL AND manual_decision != '' ORDER BY manual_decision ASC").all(activeProjectId) as { manual_decision: string }[];
+      return NextResponse.json(rows.map(r => r.manual_decision));
+    }
+
+    // Check if unique exclusion criteria codes are requested
+    if (searchParams.get('getEcTriggers') === 'true') {
+      const rows = db.prepare(`
+        SELECT DISTINCT AI_EC_Trigger as code FROM papers WHERE Project_ID = ? AND AI_EC_Trigger IS NOT NULL AND AI_EC_Trigger != ''
+        UNION
+        SELECT DISTINCT Human_EC_Trigger as code FROM papers WHERE Project_ID = ? AND Human_EC_Trigger IS NOT NULL AND Human_EC_Trigger != ''
+        UNION
+        SELECT DISTINCT manual_ec_trigger as code FROM papers WHERE Project_ID = ? AND manual_ec_trigger IS NOT NULL AND manual_ec_trigger != ''
+        ORDER BY code ASC
+      `).all(activeProjectId, activeProjectId, activeProjectId) as { code: string }[];
+      
+      const codesSet = new Set<string>();
+      for (const row of rows) {
+        if (!row.code) continue;
+        const parts = row.code.split(',').map(s => s.trim());
+        for (const p of parts) {
+          if (p && p !== 'NONE') {
+            codesSet.add(p);
+          }
+        }
+      }
+      return NextResponse.json(Array.from(codesSet).sort());
+    }
+
     const search = searchParams.get('search')?.trim() || '';
     const status = searchParams.get('status')?.trim() || '';
     const pdfStatus = searchParams.get('pdfStatus')?.trim() || '';
-    const calibrationPool = searchParams.get('calibrationPool')?.trim() || '';
-    const calibrationTag = searchParams.get('calibrationTag')?.trim() || '';
+    const calibrationPool = searchParams.get('calibrationPool');
+    const calibrationTag = searchParams.get('calibrationTag');
+    
     const publisher = searchParams.get('publisher')?.trim() || '';
     const source = searchParams.get('source')?.trim() || '';
+    const ecTrigger = searchParams.get('ecTrigger')?.trim() || '';
     
     // Sort parameters
     const sortBy = searchParams.get('sortBy')?.trim() || 'Paper_ID';
@@ -70,7 +106,9 @@ export async function GET(request: Request) {
     const limitVal = parseInt(searchParams.get('limit') || '50', 10);
     const limit = !isNaN(limitVal) && limitVal > 0 ? limitVal : 50;
 
-    let filterQuery = ' FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)';
+    const isCalQuery = calibrationPool && calibrationPool !== 'none';
+    const tableName = isCalQuery ? 'calibration_papers' : 'papers';
+    let filterQuery = ` FROM ${tableName} WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)`;
     const params: any[] = [activeProjectId];
 
     if (search) {
@@ -94,6 +132,8 @@ export async function GET(request: Request) {
       params.push(publisher);
     }
 
+
+
     if (source) {
       if (source === 'manual') {
         filterQuery += " AND (Import_Source = 'Manual Search' OR Import_Source = 'Manual Ingestion')";
@@ -107,20 +147,40 @@ export async function GET(request: Request) {
     }
 
     if (calibrationPool) {
-      if (calibrationPool === 'none') {
-        filterQuery += ' AND (calibration_pool IS NULL OR calibration_pool = \'\')';
+      if (tableName === 'papers') {
+        if (calibrationPool === 'none') {
+          filterQuery += ' AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)';
+          params.push(activeProjectId);
+        } else {
+          filterQuery += ' AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)';
+          params.push(activeProjectId, calibrationPool);
+        }
       } else {
-        filterQuery += ' AND calibration_pool = ?';
-        params.push(calibrationPool);
+        if (calibrationPool === 'none') {
+          filterQuery += ' AND (calibration_pool IS NULL OR calibration_pool = \'\')';
+        } else {
+          filterQuery += ' AND calibration_pool = ?';
+          params.push(calibrationPool);
+        }
       }
     }
 
     if (calibrationTag) {
-      if (calibrationTag === 'none') {
-        filterQuery += ' AND (calibration_tag IS NULL OR calibration_tag = \'\')';
+      if (tableName === 'papers') {
+        if (calibrationTag === 'none') {
+          filterQuery += ' AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_tag IS NOT NULL AND calibration_tag != \'\')';
+          params.push(activeProjectId);
+        } else {
+          filterQuery += ' AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_tag = ?)';
+          params.push(activeProjectId, calibrationTag);
+        }
       } else {
-        filterQuery += ' AND calibration_tag = ?';
-        params.push(calibrationTag);
+        if (calibrationTag === 'none') {
+          filterQuery += ' AND (calibration_tag IS NULL OR calibration_tag = \'\')';
+        } else {
+          filterQuery += ' AND calibration_tag = ?';
+          params.push(calibrationTag);
+        }
       }
     }
 
@@ -144,29 +204,39 @@ export async function GET(request: Request) {
       }
     }
 
+    const ecTriggerVal = searchParams.get('ecTrigger')?.trim() || '';
+    if (ecTriggerVal) {
+      if (ecTriggerVal === 'none') {
+        filterQuery += " AND (AI_EC_Trigger IS NULL OR AI_EC_Trigger = '') AND (Human_EC_Trigger IS NULL OR Human_EC_Trigger = '') AND (manual_ec_trigger IS NULL OR manual_ec_trigger = '')";
+      } else {
+        filterQuery += " AND ( (',' || REPLACE(AI_EC_Trigger, ' ', '') || ',') LIKE '%,' || ? || ',%' OR (',' || REPLACE(Human_EC_Trigger, ' ', '') || ',') LIKE '%,' || ? || ',%' OR (',' || REPLACE(manual_ec_trigger, ' ', '') || ',') LIKE '%,' || ? || ',%' )";
+        params.push(ecTriggerVal, ecTriggerVal, ecTriggerVal);
+      }
+    }
+
     const decision = searchParams.get('decision')?.trim() || '';
     if (decision) {
       if (decision === 'INCLUDE') {
         filterQuery += ` AND (
-          UPPER(Human_Decision) = 'INCLUDE' OR 
-          (Human_Decision IS NULL AND UPPER(manual_decision) = 'INCLUDE') OR
-          (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'INCLUDE') OR
+          UPPER(Human_Decision) LIKE 'INCLUDE%' OR 
+          (Human_Decision IS NULL AND UPPER(manual_decision) LIKE 'INCLUDE%') OR
+          (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) LIKE 'INCLUDE%') OR
           (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
             SELECT UPPER(decision) FROM reviewer_decisions 
             WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
             ORDER BY imported_at DESC LIMIT 1
-          ) = 'INCLUDE')
+          ) LIKE 'INCLUDE%')
         )`;
       } else if (decision === 'EXCLUDE') {
         filterQuery += ` AND (
-          UPPER(Human_Decision) = 'EXCLUDE' OR 
-          (Human_Decision IS NULL AND UPPER(manual_decision) = 'EXCLUDE') OR
-          (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) = 'EXCLUDE') OR
+          UPPER(Human_Decision) LIKE 'EXCLUDE%' OR 
+          (Human_Decision IS NULL AND UPPER(manual_decision) LIKE 'EXCLUDE%') OR
+          (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) LIKE 'EXCLUDE%') OR
           (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
             SELECT UPPER(decision) FROM reviewer_decisions 
             WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
             ORDER BY imported_at DESC LIMIT 1
-          ) = 'EXCLUDE')
+          ) LIKE 'EXCLUDE%')
         )`;
       } else if (decision === 'UNADJUDICATED') {
         filterQuery += ` AND (
@@ -196,12 +266,18 @@ export async function GET(request: Request) {
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
+    const calibrationPoolSubquery = tableName === 'papers'
+      ? `(SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
+         (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,`
+      : '';
+
     // 3. Paginated and sorted query execution with AI decisions subqueries
     const offset = (page - 1) * limit;
     const dataQuery = `
       SELECT *, 
-             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,
-             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0 as reviewer_decisions_exist
+             ${calibrationPoolSubquery}
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = ${tableName}.Parent_Paper_ID) as Parent_Paper_Title,
+             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID) > 0 as reviewer_decisions_exist
       ${filterQuery} 
       ORDER BY ${safeSortBy} ${safeSortOrder} 
       LIMIT ? OFFSET ?

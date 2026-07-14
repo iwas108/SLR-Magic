@@ -80,7 +80,7 @@ export async function GET(request: Request) {
                MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r1_extracted_data,
                MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r2_extracted_data
         FROM reviewer_decisions rd
-        JOIN papers p ON rd.paper_id = p.Paper_ID AND rd.project_id = p.Project_ID
+        JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND rd.project_id = p.Project_ID
         WHERE rd.project_id = ? AND rd.pool = 'pool_c'
         GROUP BY rd.paper_id
         HAVING COUNT(DISTINCT rd.reviewer_name) = 2
@@ -226,7 +226,7 @@ export async function GET(request: Request) {
                MAX(CASE WHEN rd.reviewer_name = ? THEN rd.ec_trigger END) as r1_ec,
                MAX(CASE WHEN rd.reviewer_name = ? THEN rd.ec_trigger END) as r2_ec
         FROM reviewer_decisions rd
-        JOIN papers p ON rd.paper_id = p.Paper_ID AND rd.project_id = p.Project_ID
+        JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND rd.project_id = p.Project_ID
         WHERE rd.project_id = ? AND rd.pool = ?
         GROUP BY rd.paper_id
         HAVING COUNT(DISTINCT rd.reviewer_name) = 2

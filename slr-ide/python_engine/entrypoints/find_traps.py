@@ -46,8 +46,8 @@ def main():
     # 2. Get allowlist of UNASSIGNED papers
     try:
         cursor.execute(
-            "SELECT Paper_ID FROM papers WHERE Project_ID = ? AND (calibration_pool IS NULL OR calibration_pool = '') AND (is_duplicate IS NULL OR is_duplicate = 0) AND Paper_ID != ?",
-            (active_project_id, args.seed)
+            "SELECT Paper_ID FROM papers WHERE Project_ID = ? AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?) AND (is_duplicate IS NULL OR is_duplicate = 0) AND Paper_ID != ?",
+            (active_project_id, active_project_id, args.seed)
         )
         allowlist_ids = [r[0] for r in cursor.fetchall()]
     except Exception as e:
