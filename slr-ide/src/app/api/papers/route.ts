@@ -86,14 +86,14 @@ export async function GET(request: Request) {
     }
 
     const search = searchParams.get('search')?.trim() || '';
-    const status = searchParams.get('status')?.trim() || '';
     const pdfStatus = searchParams.get('pdfStatus')?.trim() || '';
     const calibrationPool = searchParams.get('calibrationPool');
     const calibrationTag = searchParams.get('calibrationTag');
     
     const publisher = searchParams.get('publisher')?.trim() || '';
     const source = searchParams.get('source')?.trim() || '';
-    const ecTrigger = searchParams.get('ecTrigger')?.trim() || '';
+    const doiStatus = searchParams.get('doiStatus')?.trim() || '';
+    const pdfLink = searchParams.get('pdfLink')?.trim() || '';
     
     // Sort parameters
     const sortBy = searchParams.get('sortBy')?.trim() || 'Paper_ID';
@@ -115,11 +115,6 @@ export async function GET(request: Request) {
       filterQuery += ' AND (Paper_ID LIKE ? OR Title LIKE ? OR Abstract LIKE ? OR Authors LIKE ? OR DOI LIKE ? OR Publisher LIKE ?)';
       const searchWildcard = `%${search}%`;
       params.push(searchWildcard, searchWildcard, searchWildcard, searchWildcard, searchWildcard, searchWildcard);
-    }
-
-    if (status) {
-      filterQuery += ' AND Status = ?';
-      params.push(status);
     }
 
     if (pdfStatus) {
@@ -184,70 +179,19 @@ export async function GET(request: Request) {
       }
     }
 
-    const manualStage = searchParams.get('manualStage')?.trim() || '';
-    if (manualStage) {
-      if (manualStage === 'none') {
-        filterQuery += ' AND (manual_stage IS NULL OR manual_stage = \'\')';
-      } else {
-        filterQuery += ' AND manual_stage = ?';
-        params.push(manualStage);
+    if (doiStatus) {
+      if (doiStatus === 'empty') {
+        filterQuery += " AND (DOI IS NULL OR DOI = '')";
+      } else if (doiStatus === 'has_doi') {
+        filterQuery += " AND DOI IS NOT NULL AND DOI != ''";
       }
     }
 
-    const manualDecision = searchParams.get('manualDecision')?.trim() || '';
-    if (manualDecision) {
-      if (manualDecision === 'none') {
-        filterQuery += ' AND (manual_decision IS NULL OR manual_decision = \'\')';
-      } else {
-        filterQuery += ' AND manual_decision = ?';
-        params.push(manualDecision);
-      }
-    }
-
-    const ecTriggerVal = searchParams.get('ecTrigger')?.trim() || '';
-    if (ecTriggerVal) {
-      if (ecTriggerVal === 'none') {
-        filterQuery += " AND (AI_EC_Trigger IS NULL OR AI_EC_Trigger = '') AND (Human_EC_Trigger IS NULL OR Human_EC_Trigger = '') AND (manual_ec_trigger IS NULL OR manual_ec_trigger = '')";
-      } else {
-        filterQuery += " AND ( (',' || REPLACE(AI_EC_Trigger, ' ', '') || ',') LIKE '%,' || ? || ',%' OR (',' || REPLACE(Human_EC_Trigger, ' ', '') || ',') LIKE '%,' || ? || ',%' OR (',' || REPLACE(manual_ec_trigger, ' ', '') || ',') LIKE '%,' || ? || ',%' )";
-        params.push(ecTriggerVal, ecTriggerVal, ecTriggerVal);
-      }
-    }
-
-    const decision = searchParams.get('decision')?.trim() || '';
-    if (decision) {
-      if (decision === 'INCLUDE') {
-        filterQuery += ` AND (
-          UPPER(Human_Decision) LIKE 'INCLUDE%' OR 
-          (Human_Decision IS NULL AND UPPER(manual_decision) LIKE 'INCLUDE%') OR
-          (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) LIKE 'INCLUDE%') OR
-          (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
-            SELECT UPPER(decision) FROM reviewer_decisions 
-            WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-            ORDER BY imported_at DESC LIMIT 1
-          ) LIKE 'INCLUDE%')
-        )`;
-      } else if (decision === 'EXCLUDE') {
-        filterQuery += ` AND (
-          UPPER(Human_Decision) LIKE 'EXCLUDE%' OR 
-          (Human_Decision IS NULL AND UPPER(manual_decision) LIKE 'EXCLUDE%') OR
-          (Human_Decision IS NULL AND manual_decision IS NULL AND UPPER(AI_Decision) LIKE 'EXCLUDE%') OR
-          (Human_Decision IS NULL AND manual_decision IS NULL AND AI_Decision IS NULL AND (
-            SELECT UPPER(decision) FROM reviewer_decisions 
-            WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-            ORDER BY imported_at DESC LIMIT 1
-          ) LIKE 'EXCLUDE%')
-        )`;
-      } else if (decision === 'UNADJUDICATED') {
-        filterQuery += ` AND (
-          Human_Decision IS NULL AND 
-          manual_decision IS NULL AND 
-          AI_Decision IS NULL AND (
-            SELECT decision FROM reviewer_decisions 
-            WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID 
-            ORDER BY imported_at DESC LIMIT 1
-          ) IS NULL
-        )`;
+    if (pdfLink) {
+      if (pdfLink === 'empty') {
+        filterQuery += " AND (PDF_Link IS NULL OR PDF_Link = '')";
+      } else if (pdfLink === 'has_link') {
+        filterQuery += " AND PDF_Link IS NOT NULL AND PDF_Link != ''";
       }
     }
 
@@ -499,36 +443,22 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { paperIds, status, localPdfStatus, humanDecision } = body;
+    const { paperIds, localPdfStatus } = body;
 
     if (!Array.isArray(paperIds) || paperIds.length === 0) {
       return NextResponse.json({ error: 'Payload must contain a non-empty "paperIds" array' }, { status: 400 });
     }
 
-    if (status === undefined && localPdfStatus === undefined && humanDecision === undefined) {
-      return NextResponse.json({ error: 'Payload must specify at least one attribute to update ("status", "localPdfStatus" or "humanDecision")' }, { status: 400 });
+    if (localPdfStatus === undefined) {
+      return NextResponse.json({ error: 'Payload must specify "localPdfStatus" to update' }, { status: 400 });
     }
 
     const updates: string[] = [];
     const params: any[] = [];
 
-    if (status !== undefined) {
-      updates.push('Status = ?');
-      params.push(status);
-    }
-
     if (localPdfStatus !== undefined) {
       updates.push('Local_PDF_Status = ?');
       params.push(localPdfStatus);
-    }
-
-    if (humanDecision !== undefined) {
-      if (humanDecision === 'CLEAR') {
-        updates.push('Human_Decision = NULL, Human_EC_Trigger = NULL, Human_Rationale = NULL');
-      } else {
-        updates.push('Human_Decision = ?');
-        params.push(humanDecision);
-      }
     }
 
     const setClause = updates.join(', ');

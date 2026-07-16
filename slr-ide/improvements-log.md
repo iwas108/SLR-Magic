@@ -1,6 +1,52 @@
 # SLR IDE Improvements Log
 
-This document tracks all new features, refactoring iterations, bug fixes, and configuration upgrades completed within the **slr-ide** module.
+## #192 - Unified Filter Parity in Manual Screening (2026-07-15)
+- **Goal**: Support full filter parity between the Paper Database view and the Manual Screening Workspace.
+- **Changes**:
+  - Replaced the compact 2x2 grid of selectors in `ManualScreeningList.tsx` with a collapsible dropdown Filter popover containing all 9 filters.
+  - Updated `route.ts` (manual screening API) to support backend parameters `status`, `pdfStatus`, `source`, `ecTrigger`, `doiStatus` and configuration `getEcTriggers=true`.
+  - Configured custom hook `useManualScreening.ts` to manage these 5 new filters, fetch EC triggers dynamically on load, and apply client-side filtering passes for Vector Semantic queries.
+  - Linked new hook properties through `ManualScreeningView.tsx`.
+
+## #193 - Revert Out-of-Context Filters from Manual Screening (2026-07-15)
+- **Goal**: Remove all out-of-context filters (calibration pool, publishers, pipeline stage status, local PDF status, source scope, exclusion criteria, DOI status) from the Manual Screening Workspace.
+- **Changes**:
+  - Simplified filters dropdown popover inside `ManualScreeningList.tsx` to only 2 context-correct parameters: **Manual Screening Decision** (static options: Unscreened, INCLUDE, EXCLUDE, UNCERTAIN) and **Human Screening Stage** (friendly static stage names).
+  - Cleaned up manual screening API endpoint queries (`route.ts`) and react hook states (`useManualScreening.ts`).
+  - Wire-cleaned inputs in component layout parent (`ManualScreeningView.tsx`).
+
+## #194 - Project-wide Stats Header Metrics & Redesign (2026-07-15)
+- **Goal**: Improve stages and results metrics display at the top of the manual screening workspace.
+- **Changes**:
+  - Configured `getStats=true` parameter in `/api/papers/manual-screening` API (`route.ts`) to return project-wide statistics from SQLite.
+  - Linked `screeningStats` and `loadScreeningStats` to `useManualScreening.ts` hook.
+  - Redesigned `ManualScreeningStatsHeader.tsx` to read stats from SQLite, show percentages for screened/pending papers and decisions/stages, display pending paper totals, and correct the obsolete "QA Wait" label to "Uncertain".
+  - Passed stats properties inside component wrapper layout `ManualScreeningView.tsx`.
+
+## #195 - Unify Decision Panel Form & Stages in Manual Screening (2026-07-15)
+- **Goal**: Clean up the manual screening detail decision panel to only support Include and Exclude, always show all 4 stages, and remove calibration logic splits.
+- **Changes**:
+  - Replaced the split Option A / Option B flows inside `ManualScreeningDetailView.tsx` with a single unified layout.
+  - Set the "Human Decision Override" selectors to strictly Include and Exclude (removing QA Wait/Uncertain options).
+  - Wired `getEcRules` to load rules matching the selected `manualStage` dynamically rather than checking `selectedPaper.calibration_pool` from the calibration table.
+  - Setup stage selector dropdown to always offer all 4 stages: Fast Filter, Gatekeeper, Scientist, Miner.
+
+## #196 - Stage-based Exclusion Criteria Options Loading (2026-07-15)
+- **Goal**: Populate the Exclusion Criterion Triggered list dynamically based on the current Screening Stage using project calibration settings.
+- **Changes**:
+  - Rewrote `getEcRules` inside `ManualScreeningDetailView.tsx` to return stage-matching rules:
+    - Fast Filter -> project `ec_rules` (Pool A).
+    - Gatekeeper -> project `pool_b_ec_rules`.
+    - Scientist -> project `pool_c_qa_rules` (mapped as fatal flaws like `FATAL_FLAW_QA[X]`), plus a static `CUMULATIVE_BELOW_4.5` trigger.
+    - Miner -> empty selection list.
+
+## #197 - Automated Scientist Stage Decisions & Scoring (2026-07-15)
+- **Goal**: Disable manual override choices for the Scientist stage, auto-calculating decisions based on QA checklist rules and cumulative thresholds.
+- **Changes**:
+  - Inserted React `useEffect` inside `ManualScreeningDetailView.tsx` tracking QA scores to automatically evaluate fatal flaw triggers (scores of 0.0 on fatal rules) or the cumulative score cutoff (< 4.5/8.0).
+  - Conditionally hid the manual override selectors and exclusions dropdown in the Scientist stage, replacing them with a read-only stats breakdown displaying real-time scores, calculated decisions, and exclusion codes.
+
+---
 
 | ID | Date | Type | Description | Task/Commit Reference |
 | :--- | :--- | :--- | :--- | :--- |
@@ -186,8 +232,15 @@ This document tracks all new features, refactoring iterations, bug fixes, and co
 | #185 | 2026-07-14 | Feature | Standardized Pool C quality appraisal exclusions to output comma-separated lists of `QA-X` codes (e.g. `QA-1, QA-4`) and `QA-CUMULATIVE`. Updated the distinct code parser in the papers API route to split multiple values and updated query matching to execute boundary-safe SQL searches. Ran a one-off migration script to update existing `FATAL_FLAW_QA4` and `CUMULATIVE` codes in the database. | Standardize QA Exclusion Codes & Safe SQL Filtering |
 | #186 | 2026-07-14 | Feature | Implemented AI decision equalizing. When papers advance to Stage 2 (Gatekeeper) or Stage 3/4 (Appraisal), the old screening-stage `AI_Decision` is cleared (set to NULL) if the corresponding LLM job for that stage has not been executed yet. Added logic to inter-rater imports and adjudication routes, and ran a database repair script clearing 50 legacy screening decisions on advanced papers. | Equalize AI Decisions Based on Stage |
 | #187 | 2026-07-14 | Refactor | Isolated calibration/inter-rater papers into a dedicated `calibration_papers` table to keep the main systematic literature review (SLR) corpus metrics and metadata 100% clean. Updated database initialization schema, single paper updates (clones assigned papers to `calibration_papers` and resets them in `papers`), inter-rater API routes, and projects count queries. Modified Python LLM engine (`main.py` and `queue_handler.py`) to query a UNION of both tables and dynamically target updates. | Dedicated Calibration Table & Sandboxed Inter-Rater Environment |
-
-
-
-
-
+| #188 | 2026-07-15 | Feature | Implemented new "Verify PDF Integrity" pipeline step in Data Acquisition Pipeline. Audits MATCHED, DOWNLOADED, and SYNCED PDFs against a multi-step check (file size, valid PDF header, content poisoning redirect/DOI stub phrases, page count, and fuzzy title matching using the FUZZY_MATCH_THRESHOLD from configs). Adds configurable "Minimum PDF File Size" setting to Scraper Settings. Downgrades failed PDFs to needs review status. | PDF Verification Step |
+| #189 | 2026-07-15 | Feature | Enhanced Paper Details modal with static ID snapshots and Prev / Next navigation buttons. Disables the "Save Changes" button if no edits are detected. Successful saves update the modal state in-place to preserve edit mode rather than closing. | Paper Details Navigation & Edit Enhancements |
+| #190 | 2026-07-15 | Feature | Integrated Verification checks directly into local and remote PDF scraping pipelines. Added checking constraints to skip empty/invalid DOIs in `scrape_pdfs.py`, and run every newly downloaded file through `verify_paper_pdf` checks. Spawns verification checks synchronously in remote worker result route before registration. | Integrated Scraper Verification Gate |
+| #191 | 2026-07-12 | Feature | Added "DOI Status" filter option to the Paper Database view's Advanced Filters. Enables users to filter papers by Any DOI, Empty DOI (where DOI is empty or null), or Has DOI (where DOI has a value). Integration covers the papers REST API, custom hooks, and view components. | Empty DOI Filter |
+| #192 | 2026-07-15 | Bug Fix / Refactor | Removed Human_Decision and double-blind calibration adjudication tables references from normal screening pipelines, general database views, and API filter logic. Relocated the editable decision override from the Paper details modal (which updated Human_Decision) and made the manual screening decision (manual_decision) read-only inside details modals instead. Updated bulk decision overrides in PaperDatabaseView.tsx and `/api/papers` to write to `manual_decision` instead of `Human_Decision`. Appended workspace agent rules (`agents.md`, `slr-ide/AGENTS.md`) to explicitly sandbox the calibration adjudication module. | Isolate Adjudication and Clean up Human Override |
+| #193 | 2026-07-15 | Bug Fix | Resolved selected checkmarked papers count discrepancy in the LLM Settings launch configuration. Updated `/api/llm/count` API and `GlobalLLMSettingsView.tsx` count loading hook to parse and process checking checkmarked `paperIds`. The selection count display now properly shows both the total selected checkmarks and the count of actually eligible papers matching stage and manual screening exclusions. | Selected Papers Target Count Filtering |
+| #194 | 2026-07-15 | Refactor | Decoupled all screening-related filters (Pipeline Stage, Screening Decision, Exclusion Criteria) and bulk operations (Decision Override, Pipeline Stage Change) from the general Paper Database table, focusing it strictly on paper standard metadata and PDF/DOI metrics. Locked down the single paper PUT API and Paper Metadata Edit modal to make the Pipeline Stage field read-only, preventing edits to screening stages outside the dedicated LLM and Manual screening pipelines. | Decouple Screening Logic from Paper Database |
+| #195 | 2026-07-16 | Bug Fix | Updated the PDF deletion REST API (/api/pdf/delete) to completely delete PDF files from all locations (raw folder, downloads folder, and repo folder) when manually unlinking via the "Delete PDF" button to prevent self-healing matching loops. Added Agnostic BroadcastChannel sync call on successful deletion to update all open UI tabs. | Complete PDF Deletion & Sync |
+| #196 | 2026-07-16 | Bug Fix / UI | Fixed navigation controls bugs in ViewEditPaperModal.tsx (e.g. index/disabled limits relying on active papers list length instead of the snapshot length). Relocated paging controls to the center of the Modal Footer, between the Delete button (left) and Action buttons (right). Introduced a guard on dbValuesChanged to prevent the false positive "Form refreshed" toast on saving edited papers. | Paging Fixes, Footer Center Relocation & Save Rehydration Guard |
+| #197 | 2026-07-16 | Feature | Added a new "PDF Link" filter option to the Paper Database view's Advanced Filters. Enables users to filter papers by Any State, Has PDF Link (where PDF_Link has a value), or Empty (where PDF_Link is empty or null). | PDF Link Filter |
+| #198 | 2026-07-16 | Feature | Added 'NEEDS_REVIEW' option to the bulk Local PDF Status selection dropdown, permitting bulk transitions of papers to needs review state. | Bulk PDF Status NEEDS_REVIEW Option |
+| #199 | 2026-07-16 | Feature | Added a new bulk action "Delete PDFs & Unset Links" in the Paper Database view. Designed the backend DELETE /api/pdf/delete route to support bulk inputs with a keepRaw query/body flag: single paper deletion continues to delete PDF files from all locations (raw, repo, and downloads folders) and unsets URL link, while the bulk deletion deletes PDF files only from the project repo folder (keeping raw folder untouched) and unsets URL links. | Bulk PDF Deletion & Link Unsetting |

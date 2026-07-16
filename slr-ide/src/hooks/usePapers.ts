@@ -9,11 +9,10 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   
   // Filtering & Search
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [pdfFilter, setPdfFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
-  const [decisionFilter, setDecisionFilter] = useState('');
-  const [ecTriggerFilter, setEcTriggerFilter] = useState('');
+  const [doiStatusFilter, setDoiStatusFilter] = useState('');
+  const [pdfLinkFilter, setPdfLinkFilter] = useState('');
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -57,11 +56,10 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     try {
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
-      if (statusFilter) params.append('status', statusFilter);
       if (pdfFilter) params.append('pdfStatus', pdfFilter);
       if (sourceFilter) params.append('source', sourceFilter);
-      if (decisionFilter) params.append('decision', decisionFilter);
-      if (ecTriggerFilter) params.append('ecTrigger', ecTriggerFilter);
+      if (doiStatusFilter) params.append('doiStatus', doiStatusFilter);
+      if (pdfLinkFilter) params.append('pdfLink', pdfLinkFilter);
       
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
@@ -83,7 +81,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } finally {
       setLoadingPapers(false);
     }
-  }, [page, limit, sortBy, sortOrder, searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, ecTriggerFilter, showToast, loadDuplicatesCount]);
+  }, [page, limit, sortBy, sortOrder, searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, showToast, loadDuplicatesCount]);
 
   // Load papers on mount and when filters change
   useEffect(() => {
@@ -93,12 +91,12 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   // Clear selectedPaperIds when filters or search change
   useEffect(() => {
     setSelectedPaperIds([]);
-  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, ecTriggerFilter]);
+  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter]);
 
   // Reset page to 1 when filters or search terms change
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, ecTriggerFilter]);
+  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter]);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -243,12 +241,11 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
       const query = new URLSearchParams({
         onlyIds: 'true',
         search: searchTerm,
-        status: statusFilter,
         pdfStatus: pdfFilter,
-        source: sourceFilter,
-        decision: decisionFilter,
-        ecTrigger: ecTriggerFilter
+        source: sourceFilter
       });
+      if (doiStatusFilter) query.append('doiStatus', doiStatusFilter);
+      if (pdfLinkFilter) query.append('pdfLink', pdfLinkFilter);
       const res = await fetch(`/api/papers?${query}`);
       if (res.ok) {
         const ids = await res.json();
@@ -260,17 +257,20 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } catch (err: any) {
       showToast(`Error selecting all papers: ${err.message || err}`, 'error');
     }
-  }, [searchTerm, statusFilter, pdfFilter, sourceFilter, decisionFilter, ecTriggerFilter, showToast]);
+  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, showToast]);
+
+  const activePaperRef = useRef<any>(null);
+  activePaperRef.current = paperModal.paper;
 
   // Active State Rehydration: Sync paperModal.paper with list updates (e.g. PDF path / status changes in background)
   useEffect(() => {
-    if (paperModal.isOpen && paperModal.paper && papers.length > 0) {
-      const updated = papers.find(p => p.Paper_ID === paperModal.paper?.Paper_ID);
-      if (updated && JSON.stringify(updated) !== JSON.stringify(paperModal.paper)) {
+    if (paperModal.isOpen && activePaperRef.current && papers.length > 0) {
+      const updated = papers.find(p => p.Paper_ID === activePaperRef.current?.Paper_ID);
+      if (updated && JSON.stringify(updated) !== JSON.stringify(activePaperRef.current)) {
         setPaperModal(prev => ({ ...prev, paper: updated }));
       }
     }
-  }, [papers, paperModal.isOpen, paperModal.paper]);
+  }, [papers, paperModal.isOpen]);
 
   return {
     papers,
@@ -280,11 +280,10 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     setDuplicatesCount,
     loadDuplicatesCount,
     searchTerm, setSearchTerm,
-    statusFilter, setStatusFilter,
     pdfFilter, setPdfFilter,
     sourceFilter, setSourceFilter,
-    decisionFilter, setDecisionFilter,
-    ecTriggerFilter, setEcTriggerFilter,
+    doiStatusFilter, setDoiStatusFilter,
+    pdfLinkFilter, setPdfLinkFilter,
     page, setPage,
     limit, setLimit,
     totalPapers,

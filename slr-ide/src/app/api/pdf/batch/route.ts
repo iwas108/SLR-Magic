@@ -14,15 +14,16 @@ export async function POST(req: Request) {
       });
     }
 
-    let body = { steps: ['scan', 'scrape', 'sync'] };
+    let body: any = { steps: ['scan', 'verify', 'scrape', 'sync'] };
     try {
       body = await req.json();
     } catch (e) {
       // ignore
     }
 
-    const steps = body.steps || ['scan', 'scrape', 'sync'];
+    const steps = body.steps || ['scan', 'verify', 'scrape', 'sync'];
     const compress = getConfig('PDF_COMPRESSION_ENABLED', 'false') === 'true';
+    const forceUpdate = body.force_update === true;
 
     // Auto-update IGNORED papers with valid DOIs, stage > 0, and screening decision 'Include' to MISSING so the pipeline captures them
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
         AND DOI IS NOT NULL
         AND DOI != ''
         AND TRIM(DOI) != ''
-        AND UPPER(COALESCE(Human_Decision, AI_Decision)) = 'INCLUDE'
+        AND UPPER(COALESCE(manual_decision, AI_Decision)) = 'INCLUDE'
     `).run(activeProjectId);
 
     const batchState = batchStateTracker.getState();
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
     batchStateTracker.resetBatchState(steps);
 
     pipelineLock.acquire();
-    runBackgroundExecution(steps, compress);
+    runBackgroundExecution(steps, compress, forceUpdate);
 
     return streamManager.createEventStream(() => batchStateTracker.getState());
   } catch (error: any) {

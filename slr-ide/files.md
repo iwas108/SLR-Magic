@@ -53,6 +53,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `test_epoch3.py` | Testing | Automated test suite verifying the correctness of frontend UI components, state orchestration, and synchronization logic from Epoch 3. |
 | `test_epoch4.py` | Testing | Automated test suite validating inter-rater adjudication logic, QA scoring, data extraction structures, and ledger commits from Epoch 4. |
 | `recalculate_costs.js` | Utility / Database | One-time database utility script to recalculate LLM costs in audit logs and project spends. |
+| `patch_pipeline_status.js` | Utility / Database | One-time database patch script to align paper Status values with higher level manual_stage values. |
 
 ---
 
@@ -87,6 +88,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `entrypoints/map_publisher.py` | CLI Subprocess | Normalizes raw publisher string fields from ingested literature datasets into standardized academic publisher entities. |
 | `entrypoints/match_cache.py` | CLI Subprocess | Executes smart cached PDF matching against local libraries using Paper ID, DOI, Title similarity, MD5 hashes, and Tesseract OCR. Matched files are moved to raw/ eternal library. |
 | `entrypoints/scrape_pdfs.py` | CLI Subprocess | Initiates automated bulk PDF acquisition from academic publisher websites for papers marked with `MISSING` local PDF status. |
+| `entrypoints/verify_pdfs.py` | CLI Subprocess | Audits MATCHED, DOWNLOADED, and SYNCED PDF files on disk using size, header, poison string, page count, and fuzzy title matching. |
 | `entrypoints/build_vectors.py` | CLI Subprocess | CLI driver responsible for building and updating vector indices incrementally. |
 | `entrypoints/semantic_search.py` | CLI Subprocess | CLI driver performing semantic searches across the paper corpus and PDF cache. |
 | `entrypoints/find_traps.py` | CLI Subprocess | CLI driver isolating semantic near-miss traps for pre-calibration. |
@@ -156,7 +158,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `hooks/useProjects.ts` | Custom Hook | Manages project listing retrieval, active project switching, and cloud provider (Google Drive / OneDrive) configuration state. |
 | `hooks/usePipeline.ts` | Custom Hook | Manages sequential PDF acquisition/OCR batch pipeline state, Server-Sent Events logging, and cancel controllers. |
 | `hooks/useCalibration.ts` | Custom Hook | Manages consensus screening pre-calibration pools, Kappa metrics calculation, and single-paper crawler executions. |
-| `hooks/useManualScreening.ts` | Custom Hook | State and business logic manager for the manual screening pipeline workspace, handling semantic filtering and CRUD updates. |
+| `hooks/useManualScreening.ts` | Custom Hook | State and business logic manager for the manual screening pipeline workspace, handling keyword/semantic filtering with unified filter parity (9 filters total) and CRUD updates. |
 
 ### UI Components & Features (`src/components/`)
 | File Path | Architectural Layer | Function & Purpose |
@@ -184,7 +186,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/PromptLibraryView.tsx` | View Component | Interface for versioning, organizing, and testing reusable system prompt templates and structured JSON extraction schemas. |
 | `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal composing view and edit layouts for paper metadata, decisions, and previews. |
 | `components/features/modals/paper-details/PaperMetadataView.tsx` | Presentation Component| Read-only details presentation tab inside the paper modal with status and decision displays. |
-| `components/features/modals/paper-details/PaperMetadataEdit.tsx` | Presentation Component| Edit details form layout inside the paper modal with status, stage, and decision override fields. |
+| `components/features/modals/paper-details/PaperMetadataEdit.tsx` | Presentation Component| Edit details form layout inside the paper modal with status and stage fields. |
 | `components/features/modals/paper-details/ParentPaperSelector.tsx` | UI Component | Autocomplete search selector for tracking chained parent paper references. |
 | `components/features/modals/paper-details/PdfPreview.tsx` | UI Component | Inline iframe preview panel for reading cached/downloaded paper PDFs. |
 | `components/features/modals/CreateProjectModal.tsx` | Modal Component| Standalone modal form encapsulating states and inputs for creating new systematic literature review projects. |
@@ -258,6 +260,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/pdf/batch/route.ts` | REST Endpoint | Handles POST/GET requests to spawn the unified sequential PDF batch pipeline (Scan, Scrape, Compress, Sync) and stream live NDJSON logs. |
 | `api/pdf/batch/cancel/route.ts` | REST Endpoint | Handles POST requests to terminate active PDF batch child process trees (`taskkill` / `SIGKILL`) and set cancellation flags. |
 | `api/pdf/batch/resume/route.ts` | REST Endpoint | Handles POST requests to resume an interrupted or paused PDF batch execution pipeline from its last recorded checkpoint. |
+| `api/pdf/delete/route.ts` | REST Endpoint | Handles DELETE requests to physically delete PDF files from all cache/repo locations and reset paper local PDF status. |
 | `api/pdf/download/route.ts` | REST Endpoint | Handles POST requests to trigger a direct background download of a single paper's PDF via `scrape_pdfs.py`. |
 | `api/pdf/scan/route.ts` | REST Endpoint | Handles POST requests to execute a smart cache match scan (`match_cache.py`) for a single paper against local repositories. |
 | `api/pdf/serve/route.ts` | REST Endpoint | Securely reads and streams local binary PDFs to the iframe previewer with on-demand self-healing PDF recovery. |

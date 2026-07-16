@@ -7,11 +7,64 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
 
+    // Support getStats parameter for project-wide statistics
+    const getStats = searchParams.get('getStats') === 'true';
+    if (getStats) {
+      // 1. Total papers in project (excluding duplicates)
+      const totalRow = db.prepare(`
+        SELECT COUNT(*) as count 
+        FROM papers 
+        WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
+      `).get(activeProjectId) as { count: number };
+      const total = totalRow ? totalRow.count : 0;
+
+      // 2. Screened papers (decision is set)
+      const screenedRow = db.prepare(`
+        SELECT COUNT(*) as count 
+        FROM papers 
+        WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
+          AND manual_decision IS NOT NULL AND manual_decision != ''
+      `).get(activeProjectId) as { count: number };
+      const screened = screenedRow ? screenedRow.count : 0;
+
+      // 3. Stage counts grouping
+      const stages = db.prepare(`
+        SELECT manual_stage, COUNT(*) as count 
+        FROM papers 
+        WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
+        GROUP BY manual_stage
+      `).all(activeProjectId) as { manual_stage: string; count: number }[];
+      
+      const stageCounts: Record<string, number> = {};
+      stages.forEach(s => {
+        const key = s.manual_stage || 'none';
+        stageCounts[key] = s.count;
+      });
+
+      // 4. Decision counts grouping
+      const decisions = db.prepare(`
+        SELECT manual_decision, COUNT(*) as count 
+        FROM papers 
+        WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
+        GROUP BY manual_decision
+      `).all(activeProjectId) as { manual_decision: string; count: number }[];
+
+      const decisionCounts: Record<string, number> = {};
+      decisions.forEach(d => {
+        const key = d.manual_decision || 'none';
+        decisionCounts[key] = d.count;
+      });
+
+      return NextResponse.json({
+        total,
+        screened,
+        pending: total - screened,
+        stageCounts,
+        decisionCounts
+      });
+    }
+
     const search = searchParams.get('search')?.trim() || '';
-    const status = searchParams.get('status')?.trim() || '';
-    const pdfStatus = searchParams.get('pdfStatus')?.trim() || '';
-    const calibrationPool = searchParams.get('calibrationPool')?.trim() || '';
-    const publisher = searchParams.get('publisher')?.trim() || '';
     const manualStage = searchParams.get('manualStage')?.trim() || '';
     const manualDecision = searchParams.get('manualDecision')?.trim() || '';
     
@@ -33,31 +86,6 @@ export async function GET(request: Request) {
       filterQuery += ' AND (Paper_ID LIKE ? OR Title LIKE ? OR Abstract LIKE ? OR Authors LIKE ? OR DOI LIKE ? OR Publisher LIKE ?)';
       const searchWildcard = `%${search}%`;
       params.push(searchWildcard, searchWildcard, searchWildcard, searchWildcard, searchWildcard, searchWildcard);
-    }
-
-    if (status) {
-      filterQuery += ' AND Status = ?';
-      params.push(status);
-    }
-
-    if (pdfStatus) {
-      filterQuery += ' AND Local_PDF_Status = ?';
-      params.push(pdfStatus);
-    }
-
-    if (publisher) {
-      filterQuery += ' AND Publisher = ?';
-      params.push(publisher);
-    }
-
-    if (calibrationPool) {
-      if (calibrationPool === 'none') {
-        filterQuery += ' AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)';
-        params.push(activeProjectId);
-      } else {
-        filterQuery += ' AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)';
-        params.push(activeProjectId, calibrationPool);
-      }
     }
 
     if (manualStage) {

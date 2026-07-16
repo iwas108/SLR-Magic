@@ -65,7 +65,6 @@ export async function PUT(
       citationCountVal = currentPaper.citation_count;
     }
 
-    const statusVal = Status !== undefined ? Status : currentPaper.Status;
     const localPdfStatusVal = Local_PDF_Status !== undefined ? Local_PDF_Status : currentPaper.Local_PDF_Status;
     const calibrationPoolVal = calibration_pool !== undefined ? calibration_pool : currentPaper.calibration_pool;
     const calibrationTagVal = calibration_tag !== undefined ? calibration_tag : currentPaper.calibration_tag;
@@ -82,6 +81,22 @@ export async function PUT(
     const manualStageVal = manual_stage !== undefined ? manual_stage : currentPaper.manual_stage;
     const manualQaVal = manual_qa_scores !== undefined ? manual_qa_scores : currentPaper.manual_qa_scores;
     const manualExtVal = manual_extracted_data !== undefined ? manual_extracted_data : currentPaper.manual_extracted_data;
+
+    // Strict constraint: Status cannot be directly edited; it must source from manual_stage or LLM execution.
+    let statusVal = currentPaper.Status;
+    if (manual_stage !== undefined) {
+      if (manual_stage === 'fast_filter') {
+        statusVal = '1';
+      } else if (manual_stage === 'gatekeeper') {
+        statusVal = '2';
+      } else if (manual_stage === 'scientist') {
+        statusVal = '3';
+      } else if (manual_stage === 'miner') {
+        statusVal = '4';
+      } else if (!manual_stage) {
+        statusVal = 'PENDING';
+      }
+    }
 
     db.prepare(`
       UPDATE papers

@@ -105,11 +105,20 @@ def main():
     active_proj_id = active_proj_row[0] if active_proj_row else 'default-project'
 
     # Fetch papers for the active project
-    cursor.execute("""
-        SELECT Paper_ID, DOI, Title, Original_Publisher, Publisher
-        FROM papers
-        WHERE Project_ID = ?
-    """, (active_proj_id,))
+    force_update = '--force-update' in sys.argv
+
+    if force_update:
+        cursor.execute("""
+            SELECT Paper_ID, DOI, Title, Original_Publisher, Publisher
+            FROM papers
+            WHERE Project_ID = ?
+        """, (active_proj_id,))
+    else:
+        cursor.execute("""
+            SELECT Paper_ID, DOI, Title, Original_Publisher, Publisher
+            FROM papers
+            WHERE Project_ID = ? AND (Publisher IS NULL OR Publisher = '')
+        """, (active_proj_id,))
     papers = cursor.fetchall()
     total = len(papers)
 

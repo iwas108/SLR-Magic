@@ -14,7 +14,7 @@ interface PipelineProgressPanelProps {
     isWaitingLogin?: boolean;
   };
   setOperationModal: (val: any) => void;
-  currentStep: 'scan' | 'duplicate_scan' | 'scrape' | 'compress' | 'sync' | 'map_publisher' | null;
+  currentStep: 'scan' | 'duplicate_scan' | 'verify' | 'scrape' | 'compress' | 'sync' | 'map_publisher' | null;
   setCurrentStep: (step: any) => void;
   pipelineStats: {
     matched: number;
@@ -74,6 +74,9 @@ export default function PipelineProgressPanel({
   } else if (currentStep === 'map_publisher') {
     statsFound = pipelineStats.current - pipelineStats.failed;
     statsNotFound = pipelineStats.failed;
+  } else if (currentStep === 'verify') {
+    statsFound = pipelineStats.current - pipelineStats.failed;
+    statsNotFound = pipelineStats.failed;
   } else if (currentStep === 'sync') {
     statsFound = pipelineStats.current;
     statsNotFound = pipelineStats.failed;
@@ -115,7 +118,7 @@ export default function PipelineProgressPanel({
         </div>
       </div>
 
-      <div className="flex-1 p-5 overflow-hidden flex flex-col space-y-4">
+      <div className="flex-1 p-5 overflow-y-auto flex flex-col space-y-4">
         {/* Progress bar */}
         <div className="space-y-1.5 shrink-0">
           <div className="flex justify-between items-center text-[10px] font-bold uppercase text-muted-foreground">
@@ -246,7 +249,7 @@ export default function PipelineProgressPanel({
         )}
 
         {/* Logs terminal */}
-        <div className="flex-1 bg-black text-[10px] text-green-400/90 font-mono rounded-lg p-3 overflow-y-auto flex flex-col space-y-1 select-text">
+        <div className="bg-black text-[10px] text-green-400/90 font-mono rounded-lg p-3 overflow-y-auto flex flex-col space-y-1 select-text resize-y min-h-[250px] max-h-[800px] h-[380px]">
           {operationModal.logs.slice(-500).map((log: string, idx: number) => (
             <div key={idx} className={
               log.includes('✓') || log.includes('[SUCCESS]') || log.includes('>>>') ? 'text-emerald-400' :

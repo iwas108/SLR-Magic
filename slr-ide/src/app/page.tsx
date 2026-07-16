@@ -341,16 +341,14 @@ export default function DashboardPage() {
               setShowDuplicateModal={setShowDuplicateModal}
               searchTerm={papersHook.searchTerm}
               setSearchTerm={papersHook.setSearchTerm}
-              statusFilter={papersHook.statusFilter}
-              setStatusFilter={papersHook.setStatusFilter}
               pdfFilter={papersHook.pdfFilter}
               setPdfFilter={papersHook.setPdfFilter}
               sourceFilter={papersHook.sourceFilter}
               setSourceFilter={papersHook.setSourceFilter}
-              decisionFilter={papersHook.decisionFilter}
-              setDecisionFilter={papersHook.setDecisionFilter}
-              ecTriggerFilter={papersHook.ecTriggerFilter}
-              setEcTriggerFilter={papersHook.setEcTriggerFilter}
+              doiStatusFilter={papersHook.doiStatusFilter}
+              setDoiStatusFilter={papersHook.setDoiStatusFilter}
+              pdfLinkFilter={papersHook.pdfLinkFilter}
+              setPdfLinkFilter={papersHook.setPdfLinkFilter}
               setShowImport={setShowImport}
               setDeleteAllConfirm={papersHook.setDeleteAllConfirm}
               cloudName={projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider === 'onedrive' ? 'OneDrive' : 'Google Drive'}

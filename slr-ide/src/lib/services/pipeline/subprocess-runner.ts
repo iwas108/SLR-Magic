@@ -10,13 +10,16 @@ export async function runSubprocessStep(
   projectRoot: string,
   stepNum: number,
   totalSteps: number,
-  batchState: any
+  batchState: any,
+  forceUpdate: boolean = false
 ): Promise<void> {
   let stepStartMsg = '';
   if (step === 'scan') {
     stepStartMsg = `[${stepNum}/${totalSteps}] Starting Cached PDF matching...`;
   } else if (step === 'scrape') {
     stepStartMsg = `[${stepNum}/${totalSteps}] Starting Bulk PDF Scraper...`;
+  } else if (step === 'verify') {
+    stepStartMsg = `[${stepNum}/${totalSteps}] Starting PDF Integrity Verification...`;
   } else if (step === 'compress') {
     const isCompressEnabled = getConfig('PDF_COMPRESSION_ENABLED', 'false') === 'true';
     stepStartMsg = isCompressEnabled
@@ -39,7 +42,11 @@ export async function runSubprocessStep(
       resolve();
       return;
     }
-    const child = processManager.spawnProcess(pythonExe, ['-u', '-m', pythonModule], { cwd: projectRoot });
+    const args = ['-u', '-m', pythonModule];
+    if (forceUpdate) {
+      args.push('--force-update');
+    }
+    const child = processManager.spawnProcess(pythonExe, args, { cwd: projectRoot });
 
     let stdoutBuffer = '';
     const processLine = (line: string) => {

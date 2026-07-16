@@ -7,7 +7,7 @@ import { runSubprocessStep } from './pipeline/subprocess-runner';
 import { runCloudSync, generateCloudLinks } from './pipeline/rclone-sync';
 import { remoteWorkerManager } from '@/lib/services/remote-worker-manager';
 
-export async function runBackgroundExecution(steps: string[], compress: boolean) {
+export async function runBackgroundExecution(steps: string[], compress: boolean, forceUpdate: boolean = false) {
   const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
   
   const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
@@ -42,13 +42,15 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
         pythonModule = 'python_engine.entrypoints.match_cache';
       } else if (step === 'scrape') {
         pythonModule = 'python_engine.entrypoints.scrape_pdfs';
+      } else if (step === 'verify') {
+        pythonModule = 'python_engine.entrypoints.verify_pdfs';
       } else if (step === 'compress') {
         pythonModule = 'python_engine.entrypoints.compress_pdfs';
       } else if (step === 'map_publisher') {
         pythonModule = 'python_engine.entrypoints.map_publisher';
       }
 
-      if (step === 'scan' || step === 'scrape' || step === 'compress' || step === 'map_publisher') {
+      if (step === 'scan' || step === 'scrape' || step === 'verify' || step === 'compress' || step === 'map_publisher') {
         if (step === 'scrape') {
           const onlineWorkers = remoteWorkerManager.getOnlineWorkers();
           const localEnabled = getConfig('REMOTE_WORKER_LOCAL_SCRAPER_ENABLED', 'true') === 'true';
@@ -62,7 +64,7 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
 
           try {
             if (localEnabled || onlineWorkers.length === 0) {
-              await runSubprocessStep(step, pythonExe, pythonModule, PROJECT_ROOT, stepNum, totalSteps, batchState);
+              await runSubprocessStep(step, pythonExe, pythonModule, PROJECT_ROOT, stepNum, totalSteps, batchState, forceUpdate);
             } else {
               // Local scraper is disabled, but we have remote workers. 
               // We must block this orchestration thread until all papers are processed or user cancels.
@@ -108,7 +110,7 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
             }
           }
         } else {
-          await runSubprocessStep(step, pythonExe, pythonModule, PROJECT_ROOT, stepNum, totalSteps, batchState);
+          await runSubprocessStep(step, pythonExe, pythonModule, PROJECT_ROOT, stepNum, totalSteps, batchState, forceUpdate);
         }
       }
 
@@ -123,7 +125,7 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
 
         // Run Python compressor subprocess unconditionally to prepare the repository (copies or compresses)
         try {
-          await runSubprocessStep('compress', pythonExe, 'python_engine.entrypoints.compress_pdfs', PROJECT_ROOT, stepNum, totalSteps, batchState);
+          await runSubprocessStep('compress', pythonExe, 'python_engine.entrypoints.compress_pdfs', PROJECT_ROOT, stepNum, totalSteps, batchState, forceUpdate);
           if (batchState.cancelRequested) continue;
 
           const syncStartMsg = { event: 'step_start', step: 'sync', message: 'Syncing Files (Rclone)...' };
@@ -159,7 +161,8 @@ export async function runBackgroundExecution(steps: string[], compress: boolean)
             configPath,
             rclonePath,
             cloudName,
-            batchState
+            batchState,
+            forceUpdate
           );
         }
       }

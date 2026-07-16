@@ -12,7 +12,7 @@ import { pipelineLock } from '@/lib/services/pipeline-lock';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { projectId, jobId, taskType, action, limit, offset, paperIds, templateId, statusFilter, decisionFilter } = body;
+    const { projectId, jobId, taskType, action, limit, offset, paperIds, templateId, statusFilter, decisionFilter, excludeManual } = body;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
@@ -137,6 +137,9 @@ export async function POST(req: NextRequest) {
     }
     if (decisionFilter !== undefined && decisionFilter !== null && decisionFilter !== 'ALL') {
       args.push('--decision-filter', String(decisionFilter));
+    }
+    if (excludeManual) {
+      args.push('--exclude-manual');
     }
 
     // Resolve model and mode details from template to write initial job record

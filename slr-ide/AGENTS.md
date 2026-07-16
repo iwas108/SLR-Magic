@@ -9,3 +9,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 *   **Mandatory Tree Shaking**: Whenever a coding agent refactors large monolithic files or extracts components/hooks, the agent **MUST** perform rigorous tree-shaking and compilation checks (`npx tsc --noEmit`). 
 *   Always remove dead code, unused states, unused imports, and duplicate variable declarations left behind after extracting logic.
 *   Do not leave fragmented code blocks that cause silent failures or typescript errors.
+
+### 3.5 Isolation of Double-Blind Calibration Adjudication
+*   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and columns (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`) are standalone modules strictly reserved for prompt and agreement calibration.
+*   **Zero Integration Policy**: Do NOT connect, source, or reference these tables or columns inside the general screening pipeline (such as fast filter, gatekeeper, scientist, or miner), general database view/filtering, or main paper details editing/sourcing flows.
+*   **Manual Screening Precedence**: General human overrides during manual review MUST exclusively use the manual screening columns (`manual_decision`, `manual_ec_trigger`, `manual_rationale`) and the corresponding `manual_audit_log` table.
+

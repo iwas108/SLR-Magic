@@ -268,8 +268,26 @@ class LLMQueueHandler:
                 )
                 logger.info(f"AI extracted data for paper {paper_id} saved to papers.AI_Extracted_Data.")
 
-            # Update paper state to next stage status code
-            execute_write("UPDATE papers SET Status = ? WHERE Paper_ID = ?", (next_status, paper_id))
+            # Update paper state to next stage status code ONLY if next_status is higher level
+            current_paper_db = execute_read_one("SELECT Status FROM papers WHERE Paper_ID = ?", (paper_id,))
+            current_status = current_paper_db.get("Status") if current_paper_db else "0"
+
+            def status_to_level(status_str):
+                if status_str == "1":
+                    return 1
+                elif status_str == "2":
+                    return 2
+                elif status_str == "3":
+                    return 3
+                elif status_str == "4":
+                    return 4
+                return 0
+
+            if status_to_level(next_status) > status_to_level(current_status):
+                execute_write("UPDATE papers SET Status = ? WHERE Paper_ID = ?", (next_status, paper_id))
+                logger.info(f"Updated paper {paper_id} status from {current_status} to {next_status}.")
+            else:
+                logger.info(f"Preserved paper {paper_id} status at {current_status} (attempted to set {next_status}).")
 
             # Log interaction to LLM Audit Log
             log_interaction(

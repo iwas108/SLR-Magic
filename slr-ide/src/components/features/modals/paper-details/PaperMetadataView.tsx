@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { ExternalLink, Hash, Clock, Globe, GitCommit, FileText, Database, ShieldAlert, Cpu, UserCheck } from 'lucide-react';
+import { ExternalLink, Hash, Clock, Globe, GitCommit, FileText, Database, ShieldAlert, Cpu, UserCheck, ChevronDown, ChevronRight } from 'lucide-react';
+import JSONViewer from '@/components/ui/JSONViewer';
 
 interface PaperMetadataViewProps {
   paper: any;
   setPaperModal: (val: any) => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   getActiveProjectPoolTags: (poolId: string) => any[];
+  activeProject?: any;
 }
 
 const Section = ({ title, icon: Icon, children }: { title: string, icon: any, children: React.ReactNode }) => (
@@ -35,9 +37,25 @@ export default function PaperMetadataView({
   paper,
   setPaperModal,
   showToast,
-  getActiveProjectPoolTags
+  getActiveProjectPoolTags,
+  activeProject
 }: PaperMetadataViewProps) {
   const [proxyBaseUrl, setProxyBaseUrl] = useState('');
+  const [llmLogs, setLlmLogs] = useState<any[]>([]);
+  const [expandedLog, setExpandedLog] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (paper?.Paper_ID && activeProject?.id) {
+      fetch(`/api/llm/audit?projectId=${activeProject.id}&paperId=${paper.Paper_ID}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.logs) {
+            setLlmLogs(data.logs);
+          }
+        })
+        .catch(err => console.error('Failed to load paper LLM logs:', err));
+    }
+  }, [paper?.Paper_ID, activeProject?.id]);
 
   useEffect(() => {
     fetch('/api/config')
@@ -74,7 +92,7 @@ export default function PaperMetadataView({
   };
 
   const aiDecisionVal = (paper.AI_Decision || 'PENDING').toUpperCase();
-  const humanDecisionVal = (paper.Human_Decision || '').toUpperCase();
+  const manualDecisionVal = (paper.manual_decision || '').toUpperCase();
   
   return (
     <div className="space-y-6 pb-8 max-w-5xl mx-auto w-full">
@@ -166,6 +184,7 @@ export default function PaperMetadataView({
                 <span className={`w-2 h-2 rounded-full ${
                   paper.Local_PDF_Status === 'SYNCED' ? 'bg-emerald-500' :
                   paper.Local_PDF_Status === 'DOWNLOADED' || paper.Local_PDF_Status === 'MATCHED' ? 'bg-amber-500' :
+                  paper.Local_PDF_Status === 'NEEDS_REVIEW' ? 'bg-purple-500' :
                   paper.Local_PDF_Status === 'FAILED' ? 'bg-destructive' :
                   paper.Local_PDF_Status === 'IGNORED' ? 'bg-muted-foreground/50' :
                   'bg-destructive/60'
@@ -213,31 +232,31 @@ export default function PaperMetadataView({
               )}
             </div>
 
-            {/* Human Box */}
-            <div className={`bg-secondary/15 rounded-lg border ${humanDecisionVal ? 'border-primary/40' : 'border-border/40'} p-3 flex flex-col gap-2`}>
+            {/* Manual Screening Box */}
+            <div className={`bg-secondary/15 rounded-lg border ${manualDecisionVal ? 'border-primary/40' : 'border-border/40'} p-3 flex flex-col gap-2`}>
               <div className="flex items-center gap-2 mb-1">
                 <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">Human Override</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Manual Screening Decision</span>
               </div>
-              {humanDecisionVal ? (
+              {manualDecisionVal ? (
                 <>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                        humanDecisionVal === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                        humanDecisionVal === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                        manualDecisionVal === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                        manualDecisionVal === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
                         'bg-amber-500/10 border-amber-500/20 text-amber-400'
                       }`}>
-                        {humanDecisionVal}
+                        {manualDecisionVal}
                     </span>
-                    {paper.Human_EC_Trigger && paper.Human_EC_Trigger !== 'NONE' && (
+                    {paper.manual_ec_trigger && paper.manual_ec_trigger !== 'NONE' && (
                       <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
-                        {paper.Human_EC_Trigger}
+                        {paper.manual_ec_trigger}
                       </span>
                     )}
                   </div>
-                  {paper.Human_Rationale && (
+                  {paper.manual_rationale && (
                     <div className="text-[11px] text-muted-foreground leading-relaxed mt-1 line-clamp-4 hover:line-clamp-none transition-all">
-                      {paper.Human_Rationale}
+                      {paper.manual_rationale}
                     </div>
                   )}
                 </>
@@ -247,6 +266,44 @@ export default function PaperMetadataView({
             </div>
           </div>
         </Row>
+        
+        {llmLogs.length > 0 && (
+          <Row label="LLM Stage Details">
+            <div className="flex flex-col gap-2">
+              {['fast_filter', 'gatekeeper', 'scientist', 'miner'].map(stage => {
+                const logsForStage = llmLogs.filter(l => l.task_type === stage && l.status === 'SUCCESS');
+                if (logsForStage.length === 0) return null;
+                const latestLog = logsForStage[logsForStage.length - 1]; // chronologically last
+                const isExpanded = expandedLog === stage;
+                return (
+                  <div key={stage} className="border border-border/50 rounded-lg overflow-hidden bg-secondary/5">
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setExpandedLog(isExpanded ? null : stage);
+                      }}
+                      className="w-full flex items-center justify-between p-3 bg-secondary/20 hover:bg-secondary/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                        <span className="font-bold text-xs uppercase text-foreground">{stage.replace('_', ' ')}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground font-mono bg-background border border-border px-1.5 py-0.5 rounded">
+                        {latestLog.model_id}
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <div className="p-3 border-t border-border/50 bg-secondary/10">
+                        <JSONViewer data={latestLog.structured_output || latestLog.raw_response} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Row>
+        )}
         
         <Row label="Calibration">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">

@@ -212,7 +212,11 @@ export async function POST(request: Request) {
 
         // Verify match status in SQLite
         const dbStatusRow = db.prepare("SELECT Local_PDF_Status, Local_PDF_Path FROM papers WHERE Paper_ID = ?").get(paperId) as { Local_PDF_Status: string } | undefined;
-        if (dbStatusRow && dbStatusRow.Local_PDF_Status === 'MATCHED') {
+        if (dbStatusRow && (
+          dbStatusRow.Local_PDF_Status === 'MATCHED' ||
+          dbStatusRow.Local_PDF_Status === 'DOWNLOADED' ||
+          dbStatusRow.Local_PDF_Status === 'SYNCED'
+        )) {
           matched = true;
         }
 

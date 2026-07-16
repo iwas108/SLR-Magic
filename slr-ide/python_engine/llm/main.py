@@ -54,6 +54,7 @@ def main():
     parser.add_argument('--template-id', default='', help="Prompt Template ID override")
     parser.add_argument('--status-filter', default='0', help="Target paper pipeline Status filter code ('0', '1', '2', etc.)")
     parser.add_argument('--decision-filter', default='ALL', help="Target paper AI decision filter ('ALL', 'PENDING', 'INCLUDE', 'EXCLUDE')")
+    parser.add_argument('--exclude-manual', action='store_true', help="Exclude manually screened papers")
     args = parser.parse_args()
 
     job_id = args.job_id
@@ -62,6 +63,7 @@ def main():
     action = args.action
     status_filter = args.status_filter
     decision_filter = args.decision_filter
+    exclude_manual = args.exclude_manual
 
     logger.info(f"Starting Gemini Orchestrator for project {project_id}, job {job_id}, task {task_type}, status filter {status_filter}, decision filter {decision_filter}")
 
@@ -161,6 +163,9 @@ def main():
           params.append(decision_filter)
       if requires_pdf:
           query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
+      if exclude_manual:
+          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.manual_stage = ?)"
+          params.append(task_type)
       query += " ORDER BY Paper_ID ASC"
       all_papers = execute_read(query, tuple(params))
       parsed_ids = [p_id.strip() for p_id in args.paper_ids.split(",") if p_id.strip()]
@@ -179,6 +184,9 @@ def main():
           params.append(decision_filter)
       if requires_pdf:
           query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
+      if exclude_manual:
+          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.manual_stage = ?)"
+          params.append(task_type)
       query += " ORDER BY Paper_ID ASC"
       
       # We must apply LIMIT/OFFSET after ORDER BY

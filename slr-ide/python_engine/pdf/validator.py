@@ -1,5 +1,7 @@
 import os
 import urllib.parse
+import difflib
+from python_engine.core.security import sanitize_string
 
 try:
     from pypdf import PdfReader
@@ -21,23 +23,23 @@ def extract_doi_value(doi_str):
         pass
     return doi_str
 
-def validate_scraped_pdf(file_path):
+def validate_scraped_pdf(file_path, expected_title=None, fuzzy_threshold=0.70):
     # 1. Size check
     try:
         size = os.path.getsize(file_path)
         if size < 5 * 1024:  # under 5KB
-            return False, f"File size too small ({size} bytes). Likely a paywall redirect HTML or empty file."
+            return 'INVALID', f"File size too small ({size} bytes). Likely a paywall redirect HTML or empty file."
     except Exception as e:
-        return False, f"Error checking file size: {str(e)}"
+        return 'INVALID', f"Error checking file size: {str(e)}"
 
     # 2. PDF Header check
     try:
         with open(file_path, 'rb') as f:
             header = f.read(1024)
             if b'%PDF-' not in header:
-                return False, "Invalid PDF header. File is not a PDF (likely HTML/text paywall or gatekeeper page)."
+                return 'INVALID', "Invalid PDF header. File is not a PDF (likely HTML/text paywall or gatekeeper page)."
     except Exception as e:
-        return False, f"Error reading file header: {str(e)}"
+        return 'INVALID', f"Error reading file header: {str(e)}"
 
     # 3. Text check (optional heuristic for booklet rejection)
     text = ""
@@ -49,9 +51,9 @@ def validate_scraped_pdf(file_path):
         except Exception as e:
             # Since the header starts with %PDF-, the file is a PDF. 
             # We do not want to reject a valid PDF just because pypdf fails to parse its fonts/text.
-            return True, f"Passed (PDF header valid, but text extraction failed: {str(e)})"
+            return 'VALID', f"Passed (PDF header valid, but text extraction failed: {str(e)})"
     else:
-        return True, "Passed (pypdf not installed, skipped text validation)."
+        return 'VALID', "Passed (pypdf not installed, skipped text validation)."
 
     text_lower = text.lower()
 
@@ -69,9 +71,32 @@ def validate_scraped_pdf(file_path):
     found_accept_marker = [marker for marker in accept_markers if marker in text_lower]
 
     if found_reject_kw and not found_accept_marker:
-        return False, f"Rejected as invalid paper. Contains conference/TOC keywords: {found_reject_kw} and lacks standard paper markers: {accept_markers}"
+        return 'INVALID', f"Rejected as invalid paper. Contains conference/TOC keywords: {found_reject_kw} and lacks standard paper markers: {accept_markers}"
 
-    return True, "Valid scientific paper."
+    # 4. Fuzzy Title Match Check (NEEDS_REVIEW)
+    if expected_title and text:
+        # Clean title: keep lowercase alphanumeric and spaces
+        cleaned_expected = re.sub(r'[^a-zA-Z0-9\s]', ' ', expected_title.lower())
+        expected_words = cleaned_expected.split()
+        len_ew = len(expected_words)
+        
+        # Clean first 4000 characters of page text
+        cleaned_text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text[:4000].lower())
+        words = cleaned_text.split()
+        
+        best_ratio = 0
+        if len_ew > 0 and len(words) > 0:
+            reconstructed_expected = " ".join(expected_words)
+            for i in range(max(1, len(words) - len_ew + 1)):
+                chunk = " ".join(words[i:i+len_ew])
+                ratio = difflib.SequenceMatcher(None, reconstructed_expected, chunk).ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    
+            if best_ratio < fuzzy_threshold:
+                return 'NEEDS_REVIEW', f"Title fuzzy match ({best_ratio:.2f}) is below threshold ({fuzzy_threshold}). Expected: '{expected_title}'"
+
+    return 'VALID', "Valid scientific paper."
 
 def validate_compressed_pdf(file_path):
     if not has_pypdf:

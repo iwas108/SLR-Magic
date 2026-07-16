@@ -668,7 +668,8 @@ export function initializeDatabase(db: Database.Database): void {
       INSERT OR IGNORE INTO configs (key, value)
       VALUES 
         ('REMOTE_WORKER_BATCH_SIZE', '10'),
-        ('REMOTE_WORKER_LOCAL_SCRAPER_ENABLED', 'true')
+        ('REMOTE_WORKER_LOCAL_SCRAPER_ENABLED', 'true'),
+        ('PDF_VERIFY_MIN_SIZE_KB', '55')
     `).run();
   } catch (e) {
     console.error("Failed to seed default remote worker configs:", e);

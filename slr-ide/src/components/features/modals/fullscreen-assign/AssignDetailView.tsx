@@ -393,8 +393,9 @@ export default function AssignDetailView({
               <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
                 assignSelectedPaper.Local_PDF_Status === 'SYNCED' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
                 assignSelectedPaper.Local_PDF_Status === 'DOWNLOADED' || assignSelectedPaper.Local_PDF_Status === 'MATCHED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                assignSelectedPaper.Local_PDF_Status === 'NEEDS_REVIEW' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
                 assignSelectedPaper.Local_PDF_Status === 'FAILED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                'bg-secondary/40 text-muted-foreground border-border/40'
+                'bg-slate-800 text-slate-400 border-slate-700'
               }`}>
                 {assignSelectedPaper.Local_PDF_Status || 'IGNORED'}
               </span>

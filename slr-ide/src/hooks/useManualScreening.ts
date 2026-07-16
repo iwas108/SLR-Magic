@@ -17,13 +17,26 @@ export function useManualScreening(
   // Search & Filters state
   const [screeningSearch, setScreeningSearch] = useState('');
   const [screeningSearchMode, setScreeningSearchMode] = useState<'keyword' | 'semantic'>('keyword');
-  const [screeningPoolFilter, setScreeningPoolFilter] = useState('');
   const [screeningStageFilter, setScreeningStageFilter] = useState('');
   const [screeningDecisionFilter, setScreeningDecisionFilter] = useState('');
-  const [screeningPublisherFilter, setScreeningPublisherFilter] = useState('');
   const [screeningSortBy, setScreeningSortBy] = useState('Paper_ID');
   const [screeningSortOrder, setScreeningSortOrder] = useState<'ASC' | 'DESC'>('ASC');
   const [screeningSearchTime, setScreeningSearchTime] = useState<number | null>(null);
+  
+  // Project-wide stats state
+  const [screeningStats, setScreeningStats] = useState<{
+    total: number;
+    screened: number;
+    pending: number;
+    stageCounts: Record<string, number>;
+    decisionCounts: Record<string, number>;
+  }>({
+    total: 0,
+    screened: 0,
+    pending: 0,
+    stageCounts: {},
+    decisionCounts: {}
+  });
 
   // Selected paper state
   const [screeningSelectedPaper, setScreeningSelectedPaper] = useState<Paper | null>(null);
@@ -115,6 +128,24 @@ export function useManualScreening(
     }
   }, [screeningPapers, screeningSelectedPaper]);
 
+  // Load project stats
+  const loadScreeningStats = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/papers/manual-screening?getStats=true`);
+      if (res.ok) {
+        const data = await res.json();
+        setScreeningStats(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch screening statistics', err);
+    }
+  }, [activeProjectId]);
+
+  // Load stats on project selection or change
+  useEffect(() => {
+    loadScreeningStats();
+  }, [activeProjectId, loadScreeningStats]);
+
   // Load normal paginated list
   const loadScreeningPapers = useCallback(async () => {
     if (screeningSearchMode === 'semantic') return; // Handled separately
@@ -122,10 +153,8 @@ export function useManualScreening(
     try {
       const params = new URLSearchParams();
       if (screeningSearch) params.append('search', screeningSearch);
-      if (screeningPoolFilter) params.append('calibrationPool', screeningPoolFilter);
       if (screeningStageFilter) params.append('manualStage', screeningStageFilter);
       if (screeningDecisionFilter) params.append('manualDecision', screeningDecisionFilter);
-      if (screeningPublisherFilter) params.append('publisher', screeningPublisherFilter);
       
       params.append('sortBy', screeningSortBy);
       params.append('sortOrder', screeningSortOrder);
@@ -149,8 +178,8 @@ export function useManualScreening(
     }
   }, [
     screeningPage, screeningLimit, screeningSortBy, screeningSortOrder, 
-    screeningSearch, screeningPoolFilter, screeningStageFilter, 
-    screeningDecisionFilter, screeningPublisherFilter, screeningSearchMode, showToast
+    screeningSearch, screeningStageFilter, screeningDecisionFilter,
+    screeningSearchMode, showToast
   ]);
 
   // Trigger semantic (vector) search
@@ -168,9 +197,9 @@ export function useManualScreening(
         body: JSON.stringify({
           query: screeningSearch,
           k: 100, // retrieve more to allow frontend pagination/filtering
-          pool: screeningPoolFilter || 'all',
+          pool: 'all',
           mode: 'papers',
-          publisher: screeningPublisherFilter || 'all'
+          publisher: 'all'
         })
       });
 
@@ -208,7 +237,9 @@ export function useManualScreening(
     } finally {
       setScreeningLoading(false);
     }
-  }, [screeningSearch, screeningPoolFilter, screeningPublisherFilter, screeningDecisionFilter, screeningStageFilter, showToast]);
+  }, [
+    screeningSearch, screeningDecisionFilter, screeningStageFilter, showToast
+  ]);
 
   // Save manual screening decision
   const saveManualDecision = useCallback(async (paperId: string) => {
@@ -405,7 +436,9 @@ export function useManualScreening(
   // Auto-reset pagination on filter edits
   useEffect(() => {
     setScreeningPage(1);
-  }, [screeningSearch, screeningPoolFilter, screeningStageFilter, screeningDecisionFilter, screeningPublisherFilter]);
+  }, [
+    screeningSearch, screeningStageFilter, screeningDecisionFilter
+  ]);
 
   return {
     screeningPapers,
@@ -420,14 +453,12 @@ export function useManualScreening(
     setScreeningSearch,
     screeningSearchMode,
     setScreeningSearchMode,
-    screeningPoolFilter,
-    setScreeningPoolFilter,
     screeningStageFilter,
     setScreeningStageFilter,
     screeningDecisionFilter,
     setScreeningDecisionFilter,
-    screeningPublisherFilter,
-    setScreeningPublisherFilter,
+    screeningStats,
+    loadScreeningStats,
     screeningSortBy,
     setScreeningSortBy,
     screeningSortOrder,

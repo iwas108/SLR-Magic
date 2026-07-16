@@ -82,11 +82,18 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 *   **Compiler Verification**: After tree shaking, you MUST run the TypeScript compiler (e.g., 
 px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, ensuring a clean and stable build.
 
+### 3.5 Isolation of Double-Blind Calibration Adjudication
+*   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and columns (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`) are standalone modules strictly reserved for prompt and agreement calibration.
+*   **Zero Integration Policy**: Do NOT connect, source, or reference these tables or columns inside the general screening pipeline (such as fast filter, gatekeeper, scientist, or miner), general database view/filtering, or main paper details editing/sourcing flows.
+*   **Manual Screening Precedence**: General human overrides during manual review MUST exclusively use the manual screening columns (`manual_decision`, `manual_ec_trigger`, `manual_rationale`) and the corresponding `manual_audit_log` table.
+
 ---
+
 
 ## 4. SLR IDE Core Blueprint Reference
 
 *   **Database**: SQLite (`db/slr.db`) with schema documentation in [slr-ide/db/schema.md](slr-ide/db/schema.md).
+*   **Manual Audit Trail**: The application logs all manual review overrides and decisions into the `manual_audit_log` table to capture reviewer history.
 *   **Smart Cache Matcher**: [slr-ide/scrapers/cache_matcher.py](slr-ide/scrapers/cache_matcher.py) (matches local PDFs using ID, DOI, Title Similarity, and Page 1 text).
 *   **Web Scraper**: [slr-ide/scrapers/pdf_scraper.py](slr-ide/scrapers/pdf_scraper.py) (downloads missing PDFs using undetected-chromedriver).
 *   **Sync**: Subprocess execution of `rclone` with shareable Google Drive links generation.

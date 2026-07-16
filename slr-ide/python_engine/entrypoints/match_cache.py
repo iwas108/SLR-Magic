@@ -277,10 +277,17 @@ def run_matcher():
             WHERE Project_ID = ? AND Paper_ID = ?
         """, (active_proj_id, paper_id_arg))
     else:
-        cursor.execute("""
-            SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
-            WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status != 'IGNORED')
-        """, (active_proj_id,))
+        force_update = '--force-update' in sys.argv
+        if force_update:
+            cursor.execute("""
+                SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
+                WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status != 'IGNORED')
+            """, (active_proj_id,))
+        else:
+            cursor.execute("""
+                SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
+                WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status IN ('MISSING', 'FAILED'))
+            """, (active_proj_id,))
     papers = cursor.fetchall()
 
     # Pre-build sets of existing file IDs for O(1) existence checks
@@ -325,13 +332,13 @@ def run_matcher():
                 if pid in existing_raw_ids:
                     has_file = True
                     file_found_path = local_pdf_path
-                    file_found_status = local_pdf_status
+                    file_found_status = local_pdf_status if local_pdf_status in ('MATCHED', 'DOWNLOADED', 'SYNCED') else 'MATCHED'
             elif norm_path.startswith(f'pdf_library/repo/{folder_name}/'):
                 pid = os.path.splitext(os.path.basename(norm_path))[0]
                 if pid in existing_repo_ids:
                     has_file = True
                     file_found_path = local_pdf_path
-                    file_found_status = local_pdf_status
+                    file_found_status = local_pdf_status if local_pdf_status in ('MATCHED', 'DOWNLOADED', 'SYNCED') else 'SYNCED'
 
         # If not found where DB points, check standard locations
         if not has_file and paper_id in existing_raw_ids:

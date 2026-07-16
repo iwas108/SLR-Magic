@@ -15,6 +15,7 @@ interface ViewEditPaperModalProps {
   loadPapers: () => void;
   loadProjects: () => void;
   setDeleteConfirm: any;
+  papers?: any[];
 }
 
 export default function ViewEditPaperModal({
@@ -25,7 +26,8 @@ export default function ViewEditPaperModal({
   showToast,
   loadPapers,
   loadProjects,
-  setDeleteConfirm
+  setDeleteConfirm,
+  papers = []
 }: ViewEditPaperModalProps) {
   const [editTitle, setEditTitle] = useState('');
   const [editAuthors, setEditAuthors] = useState('');
@@ -48,6 +50,91 @@ export default function ViewEditPaperModal({
   const [copied, setCopied] = useState(false);
   const [selectedEditParentPaper, setSelectedEditParentPaper] = useState<any>(null);
   const [editParentPaperId, setEditParentPaperId] = useState<string>('');
+
+  const hasChanges = !!(
+    editTitle !== (paperModal.paper?.Title || '') ||
+    editAuthors !== (paperModal.paper?.Authors || '') ||
+    editYear !== (paperModal.paper?.Year !== null ? String(paperModal.paper?.Year) : '') ||
+    editDoi !== (paperModal.paper?.DOI || '') ||
+    editAbstract !== (paperModal.paper?.Abstract || '') ||
+    editPdfLink !== (paperModal.paper?.PDF_Link || '') ||
+    editPdfStatus !== (paperModal.paper?.Local_PDF_Status || 'MISSING') ||
+    editStatus !== (paperModal.paper?.Status || 'PENDING') ||
+    editCalPool !== (paperModal.paper?.calibration_pool || '') ||
+    editCalTag !== (paperModal.paper?.calibration_tag || '') ||
+    editOriginalPublisher !== (paperModal.paper?.Original_Publisher || '') ||
+    editPublisher !== (paperModal.paper?.Publisher || '') ||
+    editNotes !== (paperModal.paper?.notes || '') ||
+    editCitationCount !== (paperModal.paper?.citation_count !== undefined && paperModal.paper?.citation_count !== null ? String(paperModal.paper?.citation_count) : '0') ||
+    editHumanDecision !== (paperModal.paper?.Human_Decision || '') ||
+    editHumanEcTrigger !== (paperModal.paper?.Human_EC_Trigger || '') ||
+    editHumanRationale !== (paperModal.paper?.Human_Rationale || '') ||
+    editParentPaperId !== (paperModal.paper?.Parent_Paper_ID || '')
+  );
+
+  const paperIdsSnapshotRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (paperModal?.isOpen && papers && papers.length > 0 && paperIdsSnapshotRef.current.length === 0) {
+      paperIdsSnapshotRef.current = papers.map((p: any) => p.Paper_ID);
+    }
+    if (!paperModal?.isOpen) {
+      paperIdsSnapshotRef.current = [];
+    }
+  }, [paperModal?.isOpen, papers]);
+
+  const navigationIds = paperIdsSnapshotRef.current.length > 0 ? paperIdsSnapshotRef.current : papers.map((p: any) => p.Paper_ID);
+  const currentIndex = navigationIds.indexOf(paperModal.paper?.Paper_ID);
+
+  const loadAndSetPaper = async (paperId: string) => {
+    const localMatch = papers.find((p: any) => p.Paper_ID === paperId);
+    if (localMatch) {
+      setPaperModal((prev: any) => ({
+        ...prev,
+        paper: localMatch
+      }));
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/papers/${paperId}`);
+      if (res.ok) {
+        const paper = await res.json();
+        setPaperModal((prev: any) => ({
+          ...prev,
+          paper
+        }));
+      } else {
+        showToast('Failed to load paper details', 'error');
+      }
+    } catch (err: any) {
+      showToast('Error loading paper details', 'error');
+    }
+  };
+
+  const handlePrevPaper = () => {
+    if (paperModal.mode === 'edit' && hasChanges) {
+      if (!confirm("You have unsaved changes. Are you sure you want to navigate away?")) {
+        return;
+      }
+    }
+    if (currentIndex > 0) {
+      const prevId = navigationIds[currentIndex - 1];
+      loadAndSetPaper(prevId);
+    }
+  };
+
+  const handleNextPaper = () => {
+    if (paperModal.mode === 'edit' && hasChanges) {
+      if (!confirm("You have unsaved changes. Are you sure you want to navigate away?")) {
+        return;
+      }
+    }
+    if (currentIndex !== -1 && currentIndex < navigationIds.length - 1) {
+      const nextId = navigationIds[currentIndex + 1];
+      loadAndSetPaper(nextId);
+    }
+  };
 
   const handleCopyDetails = async () => {
     if (!paperModal?.paper) return;
@@ -98,6 +185,23 @@ export default function ViewEditPaperModal({
         lastLoadedPaperRef.current.Human_Decision !== paperModal.paper.Human_Decision ||
         lastLoadedPaperRef.current.Human_EC_Trigger !== paperModal.paper.Human_EC_Trigger ||
         lastLoadedPaperRef.current.Human_Rationale !== paperModal.paper.Human_Rationale
+      ) && (
+        // Guard: check if the new database paper values are different from the user's current inputs
+        paperModal.paper.Title !== editTitle ||
+        paperModal.paper.Authors !== editAuthors ||
+        (paperModal.paper.Year !== null ? String(paperModal.paper.Year) : '') !== editYear ||
+        paperModal.paper.DOI !== editDoi ||
+        paperModal.paper.Abstract !== editAbstract ||
+        paperModal.paper.PDF_Link !== editPdfLink ||
+        (paperModal.paper.Local_PDF_Status || 'MISSING') !== editPdfStatus ||
+        (paperModal.paper.Status || 'PENDING') !== editStatus ||
+        (paperModal.paper.calibration_pool || '') !== editCalPool ||
+        (paperModal.paper.calibration_tag || '') !== editCalTag ||
+        (paperModal.paper.notes || '') !== editNotes ||
+        (paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0') !== editCitationCount ||
+        (paperModal.paper.Human_Decision || '') !== editHumanDecision ||
+        (paperModal.paper.Human_EC_Trigger || '') !== editHumanEcTrigger ||
+        (paperModal.paper.Human_Rationale || '') !== editHumanRationale
       );
 
       lastLoadedPaperRef.current = paperModal.paper;
@@ -174,23 +278,37 @@ export default function ViewEditPaperModal({
           Abstract: editAbstract,
           PDF_Link: editPdfLink,
           Local_PDF_Status: editPdfStatus,
-          Status: editStatus,
           Parent_Paper_ID: editParentPaperId || null,
           calibration_pool: editCalPool || null,
           calibration_tag: editCalTag || null,
           Original_Publisher: editOriginalPublisher,
           Publisher: editPublisher,
           citation_count: editCitationCount,
-          notes: editNotes,
-          Human_Decision: editHumanDecision || null,
-          Human_EC_Trigger: editHumanDecision === 'EXCLUDE' ? (editHumanEcTrigger || null) : null,
-          Human_Rationale: editHumanDecision === 'EXCLUDE' ? (editHumanRationale || null) : null
+          notes: editNotes
         })
       });
 
       if (res.ok) {
+        const updatedPaper = {
+          ...paperModal.paper,
+          Title: editTitle,
+          Authors: editAuthors,
+          Year: editYear ? Number(editYear) : null,
+          DOI: editDoi,
+          Abstract: editAbstract,
+          PDF_Link: editPdfLink,
+          Local_PDF_Status: editPdfStatus,
+          Status: editStatus,
+          Parent_Paper_ID: editParentPaperId || null,
+          calibration_pool: editCalPool || null,
+          calibration_tag: editCalTag || null,
+          Original_Publisher: editOriginalPublisher,
+          Publisher: editPublisher,
+          citation_count: editCitationCount ? Number(editCitationCount) : 0,
+          notes: editNotes
+        };
         showToast('Paper details updated successfully', 'success');
-        setPaperModal({ isOpen: false, mode: 'view', paper: null });
+        setPaperModal({ isOpen: true, mode: 'edit', paper: updatedPaper });
         loadPapers();
         loadProjects();
         broadcastSync('SYNC_PAPERS');
@@ -220,6 +338,9 @@ export default function ViewEditPaperModal({
               {paperModal.mode === 'view' ? 'Paper Details' : 'Edit Paper Details'}
             </h3>
           </div>
+
+
+
           <button 
             onClick={() => setPaperModal({ isOpen: false, mode: 'view', paper: null })} 
             className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
@@ -281,6 +402,7 @@ export default function ViewEditPaperModal({
                 aiDecision={paperModal.paper.AI_Decision}
                 aiEcTrigger={paperModal.paper.AI_EC_Trigger}
                 aiRationale={paperModal.paper.AI_Rationale}
+                activeProject={activeProject}
               />
             ) : (
               <PaperMetadataView
@@ -288,6 +410,7 @@ export default function ViewEditPaperModal({
                 setPaperModal={setPaperModal}
                 showToast={showToast}
                 getActiveProjectPoolTags={getActiveProjectPoolTags}
+                activeProject={activeProject}
               />
             )}
             
@@ -302,7 +425,7 @@ export default function ViewEditPaperModal({
 
         {/* Modal Footer Actions */}
         <div className="p-4 border-t border-border flex items-center justify-between bg-secondary/25 shrink-0">
-          <div>
+          <div className="min-w-[120px]">
             {paperModal.mode === 'view' && (
               <button
                 type="button"
@@ -315,7 +438,34 @@ export default function ViewEditPaperModal({
             )}
           </div>
 
-          <div className="flex gap-3">
+          {/* Navigation Controls */}
+          {papers && papers.length > 0 && (
+            <div className="flex items-center gap-2 bg-background/50 border border-border/60 px-2 py-0.5 rounded-lg shadow-sm">
+              <button
+                type="button"
+                onClick={handlePrevPaper}
+                disabled={currentIndex <= 0}
+                className="px-2 py-0.5 text-[10px] font-bold uppercase hover:bg-secondary border border-border/80 text-foreground disabled:opacity-30 disabled:cursor-not-allowed rounded transition-all"
+                title="Previous Paper"
+              >
+                &larr; Prev
+              </button>
+              <span className="text-[10px] text-muted-foreground font-mono font-bold select-none min-w-[55px] text-center">
+                {currentIndex !== -1 ? currentIndex + 1 : '—'} / {navigationIds.length}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextPaper}
+                disabled={currentIndex === -1 || currentIndex >= navigationIds.length - 1}
+                className="px-2 py-0.5 text-[10px] font-bold uppercase hover:bg-secondary border border-border/80 text-foreground disabled:opacity-30 disabled:cursor-not-allowed rounded transition-all"
+                title="Next Paper"
+              >
+                Next &rarr;
+              </button>
+            </div>
+          )}
+
+          <div className="flex gap-3 min-w-[120px] justify-end">
             {paperModal.mode === 'view' ? (
               <>
                 <button
@@ -354,9 +504,9 @@ export default function ViewEditPaperModal({
                 </button>
                 <button
                   type="button"
-                  disabled={savingPaper}
+                  disabled={savingPaper || !hasChanges}
                   onClick={handleSavePaper}
-                  className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5"
+                  className={`px-4 py-2 text-xs font-semibold rounded-lg shadow-md transition-colors flex items-center gap-1.5 ${(!hasChanges || savingPaper) ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed shadow-none' : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'}`}
                 >
                   {savingPaper && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   Save Changes

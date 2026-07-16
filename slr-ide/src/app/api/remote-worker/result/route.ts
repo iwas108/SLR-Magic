@@ -6,6 +6,7 @@ import { streamManager } from '@/lib/services/stream-manager';
 import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
 
 const PROJECT_ROOT = process.cwd().endsWith('slr-ide') 
   ? process.cwd() 
@@ -74,7 +75,41 @@ export async function POST(req: Request) {
         WHERE Paper_ID = ?
       `).run(dbPath, paper_id);
 
-      streamManager.broadcast({ event: 'progress', log: `[Remote Worker] Downloaded paper ${paper_id}` });
+      streamManager.broadcast({ event: 'progress', log: `[Remote Worker] Downloaded paper ${paper_id}. Initiating PDF Integrity Verification...` });
+
+      // Run Python PDF Integrity Verification gate on this paper
+      const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+      const verifyProcess = spawn(pythonExe, ['-m', 'python_engine.entrypoints.verify_pdfs', '--paper', paper_id], {
+        cwd: PROJECT_ROOT,
+      });
+
+      verifyProcess.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n');
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const parsed = JSON.parse(line.trim());
+              if (parsed.event === 'log') {
+                streamManager.broadcast({ event: 'progress', log: `[Verification] ${parsed.message}` });
+              } else if (parsed.event === 'paper_fail') {
+                streamManager.broadcast({ event: 'progress', log: `[Verification Error] ${parsed.error}` });
+              }
+            } catch {
+              // Ignore non-json stdout
+            }
+          }
+        }
+      });
+
+      verifyProcess.stderr.on('data', (data) => {
+        streamManager.broadcast({ event: 'progress', log: `[Verification Error] ${data.toString()}` });
+      });
+
+      await new Promise<void>((resolve) => {
+        verifyProcess.on('close', () => {
+          resolve();
+        });
+      });
 
     } else if (status === 'FAILED') {
       db.prepare(`

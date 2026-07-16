@@ -62,7 +62,10 @@ def main():
             if proj_row:
                 folder_name = proj_row[0]
                 
-            cursor.execute("SELECT Paper_ID, Local_PDF_Path FROM papers WHERE Project_ID = ? AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED')", (active_proj_id,))
+            force_update = '--force-update' in sys.argv
+            status_in = "('MATCHED', 'DOWNLOADED', 'SYNCED')" if force_update else "('MATCHED', 'DOWNLOADED')"
+            
+            cursor.execute(f"SELECT Paper_ID, Local_PDF_Path FROM papers WHERE Project_ID = ? AND Local_PDF_Status IN {status_in}", (active_proj_id,))
             papers = cursor.fetchall()
             conn.close()
         except Exception as e:

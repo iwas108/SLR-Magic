@@ -98,6 +98,7 @@ export default function GlobalLLMSettingsView({
   const [taskType, setTaskType] = useState<'fast_filter' | 'gatekeeper' | 'scientist' | 'miner'>('fast_filter');
   const [statusFilter, setStatusFilter] = useState<string>('0');
   const [decisionFilter, setDecisionFilter] = useState<string>('ALL');
+  const [excludeManual, setExcludeManual] = useState<boolean>(true);
   const [paperSelectionMode, setPaperSelectionMode] = useState<'all' | 'all_project' | 'limit' | 'range' | 'selected'>(
     preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'selected' : 'all'
   );
@@ -128,17 +129,22 @@ export default function GlobalLLMSettingsView({
   }, [taskType]);
 
   useEffect(() => {
-    if (!activeProject?.id) return;
-    
-    if (paperSelectionMode === 'selected') {
-      setTargetCount(preSelectedPaperIds?.length || 0);
-      return;
-    }
+    if (!activeProject?.id || !statusFilter) return;
 
     const fetchCount = async () => {
       try {
         const effectiveStatus = paperSelectionMode === 'all_project' ? 'ALL' : statusFilter;
-        const res = await fetch(`/api/llm/count?projectId=${activeProject.id}&statusFilter=${effectiveStatus}&decisionFilter=${decisionFilter}`);
+        let url = `/api/llm/count?projectId=${activeProject.id}&statusFilter=${effectiveStatus}&decisionFilter=${decisionFilter}&excludeManual=${excludeManual}&taskType=${taskType}`;
+        
+        if (paperSelectionMode === 'selected' && preSelectedPaperIds) {
+          if (preSelectedPaperIds.length === 0) {
+            setTargetCount(0);
+            return;
+          }
+          url += `&paperIds=${preSelectedPaperIds.join(',')}`;
+        }
+
+        const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
           setTargetCount(data.count);
@@ -149,7 +155,7 @@ export default function GlobalLLMSettingsView({
     };
     
     fetchCount();
-  }, [activeProject?.id, statusFilter, decisionFilter, paperSelectionMode, preSelectedPaperIds]);
+  }, [activeProject?.id, statusFilter, decisionFilter, paperSelectionMode, preSelectedPaperIds, excludeManual, taskType]);
 
   const getPromptValidation = () => {
     if (!activeTemplateId) {
@@ -563,6 +569,7 @@ export default function GlobalLLMSettingsView({
       if (action === 'start') {
         payload.statusFilter = paperSelectionMode === 'all_project' ? 'ALL' : statusFilter;
         payload.decisionFilter = decisionFilter;
+        payload.excludeManual = excludeManual;
 
         if (paperSelectionMode === 'limit') {
           payload.limit = batchLimit;
@@ -1682,6 +1689,20 @@ export default function GlobalLLMSettingsView({
                         </select>
                       </div>
                     )}
+
+                    <div className="flex items-center space-x-2.5 pt-1 md:col-span-3">
+                      <input
+                        type="checkbox"
+                        id="excludeManualToggle"
+                        checked={excludeManual}
+                        onChange={(e) => setExcludeManual(e.target.checked)}
+                        disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                        className="w-3.5 h-3.5 rounded border-border bg-secondary/40 text-primary accent-primary outline-none focus:ring-1 focus:ring-primary/45 cursor-pointer"
+                      />
+                      <label htmlFor="excludeManualToggle" className="text-xs font-semibold text-muted-foreground select-none cursor-pointer">
+                        Exclude papers manually screened in this stage
+                      </label>
+                    </div>
                   </div>
 
                   {/* Row 4: Conditionally Render Selection Parameters */}
@@ -1732,7 +1753,7 @@ export default function GlobalLLMSettingsView({
                     <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-xs text-muted-foreground flex items-center justify-between animate-in slide-in-from-top-2 duration-200">
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-3.5 h-3.5 text-primary" />
-                        <span>Selected <strong>{preSelectedPaperIds.length} papers</strong> from the database view checkmarks.</span>
+                        <span>Selected <strong>{preSelectedPaperIds.length} papers</strong> ({targetCount} eligible to run) from checkmarks.</span>
                       </div>
                       <button
                         onClick={() => setPaperSelectionMode('all')}

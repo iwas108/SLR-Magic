@@ -274,6 +274,26 @@ export class BatchStateTracker {
         state.pipelineStats.failed += 1;
         this.pushLog(`✗ Publisher mapping failed for ${parsed.paper_id}: ${parsed.error}`);
       }
+    } else if (parsed.step === 'verify') {
+      if (parsed.event === 'start') {
+        state.pipelineStats.total = parsed.total;
+        state.pipelineStats.current = 0;
+        state.pipelineStats.failed = 0;
+        this.pushLog(`PDF Integrity Verification starting for ${parsed.total} papers...`);
+        state.statusText = 'Launching PDF Integrity Verifier...';
+      } else if (parsed.event === 'progress') {
+        const percent = Math.round((parsed.current / parsed.total) * 100);
+        state.pipelineStats.current = parsed.current;
+        state.progress = percent;
+        state.currentItem = parsed.title;
+        state.statusText = `Verifying PDF: paper ${parsed.current} of ${parsed.total}...`;
+        this.pushLog(`[Verify ${parsed.current}/${parsed.total}] Auditing PDF for: "${parsed.title}"`);
+      } else if (parsed.event === 'paper_success') {
+        this.pushLog(`✓ Verification passed for ${parsed.paper_id}.`);
+      } else if (parsed.event === 'paper_fail') {
+        state.pipelineStats.failed += 1;
+        this.pushLog(`✗ Verification failed for ${parsed.paper_id}: ${parsed.error}`);
+      }
     } else if (parsed.step === 'sync') {
       if (parsed.event === 'start') {
         state.pipelineStats.total = parsed.total;

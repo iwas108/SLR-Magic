@@ -14,16 +14,14 @@ interface PaperDatabaseViewProps {
   setShowDuplicateModal: React.Dispatch<React.SetStateAction<boolean>>;
   searchTerm: string;
   setSearchTerm: (v: string) => void;
-  statusFilter: string;
-  setStatusFilter: (v: string) => void;
   pdfFilter: string;
   setPdfFilter: (v: string) => void;
   sourceFilter: string;
   setSourceFilter: (v: string) => void;
-  decisionFilter: string;
-  setDecisionFilter: (v: string) => void;
-  ecTriggerFilter: string;
-  setEcTriggerFilter: (v: string) => void;
+  doiStatusFilter: string;
+  setDoiStatusFilter: (v: string) => void;
+  pdfLinkFilter: string;
+  setPdfLinkFilter: (v: string) => void;
   setShowImport: (show: boolean) => void;
   setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
   cloudName: string;
@@ -60,16 +58,14 @@ export default function PaperDatabaseView({
   setShowDuplicateModal,
   searchTerm,
   setSearchTerm,
-  statusFilter,
-  setStatusFilter,
   pdfFilter,
   setPdfFilter,
   sourceFilter,
   setSourceFilter,
-  decisionFilter,
-  setDecisionFilter,
-  ecTriggerFilter,
-  setEcTriggerFilter,
+  doiStatusFilter,
+  setDoiStatusFilter,
+  pdfLinkFilter,
+  setPdfLinkFilter,
   setShowImport,
   setDeleteAllConfirm,
   cloudName,
@@ -95,116 +91,12 @@ export default function PaperDatabaseView({
   const [showFilters, setShowFilters] = React.useState(false);
   const [bulkType, setBulkType] = React.useState('');
   const [bulkValue, setBulkValue] = React.useState('');
-  const [ecTriggerOptions, setEcTriggerOptions] = React.useState<string[]>([]);
-
-  React.useEffect(() => {
-    async function fetchEcTriggers() {
-      try {
-        const res = await fetch('/api/papers?getEcTriggers=true');
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setEcTriggerOptions(data);
-          }
-        }
-      } catch (err) {
-        console.error("Error fetching EC triggers:", err);
-      }
-    }
-    fetchEcTriggers();
-  }, [papers]);
 
   const clearAllFilters = () => {
-    setStatusFilter('');
-    setDecisionFilter('');
     setPdfFilter('');
     setSourceFilter('');
-    setEcTriggerFilter('');
-  };
-
-
-  const handleDecisionOverride = async (paper: any, val: string) => {
-    const payload = {
-      Title: paper.Title,
-      Human_Decision: val === 'CLEAR' ? null : val,
-      Human_EC_Trigger: val === 'CLEAR' ? null : paper.Human_EC_Trigger,
-      Human_Rationale: val === 'CLEAR' ? null : paper.Human_Rationale
-    };
-    try {
-      const res = await fetch(`/api/papers/${paper.Paper_ID}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error();
-      loadPapers?.();
-      showToast?.('Decision override updated successfully', 'success');
-      broadcastSync('SYNC_PAPERS');
-    } catch (e) {
-      showToast?.('Failed to update decision override', 'error');
-    }
-  };
-
-  const handleBulkOverride = async (decisionVal: string) => {
-    try {
-      const ids = Array.from(selectedPaperIds);
-      const confirmMsg = `Are you sure you want to apply a decision override of "${decisionVal}" to ${ids.length} selected paper(s)?`;
-      if (!window.confirm(confirmMsg)) return;
-
-      const res = await fetch('/api/papers', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          paperIds: ids,
-          humanDecision: decisionVal
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to apply bulk overrides');
-      }
-      showToast?.(`Successfully applied override to ${ids.length} papers.`, 'success');
-      setSelectedPaperIds?.(new Set());
-      loadPapers?.();
-      broadcastSync('SYNC_PAPERS');
-    } catch (e: any) {
-      showToast?.(e.message || 'Operation failed', 'error');
-    }
-  };
-
-  const handleBulkStageChange = async (stageVal: string) => {
-    try {
-      const ids = Array.from(selectedPaperIds);
-      const stageLabels: Record<string, string> = {
-        '0': '0: Unprocessed',
-        '1': '1: Fast Filter (Metadata)',
-        '2': '2: Passed Gatekeeper (PDF)',
-        '3': '3: Passed Scientist (QA)',
-        '4': '4: Passed Miner (Extraction)'
-      };
-      const targetLabel = stageLabels[stageVal] || stageVal;
-      const confirmMsg = `Are you sure you want to change the pipeline stage to "${targetLabel}" for ${ids.length} selected paper(s)?`;
-      if (!window.confirm(confirmMsg)) return;
-
-      const res = await fetch('/api/papers', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          paperIds: ids,
-          status: stageVal
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Failed to change pipeline stage');
-      }
-      showToast?.(`Successfully changed pipeline stage for ${ids.length} papers.`, 'success');
-      setSelectedPaperIds?.(new Set());
-      loadPapers?.();
-      broadcastSync('SYNC_PAPERS');
-    } catch (e: any) {
-      showToast?.(e.message || 'Operation failed', 'error');
-    }
+    setDoiStatusFilter('');
+    setPdfLinkFilter('');
   };
 
   const handleBulkPdfStatusChange = async (pdfStatusVal: string) => {
@@ -226,6 +118,33 @@ export default function PaperDatabaseView({
         throw new Error(err.error || 'Failed to change local PDF status');
       }
       showToast?.(`Successfully changed local PDF status for ${ids.length} papers.`, 'success');
+      setSelectedPaperIds?.(new Set());
+      loadPapers?.();
+      broadcastSync('SYNC_PAPERS');
+    } catch (e: any) {
+      showToast?.(e.message || 'Operation failed', 'error');
+    }
+  };
+
+  const handleBulkPdfDelete = async () => {
+    try {
+      const ids = Array.from(selectedPaperIds);
+      const confirmMsg = `Are you sure you want to permanently delete project repo PDF assets and unset PDF links for ${ids.length} selected paper(s)?\n\n(Note: PDFs in the raw library folder will remain untouched.)`;
+      if (!window.confirm(confirmMsg)) return;
+
+      const res = await fetch('/api/pdf/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paperIds: ids,
+          keepRaw: true
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to bulk delete PDFs');
+      }
+      showToast?.(`Successfully deleted PDF files and reset links for ${ids.length} papers.`, 'success');
       setSelectedPaperIds?.(new Set());
       loadPapers?.();
       broadcastSync('SYNC_PAPERS');
@@ -261,11 +180,11 @@ export default function PaperDatabaseView({
         const query = new URLSearchParams({
           onlyIds: 'true',
           search: searchTerm,
-          status: statusFilter,
           pdfStatus: pdfFilter,
-          source: sourceFilter,
-          decision: decisionFilter
+          source: sourceFilter
         });
+        if (doiStatusFilter) query.append('doiStatus', doiStatusFilter);
+        if (pdfLinkFilter) query.append('pdfLink', pdfLinkFilter);
         const res = await fetch(`/api/papers?${query}`);
         if (res.ok) {
           const data = await res.json();
@@ -329,16 +248,16 @@ export default function PaperDatabaseView({
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`px-3 py-2 border rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  showFilters || statusFilter || decisionFilter || pdfFilter || sourceFilter || ecTriggerFilter
+                  showFilters || pdfFilter || sourceFilter || doiStatusFilter || pdfLinkFilter
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-secondary text-foreground border-border hover:bg-secondary/80'
                 }`}
               >
                 <Filter className="w-3.5 h-3.5" />
                 Filters
-                {(statusFilter || decisionFilter || pdfFilter || sourceFilter || ecTriggerFilter) && (
+                {(pdfFilter || sourceFilter || doiStatusFilter || pdfLinkFilter) && (
                   <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/20 text-[10px]">
-                    {[statusFilter, decisionFilter, pdfFilter, sourceFilter, ecTriggerFilter].filter(Boolean).length}
+                    {[pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter].filter(Boolean).length}
                   </span>
                 )}
               </button>
@@ -351,33 +270,12 @@ export default function PaperDatabaseView({
                   </div>
                   
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Pipeline Stage</label>
-                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                      <option value="">Any Stage</option>
-                      <option value="0">0: Unprocessed</option>
-                      <option value="1">1: Fast Filter (Metadata)</option>
-                      <option value="2">2: Passed Gatekeeper (PDF)</option>
-                      <option value="3">3: Passed Scientist (QA)</option>
-                      <option value="4">4: Passed Miner (Extraction)</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Screening Decision</label>
-                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={decisionFilter} onChange={(e) => setDecisionFilter(e.target.value)}>
-                      <option value="">Any Decision</option>
-                      <option value="INCLUDE">INCLUDE</option>
-                      <option value="EXCLUDE">EXCLUDE</option>
-                      <option value="UNADJUDICATED">Is Empty (Undecided)</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase">PDF Status</label>
                     <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={pdfFilter} onChange={(e) => setPdfFilter(e.target.value)}>
                       <option value="">Any PDF Status</option>
                       <option value="IGNORED">IGNORED</option>
                       <option value="MISSING">MISSING</option>
+                      <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
                       <option value="MATCHED">MATCHED</option>
                       <option value="DOWNLOADED">DOWNLOADED</option>
                       <option value="SYNCED">SYNCED</option>
@@ -397,13 +295,20 @@ export default function PaperDatabaseView({
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Exclusion Criterion</label>
-                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold font-mono" value={ecTriggerFilter} onChange={(e) => setEcTriggerFilter(e.target.value)}>
-                      <option value="" className="font-sans font-semibold">Any Exclusion Code</option>
-                      <option value="none" className="font-sans font-semibold">None (No Exclusion Code)</option>
-                      {ecTriggerOptions.map(code => (
-                        <option key={code} value={code}>{code}</option>
-                      ))}
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">DOI Status</label>
+                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={doiStatusFilter} onChange={(e) => setDoiStatusFilter(e.target.value)}>
+                      <option value="">Any DOI</option>
+                      <option value="empty">Empty DOI</option>
+                      <option value="has_doi">Has DOI</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">PDF Link</label>
+                    <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={pdfLinkFilter} onChange={(e) => setPdfLinkFilter(e.target.value)}>
+                      <option value="">Any State</option>
+                      <option value="has_link">Has PDF Link</option>
+                      <option value="empty">Empty</option>
                     </select>
                   </div>
                 </div>
@@ -426,16 +331,21 @@ export default function PaperDatabaseView({
                 <span className="text-[10px] text-muted-foreground font-bold uppercase">Selected ({selectedPaperIds.size}):</span>
                 <select
                   value={bulkType}
-                  onChange={(e) => {
-                    setBulkType(e.target.value);
-                    setBulkValue('');
+                  onChange={async (e) => {
+                    const type = e.target.value;
+                    if (type === 'deletePdfs') {
+                      await handleBulkPdfDelete();
+                      setBulkType('');
+                    } else {
+                      setBulkType(type);
+                      setBulkValue('');
+                    }
                   }}
                   className="bg-primary/10 text-primary border border-primary/25 rounded-lg px-2.5 py-1.5 text-[10px] focus:outline-none focus:border-primary font-bold transition-all"
                 >
                   <option value="" className="bg-background text-foreground">Bulk Action...</option>
-                  <option value="decision" className="bg-background text-foreground">Decision Override</option>
-                  <option value="stage" className="bg-background text-foreground">Pipeline Stage Change</option>
                   <option value="pdfStatus" className="bg-background text-foreground">Local PDF Status</option>
+                  <option value="deletePdfs" className="bg-background text-foreground">Delete PDFs & Unset Links</option>
                 </select>
 
                 {bulkType && (
@@ -444,11 +354,7 @@ export default function PaperDatabaseView({
                     onChange={async (e) => {
                       const val = e.target.value;
                       if (!val) return;
-                      if (bulkType === 'decision') {
-                        await handleBulkOverride(val);
-                      } else if (bulkType === 'stage') {
-                        await handleBulkStageChange(val);
-                      } else if (bulkType === 'pdfStatus') {
+                      if (bulkType === 'pdfStatus') {
                         await handleBulkPdfStatusChange(val);
                       }
                       setBulkValue('');
@@ -457,29 +363,12 @@ export default function PaperDatabaseView({
                     className="bg-primary/10 text-primary border border-primary/25 rounded-lg px-2.5 py-1.5 text-[10px] focus:outline-none focus:border-primary font-bold transition-all ml-1.5 animate-in slide-in-from-left-2 duration-150"
                   >
                     <option value="" className="bg-background text-foreground">Select Value...</option>
-                    {bulkType === 'decision' ? (
-                      <>
-                        <option value="INCLUDE" className="bg-background text-emerald-400 font-bold">Override to INCLUDE</option>
-                        <option value="EXCLUDE" className="bg-background text-red-400 font-bold">Override to EXCLUDE</option>
-                        <option value="CLEAR" className="bg-background text-muted-foreground font-semibold">Clear Overrides</option>
-                      </>
-                    ) : bulkType === 'stage' ? (
-                      <>
-                        <option value="0" className="bg-background text-foreground">0: Unprocessed</option>
-                        <option value="1" className="bg-background text-foreground">1: Fast Filter (Metadata)</option>
-                        <option value="2" className="bg-background text-foreground">2: Passed Gatekeeper (PDF)</option>
-                        <option value="3" className="bg-background text-foreground">3: Passed Scientist (QA)</option>
-                        <option value="4" className="bg-background text-foreground">4: Passed Miner (Extraction)</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="IGNORED" className="bg-background text-foreground">IGNORED</option>
-                        <option value="MISSING" className="bg-background text-foreground">MISSING</option>
-                        <option value="MATCHED" className="bg-background text-foreground">MATCHED</option>
-                        <option value="DOWNLOADED" className="bg-background text-foreground">DOWNLOADED</option>
-                        <option value="SYNCED" className="bg-background text-foreground">SYNCED</option>
-                      </>
-                    )}
+                    <option value="IGNORED" className="bg-background text-foreground">IGNORED</option>
+                    <option value="MISSING" className="bg-background text-foreground">MISSING</option>
+                    <option value="NEEDS_REVIEW" className="bg-background text-foreground">NEEDS_REVIEW</option>
+                    <option value="MATCHED" className="bg-background text-foreground">MATCHED</option>
+                    <option value="DOWNLOADED" className="bg-background text-foreground">DOWNLOADED</option>
+                    <option value="SYNCED" className="bg-background text-foreground">SYNCED</option>
                   </select>
                 )}
               </div>
@@ -611,9 +500,10 @@ export default function PaperDatabaseView({
                           <div className="flex items-center gap-1.5 truncate">
                             <span className={`w-2 h-2 rounded-full shrink-0 ${p.Local_PDF_Status === 'SYNCED' ? 'bg-emerald-500' :
                               p.Local_PDF_Status === 'DOWNLOADED' || p.Local_PDF_Status === 'MATCHED' ? 'bg-amber-500 animate-pulse' :
-                                p.Local_PDF_Status === 'FAILED' ? 'bg-destructive' :
-                                  p.Local_PDF_Status === 'IGNORED' ? 'bg-muted-foreground/50' :
-                                    'bg-destructive/60'
+                                p.Local_PDF_Status === 'NEEDS_REVIEW' ? 'bg-purple-500' :
+                                  p.Local_PDF_Status === 'FAILED' ? 'bg-destructive' :
+                                    p.Local_PDF_Status === 'IGNORED' ? 'bg-muted-foreground/50' :
+                                      'bg-destructive/60'
                               }`} />
                             <span className="text-[10px] font-bold tracking-wider uppercase truncate">
                               {p.Local_PDF_Status}

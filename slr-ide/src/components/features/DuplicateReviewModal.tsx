@@ -412,7 +412,8 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
                 <span className={`w-2 h-2 rounded-full ${
                   paper.Local_PDF_Status === 'SYNCED' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/20' :
                   paper.Local_PDF_Status === 'DOWNLOADED' ? 'bg-blue-500' :
-                  paper.Local_PDF_Status === 'MATCHED' ? 'bg-indigo-500' : 'bg-muted-foreground/50'
+                  paper.Local_PDF_Status === 'MATCHED' ? 'bg-indigo-500' : 
+                  paper.Local_PDF_Status === 'NEEDS_REVIEW' ? 'bg-purple-500' : 'bg-muted-foreground/50'
                 }`} />
                 <span className="text-xs font-bold uppercase">{paper.Local_PDF_Status || 'MISSING'}</span>
               </div>

@@ -18,6 +18,7 @@ export function usePipeline({
   const [batchSteps, setBatchSteps] = useState<Record<string, boolean>>({
     duplicate_scan: false,
     scan: false,
+    verify: false,
     scrape: false,
     map_publisher: false,
     sync: false
@@ -25,7 +26,7 @@ export function usePipeline({
 
   const [operationModal, setOperationModal] = useState<{
     isOpen: boolean;
-    type: 'scan' | 'scrape' | 'sync' | null;
+    type: 'scan' | 'verify' | 'scrape' | 'sync' | null;
     title: string;
     progress: number;
     statusText: string;
@@ -45,7 +46,7 @@ export function usePipeline({
   });
 
   const [isModalMinimized, setIsModalMinimized] = useState(false);
-  const [currentStep, setCurrentStep] = useState<'scan' | 'duplicate_scan' | 'scrape' | 'compress' | 'sync' | 'map_publisher' | null>(null);
+  const [currentStep, setCurrentStep] = useState<'scan' | 'duplicate_scan' | 'verify' | 'scrape' | 'compress' | 'sync' | 'map_publisher' | null>(null);
   const [pipelineStats, setPipelineStats] = useState({
     matched: 0,
     downloaded: 0,
@@ -226,6 +227,7 @@ export function usePipeline({
           setBatchSteps({
             duplicate_scan: data.steps.includes('duplicate_scan'),
             scan: data.steps.includes('scan'),
+            verify: data.steps.includes('verify'),
             scrape: data.steps.includes('scrape'),
             map_publisher: data.steps.includes('map_publisher'),
             sync: data.steps.includes('sync')

@@ -9,7 +9,8 @@ import shutil
 from python_engine.core.config import DB_PATH, PROJECT_DIR
 from python_engine.crawler.config import ScraperConfig
 from python_engine.crawler.browser import BrowserHandler, ProxyRateLimitException
-from python_engine.pdf.validator import validate_scraped_pdf, extract_doi_value
+from python_engine.pdf.validator import extract_doi_value
+from python_engine.entrypoints.verify_pdfs import verify_paper_pdf
 
 DOWNLOAD_DIR = os.path.join(PROJECT_DIR, 'pdf_library', 'downloads')
 RAW_DIR = os.path.join(PROJECT_DIR, 'pdf_library', 'raw')
@@ -56,6 +57,22 @@ def main():
         """, (active_proj_id,))
     papers = cursor.fetchall()
     total = len(papers)
+
+    cursor.execute("SELECT value FROM configs WHERE key = 'FUZZY_MATCH_THRESHOLD'")
+    row = cursor.fetchone()
+    fuzzy_threshold = float(row[0]) / 100.0 if row else 0.70
+
+    cursor.execute("SELECT value FROM configs WHERE key = 'PDF_VERIFY_MIN_SIZE_KB'")
+    row_size = cursor.fetchone()
+    min_size_kb = float(row_size[0]) if row_size else 55.0
+
+    cursor.execute("SELECT value FROM configs WHERE key = 'OCR_ENABLED'")
+    row_ocr = cursor.fetchone()
+    ocr_enabled = row_ocr[0].lower() == 'true' if row_ocr else False
+
+    cursor.execute("SELECT value FROM configs WHERE key = 'TESSERACT_PATH'")
+    row_tess = cursor.fetchone()
+    tesseract_path = row_tess[0] if row_tess else 'tesseract'
 
     print(json.dumps({"event": "start", "total": total}))
 
@@ -122,6 +139,23 @@ def main():
         paper_id, doi_raw, title = paper
         doi = extract_doi_value(doi_raw)
 
+        if not doi or not doi.strip():
+            fail_count += 1
+            cursor.execute("""
+                UPDATE papers
+                SET Local_PDF_Status = 'FAILED'
+                WHERE Paper_ID = ?
+            """, (paper_id,))
+            conn.commit()
+            print(json.dumps({
+                "event": "paper_fail",
+                "paper_id": paper_id,
+                "title": title,
+                "error": "Skip scraping: DOI is empty or invalid."
+            }))
+            sys.stdout.flush()
+            continue
+
         print(json.dumps({
             "event": "progress",
             "current": i + 1,
@@ -156,42 +190,42 @@ def main():
                 downloaded = None
 
         if downloaded and os.path.exists(downloaded):
-            # Validate the PDF
-            is_valid, validation_msg = validate_scraped_pdf(downloaded)
-            if not is_valid:
-                fail_count += 1
+            # Validate the PDF using the Integrity Verification gate
+            status, validation_msg = verify_paper_pdf(
+                downloaded,
+                min_size_kb=min_size_kb,
+                ocr_enabled=ocr_enabled,
+                tesseract_path=tesseract_path,
+                expected_title=title,
+                fuzzy_threshold=fuzzy_threshold
+            )
+            
+            dest_filename = f"{paper_id}.pdf"
+            dest_path = os.path.join(RAW_DIR, dest_filename)
+            try:
+                shutil.move(downloaded, dest_path)
+                new_pdf_status = 'NEEDS_REVIEW' if status == 'NEEDS_REVIEW' else 'DOWNLOADED'
                 cursor.execute("""
                     UPDATE papers
-                    SET Local_PDF_Status = 'FAILED'
+                    SET Local_PDF_Status = ?, Local_PDF_Path = ?
                     WHERE Paper_ID = ?
-                """, (paper_id,))
+                """, (new_pdf_status, f"pdf_library/raw/{dest_filename}", paper_id))
                 conn.commit()
-                # Delete the invalid file
-                try:
-                    os.remove(downloaded)
-                except:
-                    pass
-                print(json.dumps({
-                    "event": "paper_fail",
-                    "paper_id": paper_id,
-                    "title": title,
-                    "error": f"PDF validation failed: {validation_msg}"
-                }))
+                success_count += 1
+                
+                if status == 'NEEDS_REVIEW':
+                    print(json.dumps({
+                        "event": "log",
+                        "message": f"[{paper_id}] PDF integrity check failed: {validation_msg} -> Marked as NEEDS_REVIEW"
+                    }))
+                else:
+                    print(json.dumps({
+                        "event": "log",
+                        "message": f"[{paper_id}] PDF integrity check passed -> Marked as DOWNLOADED"
+                    }))
+                    
+                print(json.dumps({"event": "paper_success", "paper_id": paper_id, "title": title}))
                 sys.stdout.flush()
-            else:
-                dest_filename = f"{paper_id}.pdf"
-                dest_path = os.path.join(RAW_DIR, dest_filename)
-                try:
-                    shutil.move(downloaded, dest_path)
-                    cursor.execute("""
-                        UPDATE papers
-                        SET Local_PDF_Status = 'DOWNLOADED', Local_PDF_Path = ?
-                        WHERE Paper_ID = ?
-                    """, (f"pdf_library/raw/{dest_filename}", paper_id))
-                    conn.commit()
-                    success_count += 1
-                    print(json.dumps({"event": "paper_success", "paper_id": paper_id, "title": title}))
-                    sys.stdout.flush()
                 except Exception as e:
                     fail_count += 1
                     cursor.execute("""

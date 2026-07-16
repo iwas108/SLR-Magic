@@ -64,6 +64,20 @@ export default function ScraperSettingsTab({
         </div>
 
         <div className="space-y-1.5">
+          <label className="block text-xs font-semibold text-muted-foreground">Minimum PDF File Size (KB)</label>
+          <input
+            type="number"
+            className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary font-mono text-[11px]"
+            value={configs.PDF_VERIFY_MIN_SIZE_KB || '55'}
+            onChange={(e) => handleChange('PDF_VERIFY_MIN_SIZE_KB', e.target.value)}
+            min="1"
+          />
+          <p className="text-[10px] text-muted-foreground">Files below this size are flagged as NEEDS_REVIEW during verification. Default: 55 KB.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
           <label className="block text-xs font-semibold text-muted-foreground">Chrome Browser Visibility</label>
           <div className="flex items-center h-10">
             <label className="relative inline-flex items-center cursor-pointer">
@@ -81,18 +95,18 @@ export default function ScraperSettingsTab({
           </div>
           <p className="text-[10px] text-muted-foreground">Headed mode is recommended if manual login or captcha solving is required.</p>
         </div>
-      </div>
 
-      <div className="space-y-1.5">
-        <label className="block text-xs font-semibold text-muted-foreground">Chrome User Profile Location</label>
-        <input
-          type="text"
-          className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary font-mono text-[11px]"
-          value={configs.SCRAPER_CHROME_PROFILE_DIR || ''}
-          onChange={(e) => handleChange('SCRAPER_CHROME_PROFILE_DIR', e.target.value)}
-          placeholder="./chrome_profile"
-        />
-        <p className="text-[10px] text-muted-foreground">Location to store cookies and persistent Chrome sessions (highly recommended to keep sessions logged into proxy).</p>
+        <div className="space-y-1.5">
+          <label className="block text-xs font-semibold text-muted-foreground">Chrome User Profile Location</label>
+          <input
+            type="text"
+            className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-foreground focus:outline-none focus:border-primary font-mono text-[11px]"
+            value={configs.SCRAPER_CHROME_PROFILE_DIR || ''}
+            onChange={(e) => handleChange('SCRAPER_CHROME_PROFILE_DIR', e.target.value)}
+            placeholder="./chrome_profile"
+          />
+          <p className="text-[10px] text-muted-foreground">Location to store cookies and persistent Chrome sessions.</p>
+        </div>
       </div>
 
       <div className="border-t border-border my-2 pt-2">

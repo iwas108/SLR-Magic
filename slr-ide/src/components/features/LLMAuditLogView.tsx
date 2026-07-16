@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Loader, ChevronDown, ChevronUp, Database, FileText, CheckCircle2, XCircle, RefreshCw, Layers } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Loader, ChevronDown, ChevronUp, Database, FileText, CheckCircle2, XCircle, RefreshCw, Layers, Search, Filter, ExternalLink } from 'lucide-react';
 import JSONViewer from '@/components/ui/JSONViewer';
+import ViewEditPaperModal from '@/components/features/modals/ViewEditPaperModal';
 
 interface AuditLog {
   id: number;
@@ -142,12 +144,22 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stageFilter, setStageFilter] = useState('all');
+  const [paperModal, setPaperModal] = useState<{ isOpen: boolean; mode: string; paper: any | null }>({ isOpen: false, mode: 'view', paper: null });
   const limit = 10;
 
   const loadAuditLogs = () => {
     if (!activeProject?.id) return;
     setLoading(true);
-    fetch(`/api/llm/audit?projectId=${activeProject.id}&limit=${limit}&offset=${page * limit}`)
+    const params = new URLSearchParams({
+      projectId: activeProject.id.toString(),
+      limit: limit.toString(),
+      offset: (page * limit).toString(),
+      search: searchQuery,
+      stage: stageFilter
+    });
+    fetch(`/api/llm/audit?${params.toString()}`)
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -166,10 +178,25 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
 
   useEffect(() => {
     loadAuditLogs();
-  }, [activeProject?.id, page]);
+  }, [activeProject?.id, page, stageFilter, searchQuery]);
 
   const toggleRow = (id: number) => {
     setExpandedRow(expandedRow === id ? null : id);
+  };
+
+  const handleOpenPaper = async (paperId: string) => {
+    try {
+      const res = await fetch(`/api/papers/${paperId}?projectId=${activeProject.id}`);
+      const data = await res.json();
+      if (!data.error && data.Paper_ID) {
+        setPaperModal({ isOpen: true, mode: 'view', paper: data });
+      } else {
+        showToast?.('Failed to load paper details', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast?.('Error loading paper', 'error');
+    }
   };
 
   if (loading && logs.length === 0) {
@@ -191,13 +218,39 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
           </h4>
           <p className="text-[10px] text-muted-foreground">Trace of every API interaction call, costs, and token usages</p>
         </div>
-        <button
-          onClick={loadAuditLogs}
-          className="p-1.5 rounded-lg border border-border hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all flex items-center gap-1.5"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 border border-border/80 rounded-lg px-2 py-1 bg-secondary/30">
+            <Search className="w-3.5 h-3.5 text-muted-foreground" />
+            <input 
+              type="text" 
+              placeholder="Search title, IDs..." 
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+              className="bg-transparent border-none outline-none text-[10px] w-32"
+            />
+          </div>
+          <div className="flex items-center gap-2 border border-border/80 rounded-lg px-2 py-1 bg-secondary/30">
+            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+            <select 
+              value={stageFilter}
+              onChange={(e) => { setStageFilter(e.target.value); setPage(0); }}
+              className="bg-transparent border-none outline-none text-[10px] cursor-pointer text-foreground"
+            >
+              <option value="all">All Stages</option>
+              <option value="fast_filter">Fast Filter</option>
+              <option value="gatekeeper">Gatekeeper</option>
+              <option value="scientist">Scientist</option>
+              <option value="miner">Miner</option>
+            </select>
+          </div>
+          <button
+            onClick={loadAuditLogs}
+            className="p-1.5 rounded-lg border border-border hover:bg-secondary/60 text-muted-foreground hover:text-foreground transition-all flex items-center gap-1.5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {logs.length === 0 ? (
@@ -267,6 +320,7 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
                         </td>
                       </tr>
                       {isExpanded && (
+                        <>
                         <tr className="bg-secondary/10 border-b border-border/40">
                           <td colSpan={8} className="p-4 space-y-4 font-mono text-[10px]">
                             <div className="grid grid-cols-2 gap-4">
@@ -316,19 +370,34 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
                                 </pre>
                               </div>
                             )}
-
-                            {log.paper_id && (
+                          </td>
+                        </tr>
+                        <tr>
+                          <td colSpan={8} className="p-0 border-b border-border/40">
+                            <div className="bg-secondary/10 p-4 border-l-2 border-primary">
+                              <div className="flex justify-end mb-3">
+                                {log.paper_id && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleOpenPaper(log.paper_id); }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-secondary/80 border border-border rounded-lg text-xs font-semibold text-foreground transition-all shadow-sm group"
+                                  >
+                                    <span>View Paper Details</span>
+                                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                                  </button>
+                                )}
+                              </div>
                               <InteractionChainVisualizer 
                                 projectId={activeProject.id} 
                                 paperId={log.paper_id} 
                                 currentLogId={log.id} 
                               />
-                            )}
+                            </div>
                           </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
+                      </>
+                    )}
+                  </React.Fragment>
+                );
                 })}
               </tbody>
             </table>
@@ -359,6 +428,20 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
             </div>
           )}
         </div>
+      )}
+
+      {paperModal.isOpen && typeof document !== 'undefined' && createPortal(
+        <ViewEditPaperModal
+          paperModal={paperModal}
+          setPaperModal={setPaperModal as any}
+          hasLocalPdf={!!(paperModal.paper?.Local_PDF_Path && ['MATCHED', 'DOWNLOADED', 'SYNCED', 'NEEDS_REVIEW'].includes(paperModal.paper?.Local_PDF_Status))}
+          activeProject={activeProject}
+          showToast={(msg, type) => showToast ? showToast(msg, type || 'info') : undefined}
+          loadPapers={() => {}} // Not needed here
+          loadProjects={() => {}} // Not needed here
+          setDeleteConfirm={() => {}} // Not needed here
+        />,
+        document.body
       )}
     </div>
   );

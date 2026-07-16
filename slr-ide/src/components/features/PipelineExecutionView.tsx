@@ -96,6 +96,9 @@ export default function PipelineExecutionView({
   } else if (currentStep === 'map_publisher') {
     statsFound = pipelineStats.current - pipelineStats.failed;
     statsNotFound = pipelineStats.failed;
+  } else if (currentStep === 'verify') {
+    statsFound = pipelineStats.current - pipelineStats.failed;
+    statsNotFound = pipelineStats.failed;
   } else if (currentStep === 'sync') {
     statsFound = pipelineStats.current;
     statsNotFound = pipelineStats.failed;
@@ -184,6 +187,17 @@ export default function PipelineExecutionView({
                     <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
                       <input
                         type="checkbox"
+                        checked={batchSteps?.verify || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, verify: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Verify PDF Integrity
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
                         checked={batchSteps?.scrape || false}
                         disabled={operationModal?.isExecuting || isScraperLocked}
                         onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, scrape: e.target.checked }))}
@@ -213,6 +227,17 @@ export default function PipelineExecutionView({
                       />
                       <span className={batchSteps?.sync ? (operationModal?.isExecuting || isScraperLocked ? "text-amber-500/50" : "text-amber-500") : ""}>Sync Cloud</span>
                     </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-destructive hover:text-destructive/80 cursor-pointer border-l border-border/80 pl-4 ml-1'}`} title="Force re-processing of mapped and synced papers">
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.force_update || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, force_update: e.target.checked }))}
+                        className={`rounded border-border text-destructive focus:ring-destructive w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Force Update (Overwrite)
+                    </label>
                   </div>
                   <div className="flex items-center gap-2">
                     {isScraperLocked && (
@@ -235,7 +260,7 @@ export default function PipelineExecutionView({
               </div>
             </div>
 
-            <div className="flex-1 overflow-hidden p-4">
+            <div className="flex-1 overflow-y-auto p-4">
                 {operationModal?.isOpen ? (
                   <PipelineProgressPanel
                     operationModal={operationModal}

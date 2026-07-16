@@ -21,9 +21,6 @@ export default function ManualScreeningView({
 }: ManualScreeningViewProps) {
   const { projects, activeProjectId } = projectsHook;
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [uniquePublishers, setUniquePublishers] = useState<string[]>([]);
-  const [uniqueManualStages, setUniqueManualStages] = useState<string[]>([]);
-  const [uniqueManualDecisions, setUniqueManualDecisions] = useState<string[]>([]);
 
   const {
     screeningPapers,
@@ -36,14 +33,12 @@ export default function ManualScreeningView({
     setScreeningSearch,
     screeningSearchMode,
     setScreeningSearchMode,
-    screeningPoolFilter,
-    setScreeningPoolFilter,
     screeningStageFilter,
     setScreeningStageFilter,
     screeningDecisionFilter,
     setScreeningDecisionFilter,
-    screeningPublisherFilter,
-    setScreeningPublisherFilter,
+    screeningStats,
+    loadScreeningStats,
     screeningSortBy,
     setScreeningSortBy,
     screeningSortOrder,
@@ -71,37 +66,6 @@ export default function ManualScreeningView({
     importFromCalibration
   } = manualScreeningHook;
 
-  // Load unique publishers for list filter dropdown
-  useEffect(() => {
-    if (!activeProjectId) return;
-    fetch('/api/papers?getPublishers=true')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setUniquePublishers(data);
-        }
-      })
-      .catch(err => console.error("Error fetching publishers", err));
-
-    fetch('/api/papers?getManualStages=true')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setUniqueManualStages(data);
-        }
-      })
-      .catch(err => console.error("Error fetching manual stages", err));
-
-    fetch('/api/papers?getManualDecisions=true')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setUniqueManualDecisions(data);
-        }
-      })
-      .catch(err => console.error("Error fetching manual decisions", err));
-  }, [activeProjectId, screeningPapers.length]);
-
   const handleFullscreenToggle = () => {
     setIsFullscreen(prev => !prev);
   };
@@ -113,14 +77,10 @@ export default function ManualScreeningView({
         setScreeningSearch={setScreeningSearch}
         screeningSearchMode={screeningSearchMode}
         setScreeningSearchMode={setScreeningSearchMode}
-        screeningPoolFilter={screeningPoolFilter}
-        setScreeningPoolFilter={setScreeningPoolFilter}
         screeningStageFilter={screeningStageFilter}
         setScreeningStageFilter={setScreeningStageFilter}
         screeningDecisionFilter={screeningDecisionFilter}
         setScreeningDecisionFilter={setScreeningDecisionFilter}
-        screeningPublisherFilter={screeningPublisherFilter}
-        setScreeningPublisherFilter={setScreeningPublisherFilter}
         screeningSortBy={screeningSortBy}
         setScreeningSortBy={setScreeningSortBy}
         screeningSortOrder={screeningSortOrder}
@@ -136,9 +96,6 @@ export default function ManualScreeningView({
         screeningSearchTime={screeningSearchTime}
         triggerSemanticSearch={triggerSemanticSearch}
         isMinimized={!!screeningSelectedPaper}
-        uniquePublishers={uniquePublishers}
-        uniqueManualStages={uniqueManualStages}
-        uniqueManualDecisions={uniqueManualDecisions}
       />
       {screeningSelectedPaper && (
         <ManualScreeningDetailView
@@ -182,8 +139,7 @@ export default function ManualScreeningView({
           </div>
 
           <ManualScreeningStatsHeader
-            papers={screeningPapers}
-            totalCount={screeningTotal}
+            stats={screeningStats}
             isFullscreen={isFullscreen}
             onFullscreenToggle={handleFullscreenToggle}
           />
@@ -208,8 +164,7 @@ export default function ManualScreeningView({
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-sm">Manual Screening Pipeline Dashboard</h3>
           <ManualScreeningStatsHeader
-            papers={screeningPapers}
-            totalCount={screeningTotal}
+            stats={screeningStats}
             isFullscreen={isFullscreen}
             onFullscreenToggle={handleFullscreenToggle}
           />

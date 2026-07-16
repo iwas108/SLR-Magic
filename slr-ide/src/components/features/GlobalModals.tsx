@@ -11,6 +11,7 @@ interface GlobalModalsProps {
     loadProjects: () => Promise<any>;
   };
   papersHook: {
+    papers: any[];
     paperModal: any;
     setPaperModal: React.Dispatch<React.SetStateAction<any>>;
     deleteConfirm: any;
@@ -51,13 +52,14 @@ export default function GlobalModals({
     setDeleteConfirm,
     deleteAllConfirm,
     setDeleteAllConfirm,
-    loadPapers
+    loadPapers,
+    papers
   } = papersHook;
 
   const hasLocalPdf = !!(
     paperModal.isOpen &&
     paperModal.paper?.Local_PDF_Path &&
-    ['MATCHED', 'DOWNLOADED', 'SYNCED'].includes(paperModal.paper?.Local_PDF_Status)
+    ['MATCHED', 'DOWNLOADED', 'SYNCED', 'NEEDS_REVIEW'].includes(paperModal.paper?.Local_PDF_Status)
   );
 
   return (
@@ -72,6 +74,7 @@ export default function GlobalModals({
         loadPapers={loadPapers}
         loadProjects={loadProjects}
         setDeleteConfirm={setDeleteConfirm}
+        papers={papers}
       />
 
       {/* Delete Paper Confirmation Modal */}

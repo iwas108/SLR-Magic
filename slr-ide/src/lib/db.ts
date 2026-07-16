@@ -22,6 +22,7 @@ const db = new Database(dbPath, {
   timeout: 5000
 });
 db.pragma('foreign_keys = ON');
+db.pragma('journal_mode = WAL');
 
 // Initialize database schema, migrations, and seeds
 initializeDatabase(db);

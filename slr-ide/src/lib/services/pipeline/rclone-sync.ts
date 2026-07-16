@@ -124,12 +124,14 @@ export async function generateCloudLinks(
   configPath: string,
   rclonePath: string,
   cloudName: string,
-  batchState: any
+  batchState: any,
+  forceUpdate: boolean = false
 ): Promise<void> {
   try {
+    const statusIn = forceUpdate ? "('MATCHED', 'DOWNLOADED', 'SYNCED')" : "('MATCHED', 'DOWNLOADED')";
     const papers = db.prepare(`
       SELECT Paper_ID FROM papers 
-      WHERE Local_PDF_Status IN ('MATCHED', 'DOWNLOADED')
+      WHERE Local_PDF_Status IN ${statusIn}
         AND Project_ID = ?
     `).all(activeProjectId) as { Paper_ID: string }[];
 

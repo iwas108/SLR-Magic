@@ -95,7 +95,7 @@ def find_candidate_elements(driver, current_url):
         return []
 
     seen_ids = set()
-    high_keywords = ["download pdf", "download full text", "download full-text", "download direct", "pdf direct", "open pdf", "read pdf", "pdf download", "view pdf"]
+    high_keywords = ["view pdf", "download pdf", "download full text", "download full-text", "download direct", "pdf direct", "open pdf", "read pdf", "pdf download"]
     med_keywords = ["pdf", "download", "full text", "full-text", "view article", "read article", "get document"]
     low_keywords = ["view", "open", "read", "get", "go to"]
 

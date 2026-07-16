@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { Search, Loader2, ChevronLeft, ChevronRight, Cpu, ArrowDown, ArrowUp, Tag } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { Search, Loader2, ChevronLeft, ChevronRight, Cpu, ArrowDown, ArrowUp, Tag, Filter } from 'lucide-react';
 import { Paper } from '@/types';
 
 interface ManualScreeningListProps {
@@ -7,14 +7,10 @@ interface ManualScreeningListProps {
   setScreeningSearch: (v: string) => void;
   screeningSearchMode: 'keyword' | 'semantic';
   setScreeningSearchMode: React.Dispatch<React.SetStateAction<'keyword' | 'semantic'>>;
-  screeningPoolFilter: string;
-  setScreeningPoolFilter: (v: string) => void;
   screeningStageFilter: string;
   setScreeningStageFilter: (v: string) => void;
   screeningDecisionFilter: string;
   setScreeningDecisionFilter: (v: string) => void;
-  screeningPublisherFilter: string;
-  setScreeningPublisherFilter: (v: string) => void;
   screeningSortBy: string;
   setScreeningSortBy: React.Dispatch<React.SetStateAction<string>>;
   screeningSortOrder: 'ASC' | 'DESC';
@@ -30,9 +26,6 @@ interface ManualScreeningListProps {
   screeningSearchTime: number | null;
   triggerSemanticSearch: () => void;
   isMinimized?: boolean;
-  uniquePublishers: string[];
-  uniqueManualStages: string[];
-  uniqueManualDecisions: string[];
 }
 
 export default function ManualScreeningList({
@@ -40,14 +33,10 @@ export default function ManualScreeningList({
   setScreeningSearch,
   screeningSearchMode,
   setScreeningSearchMode,
-  screeningPoolFilter,
-  setScreeningPoolFilter,
   screeningStageFilter,
   setScreeningStageFilter,
   screeningDecisionFilter,
   setScreeningDecisionFilter,
-  screeningPublisherFilter,
-  setScreeningPublisherFilter,
   screeningSortBy,
   setScreeningSortBy,
   screeningSortOrder,
@@ -62,12 +51,10 @@ export default function ManualScreeningList({
   screeningTotalPages,
   screeningSearchTime,
   triggerSemanticSearch,
-  isMinimized = false,
-  uniquePublishers,
-  uniqueManualStages,
-  uniqueManualDecisions
+  isMinimized = false
 }: ManualScreeningListProps) {
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Auto-scroll list to active paper on select
   useEffect(() => {
@@ -92,6 +79,21 @@ export default function ManualScreeningList({
   const toggleSortOrder = () => {
     setScreeningSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
   };
+
+  const clearAllFilters = () => {
+    setScreeningStageFilter('');
+    setScreeningDecisionFilter('');
+  };
+
+  const anyActiveFilter = !!(
+    screeningStageFilter ||
+    screeningDecisionFilter
+  );
+
+  const activeFilterCount = [
+    screeningStageFilter,
+    screeningDecisionFilter
+  ].filter(Boolean).length;
 
   return (
     <div className={`bg-card/30 flex flex-col overflow-hidden shrink-0 transition-all duration-300 ${
@@ -125,69 +127,74 @@ export default function ManualScreeningList({
           </button>
         </div>
 
-        {/* Filters Selectors Row */}
-        <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-muted-foreground">
-          {/* Pool Filter */}
-          <div>
-            <label className="block mb-1 text-[8px] uppercase tracking-wider text-muted-foreground/60">Calibration Pool</label>
-            <select
-              value={screeningPoolFilter}
-              onChange={(e) => setScreeningPoolFilter(e.target.value)}
-              className="w-full bg-secondary border border-border rounded-lg px-2 py-1 focus:outline-none font-semibold text-foreground"
+        {/* Unified Filter Button Popover Row */}
+        <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground pt-1">
+          <div className="relative">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-3 py-1.5 border rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                anyActiveFilter
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary text-foreground border-border hover:bg-secondary/80'
+              }`}
             >
-              <option value="">All Papers</option>
-              <option value="none">No Pool (General)</option>
-              <option value="pool_a">Pool A</option>
-              <option value="pool_b">Pool B</option>
-              <option value="pool_c">Pool C</option>
-            </select>
-          </div>
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {anyActiveFilter && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/20 text-[10px] text-current">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
 
-          {/* Decision Filter */}
-          <div>
-            <label className="block mb-1 text-[8px] uppercase tracking-wider text-muted-foreground/60">Screening Result</label>
-            <select
-              value={screeningDecisionFilter}
-              onChange={(e) => setScreeningDecisionFilter(e.target.value)}
-              className="w-full bg-secondary border border-border rounded-lg px-2 py-1 focus:outline-none font-semibold text-foreground"
-            >
-              <option value="">All Results</option>
-              <option value="none">Unscreened (Pending)</option>
-              {uniqueManualDecisions.map(dec => (
-                <option key={dec} value={dec}>{dec}</option>
-              ))}
-            </select>
-          </div>
+            {showFilters && (
+              <div className="absolute top-full left-0 mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 p-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
+                <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                  <span className="text-xs font-black text-foreground uppercase tracking-wider">Advanced Filters</span>
+                  <button
+                    onClick={clearAllFilters}
+                    className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                </div>
 
-          {/* Stage Filter */}
-          <div>
-            <label className="block mb-1 text-[8px] uppercase tracking-wider text-muted-foreground/60">Manual Stage</label>
-            <select
-              value={screeningStageFilter}
-              onChange={(e) => setScreeningStageFilter(e.target.value)}
-              className="w-full bg-secondary border border-border rounded-lg px-2 py-1 focus:outline-none font-semibold text-foreground"
-            >
-              <option value="">All Stages</option>
-              <option value="none">None Assigned</option>
-              {uniqueManualStages.map(stage => (
-                <option key={stage} value={stage}>{stage}</option>
-              ))}
-            </select>
-          </div>
+                <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
+                  {/* Manual Screening Decision */}
+                  <div className="flex flex-col gap-1 text-[10px] font-bold">
+                    <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Manual Screening Decision</label>
+                    <select
+                      value={screeningDecisionFilter}
+                      onChange={(e) => setScreeningDecisionFilter(e.target.value)}
+                      className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                    >
+                      <option value="">All Results</option>
+                      <option value="none">Unscreened (Pending)</option>
+                      <option value="INCLUDE">INCLUDE</option>
+                      <option value="EXCLUDE">EXCLUDE</option>
+                      <option value="UNCERTAIN">UNCERTAIN</option>
+                    </select>
+                  </div>
 
-          {/* Publisher Filter */}
-          <div>
-            <label className="block mb-1 text-[8px] uppercase tracking-wider text-muted-foreground/60">Publisher</label>
-            <select
-              value={screeningPublisherFilter}
-              onChange={(e) => setScreeningPublisherFilter(e.target.value)}
-              className="w-full bg-secondary border border-border rounded-lg px-2 py-1 focus:outline-none font-semibold text-foreground truncate"
-            >
-              <option value="">All Publishers</option>
-              {uniquePublishers.map((pub) => (
-                <option key={pub} value={pub}>{pub}</option>
-              ))}
-            </select>
+                  {/* Human Screening Stage Filter */}
+                  <div className="flex flex-col gap-1 text-[10px] font-bold">
+                    <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Human Screening Stage</label>
+                    <select
+                      value={screeningStageFilter}
+                      onChange={(e) => setScreeningStageFilter(e.target.value)}
+                      className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                    >
+                      <option value="">All Stages</option>
+                      <option value="none">None Assigned</option>
+                      <option value="fast_filter">Fast Filter</option>
+                      <option value="gatekeeper">Gatekeeper</option>
+                      <option value="scientist">Scientist</option>
+                      <option value="miner">Miner</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -205,7 +212,7 @@ export default function ManualScreeningList({
               <option value="Year">Year</option>
               <option value="Publisher">Publisher</option>
               <option value="manual_decision">Screening Decision</option>
-              <option value="manual_stage">Manual Stage</option>
+              <option value="manual_stage">Human Screening Stage</option>
             </select>
             <button
               onClick={toggleSortOrder}
