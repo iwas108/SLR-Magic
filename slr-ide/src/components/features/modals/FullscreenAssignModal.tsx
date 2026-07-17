@@ -68,6 +68,7 @@ interface FullscreenAssignModalProps {
   };
   pipelineHook: {
     logEndRef: React.RefObject<HTMLDivElement | null>;
+    operationModal?: any;
   };
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
@@ -235,6 +236,7 @@ export default function FullscreenAssignModal({
             logEndRef={logEndRef}
             onClose={() => setAssignSelectedPaper(null)}
             showToast={showToast}
+            isMainPipelineRunning={pipelineHook.operationModal?.isExecuting}
           />
         )}
       </div>

@@ -129,7 +129,8 @@ def main():
         print(json.dumps({"event": "error", "message": "Database not found."}))
         sys.exit(1)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
     # Get active project
@@ -172,12 +173,14 @@ def main():
             SELECT Paper_ID, Title, Local_PDF_Status, Local_PDF_Path FROM papers
             WHERE Project_ID = ? AND Paper_ID = ?
               AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != ''
+              AND (is_duplicate IS NULL OR is_duplicate = 0)
         """, (active_proj_id, paper_id_arg))
     else:
         cursor.execute("""
             SELECT Paper_ID, Title, Local_PDF_Status, Local_PDF_Path FROM papers
             WHERE Project_ID = ? AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED', 'NEEDS_REVIEW')
               AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != ''
+              AND (is_duplicate IS NULL OR is_duplicate = 0)
         """, (active_proj_id,))
     
     papers = cursor.fetchall()

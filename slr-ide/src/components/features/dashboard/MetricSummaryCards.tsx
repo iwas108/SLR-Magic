@@ -17,6 +17,8 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
   const stageStats = activeProject?.stats?.stageStats || {};
   const stage1 = stageStats['1'] || { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} };
   const stage2 = stageStats['2'] || { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} };
+  const stage3 = stageStats['3'] || { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} };
+  const stage4 = stageStats['4'] || { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} };
 
   const renderStageBar = (stageData: { 
     included: number; 
@@ -27,14 +29,18 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
     inc_has_pdf?: number;
     inc_no_doi?: number;
     inc_pdf_failed?: number;
+    pending_pdf?: number;
   }, showPdfBreakdown: boolean = true) => {
     const stageTotal = stageData.total || 0;
     if (stageTotal === 0) return <div className="text-[10px] text-muted-foreground mt-2">No papers in this stage</div>;
     
     const actualUnprocessed = stageData.unprocessed;
+    const pendingPdf = stageData.pending_pdf || 0;
+
     const incPct = Math.round((stageData.included / stageTotal) * 100);
     const excPct = Math.round((stageData.excluded / stageTotal) * 100);
-    const unpPct = Math.max(0, 100 - incPct - excPct);
+    const pendingPdfPct = Math.round((pendingPdf / stageTotal) * 100);
+    const unpPct = Math.max(0, 100 - incPct - excPct - pendingPdfPct);
 
     let incBreakdownList = null;
     if (showPdfBreakdown && stageData.included > 0 && stageData.inc_has_pdf !== undefined) {
@@ -100,15 +106,21 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
 
     return (
       <div className="mt-3 space-y-1 z-10 relative">
-        <div className="flex justify-between text-[10px] font-bold">
+        <div className="flex justify-between text-[10px] font-bold flex-wrap gap-y-1">
           <span className="text-emerald-500">Include: {stageData.included} ({incPct}%)</span>
           <span className="text-rose-500">Exclude: {stageData.excluded} ({excPct}%)</span>
           <span className="text-slate-400">Unproc: {actualUnprocessed} ({unpPct}%)</span>
+          {pendingPdf > 0 && (
+            <span className="text-amber-500">Pending PDF: {pendingPdf} ({pendingPdfPct}%)</span>
+          )}
         </div>
         <div className="w-full h-2 rounded-full overflow-hidden flex bg-secondary">
           <div className="bg-emerald-500 h-full" style={{ width: `${incPct}%` }} />
           <div className="bg-rose-500 h-full" style={{ width: `${excPct}%` }} />
           <div className="bg-slate-400 h-full" style={{ width: `${unpPct}%` }} />
+          {pendingPdf > 0 && (
+            <div className="bg-amber-500 h-full" style={{ width: `${pendingPdfPct}%` }} />
+          )}
         </div>
         {incBreakdownList}
         {topEcList}
@@ -185,7 +197,7 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Stage 1 Metrics Card */}
         <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
           <div className="flex items-center justify-between z-10 mb-1">
@@ -202,6 +214,77 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
             <PieChart className="w-4 h-4 text-purple-500/70" />
           </div>
           {renderStageBar(stage2, false)}
+        </div>
+
+        {/* Stage 3 Metrics Card */}
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+          <div className="flex items-center justify-between z-10 mb-1">
+            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Stage 3: Scientist Metrics</span>
+            <PieChart className="w-4 h-4 text-amber-500/70" />
+          </div>
+          {renderStageBar(stage3, false)}
+        </div>
+
+        {/* Stage 4 Metrics Card */}
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+          <div className="flex items-center justify-between z-10 mb-1">
+            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Stage 4: Miner Metrics</span>
+            <PieChart className="w-4 h-4 text-rose-500/70" />
+          </div>
+          {(() => {
+            const total = stage4.total || 0;
+            if (total === 0) return <div className="text-[10px] text-muted-foreground mt-2">No papers in this stage</div>;
+            const processed = stage4.included || 0;
+            const unprocessed = stage4.unprocessed || 0;
+            const procPct = Math.round((processed / total) * 100);
+            const unprocPct = Math.max(0, 100 - procPct);
+            
+            const formatVariableKey = (key: string): string => {
+              try {
+                let formatted = key.replace(/^(locate_)?rq\d+([a-z_])?_/, '');
+                formatted = formatted.replace(/^locate_/, '');
+                if (!formatted) return key;
+                return formatted
+                  .split('_')
+                  .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' ');
+              } catch (e) {
+                return key;
+              }
+            };
+
+            const notStatedMetrics = stage4.notStatedMetrics || {};
+            const notStatedEntries = Object.entries(notStatedMetrics).sort((a, b) => (b[1] as number) - (a[1] as number));
+
+            return (
+              <div className="mt-3 space-y-3 z-10 relative">
+                <div className="flex justify-between text-[10px] font-bold flex-wrap gap-y-1">
+                  <span className="text-emerald-500">Processed: {processed} ({procPct}%)</span>
+                  <span className="text-slate-400">Unprocessed: {unprocessed} ({unprocPct}%)</span>
+                </div>
+                <div className="w-full h-2 rounded-full overflow-hidden flex bg-secondary">
+                  <div className="bg-emerald-500 h-full" style={{ width: `${procPct}%` }} />
+                  <div className="bg-slate-400 h-full" style={{ width: `${unprocPct}%` }} />
+                </div>
+                {processed > 0 && notStatedEntries.length > 0 && (
+                  <div className="mt-2 text-[9px] text-muted-foreground border-t border-border pt-2">
+                    <div className="font-bold text-[8px] uppercase tracking-wider mb-1.5 text-foreground/80">Missing / Not Stated Variables</div>
+                    <div className="grid grid-cols-1 gap-1 max-h-[100px] overflow-y-auto pr-1">
+                      {notStatedEntries.map(([key, count]: any) => {
+                        const pct = Math.round((count / processed) * 100);
+                        return (
+                          <div key={key} className="flex justify-between items-center bg-secondary/50 px-1.5 py-0.5 rounded">
+                            <span className="truncate max-w-[150px] font-medium" title={key}>{formatVariableKey(key)}</span>
+                            <span className="font-mono text-rose-500 font-bold">{count} ({pct}%)</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

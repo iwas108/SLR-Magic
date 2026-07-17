@@ -189,6 +189,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/paper-details/PaperMetadataEdit.tsx` | Presentation Component| Edit details form layout inside the paper modal with status and stage fields. |
 | `components/features/modals/paper-details/ParentPaperSelector.tsx` | UI Component | Autocomplete search selector for tracking chained parent paper references. |
 | `components/features/modals/paper-details/PdfPreview.tsx` | UI Component | Inline iframe preview panel for reading cached/downloaded paper PDFs. |
+| `components/features/modals/paper-details/ScreeningSummaryPanel.tsx` | Presentation Component | Reusable read-only panel displaying AI/Manual stage, decision, rationale, QA, and extraction variables. |
 | `components/features/modals/CreateProjectModal.tsx` | Modal Component| Standalone modal form encapsulating states and inputs for creating new systematic literature review projects. |
 | `components/features/modals/ProjectSettingsModal.tsx`| Modal Component| Standalone tabbed modal for editing project metadata settings, cloud credentials, LLM configuration, and prompts. |
 | `components/features/modals/settings/ProjectMetadataSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering metadata fields. |
@@ -233,6 +234,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/adjudicate/route.ts` | REST Endpoint | Handles POST requests to commit calibration adjudication decisions, resolving inter-rater conflicts in `slr.db`. |
 | `api/adjudicate/ledger/route.ts` | REST Endpoint | Handles GET requests to retrieve the immutable audit log of all calibration adjudication commits for a project. |
 | `api/adjudicate/stats/route.ts` | REST Endpoint | Handles GET requests to calculate inter-rater agreement statistics, Cohen's Kappa, and calibration progress metrics. |
+| `api/calibration/assign/route.ts` | REST Endpoint | Calibration pool assignment POST endpoint (handles cloning paper row to/from calibration_papers table). |
 | `api/config/route.ts` | REST Endpoint | Handles GET and PUT requests to retrieve and update key-value configuration settings in the SQLite `configs` table. |
 | `api/config/backup/route.ts` | REST Endpoint | Handles POST requests to trigger manual database auto-backup to cloud storage remotes using Rclone. |
 | `api/config/env/route.ts` | REST Endpoint | Handles GET requests to verify system environment variables and confirm the existence of required external executables (`rclone`, `tesseract`). |

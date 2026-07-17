@@ -22,6 +22,12 @@ interface PaperDatabaseViewProps {
   setDoiStatusFilter: (v: string) => void;
   pdfLinkFilter: string;
   setPdfLinkFilter: (v: string) => void;
+  pipelineStageFilter: string;
+  setPipelineStageFilter: (v: string) => void;
+  pipelineStatusFilter: string;
+  setPipelineStatusFilter: (v: string) => void;
+  ecTriggerFilter: string;
+  setEcTriggerFilter: (v: string) => void;
   setShowImport: (show: boolean) => void;
   setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
   cloudName: string;
@@ -66,6 +72,12 @@ export default function PaperDatabaseView({
   setDoiStatusFilter,
   pdfLinkFilter,
   setPdfLinkFilter,
+  pipelineStageFilter,
+  setPipelineStageFilter,
+  pipelineStatusFilter,
+  setPipelineStatusFilter,
+  ecTriggerFilter,
+  setEcTriggerFilter,
   setShowImport,
   setDeleteAllConfirm,
   cloudName,
@@ -89,14 +101,44 @@ export default function PaperDatabaseView({
 }: PaperDatabaseViewProps) {
 
   const [showFilters, setShowFilters] = React.useState(false);
+  const [showPipelineFilters, setShowPipelineFilters] = React.useState(false);
+  const [ecTriggers, setEcTriggers] = React.useState<string[]>([]);
+  const [loadingEcTriggers, setLoadingEcTriggers] = React.useState(false);
   const [bulkType, setBulkType] = React.useState('');
   const [bulkValue, setBulkValue] = React.useState('');
+
+  React.useEffect(() => {
+    const fetchEcTriggers = async () => {
+      setLoadingEcTriggers(true);
+      try {
+        const res = await fetch(`/api/papers?getEcTriggers=true&pipelineStage=${pipelineStageFilter}`);
+        if (res.ok) {
+          const data = await res.json();
+          setEcTriggers(data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load EC triggers:', err);
+      } finally {
+        setLoadingEcTriggers(false);
+      }
+    };
+    fetchEcTriggers();
+  }, [pipelineStageFilter]);
 
   const clearAllFilters = () => {
     setPdfFilter('');
     setSourceFilter('');
     setDoiStatusFilter('');
     setPdfLinkFilter('');
+    setPipelineStageFilter('');
+    setPipelineStatusFilter('');
+    setEcTriggerFilter('');
+  };
+
+  const clearPipelineFilters = () => {
+    setPipelineStageFilter('');
+    setPipelineStatusFilter('');
+    setEcTriggerFilter('');
   };
 
   const handleBulkPdfStatusChange = async (pdfStatusVal: string) => {
@@ -185,6 +227,9 @@ export default function PaperDatabaseView({
         });
         if (doiStatusFilter) query.append('doiStatus', doiStatusFilter);
         if (pdfLinkFilter) query.append('pdfLink', pdfLinkFilter);
+        if (pipelineStageFilter) query.append('pipelineStage', pipelineStageFilter);
+        if (pipelineStatusFilter) query.append('pipelineStatus', pipelineStatusFilter);
+        if (ecTriggerFilter) query.append('ecTrigger', ecTriggerFilter);
         const res = await fetch(`/api/papers?${query}`);
         if (res.ok) {
           const data = await res.json();
@@ -243,10 +288,118 @@ export default function PaperDatabaseView({
 
           {/* Right Side: Combined Filters, Review Duplicates, Combined Bulk Operations, Delete All */}
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Screening Pipeline Filters */}
+            <div className="relative flex items-center gap-1.5">
+              <button
+                onClick={() => { setShowPipelineFilters(!showPipelineFilters); setShowFilters(false); }}
+                className={`px-3 py-2 border rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  showPipelineFilters || pipelineStageFilter || pipelineStatusFilter || ecTriggerFilter
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-secondary text-foreground border-border hover:bg-secondary/80'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Screening Pipeline
+                {(pipelineStageFilter || pipelineStatusFilter || ecTriggerFilter) && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/20 text-[10px]">
+                    {[pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter].filter(Boolean).length}
+                  </span>
+                )}
+              </button>
+
+              {showPipelineFilters && (
+                <div className="absolute top-full right-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-xl z-50 p-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">Screening Pipeline Filters</span>
+                    <button onClick={clearPipelineFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear</button>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Pipeline Stage</label>
+                    <select 
+                      className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                      value={pipelineStageFilter} 
+                      onChange={(e) => {
+                        setPipelineStageFilter(e.target.value);
+                        setPipelineStatusFilter('');
+                        setEcTriggerFilter('');
+                      }}
+                    >
+                      <option value="">Any Stage</option>
+                      <option value="1">Stage 1: Fast Filter</option>
+                      <option value="2">Stage 2: Gatekeeper</option>
+                      <option value="3">Stage 3: Scientist</option>
+                      <option value="4">Stage 4: Miner</option>
+                    </select>
+                  </div>
+ 
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Pipeline Status</label>
+                    <select 
+                      className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                      value={pipelineStatusFilter} 
+                      onChange={(e) => setPipelineStatusFilter(e.target.value)}
+                      disabled={!pipelineStageFilter}
+                    >
+                      <option value="">Any Status</option>
+                      {pipelineStageFilter === '1' && (
+                        <>
+                          <option value="included">Included</option>
+                          <option value="excluded">Excluded</option>
+                          <option value="unprocessed">Unprocessed</option>
+                        </>
+                      )}
+                      {pipelineStageFilter === '2' && (
+                        <>
+                          <option value="included">Included</option>
+                          <option value="excluded">Excluded</option>
+                          <option value="unprocessed">Unprocessed (Has PDF)</option>
+                          <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                          <option value="pending_pdf">Pending PDF</option>
+                        </>
+                      )}
+                      {pipelineStageFilter === '3' && (
+                        <>
+                          <option value="included">Included</option>
+                          <option value="excluded">Excluded</option>
+                          <option value="unprocessed">Unprocessed (Has PDF)</option>
+                          <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                        </>
+                      )}
+                      {pipelineStageFilter === '4' && (
+                        <>
+                          <option value="included">Included</option>
+                          <option value="excluded">Excluded</option>
+                          <option value="unprocessed">Unprocessed (Has PDF)</option>
+                          <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+ 
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Exclusion Trigger</label>
+                    <select 
+                      className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                      value={ecTriggerFilter} 
+                      onChange={(e) => setEcTriggerFilter(e.target.value)}
+                      disabled={loadingEcTriggers}
+                    >
+                      <option value="">Any Exclusion Trigger</option>
+                      <option value="Unspecified">Unspecified / No Code</option>
+                      {ecTriggers.map((code) => (
+                        <option key={code} value={code}>{code}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Advanced Filters */}
             <div className="relative flex items-center gap-1.5">
               <button
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={() => { setShowFilters(!showFilters); setShowPipelineFilters(false); }}
                 className={`px-3 py-2 border rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                   showFilters || pdfFilter || sourceFilter || doiStatusFilter || pdfLinkFilter
                     ? 'bg-primary text-primary-foreground border-primary'

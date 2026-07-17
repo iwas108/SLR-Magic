@@ -17,7 +17,7 @@ export async function GET() {
       'Authors',
       'Year',
       'PDF_Link',
-      'Status',
+      'Stage',
       'citation_count'
     ];
 
@@ -25,6 +25,7 @@ export async function GET() {
     const csvRows = [headers.join(',')];
 
     for (const paper of papers) {
+      const activeStage = paper.manual_stage > 0 ? paper.manual_stage : (paper.ai_stage || 0);
       const row = [
         paper.Paper_ID || '',
         paper.Import_Date || '',
@@ -36,7 +37,7 @@ export async function GET() {
         paper.Authors || '',
         paper.Year ? String(paper.Year) : '',
         paper.PDF_Link || '',
-        paper.Status || 'PENDING',
+        String(activeStage),
         paper.citation_count !== undefined && paper.citation_count !== null ? String(paper.citation_count) : '0'
       ];
 

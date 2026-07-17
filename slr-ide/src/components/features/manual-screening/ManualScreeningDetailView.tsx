@@ -184,6 +184,135 @@ export default function ManualScreeningDetailView({
     }
   }, [manualStage, manualQaScores, qaRules, setManualDecision, setManualEcTrigger]);
 
+  const { hasChanges, validationErrors } = React.useMemo(() => {
+    const errors: string[] = [];
+
+    // Parse DB QA Scores
+    let dbQaScores: Record<string, { value: number | null; evidence: string }> = {};
+    const qaField = selectedPaper.manual_quality_assessment;
+    if (qaField) {
+      try {
+        dbQaScores = typeof qaField === 'string'
+          ? JSON.parse(qaField)
+          : qaField;
+      } catch {}
+    }
+
+    // Parse DB Extracted Data
+    let dbExtData: Record<string, { value: string; evidence: string }> = {};
+    if (selectedPaper.manual_extracted_data) {
+      try {
+        dbExtData = typeof selectedPaper.manual_extracted_data === 'string'
+          ? JSON.parse(selectedPaper.manual_extracted_data)
+          : selectedPaper.manual_extracted_data;
+      } catch {}
+    }
+
+    // 1. Check for changes
+    const decisionChanged = (manualDecision || '') !== (selectedPaper.manual_decision || '');
+    const rawDbDecision = selectedPaper.manual_decision || '';
+    let dbEcVal = '';
+    if (rawDbDecision.startsWith('EXCLUDE')) {
+      const match = rawDbDecision.match(/EXCLUDE \(([^)]+)\)/);
+      if (match) {
+        dbEcVal = match[1];
+      }
+    }
+    const ecTriggerChanged = (manualEcTrigger || '') !== dbEcVal;
+    const rationaleChanged = (manualRationale || '') !== (selectedPaper.manual_rationale || '');
+    
+    const numToStageMap: Record<number, string> = {
+      0: 'unscreened',
+      1: 'fast_filter',
+      2: 'gatekeeper',
+      3: 'scientist',
+      4: 'miner'
+    };
+    const dbStageStr = numToStageMap[selectedPaper.manual_stage || 0] || 'fast_filter';
+    const stageChanged = (manualStage || 'fast_filter') !== dbStageStr;
+
+    let qaChanged = false;
+    qaRules.forEach((rule: any) => {
+      const dbVal = dbQaScores[rule.code]?.value;
+      const dbEv = dbQaScores[rule.code]?.evidence || '';
+      const currVal = manualQaScores[rule.code]?.value;
+      const currEv = manualQaScores[rule.code]?.evidence || '';
+
+      const valChanged = (currVal !== undefined ? currVal : null) !== (dbVal !== undefined ? dbVal : null);
+      const evChanged = currEv !== dbEv;
+      if (valChanged || evChanged) {
+        qaChanged = true;
+      }
+    });
+
+    let extChanged = false;
+    extractionRules.forEach((rule: any) => {
+      const dbVal = dbExtData[rule.json_key]?.value || '';
+      const dbEv = dbExtData[rule.json_key]?.evidence || '';
+      const currVal = manualExtractedData[rule.json_key]?.value || '';
+      const currEv = manualExtractedData[rule.json_key]?.evidence || '';
+
+      if (currVal !== dbVal || currEv !== dbEv) {
+        extChanged = true;
+      }
+    });
+
+    const changed = decisionChanged || ecTriggerChanged || rationaleChanged || stageChanged || qaChanged || extChanged;
+
+    // 2. Validate fields
+    if (!manualRationale || !manualRationale.trim()) {
+      errors.push('Rationale/Justification is required.');
+    }
+
+    if (manualStage !== 'scientist') {
+      if (!manualDecision) {
+        errors.push('Human Decision Override is required.');
+      } else if (manualDecision === 'EXCLUDE' && ecRules.length > 0 && !manualEcTrigger) {
+        errors.push('Exclusion Criterion Triggered is required.');
+      }
+    }
+
+    if (manualStage === 'scientist') {
+      qaRules.forEach((rule: any) => {
+        const sc = manualQaScores[rule.code];
+        if (!sc || sc.value === null || sc.value === undefined) {
+          errors.push(`Quality appraisal score for "${rule.code}" is required.`);
+        }
+        if (!sc || !sc.evidence || !sc.evidence.trim()) {
+          errors.push(`Evidence snippet for "${rule.code}" is required.`);
+        }
+      });
+    }
+
+    if (manualStage === 'miner') {
+      extractionRules.forEach((rule: any) => {
+        const ext = manualExtractedData[rule.json_key];
+        if (!ext || !ext.value || !ext.value.trim()) {
+          errors.push(`Extracted value for "${rule.json_key}" is required.`);
+        }
+        if (!ext || !ext.evidence || !ext.evidence.trim()) {
+          errors.push(`Evidence snippet for "${rule.json_key}" is required.`);
+        }
+      });
+    }
+
+    return {
+      hasChanges: changed,
+      validationErrors: errors
+    };
+  }, [
+    selectedPaper,
+    manualDecision,
+    manualEcTrigger,
+    manualRationale,
+    manualStage,
+    manualQaScores,
+    manualExtractedData,
+    qaRules,
+    extractionRules,
+    ecRules
+  ]);
+
   return (
     <div className="flex-1 bg-background p-6 overflow-y-auto flex flex-col space-y-6 border-l border-border/80">
       
@@ -192,7 +321,7 @@ export default function ManualScreeningDetailView({
         <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Manual Screening detail</span>
         <div className="flex items-center gap-2">
           {/* Adjudication Copy Trigger */}
-          {!!selectedPaper.Human_Decision && !selectedPaper.manual_decision && (
+          {!!(selectedPaper as any).Human_Decision && !selectedPaper.manual_decision && (
             <button
               onClick={() => onImport(selectedPaper)}
               className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-extrabold rounded-lg border border-primary/20 flex items-center gap-1 transition-all cursor-pointer"
@@ -271,37 +400,65 @@ export default function ManualScreeningDetailView({
             )}
           </div>
 
-          {/* AI Decision Info Reference */}
-          {(selectedPaper.AI_Decision || selectedPaper.AI_Rationale) && (
-            <div className="bg-secondary/15 border border-border/40 rounded-xl p-4 space-y-2">
-              <span className="block text-[9px] text-muted-foreground/70 font-black uppercase tracking-wider">AI Screening Context Reference</span>
-              <div className="flex justify-between items-start gap-4">
-                <div>
-                  <span className="block text-[9px] text-muted-foreground/60">Decision</span>
-                  <span className={`inline-block px-1.5 py-0.5 mt-0.5 rounded text-[10px] font-extrabold uppercase border ${
-                    selectedPaper.AI_Decision === 'INCLUDE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                    'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                  }`}>
-                    {selectedPaper.AI_Decision || 'PENDING'}
-                  </span>
-                </div>
-                {selectedPaper.AI_EC_Trigger && selectedPaper.AI_EC_Trigger !== 'NONE' && (
+          {(() => {
+            const aiDec = selectedPaper.ai_decision || '';
+            const isAiExclude = aiDec.startsWith('EXCLUDE');
+            let aiEcTrigger = '';
+            if (isAiExclude) {
+              const match = aiDec.match(/EXCLUDE \(([^)]+)\)/);
+              if (match) {
+                aiEcTrigger = match[1];
+              }
+            }
+            const displayAiDec = isAiExclude ? 'EXCLUDE' : (aiDec || 'PENDING');
+            
+            const aiStageNames: Record<number, string> = {
+              0: 'Unprocessed',
+              1: 'Stage 1: Fast Filter',
+              2: 'Stage 2: The Gatekeeper',
+              3: 'Stage 3: The Scientist',
+              4: 'Stage 4: The Miner'
+            };
+            const displayAiStage = aiStageNames[selectedPaper.ai_stage || 0] || 'Unprocessed';
+
+            if (!aiDec && !selectedPaper.ai_rationale && !selectedPaper.ai_stage) return null;
+            
+            return (
+              <div className="bg-secondary/15 border border-border/40 rounded-xl p-4 space-y-2">
+                <span className="block text-[9px] text-muted-foreground/70 font-black uppercase tracking-wider">AI Screening Context Reference</span>
+                <div className="flex flex-wrap gap-4 justify-between items-start">
                   <div>
-                    <span className="block text-[9px] text-muted-foreground/60">AI Exclusion Trigger</span>
-                    <span className="text-foreground text-xs font-bold block mt-0.5">{selectedPaper.AI_EC_Trigger}</span>
+                    <span className="block text-[9px] text-muted-foreground/60">AI Stage Progress</span>
+                    <span className="text-foreground text-xs font-bold block mt-0.5">{displayAiStage}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[9px] text-muted-foreground/60">Decision</span>
+                    <span className={`inline-block px-1.5 py-0.5 mt-0.5 rounded text-[10px] font-extrabold uppercase border ${
+                      displayAiDec === 'INCLUDE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                      displayAiDec === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                      'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                    }`}>
+                      {displayAiDec}
+                    </span>
+                  </div>
+                  {aiEcTrigger && (
+                    <div>
+                      <span className="block text-[9px] text-muted-foreground/60">AI Exclusion Trigger</span>
+                      <span className="text-foreground text-xs font-bold block mt-0.5">{aiEcTrigger}</span>
+                    </div>
+                  )}
+                </div>
+                {selectedPaper.ai_rationale && (
+                  <div className="pt-1.5 border-t border-border/20">
+                    <span className="block text-[9px] text-muted-foreground/60">AI Reasoning Rationale</span>
+                    <p className="text-[11px] text-muted-foreground font-medium mt-0.5 leading-relaxed italic line-clamp-3" title={selectedPaper.ai_rationale}>
+                      "{selectedPaper.ai_rationale}"
+                    </p>
                   </div>
                 )}
               </div>
-              {selectedPaper.AI_Rationale && (
-                <div className="pt-1.5 border-t border-border/20">
-                  <span className="block text-[9px] text-muted-foreground/60">AI Reasoning Rationale</span>
-                  <p className="text-[11px] text-muted-foreground font-medium mt-0.5 leading-relaxed italic line-clamp-3" title={selectedPaper.AI_Rationale}>
-                    "{selectedPaper.AI_Rationale}"
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Right Side: Active Decisions Input Form Panel */}
@@ -566,11 +723,23 @@ export default function ManualScreeningDetailView({
               )}
             </div>
 
+            {/* Validation errors */}
+            {hasChanges && validationErrors.length > 0 && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-lg space-y-1 text-[11px] font-semibold">
+                <span className="block font-bold uppercase text-[9px] tracking-wider mb-0.5">Missing Required Fields:</span>
+                <ul className="list-disc pl-3.5 space-y-0.5">
+                  {validationErrors.map((err, idx) => (
+                    <li key={idx}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Actions Submit buttons */}
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => onSave(selectedPaper.Paper_ID)}
-                disabled={screeningSaving}
+                disabled={screeningSaving || !hasChanges || validationErrors.length > 0}
                 className="flex-1 py-2 bg-primary text-primary-foreground hover:bg-primary/95 disabled:opacity-40 rounded-xl text-xs font-black uppercase tracking-wide transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 {screeningSaving ? 'Saving...' : (

@@ -1,5 +1,131 @@
 # SLR IDE Improvements Log
 
+## #218 - Gemini API Key Save Validation & Sync (2026-07-17)
+- **Goal**: Sanitize Gemini API keys during save operations by trimming whitespace, tabs, and newlines, and implement cross-tab synchronization for credential changes.
+- **Changes**:
+  - Added `'SYNC_VAULT_KEYS'` type to `SyncType` union in [sync-utils.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/sync-utils.ts).
+  - Sanitized API key inputs by trimming leading and trailing whitespaces and newlines in [route.ts (keys)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/vault/keys/route.ts), [GlobalLLMSettingsView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/GlobalLLMSettingsView.tsx), and [VaultKeyEditorModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/VaultKeyEditorModal.tsx).
+  - Integrated `broadcastSync('SYNC_VAULT_KEYS')` triggers inside the API key save handlers.
+  - Subscribed to `'SYNC_VAULT_KEYS'` synchronization channel events to dynamically reload vault state across all active browser instances.
+- **Verification**: Verified TypeScript compiler and Next.js status with `npx tsc --noEmit`.
+
+## #217 - Fix LLM Pipeline Active Stage Reset and Update Miner Panel Stats (2026-07-17)
+- **Goal**: Resolve issue where page refresh resets the active LLM pipeline operations stage to Fast Filter (due to missing `task_type` in `llm_jobs` table) and update the Miner execution stats to display processed/unprocessed and missing variables instead of exclusion/inclusion ratios.
+- **Changes**:
+  - Added `task_type` column to `llm_jobs` table definition and database migration fallback in [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts).
+  - Modified [route.ts (screen)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/llm/screen/route.ts) to insert `taskType` when creating new jobs.
+  - Modified [main.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/main.py) to save `task_type` to database on job initiation, completion, or failure.
+  - Updated [route.ts (active)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/llm/jobs/active/route.ts) to query `task_type` and aggregate `not_stated_metrics` for miner jobs from successful audit logs.
+  - Modified [queue_handler.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/queue_handler.py) to parse structured output, compile `not_stated_metrics` for miner jobs, and broadcast them via real-time telemetry.
+  - Updated [GlobalLLMSettingsView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/GlobalLLMSettingsView.tsx) to store `not_stated_metrics` in state and render them in a dedicated panel when the active task is Miner.
+- **Verification**: Verified Next.js and TypeScript compilation with `npx tsc --noEmit`.
+
+## #216 - Miner 404 Bug Trace: Stale Interaction ID from Chaining Config (2026-07-17)
+- **Goal**: Diagnose and resolve the `404 - Requested entity was not found` error that occurred on the first miner run in the LLM screening pipeline.
+- **Root Cause**: The miner prompt template (`2c9095ba-74ff-4438-8460-188682db98ea`) had `interaction_chaining: true` enabled in its `llm_config`. The `LLMQueueHandler.process_paper_worker` (in `python_engine/llm/queue_handler.py`) queries `llm_audit_log` for a prior `interaction_id` matching the paper, project, and schema name. A stale `interaction_id` from a prior test/failed session was found and passed as `previous_interaction_id` to `client.interactions.create()`. Gemini's Interactions API returned `404` because that interaction no longer existed on the server (it had expired or been cleaned up).
+- **Key Distinction**: The `gatekeeper` and `scientist` stages work without this error because their templates have `interaction_chaining: false`, so `previous_interaction_id` is always `None`. The miner's config accidentally had it enabled.
+- **Trace Path**: `queue_handler.py:process_paper_worker` → `extraction.py:extract_structured_data` → `client.py:create_interaction` → `_call_interactions` → `client.interactions.create(previous_interaction_id=<stale_id>)` → **404**.
+- **Fix Applied**: User disabled `interaction_chaining` in the miner prompt template's `llm_config` via the UI. No code changes were required.
+- **Takeaway for future**: The miner is a terminal, standalone data extraction stage. Interaction chaining (multi-turn context threading) has no semantic benefit for the miner and risks stale-ID 404s. If chaining is re-enabled on a miner template, ensure no stale audit log entries exist for the target papers in the same schema context.
+
+## #215 - Stage-Aware Decision Source of Truth (2026-07-17)
+- **Goal**: Fix severe bug where `COALESCE(manual_decision, ai_decision)` was used as the effective decision without considering stage precedence. A Stage-1 manual INCLUDE was incorrectly overriding a Stage-2 AI EXCLUDE, causing wrong papers to enter subsequent LLM pipelines and inflating target paper counts.
+- **Root Cause**: The rule is: the decision from the **higher stage** wins. When both manual and AI stages are equal, manual overrides AI. `COALESCE` alone cannot encode this rule.
+- **Changes**:
+  - Replaced all 3 occurrences of `COALESCE(manual_decision, ai_decision)` in the LLM screening pipeline with the stage-aware CASE expression:
+    ```sql
+    CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision
+         WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision
+         ELSE COALESCE(manual_decision, ai_decision)
+    END
+    ```
+  - Fixed `src/app/api/llm/count/route.ts` (L38): LLM batch target count now correctly excludes papers where a higher-stage AI EXCLUDE supersedes a lower-stage manual INCLUDE.
+  - Fixed `python_engine/llm/main.py` (L162 & L193): Both the `paper_ids` and standard batch selection paths now apply stage-aware decision resolution.
+  - Fixed `src/app/api/pdf/batch/route.ts` (L39): The IGNORED→MISSING auto-promotion now uses stage-aware decision logic. Also corrected a secondary bug: the match was `= 'INCLUDE'` (exact, case-insensitive) which silently skipped papers with decision variants like `'INCLUDE (S1)'`; now uses `LIKE 'INCLUDE%'` for correct broadness.
+- **Verification**: `npx tsc --noEmit` passes with zero errors.
+
+## #214 - API Task Type Standardization (2026-07-17)
+
+- **Goal**: Standardize all API route endpoints to map alias task types to canonical names at the request boundary.
+- **Changes**:
+  - Re-mapped and standardized `taskType` to standard canonical values (`'fast_filter'`, `'gatekeeper'`, `'scientist'`, `'miner'`) at the entry boundaries of `/api/llm/screen` and `/api/llm/count` API request handlers, guaranteeing that the python process is spawned and count queries run with standardized values.
+
+## #213 - Normalization of excludeManual Stage Names (2026-07-17)
+- **Goal**: Ensure the "Exclude papers manually screened in this stage" parameter correctly matches the stage text entries in `manual_audit_log` for all LLM task types.
+- **Changes**:
+  - Normalized task type keys (e.g. `'screening'`, `'fulltext'`, `'extraction'`) to their corresponding database audit log stage names (`'fast_filter'`, `'gatekeeper'`, `'miner'`) in `src/app/api/llm/count/route.ts` and `python_engine/llm/main.py`.
+
+## #212 - Active Stage Query & Decision Filter Alignment (2026-07-17)
+- **Goal**: Reconcile eligible paper count discrepancies in the LLM run pipeline and database view filters.
+- **Changes**:
+  - Replaced legacy stage calculation queries using `COALESCE(NULLIF(manual_stage, 0), ai_stage)` with `MAX(manual_stage, ai_stage)` across all TypeScript routes (`projects/route.ts`, `papers/route.ts`, `manual-screening/route.ts`, `llm/count/route.ts`) and Python orchestration (`llm/main.py`).
+  - Updated LLM count and run decision filters in `api/llm/count/route.ts` and `llm/main.py` to target the active decision via `COALESCE(manual_decision, ai_decision)` instead of `ai_decision` only, ensuring that manual overrides are fully respected.
+
+## #211 - Paper Database Table & Screening Pipeline Filters (2026-07-17)
+- **Goal**: Resolve defunct/uncleaned schema v2 queries, fix bulk action selection mismatches, and reconcile PDF counts between the database view and LLM pipelines.
+- **Changes**:
+  - Rebuilt the `getEcTriggers` API query to dynamically extract exclusion codes from `ai_decision` and `manual_decision` instead of deleted legacy tables.
+  - Linked `pipelineStageFilter` to the client-side EC fetch logic to re-trigger dynamically on stage changes and reset active values.
+  - Added a new `ready_for_ai` status option ('Unprocessed (Ready for AI — SYNCED PDF)') filter representing strictly `SYNCED` local PDFs, resolving the 6-paper database vs. pipeline count discrepancy.
+  - Updated `handleToggleSelectAll` to append all active pipeline filters to the request query parameters, ensuring selected IDs match the filtered corpus view during batch LLM run transitions.
+
+## #210 - LLM Pipeline Audit & Operations UI Improvement (2026-07-17)
+- **Goal**: Audit the LLM screening and extraction pipeline for schema compatibility, and improve target paper validation in the Operations tab.
+- **Changes**:
+  - Audited `llm/main.py`, `llm/queue_handler.py`, `llm/templating.py`, and typescript endpoints `/api/llm/screen` and `/api/llm/count`. Confirmed zero legacy `Status` references and correct typed matching.
+  - Redesigned `GlobalLLMSettingsView.tsx` Operations tab: embedded the live target paper count pill directly inside the Launch button.
+  - Added a zero-count safety guard: disabled the Launch button when `targetCount === 0` and displayed an amber warning banner.
+
+## #209 - Schema V2 Giga Refactor (2026-07-16)
+- **Goal**: Clean up dead code, add new UI components, create a dedicated calibration route, and type-harden components following the schema v2 refactor.
+- **Changes**:
+  - Removed 7 dead `useState` state hooks and simplified the `hasChanges` and `lastLoadedPaperRef` rehydration check logic in `ViewEditPaperModal.tsx`.
+  - Cleaned up the prop interfaces of `PaperMetadataEdit.tsx` and `PaperMetadataView.tsx` by removing all `editStatus`, `editHuman*`, and calibration-pool assignment fields.
+  - Implemented the reusable `ScreeningSummaryPanel.tsx` component to render AI/Manual screening stage badges, parsed exclusion criteria triggers, rationales, and collapsible JSON viewers.
+  - Refactored `papers/[id]/route.ts` PUT handler to only update core metadata fields, removing all manual overrides, audit log insertions, and database cloning actions.
+  - Created a dedicated `/api/calibration/assign` POST API route to manage calibration pool assignments.
+  - Updated pool assignment hooks (`useCalibration.ts`) and modal views (`AssignDetailView.tsx`) to utilize the new endpoint, correcting dynamic decision lookups and type definitions.
+  - Hardened props interfaces to replace all generic `any` types with explicit `Paper` and `Project` types.
+
+## #208 - Deletion of Redundant Status Column (2026-07-16)
+- **Goal**: Drop the legacy `Status` column from the `papers` and `calibration_papers` tables, replacing all references with dynamic stage queries.
+- **Changes**:
+  - Executed migration script `scratch/migrate-status.js` backing up the database, dropping `Status` from `papers` and `calibration_papers`, and rebuilding indexes.
+  - Removed `Status` from the `Paper` TypeScript interface and database schemas in `db-init.ts`.
+  - Refactored `api/papers/[id]`, `api/papers`, `api/papers/manual-screening`, and `api/papers/purge-check` to use integer stages (`manual_stage` / `ai_stage`) and query active stages dynamically via `COALESCE(NULLIF(manual_stage, 0), ai_stage)`.
+  - Updated the CSV exporter (`api/export`) to output dynamic active stages under a `'Stage'` column.
+  - Refactored inter-rater, adjudication, and python scripts (`match_cache.py`, `llm/main.py`, `queue_handler.py`) to map stages as integers and clean up all `Status` updates.
+
+## #207 - Database Schema Simplification and V2 Migration (2026-07-16)
+- **Goal**: Drop legacy/calibration columns from the main `papers` table, simplify the schema, and migrate data dynamically.
+- **Changes**:
+  - Wrote and executed migration scripts `scratch/migrate-v2.js` and `scratch/migrate-cal.js` to back up `slr.db`, drop 12 columns, add 10 new `ai_*` and `manual_*` columns, and re-create indexes.
+  - Parsed, rehydrated, and mapped numerical stages (0-4) in API routes (`papers/[id]` and `papers`) and custom React hooks (`useManualScreening`, `useCalibration`).
+  - Embedded exclusion codes inside the `manual_decision` and `ai_decision` columns (e.g. `EXCLUDE (EC-5)`), updating log-filters, details dialogs, and validation logic.
+  - Removed obsolete Calibration Pool and Tag fields from `PaperMetadataEdit`, `PaperMetadataView`, and `ViewEditPaperModal` component prop chains.
+
+## #206 - Dedicated Screening Pipeline and Exclusion Code Filters (2026-07-16)
+- **Goal**: Introduce dedicated screening pipeline filters and a dynamically loaded exclusion code selector in the Paper Database view.
+- **Changes**:
+  - Parsed `pipelineStage`, `pipelineStatus`, and `ecTrigger` parameters in `api/papers/route.ts` and constructed matching SQL filters.
+  - Declared `pipelineStageFilter`, `pipelineStatusFilter`, and `ecTriggerFilter` states in `usePapers.ts` hook.
+  - Linked new filter hooks into `PaperDatabaseView` props in `page.tsx`.
+  - Added "Screening Pipeline" filter button and dropdown popover in `PaperDatabaseView.tsx` with dynamic loading of exclusion codes from the database.
+
+## #205 - Mandatory Decision Panel Fields and Save Control (2026-07-16)
+- **Goal**: Implement strict validation of Decision Panel inputs in the Manual Screening workspace and disable the save button when no modifications exist.
+- **Changes**:
+  - Added React `useMemo` in `ManualScreeningDetailView.tsx` to compare current state with DB state (`hasChanges`) and compute missing fields (`validationErrors`).
+  - Added strict validation checking logic for all manual screening stages (Fast Filter, Gatekeeper, Scientist, Miner), making all stage-specific inputs (including QA evidence and Miner variables value & evidence) mandatory.
+  - Rendered a styled missing fields list above the submit button and disabled the Save button if saving is in progress, if there are no changes, or if validation errors are present.
+
+## #204 - Resolved Stage 2 Dashboard Metrics Mismatch (2026-07-16)
+- **Goal**: Resolve dashboard metrics mismatch where Stage 2 Total didn't equal Stage 1 Included due to papers manually screened without local PDFs.
+- **Changes**:
+  - Updated `/api/projects` in `route.ts` to calculate Stage 2 Total exactly as the sum of Stage 2 (Included + Excluded + Unprocessed + Pending PDF).
+  - Partitioned Stage 2 unprocessed papers into `unprocessed` (ready with acquired PDF) and `pending_pdf` (waiting for PDF download).
+  - Updated `MetricSummaryCards.tsx` to handle and render `pending_pdf` status, displaying it on the Stage 2 progress bar and adding a text info label.
+
 ## #192 - Unified Filter Parity in Manual Screening (2026-07-15)
 - **Goal**: Support full filter parity between the Paper Database view and the Manual Screening Workspace.
 - **Changes**:
@@ -244,3 +370,9 @@
 | #197 | 2026-07-16 | Feature | Added a new "PDF Link" filter option to the Paper Database view's Advanced Filters. Enables users to filter papers by Any State, Has PDF Link (where PDF_Link has a value), or Empty (where PDF_Link is empty or null). | PDF Link Filter |
 | #198 | 2026-07-16 | Feature | Added 'NEEDS_REVIEW' option to the bulk Local PDF Status selection dropdown, permitting bulk transitions of papers to needs review state. | Bulk PDF Status NEEDS_REVIEW Option |
 | #199 | 2026-07-16 | Feature | Added a new bulk action "Delete PDFs & Unset Links" in the Paper Database view. Designed the backend DELETE /api/pdf/delete route to support bulk inputs with a keepRaw query/body flag: single paper deletion continues to delete PDF files from all locations (raw, repo, and downloads folders) and unsets URL link, while the bulk deletion deletes PDF files only from the project repo folder (keeping raw folder untouched) and unsets URL links. | Bulk PDF Deletion & Link Unsetting |
+| #200 | 2026-07-16 | Bug Fix | Resolved a rehydration and multi-tab synchronization bug in the "Assign Papers to Calibration Pools" workspace. Subscribed to BroadcastChannel events (`SYNC_PAPERS`, `SYNC_PROJECTS`) using mutable refs in `useCalibration.ts` to refresh active pool and assignment lists without capturing stale closures. Added `broadcastSync` trigger to the pool assignment action to keep other tabs updated. Implemented a rehydration guard for the notes input textarea in `AssignDetailView.tsx` using `useRef` to preserve user drafts during background rehydration. | Calibration Pool Sync & Rehydration Guard |
+| #201 | 2026-07-16 | Bug Fix / Perf | Resolved SQLite database lock contention and browser concurrent connection limits (maximum 6 connections) when running "Batch PDF Pipeline Execution". Configured all Python SQLite entrypoint connections explicitly with WAL mode (`PRAGMA journal_mode=WAL`) and a timeout of 30.0 seconds. Implemented Page Visibility API stream management in `usePipeline.ts` to automatically disconnect persistent stream connections in background tabs and reconnect them only when visible. | Database Contention & visibility Stream optimizations |
+| #202 | 2026-07-16 | Bug Fix / UI | Disabled single paper PDF acquisition in the calibration details view when the main batch execution pipeline is active. Added a warning message warning the user about the active pipeline to prevent database conflicts and browser thread locks. | Single PDF Acquisition Active Pipeline Guard |
+| #203 | 2026-07-16 | Feature / UI | Added read-only "Decision State" (manual_decision) field to the Paper Metadata Edit modal and displayed the read-only decision status in the Paper Details modal under System State. | Paper Details Decision State Field |
+| #204 | 2026-07-16 | Bug Fix | Resolved the discrepancy between Stage 1 Included and Stage 2 Total metrics by defining Stage 2 Total as Stage 1 Included and partitioning unprocessed Stage 2 papers into active (ready with PDF) and pending PDF states. | Resolved Stage 2 Dashboard Metrics Mismatch |
+| #205 | 2026-07-17 | Feature / Reliability | Excluded duplicate papers (`is_duplicate = 1`) globally from LLM operations, crawler execution, PDF matching, verification, compression, remote worker claiming, and calibration pool assignments. | Exclude Duplicate Papers from All Pipelines |

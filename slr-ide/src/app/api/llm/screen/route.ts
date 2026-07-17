@@ -12,11 +12,23 @@ import { pipelineLock } from '@/lib/services/pipeline-lock';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { projectId, jobId, taskType, action, limit, offset, paperIds, templateId, statusFilter, decisionFilter, excludeManual } = body;
+    const { projectId, jobId, action, limit, offset, paperIds, templateId, statusFilter, decisionFilter, excludeManual } = body;
+    let taskTypeInput = body.taskType;
 
     if (!jobId) {
       return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
     }
+
+    const stageMap: Record<string, string> = {
+      'fast_filter': 'fast_filter',
+      'screening': 'fast_filter',
+      'gatekeeper': 'gatekeeper',
+      'fulltext': 'gatekeeper',
+      'scientist': 'scientist',
+      'miner': 'miner',
+      'extraction': 'miner'
+    };
+    const taskType = stageMap[taskTypeInput] || taskTypeInput || 'fast_filter';
 
     // Handle interactive controls (resume/pause/cancel)
     if (action === 'resume') {
@@ -161,9 +173,9 @@ export async function POST(req: NextRequest) {
     // Insert an initial job record to database immediately to avoid client race conditions
     try {
       db.prepare(`
-        INSERT OR REPLACE INTO llm_jobs (id, project_id, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'STARTING', 0, 0, datetime('now'), datetime('now'))
-      `).run(jobId, projectId, modelId, executionMode);
+        INSERT OR REPLACE INTO llm_jobs (id, project_id, task_type, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'STARTING', 0, 0, datetime('now'), datetime('now'))
+      `).run(jobId, projectId, taskType, modelId, executionMode);
     } catch (e) {
       console.error('Failed to insert initial job record:', e);
     }

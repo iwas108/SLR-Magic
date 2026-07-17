@@ -133,6 +133,7 @@ export async function generateCloudLinks(
       SELECT Paper_ID FROM papers 
       WHERE Local_PDF_Status IN ${statusIn}
         AND Project_ID = ?
+        AND (is_duplicate IS NULL OR is_duplicate = 0)
     `).all(activeProjectId) as { Paper_ID: string }[];
 
     const startMsg = { event: 'start', total: papers.length, step: 'sync' };

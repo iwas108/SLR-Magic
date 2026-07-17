@@ -23,7 +23,8 @@ def main():
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     os.makedirs(RAW_DIR, exist_ok=True)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     config = ScraperConfig(conn)
 
     cursor = conn.cursor()
@@ -46,6 +47,7 @@ def main():
             WHERE DOI IS NOT NULL AND DOI != '' 
               AND Paper_ID = ?
               AND Project_ID = ?
+              AND (is_duplicate IS NULL OR is_duplicate = 0)
         """, (paper_id_arg, active_proj_id))
     else:
         cursor.execute("""
@@ -54,6 +56,7 @@ def main():
             WHERE DOI IS NOT NULL AND DOI != '' 
               AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING')
               AND Project_ID = ?
+              AND (is_duplicate IS NULL OR is_duplicate = 0)
         """, (active_proj_id,))
     papers = cursor.fetchall()
     total = len(papers)

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, Key, ShieldCheck, AlertCircle, Loader, Eye, EyeOff } from 'lucide-react';
+import { broadcastSync } from '@/lib/sync-utils';
 
 interface VaultKeyEditorModalProps {
   isOpen: boolean;
@@ -23,7 +24,8 @@ export default function VaultKeyEditorModal({ isOpen, onClose, onSuccess, showTo
     e.preventDefault();
     setError(null);
 
-    if (!plainValue) {
+    const trimmedValue = (plainValue || '').trim();
+    if (!trimmedValue) {
       setError('API Key value is required');
       return;
     }
@@ -35,7 +37,7 @@ export default function VaultKeyEditorModal({ isOpen, onClose, onSuccess, showTo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keyName,
-          plainValue
+          plainValue: trimmedValue
         })
       });
 
@@ -47,6 +49,7 @@ export default function VaultKeyEditorModal({ isOpen, onClose, onSuccess, showTo
       showToast?.(`Key '${keyName}' saved and encrypted successfully.`, 'success');
       onSuccess();
       setPlainValue('');
+      broadcastSync('SYNC_VAULT_KEYS');
       onClose();
     } catch (err: any) {
       setError(err.message || 'Operation failed');

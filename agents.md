@@ -83,9 +83,22 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, ensuring a clean and stable build.
 
 ### 3.5 Isolation of Double-Blind Calibration Adjudication
-*   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and columns (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`) are standalone modules strictly reserved for prompt and agreement calibration.
+*   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and sandbox columns (`manual_decision`, `manual_stage`, `manual_rationale` on `calibration_papers`) are standalone modules strictly reserved for prompt and agreement calibration.
 *   **Zero Integration Policy**: Do NOT connect, source, or reference these tables or columns inside the general screening pipeline (such as fast filter, gatekeeper, scientist, or miner), general database view/filtering, or main paper details editing/sourcing flows.
-*   **Manual Screening Precedence**: General human overrides during manual review MUST exclusively use the manual screening columns (`manual_decision`, `manual_ec_trigger`, `manual_rationale`) and the corresponding `manual_audit_log` table.
+*   **Manual Screening Precedence**: General human overrides during manual review MUST exclusively use the manual screening columns (`manual_decision`, `manual_stage`, `manual_rationale` on `papers`) and the corresponding `manual_audit_log` table.
+
+### 3.6 Stage-Aware Decision Resolution Policy (Source of Truth)
+*   **Stage Dominance Rule**: When determining the active/effective screening decision for a paper, the decision from the **highest stage** (`MAX(manual_stage, ai_stage)`) is the absolute source of truth.
+*   **Tie-Breaking Rule**: If the highest manual stage and highest AI stage are equal, the **manual decision overrides the AI decision**.
+*   **No Naive COALESCE**: You **MUST NOT** use naive `COALESCE(manual_decision, ai_decision)` or `COALESCE(ai_decision, manual_decision)` to determine active decisions, as this ignores stage precedence. Use the following stage-aware `CASE` expression in SQL:
+    ```sql
+    CASE 
+      WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision
+      WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision
+      ELSE COALESCE(manual_decision, ai_decision)
+    END
+    ```
+*   **Inclusion Search Broadness**: When checking for `"INCLUDE"` status in the database, always use pattern matching (e.g. `LIKE 'INCLUDE%'`) rather than an exact match (e.g. `= 'INCLUDE'`) to avoid missing decision variants such as `'INCLUDE (S1)'`.
 
 ---
 

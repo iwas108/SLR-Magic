@@ -257,6 +257,9 @@ export function usePipeline({
 
   const subscribeToBatchStream = useCallback(async () => {
     if (isStreamActiveRef.current) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      return; // Do not connect in background tabs to prevent connection exhaustion
+    }
     isStreamActiveRef.current = true;
 
     setOperationModal(prev => ({
@@ -466,6 +469,22 @@ export function usePipeline({
       timeLeft: timeLeftStr
     };
   }, [stepStartTime, pipelineStats]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkBatchStatus();
+      } else {
+        cancelStream();
+        isStreamActiveRef.current = false;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [checkBatchStatus, cancelStream]);
 
   return {
     batchSteps,

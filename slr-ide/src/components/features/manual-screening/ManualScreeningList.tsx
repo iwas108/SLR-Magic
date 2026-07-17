@@ -285,19 +285,19 @@ export default function ManualScreeningList({
                     )}
 
                     {/* Manual Stage Badge */}
-                    {paper.manual_stage && (
+                    {paper.manual_stage !== undefined && paper.manual_stage !== null && paper.manual_stage > 0 && (
                       <span className="px-1.5 py-0.2 bg-secondary/80 border border-border text-muted-foreground rounded text-[8px] font-semibold">
-                        {paper.manual_stage === 'fast_filter' ? 'FF' :
-                         paper.manual_stage === 'gatekeeper' ? 'GK' :
-                         paper.manual_stage === 'scientist' ? 'SC' : 'MN'}
+                        {paper.manual_stage === 1 ? 'FF' :
+                         paper.manual_stage === 2 ? 'GK' :
+                         paper.manual_stage === 3 ? 'SC' : 'MN'}
                       </span>
                     )}
 
                     {/* Calibration Pool Indicator */}
-                    {paper.calibration_pool && (
+                    {(paper as any).calibration_pool && (
                       <span className="px-1 py-0.2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded text-[7px] font-black uppercase">
-                        {paper.calibration_pool === 'pool_a' ? 'A' :
-                         paper.calibration_pool === 'pool_b' ? 'B' : 'C'}
+                        {(paper as any).calibration_pool === 'pool_a' ? 'A' :
+                         (paper as any).calibration_pool === 'pool_b' ? 'B' : 'C'}
                       </span>
                     )}
                   </div>

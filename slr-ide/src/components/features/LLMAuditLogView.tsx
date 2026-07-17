@@ -432,7 +432,7 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
 
       {paperModal.isOpen && typeof document !== 'undefined' && createPortal(
         <ViewEditPaperModal
-          paperModal={paperModal}
+          paperModal={paperModal as any}
           setPaperModal={setPaperModal as any}
           hasLocalPdf={!!(paperModal.paper?.Local_PDF_Path && ['MATCHED', 'DOWNLOADED', 'SYNCED', 'NEEDS_REVIEW'].includes(paperModal.paper?.Local_PDF_Status))}
           activeProject={activeProject}

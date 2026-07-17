@@ -25,14 +25,14 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger("LLMMainOrchestrator")
 
-def fail_job(job_id, project_id, error_message):
+def fail_job(job_id, project_id, error_message, task_type="fast_filter"):
     """Saves a failed job state in the database and prints failure JSON to stdout."""
     execute_write(
         """
-        INSERT OR REPLACE INTO llm_jobs (id, project_id, model_id, mode, status, total_papers, error_message, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO llm_jobs (id, project_id, task_type, model_id, mode, status, total_papers, error_message, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (job_id, project_id, "unknown", "standard", "FAILED", 0, error_message, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
+        (job_id, project_id, task_type, "unknown", "standard", "FAILED", 0, error_message, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
     )
     print(json.dumps({
         "status": "FAILED",
@@ -59,7 +59,16 @@ def main():
 
     job_id = args.job_id
     project_id = args.project_id
-    task_type = args.task_type
+    stage_map = {
+        'fast_filter': 'fast_filter',
+        'screening': 'fast_filter',
+        'gatekeeper': 'gatekeeper',
+        'fulltext': 'gatekeeper',
+        'scientist': 'scientist',
+        'miner': 'miner',
+        'extraction': 'miner'
+    }
+    task_type = stage_map.get(args.task_type, args.task_type or 'fast_filter')
     action = args.action
     status_filter = args.status_filter
     decision_filter = args.decision_filter
@@ -72,13 +81,13 @@ def main():
     if "GOOGLE_API_KEY" in os.environ:
         del os.environ["GOOGLE_API_KEY"]
     if not api_key:
-        fail_job(job_id, project_id, "Gemini API Key is missing. Unlock the vault first.")
+        fail_job(job_id, project_id, "Gemini API Key is missing. Unlock the vault first.", task_type=task_type)
 
     # Instantiate Gemini client
     try:
         client = GeminiClient(api_key=api_key)
     except Exception as init_err:
-        fail_job(job_id, project_id, f"Failed to initialize GeminiClient: {init_err}")
+        fail_job(job_id, project_id, f"Failed to initialize GeminiClient: {init_err}", task_type=task_type)
 
     # Action: refresh-pricing
     if action == 'refresh-pricing':
@@ -96,16 +105,16 @@ def main():
     # 1. Fetch active project details from SQLite
     project = execute_read_one("SELECT * FROM projects WHERE id = ?", (project_id,))
     if not project:
-        fail_job(job_id, project_id, f"Project '{project_id}' not found in database.")
+        fail_job(job_id, project_id, f"Project '{project_id}' not found in database.", task_type=task_type)
 
     # 2. Resolve prompt template (must be supplied by user)
     selected_template_id = args.template_id
     if not selected_template_id:
-        fail_job(job_id, project_id, "No prompt template specified. A template must always be selected to execute the pipeline.")
+        fail_job(job_id, project_id, "No prompt template specified. A template must always be selected to execute the pipeline.", task_type=task_type)
 
     template_row = execute_read_one("SELECT * FROM prompt_templates WHERE id = ?", (selected_template_id,))
     if not template_row:
-        fail_job(job_id, project_id, f"Prompt template '{selected_template_id}' not found in database.")
+        fail_job(job_id, project_id, f"Prompt template '{selected_template_id}' not found in database.", task_type=task_type)
 
     system_instruction = template_row.get("system_instruction") or ""
     user_template = template_row.get("user_template") or ""
@@ -131,7 +140,7 @@ def main():
     try:
         client = GeminiClient(api_key=api_key, timeout_seconds=timeout_seconds)
     except Exception as init_err:
-        fail_job(job_id, project_id, f"Failed to initialize GeminiClient with config: {init_err}")
+        fail_job(job_id, project_id, f"Failed to initialize GeminiClient with config: {init_err}", task_type=task_type)
     
     concurrency_limit = int(llm_config.get("concurrency", 1))
     batch_queue_size = int(llm_config.get("batch_queue_size", 100))
@@ -146,26 +155,36 @@ def main():
     schema_str = template_row.get("response_schema")
     is_valid, err_msg, prompt_schema = validate_json_schema(schema_str)
     if not is_valid:
-        fail_job(job_id, project_id, f"JSON Schema validation failed for prompt template '{selected_template_id}': {err_msg}")
+        fail_job(job_id, project_id, f"JSON Schema validation failed for prompt template '{selected_template_id}': {err_msg}", task_type=task_type)
 
     # 5. Fetch papers pending screening with range/selection constraints matching status_filter
     requires_pdf = task_type in ('gatekeeper', 'scientist', 'miner', 'fulltext', 'extraction')
     if args.paper_ids:
       # User specified concrete Paper IDs. Fetch all pending papers and filter in memory to avoid parameter limit exceptions.
       if status_filter == 'ALL':
-          query = "SELECT * FROM papers WHERE Project_ID = ?"
+          query = "SELECT * FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
           params = [project_id]
       else:
-          query = "SELECT * FROM papers WHERE Project_ID = ? AND Status = ?"
-          params = [project_id, status_filter]
+          query = "SELECT * FROM papers WHERE Project_ID = ? AND MAX(manual_stage, ai_stage) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
+          params = [project_id, int(status_filter)]
       if decision_filter != 'ALL':
-          query += " AND IFNULL(AI_Decision, 'PENDING') = ?"
+          query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' ELSE IFNULL((CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END), 'PENDING') END) = ?"
           params.append(decision_filter)
       if requires_pdf:
           query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
       if exclude_manual:
+          stage_map = {
+              'fast_filter': 'fast_filter',
+              'screening': 'fast_filter',
+              'gatekeeper': 'gatekeeper',
+              'fulltext': 'gatekeeper',
+              'scientist': 'scientist',
+              'miner': 'miner',
+              'extraction': 'miner'
+          }
+          db_stage_name = stage_map.get(task_type, task_type)
           query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.manual_stage = ?)"
-          params.append(task_type)
+          params.append(db_stage_name)
       query += " ORDER BY Paper_ID ASC"
       all_papers = execute_read(query, tuple(params))
       parsed_ids = [p_id.strip() for p_id in args.paper_ids.split(",") if p_id.strip()]
@@ -174,19 +193,29 @@ def main():
     else:
       # Standard range/limit batch query
       if status_filter == 'ALL':
-          query = "SELECT * FROM papers WHERE Project_ID = ?"
+          query = "SELECT * FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
           params = [project_id]
       else:
-          query = "SELECT * FROM papers WHERE Project_ID = ? AND Status = ?"
-          params = [project_id, status_filter]
+          query = "SELECT * FROM papers WHERE Project_ID = ? AND MAX(manual_stage, ai_stage) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
+          params = [project_id, int(status_filter)]
       if decision_filter != 'ALL':
-          query += " AND IFNULL(AI_Decision, 'PENDING') = ?"
+          query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' ELSE IFNULL((CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END), 'PENDING') END) = ?"
           params.append(decision_filter)
       if requires_pdf:
           query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
       if exclude_manual:
+          stage_map = {
+              'fast_filter': 'fast_filter',
+              'screening': 'fast_filter',
+              'gatekeeper': 'gatekeeper',
+              'fulltext': 'gatekeeper',
+              'scientist': 'scientist',
+              'miner': 'miner',
+              'extraction': 'miner'
+          }
+          db_stage_name = stage_map.get(task_type, task_type)
           query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.manual_stage = ?)"
-          params.append(task_type)
+          params.append(db_stage_name)
       query += " ORDER BY Paper_ID ASC"
       
       # We must apply LIMIT/OFFSET after ORDER BY
@@ -202,10 +231,10 @@ def main():
         # No work to do, close job as complete immediately
         execute_write(
             """
-            INSERT OR REPLACE INTO llm_jobs (id, project_id, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO llm_jobs (id, project_id, task_type, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (job_id, project_id, model_id, speed_mode, "COMPLETED", 0, 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
+            (job_id, project_id, task_type, model_id, speed_mode, "COMPLETED", 0, 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
         )
         print(json.dumps({
             "status": "COMPLETED",
@@ -220,10 +249,10 @@ def main():
     # 6. Initialize job record in database
     execute_write(
         """
-        INSERT OR REPLACE INTO llm_jobs (id, project_id, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO llm_jobs (id, project_id, task_type, model_id, mode, status, total_papers, processed_papers, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (job_id, project_id, model_id, speed_mode, "RUNNING", len(papers), 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
+        (job_id, project_id, task_type, model_id, speed_mode, "RUNNING", len(papers), 0, datetime.utcnow().isoformat(), datetime.utcnow().isoformat())
     )
 
     # Parse project llm_config for custom schema mappings

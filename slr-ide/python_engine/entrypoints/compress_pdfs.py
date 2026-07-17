@@ -46,7 +46,8 @@ def main():
     
     if DB_PATH.exists():
         try:
-            conn = sqlite3.connect(str(DB_PATH))
+            conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             cursor.execute("SELECT key, value FROM configs WHERE key IN ('PDF_COMPRESSION_ENABLED', 'PDF_COMPRESSION_LEVEL', 'GHOSTSCRIPT_PATH', 'ACTIVE_PROJECT_ID')")
             rows = cursor.fetchall()
@@ -65,7 +66,7 @@ def main():
             force_update = '--force-update' in sys.argv
             status_in = "('MATCHED', 'DOWNLOADED', 'SYNCED')" if force_update else "('MATCHED', 'DOWNLOADED')"
             
-            cursor.execute(f"SELECT Paper_ID, Local_PDF_Path FROM papers WHERE Project_ID = ? AND Local_PDF_Status IN {status_in}", (active_proj_id,))
+            cursor.execute(f"SELECT Paper_ID, Local_PDF_Path FROM papers WHERE Project_ID = ? AND Local_PDF_Status IN {status_in} AND (is_duplicate IS NULL OR is_duplicate = 0)", (active_proj_id,))
             papers = cursor.fetchall()
             conn.close()
         except Exception as e:

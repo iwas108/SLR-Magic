@@ -20,33 +20,28 @@ export function initializeDatabase(db: Database.Database): void {
       Authors TEXT,
       Year INTEGER,
       PDF_Link TEXT,
-      Status TEXT NOT NULL DEFAULT '0',
       Local_PDF_Status TEXT NOT NULL DEFAULT 'IGNORED',
       Local_PDF_Path TEXT,
       Project_ID TEXT,
-      calibration_pool TEXT,
-      Human_Decision TEXT,
-      Human_EC_Trigger TEXT,
-      Human_Rationale TEXT,
+      Parent_Paper_ID TEXT,
       Original_Publisher TEXT,
       Publisher TEXT,
       citation_count INTEGER DEFAULT 0,
-      Human_QA_Scores TEXT,
-      Human_Extracted_Data TEXT,
       is_duplicate INTEGER DEFAULT 0,
       merged_into_id TEXT DEFAULT NULL,
-      AI_Decision TEXT,
-      AI_EC_Trigger TEXT,
-      AI_Rationale TEXT,
-      AI_QA_Scores TEXT,
-      AI_Extracted_Data TEXT,
-      manual_decision TEXT,
-      manual_ec_trigger TEXT,
-      manual_rationale TEXT,
-      manual_stage TEXT,
-      manual_qa_scores TEXT,
-      manual_extracted_data TEXT,
-      notes TEXT
+      remote_worker_id TEXT DEFAULT NULL,
+      scrape_claimed_at TEXT DEFAULT NULL,
+      notes TEXT DEFAULT NULL,
+      ai_stage INTEGER DEFAULT 0,
+      ai_decision TEXT DEFAULT NULL,
+      ai_rationale TEXT DEFAULT NULL,
+      ai_quality_assessment TEXT DEFAULT NULL,
+      ai_extracted_data TEXT DEFAULT NULL,
+      manual_stage INTEGER DEFAULT 0,
+      manual_decision TEXT DEFAULT NULL,
+      manual_rationale TEXT DEFAULT NULL,
+      manual_quality_assessment TEXT DEFAULT NULL,
+      manual_extracted_data TEXT DEFAULT NULL
     );
 
     CREATE TABLE IF NOT EXISTS calibration_papers (
@@ -60,37 +55,30 @@ export function initializeDatabase(db: Database.Database): void {
       Authors TEXT,
       Year INTEGER,
       PDF_Link TEXT,
-      Status TEXT NOT NULL DEFAULT '0',
       Local_PDF_Status TEXT NOT NULL DEFAULT 'IGNORED',
       Local_PDF_Path TEXT,
       Project_ID TEXT,
       Parent_Paper_ID TEXT,
-      remote_worker_id TEXT,
-      scrape_claimed_at TEXT,
-      calibration_pool TEXT,
-      calibration_tag TEXT,
-      Human_Decision TEXT,
-      Human_EC_Trigger TEXT,
-      Human_Rationale TEXT,
       Original_Publisher TEXT,
       Publisher TEXT,
       citation_count INTEGER DEFAULT 0,
-      Human_QA_Scores TEXT,
-      Human_Extracted_Data TEXT,
       is_duplicate INTEGER DEFAULT 0,
       merged_into_id TEXT DEFAULT NULL,
-      AI_Decision TEXT,
-      AI_EC_Trigger TEXT,
-      AI_Rationale TEXT,
-      AI_QA_Scores TEXT,
-      AI_Extracted_Data TEXT,
-      manual_decision TEXT,
-      manual_ec_trigger TEXT,
-      manual_rationale TEXT,
-      manual_stage TEXT,
-      manual_qa_scores TEXT,
-      manual_extracted_data TEXT,
-      notes TEXT
+      remote_worker_id TEXT DEFAULT NULL,
+      scrape_claimed_at TEXT DEFAULT NULL,
+      notes TEXT DEFAULT NULL,
+      ai_stage INTEGER DEFAULT 0,
+      ai_decision TEXT DEFAULT NULL,
+      ai_rationale TEXT DEFAULT NULL,
+      ai_quality_assessment TEXT DEFAULT NULL,
+      ai_extracted_data TEXT DEFAULT NULL,
+      manual_stage INTEGER DEFAULT 0,
+      manual_decision TEXT DEFAULT NULL,
+      manual_rationale TEXT DEFAULT NULL,
+      manual_quality_assessment TEXT DEFAULT NULL,
+      manual_extracted_data TEXT DEFAULT NULL,
+      calibration_pool TEXT,
+      calibration_tag TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_papers_doi ON papers (DOI);
@@ -275,6 +263,7 @@ export function initializeDatabase(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS llm_jobs (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
+      task_type TEXT,
       model_id TEXT NOT NULL,
       mode TEXT NOT NULL,
       status TEXT NOT NULL,
@@ -546,6 +535,13 @@ export function initializeDatabase(db: Database.Database): void {
     // Column already exists
   }
 
+  // Add task_type column to llm_jobs if it doesn't exist
+  try {
+    db.exec("ALTER TABLE llm_jobs ADD COLUMN task_type TEXT");
+  } catch (e) {
+    // Column already exists
+  }
+
   // Add Human_QA_Scores column to papers if it doesn't exist (migration fallback)
   try {
     db.exec("ALTER TABLE papers ADD COLUMN Human_QA_Scores TEXT");
@@ -601,47 +597,40 @@ export function initializeDatabase(db: Database.Database): void {
     db.exec("CREATE INDEX IF NOT EXISTS idx_papers_merged_into ON papers (merged_into_id)");
   } catch (e) {}
 
-  // Self-healing migration for paper Status column: convert 'PENDING', 'COMPLETED', 'FAILED' to '0'
+
+
+  // Add new AI and manual columns to papers table if they do not exist (migration fallback)
   try {
-    const i1 = db.prepare("UPDATE papers SET Status = '0' WHERE Status = 'PENDING'").run();
-    const i2 = db.prepare("UPDATE papers SET Status = '0' WHERE Status = 'COMPLETED'").run();
-    const i3 = db.prepare("UPDATE papers SET Status = '0' WHERE Status = 'FAILED'").run();
-    const total = i1.changes + i2.changes + i3.changes;
-    if (total > 0) {
-      console.log(`Successfully migrated ${total} legacy paper Status values to '0'`);
-    }
-  } catch (e) {
-    console.error("Failed to migrate legacy paper Status values:", e);
-  }
+    db.exec("ALTER TABLE papers ADD COLUMN ai_stage INTEGER DEFAULT 0");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN ai_decision TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN ai_rationale TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN ai_quality_assessment TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN ai_extracted_data TEXT DEFAULT NULL");
+  } catch (e) {}
 
-  // Add AI columns to papers table if they do not exist
-  const aiColumns = ['AI_Decision', 'AI_EC_Trigger', 'AI_Rationale', 'AI_QA_Scores', 'AI_Extracted_Data'];
-  for (const col of aiColumns) {
-    try {
-      db.exec(`ALTER TABLE papers ADD COLUMN ${col} TEXT`);
-      console.log(`Added column ${col} to papers table successfully.`);
-    } catch (e) {
-      // Column already exists
-    }
-  }
-
-  // Add manual screening columns to papers table if they do not exist
-  const manualColumns = [
-    'manual_decision',
-    'manual_ec_trigger',
-    'manual_rationale',
-    'manual_stage',
-    'manual_qa_scores',
-    'manual_extracted_data'
-  ];
-  for (const col of manualColumns) {
-    try {
-      db.exec(`ALTER TABLE papers ADD COLUMN ${col} TEXT`);
-      console.log(`Added column ${col} to papers table successfully.`);
-    } catch (e) {
-      // Column already exists
-    }
-  }
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN manual_stage INTEGER DEFAULT 0");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN manual_decision TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN manual_rationale TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN manual_quality_assessment TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE papers ADD COLUMN manual_extracted_data TEXT DEFAULT NULL");
+  } catch (e) {}
 
   // Add remote worker columns to papers table if they do not exist
   try {

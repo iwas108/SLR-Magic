@@ -6,16 +6,18 @@ import PaperMetadataView from './paper-details/PaperMetadataView';
 import PaperMetadataEdit from './paper-details/PaperMetadataEdit';
 import PdfPreview from './paper-details/PdfPreview';
 
+import { Paper, Project } from '@/types';
+
 interface ViewEditPaperModalProps {
-  paperModal: any;
-  setPaperModal: any;
+  paperModal: { isOpen: boolean; mode: 'view' | 'edit'; paper: Paper | null };
+  setPaperModal: React.Dispatch<React.SetStateAction<any>>;
   hasLocalPdf: boolean;
-  activeProject: any;
+  activeProject: Project | null;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   loadPapers: () => void;
   loadProjects: () => void;
-  setDeleteConfirm: any;
-  papers?: any[];
+  setDeleteConfirm: React.Dispatch<React.SetStateAction<any>>;
+  papers?: Paper[];
 }
 
 export default function ViewEditPaperModal({
@@ -36,16 +38,10 @@ export default function ViewEditPaperModal({
   const [editPdfLink, setEditPdfLink] = useState('');
   const [editAbstract, setEditAbstract] = useState('');
   const [editPdfStatus, setEditPdfStatus] = useState('missing');
-  const [editStatus, setEditStatus] = useState('pending');
-  const [editCalPool, setEditCalPool] = useState('none');
-  const [editCalTag, setEditCalTag] = useState('');
   const [editOriginalPublisher, setEditOriginalPublisher] = useState('');
   const [editPublisher, setEditPublisher] = useState('');
   const [editCitationCount, setEditCitationCount] = useState('');
   const [editNotes, setEditNotes] = useState('');
-  const [editHumanDecision, setEditHumanDecision] = useState('');
-  const [editHumanEcTrigger, setEditHumanEcTrigger] = useState('');
-  const [editHumanRationale, setEditHumanRationale] = useState('');
   const [savingPaper, setSavingPaper] = useState(false);
   const [copied, setCopied] = useState(false);
   const [selectedEditParentPaper, setSelectedEditParentPaper] = useState<any>(null);
@@ -59,16 +55,10 @@ export default function ViewEditPaperModal({
     editAbstract !== (paperModal.paper?.Abstract || '') ||
     editPdfLink !== (paperModal.paper?.PDF_Link || '') ||
     editPdfStatus !== (paperModal.paper?.Local_PDF_Status || 'MISSING') ||
-    editStatus !== (paperModal.paper?.Status || 'PENDING') ||
-    editCalPool !== (paperModal.paper?.calibration_pool || '') ||
-    editCalTag !== (paperModal.paper?.calibration_tag || '') ||
     editOriginalPublisher !== (paperModal.paper?.Original_Publisher || '') ||
     editPublisher !== (paperModal.paper?.Publisher || '') ||
     editNotes !== (paperModal.paper?.notes || '') ||
     editCitationCount !== (paperModal.paper?.citation_count !== undefined && paperModal.paper?.citation_count !== null ? String(paperModal.paper?.citation_count) : '0') ||
-    editHumanDecision !== (paperModal.paper?.Human_Decision || '') ||
-    editHumanEcTrigger !== (paperModal.paper?.Human_EC_Trigger || '') ||
-    editHumanRationale !== (paperModal.paper?.Human_Rationale || '') ||
     editParentPaperId !== (paperModal.paper?.Parent_Paper_ID || '')
   );
 
@@ -177,14 +167,8 @@ export default function ViewEditPaperModal({
         lastLoadedPaperRef.current.Abstract !== paperModal.paper.Abstract ||
         lastLoadedPaperRef.current.PDF_Link !== paperModal.paper.PDF_Link ||
         lastLoadedPaperRef.current.Local_PDF_Status !== paperModal.paper.Local_PDF_Status ||
-        lastLoadedPaperRef.current.Status !== paperModal.paper.Status ||
-        lastLoadedPaperRef.current.calibration_pool !== paperModal.paper.calibration_pool ||
-        lastLoadedPaperRef.current.calibration_tag !== paperModal.paper.calibration_tag ||
         lastLoadedPaperRef.current.notes !== paperModal.paper.notes ||
-        lastLoadedPaperRef.current.citation_count !== paperModal.paper.citation_count ||
-        lastLoadedPaperRef.current.Human_Decision !== paperModal.paper.Human_Decision ||
-        lastLoadedPaperRef.current.Human_EC_Trigger !== paperModal.paper.Human_EC_Trigger ||
-        lastLoadedPaperRef.current.Human_Rationale !== paperModal.paper.Human_Rationale
+        lastLoadedPaperRef.current.citation_count !== paperModal.paper.citation_count
       ) && (
         // Guard: check if the new database paper values are different from the user's current inputs
         paperModal.paper.Title !== editTitle ||
@@ -194,14 +178,8 @@ export default function ViewEditPaperModal({
         paperModal.paper.Abstract !== editAbstract ||
         paperModal.paper.PDF_Link !== editPdfLink ||
         (paperModal.paper.Local_PDF_Status || 'MISSING') !== editPdfStatus ||
-        (paperModal.paper.Status || 'PENDING') !== editStatus ||
-        (paperModal.paper.calibration_pool || '') !== editCalPool ||
-        (paperModal.paper.calibration_tag || '') !== editCalTag ||
         (paperModal.paper.notes || '') !== editNotes ||
-        (paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0') !== editCitationCount ||
-        (paperModal.paper.Human_Decision || '') !== editHumanDecision ||
-        (paperModal.paper.Human_EC_Trigger || '') !== editHumanEcTrigger ||
-        (paperModal.paper.Human_Rationale || '') !== editHumanRationale
+        (paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0') !== editCitationCount
       );
 
       lastLoadedPaperRef.current = paperModal.paper;
@@ -214,16 +192,10 @@ export default function ViewEditPaperModal({
         setEditAbstract(paperModal.paper.Abstract || '');
         setEditPdfLink(paperModal.paper.PDF_Link || '');
         setEditPdfStatus(paperModal.paper.Local_PDF_Status || 'MISSING');
-        setEditStatus(paperModal.paper.Status || 'PENDING');
-        setEditCalPool(paperModal.paper.calibration_pool || '');
-        setEditCalTag(paperModal.paper.calibration_tag || '');
         setEditOriginalPublisher(paperModal.paper.Original_Publisher || '');
         setEditPublisher(paperModal.paper.Publisher || '');
         setEditNotes(paperModal.paper.notes || '');
         setEditCitationCount(paperModal.paper.citation_count !== undefined && paperModal.paper.citation_count !== null ? String(paperModal.paper.citation_count) : '0');
-        setEditHumanDecision(paperModal.paper.Human_Decision || '');
-        setEditHumanEcTrigger(paperModal.paper.Human_EC_Trigger || '');
-        setEditHumanRationale(paperModal.paper.Human_Rationale || '');
         
         const parentId = paperModal.paper.Parent_Paper_ID || '';
         const parentTitle = paperModal.paper.Parent_Paper_Title || '';
@@ -279,8 +251,6 @@ export default function ViewEditPaperModal({
           PDF_Link: editPdfLink,
           Local_PDF_Status: editPdfStatus,
           Parent_Paper_ID: editParentPaperId || null,
-          calibration_pool: editCalPool || null,
-          calibration_tag: editCalTag || null,
           Original_Publisher: editOriginalPublisher,
           Publisher: editPublisher,
           citation_count: editCitationCount,
@@ -298,10 +268,7 @@ export default function ViewEditPaperModal({
           Abstract: editAbstract,
           PDF_Link: editPdfLink,
           Local_PDF_Status: editPdfStatus,
-          Status: editStatus,
           Parent_Paper_ID: editParentPaperId || null,
-          calibration_pool: editCalPool || null,
-          calibration_tag: editCalTag || null,
           Original_Publisher: editOriginalPublisher,
           Publisher: editPublisher,
           citation_count: editCitationCount ? Number(editCitationCount) : 0,
@@ -356,10 +323,10 @@ export default function ViewEditPaperModal({
             <div className={`w-full ${hasLocalPdf ? '' : 'max-w-5xl space-y-4'}`}>
               {paperModal.mode === 'edit' ? (
               <PaperMetadataEdit
-                paperId={paperModal.paper.Paper_ID}
-                importDate={paperModal.paper.Import_Date}
-                importSource={paperModal.paper.Import_Source}
-                projectId={activeProject?.id}
+                paperId={paperModal.paper!.Paper_ID}
+                importDate={paperModal.paper!.Import_Date || ''}
+                importSource={paperModal.paper!.Import_Source || ''}
+                projectId={activeProject?.id || ''}
                 editParentPaperId={editParentPaperId}
                 setEditParentPaperId={setEditParentPaperId}
                 selectedEditParentPaper={selectedEditParentPaper}
@@ -382,34 +349,18 @@ export default function ViewEditPaperModal({
                 setEditAbstract={setEditAbstract}
                 editPdfStatus={editPdfStatus}
                 setEditPdfStatus={setEditPdfStatus}
-                editStatus={editStatus}
-                setEditStatus={setEditStatus}
-                editCalPool={editCalPool}
-                setEditCalPool={setEditCalPool}
-                editCalTag={editCalTag}
-                setEditCalTag={setEditCalTag}
                 editCitationCount={editCitationCount}
                 setEditCitationCount={setEditCitationCount}
                 editNotes={editNotes}
                 setEditNotes={setEditNotes}
-                editHumanDecision={editHumanDecision}
-                setEditHumanDecision={setEditHumanDecision}
-                editHumanEcTrigger={editHumanEcTrigger}
-                setEditHumanEcTrigger={setEditHumanEcTrigger}
-                editHumanRationale={editHumanRationale}
-                setEditHumanRationale={setEditHumanRationale}
-                getActiveProjectPoolTags={getActiveProjectPoolTags}
-                aiDecision={paperModal.paper.AI_Decision}
-                aiEcTrigger={paperModal.paper.AI_EC_Trigger}
-                aiRationale={paperModal.paper.AI_Rationale}
                 activeProject={activeProject}
+                paper={paperModal.paper!}
               />
             ) : (
               <PaperMetadataView
-                paper={paperModal.paper}
+                paper={paperModal.paper!}
                 setPaperModal={setPaperModal}
                 showToast={showToast}
-                getActiveProjectPoolTags={getActiveProjectPoolTags}
                 activeProject={activeProject}
               />
             )}
@@ -420,7 +371,7 @@ export default function ViewEditPaperModal({
           </form>
 
           {/* Right Column (PDF Viewer) */}
-          {hasLocalPdf && <PdfPreview localPdfPath={paperModal.paper.Local_PDF_Path} />}
+          {hasLocalPdf && <PdfPreview localPdfPath={paperModal.paper!.Local_PDF_Path || ''} />}
         </div>
 
         {/* Modal Footer Actions */}

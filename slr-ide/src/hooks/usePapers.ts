@@ -13,6 +13,9 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   const [sourceFilter, setSourceFilter] = useState('');
   const [doiStatusFilter, setDoiStatusFilter] = useState('');
   const [pdfLinkFilter, setPdfLinkFilter] = useState('');
+  const [pipelineStageFilter, setPipelineStageFilter] = useState('');
+  const [pipelineStatusFilter, setPipelineStatusFilter] = useState('');
+  const [ecTriggerFilter, setEcTriggerFilter] = useState('');
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -60,6 +63,9 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
       if (sourceFilter) params.append('source', sourceFilter);
       if (doiStatusFilter) params.append('doiStatus', doiStatusFilter);
       if (pdfLinkFilter) params.append('pdfLink', pdfLinkFilter);
+      if (pipelineStageFilter) params.append('pipelineStage', pipelineStageFilter);
+      if (pipelineStatusFilter) params.append('pipelineStatus', pipelineStatusFilter);
+      if (ecTriggerFilter) params.append('ecTrigger', ecTriggerFilter);
       
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
@@ -81,7 +87,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } finally {
       setLoadingPapers(false);
     }
-  }, [page, limit, sortBy, sortOrder, searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, showToast, loadDuplicatesCount]);
+  }, [page, limit, sortBy, sortOrder, searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter, showToast, loadDuplicatesCount]);
 
   // Load papers on mount and when filters change
   useEffect(() => {
@@ -91,12 +97,12 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   // Clear selectedPaperIds when filters or search change
   useEffect(() => {
     setSelectedPaperIds([]);
-  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter]);
+  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter]);
 
   // Reset page to 1 when filters or search terms change
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter]);
+  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter]);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -284,6 +290,9 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     sourceFilter, setSourceFilter,
     doiStatusFilter, setDoiStatusFilter,
     pdfLinkFilter, setPdfLinkFilter,
+    pipelineStageFilter, setPipelineStageFilter,
+    pipelineStatusFilter, setPipelineStatusFilter,
+    ecTriggerFilter, setEcTriggerFilter,
     page, setPage,
     limit, setLimit,
     totalPapers,

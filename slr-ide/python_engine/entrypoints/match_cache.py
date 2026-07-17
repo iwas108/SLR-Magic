@@ -80,7 +80,8 @@ def run_matcher():
     sys.stdout.flush()
 
     # Open main DB connection
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
     # Load configurations
@@ -273,20 +274,20 @@ def run_matcher():
 
     if paper_id_arg:
         cursor.execute("""
-            SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
-            WHERE Project_ID = ? AND Paper_ID = ?
+            SELECT Paper_ID, DOI, Title, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
+            WHERE Project_ID = ? AND Paper_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
         """, (active_proj_id, paper_id_arg))
     else:
         force_update = '--force-update' in sys.argv
         if force_update:
             cursor.execute("""
-                SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
-                WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status != 'IGNORED')
+                SELECT Paper_ID, DOI, Title, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
+                WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status != 'IGNORED') AND (is_duplicate IS NULL OR is_duplicate = 0)
             """, (active_proj_id,))
         else:
             cursor.execute("""
-                SELECT Paper_ID, DOI, Title, Status, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
-                WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status IN ('MISSING', 'FAILED'))
+                SELECT Paper_ID, DOI, Title, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
+                WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status IN ('MISSING', 'FAILED')) AND (is_duplicate IS NULL OR is_duplicate = 0)
             """, (active_proj_id,))
     papers = cursor.fetchall()
 
@@ -310,7 +311,7 @@ def run_matcher():
     matched_count = 0
 
     for idx, paper in enumerate(papers):
-        paper_id, doi, title, status, local_pdf_status, local_pdf_path, abstract = paper
+        paper_id, doi, title, local_pdf_status, local_pdf_path, abstract = paper
         
         throttle_print({
             "event": "progress",

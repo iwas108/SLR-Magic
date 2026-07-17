@@ -54,6 +54,7 @@ class LLMQueueHandler:
         self.included_papers = 0
         self.excluded_papers = 0
         self.exclusion_reasons = {}
+        self.not_stated_metrics = {}
         self.total_latency_ms = 0
 
     def broadcast_telemetry(self, status, message=None, current_paper=None):
@@ -71,6 +72,7 @@ class LLMQueueHandler:
             "included_papers": self.included_papers,
             "excluded_papers": self.excluded_papers,
             "exclusion_reasons": self.exclusion_reasons,
+            "not_stated_metrics": self.not_stated_metrics,
             "average_execution_time_ms": self.total_latency_ms / max(1, self.processed_papers),
         }
         if message:
@@ -246,48 +248,82 @@ class LLMQueueHandler:
                     if ec_trigger:
                         self.exclusion_reasons[ec_trigger] = self.exclusion_reasons.get(ec_trigger, 0) + 1
 
-            if self.task_type in ('fast_filter', 'gatekeeper', 'scientist', 'screening', 'fulltext'):
+            # Map task_type to stage
+            stage_map = {
+                'fast_filter': 1, 'screening': 1,
+                'gatekeeper': 2, 'fulltext': 2,
+                'scientist': 3,
+                'miner': 4, 'extraction': 4
+            }
+            incoming_stage = stage_map.get(self.task_type, 0)
+
+            # Fetch current ai_stage
+            paper_db = execute_read_one("SELECT ai_stage FROM papers WHERE Paper_ID = ?", (paper_id,))
+            current_ai_stage = paper_db.get("ai_stage") if paper_db else 0
+
+            if incoming_stage >= current_ai_stage:
+                ai_decision = decision_text
+                if decision_text.upper() == "EXCLUDE" and ec_trigger and ec_trigger != "NONE":
+                    ai_decision = f"EXCLUDE ({ec_trigger})"
+
+                def to_json_str(val):
+                    if not val:
+                        return None
+                    if isinstance(val, str):
+                        return val
+                    import json
+                    return json.dumps(val)
+
+                qa_scores_json = to_json_str(response.get("qa_scores"))
+                extracted_data_json = to_json_str(response.get("extracted_data"))
+                if self.task_type in ('miner', 'extraction') and not extracted_data_json:
+                    extracted_data_json = struct_out
+
                 execute_write(
                     """
                     UPDATE papers
-                    SET AI_Decision = ?,
-                        AI_EC_Trigger = ?,
-                        AI_Rationale = ?,
-                        AI_QA_Scores = ?,
-                        AI_Extracted_Data = ?
+                    SET ai_stage = ?,
+                        ai_decision = ?,
+                        ai_rationale = ?,
+                        ai_quality_assessment = ?,
+                        ai_extracted_data = ?
                     WHERE Paper_ID = ?
                     """,
-                    (decision_text, ec_trigger, rationale_text,
-                     response.get("qa_scores"), response.get("extracted_data"), paper_id)
+                    (incoming_stage, ai_decision, rationale_text,
+                     qa_scores_json, extracted_data_json, paper_id)
                 )
-                logger.info(f"AI screening decision for paper {paper_id} saved to papers table AI_ columns.")
-            elif self.task_type in ('miner', 'extraction'):
-                execute_write(
-                    "UPDATE papers SET AI_Extracted_Data = ? WHERE Paper_ID = ?",
-                    (struct_out, paper_id)
-                )
-                logger.info(f"AI extracted data for paper {paper_id} saved to papers.AI_Extracted_Data.")
+                logger.info(f"AI screening decision for paper {paper_id} saved to papers table ai_* columns.")
 
-            # Update paper state to next stage status code ONLY if next_status is higher level
-            current_paper_db = execute_read_one("SELECT Status FROM papers WHERE Paper_ID = ?", (paper_id,))
-            current_status = current_paper_db.get("Status") if current_paper_db else "0"
+                if self.task_type in ('miner', 'extraction'):
+                    ext_data = response.get("extracted_data")
+                    if not ext_data and struct_out:
+                        try:
+                            import json
+                            parsed_struct = json.loads(struct_out)
+                            ext_data = parsed_struct.get("extracted_data") or parsed_struct
+                        except:
+                            pass
+                    
+                    if ext_data and isinstance(ext_data, dict):
+                        def is_not_stated(val):
+                            if isinstance(val, str):
+                                return val.strip().upper() == 'NOT_STATED'
+                            if isinstance(val, list):
+                                return any(isinstance(item, str) and item.strip().upper() == 'NOT_STATED' for item in val)
+                            return False
+                        
+                        with self.lock:
+                            for key, field_obj in ext_data.items():
+                                val = None
+                                if isinstance(field_obj, dict):
+                                    val = field_obj.get("value")
+                                else:
+                                    val = field_obj
+                                
+                                if is_not_stated(val):
+                                    self.not_stated_metrics[key] = self.not_stated_metrics.get(key, 0) + 1
 
-            def status_to_level(status_str):
-                if status_str == "1":
-                    return 1
-                elif status_str == "2":
-                    return 2
-                elif status_str == "3":
-                    return 3
-                elif status_str == "4":
-                    return 4
-                return 0
 
-            if status_to_level(next_status) > status_to_level(current_status):
-                execute_write("UPDATE papers SET Status = ? WHERE Paper_ID = ?", (next_status, paper_id))
-                logger.info(f"Updated paper {paper_id} status from {current_status} to {next_status}.")
-            else:
-                logger.info(f"Preserved paper {paper_id} status at {current_status} (attempted to set {next_status}).")
 
             # Log interaction to LLM Audit Log
             log_interaction(
@@ -318,7 +354,7 @@ class LLMQueueHandler:
 
         except Exception as e:
             logger.error(f"Failed to process paper {paper_id}: {e}")
-            execute_write("UPDATE papers SET Status = ? WHERE Paper_ID = ?", (paper.get("Status", "0"), paper_id))
+
             
             # Log failure to LLM Audit Log
             log_interaction(

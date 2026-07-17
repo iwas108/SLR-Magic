@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShieldAlert, CheckCircle2, AlertTriangle, Play, RefreshCw, 
   Terminal, ExternalLink, X, Check, Copy
@@ -29,6 +29,7 @@ interface AssignDetailViewProps {
   logEndRef: React.RefObject<HTMLDivElement | null>;
   onClose: () => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  isMainPipelineRunning?: boolean;
 }
 
 export default function AssignDetailView({
@@ -54,7 +55,8 @@ export default function AssignDetailView({
   singlePipelineAbortControllerRef,
   logEndRef,
   onClose,
-  showToast
+  showToast,
+  isMainPipelineRunning = false
 }: AssignDetailViewProps) {
   const [proxyBaseUrl, setProxyBaseUrl] = useState('');
   const [notesText, setNotesText] = useState('');
@@ -86,11 +88,31 @@ export default function AssignDetailView({
     }
   };
 
+  const lastLoadedPaperIdRef = useRef<string | null>(null);
+  const lastLoadedPaperNotesRef = useRef<string>('');
+
   useEffect(() => {
     if (assignSelectedPaper) {
-      setNotesText(assignSelectedPaper.notes || '');
+      const currentId = assignSelectedPaper.Paper_ID;
+      const dbNotes = assignSelectedPaper.notes || '';
+      
+      // If the paper changed, reset the input to the database values
+      if (lastLoadedPaperIdRef.current !== currentId) {
+        lastLoadedPaperIdRef.current = currentId;
+        lastLoadedPaperNotesRef.current = dbNotes;
+        setNotesText(dbNotes);
+      } 
+      // If paper is the same, but the database state of the notes has changed from another session (multi-tab sync)
+      else if (lastLoadedPaperNotesRef.current !== dbNotes) {
+        lastLoadedPaperNotesRef.current = dbNotes;
+        setNotesText(dbNotes);
+      }
+    } else {
+      lastLoadedPaperIdRef.current = null;
+      lastLoadedPaperNotesRef.current = '';
+      setNotesText('');
     }
-  }, [assignSelectedPaper?.Paper_ID]);
+  }, [assignSelectedPaper]);
 
   const handleSaveNotes = async () => {
     if (!assignSelectedPaper) return;
@@ -366,13 +388,22 @@ export default function AssignDetailView({
             </div>
             <div>
               <span className="block text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Screening Status</span>
-              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
-                assignSelectedPaper.Status === 'INCLUDE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                assignSelectedPaper.Status === 'EXCLUDE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                'bg-secondary/40 text-muted-foreground border-border/40'
-              }`}>
-                {assignSelectedPaper.Status || 'PENDING'}
-              </span>
+              {(() => {
+                const manualDec = (assignSelectedPaper.manual_decision || '').toUpperCase();
+                const aiDec = (assignSelectedPaper.ai_decision || '').toUpperCase();
+                const resolvedDec = manualDec 
+                  ? (manualDec.startsWith('EXCLUDE') ? 'EXCLUDE' : manualDec) 
+                  : (aiDec.startsWith('EXCLUDE') ? 'EXCLUDE' : (aiDec || 'PENDING'));
+                return (
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
+                    resolvedDec === 'INCLUDE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                    resolvedDec === 'EXCLUDE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                    'bg-secondary/40 text-muted-foreground border-border/40'
+                  }`}>
+                    {resolvedDec}
+                  </span>
+                );
+              })()}
             </div>
             <div>
               <span className="block text-[10px] text-muted-foreground/70 uppercase tracking-wider mb-0.5">Import Date</span>
@@ -427,31 +458,43 @@ export default function AssignDetailView({
           </div>
 
           {/* Consensus / Human Review Details */}
-          {(assignSelectedPaper.Human_Decision || assignSelectedPaper.Human_Rationale || assignSelectedPaper.Human_EC_Trigger) && (
+          {(assignSelectedPaper.manual_decision || assignSelectedPaper.manual_rationale) && (
             <div className="pt-3 border-t border-border/60 space-y-2 text-xs">
               <span className="block text-[10px] text-muted-foreground/70 uppercase tracking-wider font-extrabold">Review Consensus Summary</span>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="block text-[10px] text-muted-foreground/60">Human Decision</span>
-                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
-                    assignSelectedPaper.Human_Decision === 'INCLUDE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                    assignSelectedPaper.Human_Decision === 'EXCLUDE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                    'bg-secondary/40 text-muted-foreground border-border/40'
-                  }`}>
-                    {assignSelectedPaper.Human_Decision || 'PENDING'}
-                  </span>
+                  {(() => {
+                    const rawDec = (assignSelectedPaper.manual_decision || '').toUpperCase();
+                    const decText = rawDec.startsWith('EXCLUDE') ? 'EXCLUDE' : rawDec;
+                    let ecTrig = '';
+                    if (rawDec.startsWith('EXCLUDE') && rawDec.includes('(')) {
+                      const match = rawDec.match(/\(([^)]+)\)/);
+                      if (match) ecTrig = match[1];
+                    }
+                    return (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
+                          decText === 'INCLUDE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                          decText === 'EXCLUDE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                          'bg-secondary/40 text-muted-foreground border-border/40'
+                        }`}>
+                          {decText || 'PENDING'}
+                        </span>
+                        {ecTrig && (
+                          <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
+                            {ecTrig}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
-                {assignSelectedPaper.Human_EC_Trigger && (
-                  <div>
-                    <span className="block text-[10px] text-muted-foreground/60">Exclusion Criteria Trigger</span>
-                    <span className="text-foreground font-bold">{assignSelectedPaper.Human_EC_Trigger}</span>
-                  </div>
-                )}
               </div>
-              {assignSelectedPaper.Human_Rationale && (
+              {assignSelectedPaper.manual_rationale && (
                 <div>
                   <span className="block text-[10px] text-muted-foreground/60">Rationale</span>
-                  <p className="text-foreground italic leading-relaxed bg-secondary/10 p-2.5 rounded border border-border/40 select-text">{assignSelectedPaper.Human_Rationale}</p>
+                  <p className="text-foreground italic leading-relaxed bg-secondary/10 p-2.5 rounded border border-border/40 select-text">{assignSelectedPaper.manual_rationale}</p>
                 </div>
               )}
             </div>
@@ -537,9 +580,9 @@ export default function AssignDetailView({
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <button
                     onClick={() => runSinglePaperPipeline(assignSelectedPaper.Paper_ID)}
-                    disabled={assignIsRunning}
+                    disabled={assignIsRunning || isMainPipelineRunning}
                     className={`px-4 py-2 font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px] ${
-                      assignIsRunning 
+                      (assignIsRunning || isMainPipelineRunning)
                         ? 'bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-50 shadow-none' 
                         : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'
                     }`}
@@ -573,6 +616,18 @@ export default function AssignDetailView({
                     </button>
                   )}
                 </div>
+
+                {isMainPipelineRunning && (
+                  <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-left max-w-sm flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-xs text-amber-500 block mb-1">Single Acquisition Disabled</span>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed font-medium">
+                        The main PDF batch pipeline is currently running. Single PDF download is disabled to prevent database conflicts and browser thread locks. Please wait for the main pipeline to complete or cancel it first.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Real-time single-run console log widget */}

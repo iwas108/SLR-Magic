@@ -110,11 +110,10 @@ export async function GET(request: Request) {
     const countRow = db.prepare(`SELECT COUNT(*) as count ${filterQuery}`).get(...params) as { count: number } | undefined;
     const total = countRow ? countRow.count : 0;
 
-    // 2. Sorting whitelist validation to prevent SQL Injection
     const allowedSortColumns = [
       'Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 
-      'Status', 'calibration_pool', 'calibration_tag', 'Human_Decision', 
-      'Publisher', 'citation_count', 'manual_decision', 'manual_stage'
+      'calibration_pool', 'calibration_tag', 'Publisher', 'citation_count', 
+      'manual_decision', 'manual_stage', 'manual_rationale', 'ai_decision', 'ai_stage'
     ];
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
@@ -123,6 +122,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit;
     const dataQuery = `
       SELECT *, 
+             MAX(papers.manual_stage, papers.ai_stage) as Status,
              (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
              (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,
              (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,

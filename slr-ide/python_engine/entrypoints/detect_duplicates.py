@@ -61,7 +61,8 @@ def main():
         print(json.dumps({"event": "error", "message": f"Database slr.db not found at {DB_PATH}."}))
         sys.exit(1)
 
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
     # Resolve project ID

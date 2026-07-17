@@ -349,6 +349,12 @@ export default function DashboardPage() {
               setDoiStatusFilter={papersHook.setDoiStatusFilter}
               pdfLinkFilter={papersHook.pdfLinkFilter}
               setPdfLinkFilter={papersHook.setPdfLinkFilter}
+              pipelineStageFilter={papersHook.pipelineStageFilter}
+              setPipelineStageFilter={papersHook.setPipelineStageFilter}
+              pipelineStatusFilter={papersHook.pipelineStatusFilter}
+              setPipelineStatusFilter={papersHook.setPipelineStatusFilter}
+              ecTriggerFilter={papersHook.ecTriggerFilter}
+              setEcTriggerFilter={papersHook.setEcTriggerFilter}
               setShowImport={setShowImport}
               setDeleteAllConfirm={papersHook.setDeleteAllConfirm}
               cloudName={projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider === 'onedrive' ? 'OneDrive' : 'Google Drive'}

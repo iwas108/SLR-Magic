@@ -32,6 +32,7 @@ slr.db
 /slr-ide/db/*.db-shm
 /slr-ide/db/*.db-wal
 /slr-ide/db/*.sqlite
+/slr-ide/db/*.bak
 
 # Environment Files & Configurations
 .env

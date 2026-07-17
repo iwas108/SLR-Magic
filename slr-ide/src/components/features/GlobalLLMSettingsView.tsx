@@ -93,7 +93,7 @@ export default function GlobalLLMSettingsView({
   const isLlmLocked = isLocked && !['RUNNING', 'PAUSED_BUDGET', 'PAUSED_USER', 'PENDING'].includes(jobStatus);
 
   const [logs, setLogs] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState({ total: 0, processed: 0, cost: 0.0, tokens: 0, included: 0, excluded: 0, exclusion_reasons: {} as Record<string, number>, avgExecutionTimeMs: 0 });
+  const [metrics, setMetrics] = useState({ total: 0, processed: 0, cost: 0.0, tokens: 0, included: 0, excluded: 0, exclusion_reasons: {} as Record<string, number>, not_stated_metrics: {} as Record<string, number>, avgExecutionTimeMs: 0 });
   const [connecting, setConnecting] = useState(false);
   const [taskType, setTaskType] = useState<'fast_filter' | 'gatekeeper' | 'scientist' | 'miner'>('fast_filter');
   const [statusFilter, setStatusFilter] = useState<string>('0');
@@ -105,6 +105,16 @@ export default function GlobalLLMSettingsView({
   const [batchLimit, setBatchLimit] = useState<number>(10);
   const [indexOffset, setIndexOffset] = useState<number>(0);
   const [targetCount, setTargetCount] = useState<number | null>(null);
+  const pipelineCount = (() => {
+    if (targetCount === null) return 0;
+    if (paperSelectionMode === 'limit') {
+      return Math.min(targetCount, batchLimit);
+    } else if (paperSelectionMode === 'range') {
+      return Math.max(0, Math.min(targetCount - indexOffset, batchLimit));
+    } else {
+      return targetCount;
+    }
+  })();
   const activeTemplateId = (() => {
     try {
       const cfg = activeProject?.llm_config ? JSON.parse(activeProject.llm_config) : {};
@@ -269,6 +279,7 @@ export default function GlobalLLMSettingsView({
           included: activeJob.included_papers || 0,
           excluded: activeJob.excluded_papers || 0,
           exclusion_reasons: activeJob.exclusion_reasons || {},
+          not_stated_metrics: activeJob.not_stated_metrics || {},
           avgExecutionTimeMs: activeJob.average_execution_time_ms || 0
         });
         connectSSE(activeJob.id);
@@ -296,6 +307,8 @@ export default function GlobalLLMSettingsView({
     const unsubscribe = subscribeSyncChannel((type) => {
       if (type === 'SYNC_LLM_JOB') {
         checkActiveJobRef.current();
+      } else if (type === 'SYNC_VAULT_KEYS') {
+        loadVaultState();
       }
     });
     return () => unsubscribe();
@@ -340,12 +353,13 @@ export default function GlobalLLMSettingsView({
   };
 
   const handleSaveApiKey = async () => {
-    if (!apiKey) return;
+    const trimmedKey = (apiKey || '').trim();
+    if (!trimmedKey) return;
     try {
       const res = await fetch('/api/vault/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyName: 'GEMINI_API_KEY', plainValue: apiKey })
+        body: JSON.stringify({ keyName: 'GEMINI_API_KEY', plainValue: trimmedKey })
       });
       const data = await res.json();
       if (res.status === 401) {
@@ -357,6 +371,7 @@ export default function GlobalLLMSettingsView({
       showToast?.('Gemini API key encrypted and saved successfully!', 'success');
       setApiKey('');
       loadVaultState();
+      broadcastSync('SYNC_VAULT_KEYS');
     } catch (err: any) {
       showToast?.(err.message || 'Failed to save key', 'error');
     }
@@ -543,6 +558,7 @@ export default function GlobalLLMSettingsView({
         included: data.included_papers || 0,
         excluded: data.excluded_papers || 0,
         exclusion_reasons: data.exclusion_reasons || {},
+        not_stated_metrics: data.not_stated_metrics || {},
         avgExecutionTimeMs: data.average_execution_time_ms || 0
       });
     }
@@ -554,7 +570,7 @@ export default function GlobalLLMSettingsView({
       targetJobId = `job-${Date.now()}`;
       setJobId(targetJobId);
       setLogs([{ status: 'STARTING', message: 'Initializing pipeline orchestrator...' }]);
-      setMetrics({ total: 0, processed: 0, cost: 0.0, tokens: 0, included: 0, excluded: 0, exclusion_reasons: {}, avgExecutionTimeMs: 0 });
+      setMetrics({ total: 0, processed: 0, cost: 0.0, tokens: 0, included: 0, excluded: 0, exclusion_reasons: {}, not_stated_metrics: {}, avgExecutionTimeMs: 0 });
       setJobStatus('STARTING');
     }
 
@@ -1416,7 +1432,7 @@ export default function GlobalLLMSettingsView({
                               <div className="absolute right-3 top-3">
                                 {targetCount !== null && (
                                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary">
-                                    {targetCount} {targetCount === 1 ? 'Paper' : 'Papers'}
+                                    {pipelineCount} {pipelineCount === 1 ? 'Paper' : 'Papers'}
                                   </span>
                                 )}
                               </div>
@@ -1636,7 +1652,7 @@ export default function GlobalLLMSettingsView({
                       <div className="absolute right-0 top-0">
                         {targetCount !== null && (
                           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-sm bg-primary/20 text-primary inline-block -mt-1">
-                            {targetCount} {targetCount === 1 ? 'paper' : 'papers'} target
+                            {pipelineCount} {pipelineCount === 1 ? 'paper' : 'papers'} target
                           </span>
                         )}
                       </div>
@@ -1765,6 +1781,13 @@ export default function GlobalLLMSettingsView({
                     </div>
                   )}
 
+                  {targetCount === 0 && (
+                    <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-400 animate-in slide-in-from-top-2 duration-200">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>No papers match the current filter settings. Adjust the Stage or Decision filter.</span>
+                    </div>
+                  )}
+
                   {/* ── Normal run actions row ── */}
                   <div className="flex items-center justify-between border-t border-border/40 pt-3">
                     <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
@@ -1782,12 +1805,17 @@ export default function GlobalLLMSettingsView({
                             </div>
                           )}
                           <button
-                            disabled={!activeTemplateId || connecting || !promptValidation.isValid || isLlmLocked}
+                            disabled={!activeTemplateId || connecting || !promptValidation.isValid || isLlmLocked || targetCount === 0 || pipelineCount === 0}
                             onClick={() => { setShowLaunchConfirm(true); setConfirmStep(1); }}
-                            className={`px-4 py-1.5 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-lg transition-all ${isLlmLocked ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed opacity-50 shadow-none' : 'bg-primary hover:bg-primary/95 text-primary-foreground shadow-primary/10 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed'}`}
+                            className={`px-4 py-1.5 font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-lg transition-all ${isLlmLocked || targetCount === 0 || pipelineCount === 0 ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed opacity-50 shadow-none' : 'bg-primary hover:bg-primary/95 text-primary-foreground shadow-primary/10 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 disabled:cursor-not-allowed'}`}
                           >
                             {connecting ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
                             <span>{connecting ? 'Initializing…' : 'Launch Stage execution'}</span>
+                            {!connecting && targetCount !== null && (
+                              <span className="px-1.5 py-0.5 rounded bg-primary-foreground/20 text-primary-foreground text-[10px] font-mono font-extrabold ml-1">
+                                {pipelineCount}
+                              </span>
+                            )}
                           </button>
                         </>
                       ) : (
@@ -1869,7 +1897,7 @@ export default function GlobalLLMSettingsView({
                     </div>
                   )}
 
-                  {['fast_filter', 'gatekeeper'].includes(taskType) && (
+                  {['fast_filter', 'gatekeeper', 'scientist'].includes(taskType) && (
                     <div className="grid grid-cols-2 gap-3">
                       <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
                         <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-emerald-500">Included Papers</span>
@@ -1891,6 +1919,55 @@ export default function GlobalLLMSettingsView({
                           </div>
                         )}
                       </div>
+                    </div>
+                  )}
+
+                  {taskType === 'miner' && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
+                          <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-emerald-500">Processed Papers</span>
+                          <span className="text-sm font-bold text-foreground font-mono">{metrics.processed}</span>
+                        </div>
+                        <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
+                          <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-slate-400">Unprocessed Papers</span>
+                          <span className="text-sm font-bold text-foreground font-mono">{Math.max(0, metrics.total - metrics.processed)}</span>
+                        </div>
+                      </div>
+                      
+                      {metrics.processed > 0 && Object.keys(metrics.not_stated_metrics || {}).length > 0 && (
+                        <div className="bg-secondary/10 border border-border/40 rounded-xl p-3">
+                          <div className="font-bold text-[9px] uppercase tracking-wider mb-2 text-foreground/80">Missing / Not Stated Variables</div>
+                          <div className="grid grid-cols-1 gap-1.5 max-h-[150px] overflow-y-auto pr-1">
+                            {(() => {
+                              const formatVariableKey = (key: string): string => {
+                                try {
+                                  let formatted = key.replace(/^(locate_)?rq\d+([a-z_])?_/, '');
+                                  formatted = formatted.replace(/^locate_/, '');
+                                  if (!formatted) return key;
+                                  return formatted
+                                    .split('_')
+                                    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                                    .join(' ');
+                                } catch (e) {
+                                  return key;
+                                }
+                              };
+                              return Object.entries(metrics.not_stated_metrics)
+                                .sort((a, b) => b[1] - a[1])
+                                .map(([key, count]) => {
+                                  const pct = Math.round((count / metrics.processed) * 100);
+                                  return (
+                                    <div key={key} className="flex justify-between items-center bg-secondary/30 px-2 py-1 rounded text-[10px]">
+                                      <span className="truncate max-w-[150px] font-medium" title={key}>{formatVariableKey(key)}</span>
+                                      <span className="font-mono text-rose-500 font-bold">{count} ({pct}%)</span>
+                                    </div>
+                                  );
+                                });
+                            })()}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

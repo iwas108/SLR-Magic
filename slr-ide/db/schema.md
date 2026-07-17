@@ -24,31 +24,37 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `Authors` | TEXT | | Authors list |
 | `Year` | INTEGER | | Publication year |
 | `PDF_Link` | TEXT | | Public Google Drive link or download URL |
-| `Status` | TEXT | NOT NULL DEFAULT 'PENDING' | Status matching Google Sheet: `PENDING`, `INCLUDE`, `EXCLUDE`, etc. |
 | `Local_PDF_Status` | TEXT | NOT NULL DEFAULT 'IGNORED' | Status of local PDF: `IGNORED`, `MISSING`, `MATCHED`, `DOWNLOADED`, `SYNCED`, `IN_PROGRESS`, `FAILED`, `NEEDS_REVIEW` |
 | `Local_PDF_Path` | TEXT | | Local path to PDF file if available |
 | `Project_ID` | TEXT | | Reference link to the project |
 | `Parent_Paper_ID` | TEXT | | Optional reference link to parent paper for snowballing chaining |
-| `calibration_pool` | TEXT | | Target calibration partition: `pool_a`, `pool_b`, `pool_c` |
-| `calibration_tag` | TEXT | | Selected custom tag code for this calibration cohort |
-| `Human_Decision` | TEXT | | Reviewer decision input: `INCLUDE`, `EXCLUDE`, `QA_WAIT` |
-| `Human_EC_Trigger` | TEXT | | Reviewer exclusion criteria trigger code |
-| `Human_Rationale` | TEXT | | Reviewer annotation or explanation notes |
 | `Original_Publisher` | TEXT | | Original publisher string imported from CSV |
 | `Publisher` | TEXT | | Mapped and normalized publisher name |
 | `citation_count` | INTEGER | DEFAULT 0 | Count of citations ("Cited by") for the paper |
-| `Human_QA_Scores` | TEXT | | JSON string containing QA rules mapped to values and evidence |
-| `Human_Extracted_Data` | TEXT | | JSON string containing extractions mapped to values and evidence |
 | `is_duplicate` | INTEGER | DEFAULT 0 | Flag indicating if this paper is an excluded duplicate (1) or not (0) |
 | `merged_into_id` | TEXT | DEFAULT NULL | Scoped reference pointing to the primary Paper_ID if this is a duplicate |
-| `manual_decision` | TEXT | | Manual screening decision input (`INCLUDE`, `EXCLUDE`, `QA_WAIT`) |
-| `manual_ec_trigger` | TEXT | | Manual screening exclusion criteria trigger code |
+| `ai_stage` | INTEGER | DEFAULT 0 | AI screening stage code (0=unscreened, 1=fast filter, 2=gatekeeper, 3=scientist, 4=miner) |
+| `ai_decision` | TEXT | | AI screening decision input (`INCLUDE`, `EXCLUDE` or `EXCLUDE (EC-X)`) |
+| `ai_rationale` | TEXT | | AI screening explanation notes |
+| `ai_quality_assessment` | TEXT | | JSON string containing AI quality appraisal scores and evidence |
+| `ai_extracted_data` | TEXT | | JSON string containing AI extracted data and variables |
+| `manual_stage` | INTEGER | DEFAULT 0 | Manual screening stage code (0=unscreened, 1=fast filter, 2=gatekeeper, 3=scientist, 4=miner) |
+| `manual_decision` | TEXT | | Manual screening decision input (`INCLUDE`, `EXCLUDE` or `EXCLUDE (EC-X)`) |
 | `manual_rationale` | TEXT | | Manual screening annotation/explanation notes |
-| `manual_stage` | TEXT | | Manual screening pipeline stage watermark (`fast_filter`, `gatekeeper`, `scientist`, `miner`) |
-| `manual_qa_scores` | TEXT | | JSON string containing manual quality appraisal scores and evidence |
+| `manual_quality_assessment` | TEXT | | JSON string containing manual quality appraisal scores and evidence |
 | `manual_extracted_data` | TEXT | | JSON string containing manual extracted data and evidence |
 | `remote_worker_id` | TEXT | DEFAULT NULL | UUID of the remote worker that claimed this paper |
 | `scrape_claimed_at` | TEXT | DEFAULT NULL | Timestamp when the paper was claimed by a remote worker |
+
+---
+
+### Table: `calibration_papers`
+Holds sandbox paper copies for inter-rater double-blind calibration. Shares the exact same columns as the `papers` table (above), but includes extra pool scoping properties:
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `calibration_pool` | TEXT | | Target calibration partition: `pool_a`, `pool_b`, `pool_c` |
+| `calibration_tag` | TEXT | | Selected custom tag code for this calibration cohort |
 
 
 **Indexes**:
@@ -290,7 +296,7 @@ Stores user configurations, scraping settings, and cloud sync paths.
 ---
 
 ### Table: `reviewer_decisions`
-Stores individual reviewer decisions for double-blind calibration (Pool A).
+Stores individual reviewer decisions for double-blind calibration (Pool A, Pool B, Pool C).
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |

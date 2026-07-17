@@ -4,6 +4,8 @@ import JSONViewer from '@/components/ui/JSONViewer';
 import ParentPaperSelector from './ParentPaperSelector';
 import { broadcastSync } from '@/lib/sync-utils';
 
+import { Paper, Project } from '@/types';
+
 interface PaperMetadataEditProps {
   paperId: string;
   importDate: string;
@@ -11,8 +13,8 @@ interface PaperMetadataEditProps {
   projectId: string;
   editParentPaperId: string;
   setEditParentPaperId: (id: string) => void;
-  selectedEditParentPaper: any;
-  setSelectedEditParentPaper: (paper: any) => void;
+  selectedEditParentPaper: Paper | null;
+  setSelectedEditParentPaper: (paper: Paper | null) => void;
   editTitle: string;
   setEditTitle: (val: string) => void;
   editAuthors: string;
@@ -31,28 +33,14 @@ interface PaperMetadataEditProps {
   setEditAbstract: (val: string) => void;
   editPdfStatus: string;
   setEditPdfStatus: (val: string) => void;
-  editStatus: string;
-  setEditStatus: (val: string) => void;
-  editCalPool: string;
-  setEditCalPool: (val: string) => void;
-  editCalTag: string;
-  setEditCalTag: (val: string) => void;
+
   editCitationCount: string;
   setEditCitationCount: (val: string) => void;
   editNotes: string;
   setEditNotes: (val: string) => void;
-  editHumanDecision: string;
-  setEditHumanDecision: (val: string) => void;
-  editHumanEcTrigger: string;
-  setEditHumanEcTrigger: (val: string) => void;
-  editHumanRationale: string;
-  setEditHumanRationale: (val: string) => void;
-  getActiveProjectPoolTags: (poolId: string) => any[];
-  aiDecision?: string;
-  aiEcTrigger?: string;
-  aiRationale?: string;
-  activeProject?: any;
-  paper?: any;
+
+  activeProject?: Project | null;
+  paper?: Paper;
 }
 
 const Section = ({ title, icon: Icon, children }: { title: string, icon: any, children: React.ReactNode }) => (
@@ -105,33 +93,78 @@ export default function PaperMetadataEdit({
   setEditAbstract,
   editPdfStatus,
   setEditPdfStatus,
-  editStatus,
-  setEditStatus,
-  editCalPool,
-  setEditCalPool,
-  editCalTag,
-  setEditCalTag,
+
   editCitationCount,
   setEditCitationCount,
   editNotes,
   setEditNotes,
-  editHumanDecision,
-  setEditHumanDecision,
-  editHumanEcTrigger,
-  setEditHumanEcTrigger,
-  editHumanRationale,
-  setEditHumanRationale,
-  getActiveProjectPoolTags,
-  aiDecision,
-  aiEcTrigger,
-  aiRationale,
+
   activeProject,
   paper
 }: PaperMetadataEditProps) {
   
-  const aiDecisionVal = (aiDecision || 'PENDING').toUpperCase();
+  const aiDecisionVal = (paper?.ai_decision || 'PENDING').toUpperCase();
+  const resolvedDecisionVal = (paper?.manual_decision || paper?.ai_decision || '').toUpperCase();
+
+  const getAiStageFriendlyName = (stage: number | undefined) => {
+    const s = stage || 0;
+    if (s === 1) return 'Fast Filter';
+    if (s === 2) return 'Gatekeeper';
+    if (s === 3) return 'Scientist';
+    if (s === 4) return 'Miner';
+    return 'Pending';
+  };
+
+  const getManualStageFriendlyName = (stage: number | undefined) => {
+    const s = stage || 0;
+    if (s === 1) return 'Fast Filter';
+    if (s === 2) return 'Gatekeeper';
+    if (s === 3) return 'Scientist';
+    if (s === 4) return 'Miner';
+    return 'Pending';
+  };
+
+  const getAiHighestStage = (logs: any[]) => {
+    return paper?.ai_stage || 0;
+  };
+
   const [llmLogs, setLlmLogs] = useState<any[]>([]);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const [proxyBaseUrl, setProxyBaseUrl] = useState('');
+
+  useEffect(() => {
+    fetch('/api/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.SCRAPER_PROXY_BASE_URL) {
+          setProxyBaseUrl(data.SCRAPER_PROXY_BASE_URL);
+        }
+      })
+      .catch((err) => console.error('Error loading proxy config:', err));
+  }, []);
+
+  const getProxyDoiUrl = (doi: string, proxyUrl: string): string => {
+    if (!doi) return '';
+    const cleanDoi = doi.trim();
+    if (!proxyUrl) {
+      return `https://doi.org/${cleanDoi}`;
+    }
+    const cleanProxy = proxyUrl.trim();
+    if (cleanProxy.endsWith('doi.org/') || cleanProxy.endsWith('doi.org')) {
+      const sep = cleanProxy.endsWith('/') ? '' : '/';
+      return `${cleanProxy}${sep}${cleanDoi}`;
+    }
+    if (cleanProxy.includes('doi.org/')) {
+      return `${cleanProxy}${cleanDoi}`;
+    }
+    if (cleanProxy.endsWith('url=')) {
+      return `${cleanProxy}https://doi.org/${cleanDoi}`;
+    }
+    if (cleanProxy.includes('?')) {
+      return `${cleanProxy}&url=${encodeURIComponent(`https://doi.org/${cleanDoi}`)}`;
+    }
+    return `${cleanProxy}/login?url=${encodeURIComponent(`https://doi.org/${cleanDoi}`)}`;
+  };
 
   useEffect(() => {
     if (paperId && activeProject?.id) {
@@ -177,12 +210,30 @@ export default function PaperMetadataEdit({
           />
         </Row>
         <Row label="DOI">
-          <input
-            type="text"
-            className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-mono"
-            value={editDoi}
-            onChange={(e) => setEditDoi(e.target.value)}
-          />
+          <div className="flex flex-col gap-2 w-full">
+            <input
+              type="text"
+              className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-mono font-semibold"
+              value={editDoi}
+              onChange={(e) => setEditDoi(e.target.value)}
+            />
+            {editDoi ? (
+              <div className="flex items-center gap-1.5">
+                <a
+                  href={getProxyDoiUrl(editDoi, proxyBaseUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline font-mono text-xs inline-flex items-center gap-1.5 transition-colors"
+                  title={proxyBaseUrl ? "Open DOI via library EzProxy redirection" : "Open DOI link"}
+                >
+                  <span>Open: {editDoi}</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            ) : (
+              <span className="text-muted-foreground text-xs italic">Not available</span>
+            )}
+          </div>
         </Row>
         <Row label="Publisher (Mapped)">
           <input
@@ -231,18 +282,32 @@ export default function PaperMetadataEdit({
         </Row>
         
         <Row label="System State">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] uppercase font-bold text-muted-foreground">Pipeline Stage (Read Only)</label>
-              <div className="w-full bg-secondary/30 border border-border/80 rounded-lg px-3 py-2 text-xs text-foreground/85 focus:outline-none font-semibold font-mono shadow-sm">
-                {editStatus === '0' && '0: Initial / Unscreened'}
-                {editStatus === '1' && '1: Fast Filter (Metadata)'}
-                {editStatus === '2' && '2: Passed Gatekeeper (PDF)'}
-                {editStatus === '3' && '3: Passed Scientist (QA)'}
-                {editStatus === '4' && '4: Passed Miner (Extraction)'}
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase font-bold text-muted-foreground">Pipeline Stage</label>
+                <div className="w-full bg-secondary/30 border border-border/80 rounded-lg px-3 py-2 text-xs text-foreground/85 focus:outline-none font-semibold font-mono shadow-sm">
+                  {((paper?.manual_stage ?? 0) > 0 ? (paper?.manual_stage ?? 0) : (paper?.ai_stage ?? 0)) === 0 && '0: Initial / Unscreened'}
+                  {((paper?.manual_stage ?? 0) > 0 ? (paper?.manual_stage ?? 0) : (paper?.ai_stage ?? 0)) === 1 && '1: Fast Filter (Metadata)'}
+                  {((paper?.manual_stage ?? 0) > 0 ? (paper?.manual_stage ?? 0) : (paper?.ai_stage ?? 0)) === 2 && '2: Passed Gatekeeper (PDF)'}
+                  {((paper?.manual_stage ?? 0) > 0 ? (paper?.manual_stage ?? 0) : (paper?.ai_stage ?? 0)) === 3 && '3: Passed Scientist (QA)'}
+                  {((paper?.manual_stage ?? 0) > 0 ? (paper?.manual_stage ?? 0) : (paper?.ai_stage ?? 0)) === 4 && '4: Passed Miner (Extraction)'}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] uppercase font-bold text-muted-foreground">Decision State</label>
+                <div className={`w-full border rounded-lg px-3 py-2 text-xs font-bold font-mono shadow-sm ${
+                  resolvedDecisionVal === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                  resolvedDecisionVal === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                  resolvedDecisionVal === 'UNCERTAIN' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                  'bg-secondary/30 border-border/80 text-foreground/85'
+                }`}>
+                  {resolvedDecisionVal || 'UNSCREENED'}
+                </div>
               </div>
             </div>
-            
+
             <div className="flex flex-col gap-2">
               <label className="text-[10px] uppercase font-bold text-muted-foreground">PDF Status</label>
               <select
@@ -303,12 +368,17 @@ export default function PaperMetadataEdit({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* AI Box (Read-Only) */}
             <div className="bg-secondary/15 rounded-lg border border-border/40 p-3 flex flex-col gap-2">
-              <div className="flex items-center gap-2 mb-1">
-                <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">AI Evaluation</span>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">AI Evaluation</span>
+                </div>
+                <span className="text-[9px] bg-secondary border border-border text-muted-foreground font-extrabold px-1.5 py-0.5 rounded uppercase">
+                  Stage: {getAiStageFriendlyName(getAiHighestStage(llmLogs))}
+                </span>
               </div>
               <div className="flex items-center gap-2">
-                {aiDecision ? (
+                {paper?.ai_decision ? (
                   <>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
                         aiDecisionVal === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
@@ -317,44 +387,67 @@ export default function PaperMetadataEdit({
                       }`}>
                         {aiDecisionVal}
                     </span>
-                    {aiEcTrigger && aiEcTrigger !== 'NONE' && (
-                      <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
-                        {aiEcTrigger}
-                      </span>
-                    )}
+                    {(() => {
+                      const rawDec = (paper.ai_decision || '').toUpperCase();
+                      if (rawDec.startsWith('EXCLUDE') && rawDec.includes('(')) {
+                        const match = rawDec.match(/\(([^)]+)\)/);
+                        if (match) {
+                          return (
+                            <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
+                              {match[1]}
+                            </span>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
                   </>
                 ) : (
                   <span className="text-[10px] font-bold text-muted-foreground/50 uppercase italic">Undecided</span>
                 )}
               </div>
-              {aiRationale && (
+              {paper?.ai_rationale && (
                 <div className="text-[11px] text-muted-foreground leading-relaxed mt-1 line-clamp-4 hover:line-clamp-none transition-all">
-                  {aiRationale}
+                  {paper.ai_rationale}
                 </div>
               )}
             </div>
 
             {/* Manual Screening Decision Box (Read Only) */}
             <div className={`bg-secondary/5 rounded-lg border border-border/30 p-3 flex flex-col gap-2`}>
-              <div className="flex items-center gap-2 mb-1">
-                <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">Manual Screening Decision (Read Only)</span>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">Manual Screening Decision (Read Only)</span>
+                </div>
+                <span className="text-[9px] bg-secondary border border-border text-muted-foreground font-extrabold px-1.5 py-0.5 rounded uppercase">
+                  Stage: {getManualStageFriendlyName(paper?.manual_stage)}
+                </span>
               </div>
               {paper?.manual_decision ? (
                 <>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
                       paper.manual_decision === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                      paper.manual_decision === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                      paper.manual_decision === 'EXCLUDE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
                       'bg-amber-500/10 border-amber-500/20 text-amber-400'
                     }`}>
                       {paper.manual_decision}
                     </span>
-                    {paper.manual_ec_trigger && paper.manual_ec_trigger !== 'NONE' && (
-                      <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
-                        {paper.manual_ec_trigger}
-                      </span>
-                    )}
+                    {(() => {
+                      const rawDec = (paper.manual_decision || '').toUpperCase();
+                      if (rawDec.startsWith('EXCLUDE') && rawDec.includes('(')) {
+                        const match = rawDec.match(/\(([^)]+)\)/);
+                        if (match) {
+                          return (
+                            <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
+                              {match[1]}
+                            </span>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
                   </div>
                   {paper.manual_rationale && (
                     <div className="text-[11px] text-muted-foreground leading-relaxed mt-1 line-clamp-4 hover:line-clamp-none transition-all">
@@ -410,47 +503,7 @@ export default function PaperMetadataEdit({
           </Row>
         )}
         
-        <Row label="Calibration">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex flex-col gap-2 w-full sm:w-1/2">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase">Pool</label>
-              <select
-                className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
-                value={editCalPool}
-                onChange={(e) => {
-                  const newPool = e.target.value;
-                  setEditCalPool(newPool);
-                  const tags = getActiveProjectPoolTags(newPool);
-                  if (!tags.some((t: any) => t.code === editCalTag)) {
-                    setEditCalTag('');
-                  }
-                }}
-              >
-                <option value="">None (Not in Calibration)</option>
-                <option value="pool_a">Pool A (Fast Filter)</option>
-                <option value="pool_b">Pool B (Consensus)</option>
-                <option value="pool_c">Pool C (Consensus)</option>
-              </select>
-            </div>
-            
-            <div className="flex flex-col gap-2 w-full sm:w-1/2">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase">Tag</label>
-              <select
-                className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary font-semibold disabled:opacity-50"
-                value={editCalTag}
-                onChange={(e) => setEditCalTag(e.target.value)}
-                disabled={!editCalPool}
-              >
-                <option value="">No Tag</option>
-                {editCalPool && getActiveProjectPoolTags(editCalPool).map((tag: any) => (
-                  <option key={tag.code} value={tag.code}>
-                    {tag.code} - {tag.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </Row>
+
       </Section>
 
       {/* 3. Content & Notes */}

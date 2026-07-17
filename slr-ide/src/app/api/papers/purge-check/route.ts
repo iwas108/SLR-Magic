@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
     // Fetch all existing papers in the active project
     const dbPapers = db.prepare(`
-      SELECT Paper_ID, Title, DOI, Status, Human_Decision, manual_decision, manual_stage,
+      SELECT Paper_ID, Title, DOI, manual_decision, manual_stage, ai_stage, ai_decision,
              (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
              is_duplicate, merged_into_id,
              (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) as reviewer_decisions_count
@@ -58,9 +58,10 @@ export async function POST(request: Request) {
 
       // Determine classification categories
       const isInterRater = !!dbPaper.calibration_pool || dbPaper.reviewer_decisions_count > 0;
-      const isProcessed = (dbPaper.Status && dbPaper.Status !== 'PENDING') ||
+      const isProcessed = (dbPaper.manual_stage !== undefined && dbPaper.manual_stage > 0) ||
+                          (dbPaper.ai_stage !== undefined && dbPaper.ai_stage > 0) ||
                           (dbPaper.manual_decision && dbPaper.manual_decision.trim() !== '') ||
-                          (dbPaper.Human_Decision && dbPaper.Human_Decision.trim() !== '');
+                          (dbPaper.ai_decision && dbPaper.ai_decision.trim() !== '');
 
       const paperData = {
         Paper_ID: dbPaper.Paper_ID,
@@ -68,9 +69,10 @@ export async function POST(request: Request) {
         DOI: dbPaper.DOI,
         Authors: dbPaper.Authors || '',
         Year: dbPaper.Year,
-        Status: dbPaper.Status,
-        Human_Decision: dbPaper.Human_Decision,
         manual_decision: dbPaper.manual_decision,
+        manual_stage: dbPaper.manual_stage,
+        ai_decision: dbPaper.ai_decision,
+        ai_stage: dbPaper.ai_stage,
         calibration_pool: dbPaper.calibration_pool,
         is_duplicate: dbPaper.is_duplicate,
         merged_into_id: dbPaper.merged_into_id

@@ -9,23 +9,33 @@ export async function GET(req: NextRequest) {
     const decisionFilter = url.searchParams.get('decisionFilter');
 
     const excludeManual = url.searchParams.get('excludeManual') === 'true';
-    const taskType = url.searchParams.get('taskType');
+    const taskTypeInput = url.searchParams.get('taskType');
+    const stageMap: Record<string, string> = {
+      'fast_filter': 'fast_filter',
+      'screening': 'fast_filter',
+      'gatekeeper': 'gatekeeper',
+      'fulltext': 'gatekeeper',
+      'scientist': 'scientist',
+      'miner': 'miner',
+      'extraction': 'miner'
+    };
+    const taskType = stageMap[taskTypeInput || ''] || taskTypeInput;
     const paperIds = url.searchParams.get('paperIds');
 
     if (!projectId || !statusFilter) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
-    let query = "SELECT count(*) as count FROM papers WHERE Project_ID = ?";
+    let query = "SELECT count(*) as count FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)";
     let params: any[] = [projectId];
 
     if (statusFilter !== 'ALL') {
-      query += " AND Status = ?";
-      params.push(statusFilter);
+      query += " AND MAX(manual_stage, ai_stage) = ?";
+      params.push(Number(statusFilter));
     }
 
     if (decisionFilter && decisionFilter !== 'ALL') {
-      query += " AND IFNULL(AI_Decision, 'PENDING') = ?";
+      query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' ELSE IFNULL((CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END), 'PENDING') END) = ?";
       params.push(decisionFilter);
     }
 

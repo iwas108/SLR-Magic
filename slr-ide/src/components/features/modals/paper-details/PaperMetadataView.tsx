@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, Hash, Clock, Globe, GitCommit, FileText, Database, ShieldAlert, Cpu, UserCheck, ChevronDown, ChevronRight } from 'lucide-react';
 import JSONViewer from '@/components/ui/JSONViewer';
+import ScreeningSummaryPanel from './ScreeningSummaryPanel';
+
+import { Paper, Project } from '@/types';
 
 interface PaperMetadataViewProps {
-  paper: any;
-  setPaperModal: (val: any) => void;
+  paper: Paper;
+  setPaperModal: React.Dispatch<React.SetStateAction<any>>;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-  getActiveProjectPoolTags: (poolId: string) => any[];
-  activeProject?: any;
+  activeProject?: Project | null;
 }
 
 const Section = ({ title, icon: Icon, children }: { title: string, icon: any, children: React.ReactNode }) => (
@@ -37,7 +39,6 @@ export default function PaperMetadataView({
   paper,
   setPaperModal,
   showToast,
-  getActiveProjectPoolTags,
   activeProject
 }: PaperMetadataViewProps) {
   const [proxyBaseUrl, setProxyBaseUrl] = useState('');
@@ -91,8 +92,12 @@ export default function PaperMetadataView({
     return `${cleanProxy}/login?url=${encodeURIComponent(`https://doi.org/${cleanDoi}`)}`;
   };
 
-  const aiDecisionVal = (paper.AI_Decision || 'PENDING').toUpperCase();
+  const rawAiDec = (paper.ai_decision || '').toUpperCase();
   const manualDecisionVal = (paper.manual_decision || '').toUpperCase();
+  const resolvedDecisionVal = manualDecisionVal 
+    ? (manualDecisionVal.startsWith('EXCLUDE') ? 'EXCLUDE' : manualDecisionVal) 
+    : (rawAiDec.startsWith('EXCLUDE') ? 'EXCLUDE' : (rawAiDec || ''));
+  const activeStage = (paper.manual_stage ?? 0) > 0 ? (paper.manual_stage ?? 0) : (paper.ai_stage ?? 0);
   
   return (
     <div className="space-y-6 pb-8 max-w-5xl mx-auto w-full">
@@ -158,25 +163,38 @@ export default function PaperMetadataView({
         
         <Row label="System State">
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] uppercase font-bold text-muted-foreground w-24">Pipeline Stage</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                {
-                  '0': 'bg-slate-500/10 border-slate-500/20 text-slate-400',
-                  '1': 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-                  '2': 'bg-purple-500/10 border-purple-500/20 text-purple-400',
-                  '3': 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-                  '4': 'bg-pink-500/10 border-pink-500/20 text-pink-400'
-                }[String(paper.Status)] || 'bg-secondary border-border text-muted-foreground'
-              }`}>
-                {{
-                  '0': '0: Initial',
-                  '1': '1: Fast Filter',
-                  '2': '2: Gatekeeper',
-                  '3': '3: Scientist',
-                  '4': '4: Miner'
-                }[String(paper.Status)] || String(paper.Status)}
-              </span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8">
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground w-24">Pipeline Stage</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                  {
+                    '0': 'bg-slate-500/10 border-slate-500/20 text-slate-400',
+                    '1': 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                    '2': 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+                    '3': 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+                    '4': 'bg-pink-500/10 border-pink-500/20 text-pink-400'
+                  }[String(activeStage)] || 'bg-secondary border-border text-muted-foreground'
+                }`}>
+                  {{
+                    '0': '0: Initial',
+                    '1': '1: Fast Filter',
+                    '2': '2: Gatekeeper',
+                    '3': '3: Scientist',
+                    '4': '4: Miner'
+                  }[String(activeStage)] || String(activeStage)}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground w-24 sm:w-auto">Decision State</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                  resolvedDecisionVal === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                  resolvedDecisionVal === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                  resolvedDecisionVal === 'UNCERTAIN' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                  'bg-slate-500/10 border-slate-500/20 text-slate-400'
+                }`}>
+                  {resolvedDecisionVal || 'UNSCREENED'}
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-[10px] uppercase font-bold text-muted-foreground w-24">PDF Status</span>
@@ -205,65 +223,26 @@ export default function PaperMetadataView({
         
         <Row label="Adjudication">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* AI Box */}
-            <div className="bg-secondary/15 rounded-lg border border-border/40 p-3 flex flex-col gap-2">
-              <div className="flex items-center gap-2 mb-1">
-                <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">AI Evaluation</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                    aiDecisionVal === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                    aiDecisionVal === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
-                    'bg-secondary border-border text-muted-foreground'
-                  }`}>
-                    {aiDecisionVal}
-                </span>
-                {paper.AI_EC_Trigger && paper.AI_EC_Trigger !== 'NONE' && (
-                  <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
-                    {paper.AI_EC_Trigger}
-                  </span>
-                )}
-              </div>
-              {paper.AI_Rationale && (
-                <div className="text-[11px] text-muted-foreground leading-relaxed mt-1 line-clamp-4 hover:line-clamp-none transition-all">
-                  {paper.AI_Rationale}
-                </div>
-              )}
-            </div>
-
-            {/* Manual Screening Box */}
-            <div className={`bg-secondary/15 rounded-lg border ${manualDecisionVal ? 'border-primary/40' : 'border-border/40'} p-3 flex flex-col gap-2`}>
-              <div className="flex items-center gap-2 mb-1">
-                <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">Manual Screening Decision</span>
-              </div>
-              {manualDecisionVal ? (
-                <>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                        manualDecisionVal === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                        manualDecisionVal === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
-                        'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                      }`}>
-                        {manualDecisionVal}
-                    </span>
-                    {paper.manual_ec_trigger && paper.manual_ec_trigger !== 'NONE' && (
-                      <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
-                        {paper.manual_ec_trigger}
-                      </span>
-                    )}
-                  </div>
-                  {paper.manual_rationale && (
-                    <div className="text-[11px] text-muted-foreground leading-relaxed mt-1 line-clamp-4 hover:line-clamp-none transition-all">
-                      {paper.manual_rationale}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-[10px] font-bold text-muted-foreground/50 uppercase italic mt-1">None (Auto)</div>
-              )}
-            </div>
+            <ScreeningSummaryPanel
+              title="AI Screening"
+              icon={Cpu}
+              colorTheme="blue"
+              stage={paper.ai_stage || 0}
+              decision={paper.ai_decision ?? null}
+              rationale={paper.ai_rationale ?? null}
+              qualityAssessment={paper.ai_quality_assessment ?? null}
+              extractedData={paper.ai_extracted_data ?? null}
+            />
+            <ScreeningSummaryPanel
+              title="Manual Screening"
+              icon={UserCheck}
+              colorTheme="amber"
+              stage={paper.manual_stage || 0}
+              decision={paper.manual_decision ?? null}
+              rationale={paper.manual_rationale ?? null}
+              qualityAssessment={paper.manual_quality_assessment ?? null}
+              extractedData={paper.manual_extracted_data ?? null}
+            />
           </div>
         </Row>
         
@@ -304,45 +283,6 @@ export default function PaperMetadataView({
             </div>
           </Row>
         )}
-        
-        <Row label="Calibration">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase w-12">Pool</span>
-              {paper.calibration_pool ? (
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border truncate inline-block ${
-                  paper.calibration_pool === 'pool_a' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' :
-                  paper.calibration_pool === 'pool_b' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                  'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                }`}>
-                  {paper.calibration_pool.replace('_', ' ')}
-                </span>
-              ) : (
-                <span className="text-[10px] font-bold text-muted-foreground/50 uppercase italic">None</span>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase w-12">Tag</span>
-              {paper.calibration_tag ? (
-                (() => {
-                  const tags = getActiveProjectPoolTags(paper.calibration_pool || '');
-                  const matchedTag = tags.find((t: any) => t.code === paper.calibration_tag);
-                  return (
-                    <span 
-                      className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-primary/10 border border-primary/20 text-primary truncate inline-block cursor-help"
-                      title={matchedTag ? matchedTag.label : paper.calibration_tag}
-                    >
-                      {paper.calibration_tag}
-                    </span>
-                  );
-                })()
-              ) : (
-                <span className="text-[10px] font-bold text-muted-foreground/50 uppercase italic">None</span>
-              )}
-            </div>
-          </div>
-        </Row>
       </Section>
 
       {/* 3. Content & Notes */}

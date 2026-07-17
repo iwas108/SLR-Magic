@@ -60,6 +60,19 @@ Replaces flat percentage sampling with precision-based sequential estimation.
     * **Formula:** `CI_lower = p_hat - (1.96 * SE) >= tau` 
     * (Where tau = 0.80 for filtering/classification, and tau = 0.65 for qualitative scoring).
 
+### 2.4 Decision Sourcing Precedence (Source of Truth)
+To prevent metric inflation and pipeline leakages, resolving whether a paper is designated as `INCLUDE` or `EXCLUDE` requires evaluating stage precedence rather than treating database decisions as flat column values:
+1.  **Stage Dominance**: The system evaluates decisions at `Stage_active = MAX(manual_stage, ai_stage)`. The decision mapped to the higher stage value is the active source of truth.
+2.  **Rater Tie-Breaker**: When `manual_stage == ai_stage`, the manual decision overrides the AI decision.
+3.  **Formulaic Representation**:
+    \[
+    Decision_{effective} = \begin{cases} 
+      Decision_{manual} & \text{if } stage_{manual} > stage_{ai} \\
+      Decision_{ai} & \text{if } stage_{ai} > stage_{manual} \\
+      Decision_{manual} \text{ if not null, else } Decision_{ai} & \text{if } stage_{manual} = stage_{ai}
+    \end{cases}
+    \]
+
 ---
 
 ## 3. Phase 2: High-Throughput Autonomous Execution
@@ -83,93 +96,239 @@ Every prompt utilizes JSON-Embedded Chain of Thought (CoT). The LLM MUST return 
 ### Stage 1: Fast Filter Schema
 ```json
 {
-  "logic_trace": {
-    "gate_1_ec1_domain": {
-      "is_review_survey_or_non_english": "<YES/NO/NOT STATED>",
-      "is_explicitly_out_of_scope_domain": "<YES/NO/NOT STATED>",
-      "gate_status": "<CLEAR/TRIGGERED>"
+  "type": "object",
+  "properties": {
+    "logic_trace": {
+      "type": "object",
+      "properties": {
+        "gate_1_ec1_domain": {
+          "type": "object",
+          "properties": {
+            "inner_gate_reasoning": { "type": "string", "description": "Step-by-step metadata trace verifying primary study status, English language compliance, and verifying the domain scope." },
+            "meets_gate_compliance": { "type": "string", "enum": ["YES", "NO", "SKIPPED"] },
+            "gate_status": { "type": "string", "enum": ["CLEAR", "TRIGGERED", "SKIPPED"] }
+          },
+          "required": ["inner_gate_reasoning", "meets_gate_compliance", "gate_status"]
+        },
+        "gate_2_ec2_hardware": {
+          "type": "object",
+          "properties": {
+            "inner_gate_reasoning": { "type": "string", "description": "Step-by-step metadata trace checking for an explicit confession of a pure simulation, offline benchmarking exercise, or deferred future work." },
+            "meets_gate_compliance": { "type": "string", "enum": ["YES", "NO", "SKIPPED"] },
+            "gate_status": { "type": "string", "enum": ["CLEAR", "TRIGGERED", "SKIPPED"] }
+          },
+          "required": ["inner_gate_reasoning", "meets_gate_compliance", "gate_status"]
+        },
+        "gate_3_ec3_predictive": {
+          "type": "object",
+          "properties": {
+            "inner_gate_reasoning": { "type": "string", "description": "Step-by-step metadata trace analyzing if the authors explicitly confess to constructing a purely passive dashboard devoid of active forecasting." },
+            "meets_gate_compliance": { "type": "string", "enum": ["YES", "NO", "SKIPPED"] },
+            "gate_status": { "type": "string", "enum": ["CLEAR", "TRIGGERED", "SKIPPED"] }
+          },
+          "required": ["inner_gate_reasoning", "meets_gate_compliance", "gate_status"]
+        }
+      },
+      "required": ["gate_1_ec1_domain", "gate_2_ec2_hardware", "gate_3_ec3_predictive"]
     },
-    "gate_2_ec2_hardware": {
-      "explicitly_states_pure_simulation_or_offline_only": "<YES/NO/NOT STATED/SKIPPED>",
-      "gate_status": "<CLEAR/TRIGGERED/SKIPPED>"
-    },
-    "gate_3_ec3_predictive": {
-      "explicitly_states_purely_passive_monitoring_or_dashboard": "<YES/NO/NOT STATED/SKIPPED>",
-      "gate_status": "<CLEAR/TRIGGERED/SKIPPED>"
+    "final_evaluation": {
+      "type": "object",
+      "properties": {
+        "decision": { "type": "string", "enum": ["INCLUDE", "EXCLUDE"] },
+        "exclusion_code": { "type": "string", "enum": ["EC-1", "EC-2", "EC-3", "NONE"] },
+        "reasoning": { "type": "string", "description": "Max 50 words; if excluded, quote the literal proxy phrase from the abstract that triggered the confession; if included, state 'No explicit exclusion found.'" }
+      },
+      "required": ["decision", "exclusion_code", "reasoning"]
     }
   },
-  "final_evaluation": {
-    "decision": "<INCLUDE/EXCLUDE>",
-    "exclusion_code": "<EC-1/EC-2/EC-3/null>",
-    "reasoning": "<Max 50 words quote>"
-  }
+  "required": ["logic_trace", "final_evaluation"]
 }
 ```
 
 ### Stage 2.1: The Gatekeeper Schema
 ```json
 {
-  "logic_trace": {
-    "gate_4_ec4_accessibility": {
-      "is_unreadable_corrupted_or_paywalled": "<YES/NO>",
-      "gate_status": "<CLEAR/TRIGGERED>"
+  "type": "object",
+  "properties": {
+    "logic_trace": {
+      "type": "object",
+      "properties": {
+        "gate_4_ec4_integrity": {
+          "type": "object",
+          "properties": {
+            "inner_gate_reasoning": { "type": "string", "description": "Step-by-step structural audit verifying language, text legibility, completeness, manuscript length, and ensuring it is a primary study." },
+            "meets_gate_compliance": { "type": "string", "enum": ["YES", "NO", "SKIPPED"] },
+            "gate_status": { "type": "string", "enum": ["CLEAR", "TRIGGERED", "SKIPPED"] }
+          },
+          "required": ["inner_gate_reasoning", "meets_gate_compliance", "gate_status"]
+        },
+        "gate_5_ec5_hardware": {
+          "type": "object",
+          "properties": {
+            "inner_gate_reasoning": { "type": "string", "description": "Step-by-step audit analyzing if a true system architecture/data-routing topology exists, banning isolated physics math equations." },
+            "meets_gate_compliance": { "type": "string", "enum": ["YES", "NO", "SKIPPED"] },
+            "gate_status": { "type": "string", "enum": ["CLEAR", "TRIGGERED", "SKIPPED"] }
+          },
+          "required": ["inner_gate_reasoning", "meets_gate_compliance", "gate_status"]
+        },
+        "gate_6_ec6_predictive": {
+          "type": "object",
+          "properties": {
+            "inner_gate_reasoning": { "type": "string", "description": "Step-by-step audit evaluating if the system actively forecasts future states vs using static thresholds or passive dashboards." },
+            "meets_gate_compliance": { "type": "string", "enum": ["YES", "NO", "SKIPPED"] },
+            "gate_status": { "type": "string", "enum": ["CLEAR", "TRIGGERED", "SKIPPED"] }
+          },
+          "required": ["inner_gate_reasoning", "meets_gate_compliance", "gate_status"]
+        },
+        "gate_7_ec7_validation": {
+          "type": "object",
+          "properties": {
+            "inner_gate_reasoning": { "type": "string", "description": "Step-by-step audit verifying the presence of statistical accuracy metrics, applying the Conditional Pass Rule for missing hardware profiles." },
+            "meets_gate_compliance": { "type": "string", "enum": ["YES", "NO", "SKIPPED"] },
+            "gate_status": { "type": "string", "enum": ["CLEAR", "TRIGGERED", "SKIPPED"] }
+          },
+          "required": ["inner_gate_reasoning", "meets_gate_compliance", "gate_status"]
+        }
+      },
+      "required": ["gate_4_ec4_integrity", "gate_5_ec5_hardware", "gate_6_ec6_predictive", "gate_7_ec7_validation"]
     },
-    "gate_5_ec5_hardware": {
-      "omits_proof_of_physical_deployment_or_hil": "<YES/NO/NOT STATED/SKIPPED>",
-      "gate_status": "<CLEAR/TRIGGERED/SKIPPED>"
-    },
-    "gate_6_ec6_predictive": {
-      "omits_proof_of_dynamic_forecasting_algorithms": "<YES/NO/NOT STATED/SKIPPED>",
-      "gate_status": "<CLEAR/TRIGGERED/SKIPPED>"
-    },
-    "gate_7_ec7_friction": {
-      "omits_quantitative_metrics_for_algorithmic_accuracy": "<YES/NO/NOT STATED/SKIPPED>",
-      "omits_quantitative_metrics_for_hardware_execution_friction": "<YES/NO/NOT STATED/SKIPPED>",
-      "gate_status": "<CLEAR/TRIGGERED/SKIPPED>"
+    "final_evaluation": {
+      "type": "object",
+      "properties": {
+        "decision": { "type": "string", "enum": ["INCLUDE", "EXCLUDE"] },
+        "exclusion_code": { "type": "string", "enum": ["EC-4", "EC-5", "EC-6", "EC-7", "NONE"] },
+        "reasoning": { "type": "string", "description": "A concise engineering summary limited to a maximum of 50 words justifying the final fail-fast routing decision based on the gate traces." }
+      },
+      "required": ["decision", "exclusion_code", "reasoning"]
     }
   },
-  "final_evaluation": {
-    "decision": "<INCLUDE/EXCLUDE>",
-    "exclusion_code": "<EC-4/EC-5/EC-6/EC-7/null>",
-    "reasoning": "<Max 50 words stating omitted structural requirement>"
-  }
+  "required": ["logic_trace", "final_evaluation"]
 }
 ```
 
 ### Stage 2.2: The Scientist Schema
 ```json
 {
-  "logic_trace": {
-    "appraisal_reasoning": {
-      "qa1_aims_analysis": "<Step-by-step reasoning>",
-      "qa2_context_analysis": "<Step-by-step reasoning>",
-      "qa3_reproducibility_analysis": "<Step-by-step reasoning>",
-      "qa4_ingestion_analysis": "<Step-by-step reasoning>",
-      "qa5_transparency_analysis": "<Step-by-step reasoning>",
-      "qa6_reliability_analysis": "<Step-by-step reasoning>",
-      "qa7_friction_analysis": "<Step-by-step reasoning>",
-      "qa8_transferability_analysis": "<Step-by-step reasoning>"
+  "type": "object",
+  "properties": {
+    "logic_trace": {
+      "type": "object",
+      "properties": {
+        "appraisal_reasoning": {
+          "type": "object",
+          "properties": {
+            "qa1_aims_analysis": { "type": "string", "description": "Text segment isolation and engineering goal evaluation." },
+            "qa2_context_analysis": { "type": "string", "description": "Evaluation of hardware/network context mapping to justify exclusion from fatal flaws." },
+            "qa3_reproducibility_analysis": { "type": "string", "description": "Evaluation of topological and software block documentation for peer replication." },
+            "qa4_ingestion_analysis": { "type": "string", "description": "Assessment of telemetry synchronization pipelines and buffering mechanism transparency." },
+            "qa5_transparency_analysis": { "type": "string", "description": "Mathematical check of model training configuration and algorithmic clear-boxing." },
+            "qa6_reliability_analysis": { "type": "string", "description": "Evaluation isolating if metrics stand alone (0.5) or if true edge resource overhead is measured (1.0)." },
+            "qa7_friction_analysis": { "type": "string", "description": "Collection of reported execution constraints or system bottlenecks." },
+            "qa8_transferability_analysis": { "type": "string", "description": "Determination of scalable architectural principles vs hyper-fitted setups." }
+          },
+          "required": [
+            "qa1_aims_analysis", "qa2_context_analysis", "qa3_reproducibility_analysis", "qa4_ingestion_analysis", 
+            "qa5_transparency_analysis", "qa6_reliability_analysis", "qa7_friction_analysis", "qa8_transferability_analysis"
+          ]
+        },
+        "gate_mathematics": {
+          "type": "object",
+          "properties": {
+            "summation_trace": { "type": "string", "description": "Explicit string equation showing the summation of scores, e.g., 1.0 + 0.5 + 1.0 + 0.5 + 0.5 + 0.0 + 0.5 + 0.5 = 4.5" },
+            "fatal_flaw_check": { "type": "string", "description": "Clear declaration identifying if any core values (QA1, QA3, QA4, QA6) evaluate to 0.0" }
+          },
+          "required": [ "summation_trace", "fatal_flaw_check" ]
+        }
+      },
+      "required": [ "appraisal_reasoning", "gate_mathematics" ]
     },
-    "threshold_calculation": {
-      "fatal_flaw_detected": "<boolean>",
-      "cumulative_score_total": "<float>"
+    "qa_scores": {
+      "type": "object",
+      "properties": {
+        "qa1_aims": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "enum": [ "1.0", "0.5", "0.0" ] },
+            "evidence": { "type": "string" }
+          },
+          "required": [ "value", "evidence" ]
+        },
+        "qa2_context": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "enum": [ "1.0", "0.5", "0.0" ] },
+            "evidence": { "type": "string" }
+          },
+          "required": [ "value", "evidence" ]
+        },
+        "qa3_reproducibility": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "enum": [ "1.0", "0.5", "0.0" ] },
+            "evidence": { "type": "string" }
+          },
+          "required": [ "value", "evidence" ]
+        },
+        "qa4_ingestion": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "enum": [ "1.0", "0.5", "0.0" ] },
+            "evidence": { "type": "string" }
+          },
+          "required": [ "value", "evidence" ]
+        },
+        "qa5_transparency": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "enum": [ "1.0", "0.5", "0.0" ] },
+            "evidence": { "type": "string" }
+          },
+          "required": [ "value", "evidence" ]
+        },
+        "qa6_reliability": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "enum": [ "1.0", "0.5", "0.0" ] },
+            "evidence": { "type": "string" }
+          },
+          "required": [ "value", "evidence" ]
+        },
+        "qa7_friction": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "enum": [ "1.0", "0.5", "0.0" ] },
+            "evidence": { "type": "string" }
+          },
+          "required": [ "value", "evidence" ]
+        },
+        "qa8_transferability": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "enum": [ "1.0", "0.5", "0.0" ] },
+            "evidence": { "type": "string" }
+          },
+          "required": [ "value", "evidence" ]
+        }
+      },
+      "required": [
+        "qa1_aims", "qa2_context", "qa3_reproducibility", "qa4_ingestion", 
+        "qa5_transparency", "qa6_reliability", "qa7_friction", "qa8_transferability"
+      ]
+    },
+    "final_evaluation": {
+      "type": "object",
+      "properties": {
+        "decision": { "type": "string", "enum": [ "INCLUDE", "EXCLUDE" ] },
+        "exclusion_code": { 
+          "type": "string", 
+          "description": "Comma-separated list of triggered codes: NONE, FATAL_FLAW_QA1, FATAL_FLAW_QA3, FATAL_FLAW_QA4, FATAL_FLAW_QA6, CUMULATIVE_BELOW_4.5" 
+        },
+        "reasoning": { "type": "string", "description": "Concise engineering summary limited to a maximum of 50 words justifying final routing based on metrics." }
+      },
+      "required": [ "decision", "exclusion_code", "reasoning" ]
     }
   },
-  "qa_scores": {
-    "qa1_aims": { "value": "<1.0/0.5/0.0>", "evidence": "<Exact quote>" },
-    "qa2_context": { "value": "<1.0/0.5/0.0>", "evidence": "<Exact quote>" },
-    "qa3_reproducibility": { "value": "<1.0/0.5/0.0>", "evidence": "<Exact quote>" },
-    "qa4_ingestion": { "value": "<1.0/0.5/0.0>", "evidence": "<Exact quote>" },
-    "qa5_transparency": { "value": "<1.0/0.5/0.0>", "evidence": "<Exact quote>" },
-    "qa6_reliability": { "value": "<1.0/0.5/0.0>", "evidence": "<Exact quote>" },
-    "qa7_friction": { "value": "<1.0/0.5/0.0>", "evidence": "<Exact quote>" },
-    "qa8_transferability": { "value": "<1.0/0.5/0.0>", "evidence": "<Exact quote>" }
-  },
-  "final_evaluation": {
-    "decision": "<INCLUDE/EXCLUDE>",
-    "exclusion_code": "<FATAL_FLAW_QA[X] / CUMULATIVE_BELOW_4.5 / null>",
-    "reasoning": "<Technical summary of threshold calculation>"
-  }
+  "required": [ "logic_trace", "qa_scores", "final_evaluation" ]
 }
 ```
 
@@ -177,33 +336,170 @@ Every prompt utilizes JSON-Embedded Chain of Thought (CoT). The LLM MUST return 
 *Note: Strictly uses `NOT_STATED` for missing data to ensure "Silence is Negative" compliance.*
 ```json
 {
-  "logic_trace": {
-    "extraction_mapping": {
-      "locate_rq1_operational_domains": "<string: trace isolating text and mapping to domain label>",
-      "locate_rq2_a_autonomy_level": "<string: trace mapping to the 3-tier autonomy spectrum>",
-      "locate_rq2_b_control_paradigm": "<string: trace identifying the control mathematical/logic paradigm>",
-      "locate_rq3_computational_topologies": "<string: trace mapping to the topology allowlist or novel token>",
-      "locate_rq4_network_protocols": "<string: trace verifying OSI layer/middleware and mapping to allowlist>",
-      "locate_rq5_semantic_frameworks": "<string: trace identifying data models or AAS rules>",
-      "locate_rq6_forecasting_engines": "<string: trace confirming algorithm names from methodology or results>",
-      "locate_rq7_accuracy_metrics": "<string: trace locating statistical validation metrics>",
-      "locate_rq8_a_edge_hardware": "<string: trace searching for physical nodes/microcontrollers>",
-      "locate_rq8_b_execution_footprint": "<string: trace identifying metrics used to quantify resource drain>",
-      "locate_rq9_deployment_barriers": "<string: trace mapping unresolved structural, network, economic, logistical, legal, or social friction points>"
+  "type": "object",
+  "properties": {
+    "logic_trace": {
+      "type": "object",
+      "properties": {
+        "extraction_mapping": {
+          "type": "object",
+          "properties": {
+            "locate_rq1_operational_domains": { "type": "string", "description": "Trace isolating text and mapping to domain label" },
+            "locate_rq2_a_autonomy_level": { "type": "string", "description": "Trace mapping to the 3-tier autonomy spectrum" },
+            "locate_rq2_b_control_paradigm": { "type": "string", "description": "Trace identifying the control mathematical/logic paradigm" },
+            "locate_rq3_computational_topologies": { "type": "string", "description": "Trace mapping to the topology allowlist or novel token" },
+            "locate_rq4_network_protocols": { "type": "string", "description": "Trace verifying OSI layer/middleware and mapping to multi-value array" },
+            "locate_rq5_semantic_frameworks": { "type": "string", "description": "Trace identifying data models or AAS rules" },
+            "locate_rq6_deployed_forecasting_engines": { "type": "string", "description": "Trace confirming final deployed algorithm names, filtering out baseline benchmarks" },
+            "locate_rq7_accuracy_metrics": { "type": "string", "description": "Trace locating statistical validation metrics" },
+            "locate_rq8_a_edge_hardware": { "type": "string", "description": "Trace searching for physical nodes/microcontrollers" },
+            "locate_rq8_b_execution_footprint": { "type": "string", "description": "Trace identifying metrics used to quantify resource drain" },
+            "locate_rq9_deployment_barriers": { "type": "string", "description": "Trace mapping unresolved structural, network, economic, logistical, legal, or social friction points" }
+          },
+          "required": [
+            "locate_rq1_operational_domains",
+            "locate_rq2_a_autonomy_level",
+            "locate_rq2_b_control_paradigm",
+            "locate_rq3_computational_topologies",
+            "locate_rq4_network_protocols",
+            "locate_rq5_semantic_frameworks",
+            "locate_rq6_deployed_forecasting_engines",
+            "locate_rq7_accuracy_metrics",
+            "locate_rq8_a_edge_hardware",
+            "locate_rq8_b_execution_footprint",
+            "locate_rq9_deployment_barriers"
+          ]
+        }
+      },
+      "required": ["extraction_mapping"]
+    },
+    "extracted_data": {
+      "type": "object",
+      "properties": {
+        "rq1_operational_domains": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "description": "token_or_NOT_STATED" },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq2_a_autonomy_level": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "description": "token_or_NOT_STATED" },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq2_b_control_paradigm": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "description": "token_or_NOT_STATED" },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq3_computational_topologies": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "description": "token_or_NOT_STATED" },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq4_network_protocols": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of active communication tokens. If empty or absent, output single item array ['NOT_STATED']"
+            },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq5_semantic_frameworks": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "description": "token_or_NOT_STATED" },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq6_deployed_forecasting_engines": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of final deployed algorithm abbreviations. If absent, output single item array ['NOT_STATED']"
+            },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq7_accuracy_metrics": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of mathematical validation metrics. If absent, output single item array ['NOT_STATED']"
+            },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq8_a_edge_hardware": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "string", "description": "token_or_NOT_STATED" },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq8_b_execution_footprint": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of metrics used to quantify resource drain. If absent, output single item array ['NOT_STATED']"
+            },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        },
+        "rq9_deployment_barriers": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of distinct, unintentional friction points mapped to allowlist or novel tokens. If absent, output single item array ['NOT_STATED']"
+            },
+            "evidence": { "type": "string", "description": "exact_quote_or_NOT_STATED" }
+          },
+          "required": ["value", "evidence"]
+        }
+      },
+      "required": [
+        "rq1_operational_domains",
+        "rq2_a_autonomy_level",
+        "rq2_b_control_paradigm",
+        "rq3_computational_topologies",
+        "rq4_network_protocols",
+        "rq5_semantic_frameworks",
+        "rq6_deployed_forecasting_engines",
+        "rq7_accuracy_metrics",
+        "rq8_a_edge_hardware",
+        "rq8_b_execution_footprint",
+        "rq9_deployment_barriers"
+      ]
     }
   },
-  "extracted_data": {
-    "rq1_operational_domains": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq2_a_autonomy_level": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq2_b_control_paradigm": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq3_computational_topologies": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq4_network_protocols": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq5_semantic_frameworks": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq6_forecasting_engines": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq7_accuracy_metrics": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq8_a_edge_hardware": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq8_b_execution_footprint": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" },
-    "rq9_deployment_barriers": { "value": "<string: token_or_NOT_STATED>", "evidence": "<string: exact_quote_or_NOT_STATED>" }
-  }
+  "required": ["logic_trace", "extracted_data"]
 }
 ```

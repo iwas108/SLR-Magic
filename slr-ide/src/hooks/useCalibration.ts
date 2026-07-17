@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNdjsonStream } from './useNdjsonStream';
 import { Paper } from '@/types';
 import { calculateCohensKappa } from '@/lib/inter-rater/adjudication-calculations';
+import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 
 interface UseCalibrationProps {
   papers: Paper[];
@@ -270,10 +271,16 @@ export function useCalibration({
             );
           }
           if (assignStageFilter) {
+            const stageFilterMap: Record<string, number> = {
+              'fast_filter': 1,
+              'gatekeeper': 2,
+              'scientist': 3,
+              'miner': 4
+            };
             results = results.filter((p: Paper) => 
               assignStageFilter === 'none' 
-                ? (!p.manual_stage || p.manual_stage === '') 
-                : p.manual_stage === assignStageFilter
+                ? (!p.manual_stage || p.manual_stage === 0) 
+                : p.manual_stage === (stageFilterMap[assignStageFilter] || 0)
             );
           }
           
@@ -384,14 +391,25 @@ export function useCalibration({
         }
       }
 
-      const res = await fetch(`/api/papers/${paperId}`, {
-        method: 'PUT',
+      if (nextPdfStatus !== paperObj.Local_PDF_Status) {
+        await fetch(`/api/papers/${paperId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            Title: paperObj.Title,
+            Local_PDF_Status: nextPdfStatus
+          })
+        });
+      }
+
+      const res = await fetch('/api/calibration/assign', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          Title: paperObj.Title,
+          paperId,
+          projectId: paperObj.Project_ID,
           calibration_pool: pool,
-          calibration_tag: tag,
-          Local_PDF_Status: nextPdfStatus
+          calibration_tag: tag
         })
       });
 
@@ -416,6 +434,8 @@ export function useCalibration({
           await loadAssignPapers();
         }
         loadPapers();
+        broadcastSync('SYNC_PAPERS');
+        broadcastSync('SYNC_PROJECTS');
       } else {
         const data = await res.json().catch(() => ({}));
         showToast(data.error || 'Failed to assign pool', 'error');
@@ -552,6 +572,64 @@ export function useCalibration({
   useEffect(() => {
     setAssignPage(1);
   }, [activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignSearchMode, assignExcludeReviews, assignPublisherFilter]);
+
+  const loadCalPapersRef = useRef(loadCalPapers);
+  const loadAssignPapersRef = useRef(loadAssignPapers);
+  const loadPapersRef = useRef(loadPapers);
+  const loadProjectsRef = useRef(loadProjects);
+  const loadVectorStatusRef = useRef(loadVectorStatus);
+
+  useEffect(() => {
+    loadCalPapersRef.current = loadCalPapers;
+    loadAssignPapersRef.current = loadAssignPapers;
+    loadPapersRef.current = loadPapers;
+    loadProjectsRef.current = loadProjects;
+    loadVectorStatusRef.current = loadVectorStatus;
+  });
+
+  const assignSelectedPaperRef = useRef(assignSelectedPaper);
+  useEffect(() => {
+    assignSelectedPaperRef.current = assignSelectedPaper;
+  }, [assignSelectedPaper]);
+
+  const rehydrateSelectedPaper = useCallback(async () => {
+    const selected = assignSelectedPaperRef.current;
+    if (!selected) return;
+    try {
+      const res = await fetch(`/api/papers/${selected.Paper_ID}`);
+      if (res.ok) {
+        const updated = await res.json();
+        setAssignSelectedPaper(updated);
+      }
+    } catch (err) {
+      console.error('Error rehydrating selected paper:', err);
+    }
+  }, [setAssignSelectedPaper]);
+
+  const rehydrateSelectedPaperRef = useRef(rehydrateSelectedPaper);
+  useEffect(() => {
+    rehydrateSelectedPaperRef.current = rehydrateSelectedPaper;
+  });
+
+  useEffect(() => {
+    const unsubscribe = subscribeSyncChannel((type) => {
+      if (type === 'SYNC_PROJECTS') {
+        loadProjectsRef.current();
+      }
+      if (type === 'SYNC_PAPERS') {
+        loadPapersRef.current();
+        if (activeTab === 'pre-calibration') {
+          loadCalPapersRef.current();
+        }
+        if (showAssignModal) {
+          loadAssignPapersRef.current();
+          loadVectorStatusRef.current();
+        }
+        rehydrateSelectedPaperRef.current();
+      }
+    });
+    return unsubscribe;
+  }, [activeTab, showAssignModal]);
 
   // Reset sort column if switching search mode
   useEffect(() => {

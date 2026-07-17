@@ -27,7 +27,7 @@ export async function GET(req: Request) {
       const rows = db.prepare(`
         SELECT Paper_ID, DOI, Title, PDF_Link
         FROM papers
-        WHERE Project_ID = ? AND Local_PDF_Status = 'MISSING'
+        WHERE Project_ID = ? AND Local_PDF_Status = 'MISSING' AND (is_duplicate IS NULL OR is_duplicate = 0)
         LIMIT ?
       `).all(project_id, batchSize) as any[];
 

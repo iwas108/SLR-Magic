@@ -19,7 +19,8 @@ export async function POST(request: Request) {
     }
 
     const { keyName, plainValue } = await request.json();
-    if (!keyName || !plainValue) {
+    const trimmedValue = (plainValue || '').trim();
+    if (!keyName || !trimmedValue) {
       return NextResponse.json({ error: 'keyName and plainValue are required' }, { status: 400 });
     }
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     // Encrypt the key value using the cached master password
-    const encrypted = await encryptKey(plainValue, password);
+    const encrypted = await encryptKey(trimmedValue, password);
 
     // Save to the database
     saveVaultKey({

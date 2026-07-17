@@ -96,7 +96,8 @@ def main():
         print(json.dumps({"event": "error", "message": "Database slr.db not found."}))
         sys.exit(1)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
     # Fetch active project ID
@@ -111,13 +112,13 @@ def main():
         cursor.execute("""
             SELECT Paper_ID, DOI, Title, Original_Publisher, Publisher
             FROM papers
-            WHERE Project_ID = ?
+            WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
         """, (active_proj_id,))
     else:
         cursor.execute("""
             SELECT Paper_ID, DOI, Title, Original_Publisher, Publisher
             FROM papers
-            WHERE Project_ID = ? AND (Publisher IS NULL OR Publisher = '')
+            WHERE Project_ID = ? AND (Publisher IS NULL OR Publisher = '') AND (is_duplicate IS NULL OR is_duplicate = 0)
         """, (active_proj_id,))
     papers = cursor.fetchall()
     total = len(papers)
