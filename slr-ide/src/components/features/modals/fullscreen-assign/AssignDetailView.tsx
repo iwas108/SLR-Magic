@@ -391,9 +391,7 @@ export default function AssignDetailView({
               {(() => {
                 const manualDec = (assignSelectedPaper.manual_decision || '').toUpperCase();
                 const aiDec = (assignSelectedPaper.ai_decision || '').toUpperCase();
-                const resolvedDec = manualDec 
-                  ? (manualDec.startsWith('EXCLUDE') ? 'EXCLUDE' : manualDec) 
-                  : (aiDec.startsWith('EXCLUDE') ? 'EXCLUDE' : (aiDec || 'PENDING'));
+                const resolvedDec = manualDec || aiDec || 'PENDING';
                 return (
                   <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
                     resolvedDec === 'INCLUDE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :

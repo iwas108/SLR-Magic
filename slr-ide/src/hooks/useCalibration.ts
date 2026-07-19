@@ -46,9 +46,27 @@ export function useCalibration({
     reviewedCount: number;
   }>({ TP: 0, TN: 0, FP: 0, FN: 0, agreementRate: 0, kappa: 'N/A', reviewedCount: 0 });
 
+  const [stageStats, setStageStats] = useState<any[]>([]);
+  const [stageStatsLoading, setStageStatsLoading] = useState(false);
+
+  const loadStageStats = useCallback(async () => {
+    setStageStatsLoading(true);
+    try {
+      const res = await fetch('/api/adjudicate/stats?mode=stage_comparison');
+      if (res.ok) {
+        const data = await res.json();
+        setStageStats(data.poolStats || []);
+      }
+    } catch (err) {
+      console.error('Error fetching stage comparison stats:', err);
+    } finally {
+      setStageStatsLoading(false);
+    }
+  }, []);
+
   // Assignment modal states
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [activeAssignDropdown, setActiveAssignDropdown] = useState<string | null>(null);
+  const [activeAssignDropdown, setActiveAssignDropdown] = useState<{ paperId: string; poolId: string } | null>(null);
   const [assignSearch, setAssignSearch] = useState('');
   const [debouncedKeywordSearch, setDebouncedKeywordSearch] = useState('');
   const [activeSemanticQuery, setActiveSemanticQuery] = useState('');
@@ -67,12 +85,17 @@ export function useCalibration({
   const [assignSearchMode, setAssignSearchMode] = useState<'keyword' | 'semantic'>('keyword');
   const [assignExcludeReviews, setAssignExcludeReviews] = useState(false);
   const [assignPublisherFilter, setAssignPublisherFilter] = useState('all');
-  const [assignStageFilter, setAssignStageFilter] = useState('');
-  const [assignDecisionFilter, setAssignDecisionFilter] = useState('');
+  const [assignPdfFilter, setAssignPdfFilter] = useState('');
+  const [assignSourceFilter, setAssignSourceFilter] = useState('');
+  const [assignDoiStatusFilter, setAssignDoiStatusFilter] = useState('');
+  const [assignPdfLinkFilter, setAssignPdfLinkFilter] = useState('');
+  const [assignPipelineStageFilter, setAssignPipelineStageFilter] = useState('');
+  const [assignPipelineStatusFilter, setAssignPipelineStatusFilter] = useState('');
+  const [assignEcTriggerFilter, setAssignEcTriggerFilter] = useState('');
   
   const [uniquePublishers, setUniquePublishers] = useState<string[]>([]);
-  const [uniqueManualStages, setUniqueManualStages] = useState<string[]>([]);
-  const [uniqueManualDecisions, setUniqueManualDecisions] = useState<string[]>([]);
+  const [ecTriggers, setEcTriggers] = useState<string[]>([]);
+  const [loadingEcTriggers, setLoadingEcTriggers] = useState(false);
   
   const [vectorIndexStatus, setVectorIndexStatus] = useState<{
     indexed: boolean;
@@ -202,7 +225,7 @@ export function useCalibration({
         const poolPapers = statsData.papers || [];
         let TP = 0, TN = 0, FP = 0, FN = 0, reviewed = 0;
         for (const p of poolPapers) {
-          const hDec = (p.Human_Decision || '').toUpperCase();
+          const hDec = (p.manual_decision || '').toUpperCase();
           const aiDec = (p.AI_Decision || '').toUpperCase();
           if (hDec) {
             reviewed++;
@@ -263,25 +286,74 @@ export function useCalibration({
           const data = await res.json();
           let results = data.results || [];
           
-          if (assignDecisionFilter) {
-            results = results.filter((p: Paper) => 
-              assignDecisionFilter === 'none' 
-                ? (!p.manual_decision || p.manual_decision === '') 
-                : p.manual_decision === assignDecisionFilter
-            );
+          if (assignPdfFilter) {
+            results = results.filter((p: Paper) => p.Local_PDF_Status === assignPdfFilter);
           }
-          if (assignStageFilter) {
-            const stageFilterMap: Record<string, number> = {
-              'fast_filter': 1,
-              'gatekeeper': 2,
-              'scientist': 3,
-              'miner': 4
+          if (assignSourceFilter) {
+            results = results.filter((p: Paper) => {
+              const src = p.Import_Source || '';
+              if (assignSourceFilter === 'manual') return src === 'Manual Search' || src === 'Manual Ingestion';
+              if (assignSourceFilter === 'backward') return src === 'Backward Snowball';
+              if (assignSourceFilter === 'forward') return src === 'Forward Snowball';
+              if (assignSourceFilter === 'csv') return !['Manual Search', 'Manual Ingestion', 'Backward Snowball', 'Forward Snowball'].includes(src);
+              return true;
+            });
+          }
+          if (assignDoiStatusFilter) {
+            results = results.filter((p: Paper) => {
+              const hasDoi = !!(p.DOI && p.DOI.trim());
+              return assignDoiStatusFilter === 'empty' ? !hasDoi : hasDoi;
+            });
+          }
+          if (assignPdfLinkFilter) {
+            results = results.filter((p: Paper) => {
+              const hasLink = !!(p.PDF_Link && p.PDF_Link.trim());
+              return assignPdfLinkFilter === 'empty' ? !hasLink : hasLink;
+            });
+          }
+          if (assignPipelineStageFilter) {
+            const stageNum = parseInt(assignPipelineStageFilter, 10);
+            const getEffectiveStage = (p: Paper) => Math.max(p.manual_stage || 0, p.ai_stage || 0);
+            const getEffectiveDecision = (p: Paper) => {
+              const mStage = p.manual_stage || 0;
+              const aStage = p.ai_stage || 0;
+              if (mStage > aStage) return p.manual_decision;
+              if (aStage > mStage) return p.ai_decision;
+              return p.manual_decision || p.ai_decision;
             };
-            results = results.filter((p: Paper) => 
-              assignStageFilter === 'none' 
-                ? (!p.manual_stage || p.manual_stage === 0) 
-                : p.manual_stage === (stageFilterMap[assignStageFilter] || 0)
-            );
+
+            if (assignPipelineStatusFilter) {
+              results = results.filter((p: Paper) => {
+                const effStage = getEffectiveStage(p);
+                const effDec = (getEffectiveDecision(p) || '').toUpperCase();
+                
+                if (assignPipelineStatusFilter === 'included') {
+                  return effStage >= stageNum && effDec.startsWith('INCLUDE');
+                }
+                if (assignPipelineStatusFilter === 'excluded') {
+                  return effStage === stageNum && effDec.startsWith('EXCLUDE');
+                }
+                if (assignPipelineStatusFilter === 'unprocessed') {
+                  return effStage < stageNum || (effStage === stageNum && !effDec);
+                }
+                return true;
+              });
+            } else {
+              results = results.filter((p: Paper) => getEffectiveStage(p) === stageNum);
+            }
+          }
+          if (assignEcTriggerFilter) {
+            results = results.filter((p: Paper) => {
+              const mEC = p.manual_exclusion_code || '';
+              const aEC = p.ai_exclusion_code || '';
+              const getEffectiveStage = (p: Paper) => Math.max(p.manual_stage || 0, p.ai_stage || 0);
+              const stageNum = parseInt(assignPipelineStageFilter, 10);
+              const stageMatch = isNaN(stageNum) || getEffectiveStage(p) === stageNum;
+              return stageMatch && (
+                mEC.toUpperCase().includes(assignEcTriggerFilter.toUpperCase()) ||
+                aEC.toUpperCase().includes(assignEcTriggerFilter.toUpperCase())
+              );
+            });
           }
           
           // In-memory sorting for semantic results
@@ -334,13 +406,13 @@ export function useCalibration({
           params.append('publisher', assignPublisherFilter);
         }
 
-        if (assignStageFilter) {
-          params.append('manualStage', assignStageFilter);
-        }
-
-        if (assignDecisionFilter) {
-          params.append('manualDecision', assignDecisionFilter);
-        }
+        if (assignPdfFilter) params.append('pdfStatus', assignPdfFilter);
+        if (assignSourceFilter) params.append('source', assignSourceFilter);
+        if (assignDoiStatusFilter) params.append('doiStatus', assignDoiStatusFilter);
+        if (assignPdfLinkFilter) params.append('pdfLink', assignPdfLinkFilter);
+        if (assignPipelineStageFilter) params.append('pipelineStage', assignPipelineStageFilter);
+        if (assignPipelineStatusFilter) params.append('pipelineStatus', assignPipelineStatusFilter);
+        if (assignEcTriggerFilter) params.append('ecTrigger', assignEcTriggerFilter);
         
         params.append('sortBy', assignSortBy);
         params.append('sortOrder', assignSortOrder);
@@ -368,7 +440,7 @@ export function useCalibration({
         setAssignLoading(false);
       }
     }
-  }, [assignSearchMode, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignSortBy, assignSortOrder, assignExcludeReviews, assignPublisherFilter]);
+  }, [assignSearchMode, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignSortBy, assignSortOrder, assignExcludeReviews, assignPublisherFilter, assignPdfFilter, assignSourceFilter, assignDoiStatusFilter, assignPdfLinkFilter, assignPipelineStageFilter, assignPipelineStatusFilter, assignEcTriggerFilter]);
 
   const triggerSemanticSearch = useCallback(() => {
     setActiveSemanticQuery(assignSearch);
@@ -488,8 +560,9 @@ export function useCalibration({
   useEffect(() => {
     if (activeTab === 'pre-calibration') {
       loadCalPapers();
+      loadStageStats();
     }
-  }, [calActivePool, calSearchTerm, calStatusFilter, calPdfFilter, calTagFilter, calSortBy, calSortOrder, calPage, calLimit, activeTab, loadCalPapers]);
+  }, [calActivePool, calSearchTerm, calStatusFilter, calPdfFilter, calTagFilter, calSortBy, calSortOrder, calPage, calLimit, activeTab, loadCalPapers, loadStageStats]);
 
   // Fetch vector status
   const loadVectorStatus = useCallback(async () => {
@@ -533,35 +606,35 @@ export function useCalibration({
           console.error('Failed to fetch publishers:', err);
         }
       };
-      const fetchStages = async () => {
-        try {
-          const res = await fetch('/api/papers?getManualStages=true');
-          if (res.ok) {
-            const data = await res.json();
-            setUniqueManualStages(data || []);
-          }
-        } catch (err) {}
-      };
-      const fetchDecisions = async () => {
-        try {
-          const res = await fetch('/api/papers?getManualDecisions=true');
-          if (res.ok) {
-            const data = await res.json();
-            setUniqueManualDecisions(data || []);
-          }
-        } catch (err) {}
-      };
       fetchPublishers();
-      fetchStages();
-      fetchDecisions();
     }
   }, [showAssignModal]);
+
+  // Load unique exclusion criteria codes dynamically when pipeline stage changes
+  useEffect(() => {
+    if (!showAssignModal) return;
+    const fetchEcTriggers = async () => {
+      setLoadingEcTriggers(true);
+      try {
+        const res = await fetch(`/api/papers?getEcTriggers=true&pipelineStage=${assignPipelineStageFilter}`);
+        if (res.ok) {
+          const data = await res.json();
+          setEcTriggers(data || []);
+        }
+      } catch (err) {
+        console.error("Error loading exclusion criteria for assign:", err);
+      } finally {
+        setLoadingEcTriggers(false);
+      }
+    };
+    fetchEcTriggers();
+  }, [showAssignModal, assignPipelineStageFilter]);
 
   useEffect(() => {
     if (showAssignModal) {
       loadAssignPapers();
     }
-  }, [showAssignModal, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignExcludeReviews, assignPublisherFilter, assignStageFilter, assignDecisionFilter, loadAssignPapers]);
+  }, [showAssignModal, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignExcludeReviews, assignPublisherFilter, assignPdfFilter, assignSourceFilter, assignDoiStatusFilter, assignPdfLinkFilter, assignPipelineStageFilter, assignPipelineStatusFilter, assignEcTriggerFilter, loadAssignPapers]);
 
   // Reset calibration pagination when filter changes
   useEffect(() => {
@@ -571,27 +644,29 @@ export function useCalibration({
   // Reset assignment pagination when filter changes
   useEffect(() => {
     setAssignPage(1);
-  }, [activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignSearchMode, assignExcludeReviews, assignPublisherFilter]);
+  }, [activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignSearchMode, assignExcludeReviews, assignPublisherFilter, assignPdfFilter, assignSourceFilter, assignDoiStatusFilter, assignPdfLinkFilter, assignPipelineStageFilter, assignPipelineStatusFilter, assignEcTriggerFilter]);
 
   const loadCalPapersRef = useRef(loadCalPapers);
   const loadAssignPapersRef = useRef(loadAssignPapers);
   const loadPapersRef = useRef(loadPapers);
   const loadProjectsRef = useRef(loadProjects);
   const loadVectorStatusRef = useRef(loadVectorStatus);
-
+  const loadStageStatsRef = useRef(loadStageStats);
+ 
   useEffect(() => {
     loadCalPapersRef.current = loadCalPapers;
     loadAssignPapersRef.current = loadAssignPapers;
     loadPapersRef.current = loadPapers;
     loadProjectsRef.current = loadProjects;
     loadVectorStatusRef.current = loadVectorStatus;
+    loadStageStatsRef.current = loadStageStats;
   });
-
+ 
   const assignSelectedPaperRef = useRef(assignSelectedPaper);
   useEffect(() => {
     assignSelectedPaperRef.current = assignSelectedPaper;
   }, [assignSelectedPaper]);
-
+ 
   const rehydrateSelectedPaper = useCallback(async () => {
     const selected = assignSelectedPaperRef.current;
     if (!selected) return;
@@ -605,21 +680,25 @@ export function useCalibration({
       console.error('Error rehydrating selected paper:', err);
     }
   }, [setAssignSelectedPaper]);
-
+ 
   const rehydrateSelectedPaperRef = useRef(rehydrateSelectedPaper);
   useEffect(() => {
     rehydrateSelectedPaperRef.current = rehydrateSelectedPaper;
   });
-
+ 
   useEffect(() => {
     const unsubscribe = subscribeSyncChannel((type) => {
       if (type === 'SYNC_PROJECTS') {
         loadProjectsRef.current();
+        if (activeTab === 'pre-calibration') {
+          loadStageStatsRef.current();
+        }
       }
       if (type === 'SYNC_PAPERS') {
         loadPapersRef.current();
         if (activeTab === 'pre-calibration') {
           loadCalPapersRef.current();
+          loadStageStatsRef.current();
         }
         if (showAssignModal) {
           loadAssignPapersRef.current();
@@ -630,7 +709,7 @@ export function useCalibration({
     });
     return unsubscribe;
   }, [activeTab, showAssignModal]);
-
+ 
   // Reset sort column if switching search mode
   useEffect(() => {
     if (assignSearchMode !== 'semantic' && assignSortBy === 'semantic_score') {
@@ -638,7 +717,7 @@ export function useCalibration({
       setAssignSortOrder('ASC');
     }
   }, [assignSearchMode, assignSortBy]);
-
+ 
   return {
     calActivePool, setCalActivePool,
     calPapers, setCalPapers,
@@ -647,6 +726,9 @@ export function useCalibration({
     calLimit, setCalLimit,
     calTotalPages, setCalTotalPages,
     calStats, setCalStats,
+    stageStats, setStageStats,
+    stageStatsLoading,
+    loadStageStats,
     calSearchTerm, setCalSearchTerm,
     calStatusFilter, setCalStatusFilter,
     calPdfFilter, setCalPdfFilter,
@@ -672,12 +754,17 @@ export function useCalibration({
     vectorIndexStatus, setVectorIndexStatus,
     assignSearchTime,
     assignExcludeReviews, setAssignExcludeReviews,
-    assignStageFilter, setAssignStageFilter,
-    assignDecisionFilter, setAssignDecisionFilter,
+    assignPdfFilter, setAssignPdfFilter,
+    assignSourceFilter, setAssignSourceFilter,
+    assignDoiStatusFilter, setAssignDoiStatusFilter,
+    assignPdfLinkFilter, setAssignPdfLinkFilter,
+    assignPipelineStageFilter, setAssignPipelineStageFilter,
+    assignPipelineStatusFilter, setAssignPipelineStatusFilter,
+    assignEcTriggerFilter, setAssignEcTriggerFilter,
     assignPublisherFilter, setAssignPublisherFilter,
     uniquePublishers, setUniquePublishers,
-    uniqueManualStages, setUniqueManualStages,
-    uniqueManualDecisions, setUniqueManualDecisions,
+    ecTriggers,
+    loadingEcTriggers,
     
     assignLogs, setAssignLogs,
     assignIsRunning, setAssignIsRunning,

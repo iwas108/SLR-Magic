@@ -34,11 +34,13 @@ export function initializeDatabase(db: Database.Database): void {
       notes TEXT DEFAULT NULL,
       ai_stage INTEGER DEFAULT 0,
       ai_decision TEXT DEFAULT NULL,
+      ai_exclusion_code TEXT DEFAULT NULL,
       ai_rationale TEXT DEFAULT NULL,
       ai_quality_assessment TEXT DEFAULT NULL,
       ai_extracted_data TEXT DEFAULT NULL,
       manual_stage INTEGER DEFAULT 0,
       manual_decision TEXT DEFAULT NULL,
+      manual_exclusion_code TEXT DEFAULT NULL,
       manual_rationale TEXT DEFAULT NULL,
       manual_quality_assessment TEXT DEFAULT NULL,
       manual_extracted_data TEXT DEFAULT NULL
@@ -69,11 +71,13 @@ export function initializeDatabase(db: Database.Database): void {
       notes TEXT DEFAULT NULL,
       ai_stage INTEGER DEFAULT 0,
       ai_decision TEXT DEFAULT NULL,
+      ai_exclusion_code TEXT DEFAULT NULL,
       ai_rationale TEXT DEFAULT NULL,
       ai_quality_assessment TEXT DEFAULT NULL,
       ai_extracted_data TEXT DEFAULT NULL,
       manual_stage INTEGER DEFAULT 0,
       manual_decision TEXT DEFAULT NULL,
+      manual_exclusion_code TEXT DEFAULT NULL,
       manual_rationale TEXT DEFAULT NULL,
       manual_quality_assessment TEXT DEFAULT NULL,
       manual_extracted_data TEXT DEFAULT NULL,
@@ -94,6 +98,26 @@ export function initializeDatabase(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS configs (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS umbrellanizer_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL,
+      extracted_data_key TEXT NOT NULL,
+      prompt_id TEXT,
+      model_id TEXT,
+      raw_tokens_input TEXT,
+      umbrella_mapping TEXT,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      thinking_tokens INTEGER DEFAULT 0,
+      cost_usd REAL DEFAULT 0.0,
+      status TEXT DEFAULT 'PENDING',
+      error_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(project_id, extracted_data_key),
+      FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS projects (
@@ -348,27 +372,9 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     // Column already exists
   }
-
-  // Add Human_Decision column to papers if it doesn't exist (migration fallback)
-  try {
-    db.exec("ALTER TABLE papers ADD COLUMN Human_Decision TEXT");
-  } catch (e) {
-    // Column already exists
-  }
-
-  // Add Human_EC_Trigger column to papers if it doesn't exist (migration fallback)
-  try {
-    db.exec("ALTER TABLE papers ADD COLUMN Human_EC_Trigger TEXT");
-  } catch (e) {
-    // Column already exists
-  }
-
-  // Add Human_Rationale column to papers if it doesn't exist (migration fallback)
-  try {
-    db.exec("ALTER TABLE papers ADD COLUMN Human_Rationale TEXT");
-  } catch (e) {
-    // Column already exists
-  }
+  // Legacy Human_Decision, Human_EC_Trigger, Human_Rationale blocks were removed here because
+  // these columns have been fully deprecated and dropped from the papers table.
+  // The correct reviewer consensus data now lives in calibration_papers.manual_* columns.
 
   // Add Parent_Paper_ID column to papers if it doesn't exist (migration fallback)
   try {
@@ -541,16 +547,9 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     // Column already exists
   }
-
-  // Add Human_QA_Scores column to papers if it doesn't exist (migration fallback)
-  try {
-    db.exec("ALTER TABLE papers ADD COLUMN Human_QA_Scores TEXT");
-  } catch (e) {}
-
-  // Add Human_Extracted_Data column to papers if it doesn't exist (migration fallback)
-  try {
-    db.exec("ALTER TABLE papers ADD COLUMN Human_Extracted_Data TEXT");
-  } catch (e) {}
+  // Legacy Human_QA_Scores and Human_Extracted_Data blocks were removed because
+  // these columns have been fully deprecated and dropped from the papers table.
+  // The correct reviewer consensus data now lives in calibration_papers.manual_* columns.
 
   // Add qa_scores column to reviewer_decisions if it doesn't exist (migration fallback)
   try {
@@ -607,6 +606,9 @@ export function initializeDatabase(db: Database.Database): void {
     db.exec("ALTER TABLE papers ADD COLUMN ai_decision TEXT DEFAULT NULL");
   } catch (e) {}
   try {
+    db.exec("ALTER TABLE papers ADD COLUMN ai_exclusion_code TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
     db.exec("ALTER TABLE papers ADD COLUMN ai_rationale TEXT DEFAULT NULL");
   } catch (e) {}
   try {
@@ -623,6 +625,9 @@ export function initializeDatabase(db: Database.Database): void {
     db.exec("ALTER TABLE papers ADD COLUMN manual_decision TEXT DEFAULT NULL");
   } catch (e) {}
   try {
+    db.exec("ALTER TABLE papers ADD COLUMN manual_exclusion_code TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
     db.exec("ALTER TABLE papers ADD COLUMN manual_rationale TEXT DEFAULT NULL");
   } catch (e) {}
   try {
@@ -631,6 +636,51 @@ export function initializeDatabase(db: Database.Database): void {
   try {
     db.exec("ALTER TABLE papers ADD COLUMN manual_extracted_data TEXT DEFAULT NULL");
   } catch (e) {}
+
+  // Add the same columns to calibration_papers
+  try {
+    db.exec("ALTER TABLE calibration_papers ADD COLUMN ai_exclusion_code TEXT DEFAULT NULL");
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE calibration_papers ADD COLUMN manual_exclusion_code TEXT DEFAULT NULL");
+  } catch (e) {}
+
+  // DB HEALING MIGRATION: split combined decision + exclusion code values (e.g. "EXCLUDE (EC-1)")
+  try {
+    // 1. For papers table: ai_decision
+    db.prepare(`
+      UPDATE papers
+      SET ai_exclusion_code = SUBSTR(ai_decision, INSTR(ai_decision, '(') + 1, INSTR(ai_decision, ')') - INSTR(ai_decision, '(') - 1),
+          ai_decision = 'EXCLUDE'
+      WHERE ai_decision LIKE 'EXCLUDE (%' AND (ai_exclusion_code IS NULL OR ai_exclusion_code = '')
+    `).run();
+
+    // 2. For papers table: manual_decision
+    db.prepare(`
+      UPDATE papers
+      SET manual_exclusion_code = SUBSTR(manual_decision, INSTR(manual_decision, '(') + 1, INSTR(manual_decision, ')') - INSTR(manual_decision, '(') - 1),
+          manual_decision = 'EXCLUDE'
+      WHERE manual_decision LIKE 'EXCLUDE (%' AND (manual_exclusion_code IS NULL OR manual_exclusion_code = '')
+    `).run();
+
+    // 3. For calibration_papers table: ai_decision
+    db.prepare(`
+      UPDATE calibration_papers
+      SET ai_exclusion_code = SUBSTR(ai_decision, INSTR(ai_decision, '(') + 1, INSTR(ai_decision, ')') - INSTR(ai_decision, '(') - 1),
+          ai_decision = 'EXCLUDE'
+      WHERE ai_decision LIKE 'EXCLUDE (%' AND (ai_exclusion_code IS NULL OR ai_exclusion_code = '')
+    `).run();
+
+    // 4. For calibration_papers table: manual_decision
+    db.prepare(`
+      UPDATE calibration_papers
+      SET manual_exclusion_code = SUBSTR(manual_decision, INSTR(manual_decision, '(') + 1, INSTR(manual_decision, ')') - INSTR(manual_decision, '(') - 1),
+          manual_decision = 'EXCLUDE'
+      WHERE manual_decision LIKE 'EXCLUDE (%' AND (manual_exclusion_code IS NULL OR manual_exclusion_code = '')
+    `).run();
+  } catch (e) {
+    console.error("Failed to run split decision database healing:", e);
+  }
 
   // Add remote worker columns to papers table if they do not exist
   try {
@@ -658,7 +708,9 @@ export function initializeDatabase(db: Database.Database): void {
       VALUES 
         ('REMOTE_WORKER_BATCH_SIZE', '10'),
         ('REMOTE_WORKER_LOCAL_SCRAPER_ENABLED', 'true'),
-        ('PDF_VERIFY_MIN_SIZE_KB', '55')
+        ('PDF_VERIFY_MIN_SIZE_KB', '55'),
+        ('PDF_COMPRESSION_EMBED_ALL_FONTS', 'true'),
+        ('PDF_COMPRESSION_SUBSET_FONTS', 'true')
     `).run();
   } catch (e) {
     console.error("Failed to seed default remote worker configs:", e);
@@ -922,4 +974,269 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     console.error("Failed to execute self-healing migration for AI decisions:", e);
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CORRECTIVE MIGRATION: Revert the incorrect +1 stage bump for INCLUDE
+  // decisions that was applied by a prior self-healing migration.
+  // Convention (Option 2): ai_stage always stores the literal completed stage N,
+  // never N+1, regardless of whether the decision is INCLUDE or EXCLUDE.
+  // ─────────────────────────────────────────────────────────────────────────
+  try {
+    const isRevertDone = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_AI_STAGE_INCLUDE_REVERT_DONE'").get() as { value: string } | undefined;
+    if (!isRevertDone || isRevertDone.value !== 'true') {
+      const papersWithLogs = db.prepare(`
+        SELECT DISTINCT paper_id, project_id 
+        FROM llm_audit_log 
+        WHERE status = 'SUCCESS'
+      `).all() as { paper_id: string; project_id: string }[];
+
+      let revertCount = 0;
+      const selectStmt = db.prepare("SELECT ai_stage, ai_decision, ai_exclusion_code FROM papers WHERE Paper_ID = ? AND Project_ID = ?");
+      const updateStmt  = db.prepare("UPDATE papers SET ai_stage = ?, ai_decision = ?, ai_exclusion_code = ? WHERE Paper_ID = ? AND Project_ID = ?");
+      const logsStmt    = db.prepare(`
+        SELECT task_type, structured_output 
+        FROM llm_audit_log 
+        WHERE paper_id = ? AND project_id = ? AND status = 'SUCCESS'
+        ORDER BY created_at ASC
+      `);
+
+      for (const row of papersWithLogs) {
+        const dbPaper = selectStmt.get(row.paper_id, row.project_id) as { ai_stage: number; ai_decision: string | null; ai_exclusion_code: string | null } | undefined;
+        if (!dbPaper) continue;
+
+        const logs = logsStmt.all(row.paper_id, row.project_id) as { task_type: string; structured_output: string }[];
+        if (logs.length === 0) continue;
+
+        const taskToStage = (t: string) => {
+          if (t === 'fast_filter' || t === 'screening') return 1;
+          if (t === 'gatekeeper' || t === 'fulltext') return 2;
+          if (t === 'scientist') return 3;
+          if (t === 'miner' || t === 'extraction') return 4;
+          return 0;
+        };
+
+        const highestLogStage = Math.max(...logs.map(l => taskToStage(l.task_type)));
+        const latestLog = [...logs].reverse().find(l => taskToStage(l.task_type) === highestLogStage);
+
+        let resolvedDecision = dbPaper.ai_decision;
+        let resolvedExcode = dbPaper.ai_exclusion_code;
+        if (latestLog?.structured_output) {
+          try {
+            const parsed = JSON.parse(latestLog.structured_output);
+            let decision = parsed.decision;
+            let ecTrigger = parsed.exclusion_trigger || parsed.exclusion_code;
+            if (!decision) {
+              for (const key of ["final_evaluation", "evaluation", "result"]) {
+                const sub = parsed[key];
+                if (sub && typeof sub === 'object') {
+                  if (!decision) decision = sub.decision;
+                  if (!ecTrigger) ecTrigger = sub.exclusion_trigger || sub.exclusion_code;
+                }
+              }
+            }
+            if (decision) {
+              const uDec = decision.toUpperCase();
+              if (uDec === 'EXCLUDE') {
+                resolvedDecision = 'EXCLUDE';
+                resolvedExcode = ecTrigger && ecTrigger !== 'NONE' ? ecTrigger : null;
+              } else {
+                resolvedDecision = decision;
+                resolvedExcode = null;
+              }
+            }
+          } catch (_) {}
+        }
+
+        // Simpler convention: stage always = highestLogStage, no +1 for INCLUDE
+        const correctStage = highestLogStage;
+
+        if (dbPaper.ai_stage !== correctStage || dbPaper.ai_decision !== resolvedDecision || dbPaper.ai_exclusion_code !== resolvedExcode) {
+          updateStmt.run(correctStage, resolvedDecision, resolvedExcode, row.paper_id, row.project_id);
+          revertCount++;
+        }
+      }
+
+      if (revertCount > 0) {
+        console.log(`Self-healing revert: corrected ${revertCount} paper(s) with incorrect +1 stage bump.`);
+      }
+      db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('MIGRATION_AI_STAGE_INCLUDE_REVERT_DONE', 'true')").run();
+    }
+  } catch (e) {
+    console.error("Failed to execute corrective AI stage revert migration:", e);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ONGOING SELF-HEALING: Sync ai_stage / ai_decision from llm_audit_log
+  // Uses the simpler convention: stage = highest completed stage N (no +1).
+  // ─────────────────────────────────────────────────────────────────────────
+  try {
+    const papersWithLogs = db.prepare(`
+      SELECT DISTINCT paper_id, project_id 
+      FROM llm_audit_log 
+      WHERE status = 'SUCCESS'
+    `).all() as { paper_id: string; project_id: string }[];
+
+    let healedStageCount = 0;
+    const selectPaperStageStmt = db.prepare("SELECT ai_stage, ai_decision, ai_exclusion_code FROM papers WHERE Paper_ID = ? AND Project_ID = ?");
+    const updatePaperStageStmt = db.prepare("UPDATE papers SET ai_stage = ?, ai_decision = ?, ai_exclusion_code = ? WHERE Paper_ID = ? AND Project_ID = ?");
+    const selectPaperLogsStmt  = db.prepare(`
+      SELECT task_type, structured_output 
+      FROM llm_audit_log 
+      WHERE paper_id = ? AND project_id = ? AND status = 'SUCCESS'
+      ORDER BY created_at ASC
+    `);
+
+    const taskToStage = (t: string) => {
+      if (t === 'fast_filter' || t === 'screening') return 1;
+      if (t === 'gatekeeper' || t === 'fulltext') return 2;
+      if (t === 'scientist') return 3;
+      if (t === 'miner' || t === 'extraction') return 4;
+      return 0;
+    };
+
+    for (const row of papersWithLogs) {
+      const dbPaper = selectPaperStageStmt.get(row.paper_id, row.project_id) as { ai_stage: number; ai_decision: string | null; ai_exclusion_code: string | null } | undefined;
+      if (!dbPaper) continue;
+
+      const logs = selectPaperLogsStmt.all(row.paper_id, row.project_id) as { task_type: string; structured_output: string }[];
+      if (logs.length === 0) continue;
+
+      const highestLogStage = Math.max(...logs.map(l => taskToStage(l.task_type)));
+      const latestLog = [...logs].reverse().find(l => taskToStage(l.task_type) === highestLogStage);
+
+      let resolvedDecision = dbPaper.ai_decision;
+      let resolvedExcode = dbPaper.ai_exclusion_code;
+      if (latestLog?.structured_output) {
+        try {
+          const parsed = JSON.parse(latestLog.structured_output);
+          let decision = parsed.decision;
+          let ecTrigger = parsed.exclusion_trigger || parsed.exclusion_code;
+          if (!decision) {
+            for (const key of ["final_evaluation", "evaluation", "result"]) {
+              const sub = parsed[key];
+              if (sub && typeof sub === 'object') {
+                if (!decision) decision = sub.decision;
+                if (!ecTrigger) ecTrigger = sub.exclusion_trigger || sub.exclusion_code;
+              }
+            }
+          }
+          if (decision) {
+            const uDec = decision.toUpperCase();
+            if (uDec === 'EXCLUDE') {
+              resolvedDecision = 'EXCLUDE';
+              resolvedExcode = ecTrigger && ecTrigger !== 'NONE' ? ecTrigger : null;
+            } else {
+              resolvedDecision = decision;
+              resolvedExcode = null;
+            }
+          }
+          // Force Miner stage to default to INCLUDE if decision is missing or resolves to EXCLUDE
+          if (highestLogStage === 4 && (!resolvedDecision || resolvedDecision.toUpperCase() === 'EXCLUDE')) {
+            resolvedDecision = 'INCLUDE';
+            resolvedExcode = null;
+          }
+        } catch (_) {}
+      } else if (highestLogStage === 4) {
+        resolvedDecision = 'INCLUDE';
+        resolvedExcode = null;
+      }
+
+      // Simpler convention: stage = literal completed stage N (no +1)
+      const resolvedStage = highestLogStage;
+
+      if (dbPaper.ai_stage !== resolvedStage || dbPaper.ai_decision !== resolvedDecision || dbPaper.ai_exclusion_code !== resolvedExcode) {
+        updatePaperStageStmt.run(resolvedStage, resolvedDecision, resolvedExcode, row.paper_id, row.project_id);
+        healedStageCount++;
+      }
+    }
+
+    if (healedStageCount > 0) {
+      console.log(`Self-healing: corrected ${healedStageCount} AI stage/decision mismatches in papers.`);
+    }
+
+    // Force heal any existing papers in Stage 4 (Miner) to have INCLUDE decisions
+    const healedExistingCount = db.prepare(`
+      UPDATE papers
+      SET ai_decision = CASE WHEN ai_stage = 4 AND (ai_decision IS NULL OR ai_decision = 'EXCLUDE' OR ai_decision = '') THEN 'INCLUDE' ELSE ai_decision END,
+          ai_exclusion_code = CASE WHEN ai_stage = 4 THEN NULL ELSE ai_exclusion_code END,
+          manual_decision = CASE WHEN manual_stage = 4 AND (manual_decision IS NULL OR manual_decision = 'EXCLUDE' OR manual_decision = '') THEN 'INCLUDE' ELSE manual_decision END,
+          manual_exclusion_code = CASE WHEN manual_stage = 4 THEN NULL ELSE manual_exclusion_code END
+      WHERE ai_stage = 4 OR manual_stage = 4
+    `).run().changes;
+
+    if (healedExistingCount > 0) {
+      console.log(`Self-healing: forced ${healedExistingCount} existing Stage 4 Miner paper(s) to INCLUDE decision status.`);
+    }
+  } catch (e) {
+    console.error("Failed to execute self-healing migration for AI stages:", e);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CORRECTIVE MIGRATION: Remove Human_* columns from papers table
+  // ─────────────────────────────────────────────────────────────────────────
+  try {
+    const isRemoveDone = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_REMOVE_HUMAN_COLS_FROM_PAPERS_DONE'").get() as { value: string } | undefined;
+    if (!isRemoveDone || isRemoveDone.value !== 'true') {
+      // 1. Copy any historical data from papers.Human_* to calibration_papers.manual_*
+      db.prepare(`
+        UPDATE calibration_papers
+        SET 
+          manual_decision = COALESCE(manual_decision, (
+            SELECT Human_Decision FROM papers p 
+            WHERE p.Paper_ID = calibration_papers.Paper_ID 
+              AND p.Project_ID = calibration_papers.Project_ID 
+              AND p.Human_Decision IS NOT NULL
+          )),
+          manual_rationale = COALESCE(manual_rationale, (
+            SELECT Human_Rationale FROM papers p 
+            WHERE p.Paper_ID = calibration_papers.Paper_ID 
+              AND p.Project_ID = calibration_papers.Project_ID 
+              AND p.Human_Rationale IS NOT NULL
+          )),
+          manual_quality_assessment = COALESCE(manual_quality_assessment, (
+            SELECT Human_QA_Scores FROM papers p 
+            WHERE p.Paper_ID = calibration_papers.Paper_ID 
+              AND p.Project_ID = calibration_papers.Project_ID 
+              AND p.Human_QA_Scores IS NOT NULL
+          )),
+          manual_extracted_data = COALESCE(manual_extracted_data, (
+            SELECT Human_Extracted_Data FROM papers p 
+            WHERE p.Paper_ID = calibration_papers.Paper_ID 
+              AND p.Project_ID = calibration_papers.Project_ID 
+              AND p.Human_Extracted_Data IS NOT NULL
+          ))
+        WHERE EXISTS (
+          SELECT 1 FROM papers p 
+          WHERE p.Paper_ID = calibration_papers.Paper_ID 
+            AND p.Project_ID = calibration_papers.Project_ID
+        )
+      `).run();
+
+      // 2. Drop columns from papers table.
+      // better-sqlite3 runs with bundled modern SQLite, so ALTER TABLE ... DROP COLUMN is fully supported.
+      const columnsToDrop = [
+        'Human_Decision',
+        'Human_EC_Trigger',
+        'Human_Rationale',
+        'Human_QA_Scores',
+        'Human_Extracted_Data'
+      ];
+
+      for (const col of columnsToDrop) {
+        try {
+          db.exec(`ALTER TABLE papers DROP COLUMN ${col}`);
+        } catch (err) {
+          // Column might already be gone
+        }
+      }
+
+      db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('MIGRATION_REMOVE_HUMAN_COLS_FROM_PAPERS_DONE', 'true')").run();
+      console.log("Successfully migrated and dropped legacy Human_* columns from papers table.");
+    }
+  } catch (e) {
+    console.error("Failed to execute corrective migration to remove Human_* columns:", e);
+  }
 }
+
+
+

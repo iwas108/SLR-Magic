@@ -387,20 +387,11 @@ export default function PaperMetadataEdit({
                       }`}>
                         {aiDecisionVal}
                     </span>
-                    {(() => {
-                      const rawDec = (paper.ai_decision || '').toUpperCase();
-                      if (rawDec.startsWith('EXCLUDE') && rawDec.includes('(')) {
-                        const match = rawDec.match(/\(([^)]+)\)/);
-                        if (match) {
-                          return (
-                            <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
-                              {match[1]}
-                            </span>
-                          );
-                        }
-                      }
-                      return null;
-                    })()}
+                    {paper.ai_exclusion_code && (
+                      <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
+                        {paper.ai_exclusion_code}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span className="text-[10px] font-bold text-muted-foreground/50 uppercase italic">Undecided</span>
@@ -434,20 +425,11 @@ export default function PaperMetadataEdit({
                     }`}>
                       {paper.manual_decision}
                     </span>
-                    {(() => {
-                      const rawDec = (paper.manual_decision || '').toUpperCase();
-                      if (rawDec.startsWith('EXCLUDE') && rawDec.includes('(')) {
-                        const match = rawDec.match(/\(([^)]+)\)/);
-                        if (match) {
-                          return (
-                            <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
-                              {match[1]}
-                            </span>
-                          );
-                        }
-                      }
-                      return null;
-                    })()}
+                    {paper.manual_exclusion_code && (
+                      <span className="px-1.5 py-0.5 bg-background border border-border text-muted-foreground rounded text-[9px] font-bold uppercase">
+                        {paper.manual_exclusion_code}
+                      </span>
+                    )}
                   </div>
                   {paper.manual_rationale && (
                     <div className="text-[11px] text-muted-foreground leading-relaxed mt-1 line-clamp-4 hover:line-clamp-none transition-all">

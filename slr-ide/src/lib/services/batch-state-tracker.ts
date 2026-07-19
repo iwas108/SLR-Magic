@@ -25,6 +25,7 @@ export interface GlobalBatchState {
   activeChild: ChildProcess | null;
   cancelRequested: boolean;
   listeners: Array<(msg: any) => void>;
+  forceUpdate?: boolean;
 }
 
 export class BatchStateTracker {
@@ -72,10 +73,11 @@ export class BatchStateTracker {
     return globalState.batchState as GlobalBatchState;
   }
 
-  public resetBatchState(steps: string[]): void {
+  public resetBatchState(steps: string[], forceUpdate: boolean = false): void {
     const state = this.getState();
     state.isExecuting = true;
     state.steps = steps;
+    state.forceUpdate = forceUpdate;
     state.currentStep = null;
     state.stepStartTime = null;
     state.progress = 0;

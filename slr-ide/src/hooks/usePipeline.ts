@@ -21,7 +21,8 @@ export function usePipeline({
     verify: false,
     scrape: false,
     map_publisher: false,
-    sync: false
+    sync: false,
+    force_update: false
   });
 
   const [operationModal, setOperationModal] = useState<{
@@ -230,7 +231,8 @@ export function usePipeline({
             verify: data.steps.includes('verify'),
             scrape: data.steps.includes('scrape'),
             map_publisher: data.steps.includes('map_publisher'),
-            sync: data.steps.includes('sync')
+            sync: data.steps.includes('sync'),
+            force_update: !!data.forceUpdate
           });
         }
       } else {
@@ -370,7 +372,11 @@ export function usePipeline({
         await connectNdjson('/api/pdf/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ steps: otherSteps, compress: compressOnSync })
+          body: JSON.stringify({ 
+            steps: otherSteps, 
+            compress: compressOnSync,
+            force_update: batchSteps.force_update 
+          })
         });
         isStreamActiveRef.current = false;
       }

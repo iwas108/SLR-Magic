@@ -18,7 +18,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOp
     { id: 'paper-database', label: 'Paper Database', icon: Database, disabled: false },
     { id: 'pre-calibration', label: 'Pre-Calibration', icon: ShieldAlert, disabled: false },
     { id: 'full-execution', label: 'Pipeline Execution', icon: Play, disabled: false },
-    { id: 'post-validation', label: 'Post-Validation', icon: BadgeCheck, disabled: true, badge: 'On Hold' },
+    { id: 'post-validation', label: 'Post-Validation', icon: BadgeCheck, disabled: false },
     { id: 'accounting-export', label: 'Accounting & Export', icon: FileOutput, disabled: true, badge: 'On Hold' },
   ];
 

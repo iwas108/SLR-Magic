@@ -20,14 +20,14 @@ def get_ghostscript_command(custom_path=None):
             continue
     return None
 
-def compress_pdf(gs_executable, level, input_file, output_file):
+def compress_pdf(gs_executable, level, input_file, output_file, embed_all_fonts=True, subset_fonts=True):
     command = [
         gs_executable,
         "-sDEVICE=pdfwrite",
         "-dCompatibilityLevel=1.4",
         f"-dPDFSETTINGS={level}",
-        "-dEmbedAllFonts=true",
-        "-dSubsetFonts=false",
+        f"-dEmbedAllFonts={'true' if embed_all_fonts else 'false'}",
+        f"-dSubsetFonts={'true' if subset_fonts else 'false'}",
         "-dNOPAUSE",
         "-dQUIET",
         "-dBATCH",

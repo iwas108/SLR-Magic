@@ -26,11 +26,13 @@ export interface Paper {
   notes?: string | null;
   ai_stage?: number;
   ai_decision?: string | null;
+  ai_exclusion_code?: string | null;
   ai_rationale?: string | null;
   ai_quality_assessment?: string | null;
   ai_extracted_data?: string | null;
   manual_stage?: number;
   manual_decision?: string | null;
+  manual_exclusion_code?: string | null;
   manual_rationale?: string | null;
   manual_quality_assessment?: string | null;
   manual_extracted_data?: string | null;

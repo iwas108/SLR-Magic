@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     let params: any[] = [projectId];
 
     if (statusFilter !== 'ALL') {
-      query += " AND MAX(manual_stage, ai_stage) = ?";
+      query += " AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) = ?";
       params.push(Number(statusFilter));
     }
 

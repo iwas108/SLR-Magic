@@ -10,6 +10,8 @@ export async function GET(
     const { id } = await params;
     const paper = db.prepare(`
       SELECT *, 
+             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
+             (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,
              (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,
              (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0 as reviewer_decisions_exist
       FROM papers 
@@ -33,7 +35,7 @@ export async function PUT(
     const body = await request.json();
     const { 
       Title, Authors, Year, DOI, Abstract, PDF_Link, Local_PDF_Status, Parent_Paper_ID, Original_Publisher, Publisher, citation_count, notes,
-      manual_decision, manual_rationale, manual_stage, manual_quality_assessment, manual_extracted_data
+      manual_decision, manual_exclusion_code, manual_rationale, manual_stage, manual_quality_assessment, manual_extracted_data
     } = body;
 
     if (!Title || !Title.trim()) {
@@ -87,7 +89,14 @@ export async function PUT(
       }
     }
 
-    const manualDecisionVal = manual_decision !== undefined ? manual_decision : currentPaper.manual_decision;
+    let manualDecisionVal = manual_decision !== undefined ? manual_decision : currentPaper.manual_decision;
+    let manualExcodeVal = manual_exclusion_code !== undefined ? manual_exclusion_code : currentPaper.manual_exclusion_code;
+
+    if (manualStageVal === 4 && (!manualDecisionVal || manualDecisionVal === 'EXCLUDE' || manualDecisionVal === '')) {
+      manualDecisionVal = 'INCLUDE';
+      manualExcodeVal = null;
+    }
+
     const manualRationaleVal = manual_rationale !== undefined ? manual_rationale : currentPaper.manual_rationale;
     const manualQaVal = manual_quality_assessment !== undefined ? manual_quality_assessment : currentPaper.manual_quality_assessment;
     const manualExtVal = manual_extracted_data !== undefined ? manual_extracted_data : currentPaper.manual_extracted_data;
@@ -107,6 +116,7 @@ export async function PUT(
           citation_count = ?,
           notes = ?,
           manual_decision = ?,
+          manual_exclusion_code = ?,
           manual_rationale = ?,
           manual_stage = ?,
           manual_quality_assessment = ?,
@@ -126,6 +136,7 @@ export async function PUT(
       citationCountVal,
       notesVal,
       manualDecisionVal,
+      manualExcodeVal,
       manualRationaleVal,
       manualStageVal,
       manualQaVal,
@@ -136,19 +147,14 @@ export async function PUT(
     // If manual screening fields were explicitly provided, write an audit log entry
     if (
       manual_decision !== undefined || 
+      manual_exclusion_code !== undefined ||
       manual_stage !== undefined || 
       manual_rationale !== undefined || 
       manual_quality_assessment !== undefined || 
       manual_extracted_data !== undefined
     ) {
       const activeDecision = manualDecisionVal || 'CLEARED';
-      let ecTriggerVal: string | null = null;
-      if (activeDecision.startsWith('EXCLUDE')) {
-        const match = activeDecision.match(/EXCLUDE \(([^)]+)\)/);
-        if (match) {
-          ecTriggerVal = match[1];
-        }
-      }
+      const ecTriggerVal = activeDecision === 'EXCLUDE' ? manualExcodeVal : null;
 
       // Convert stage integer back to string representation for audit log representation consistency
       const stageIntToString: Record<number, string> = {

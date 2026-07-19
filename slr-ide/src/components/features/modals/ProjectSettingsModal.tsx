@@ -322,7 +322,8 @@ export default function ProjectSettingsModal({
                       { id: 'fast_filter', name: 'Fast Filter', desc: 'Metadata Screening', hasMapping: true },
                       { id: 'gatekeeper', name: 'Gatekeeper', desc: 'PDF Screening', hasMapping: true },
                       { id: 'scientist', name: 'Scientist', desc: 'Quality Assessment', hasMapping: true },
-                      { id: 'miner', name: 'Miner', desc: 'Structured Data Extraction', hasMapping: false }
+                      { id: 'miner', name: 'Miner', desc: 'Structured Data Extraction', hasMapping: false },
+                      { id: 'umbrellanizer', name: 'Umbrellanizer', desc: 'Token Normalization', hasMapping: false }
                     ] as const).map((stage) => (
                       <div key={stage.id} className="p-3 bg-card border border-border/40 rounded-lg space-y-3">
                         <div className="flex items-center justify-between">

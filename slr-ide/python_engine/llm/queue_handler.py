@@ -234,7 +234,8 @@ class LLMQueueHandler:
                      self.total_thinking_tokens, self.total_cost, datetime.utcnow().isoformat(), self.job_id)
                 )
 
-            decision_text = response.get("decision", "EXCLUDE")
+            default_decision = "INCLUDE" if self.task_type in ('miner', 'extraction') else "EXCLUDE"
+            decision_text = response.get("decision") or default_decision
             ec_trigger = response.get("exclusion_trigger")
             rationale_text = response.get("rationale", "")
             struct_out = response.get("structured_output", "")
@@ -263,8 +264,10 @@ class LLMQueueHandler:
 
             if incoming_stage >= current_ai_stage:
                 ai_decision = decision_text
-                if decision_text.upper() == "EXCLUDE" and ec_trigger and ec_trigger != "NONE":
-                    ai_decision = f"EXCLUDE ({ec_trigger})"
+                ai_exclusion_code = None
+                if decision_text.upper() == "EXCLUDE":
+                    ai_decision = "EXCLUDE"
+                    ai_exclusion_code = ec_trigger if (ec_trigger and ec_trigger != "NONE") else None
 
                 def to_json_str(val):
                     if not val:
@@ -284,12 +287,13 @@ class LLMQueueHandler:
                     UPDATE papers
                     SET ai_stage = ?,
                         ai_decision = ?,
+                        ai_exclusion_code = ?,
                         ai_rationale = ?,
                         ai_quality_assessment = ?,
                         ai_extracted_data = ?
                     WHERE Paper_ID = ?
                     """,
-                    (incoming_stage, ai_decision, rationale_text,
+                    (incoming_stage, ai_decision, ai_exclusion_code, rationale_text,
                      qa_scores_json, extracted_data_json, paper_id)
                 )
                 logger.info(f"AI screening decision for paper {paper_id} saved to papers table ai_* columns.")

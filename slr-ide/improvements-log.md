@@ -1,5 +1,235 @@
 # SLR IDE Improvements Log
 
+## #234 - Post-Validation Umbrellanizer Engine Integration (2026-07-19)
+- **Goal**: Implement token taxonomy normalization workflow to group raw extracted tokens under Miner stage into unified category labels.
+- **Changes**:
+  - Modified [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts): Registered the new `umbrellanizer_results` table storing mappings.
+  - Created [umbrellanizer.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/umbrellanizer.py): Python orchestrator feeding Jinja2 templates and invoking Gemini.
+  - Created API Endpoints:
+    - [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/umbrellanizer/route.ts): Handles retrieval and starts taxonomy mapping spawns.
+    - [papers/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/umbrellanizer/papers/route.ts): Exposes miner-passed papers with stage-aware resolved data.
+  - Modified [ProjectSettingsModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/ProjectSettingsModal.tsx): Configured `umbrellanizer` prompt stage options.
+  - Modified [Sidebar.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/Sidebar.tsx): Activated the Post-Validation tab menu.
+  - Modified [page.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/page.tsx): Routed `post-validation` content switches.
+  - Created [PostValidationView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PostValidationView.tsx): Switcher hosting Umbrellanizer and Rolling Batch engines.
+  - Created Components:
+    - [UmbrellanizerView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/UmbrellanizerView.tsx): Main token table viewer with tooltip extraction details.
+    - [UmbrellanizerWizard.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/UmbrellanizerWizard.tsx): Multi-step setup and background worker spawner.
+    - [TokenOccurrenceTable.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/TokenOccurrenceTable.tsx): Visualizes unique token counts.
+  - Created [useUmbrellanizer.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useUmbrellanizer.ts): React state hook handling polling and workflows.
+- **Verification**: Verified compilation with `npx tsc --noEmit` completing successfully.
+
+## #233 - Generalized Calibration Tooltips & Directives Revisions (2026-07-19)
+- **Goal**: Rephrase all hover tooltips to use general systematic literature review contexts, avoiding domain-specific terms (such as 'cyber-physical', 'IoT ghost edge', etc.), and register screening calibration validation targets in agents.md.
+- **Changes**:
+  - Modified [StageComparisonPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/pre-calibration/StageComparisonPanel.tsx):
+    - Removed 'cyber-physical', 'IoT ghost edge', and system architecture references from the scientific descriptions of Recall, F1, Precision, Kappa, and yields.
+  - Modified [agents.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/agents.md):
+    - Added Section 3.7 defining the pass thresholds for all 4 calibration stages.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully.
+
+## #232 - Added Interactive Metric Hover Tooltips (2026-07-19)
+- **Goal**: Implement interactive hover tooltips for all evaluation metrics across the four screening stage comparison cards in the Pre-Calibration dashboard.
+- **Changes**:
+  - Modified [StageComparisonPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/pre-calibration/StageComparisonPanel.tsx):
+    - Added pure-CSS tooltips using Tailwind's `group-hover/tooltip:block` hidden absolute overlays.
+    - Wrapped all metric rows across all four stage cards.
+    - Injected specified statistical definitions and scientific meanings for Recall & F1 (Stage 1), Precision & Recall (Stage 2), Weighted Kappa, Raw Agreement, Minor Deviation, and Critical Miss (Stage 3), and Schema Integrity and Pre-Normalization Yield (Stage 4).
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #231 - Added Recall to Stage 2 Gatekeeper Calibration (2026-07-19)
+- **Goal**: Add Recall (Sensitivity) tracking to the Stage 2 (Gatekeeper) pre-calibration stats card to prevent false negative exclusion vulnerabilities, and update the pass threshold to assert both Precision and Recall targets.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts):
+    - Added `recall_target` threshold constraint to Stage 2 (`0.90`).
+    - Updated `passes` boolean check to require `precision >= 0.85` AND `recall >= 0.90`.
+    - Added type assertions to cast `poolBStats` to include the calculated `recall` metric.
+  - Modified [StageComparisonPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/pre-calibration/StageComparisonPanel.tsx):
+    - Rendered the Recall percentage indicator directly below Precision under the Gatekeeper card.
+    - Updated target subtext: `Target: Precision >= 85%, Recall >= 90%`.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #230 - Stage 3 Ordinal Deviations & Stage 4 Schema Yields (2026-07-19)
+- **Goal**: Implement scientific deviation tiers for Stage 3 ordinal rubrics and schema conformance yield indicators for Stage 4 extraction. Bypassed artificial fail constraints on raw string yields.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts):
+    - Stage 3 (Scientist): Tracked Raw Agreement, Minor Deviation Rate (difference = 0.5), and Critical Miss Rate (difference = 1.0). Flagged stage as PASS if Critical Miss Rate is exactly 0.0%.
+    - Stage 4 (Miner): Tracked Schema Integrity Rate (100% when missing keys count = 0 and type matches count = 100%) and Pre-Normalization Yield (renamed exact string match metric). Flagged stage as PASS if Schema Integrity is 100% (bypassing pre-normalization yield thresholds).
+  - Modified [StageComparisonPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/pre-calibration/StageComparisonPanel.tsx):
+    - Rendered Raw Agreement, Minor Deviation, and Critical Miss percentages under the Scientist card.
+    - Rendered Schema Integrity Rate and Pre-Normalization Yield under the Miner card.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully.
+
+## #229 - Refined Stage 3 and Stage 4 Calibration Statistics (2026-07-19)
+- **Goal**: Align the Pre-Calibration stage comparison panel's data sources and calculation logic for Scientist and Miner stages. Rename Pool D card to Pool C (Miner), yielding two Pool C cards (Scientist and Miner), and implement respective calculation algorithms.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts):
+    - Scientist (Stage 3): Calculated the Weighted Cohen's Kappa over the 8 QA scores (QA1-QA8) by comparing `resolved_qa_scores` in `calibration_commit_ledger` with `structured_output.qa_scores` in `llm_audit_log` (task_type = `'scientist'`).
+    - Miner (Stage 4): Computed **Schema Match Rate** (Missing keys % and Type match %) and **Exact Value Match Rate** (comparing literal string values of the extracted schema keys) by comparing `resolved_extracted_data` in the commit ledger with `structured_output.extracted_data` in the audit log (task_type = `'miner'`).
+    - Fixed typing assertions to resolve TypeScript strict null check compile errors.
+  - Modified [StageComparisonPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/pre-calibration/StageComparisonPanel.tsx):
+    - Renamed Pool D card to Pool C (Miner).
+    - Rendered custom metrics: Weighted Kappa & Agreement Rate for Scientist (Stage 3), and Missing Keys %, Type Match %, & Exact Match % for Miner (Stage 4).
+    - Prevented TP/TN classification confusion matrix rendering for Stage 3 (Scientist) and Stage 4 (Miner).
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #228 - Pre-Calibration Tab Split and Stage Comparison Cards (2026-07-18)
+- **Goal**: Split the Pre-Calibration workflow view into two separate tabs ("Statistics" and "Papers"). Relocate the three pool filling status cards into the Statistics tab, delete the obsolete Consensus Scorecard card, and implement four new cards comparing the gold standard (commit ledger) vs AI results (from LLM audit logs) for each screening stage.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts):
+    - Added `mode=stage_comparison` handler to pull adjudicated gold standard decisions from `calibration_commit_ledger` and cross-reference them against stage-specific LLM decisions from `llm_audit_log` per pool.
+  - Modified [useCalibration.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useCalibration.ts):
+    - Added `stageStats` and `stageStatsLoading` states with `loadStageStats` fetch utility.
+    - Wired statistics rehydration hooks with multi-tab synchronizations.
+  - Modified [PoolMetricsPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/pre-calibration/PoolMetricsPanel.tsx):
+    - Removed the obsolete Consensus Scorecard card.
+    - Adjusted metrics list columns layout to 3 columns.
+  - Created [StageComparisonPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/pre-calibration/StageComparisonPanel.tsx):
+    - Designed 4 responsive stage cards mapping Pool A (Fast Filter), Pool B (Gatekeeper), Pool C (Scientist), and Pool D (Miner) metrics against methodology optimization exit thresholds.
+  - Modified [PreCalibrationView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PreCalibrationView.tsx):
+    - Introduced tab selector buttons.
+    - Rendered the Statistics panel (Pool fill meters and Stage comparisons) or Papers panel (filters and datatable) dynamically.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #227 - Fixed Pipeline Stage Filtering and SQLite MAX NULL Bug (2026-07-18)
+- **Goal**: Resolve the bug where filtering by "Pipeline Stage" was ineffective when no status was selected, and fix SQL comparisons involving `MAX(manual_stage, ai_stage)` which propagated `NULL` when either stage was empty.
+- **Changes**:
+  - Modified [papers/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts):
+    - Wrapped all occurrences of `MAX(manual_stage, ai_stage)` in query filters and columns selection with `IFNULL` (`MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0))`) to ensure valid scalar integer comparisons.
+    - Appended a fallback filter rule that scopes the dataset by stage when `pipelineStage` is active but `pipelineStatus` is left empty.
+  - Modified [manual-screening/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/manual-screening/route.ts):
+    - Wrapped the `Status` column selector in the paginated SELECT query to use `IFNULL`.
+  - Modified [llm/count/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/llm/count/route.ts):
+    - Wrapped matching filters in the count query to use `IFNULL`.
+  - Modified [projects/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/projects/route.ts):
+    - Wrapped the screened count SUM aggregator with `IFNULL` to prevent active project dashboard stat leaks.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #226 - Split Screening Decisions & Exclusion Codes (2026-07-18)
+- **Goal**: Split combined decision + exclusion code values (e.g. `EXCLUDE (EC-1)`) into clean decisions (`INCLUDE`/`EXCLUDE`) and dedicated `ai_exclusion_code` / `manual_exclusion_code` columns to resolve data model conflation, healing the database, APIs, python queue executors, and the UI.
+- **Changes**:
+  - Modified [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts):
+    - Added `ai_exclusion_code` and `manual_exclusion_code` TEXT columns to `papers` and `calibration_papers` schemas.
+    - Wrote SQL migration scripts running at startup to parse combined decisions, populating the new columns and resetting `ai_decision`/`manual_decision` to clean string values (`INCLUDE` / `EXCLUDE`).
+    - Fixed database self-healing loops to query and write the new split column structures.
+  - Modified [index.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/types/index.ts):
+    - Declared optional `ai_exclusion_code` and `manual_exclusion_code` properties on the `Paper` interface.
+  - Modified API Endpoints:
+    - [papers/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts): Replaced parsing-based EC code queries with direct select reads on the new columns; added columns to sorting whitelist.
+    - [papers/[id]/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/%5Bid%5D/route.ts): Added `manual_exclusion_code` to PUT updates, and updated audit log logging parameters.
+    - [papers/manual-screening/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/manual-screening/route.ts): Whitelisted new columns, updated filtering logic to use split properties.
+    - [papers/purge-check/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/purge-check/route.ts): Selected and returned new exclusion columns, updated active check rules.
+    - [calibration/assign/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/calibration/assign/route.ts): Included the new columns in the copy statements mapping papers to calibration sandboxes.
+    - [adjudicate/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/route.ts): Updated manual exclusion updates and audit ledger states.
+    - [import/inter-rater/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/import/inter-rater/route.ts): Selected and mapped the new columns during blinded reviews imports.
+  - Modified [queue_handler.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/queue_handler.py):
+    - Aligned the LLM execution pipeline to write clean decision strings and assign `ai_exclusion_code` values directly to the database.
+  - Modified UI Components & Custom Hooks:
+    - [useManualScreening.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useManualScreening.ts): Refactored save, clear, and setup operations to pass and read separate exclusion values.
+    - [ManualScreeningList.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningList.tsx): Altered lists badges presentation to print exclusion codes alongside decisions.
+    - [ScreeningSummaryPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/paper-details/ScreeningSummaryPanel.tsx) & [PaperMetadataView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/paper-details/PaperMetadataView.tsx): Supported rendering the new separate columns directly in screening summary panes.
+    - [PaperMetadataEdit.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/paper-details/PaperMetadataEdit.tsx): Modified boxes to display the split values instead of parsing them from decision strings.
+    - [AssignDetailView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/fullscreen-assign/AssignDetailView.tsx): Cleaned up resolution check logic.
+    - [PreCalibrationView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PreCalibrationView.tsx): Appended split column displays.
+    - [InterRaterDashboard.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/InterRaterDashboard.tsx): Re-mapped formatPrevState.
+    - [useCalibration.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useCalibration.ts): Mapped filters logic to query new exclusion columns.
+  - Updated documentation in [schema.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/db/schema.md).
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #225 - Cleaned up Legacy Human_* Columns & Consolidated Calibration to manual_* (2026-07-18)
+- **Goal**: Perform full-stack cleanup of the legacy, redundant `Human_*` columns on the `papers` table, and unify calibration reviews to use the `manual_*` columns on the `calibration_papers` table.
+- **Changes**:
+  - Modified [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts):
+    - Removed the 5 fallback `ALTER TABLE papers ADD COLUMN Human_*` migration blocks.
+    - Added corrective migration (`MIGRATION_REMOVE_HUMAN_COLS_FROM_PAPERS_DONE`) that copies any historical `Human_*` data from the `papers` table into the `manual_*` columns of `calibration_papers` before safely dropping them from `papers`.
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/import/inter-rater/route.ts):
+    - Rerouted `selectPaperStmt` to pull `manual_*` instead of `Human_*` from `calibration_papers`.
+    - Rewrote the auto-adjudication comparison variable initialization to use `manual_*` (with dynamic regex parsing of nested EC codes).
+    - Fixed the pool reset handler inside `DELETE` to nullify `manual_*` columns on `calibration_papers`.
+  - Modified [useCalibration.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useCalibration.ts):
+    - Mapped agreement metrics calculation from `p.Human_Decision` to `p.manual_decision`.
+  - Modified [PreCalibrationView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PreCalibrationView.tsx):
+    - Rerouted table cell template variables and sorting headers to use `manual_decision` and `manual_rationale`.
+  - Modified [InterRaterDashboard.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/InterRaterDashboard.tsx):
+    - Added backward-compatibility fallback inside `formatPrevState` parser to read both old `Human_Decision` and new `manual_decision` from the audit ledger JSON strings.
+  - Modified [useManualScreening.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useManualScreening.ts):
+    - Completely deleted the `importFromCalibration` helper hook callback and its hook outputs.
+  - Modified [ManualScreeningDetailView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningDetailView.tsx):
+    - Removed the "Import from Calibration" header control button and its associated props.
+  - Modified [ManualScreeningView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningView.tsx):
+    - Removed the `onImport` prop bind and reference destructuring.
+  - Modified [inspect_db.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scratch/inspect_db.js):
+    - Deleted the deprecated `p.Human_EC_Trigger` reference.
+  - Updated documentation in [AGENTS.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/AGENTS.md), [agents.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/agents.md) and [schema.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/db/schema.md).
+  - Modified [queue_handler.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/queue_handler.py):
+    - Fixed `decision_text` assignment to default to `INCLUDE` instead of `EXCLUDE` for `miner` or `extraction` tasks since mining is a final inclusion data extraction stage.
+  - Modified [ManualScreeningDetailView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningDetailView.tsx):
+    - Added an auto-calculator fallback for the `miner` stage to automatically preset the human decision override selection state to `INCLUDE`.
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/%5Bid%5D/route.ts):
+    - Added a default-fallback guard forcing `manualDecisionVal` to `INCLUDE` when `manualStageVal` is set to `4` (Miner) and no explicit decision or override was passed.
+- **Verification**: Ran `npx tsc --noEmit` which completed successfully with zero compilation errors.
+
+## #224 - Reverted to Simpler Stage Convention (No +1 for INCLUDE) (2026-07-18)
+- **Goal**: Align the stage display, self-healing logic, and documentation to the actual runtime behaviour of both the LLM Operations Pipeline and Manual Screening Pipeline — which both write the literal completed stage number N regardless of decision (never N+1 for INCLUDE).
+- **Changes**:
+  - Modified [ScreeningSummaryPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/paper-details/ScreeningSummaryPanel.tsx):
+    - Removed the `isIncluded` variable and the `Math.max(0, stage - 1)` subtraction for INCLUDE decisions.
+    - `displayStage` is now simply `stage || 0`, and `badgeText` maps directly to "Stage N: Name" or "Initial / Unscreened".
+  - Modified [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts):
+    - Added a one-shot **corrective migration** (`MIGRATION_AI_STAGE_INCLUDE_REVERT_DONE`) that runs on startup, re-derives the correct stage from `llm_audit_log` for all papers, and reverts any `ai_stage` values that were incorrectly set to `N+1` by the prior wrong migration.
+    - Updated the **ongoing self-healing** routine to use `resolvedStage = highestLogStage` (no +1) for all decisions.
+  - Modified [agents.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/agents.md):
+    - Added a **Stage Value Convention** table to §3.6 documenting that `ai_stage` and `manual_stage` always store the literal completed stage N, with a reference table showing INCLUDE and EXCLUDE both mapping to the same stage value.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #223 - Automated Database Self-Healing for AI Stages (2026-07-17)
+- **Goal**: Auto-repair database discrepancies where a paper's `ai_stage` (e.g. `1`) is out of sync with its actual screening history and decision (e.g. successful `gatekeeper` / Stage 2 log with an `EXCLUDE (EC-4)` decision).
+- **Changes**:
+  - Appended a new self-healing routine in [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts) that executes on application launch:
+    - Queries all unique papers featuring successful `llm_audit_log` entries.
+    - Resolves the true highest completed stage based on the logged task types.
+    - Extracts the final decision from the parsed JSON structured output for that highest stage.
+    - Sets the corrected `ai_stage` cursor (equal to the highest stage if excluded, or highest stage + 1 if included) and heals the record inside the `papers` table.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #222 - Dynamically Resolved Completed Stage Display in Screening Summary (2026-07-17)
+- **Goal**: Fix the visual discrepancy in AI/Manual Screening details panels where a paper that passed a stage (e.g. Stage 1) and advanced to a pending stage (e.g. Stage 2) was displayed as having completed the pending stage with the previous stage's decision.
+- **Changes**:
+  - Modified [ScreeningSummaryPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/paper-details/ScreeningSummaryPanel.tsx) to resolve `displayStage` dynamically based on the screening decision:
+    - If decision is `INCLUDE` (indicating the stage has been completed and the paper is advanced to `stage + 1`), the completed stage is set to `stage - 1`.
+    - If decision is `EXCLUDE`, the completed stage is set to the current `stage`.
+    - Rendered a dynamic `Pending: <Stage Name>` badge if the completed stage is `0` or the stage is active but has not yet received a decision.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #221 - Enforced Active Stage Constraints on Pipeline Filters (2026-07-17)
+- **Goal**: Reconcile stage-aware filter query leakage where papers with historical audit log entries at higher stages (e.g. Stage 2) matched stage filters even after being demoted to lower stages (e.g. Stage 1).
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts) to append active stage validation checks (`MAX(manual_stage, ai_stage)`) to all included, excluded, and ecTrigger filtering SQL rules:
+    - Enforced `MAX(manual_stage, ai_stage) >= pipelineStage` for `'included'` statuses.
+    - Enforced `MAX(manual_stage, ai_stage) = pipelineStage` for `'excluded'` statuses.
+    - Enforced `MAX(manual_stage, ai_stage) = pipelineStage` for `ecTrigger` search filters.
+  - Aligned semantic search in-memory queries in [useCalibration.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useCalibration.ts) to evaluate the same active stage constraints.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #220 - Fixed Calibration Pool Quick Actions Assignment State (2026-07-17)
+- **Goal**: Fix the broken Quick Actions (Pool A, Pool B, Pool C, Unassign) button state and dropdown toggle in the Assign Papers details workspace.
+- **Root Cause**: 
+  1. The single-paper details GET API (`api/papers/[id]`) did not select `calibration_pool` or `calibration_tag` from `calibration_papers` table, causing rehydration fetches (e.g. after sync events or paper edits) to overwrite active calibration fields with `null`/`undefined`.
+  2. The `activeAssignDropdown` hook state was typed as `string | null` but utilized as `{ paperId: string, poolId: string } | null` inside `AssignDetailView.tsx`.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/%5Bid%5D/route.ts) to select `calibration_pool` and `calibration_tag` via subqueries on `calibration_papers` for the requested paper.
+  - Corrected `activeAssignDropdown` type signature in [useCalibration.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useCalibration.ts) to match the object definition.
+- **Verification**: Verified compilation with `npx tsc --noEmit` which completed successfully with zero errors.
+
+## #219 - Refactored Calibration Pool Assignment Filters (2026-07-17)
+- **Goal**: Clean up the UI clutter in the Assign Papers to Calibration Pools modal and improve the filtering system to support standard database advanced and pipeline filters.
+- **Changes**:
+  - Expanded `useCalibration.ts` to manage all advanced and pipeline filters (`assignPdfFilter`, `assignSourceFilter`, `assignDoiStatusFilter`, `assignPdfLinkFilter`, `assignPipelineStageFilter`, `assignPipelineStatusFilter`, `assignEcTriggerFilter`, and dynamic `ecTriggers`).
+  - Implemented in-memory semantic search filters for all the new filter fields.
+  - Replaced inline dropdown filters in `PaperSelectionList.tsx` with two clean pop-up menus: **Screening Pipeline** and **Filters** (Advanced Filters, including Calibration Pool and Publisher filters), including a click-outside click listener.
+  - Propagated all new filter properties through `FullscreenAssignModal.tsx` props.
+- **Verification**: Verified TypeScript compiler and Next.js status with `npx tsc --noEmit` which compiled successfully with zero errors.
+
 ## #218 - Gemini API Key Save Validation & Sync (2026-07-17)
 - **Goal**: Sanitize Gemini API keys during save operations by trimming whitespace, tabs, and newlines, and implement cross-tab synchronization for credential changes.
 - **Changes**:
@@ -376,3 +606,6 @@
 | #203 | 2026-07-16 | Feature / UI | Added read-only "Decision State" (manual_decision) field to the Paper Metadata Edit modal and displayed the read-only decision status in the Paper Details modal under System State. | Paper Details Decision State Field |
 | #204 | 2026-07-16 | Bug Fix | Resolved the discrepancy between Stage 1 Included and Stage 2 Total metrics by defining Stage 2 Total as Stage 1 Included and partitioning unprocessed Stage 2 papers into active (ready with PDF) and pending PDF states. | Resolved Stage 2 Dashboard Metrics Mismatch |
 | #205 | 2026-07-17 | Feature / Reliability | Excluded duplicate papers (`is_duplicate = 1`) globally from LLM operations, crawler execution, PDF matching, verification, compression, remote worker claiming, and calibration pool assignments. | Exclude Duplicate Papers from All Pipelines |
+| #206 | 2026-07-19 | Feature | Added dynamic PDF compression font settings (`PDF_COMPRESSION_EMBED_ALL_FONTS` and `PDF_COMPRESSION_SUBSET_FONTS`) to the Settings dashboard. Exposed new checkbox controls in the Scraper Settings panel to toggle font embedding and subsetting, which are passed dynamically as arguments to the Ghostscript executable command. | Customizable Ghostscript Font Embedding & Subsetting |
+| #207 | 2026-07-19 | Bug Fix | Fixed the Force Update (Overwrite) flag check/uncheck bug in the Data Acquisition Pipeline. Propagated the `force_update` flag in the fetch POST body, registered `forceUpdate` in the global batch state tracker, and included it in stream restore messages to prevent the checkbox from being cleared during run initialization. | Force Update Pipeline Flag Propagation Fix |
+| #208 | 2026-07-19 | Bug Fix | Fixed a PDF compression bug where Ghostscript truncated files in-place to 2.49 KB when the database path already pointed to the project repo folder. Prioritized reading source PDFs from the raw uncompressed folder, implemented temporary file compression with validated renames, and added an automated self-healing integrity check to detect and re-process existing corrupted PDFs. | Ghostscript In-Place Truncation & Self-Healing Fix |

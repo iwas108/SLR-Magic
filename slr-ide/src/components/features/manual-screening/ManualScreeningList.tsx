@@ -280,7 +280,7 @@ export default function ManualScreeningList({
                         paper.manual_decision === 'EXCLUDE' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
                         'bg-amber-500/10 text-amber-400 border-amber-500/20'
                       }`}>
-                        {paper.manual_decision}
+                        {paper.manual_decision}{paper.manual_decision === 'EXCLUDE' && paper.manual_exclusion_code ? ` (${paper.manual_exclusion_code})` : ''}
                       </span>
                     )}
 

@@ -2,6 +2,25 @@ import { NextResponse } from 'next/server';
 import db, { getConfig } from '@/lib/db';
 import { rescuePdfAssets } from '@/lib/pdf-utils';
 
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: projectId } = await params;
+    if (!projectId) {
+      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
+
+    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, project });
+  } catch (error: any) {
+    console.error('Failed to get project:', error);
+    return NextResponse.json({ error: error.message || 'Failed to get project' }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: projectId } = await params;

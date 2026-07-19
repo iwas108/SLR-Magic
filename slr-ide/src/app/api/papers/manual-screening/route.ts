@@ -100,6 +100,15 @@ export async function GET(request: Request) {
     if (manualDecision) {
       if (manualDecision === 'none') {
         filterQuery += ' AND (manual_decision IS NULL OR manual_decision = \'\')';
+      } else if (manualDecision.startsWith('EXCLUDE (')) {
+        const match = manualDecision.match(/EXCLUDE \(([^)]+)\)/);
+        if (match) {
+          filterQuery += " AND manual_decision = 'EXCLUDE' AND manual_exclusion_code = ?";
+          params.push(match[1]);
+        } else {
+          filterQuery += ' AND manual_decision = ?';
+          params.push(manualDecision);
+        }
       } else {
         filterQuery += ' AND manual_decision = ?';
         params.push(manualDecision);
@@ -113,7 +122,7 @@ export async function GET(request: Request) {
     const allowedSortColumns = [
       'Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 
       'calibration_pool', 'calibration_tag', 'Publisher', 'citation_count', 
-      'manual_decision', 'manual_stage', 'manual_rationale', 'ai_decision', 'ai_stage'
+      'manual_decision', 'manual_exclusion_code', 'manual_stage', 'manual_rationale', 'ai_decision', 'ai_exclusion_code', 'ai_stage'
     ];
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
@@ -122,7 +131,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit;
     const dataQuery = `
       SELECT *, 
-             MAX(papers.manual_stage, papers.ai_stage) as Status,
+             MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) as Status,
              (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
              (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,
              (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,

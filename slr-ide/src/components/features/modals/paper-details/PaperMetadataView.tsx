@@ -229,6 +229,7 @@ export default function PaperMetadataView({
               colorTheme="blue"
               stage={paper.ai_stage || 0}
               decision={paper.ai_decision ?? null}
+              exclusionCode={paper.ai_exclusion_code ?? null}
               rationale={paper.ai_rationale ?? null}
               qualityAssessment={paper.ai_quality_assessment ?? null}
               extractedData={paper.ai_extracted_data ?? null}
@@ -239,6 +240,7 @@ export default function PaperMetadataView({
               colorTheme="amber"
               stage={paper.manual_stage || 0}
               decision={paper.manual_decision ?? null}
+              exclusionCode={paper.manual_exclusion_code ?? null}
               rationale={paper.manual_rationale ?? null}
               qualityAssessment={paper.manual_quality_assessment ?? null}
               extractedData={paper.manual_extracted_data ?? null}

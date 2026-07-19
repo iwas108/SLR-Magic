@@ -184,6 +184,46 @@ export default function ScraperSettingsTab({
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-4 mt-3">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-muted-foreground">Embed All Fonts</label>
+            <div className="flex items-center h-10">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={configs.PDF_COMPRESSION_EMBED_ALL_FONTS !== 'false'}
+                  onChange={(e) => handleChange('PDF_COMPRESSION_EMBED_ALL_FONTS', String(e.target.checked))}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                <span className="ml-3 text-xs font-semibold text-foreground">
+                  {configs.PDF_COMPRESSION_EMBED_ALL_FONTS !== 'false' ? 'Enabled' : 'Disabled'}
+                </span>
+              </label>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Force embedding of all fonts inside the compressed PDF files.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-muted-foreground">Subset Embedded Fonts</label>
+            <div className="flex items-center h-10">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={configs.PDF_COMPRESSION_SUBSET_FONTS !== 'false'}
+                  onChange={(e) => handleChange('PDF_COMPRESSION_SUBSET_FONTS', String(e.target.checked))}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                <span className="ml-3 text-xs font-semibold text-foreground">
+                  {configs.PDF_COMPRESSION_SUBSET_FONTS !== 'false' ? 'Enabled' : 'Disabled'}
+                </span>
+              </label>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Subset embedded fonts to reduce size. May cause exploded text or text corruption on some systems if disabled.</p>
+          </div>
+        </div>
+
         <div className="space-y-1.5 mt-3">
           <label className="block text-xs font-semibold text-muted-foreground">Ghostscript Executable Path (Optional)</label>
           <input

@@ -11,7 +11,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 *   Do not leave fragmented code blocks that cause silent failures or typescript errors.
 
 ### 3.5 Isolation of Double-Blind Calibration Adjudication
-*   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and columns (`Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`) are standalone modules strictly reserved for prompt and agreement calibration.
+*   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and columns (`manual_decision`, `manual_rationale`, `manual_quality_assessment`, `manual_extracted_data`, `manual_stage` on `calibration_papers`) are standalone modules strictly reserved for prompt and agreement calibration.
 *   **Zero Integration Policy**: Do NOT connect, source, or reference these tables or columns inside the general screening pipeline (such as fast filter, gatekeeper, scientist, or miner), general database view/filtering, or main paper details editing/sourcing flows.
-*   **Manual Screening Precedence**: General human overrides during manual review MUST exclusively use the manual screening columns (`manual_decision`, `manual_ec_trigger`, `manual_rationale`) and the corresponding `manual_audit_log` table.
+*   **Manual Screening Precedence**: General human overrides during manual review MUST exclusively use the manual screening columns (`manual_decision`, `manual_rationale`, `manual_quality_assessment`, `manual_extracted_data` on `papers`) and the corresponding `manual_audit_log` table.
+
 

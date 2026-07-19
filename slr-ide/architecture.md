@@ -106,6 +106,12 @@ graph TD
 *   **Fullscreen Inter-Rater Dashboard Modal**: The inter-rater review validation, stats confusion matrix, discrepancy adjudication, and timeline ledger are consolidated inside a fixed, fullscreen backdrop-blurred overlay triggered from the Pre-Calibration Pool A dashboard, complete with an exit button to resume Pre-Calibration sampling.
 *   **Unified 4-Tab LLM Dashboard**: Nested tab panel within SettingsModal aggregating Vault Settings, Prompt templates CRUD + Schema editors, Operations executors, and Audit trails.
 
+### 2.7 Post-Validation & Token Umbrellanizer
+*   **The Umbrellanizer Engine**: Executes LLM token normalization to map diverse raw extracted terms (e.g. model variations) to unified categories.
+*   **Structured Output Storage**: Persists processed mapping results in the `umbrellanizer_results` table, keyed uniquely by `(project_id, extracted_data_key)` to enable clean upserts.
+*   **Double Column Value-Evidence Displays**: Render values and extracted evidences as dual sub-columns in the Post-Validation database grid layout. Values reveal their LLM logic traces on hover, while evidence columns showcase source quotes.
+*   **Wizard Steppers**: An inline 4-step stepper guides user config, deduplicated token verification, background LLM process spawning, and fanning out mappings to the papers database grid.
+
 ---
 
 ## 3. UI/UX & Themes

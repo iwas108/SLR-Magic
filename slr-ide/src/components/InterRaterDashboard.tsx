@@ -290,11 +290,11 @@ export default function InterRaterDashboard({
   const formatPrevState = (stateStr: string) => {
     try {
       const stateObj = JSON.parse(stateStr);
-      const decision = stateObj.Human_Decision || 'PENDING';
+      const decision = stateObj.manual_decision ?? stateObj.Human_Decision ?? 'PENDING';
       if (activePoolTab === 'pool_c') {
         return decision;
       }
-      const ec = stateObj.Human_EC_Trigger;
+      const ec = stateObj.manual_exclusion_code ?? stateObj.Human_EC_Trigger;
       return `${decision}${ec ? ` (${ec})` : ''}`;
     } catch {
       return stateStr;

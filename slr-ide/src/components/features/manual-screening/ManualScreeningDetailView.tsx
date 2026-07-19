@@ -28,7 +28,6 @@ interface ManualScreeningDetailViewProps {
   screeningError: string | null;
   onSave: (paperId: string) => void;
   onClear: (paperId: string) => void;
-  onImport: (paper: Paper) => void;
 }
 
 export default function ManualScreeningDetailView({
@@ -51,8 +50,7 @@ export default function ManualScreeningDetailView({
   screeningSaving,
   screeningError,
   onSave,
-  onClear,
-  onImport
+  onClear
 }: ManualScreeningDetailViewProps) {
   const activeProj = projects.find(p => String(p.id) === String(activeProjectId));
 
@@ -145,7 +143,7 @@ export default function ManualScreeningDetailView({
     </div>
   );
 
-  // Scientist stage auto-decision calculator (Dual-Gate Quality Cutoff)
+  // Scientist and Miner stage auto-decision calculator (Dual-Gate Quality Cutoff / Extraction defaults)
   React.useEffect(() => {
     if (manualStage === 'scientist') {
       let total = 0;
@@ -181,6 +179,9 @@ export default function ManualScreeningDetailView({
         setManualDecision('');
         setManualEcTrigger('');
       }
+    } else if (manualStage === 'miner') {
+      setManualDecision('INCLUDE');
+      setManualEcTrigger('');
     }
   }, [manualStage, manualQaScores, qaRules, setManualDecision, setManualEcTrigger]);
 
@@ -320,18 +321,6 @@ export default function ManualScreeningDetailView({
       <div className="flex items-center justify-between shrink-0 select-none pb-2 border-b border-border/40">
         <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Manual Screening detail</span>
         <div className="flex items-center gap-2">
-          {/* Adjudication Copy Trigger */}
-          {!!(selectedPaper as any).Human_Decision && !selectedPaper.manual_decision && (
-            <button
-              onClick={() => onImport(selectedPaper)}
-              className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-extrabold rounded-lg border border-primary/20 flex items-center gap-1 transition-all cursor-pointer"
-              title="Pre-fill values from calibration reviews"
-            >
-              <ArrowRightLeft className="w-3.5 h-3.5" />
-              <span>Import from Calibration</span>
-            </button>
-          )}
-
           <button
             onClick={onClose}
             className="px-3 py-1 bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground text-[10px] font-extrabold rounded-lg border border-border flex items-center gap-1 transition-colors cursor-pointer"

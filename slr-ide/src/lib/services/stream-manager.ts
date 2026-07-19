@@ -18,6 +18,7 @@ export class StreamManager {
             isExecuting: state.isExecuting,
             isWaitingLogin: state.isWaitingLogin,
             steps: state.steps,
+            forceUpdate: state.forceUpdate,
             currentStep: state.currentStep,
             stepStartTime: state.stepStartTime,
             progress: state.progress,

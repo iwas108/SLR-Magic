@@ -10,7 +10,7 @@ export async function GET() {
       const stats = db.prepare(`
         SELECT 
           COUNT(CASE WHEN is_duplicate IS NULL OR is_duplicate = 0 THEN 1 END) as total,
-          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND MAX(manual_stage, ai_stage) >= 1 THEN 1 ELSE 0 END) as screened,
+          SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 1 THEN 1 ELSE 0 END) as screened,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as acquired,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced,
           (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_a' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_a_count,

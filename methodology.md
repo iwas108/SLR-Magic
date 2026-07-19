@@ -48,7 +48,7 @@ flowchart TD
 | **Stage 2.3: Miner** | Schema Exactness | 0% Missing Keys, 100% Type Match |
 
 ### 2.2 Dual-Gate Quality Cutoff (Stage 2.2)
-1.  **Fatal Flaw Gate:** If QA-1, QA-2, QA-3, QA-4, OR QA-6 == 0.0, the paper is INSTANTLY EXCLUDED.
+1.  **Fatal Flaw Gate:** If QA-1, QA-3, QA-4, OR QA-6 == 0.0, the paper is INSTANTLY EXCLUDED.
 2.  **Cumulative Gate:** The sum of all 8 QA scores must be >= 4.5/8.0.
 
 ### 2.3 Post-Execution: Sequential Quality Control Audit
@@ -332,7 +332,7 @@ Every prompt utilizes JSON-Embedded Chain of Thought (CoT). The LLM MUST return 
 }
 ```
 
-### Stage 2.3: The Miner Schema (Updated)
+### Stage 2.3: The Miner Schema
 *Note: Strictly uses `NOT_STATED` for missing data to ensure "Silence is Negative" compliance.*
 ```json
 {
@@ -501,5 +501,43 @@ Every prompt utilizes JSON-Embedded Chain of Thought (CoT). The LLM MUST return 
     }
   },
   "required": ["logic_trace", "extracted_data"]
+}
+```
+
+### Stage 3: The Umbrellanizer Schema
+```json
+{
+  "type": "object",
+  "properties": {
+    "taxonomy_mapping": {
+      "type": "array",
+      "description": "The complete array mapping every raw token to its new umbrella category.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "raw_token": {
+            "type": "string",
+            "description": "The exact, unmodified string provided in the input list."
+          },
+          "umbrella_category": {
+            "type": "string",
+            "description": "The high-level semantic category assigned to this token (e.g., 'Tree-Based Ensembles', 'Edge Microcomputers', 'Process Manufacturing')."
+          },
+          "justification": {
+            "type": "string",
+            "description": "A 1-sentence explanation of why this token belongs in this specific umbrella category."
+          }
+        },
+        "required": [
+          "raw_token",
+          "umbrella_category",
+          "justification"
+        ]
+      }
+    }
+  },
+  "required": [
+    "taxonomy_mapping"
+  ]
 }
 ```

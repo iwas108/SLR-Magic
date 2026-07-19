@@ -99,14 +99,14 @@ export async function GET(request: Request) {
         llmAuditParams.push(llmTaskTypeFilter);
       }
 
-      let papersAiQuery = "SELECT DISTINCT SUBSTR(ai_decision, INSTR(ai_decision, '(') + 1, INSTR(ai_decision, ')') - INSTR(ai_decision, '(') - 1) as code FROM papers WHERE Project_ID = ? AND ai_decision LIKE 'EXCLUDE (%)' AND INSTR(ai_decision, '(') > 0";
+      let papersAiQuery = "SELECT DISTINCT ai_exclusion_code as code FROM papers WHERE Project_ID = ? AND ai_exclusion_code IS NOT NULL AND ai_exclusion_code != ''";
       let papersAiParams: any[] = [activeProjectId];
       if (stageCode > 0) {
         papersAiQuery += " AND ai_stage = ?";
         papersAiParams.push(stageCode);
       }
 
-      let papersManualQuery = "SELECT DISTINCT SUBSTR(manual_decision, INSTR(manual_decision, '(') + 1, INSTR(manual_decision, ')') - INSTR(manual_decision, '(') - 1) as code FROM papers WHERE Project_ID = ? AND manual_decision LIKE 'EXCLUDE (%)' AND INSTR(manual_decision, '(') > 0";
+      let papersManualQuery = "SELECT DISTINCT manual_exclusion_code as code FROM papers WHERE Project_ID = ? AND manual_exclusion_code IS NOT NULL AND manual_exclusion_code != ''";
       let papersManualParams: any[] = [activeProjectId];
       if (stageCode > 0) {
         papersManualQuery += " AND manual_stage = ?";
@@ -271,6 +271,7 @@ export async function GET(request: Request) {
         ) LIKE ?`;
         params.push(`%${ecTrigger}%`);
       }
+      filterQuery += ` AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) = ${pipelineStage}`;
     }
 
     if (pipelineStage === '1') {
@@ -281,7 +282,8 @@ export async function GET(request: Request) {
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
-        ) LIKE 'INCLUDE%'`;
+        ) LIKE 'INCLUDE%'
+        AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) >= 1`;
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
@@ -289,9 +291,10 @@ export async function GET(request: Request) {
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
-        ) LIKE 'EXCLUDE%'`;
+        ) LIKE 'EXCLUDE%'
+        AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) = 1`;
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai') {
-        filterQuery += ` AND MAX(${tableName}.manual_stage, ${tableName}.ai_stage) <= 1
+        filterQuery += ` AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) <= 1
           AND NOT EXISTS (
             SELECT 1 FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND manual_stage = 'fast_filter'
           )
@@ -307,7 +310,8 @@ export async function GET(request: Request) {
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
-        ) LIKE 'INCLUDE%'`;
+        ) LIKE 'INCLUDE%'
+        AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) >= 2`;
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
@@ -315,7 +319,8 @@ export async function GET(request: Request) {
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
-        ) LIKE 'EXCLUDE%'`;
+        ) LIKE 'EXCLUDE%'
+        AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) = 2`;
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai' || pipelineStatus === 'pending_pdf') {
         filterQuery += ` AND (
           SELECT decision FROM (
@@ -347,7 +352,8 @@ export async function GET(request: Request) {
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
-        ) LIKE 'INCLUDE%'`;
+        ) LIKE 'INCLUDE%'
+        AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) >= 3`;
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
@@ -355,7 +361,8 @@ export async function GET(request: Request) {
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
-        ) LIKE 'EXCLUDE%'`;
+        ) LIKE 'EXCLUDE%'
+        AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) = 3`;
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai') {
         filterQuery += ` AND (
           SELECT decision FROM (
@@ -385,7 +392,8 @@ export async function GET(request: Request) {
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
-        ) LIKE 'INCLUDE%'`;
+        ) LIKE 'INCLUDE%'
+        AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) >= 4`;
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
@@ -393,7 +401,8 @@ export async function GET(request: Request) {
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
-        ) LIKE 'EXCLUDE%'`;
+        ) LIKE 'EXCLUDE%'
+        AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) = 4`;
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai') {
         filterQuery += ` AND (
           SELECT decision FROM (
@@ -417,6 +426,10 @@ export async function GET(request: Request) {
       }
     }
 
+    if (pipelineStage && !pipelineStatus) {
+      filterQuery += ` AND MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) = ${pipelineStage}`;
+    }
+
     // Check if only IDs matching the current query filters are requested
     if (searchParams.get('onlyIds') === 'true') {
       const rows = db.prepare(`SELECT Paper_ID ${filterQuery}`).all(...params) as { Paper_ID: string }[];
@@ -428,7 +441,7 @@ export async function GET(request: Request) {
     const total = countRow ? countRow.count : 0;
 
     // 2. Sorting whitelist validation to prevent SQL Injection
-    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'calibration_pool', 'calibration_tag', 'Publisher', 'citation_count', 'ai_stage', 'ai_decision', 'ai_rationale', 'manual_stage', 'manual_decision', 'manual_rationale'];
+    const allowedSortColumns = ['Paper_ID', 'Title', 'Authors', 'Year', 'DOI', 'Local_PDF_Status', 'calibration_pool', 'calibration_tag', 'Publisher', 'citation_count', 'ai_stage', 'ai_decision', 'ai_exclusion_code', 'ai_rationale', 'manual_stage', 'manual_decision', 'manual_exclusion_code', 'manual_rationale'];
     const safeSortBy = allowedSortColumns.includes(sortBy) ? sortBy : 'Paper_ID';
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
@@ -441,7 +454,7 @@ export async function GET(request: Request) {
     const offset = (page - 1) * limit;
     const dataQuery = `
       SELECT *, 
-             MAX(${tableName}.manual_stage, ${tableName}.ai_stage) as Status,
+             MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) as Status,
              ${calibrationPoolSubquery}
              (SELECT Title FROM papers parent WHERE parent.Paper_ID = ${tableName}.Parent_Paper_ID) as Parent_Paper_Title,
              (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID) > 0 as reviewer_decisions_exist

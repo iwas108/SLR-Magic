@@ -8,6 +8,7 @@ interface ScreeningSummaryPanelProps {
   colorTheme: 'blue' | 'amber';
   stage: number;
   decision: string | null;
+  exclusionCode?: string | null;
   rationale: string | null;
   qualityAssessment: string | null; // JSON string
   extractedData: string | null; // JSON string
@@ -19,6 +20,7 @@ export default function ScreeningSummaryPanel({
   colorTheme,
   stage,
   decision,
+  exclusionCode,
   rationale,
   qualityAssessment,
   extractedData
@@ -35,13 +37,19 @@ export default function ScreeningSummaryPanel({
   };
 
   const rawDec = (decision || '').toUpperCase();
-  const decisionText = rawDec.startsWith('EXCLUDE') ? 'EXCLUDE' : (rawDec || 'UNSCREENED');
+  const isExcluded = rawDec.startsWith('EXCLUDE');
+
+  // Both LLM and Manual pipelines write the literal completed stage number (N) regardless of decision.
+  // A stage of 0 means the paper is Initial / Unscreened.
+  const displayStage = stage || 0;
+
+  const badgeText = displayStage > 0
+    ? `Stage ${displayStage}: ${getStageLabel(displayStage)}`
+    : 'Initial / Unscreened';
+
+  const decisionText = isExcluded ? 'EXCLUDE' : (rawDec || 'UNSCREENED');
   
-  let ecTrigger = '';
-  if (rawDec.startsWith('EXCLUDE') && rawDec.includes('(')) {
-    const match = rawDec.match(/\(([^)]+)\)/);
-    if (match) ecTrigger = match[1];
-  }
+  const ecTrigger = isExcluded ? (exclusionCode || '') : '';
 
   // Parse JSON data safely
   let parsedQA: any = null;
@@ -87,7 +95,7 @@ export default function ScreeningSummaryPanel({
           <span className="text-xs font-extrabold uppercase tracking-wider text-foreground">{title}</span>
         </div>
         <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider border ${themeClasses.badge}`}>
-          Stage {stage}: {getStageLabel(stage)}
+          {badgeText}
         </span>
       </div>
 

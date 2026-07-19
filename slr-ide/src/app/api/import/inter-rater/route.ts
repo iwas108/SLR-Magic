@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     `);
 
     const selectPaperStmt = db.prepare(`
-      SELECT Paper_ID, Human_Decision, Human_EC_Trigger, Human_Rationale, Human_QA_Scores, Human_Extracted_Data
+      SELECT Paper_ID, manual_decision, manual_exclusion_code, manual_rationale, manual_quality_assessment, manual_extracted_data
       FROM calibration_papers 
       WHERE Paper_ID = ? AND Project_ID = ? AND calibration_pool = ?
     `);
@@ -106,6 +106,7 @@ export async function POST(request: Request) {
     const updatePaperDecisionStmt = db.prepare(`
       UPDATE calibration_papers 
       SET manual_decision = ?, 
+          manual_exclusion_code = ?,
           manual_rationale = ?,
           manual_quality_assessment = ?,
           manual_extracted_data = ?,
@@ -207,11 +208,11 @@ export async function POST(request: Request) {
         // Query decisions from all reviewers for this paper
         const decisions = getPaperDecisionsStmt.all(paperId, activeProjectId, dbPool) as any[];
 
-        let newDecision = paper.Human_Decision;
-        let newEC = paper.Human_EC_Trigger;
-        let newRationale = paper.Human_Rationale;
-        let newQAScores = paper.Human_QA_Scores;
-        let newExtractedData = paper.Human_Extracted_Data;
+        let newDecision = paper.manual_decision;
+        let newEC = paper.manual_exclusion_code || null;
+        let newRationale = paper.manual_rationale;
+        let newQAScores = paper.manual_quality_assessment;
+        let newExtractedData = paper.manual_extracted_data;
 
         if (decisions.length === 0) {
           continue;
@@ -234,105 +235,101 @@ export async function POST(request: Request) {
             const r2_qa = JSON.parse(decisions[1].qa_scores || '{}');
             const r1_ext = JSON.parse(decisions[0].extracted_data || '{}');
             const r2_ext = JSON.parse(decisions[1].extracted_data || '{}');
-
-            let isConflict = false;
-
-            // Compare QA values
-            for (const rule of qaRules) {
-              const v1 = r1_qa[rule.code]?.value;
-              const v2 = r2_qa[rule.code]?.value;
-              if (v1 !== v2) {
-                isConflict = true;
-                break;
-              }
-            }
-
-            // Compare Extracted Data values (normalized)
-            if (!isConflict) {
-              for (const rule of extractionRules) {
-                const v1 = (r1_ext[rule.json_key]?.value || '').trim().replace(/\s+/g, ' ');
-                const v2 = (r2_ext[rule.json_key]?.value || '').trim().replace(/\s+/g, ' ');
-                if (v1 !== v2) {
-                  isConflict = true;
+            
+            const r1_dec_res = calculatePoolCDecision(r1_qa, qaRules);
+            const r2_dec_res = calculatePoolCDecision(r2_qa, qaRules);
+            
+            if (r1_dec_res.decision !== r2_dec_res.decision) {
+              papersInConflict++;
+            } else {
+              // Same decision, check details
+              newDecision = r1_dec_res.decision;
+              newEC = r1_dec_res.exclusionCode;
+              
+              // Simple consensus for text/scores: if identical, use it. Otherwise, flag conflict.
+              let qaConflict = false;
+              for (const rule of qaRules) {
+                if (r1_qa[rule.code] !== r2_qa[rule.code]) {
+                  qaConflict = true;
                   break;
                 }
               }
-            }
-
-            if (isConflict) {
-              newDecision = 'PENDING_ADJUDICATION';
-              newEC = null;
-              newRationale = null;
-              newQAScores = null;
-              newExtractedData = null;
-              papersInConflict++;
-            } else {
-              // They agree exactly on values, so we auto-adjudicate
-              const { decision, exclusionCode, rationale } = calculatePoolCDecision(r1_qa, qaRules);
-              newDecision = decision;
-              newEC = exclusionCode;
-              newRationale = rationale;
-              newQAScores = decisions[0].qa_scores;
-              newExtractedData = decisions[0].extracted_data;
+              
+              let extConflict = false;
+              if (project.pool_c_extraction_rules) {
+                let extRules = [];
+                try {
+                  extRules = typeof project.pool_c_extraction_rules === 'string' 
+                    ? JSON.parse(project.pool_c_extraction_rules) 
+                    : project.pool_c_extraction_rules;
+                } catch {}
+                
+                for (const rule of extRules) {
+                  if (JSON.stringify(r1_ext[rule.json_key]) !== JSON.stringify(r2_ext[rule.json_key])) {
+                    extConflict = true;
+                    break;
+                  }
+                }
+              }
+              
+              if (qaConflict || extConflict) {
+                papersInConflict++;
+              } else {
+                newRationale = `Consensus achieved: ${reviewerName} & historical. ${r1_dec_res.rationale}`;
+                newQAScores = decisions[0].qa_scores;
+                newExtractedData = decisions[0].extracted_data;
+              }
             }
           }
         } else {
-          // Pool A or B decisions comparison
+          // Pool A & Pool B: Simple decision matching
           if (decisions.length === 1) {
             newDecision = decisions[0].decision;
             newEC = decisions[0].ec_trigger;
             newRationale = decisions[0].rationale;
           } else if (decisions.length === 2) {
-            if (decisions[0].decision === decisions[1].decision) {
-              newDecision = decisions[0].decision;
-              if (newDecision === 'Exclude') {
-                newEC = decisions[0].ec_trigger === decisions[1].ec_trigger
-                  ? decisions[0].ec_trigger
-                  : decisions[0].ec_trigger || decisions[1].ec_trigger;
-              } else {
-                newEC = null;
-              }
-              newRationale = decisions[0].rationale || decisions[1].rationale;
-            } else {
-              newDecision = 'PENDING_ADJUDICATION';
-              newEC = null;
-              newRationale = null;
+            const dec1 = decisions[0].decision || '';
+            const dec2 = decisions[1].decision || '';
+            
+            if (dec1.toUpperCase() !== dec2.toUpperCase()) {
               papersInConflict++;
+            } else {
+              newDecision = decisions[0].decision;
+              newEC = decisions[0].ec_trigger;
+              newRationale = `Consensus: both reviewers chose ${newDecision}. Rationale 1: ${decisions[0].rationale || 'none'}. Rationale 2: ${decisions[1].rationale || 'none'}`;
             }
           }
         }
 
         // If any field changed, update paper and write to audit ledger
         const targetStage = dbPool === 'pool_c' ? 3 : (dbPool === 'pool_b' ? 2 : 1);
-        let resolvedDecision = newDecision;
-        if (newDecision && newDecision.toUpperCase() === 'EXCLUDE' && newEC) {
-          resolvedDecision = `EXCLUDE (${newEC})`;
-        }
         if (
-          resolvedDecision !== paper.manual_decision ||
+          newDecision !== paper.manual_decision ||
+          newEC !== paper.manual_exclusion_code ||
           newRationale !== paper.manual_rationale ||
           newQAScores !== paper.manual_quality_assessment ||
           newExtractedData !== paper.manual_extracted_data ||
           paper.manual_stage !== targetStage
         ) {
-          updatePaperDecisionStmt.run(resolvedDecision, newRationale, newQAScores, newExtractedData, targetStage, paperId, activeProjectId);
+          updatePaperDecisionStmt.run(newDecision, newEC, newRationale, newQAScores, newExtractedData, targetStage, paperId, activeProjectId);
 
           // Equalize AI decisions based on Stage
           if (targetStage === 2) {
             const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'gatekeeper' AND status = 'SUCCESS' LIMIT 1").get(paperId, activeProjectId);
             if (!hasLog) {
-              db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
+              db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
             }
           } else if (targetStage === 3) {
             const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'scientist' AND status = 'SUCCESS' LIMIT 1").get(paperId, activeProjectId);
             const hasScores = paper.ai_quality_assessment && paper.ai_quality_assessment !== '{}';
             if (!hasLog && !hasScores) {
-              db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
+              db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
             }
           }
 
           const previousState = JSON.stringify({
             manual_decision: paper.manual_decision,
+            manual_exclusion_code: paper.manual_exclusion_code,
             manual_rationale: paper.manual_rationale,
             manual_quality_assessment: paper.manual_quality_assessment,
             manual_extracted_data: paper.manual_extracted_data,
@@ -420,14 +417,16 @@ export async function DELETE(request: Request) {
       // 3. Reset papers master decisions for calibration pool
       db.prepare(`
         UPDATE calibration_papers 
-        SET Human_Decision = NULL, 
-            Human_EC_Trigger = NULL, 
-            Human_Rationale = NULL,
-            Human_QA_Scores = NULL,
-            Human_Extracted_Data = NULL
+        SET manual_decision = NULL, 
+            manual_exclusion_code = NULL,
+            manual_stage = 0, 
+            manual_rationale = NULL,
+            manual_quality_assessment = NULL,
+            manual_extracted_data = NULL
         WHERE Project_ID = ? AND calibration_pool = ?
       `).run(activeProjectId, dbPool);
     })();
+
 
     // Invalidate semantic search cache for the active project
     clearSemanticSearchCache(activeProjectId);

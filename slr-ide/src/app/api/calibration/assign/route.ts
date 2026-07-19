@@ -24,16 +24,16 @@ export async function POST(request: Request) {
             PDF_Link, Local_PDF_Status, Local_PDF_Path, Project_ID, Parent_Paper_ID,
             Original_Publisher, Publisher, citation_count, is_duplicate, merged_into_id,
             remote_worker_id, scrape_claimed_at, notes,
-            ai_stage, ai_decision, ai_rationale, ai_quality_assessment, ai_extracted_data,
-            manual_stage, manual_decision, manual_rationale, manual_quality_assessment, manual_extracted_data
+            ai_stage, ai_decision, ai_exclusion_code, ai_rationale, ai_quality_assessment, ai_extracted_data,
+            manual_stage, manual_decision, manual_exclusion_code, manual_rationale, manual_quality_assessment, manual_extracted_data
           )
           SELECT 
             Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year,
             PDF_Link, Local_PDF_Status, Local_PDF_Path, Project_ID, Parent_Paper_ID,
             Original_Publisher, Publisher, citation_count, is_duplicate, merged_into_id,
             remote_worker_id, scrape_claimed_at, notes,
-            ai_stage, ai_decision, ai_rationale, ai_quality_assessment, ai_extracted_data,
-            manual_stage, manual_decision, manual_rationale, manual_quality_assessment, manual_extracted_data
+            ai_stage, ai_decision, ai_exclusion_code, ai_rationale, ai_quality_assessment, ai_extracted_data,
+            manual_stage, manual_decision, manual_exclusion_code, manual_rationale, manual_quality_assessment, manual_extracted_data
           FROM papers WHERE Paper_ID = ? AND Project_ID = ?
         `).run(paperId, projectId);
       }

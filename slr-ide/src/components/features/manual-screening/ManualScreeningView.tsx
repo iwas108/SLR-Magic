@@ -62,8 +62,7 @@ export default function ManualScreeningView({
     screeningError,
     triggerSemanticSearch,
     saveManualDecision,
-    clearManualDecision,
-    importFromCalibration
+    clearManualDecision
   } = manualScreeningHook;
 
   const handleFullscreenToggle = () => {
@@ -119,7 +118,6 @@ export default function ManualScreeningView({
           screeningError={screeningError}
           onSave={saveManualDecision}
           onClear={clearManualDecision}
-          onImport={importFromCalibration}
         />
       )}
     </div>

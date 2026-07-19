@@ -9,6 +9,7 @@ import PreCalibrationView from '../components/features/PreCalibrationView';
 import IngestionHubView from '../components/features/IngestionHubView';
 import PaperDatabaseView from '../components/features/PaperDatabaseView';
 import PipelineExecutionView from '../components/features/PipelineExecutionView';
+import PostValidationView from '../components/features/PostValidationView';
 import FullscreenAssignModal from '../components/features/modals/FullscreenAssignModal';
 import FullscreenInterRaterModal from '../components/features/modals/FullscreenInterRaterModal';
 import MinimizedPipelineBanner from '../components/features/dashboard/MinimizedPipelineBanner';
@@ -327,6 +328,11 @@ export default function DashboardPage() {
               manualScreeningHook={manualScreeningHook}
               preSelectedPaperIds={preSelectedPaperIds}
               setPreSelectedPaperIds={setPreSelectedPaperIds}
+            />
+          ) : activeTab === 'post-validation' ? (
+            <PostValidationView
+              projectId={activeProjectId || ''}
+              showToast={showToast}
             />
           ) : showImport ? (
             <IngestionHubView

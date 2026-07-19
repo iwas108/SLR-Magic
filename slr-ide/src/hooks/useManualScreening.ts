@@ -72,19 +72,8 @@ export function useManualScreening(
       lastLoadedPaperRef.current = screeningSelectedPaper;
 
       if (isNewPaper || dbValuesChanged) {
-        const rawDecision = screeningSelectedPaper.manual_decision || '';
-        let decVal = rawDecision;
-        let ecVal = '';
-        if (rawDecision.startsWith('EXCLUDE')) {
-          const match = rawDecision.match(/EXCLUDE \(([^)]+)\)/);
-          if (match) {
-            decVal = 'EXCLUDE';
-            ecVal = match[1];
-          }
-        }
-
-        setManualDecision(decVal);
-        setManualEcTrigger(ecVal);
+        setManualDecision(screeningSelectedPaper.manual_decision || '');
+        setManualEcTrigger(screeningSelectedPaper.manual_exclusion_code || '');
         setManualRationale(screeningSelectedPaper.manual_rationale || '');
         
         const numToStageMap: Record<number, string> = {
@@ -271,13 +260,10 @@ export function useManualScreening(
     setScreeningSaving(true);
     setScreeningError(null);
     try {
-      const finalManualDecision = manualDecision === 'EXCLUDE' && manualEcTrigger && manualEcTrigger !== 'NONE'
-        ? `EXCLUDE (${manualEcTrigger})`
-        : manualDecision;
-
       const payload = {
         Title: screeningSelectedPaper?.Title,
-        manual_decision: finalManualDecision || null,
+        manual_decision: manualDecision || null,
+        manual_exclusion_code: manualDecision === 'EXCLUDE' ? (manualEcTrigger || null) : null,
         manual_rationale: manualRationale || null,
         manual_stage: manualStage || null,
         manual_quality_assessment: JSON.stringify(manualQaScores || {}),
@@ -307,7 +293,8 @@ export function useManualScreening(
           p.Paper_ID === paperId 
             ? { 
                 ...p, 
-                manual_decision: finalManualDecision || null,
+                manual_decision: manualDecision || null,
+                manual_exclusion_code: manualDecision === 'EXCLUDE' ? (manualEcTrigger || null) : null,
                 manual_rationale: manualRationale || null,
                 manual_stage: numStage,
                 manual_quality_assessment: JSON.stringify(manualQaScores || {}),
@@ -319,7 +306,8 @@ export function useManualScreening(
         // Sync selected paper object
         setScreeningSelectedPaper(prev => prev ? {
           ...prev,
-          manual_decision: finalManualDecision || null,
+          manual_decision: manualDecision || null,
+          manual_exclusion_code: manualDecision === 'EXCLUDE' ? (manualEcTrigger || null) : null,
           manual_rationale: manualRationale || null,
           manual_stage: numStage,
           manual_quality_assessment: JSON.stringify(manualQaScores || {}),
@@ -349,6 +337,7 @@ export function useManualScreening(
       const payload = {
         Title: screeningSelectedPaper?.Title,
         manual_decision: null,
+        manual_exclusion_code: null,
         manual_rationale: null,
         manual_stage: null,
         manual_quality_assessment: null,
@@ -377,6 +366,7 @@ export function useManualScreening(
             ? { 
                 ...p, 
                 manual_decision: null,
+                manual_exclusion_code: null,
                 manual_rationale: null,
                 manual_stage: 0,
                 manual_quality_assessment: null,
@@ -388,6 +378,7 @@ export function useManualScreening(
         setScreeningSelectedPaper(prev => prev ? {
           ...prev,
           manual_decision: null,
+          manual_exclusion_code: null,
           manual_rationale: null,
           manual_stage: 0,
           manual_quality_assessment: null,
@@ -405,52 +396,6 @@ export function useManualScreening(
       setScreeningSaving(false);
     }
   }, [screeningSelectedPaper, showToast]);
-
-  // Import decisions from calibration (Human_Decision)
-  const importFromCalibration = useCallback((paper: any) => {
-    if (!paper) return;
-    const humanDec = (paper.Human_Decision || '').toUpperCase();
-    setManualDecision(humanDec);
-    setManualEcTrigger(paper.Human_EC_Trigger || '');
-    setManualRationale(paper.Human_Rationale || '');
-    
-    // Assign appropriate stage based on pool type
-    if (paper.calibration_pool === 'pool_c') {
-      setManualStage('scientist');
-    } else if (paper.calibration_pool === 'pool_b') {
-      setManualStage('gatekeeper');
-    } else {
-      setManualStage('fast_filter');
-    }
-
-    // Copy QA Scores if available
-    let parsedQa: Record<string, { value: number | null; evidence: string }> = {};
-    if (paper.Human_QA_Scores) {
-      try {
-        parsedQa = typeof paper.Human_QA_Scores === 'string'
-          ? JSON.parse(paper.Human_QA_Scores)
-          : paper.Human_QA_Scores;
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    setManualQaScores(parsedQa);
-
-    // Copy Extracted Data if available
-    let parsedExt: Record<string, { value: string; evidence: string }> = {};
-    if (paper.Human_Extracted_Data) {
-      try {
-        parsedExt = typeof paper.Human_Extracted_Data === 'string'
-          ? JSON.parse(paper.Human_Extracted_Data)
-          : paper.Human_Extracted_Data;
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    setManualExtractedData(parsedExt);
-    
-    showToast('Calibration review details pre-filled. Review and click save.', 'info');
-  }, [showToast]);
 
   // Ref callbacks for preventing stale closures on app sync notifications (Rule 3.3)
   const loadPapersRef = useRef(loadScreeningPapers);
@@ -515,7 +460,6 @@ export function useManualScreening(
     loadScreeningPapers,
     triggerSemanticSearch,
     saveManualDecision,
-    clearManualDecision,
-    importFromCalibration
+    clearManualDecision
   };
 }

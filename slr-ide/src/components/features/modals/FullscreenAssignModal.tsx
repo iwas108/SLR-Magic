@@ -58,13 +58,23 @@ interface FullscreenAssignModalProps {
     setAssignExcludeReviews: React.Dispatch<React.SetStateAction<boolean>>;
     assignPublisherFilter: string;
     setAssignPublisherFilter: React.Dispatch<React.SetStateAction<string>>;
-    assignStageFilter: string;
-    setAssignStageFilter: React.Dispatch<React.SetStateAction<string>>;
-    assignDecisionFilter: string;
-    setAssignDecisionFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignPdfFilter: string;
+    setAssignPdfFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignSourceFilter: string;
+    setAssignSourceFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignDoiStatusFilter: string;
+    setAssignDoiStatusFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignPdfLinkFilter: string;
+    setAssignPdfLinkFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignPipelineStageFilter: string;
+    setAssignPipelineStageFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignPipelineStatusFilter: string;
+    setAssignPipelineStatusFilter: React.Dispatch<React.SetStateAction<string>>;
+    assignEcTriggerFilter: string;
+    setAssignEcTriggerFilter: React.Dispatch<React.SetStateAction<string>>;
     uniquePublishers: string[];
-    uniqueManualStages: string[];
-    uniqueManualDecisions: string[];
+    ecTriggers: string[];
+    loadingEcTriggers: boolean;
   };
   pipelineHook: {
     logEndRef: React.RefObject<HTMLDivElement | null>;
@@ -128,13 +138,23 @@ export default function FullscreenAssignModal({
     setAssignExcludeReviews,
     assignPublisherFilter,
     setAssignPublisherFilter,
-    assignStageFilter,
-    setAssignStageFilter,
-    assignDecisionFilter,
-    setAssignDecisionFilter,
+    assignPdfFilter,
+    setAssignPdfFilter,
+    assignSourceFilter,
+    setAssignSourceFilter,
+    assignDoiStatusFilter,
+    setAssignDoiStatusFilter,
+    assignPdfLinkFilter,
+    setAssignPdfLinkFilter,
+    assignPipelineStageFilter,
+    setAssignPipelineStageFilter,
+    assignPipelineStatusFilter,
+    setAssignPipelineStatusFilter,
+    assignEcTriggerFilter,
+    setAssignEcTriggerFilter,
     uniquePublishers,
-    uniqueManualStages,
-    uniqueManualDecisions
+    ecTriggers,
+    loadingEcTriggers
   } = calibrationHook;
 
   const cloudProvider = projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider || 'gdrive';
@@ -203,13 +223,23 @@ export default function FullscreenAssignModal({
           setAssignExcludeReviews={setAssignExcludeReviews}
           assignPublisherFilter={assignPublisherFilter}
           setAssignPublisherFilter={setAssignPublisherFilter}
-          assignStageFilter={assignStageFilter}
-          setAssignStageFilter={setAssignStageFilter}
-          assignDecisionFilter={assignDecisionFilter}
-          setAssignDecisionFilter={setAssignDecisionFilter}
+          assignPdfFilter={assignPdfFilter}
+          setAssignPdfFilter={setAssignPdfFilter}
+          assignSourceFilter={assignSourceFilter}
+          setAssignSourceFilter={setAssignSourceFilter}
+          assignDoiStatusFilter={assignDoiStatusFilter}
+          setAssignDoiStatusFilter={setAssignDoiStatusFilter}
+          assignPdfLinkFilter={assignPdfLinkFilter}
+          setAssignPdfLinkFilter={setAssignPdfLinkFilter}
+          assignPipelineStageFilter={assignPipelineStageFilter}
+          setAssignPipelineStageFilter={setAssignPipelineStageFilter}
+          assignPipelineStatusFilter={assignPipelineStatusFilter}
+          setAssignPipelineStatusFilter={setAssignPipelineStatusFilter}
+          assignEcTriggerFilter={assignEcTriggerFilter}
+          setAssignEcTriggerFilter={setAssignEcTriggerFilter}
           uniquePublishers={uniquePublishers}
-          uniqueManualStages={uniqueManualStages}
-          uniqueManualDecisions={uniqueManualDecisions}
+          ecTriggers={ecTriggers}
+          loadingEcTriggers={loadingEcTriggers}
         />
         {assignSelectedPaper && (
           <AssignDetailView

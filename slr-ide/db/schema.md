@@ -34,12 +34,14 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `is_duplicate` | INTEGER | DEFAULT 0 | Flag indicating if this paper is an excluded duplicate (1) or not (0) |
 | `merged_into_id` | TEXT | DEFAULT NULL | Scoped reference pointing to the primary Paper_ID if this is a duplicate |
 | `ai_stage` | INTEGER | DEFAULT 0 | AI screening stage code (0=unscreened, 1=fast filter, 2=gatekeeper, 3=scientist, 4=miner) |
-| `ai_decision` | TEXT | | AI screening decision input (`INCLUDE`, `EXCLUDE` or `EXCLUDE (EC-X)`) |
+| `ai_decision` | TEXT | | AI screening decision (`INCLUDE`, `EXCLUDE` or `PENDING`) |
+| `ai_exclusion_code` | TEXT | | Target AI exclusion criterion code if decision is EXCLUDE (e.g. `EC-1`) |
 | `ai_rationale` | TEXT | | AI screening explanation notes |
 | `ai_quality_assessment` | TEXT | | JSON string containing AI quality appraisal scores and evidence |
 | `ai_extracted_data` | TEXT | | JSON string containing AI extracted data and variables |
 | `manual_stage` | INTEGER | DEFAULT 0 | Manual screening stage code (0=unscreened, 1=fast filter, 2=gatekeeper, 3=scientist, 4=miner) |
-| `manual_decision` | TEXT | | Manual screening decision input (`INCLUDE`, `EXCLUDE` or `EXCLUDE (EC-X)`) |
+| `manual_decision` | TEXT | | Manual screening decision (`INCLUDE`, `EXCLUDE` or `PENDING`) |
+| `manual_exclusion_code` | TEXT | | Target manual exclusion criterion code if decision is EXCLUDE (e.g. `EC-1`) |
 | `manual_rationale` | TEXT | | Manual screening annotation/explanation notes |
 | `manual_quality_assessment` | TEXT | | JSON string containing manual quality appraisal scores and evidence |
 | `manual_extracted_data` | TEXT | | JSON string containing manual extracted data and evidence |
@@ -287,6 +289,8 @@ Stores user configurations, scraping settings, and cloud sync paths.
 *   `TESSERACT_PATH`: `tesseract`
 *   `PDF_COMPRESSION_ENABLED`: `false`
 *   `PDF_COMPRESSION_LEVEL`: `/ebook`
+*   `PDF_COMPRESSION_EMBED_ALL_FONTS`: `true`
+*   `PDF_COMPRESSION_SUBSET_FONTS`: `true`
 *   `GHOSTSCRIPT_PATH`: ``
 *   `SEMANTIC_MATCH_THRESHOLD`: `0.65`
 *   `EMBEDDING_MODEL`: `nomic-ai/nomic-embed-text-v1.5`
@@ -422,4 +426,13 @@ Stores potential duplicate pairs identified by the fuzzy heuristic matching engi
 *   Added `remote_worker_id` and `scrape_claimed_at` columns to `papers`.
 *   Added `IN_PROGRESS` as a valid status for `Local_PDF_Status`.
 *   Added `REMOTE_WORKER_BATCH_SIZE` and `REMOTE_WORKER_LOCAL_SCRAPER_ENABLED` keys to `configs` defaults.
+
+### Calibration Cleanup & Human Columns Removal (2026-07-18)
+*   Deprecated and removed all legacy `Human_Decision`, `Human_EC_Trigger`, `Human_Rationale`, `Human_QA_Scores`, and `Human_Extracted_Data` columns from the `papers` table.
+*   Routed all calibration reviewer consensus data flows to use the existing `manual_decision`, `manual_rationale`, `manual_quality_assessment`, `manual_extracted_data`, and `manual_stage` columns on the `calibration_papers` table.
+
+### Schema Split: Exclusion Codes Migration (2026-07-18)
+*   Split combined `ai_decision` and `manual_decision` values (e.g. `EXCLUDE (EC-1)`) into clean decisions (`INCLUDE`/`EXCLUDE`) and dedicated `ai_exclusion_code` / `manual_exclusion_code` columns.
+*   Applied changes to both `papers` and `calibration_papers` tables.
+
 

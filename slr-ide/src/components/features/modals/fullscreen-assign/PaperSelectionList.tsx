@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Loader2, ChevronLeft, ChevronRight, Cpu, ArrowDown, ArrowUp } from 'lucide-react';
+import { Search, Loader2, ChevronLeft, ChevronRight, Cpu, ArrowDown, ArrowUp, Filter, Layers } from 'lucide-react';
 import VectorBuildModal from '../VectorBuildModal';
 
 interface PaperSelectionListProps {
@@ -35,13 +35,23 @@ interface PaperSelectionListProps {
   setAssignExcludeReviews: React.Dispatch<React.SetStateAction<boolean>>;
   assignPublisherFilter: string;
   setAssignPublisherFilter: (val: string) => void;
-  assignStageFilter: string;
-  setAssignStageFilter: (val: string) => void;
-  assignDecisionFilter: string;
-  setAssignDecisionFilter: (val: string) => void;
+  assignPdfFilter: string;
+  setAssignPdfFilter: (val: string) => void;
+  assignSourceFilter: string;
+  setAssignSourceFilter: (val: string) => void;
+  assignDoiStatusFilter: string;
+  setAssignDoiStatusFilter: (val: string) => void;
+  assignPdfLinkFilter: string;
+  setAssignPdfLinkFilter: (val: string) => void;
+  assignPipelineStageFilter: string;
+  setAssignPipelineStageFilter: (val: string) => void;
+  assignPipelineStatusFilter: string;
+  setAssignPipelineStatusFilter: (val: string) => void;
+  assignEcTriggerFilter: string;
+  setAssignEcTriggerFilter: (val: string) => void;
   uniquePublishers: string[];
-  uniqueManualStages: string[];
-  uniqueManualDecisions: string[];
+  ecTriggers: string[];
+  loadingEcTriggers: boolean;
 }
 
 export default function PaperSelectionList({
@@ -77,16 +87,60 @@ export default function PaperSelectionList({
   setAssignExcludeReviews,
   assignPublisherFilter,
   setAssignPublisherFilter,
-  assignStageFilter,
-  setAssignStageFilter,
-  assignDecisionFilter,
-  setAssignDecisionFilter,
+  assignPdfFilter,
+  setAssignPdfFilter,
+  assignSourceFilter,
+  setAssignSourceFilter,
+  assignDoiStatusFilter,
+  setAssignDoiStatusFilter,
+  assignPdfLinkFilter,
+  setAssignPdfLinkFilter,
+  assignPipelineStageFilter,
+  setAssignPipelineStageFilter,
+  assignPipelineStatusFilter,
+  setAssignPipelineStatusFilter,
+  assignEcTriggerFilter,
+  setAssignEcTriggerFilter,
   uniquePublishers,
-  uniqueManualStages,
-  uniqueManualDecisions
+  ecTriggers,
+  loadingEcTriggers
 }: PaperSelectionListProps) {
   const [showBuildModal, setShowBuildModal] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showPipelineFilters, setShowPipelineFilters] = useState(false);
+  const pipelineFiltersRef = useRef<HTMLDivElement>(null);
+  const advancedFiltersRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (pipelineFiltersRef.current && !pipelineFiltersRef.current.contains(event.target as Node)) {
+        setShowPipelineFilters(false);
+      }
+      if (advancedFiltersRef.current && !advancedFiltersRef.current.contains(event.target as Node)) {
+        setShowFilters(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const clearAllFilters = () => {
+    setAssignPoolFilter('all');
+    setAssignPublisherFilter('all');
+    setAssignPdfFilter('');
+    setAssignSourceFilter('');
+    setAssignDoiStatusFilter('');
+    setAssignPdfLinkFilter('');
+  };
+
+  const clearPipelineFilters = () => {
+    setAssignPipelineStageFilter('');
+    setAssignPipelineStatusFilter('');
+    setAssignEcTriggerFilter('');
+  };
 
   useEffect(() => {
     if (!assignSelectedPaper || !listContainerRef.current) return;
@@ -151,64 +205,239 @@ export default function PaperSelectionList({
           </button>
         </div>
 
-        {/* Row 2: Select Filters */}
-        <div className="flex items-center gap-2 justify-between">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <select
-              value={assignPoolFilter}
-              onChange={(e) => setAssignPoolFilter(e.target.value)}
-              className="bg-secondary/40 border border-border rounded-lg px-2 py-1.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none flex-1 min-w-0"
-              title="Filter by Calibration Pool"
+        {/* Row 2: Select Filters and Toggles */}
+        <div className="flex items-center gap-2">
+          {/* Screening Pipeline Filters Button */}
+          <div className="relative" ref={pipelineFiltersRef}>
+            <button
+              onClick={() => {
+                setShowPipelineFilters(!showPipelineFilters);
+                setShowFilters(false);
+              }}
+              className={`px-2.5 py-1.5 border rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors ${
+                showPipelineFilters || assignPipelineStageFilter || assignPipelineStatusFilter || assignEcTriggerFilter
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary/40 text-foreground border-border hover:bg-secondary/60'
+              }`}
             >
-              <option value="all" className="bg-popover text-popover-foreground">All Papers</option>
-              <option value="unassigned" className="bg-popover text-popover-foreground">Unassigned</option>
-              <option value="pool_a" className="bg-popover text-popover-foreground">Pool A</option>
-              <option value="pool_b" className="bg-popover text-popover-foreground">Pool B</option>
-              <option value="pool_c" className="bg-popover text-popover-foreground">Pool C</option>
-            </select>
-            <select
-              value={assignPublisherFilter}
-              onChange={(e) => setAssignPublisherFilter(e.target.value)}
-              className="bg-secondary/40 border border-border rounded-lg px-2 py-1.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none flex-1 min-w-0"
-              title="Filter by Publisher (Mapped)"
-            >
-              <option value="all" className="bg-popover text-popover-foreground">Publisher (Mapped)</option>
-              {uniquePublishers.map((pub) => (
-                <option key={pub} value={pub} className="bg-popover text-popover-foreground" title={pub}>
-                  {pub}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+              <Layers className="w-3.5 h-3.5" />
+              <span>Screening Pipeline</span>
+              {(assignPipelineStageFilter || assignPipelineStatusFilter || assignEcTriggerFilter) && (
+                <span className="ml-1 px-1 py-0.2 rounded-full bg-background/25 text-[9px]">
+                  {[assignPipelineStageFilter, assignPipelineStatusFilter, assignEcTriggerFilter].filter(Boolean).length}
+                </span>
+              )}
+            </button>
 
-        {/* Row 3: Manual Pipeline Filters */}
-        <div className="flex items-center gap-2 justify-between">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <select
-              value={assignStageFilter}
-              onChange={(e) => setAssignStageFilter(e.target.value)}
-              className="bg-secondary/40 border border-border rounded-lg px-2 py-1.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none flex-1 min-w-0"
-              title="Filter by Manual Stage"
+            {showPipelineFilters && (
+              <div className="absolute top-full left-0 mt-2 w-60 bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 flex flex-col gap-2.5 animate-in slide-in-from-top-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-foreground uppercase tracking-wider">Screening Pipeline Filters</span>
+                  <button onClick={clearPipelineFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear</button>
+                </div>
+                
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Pipeline Stage</label>
+                  <select 
+                    className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                    value={assignPipelineStageFilter} 
+                    onChange={(e) => {
+                      setAssignPipelineStageFilter(e.target.value);
+                      setAssignPipelineStatusFilter('');
+                      setAssignEcTriggerFilter('');
+                    }}
+                  >
+                    <option value="">Any Stage</option>
+                    <option value="1">Stage 1: Fast Filter</option>
+                    <option value="2">Stage 2: Gatekeeper</option>
+                    <option value="3">Stage 3: Scientist</option>
+                    <option value="4">Stage 4: Miner</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Pipeline Status</label>
+                  <select 
+                    className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                    value={assignPipelineStatusFilter} 
+                    onChange={(e) => setAssignPipelineStatusFilter(e.target.value)}
+                    disabled={!assignPipelineStageFilter}
+                  >
+                    <option value="">Any Status</option>
+                    {assignPipelineStageFilter === '1' && (
+                      <>
+                        <option value="included">Included</option>
+                        <option value="excluded">Excluded</option>
+                        <option value="unprocessed">Unprocessed</option>
+                      </>
+                    )}
+                    {assignPipelineStageFilter === '2' && (
+                      <>
+                        <option value="included">Included</option>
+                        <option value="excluded">Excluded</option>
+                        <option value="unprocessed">Unprocessed (Has PDF)</option>
+                        <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                        <option value="pending_pdf">Pending PDF</option>
+                      </>
+                    )}
+                    {assignPipelineStageFilter === '3' && (
+                      <>
+                        <option value="included">Included</option>
+                        <option value="excluded">Excluded</option>
+                        <option value="unprocessed">Unprocessed (Has PDF)</option>
+                        <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                      </>
+                    )}
+                    {assignPipelineStageFilter === '4' && (
+                      <>
+                        <option value="included">Included</option>
+                        <option value="excluded">Excluded</option>
+                        <option value="unprocessed">Unprocessed (Has PDF)</option>
+                        <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Exclusion Trigger</label>
+                  <select 
+                    className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                    value={assignEcTriggerFilter} 
+                    onChange={(e) => setAssignEcTriggerFilter(e.target.value)}
+                    disabled={loadingEcTriggers}
+                  >
+                    <option value="">Any Exclusion Trigger</option>
+                    <option value="Unspecified">Unspecified / No Code</option>
+                    {ecTriggers.map((code) => (
+                      <option key={code} value={code}>{code}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Advanced Filters Button */}
+          <div className="relative" ref={advancedFiltersRef}>
+            <button
+              onClick={() => {
+                setShowFilters(!showFilters);
+                setShowPipelineFilters(false);
+              }}
+              className={`px-2.5 py-1.5 border rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors ${
+                showFilters || assignPoolFilter !== 'all' || assignPublisherFilter !== 'all' || assignPdfFilter || assignSourceFilter || assignDoiStatusFilter || assignPdfLinkFilter
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary/40 text-foreground border-border hover:bg-secondary/60'
+              }`}
             >
-              <option value="" className="bg-popover text-popover-foreground">Manual Stage</option>
-              <option value="none" className="bg-popover text-popover-foreground">None Assigned</option>
-              {uniqueManualStages.map(stage => (
-                <option key={stage} value={stage} className="bg-popover text-popover-foreground">{stage}</option>
-              ))}
-            </select>
-            <select
-              value={assignDecisionFilter}
-              onChange={(e) => setAssignDecisionFilter(e.target.value)}
-              className="bg-secondary/40 border border-border rounded-lg px-2 py-1.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary transition-colors cursor-pointer select-none flex-1 min-w-0"
-              title="Filter by Screening Result"
-            >
-              <option value="" className="bg-popover text-popover-foreground">Screening Result</option>
-              <option value="none" className="bg-popover text-popover-foreground">Unscreened (Pending)</option>
-              {uniqueManualDecisions.map(dec => (
-                <option key={dec} value={dec} className="bg-popover text-popover-foreground">{dec}</option>
-              ))}
-            </select>
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {(assignPoolFilter !== 'all' || assignPublisherFilter !== 'all' || assignPdfFilter || assignSourceFilter || assignDoiStatusFilter || assignPdfLinkFilter) && (
+                <span className="ml-1 px-1 py-0.2 rounded-full bg-background/25 text-[9px]">
+                  {[assignPoolFilter !== 'all', assignPublisherFilter !== 'all', assignPdfFilter, assignSourceFilter, assignDoiStatusFilter, assignPdfLinkFilter].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+
+            {showFilters && (
+              <div className="absolute top-full left-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 flex flex-col gap-2.5 animate-in slide-in-from-top-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-foreground uppercase tracking-wider">Advanced Filters</span>
+                  <button onClick={clearAllFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear All</button>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Calibration Pool</label>
+                  <select
+                    value={assignPoolFilter}
+                    onChange={(e) => setAssignPoolFilter(e.target.value)}
+                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                  >
+                    <option value="all">All Papers</option>
+                    <option value="unassigned">Unassigned</option>
+                    <option value="pool_a">Pool A</option>
+                    <option value="pool_b">Pool B</option>
+                    <option value="pool_c">Pool C</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Publisher (Mapped)</label>
+                  <select
+                    value={assignPublisherFilter}
+                    onChange={(e) => setAssignPublisherFilter(e.target.value)}
+                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                  >
+                    <option value="all">Publisher (Mapped)</option>
+                    {uniquePublishers.map((pub) => (
+                      <option key={pub} value={pub} title={pub}>
+                        {pub}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">PDF Status</label>
+                  <select
+                    value={assignPdfFilter}
+                    onChange={(e) => setAssignPdfFilter(e.target.value)}
+                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                  >
+                    <option value="">Any PDF Status</option>
+                    <option value="IGNORED">IGNORED</option>
+                    <option value="MISSING">MISSING</option>
+                    <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
+                    <option value="MATCHED">MATCHED</option>
+                    <option value="DOWNLOADED">DOWNLOADED</option>
+                    <option value="SYNCED">SYNCED</option>
+                    <option value="FAILED">FAILED</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Source Scope</label>
+                  <select
+                    value={assignSourceFilter}
+                    onChange={(e) => setAssignSourceFilter(e.target.value)}
+                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                  >
+                    <option value="">Any Source</option>
+                    <option value="manual">Manual Ingestion</option>
+                    <option value="backward">Backward Snowball</option>
+                    <option value="forward">Forward Snowball</option>
+                    <option value="csv">CSV Import</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">DOI Status</label>
+                  <select
+                    value={assignDoiStatusFilter}
+                    onChange={(e) => setAssignDoiStatusFilter(e.target.value)}
+                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                  >
+                    <option value="">Any DOI Status</option>
+                    <option value="has_doi">Has DOI</option>
+                    <option value="empty">Empty DOI</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[9px] font-bold text-muted-foreground uppercase">PDF Link Status</label>
+                  <select
+                    value={assignPdfLinkFilter}
+                    onChange={(e) => setAssignPdfLinkFilter(e.target.value)}
+                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                  >
+                    <option value="">Any PDF Link Status</option>
+                    <option value="has_link">Has PDF Link</option>
+                    <option value="empty">Empty PDF Link</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

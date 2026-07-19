@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     const updatePaperStmt = db.prepare(`
       UPDATE calibration_papers 
       SET manual_decision = ?, 
+          manual_exclusion_code = ?,
           manual_rationale = ?,
           manual_quality_assessment = ?,
           manual_extracted_data = ?,
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
 
       const previousState = JSON.stringify({
         manual_decision: dbPaper.manual_decision,
+        manual_exclusion_code: dbPaper.manual_exclusion_code,
         manual_rationale: dbPaper.manual_rationale,
         manual_quality_assessment: dbPaper.manual_quality_assessment,
         manual_extracted_data: dbPaper.manual_extracted_data,
@@ -105,6 +107,7 @@ export async function POST(request: Request) {
       const targetStage = dbPool === 'pool_c' ? 3 : (dbPool === 'pool_b' ? 2 : 1);
       updatePaperStmt.run(
         calculatedDecision, 
+        calculatedDecision === 'EXCLUDE' ? (calculatedEc || null) : null,
         calculatedRationale || '', 
         final_qa_scores_str,
         final_extracted_data_str,
@@ -118,13 +121,13 @@ export async function POST(request: Request) {
       if (targetStage === 2) {
         const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'gatekeeper' AND status = 'SUCCESS' LIMIT 1").get(paper_id, activeProjectId);
         if (!hasLog) {
-          db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paper_id, activeProjectId);
+          db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paper_id, activeProjectId);
         }
       } else if (targetStage === 3) {
         const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'scientist' AND status = 'SUCCESS' LIMIT 1").get(paper_id, activeProjectId);
         const hasScores = dbPaper.ai_quality_assessment && dbPaper.ai_quality_assessment !== '{}';
         if (!hasLog && !hasScores) {
-          db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paper_id, activeProjectId);
+          db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paper_id, activeProjectId);
         }
       }
 

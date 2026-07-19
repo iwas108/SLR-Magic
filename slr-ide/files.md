@@ -10,7 +10,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | :--- | :--- | :--- |
 | `AGENTS.md` | Governance / Directives | Contains workspace-scoped rules, developer instructions, and behavioral guardrails specifically for coding agents operating in `slr-ide`. |
 | `architecture.md` | Documentation | Module-scoped blueprint detailing the local Next.js + SQLite desktop application design, data flows, and IPC patterns. |
-| `improvements-log.md` | Documentation | Chronological log of incremental features, bug fixes, refactoring iterations, and optimizations with sequential IDs (e.g., `#001`). |
+| `improvements-log.md` | Documentation | Chronological log of incremental features, bug fixes, refactoring iterations (including decision-exclusion code split), and optimizations with sequential IDs (e.g., `#001`). |
 | `package.json` | Dependency / Scripts | Defines NPM package dependencies, project metadata, and execution scripts (e.g., `dev`, `build`, `lint`). |
 | `package-lock.json` | Dependency | Lockfile ensuring reproducible dependency tree installation across environments. |
 | `tsconfig.json` | Build Configuration | TypeScript compiler configuration defining strict type-checking rules, module resolution, and path aliases (`@/*`). |
@@ -217,7 +217,8 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/inter-rater/ActionControls.tsx` | View Component | Blinded calibration template import, export buttons, and ingest roster list UI. |
 | `components/features/inter-rater/DiscrepancyTable.tsx` | View Component | Side-by-side discrepancy matcher table for blinded raters. |
 | `components/features/inter-rater/AuditLedger.tsx` | View Component | Git-like audit ledger of calibration adjudication history. |
-| `components/features/pre-calibration/PoolMetricsPanel.tsx` | UI Component | Reusable presentation component displaying pool size completion meters and agreement scorecard stats. |
+| `components/features/pre-calibration/PoolMetricsPanel.tsx` | UI Component | Reusable presentation component displaying pool size completion meters for Pools A, B, and C. |
+| `components/features/pre-calibration/StageComparisonPanel.tsx` | UI Component | Displays comparison metrics (Recall, Precision, Weighted Kappa, Schema match & Exact string matches) between Gold Standard and AI results across the 4 stages. |
 | `components/features/inter-rater/AdjudicationScorecardView.tsx`| View Component | Displays side-by-side rater decision comparison cards, QA score discrepancies, and final adjudication selectors. |
 | `components/features/inter-rater/DataExtractionComparisonView.tsx`| View Component | Displays side-by-side JSON schema tree viewers, discrepancy highlighting, and value merge selector controls. |
 
@@ -284,3 +285,11 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | \slr-ide/src/components/features/remote-workers/RemoteWorkersView.tsx\ | Frontend Component | Interactive table/dashboard for managing connected remote workers |
 | \slr-ide/src/components/features/remote-workers/RemoteWorkerSettingsPanel.tsx\ | Frontend Component | Panel for tuning global remote worker execution settings |
 | \slr-ide/python_engine/worker_server.py\ | Python Engine | Standalone Flask-based worker script that performs distributed scraping |
+| `python_engine/llm/umbrellanizer.py` | Python Engine | Custom CLI task executor for running the Umbrellanizer taxonomy LLM call |
+| `src/app/api/umbrellanizer/route.ts` | REST Endpoint | Handles GET and POST requests to query results and run the Umbrellanizer process |
+| `src/app/api/umbrellanizer/papers/route.ts` | REST Endpoint | Handles GET requests to retrieve Miner-passed papers with stage-aware resolved data |
+| `src/components/features/PostValidationView.tsx` | View Component | Switcher panel hosting the Umbrellanizer and Rolling Batch engines |
+| `src/components/features/post-validation/UmbrellanizerView.tsx` | View Component | Main taxonomy normalization view, rendering paper tables and triggering wizards |
+| `src/components/features/post-validation/UmbrellanizerWizard.tsx` | UI Component | Stepper modal orchestrating prompt variables loading, token dedup lists, LLM runs and mapping results |
+| `src/components/features/post-validation/TokenOccurrenceTable.tsx` | UI Component | Multi-value list counting unique token occurrences and listing source papers |
+| `src/hooks/useUmbrellanizer.ts` | Custom Hook | Custom React hook state manager handling papers, results, polling jobs and taxonomy executions |

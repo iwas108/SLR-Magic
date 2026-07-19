@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       return streamManager.createEventStream(() => batchStateTracker.getState());
     }
 
-    batchStateTracker.resetBatchState(steps);
+    batchStateTracker.resetBatchState(steps, forceUpdate);
 
     pipelineLock.acquire();
     runBackgroundExecution(steps, compress, forceUpdate);
@@ -71,6 +71,7 @@ export async function GET(req: Request) {
     isExecuting: batchState.isExecuting,
     isWaitingLogin: batchState.isWaitingLogin,
     steps: batchState.steps,
+    forceUpdate: batchState.forceUpdate,
     currentStep: batchState.currentStep,
     stepStartTime: batchState.stepStartTime,
     progress: batchState.progress,

@@ -83,9 +83,10 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, ensuring a clean and stable build.
 
 ### 3.5 Isolation of Double-Blind Calibration Adjudication
-*   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and sandbox columns (`manual_decision`, `manual_stage`, `manual_rationale` on `calibration_papers`) are standalone modules strictly reserved for prompt and agreement calibration.
+*   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and columns (`manual_decision`, `manual_rationale`, `manual_quality_assessment`, `manual_extracted_data`, `manual_stage` on `calibration_papers`) are standalone modules strictly reserved for prompt and agreement calibration.
 *   **Zero Integration Policy**: Do NOT connect, source, or reference these tables or columns inside the general screening pipeline (such as fast filter, gatekeeper, scientist, or miner), general database view/filtering, or main paper details editing/sourcing flows.
-*   **Manual Screening Precedence**: General human overrides during manual review MUST exclusively use the manual screening columns (`manual_decision`, `manual_stage`, `manual_rationale` on `papers`) and the corresponding `manual_audit_log` table.
+*   **Manual Screening Precedence**: General human overrides during manual review MUST exclusively use the manual screening columns (`manual_decision`, `manual_rationale`, `manual_quality_assessment`, `manual_extracted_data` on `papers`) and the corresponding `manual_audit_log` table.
+
 
 ### 3.6 Stage-Aware Decision Resolution Policy (Source of Truth)
 *   **Stage Dominance Rule**: When determining the active/effective screening decision for a paper, the decision from the **highest stage** (`MAX(manual_stage, ai_stage)`) is the absolute source of truth.
@@ -98,7 +99,23 @@ px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, 
       ELSE COALESCE(manual_decision, ai_decision)
     END
     ```
+*   **Stage Value Convention**: The `ai_stage` and `manual_stage` columns always store the **literal completed stage number N**, regardless of whether the decision is `INCLUDE` or `EXCLUDE`. The stage is **never advanced to N+1** after an `INCLUDE` — both pipelines (LLM queue handler and manual screening) write the stage they operated on directly. A value of `0` (or `NULL`) means the paper is Initial / Unscreened.
+
+    | Completed Stage | Decision | Stage Column Value |
+    |---|---|---|
+    | Stage 1: Fast Filter | EXCLUDE (EC-1) | `1` |
+    | Stage 1: Fast Filter | INCLUDE | `1` |
+    | Stage 2: Gatekeeper | EXCLUDE (EC-4) | `2` |
+    | Stage 2: Gatekeeper | INCLUDE | `2` |
+    | Not yet screened | — | `0` / `NULL` |
+
 *   **Inclusion Search Broadness**: When checking for `"INCLUDE"` status in the database, always use pattern matching (e.g. `LIKE 'INCLUDE%'`) rather than an exact match (e.g. `= 'INCLUDE'`) to avoid missing decision variants such as `'INCLUDE (S1)'`.
+
+### 3.7 Screening Calibration Validation Rules (Methodology Targets)
+*   **Stage 1 (Fast Filter)**: Passes if `Recall >= 100%` and `F1 Score >= 85%`.
+*   **Stage 2 (Gatekeeper)**: Passes if `Precision >= 85%` and `Recall >= 90%` to prevent false negatives.
+*   **Stage 3 (Scientist)**: Passes if `Critical Miss Rate === 0%` (allowing minor ordinal deviations of `0.5` points).
+*   **Stage 4 (Miner)**: Passes if `Schema Integrity Rate === 100%` (0 missing keys, 100% correct type match). Exact matches are treated as pre-normalization text yield metrics and do not trigger pipeline fail states.
 
 ---
 

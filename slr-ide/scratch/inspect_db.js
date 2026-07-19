@@ -28,7 +28,6 @@ const papers = db.prepare(`
     d.paper_id,
     d.ec_trigger,
     p.AI_EC_Trigger,
-    p.Human_EC_Trigger,
     p.manual_ec_trigger
   FROM ranked_decisions d
   JOIN papers p ON p.Paper_ID = d.paper_id
