@@ -64,9 +64,9 @@ export default function UmbrellanizerWizard({
   const getMappedResearchQuestion = (questionsStr: string, key: string) => {
     if (!questionsStr) return '';
     const lines = questionsStr.split('\n').map(l => l.trim()).filter(Boolean);
-    const match = key.match(/^rq(\d+)/i);
+    const match = key.match(/^rq(\d+)(?:_?([a-z]))?/i);
     if (!match) return '';
-    const num = match[1];
+    const num = match[1] + (match[2] || '');
     const targetPrefix = `rq${num}`;
     const targetPrefix2 = `rq ${num}`;
     

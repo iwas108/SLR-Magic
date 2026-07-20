@@ -127,7 +127,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | :--- | :--- | :--- |
 | `types/index.ts` | TypeScript Definitions| Defines strict TypeScript interfaces for core entities: `Paper`, `Project`, `Config`, `ReviewerDecision`, `LedgerCommit`, and `DuplicatePair`. |
 | `lib/db.ts` | Database Client | Exports the singleton `better-sqlite3` database instance, transaction wrappers, PRAGMA enforcements, and configuration helpers. |
-| `lib/db/db-init.ts` | Database Client/Init | Isolation layer handling schema DDL execution, database migrations, default lookup table seeding, and startup self-healing PDF path migrations. |
+| `lib/db/db-init.ts` | Database Client/Init | Isolation layer handling schema DDL execution, database migrations, default lookup table seeding (startup self-healing PDF path migrations and database healing are disabled). |
 | `lib/llm-operations.ts` | Frontend Utility | Singleton queue process manager initiating background subprocess execution and SSE log streams. |
 | `lib/vault.ts` | Cryptography | Node.js cryptographic utilities for vault key encryption/decryption matching python formats. |
 | `lib/session.ts` | Session Management | In-memory server-side cache for storing master password inside active sessions. |
@@ -163,7 +163,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 ### UI Components & Features (`src/components/`)
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
-| `components/Sidebar.tsx` | View Component | Renders the primary navigation sidebar, active project selector dropdown, and quick links to main application views. |
+| `components/Sidebar.tsx` | View Component | Renders the collapsible primary navigation sidebar, theme toggle selectors, and global settings trigger. |
 | `components/SettingsModal.tsx` | View Component | Modal interface for configuring global application settings, Rclone paths, Tesseract OCR toggles, and scraper proxy URLs. |
 | `components/features/settings/RcloneSettingsTab.tsx` | View Component | Cloud destination configuration panel and remote test buttons. |
 | `components/features/settings/ScraperSettingsTab.tsx` | View Component | Stealth browser options, delay controls, headed flags, and Tesseract configurations. |
@@ -178,6 +178,10 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records, featuring bulk override and pipeline stage operations. |
 | `components/features/PipelineExecutionView.tsx`| View Component | Interface for launching, monitoring, and controlling automated PDF acquisition, OCR indexing, and cloud sync batch pipelines. |
 | `components/features/PreCalibrationView.tsx` | View Component | View interface for managing pre-calibration workflows, tagging specific screening cohorts, cohort tag filtering, and analyzing screening consistency. |
+| `components/features/InsightExportView.tsx` | View Component | View interface hosting granular accounting reports, scientific rigor comparisons, final dataset cohort lists, and FAIR-compliant cloud exporting options. |
+| `components/features/insight-export/FinalCohortPanel.tsx` | UI Component | Renders the final cohort papers table with deep metadata, QA, and extraction filters. |
+| `components/features/insight-export/ScientificRigorPanel.tsx` | UI Component | Renders the scientific rigor panel with pre-calibration metrics, stage comparisons, and rolling batch validation. |
+| `components/features/insight-export/PrismaFlowDiagram.tsx` | UI Component | Canvas-rendered interactive PRISMA 2020 Flow Diagram with PNG download support. |
 | `components/features/manual-screening/ManualScreeningStatsHeader.tsx` | UI Component | Top bar summary calculations showing active manual stages and result metrics with fullscreen controls. |
 | `components/features/manual-screening/ManualScreeningList.tsx` | UI Component | Left-hand panel matching list with keyword/semantic filters and sorting drop-downs. |
 | `components/features/manual-screening/ManualScreeningDetailView.tsx` | Presentation Component | Right-hand dashboard displaying metadata, inline PDF previews, and manual stage decision editors (QA and variables extraction). |
@@ -200,6 +204,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/DeleteProjectConfirmModal.tsx`| Modal Component| Standalone modal dialog for confirming deletion of a literature review project configuration (`DELETE /api/projects/[id]`). |
 | `components/features/modals/DeleteAllPapersConfirmModal.tsx`| Modal Component| Standalone security dialog verifying active project name before executing bulk wipe of all project papers. |
 | `components/features/modals/CsvReviewModal.tsx` | Modal Component | Standalone modal component for reviewing mapped CSV structures and duplicate exclusions prior to importing. |
+| `components/features/modals/PrismaConfigModal.tsx` | Modal Component | Standalone modal component for customizing the PRISMA diagram layout, colors, typography, box styles, and export scale. |
 | `components/features/modals/VectorBuildModal.tsx` | Modal Component | Standalone progress and console log dialog for building and updating vector indices. |
 | `components/features/modals/FullscreenAssignModal.tsx` | Modal Component| Standalone fullscreen modal composing pool stats header, paper list, and selection assign details view. |
 | `components/features/modals/fullscreen-assign/PoolStatsHeader.tsx` | UI Component | Header statistics and tag breakdown popovers for Pools A, B, and C. |
@@ -247,6 +252,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/export/inter-rater/route.ts`| REST Endpoint | Handles POST requests to generate standalone blinded review export packages (`.slr` schema) for use in the offline `inter-rater` SPA. |
 | `api/import/route.ts` | REST Endpoint | Handles POST requests for CSV uploads, executing data parsing, duplicate DOI checks, and batch insertion into `papers`. |
 | `api/import/inter-rater/route.ts`| REST Endpoint | Handles POST requests to ingest completed `.slr` review packages from external raters, inserting records into `reviewer_decisions`. |
+| `api/insight/accounting/route.ts` | REST Endpoint | Calculates API usage and token cost metrics breakdown per task type for the active project. |
+| `api/insight/final-cohort/route.ts` | REST Endpoint | Retrieves resolved final cohort papers matching inclusion criteria for the active project. |
+| `api/insight/prisma/route.ts` | REST Endpoint | Calculates and aggregates study counts for the 20 boxes of the PRISMA 2020 flowchart. |
 | `api/llm/batch/route.ts` | REST Endpoint | Handles POST requests to launch bulk LLM screening and data extraction batches across project paper pools. |
 | `api/llm/batch/status/route.ts` | REST Endpoint | Handles GET requests to stream real-time Server-Sent Events (SSE) detailing progress and token usage of active LLM batches. |
 | `api/llm/jobs/route.ts` | REST Endpoint | Handles GET requests to retrieve the execution history and detailed status logs of background LLM screening jobs. |
@@ -293,3 +301,15 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `src/components/features/post-validation/UmbrellanizerWizard.tsx` | UI Component | Stepper modal orchestrating prompt variables loading, token dedup lists, LLM runs and mapping results |
 | `src/components/features/post-validation/TokenOccurrenceTable.tsx` | UI Component | Multi-value list counting unique token occurrences and listing source papers |
 | `src/hooks/useUmbrellanizer.ts` | Custom Hook | Custom React hook state manager handling papers, results, polling jobs and taxonomy executions |
+| `src/app/api/rolling-batch/initialize/route.ts` | REST Endpoint | Handles POST requests to initialize a new rolling validation batch and snapshot papers |
+| `src/app/api/rolling-batch/status/route.ts` | REST Endpoint | Handles GET requests to retrieve active batch state, reviewed count, and timeline history |
+| `src/app/api/rolling-batch/export/route.ts` | REST Endpoint | Handles GET requests to export active batch papers as a blinded .slr template |
+| `src/app/api/rolling-batch/import/route.ts` | REST Endpoint | Handles POST requests to ingest completed reviewer .slr batch files |
+| `src/app/api/rolling-batch/adjudicate/route.ts` | REST Endpoint | Handles POST requests to commit consensus resolutions on batch discrepancies |
+| `src/app/api/rolling-batch/decisions/route.ts` | REST Endpoint | Handles GET requests to fetch paper details, reviewer inputs, and audit ledger for a batch |
+| `src/app/api/rolling-batch/stats/route.ts` | REST Endpoint | Handles GET requests to compute cumulative quality control metrics (Kappa, CI lower bounds, Critical Miss, Semantic Agreement) |
+| `src/hooks/useRollingBatch.ts` | Custom Hook | State manager handling rolling batch operations, status polling, and reviewer imports |
+| `src/components/features/post-validation/RollingBatchView.tsx` | View Component | Core post-validation panel rendering initialization controls, reviewer slots, and discrepancy tables |
+| `src/components/features/post-validation/BatchStatisticsCards.tsx` | UI Component | Renders Stage 3 and Stage 4 sequential validation metrics and exit statuses |
+| `src/components/features/post-validation/RollingBatchAdjudicationModal.tsx` | UI Component | Fullscreen workspace modal for resolving conflicts on rolling batch papers |
+| `src/components/features/post-validation/BatchImportSlot.tsx` | UI Component | Upload card for mapping and parsing completed .slr review files per slot |

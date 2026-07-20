@@ -293,7 +293,8 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
     const ecTrigger = app.Human_EC_Trigger || app.Reviewer_EC_Code;
 
     const pool = session?.poolType || session?.metadata?.pool_type || '';
-    const hasBasic = decision && (pool === 'CAL_Pool_C' || (rationale && String(rationale).trim() !== ''));
+    const isCStylePool = pool === 'CAL_Pool_C' || pool === 'pool_c' || pool === 'QC_Batch';
+    const hasBasic = decision && (isCStylePool || (rationale && String(rationale).trim() !== ''));
 
     if (!hasBasic) return false;
 
@@ -304,8 +305,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
     }
 
     if (decision === 'Include') {
-      const pool = session?.poolType || session?.metadata?.pool_type || '';
-      if (pool === 'CAL_Pool_C') {
+      if (isCStylePool) {
         const qaRules = session?.metadata?.qa_rules || session?.metadata?.qaRules || [];
         const qaScores = app.Human_QA_Scores || {};
         for (const rule of qaRules) {
@@ -355,7 +355,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
   const isPoolA = session?.poolType === 'CAL_Pool_A' || session?.poolType === 'pool_a';
   const isPoolB = session?.poolType === 'CAL_Pool_B' || session?.poolType === 'pool_b';
-  const isPoolC = session?.poolType === 'CAL_Pool_C' || session?.poolType === 'pool_c';
+  const isPoolC = session?.poolType === 'CAL_Pool_C' || session?.poolType === 'pool_c' || session?.poolType === 'QC_Batch';
 
   useEffect(() => {
     if (!session || papers.length === 0) return;

@@ -357,6 +357,88 @@ export function initializeDatabase(db: Database.Database): void {
       is_enabled  INTEGER NOT NULL DEFAULT 1,
       created_at  TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS rolling_batches (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      batch_number INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending_review',
+      created_at TEXT NOT NULL,
+      finalized_at TEXT,
+      FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      UNIQUE(project_id, batch_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS rolling_batch_papers (
+      Paper_ID TEXT NOT NULL,
+      Import_Date TEXT NOT NULL,
+      Import_Source TEXT NOT NULL,
+      Source TEXT,
+      DOI TEXT,
+      Title TEXT NOT NULL,
+      Abstract TEXT,
+      Authors TEXT,
+      Year INTEGER,
+      PDF_Link TEXT,
+      Local_PDF_Status TEXT NOT NULL DEFAULT 'IGNORED',
+      Local_PDF_Path TEXT,
+      Project_ID TEXT,
+      Parent_Paper_ID TEXT,
+      Original_Publisher TEXT,
+      Publisher TEXT,
+      citation_count INTEGER DEFAULT 0,
+      is_duplicate INTEGER DEFAULT 0,
+      merged_into_id TEXT DEFAULT NULL,
+      remote_worker_id TEXT DEFAULT NULL,
+      scrape_claimed_at TEXT DEFAULT NULL,
+      notes TEXT DEFAULT NULL,
+      ai_stage INTEGER DEFAULT 0,
+      ai_decision TEXT DEFAULT NULL,
+      ai_exclusion_code TEXT DEFAULT NULL,
+      ai_rationale TEXT DEFAULT NULL,
+      ai_quality_assessment TEXT DEFAULT NULL,
+      ai_extracted_data TEXT DEFAULT NULL,
+      manual_stage INTEGER DEFAULT 0,
+      manual_decision TEXT DEFAULT NULL,
+      manual_exclusion_code TEXT DEFAULT NULL,
+      manual_rationale TEXT DEFAULT NULL,
+      manual_quality_assessment TEXT DEFAULT NULL,
+      manual_extracted_data TEXT DEFAULT NULL,
+      batch_id TEXT NOT NULL,
+      batch_number INTEGER NOT NULL,
+      PRIMARY KEY(Paper_ID, batch_id),
+      FOREIGN KEY(batch_id) REFERENCES rolling_batches(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS rolling_batch_reviewer_decisions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_id TEXT NOT NULL,
+      batch_number INTEGER NOT NULL,
+      paper_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      reviewer_name TEXT NOT NULL,
+      qa_scores TEXT,
+      extracted_data TEXT,
+      imported_at TEXT NOT NULL,
+      UNIQUE(paper_id, batch_id, reviewer_name),
+      FOREIGN KEY(batch_id) REFERENCES rolling_batches(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS rolling_batch_commit_ledger (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      commit_hash TEXT NOT NULL,
+      batch_id TEXT NOT NULL,
+      batch_number INTEGER NOT NULL,
+      project_id TEXT NOT NULL,
+      paper_id TEXT NOT NULL,
+      adjudicator TEXT NOT NULL,
+      previous_state TEXT NOT NULL,
+      resolved_qa_scores TEXT,
+      resolved_extracted_data TEXT,
+      commit_message TEXT NOT NULL,
+      timestamp TEXT NOT NULL,
+      FOREIGN KEY(batch_id) REFERENCES rolling_batches(id) ON DELETE CASCADE
+    );
   `);
 
   // Add Project_ID column to papers if it doesn't exist (migration fallback)
@@ -520,6 +602,13 @@ export function initializeDatabase(db: Database.Database): void {
     // Column already exists
   }
 
+  // Add rolling_batch_size column to projects if it doesn't exist (migration fallback)
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN rolling_batch_size INTEGER DEFAULT 20");
+  } catch (e) {
+    // Column already exists
+  }
+
   // Add is_active column to prompt_templates if it doesn't exist (migration fallback)
   try {
     db.exec("ALTER TABLE prompt_templates ADD COLUMN is_active INTEGER DEFAULT 1");
@@ -646,6 +735,8 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {}
 
   // DB HEALING MIGRATION: split combined decision + exclusion code values (e.g. "EXCLUDE (EC-1)")
+  // DISABLED: to prevent bloated startup and execution
+  /*
   try {
     // 1. For papers table: ai_decision
     db.prepare(`
@@ -681,6 +772,7 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     console.error("Failed to run split decision database healing:", e);
   }
+  */
 
   // Add remote worker columns to papers table if they do not exist
   try {
@@ -692,6 +784,8 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {}
 
   // Self-healing migration for stuck IN_PROGRESS remote worker claims
+  // DISABLED: to prevent bloated startup and execution
+  /*
   try {
     const info = db.prepare("UPDATE papers SET Local_PDF_Status = 'MISSING', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Local_PDF_Status = 'IN_PROGRESS'").run();
     if (info.changes > 0) {
@@ -700,6 +794,7 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     console.error("Failed to reset stuck IN_PROGRESS papers:", e);
   }
+  */
 
   // Seed default remote worker configs if missing
   try {
@@ -781,6 +876,8 @@ export function initializeDatabase(db: Database.Database): void {
   }
 
   // Migrate legacy PDF paths to the unified pdf_library layout and perform self-healing
+  // DISABLED: to prevent bloated startup and execution
+  /*
   try {
     const isMigrated = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_LEGACY_PDF_PATHS_DONE'").get() as { value: string } | undefined;
     if (!isMigrated || isMigrated.value !== 'true') {
@@ -894,8 +991,11 @@ export function initializeDatabase(db: Database.Database): void {
 } catch (e) {
   console.error("Failed to migrate and self-heal PDF paths:", e);
 }
+  */
 
   // Self-healing migration for AI decisions in reviewer_decisions from llm_audit_log
+  // DISABLED: to prevent bloated startup and execution
+  /*
   try {
     const isAiMigrated = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_LEGACY_AI_DECISIONS_DONE'").get() as { value: string } | undefined;
     if (!isAiMigrated || isAiMigrated.value !== 'true') {
@@ -974,6 +1074,7 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     console.error("Failed to execute self-healing migration for AI decisions:", e);
   }
+  */
 
   // ─────────────────────────────────────────────────────────────────────────
   // CORRECTIVE MIGRATION: Revert the incorrect +1 stage bump for INCLUDE
@@ -981,6 +1082,8 @@ export function initializeDatabase(db: Database.Database): void {
   // Convention (Option 2): ai_stage always stores the literal completed stage N,
   // never N+1, regardless of whether the decision is INCLUDE or EXCLUDE.
   // ─────────────────────────────────────────────────────────────────────────
+  // DISABLED: to prevent bloated startup and execution
+  /*
   try {
     const isRevertDone = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_AI_STAGE_INCLUDE_REVERT_DONE'").get() as { value: string } | undefined;
     if (!isRevertDone || isRevertDone.value !== 'true') {
@@ -1064,11 +1167,14 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     console.error("Failed to execute corrective AI stage revert migration:", e);
   }
+  */
 
   // ─────────────────────────────────────────────────────────────────────────
   // ONGOING SELF-HEALING: Sync ai_stage / ai_decision from llm_audit_log
   // Uses the simpler convention: stage = highest completed stage N (no +1).
   // ─────────────────────────────────────────────────────────────────────────
+  // DISABLED: to prevent bloated startup and execution
+  /*
   try {
     const papersWithLogs = db.prepare(`
       SELECT DISTINCT paper_id, project_id 
@@ -1170,10 +1276,13 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     console.error("Failed to execute self-healing migration for AI stages:", e);
   }
+  */
 
   // ─────────────────────────────────────────────────────────────────────────
   // CORRECTIVE MIGRATION: Remove Human_* columns from papers table
   // ─────────────────────────────────────────────────────────────────────────
+  // DISABLED: to prevent bloated startup and execution
+  /*
   try {
     const isRemoveDone = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_REMOVE_HUMAN_COLS_FROM_PAPERS_DONE'").get() as { value: string } | undefined;
     if (!isRemoveDone || isRemoveDone.value !== 'true') {
@@ -1236,6 +1345,7 @@ export function initializeDatabase(db: Database.Database): void {
   } catch (e) {
     console.error("Failed to execute corrective migration to remove Human_* columns:", e);
   }
+  */
 }
 
 

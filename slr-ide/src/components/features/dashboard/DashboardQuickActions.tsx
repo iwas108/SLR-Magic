@@ -1,38 +1,21 @@
 import React from 'react';
-import { Plus, Settings, RefreshCw, LayoutDashboard, Globe, ExternalLink, Sparkles } from 'lucide-react';
+import { Plus, Settings, RefreshCw, LayoutDashboard, Globe, ExternalLink, Sparkles, Play } from 'lucide-react';
 
 interface DashboardQuickActionsProps {
   activeProject: any;
   setShowCreateProjectModal: (val: boolean) => void;
   openProjectSettings: (proj: any) => void;
   showToast: (msg: string, type: 'success' | 'error' | 'info' | 'warning') => void;
+  setActiveTab: (tab: string) => void;
 }
 
 export default function DashboardQuickActions({
   activeProject,
   setShowCreateProjectModal,
   openProjectSettings,
-  showToast
+  showToast,
+  setActiveTab
 }: DashboardQuickActionsProps) {
-  const handleTriggerQuickSync = async () => {
-    if (!activeProject) {
-      showToast('No active project selected', 'warning');
-      return;
-    }
-    showToast(`Initializing background sync for ${activeProject.name}...`, 'info');
-    try {
-      const res = await fetch('/api/sync/rclone', { method: 'POST' });
-      if (res.ok) {
-        showToast('Rclone synchronization process dispatched successfully', 'success');
-      } else {
-        const data = await res.json().catch(() => ({}));
-        showToast(data.error || 'Failed to dispatch Rclone sync', 'error');
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Failed to dispatch Rclone sync', 'error');
-    }
-  };
-
   return (
     <div className="bg-card border border-border rounded-xl shadow-md p-6 space-y-4 w-full">
       <div className="flex items-center justify-between border-b border-border pb-3">
@@ -86,19 +69,19 @@ export default function DashboardQuickActions({
           </div>
         </button>
 
-        {/* Dispatch Background Sync Button */}
+        {/* Link to Data Acquisition Pipeline Button */}
         <button
           type="button"
-          onClick={handleTriggerQuickSync}
+          onClick={() => setActiveTab('pipeline-data-acquisition')}
           className="p-4 bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20 rounded-xl flex flex-col items-start gap-2.5 transition-all text-left shadow-sm hover:shadow group"
         >
           <div className="w-9 h-9 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
-            <RefreshCw className="w-5 h-5" />
+            <Play className="w-5 h-5" />
           </div>
           <div>
-            <h4 className="font-bold text-xs text-foreground group-hover:text-emerald-500 transition-colors">Force Cloud Harmonization</h4>
+            <h4 className="font-bold text-xs text-foreground group-hover:text-emerald-500 transition-colors">Data Acquisition Pipeline</h4>
             <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-              Manually invoke Rclone background synchronizer for the active project scope.
+              Navigate to the automated PDF acquisition, OCR index, and cloud sync console.
             </p>
           </div>
         </button>

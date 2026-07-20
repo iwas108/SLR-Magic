@@ -130,7 +130,7 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
 
   return (
     <div className="flex flex-col gap-4 shrink-0">
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Active Project Card */}
         <div className="bg-card border border-border p-4 rounded-xl flex items-center justify-between shadow-sm relative overflow-hidden group">
           <div className="space-y-1 z-10">
@@ -166,21 +166,6 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
           </div>
         </div>
 
-        {/* PDF Acquisition Card */}
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
-          <div className="flex items-center justify-between z-10 mb-1">
-            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">PDF Acquisition</span>
-            <TrendingUp className="w-4 h-4 text-amber-500/70" />
-          </div>
-          <div className="z-10 flex items-baseline gap-2">
-            <h4 className="font-bold text-lg text-foreground font-mono">{stats.acquired}</h4>
-            <span className="text-[10px] text-muted-foreground">/ {stats.total} ({acquiredPct}%)</span>
-          </div>
-          <div className="w-full bg-secondary rounded-full h-1.5 mt-2 overflow-hidden z-10">
-            <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${acquiredPct}%` }} />
-          </div>
-        </div>
-
         {/* Budget & Spend Card */}
         <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
           <div className="flex items-center justify-between z-10 mb-1">
@@ -197,9 +182,10 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Row 1: Stage 1 and Stage 2 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Stage 1 Metrics Card */}
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-start shadow-sm relative overflow-hidden group">
           <div className="flex items-center justify-between z-10 mb-1">
             <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Stage 1: Fast Filter Metrics</span>
             <PieChart className="w-4 h-4 text-blue-500/70" />
@@ -208,16 +194,19 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
         </div>
 
         {/* Stage 2 Metrics Card */}
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-start shadow-sm relative overflow-hidden group">
           <div className="flex items-center justify-between z-10 mb-1">
             <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Stage 2: Gatekeeper Metrics</span>
             <PieChart className="w-4 h-4 text-purple-500/70" />
           </div>
           {renderStageBar(stage2, false)}
         </div>
+      </div>
 
+      {/* Row 2: Stage 3 and Stage 4 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Stage 3 Metrics Card */}
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-start shadow-sm relative overflow-hidden group">
           <div className="flex items-center justify-between z-10 mb-1">
             <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Stage 3: Scientist Metrics</span>
             <PieChart className="w-4 h-4 text-amber-500/70" />
@@ -226,7 +215,7 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
         </div>
 
         {/* Stage 4 Metrics Card */}
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
+        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-start shadow-sm relative overflow-hidden group">
           <div className="flex items-center justify-between z-10 mb-1">
             <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Stage 4: Miner Metrics</span>
             <PieChart className="w-4 h-4 text-rose-500/70" />

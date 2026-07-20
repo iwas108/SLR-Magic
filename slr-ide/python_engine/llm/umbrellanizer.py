@@ -12,7 +12,6 @@ from llm.database import execute_read, execute_write, execute_read_one
 from llm.client import GeminiClient
 from llm.schema_registry import validate_json_schema
 from llm.budget import estimate_cost, update_project_spend, get_model_pricing
-from llm.audit import log_interaction
 from llm.client import safe_json_loads
 
 # Configure logging
@@ -199,31 +198,6 @@ def main():
     )
 
     update_project_spend(project_id, actual_cost)
-
-    # Log interaction to LLM audit log for trace transparency
-    log_interaction(
-        paper_id=None,
-        project_id=project_id,
-        job_id=job_id,
-        interaction_id=response.get("interaction_id"),
-        previous_interaction_id=None,
-        model_id=model_id,
-        task_type="umbrellanizer",
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        thinking_tokens=thinking_tokens,
-        cached_tokens=cached_tokens,
-        cost_usd=actual_cost,
-        flex_discount=discount,
-        speed_mode=speed_mode,
-        raw_prompt=user_prompt,
-        raw_response=output_text,
-        response_schema_name="UmbrellanizerSchema",
-        structured_output=output_text,
-        status="SUCCESS",
-        latency_ms=response.get("latency_ms", 0),
-        retry_count=response.get("retry_count", 0)
-    )
 
     print(json.dumps({
         "status": "COMPLETED",

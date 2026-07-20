@@ -61,6 +61,7 @@ interface PreCalibrationViewProps {
   showInterRaterModal: boolean;
   setShowInterRaterModal: React.Dispatch<React.SetStateAction<boolean>>;
   handleExportCalPoolA: () => void;
+  activeSection: 'statistics' | 'papers';
 }
 
 export default function PreCalibrationView({
@@ -70,7 +71,8 @@ export default function PreCalibrationView({
   calibrationHook,
   showInterRaterModal,
   setShowInterRaterModal,
-  handleExportCalPoolA
+  handleExportCalPoolA,
+  activeSection
 }: PreCalibrationViewProps) {
   const { projects, activeProjectId, activeProject } = projectsHook;
   const { paperModal, setPaperModal } = papersHook;
@@ -110,7 +112,6 @@ export default function PreCalibrationView({
     loadAssignPapers
   } = calibrationHook;
 
-  const [activeSection, setActiveSection] = useState<'statistics' | 'papers'>('statistics');
 
   const getActivePoolTags = (): { code: string; label: string }[] => {
     if (!activeProject || !activeProject.pool_tags) return [];
@@ -169,30 +170,6 @@ export default function PreCalibrationView({
   return (
     <>
       <div className="h-full flex flex-col overflow-hidden space-y-6 animate-in fade-in duration-200">
-        
-        {/* SECTION TAB SELECTOR */}
-        <div className="flex border-b border-border space-x-6 shrink-0">
-          <button
-            onClick={() => setActiveSection('statistics')}
-            className={`pb-3 text-sm font-bold tracking-wider uppercase border-b-2 transition-all ${
-              activeSection === 'statistics'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Statistics
-          </button>
-          <button
-            onClick={() => setActiveSection('papers')}
-            className={`pb-3 text-sm font-bold tracking-wider uppercase border-b-2 transition-all ${
-              activeSection === 'papers'
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Papers
-          </button>
-        </div>
 
         {activeSection === 'statistics' ? (
           <div className="flex-1 flex flex-col space-y-6 overflow-y-auto pr-1">

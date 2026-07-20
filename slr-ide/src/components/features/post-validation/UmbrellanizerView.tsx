@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Play, Loader2, HelpCircle, RotateCw, Copy, Check, X } from 'lucide-react';
+import { Play, Loader2, HelpCircle, RotateCw, Copy, Check, X, BarChart3 } from 'lucide-react';
 import { useUmbrellanizer } from '@/hooks/useUmbrellanizer';
 import UmbrellanizerWizard from './UmbrellanizerWizard';
+import QuickOverviewModal from './QuickOverviewModal';
 
 interface UmbrellanizerViewProps {
   projectId: string;
@@ -17,6 +18,7 @@ interface TooltipState {
 }
 
 export default function UmbrellanizerView({ projectId, showToast }: UmbrellanizerViewProps) {
+  const [showQuickOverview, setShowQuickOverview] = useState(false);
   const {
     minerPapers,
     umbrellaResults,
@@ -203,6 +205,14 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
             className="p-1.5 bg-secondary/35 hover:bg-secondary/70 disabled:opacity-40 disabled:cursor-not-allowed border border-border text-foreground rounded-lg transition-colors flex items-center justify-center shrink-0"
           >
             <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => setShowQuickOverview(true)}
+            disabled={loading || extractedKeys.length === 0}
+            className="px-4 py-2 bg-secondary hover:bg-secondary/80 disabled:opacity-40 disabled:cursor-not-allowed border border-border text-foreground font-bold rounded-lg text-xs flex items-center gap-2 shadow-sm transition-all select-none"
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            Quick Overview
           </button>
           <button
             onClick={() => setWizardStep(1)}
@@ -423,6 +433,17 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
           step={wizardStep}
           setStep={setWizardStep}
           onClose={() => setWizardStep(0)}
+        />
+      )}
+
+      {/* Quick Overview Modal */}
+      {showQuickOverview && (
+        <QuickOverviewModal
+          projectId={projectId}
+          papers={minerPapers}
+          extractedKeys={extractedKeys}
+          mappingsByKey={mappingsByKey}
+          onClose={() => setShowQuickOverview(false)}
         />
       )}
 

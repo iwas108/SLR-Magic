@@ -499,7 +499,7 @@ export function useCalibration({
         });
 
         await loadProjects();
-        if (activeTab === 'pre-calibration') {
+        if (activeTab?.startsWith('pre-calibration')) {
           await loadCalPapers();
         }
         if (showAssignModal) {
@@ -558,7 +558,7 @@ export function useCalibration({
 
   // Trigger calibration papers load
   useEffect(() => {
-    if (activeTab === 'pre-calibration') {
+    if (activeTab?.startsWith('pre-calibration')) {
       loadCalPapers();
       loadStageStats();
     }
@@ -690,13 +690,13 @@ export function useCalibration({
     const unsubscribe = subscribeSyncChannel((type) => {
       if (type === 'SYNC_PROJECTS') {
         loadProjectsRef.current();
-        if (activeTab === 'pre-calibration') {
+        if (activeTab?.startsWith('pre-calibration')) {
           loadStageStatsRef.current();
         }
       }
       if (type === 'SYNC_PAPERS') {
         loadPapersRef.current();
-        if (activeTab === 'pre-calibration') {
+        if (activeTab?.startsWith('pre-calibration')) {
           loadCalPapersRef.current();
           loadStageStatsRef.current();
         }

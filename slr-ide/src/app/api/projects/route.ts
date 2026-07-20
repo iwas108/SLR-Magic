@@ -390,7 +390,8 @@ export async function POST(request: Request) {
       reasoning_template,
       project_budget_limit,
       project_tax,
-      llm_config
+      llm_config,
+      rolling_batch_size
     } = body;
 
     if (!name || !name.trim()) {
@@ -427,11 +428,12 @@ export async function POST(request: Request) {
     const budgetLimit = project_budget_limit !== undefined ? parseFloat(project_budget_limit) : 5.0;
     const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
     const taxRate = project_tax !== undefined ? parseFloat(project_tax) : 0.0;
+    const rollingBatchSize = rolling_batch_size !== undefined ? parseInt(rolling_batch_size, 10) : 20;
 
-      db.prepare(`
+    db.prepare(`
       INSERT INTO projects (
-        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, project_tax, llm_config, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, project_tax, llm_config, rolling_batch_size, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       name.trim(),
@@ -457,6 +459,7 @@ export async function POST(request: Request) {
       budgetLimit,
       taxRate,
       llmConfigStr,
+      rollingBatchSize,
       new Date().toISOString()
     );
 
@@ -492,7 +495,8 @@ export async function PUT(request: Request) {
       pool_c_extraction_rules,
       project_budget_limit,
       project_tax,
-      llm_config
+      llm_config,
+      rolling_batch_size
     } = body;
 
     if (!id) {
@@ -519,6 +523,7 @@ export async function PUT(request: Request) {
     const budgetLimit = project_budget_limit !== undefined ? parseFloat(project_budget_limit) : 5.0;
     const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
     const taxRate = project_tax !== undefined ? parseFloat(project_tax) : 0.0;
+    const rollingBatchSize = rolling_batch_size !== undefined ? parseInt(rolling_batch_size, 10) : 20;
 
     db.prepare(`
       UPDATE projects
@@ -543,7 +548,8 @@ export async function PUT(request: Request) {
           pool_c_extraction_rules = ?,
           project_budget_limit = ?,
           project_tax = ?,
-          llm_config = ?
+          llm_config = ?,
+          rolling_batch_size = ?
       WHERE id = ?
     `).run(
       name.trim(),
@@ -568,6 +574,7 @@ export async function PUT(request: Request) {
       budgetLimit,
       taxRate,
       llmConfigStr,
+      rollingBatchSize,
       id
     );
 

@@ -97,7 +97,8 @@ This document tracks all new features, bug fixes, refactoring operations, and do
 | #092 | 2026-07-11 | UI/UX Improvement | slr-ide | Refactored Prompt Library edit form into a 3-tab layout (General & System, Prompt Template, JSON Schema) to optimize typing space. Added dynamic Jinja2 guidelines, a collapsible help panel (updated placeholders to match columns in papers table, changing PDF_URL to PDF_Link and removing Keywords), a format button, and integrated the `@uiw/react-json-view` library for rendering collapsible JSON syntax trees in audit logs. | Tabbed Prompt Editor, Jinja2 Help, Schema Assistant & UIW JSON Viewer |
 | #093 | 2026-07-11 | Feature | slr-ide | Built a premium Launch Confirmation Modal overlay in LLM Operations Center to display a comprehensive validation plan (stage taxonomy, model, selection range, credentials validation) and full scrollable text previews of System Instruction, User Template, and JSON output schema prior to starting runs. | Launch Stage Confirmation Modal & Verification Plan |
 | #094 | 2026-07-16 | Bug Fix | slr-ide | Updated the PDF deletion REST API (/api/pdf/delete) to completely delete PDF files from all locations (raw folder, downloads folder, and repo folder) when manually unlinking via the "Delete PDF" button to prevent self-healing matching loops. Added Agnostic BroadcastChannel sync call on successful deletion to update all open UI tabs. | Complete PDF Deletion & Sync |
+| #095 | 2026-07-20 | Bug Fix | slr-ide | Resolve issues in Final Cohort wide tabular view: adjusted column widths to provide enough space for headers, implemented custom event listener to auto-close tooltips on click/open, fixed Umbrellanizer matching by unwrapping values, merged logic_trace from llm_audit_log, and added original raw value to the visible cell copy tooltip. | Final Cohort Bug Fixes |
+| #096 | 2026-07-20 | Feature | slr-ide | Implemented dynamic column resizing with thin hover-active visual drag handles on all table columns of the Final Cohort Panel, persisting customized widths in localStorage scoped by project ID. | Final Cohort Column Resizing & Persistence |
+| #097 | 2026-07-20 | Cleanup | slr-ide | Removed the "Individual QA Criteria Points" filter options and its evaluation logic from the Final Cohort Panel. | Removed QA Criteria Filters |
 
- 
- 
- 
+

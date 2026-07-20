@@ -34,7 +34,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
   const extraction_rules = metadata.extraction_rules || metadata.extractionRules || [];
 
   const isPoolB = pool_type === 'CAL_Pool_B' || pool_type === 'pool_b';
-  const isPoolC = pool_type === 'CAL_Pool_C' || pool_type === 'pool_c';
+  const isPoolC = pool_type === 'CAL_Pool_C' || pool_type === 'pool_c' || pool_type === 'QC_Batch';
 
   return (
     <div className="container mx-auto px-4 mt-4 pb-12">

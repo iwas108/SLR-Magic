@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, ChevronUp, ChevronDown } from 'lucide-react';
 
 import Sidebar from '@/components/Sidebar';
 import DashboardView from '../components/features/DashboardView';
@@ -12,6 +12,7 @@ import PipelineExecutionView from '../components/features/PipelineExecutionView'
 import PostValidationView from '../components/features/PostValidationView';
 import FullscreenAssignModal from '../components/features/modals/FullscreenAssignModal';
 import FullscreenInterRaterModal from '../components/features/modals/FullscreenInterRaterModal';
+import InsightExportView from '../components/features/InsightExportView';
 import MinimizedPipelineBanner from '../components/features/dashboard/MinimizedPipelineBanner';
 import ToastNotifications from '../components/features/dashboard/ToastNotifications';
 import GlobalModals from '../components/features/GlobalModals';
@@ -25,7 +26,9 @@ import { useManualScreening } from '@/hooks/useManualScreening';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [showImport, setShowImport] = useState(false);
+  const [cohortSearchTerm, setCohortSearchTerm] = useState('');
+  const [cohortShowFilters, setCohortShowFilters] = useState(false);
+  const [cohortActiveFiltersCount, setCohortActiveFiltersCount] = useState(0);
   const [showInterRaterModal, setShowInterRaterModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [theme, setTheme] = useState('dark');
@@ -285,6 +288,39 @@ export default function DashboardPage() {
             </h2>
             <p className="text-[10px] text-muted-foreground font-medium">Stage 1: Reference Ingestion & matching workflows</p>
           </div>
+
+          {activeTab === 'insight-export-cohort' && (
+            <div className="flex items-center gap-3 w-[50%] max-w-lg">
+              <div className="flex-1 relative">
+                <Search className="w-3.5 h-3.5 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search cohort by ID, Title, Authors, or Abstract..."
+                  value={cohortSearchTerm}
+                  onChange={(e) => setCohortSearchTerm(e.target.value)}
+                  className="w-full bg-secondary/35 border border-border rounded-lg pl-9 pr-4 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-medium"
+                />
+              </div>
+
+              <button
+                onClick={() => setCohortShowFilters(!cohortShowFilters)}
+                className={`px-3 py-1.5 border rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors shrink-0 ${
+                  cohortShowFilters || cohortActiveFiltersCount > 0
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-secondary text-foreground border-border hover:bg-secondary/80'
+                }`}
+              >
+                <Filter className="w-3.5 h-3.5" />
+                Advanced Filters
+                {cohortActiveFiltersCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-background/25 text-[10px] font-bold">
+                    {cohortActiveFiltersCount}
+                  </span>
+                )}
+                {cohortShowFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
+          )}
         </header>
 
         <div className="flex-1 overflow-hidden p-6 relative">
@@ -303,14 +339,16 @@ export default function DashboardPage() {
               deleteProjectConfirmationText={deleteProjectConfirmationText}
               setDeleteProjectConfirmationText={setDeleteProjectConfirmationText}
               editingProject={editingProject}
+              setActiveTab={setActiveTab}
               projectsHook={{
                 ...projectsHook,
                 createProject: handleCreateProject,
                 updateProject: handleSaveProject
               }}
             />
-          ) : activeTab === 'pre-calibration' ? (
+          ) : (activeTab === 'pre-calibration-statistics' || activeTab === 'pre-calibration-papers') ? (
             <PreCalibrationView
+              activeSection={activeTab === 'pre-calibration-statistics' ? 'statistics' : 'papers'}
               showToast={showToast}
               projectsHook={projectsHook}
               papersHook={papersHook}
@@ -319,7 +357,7 @@ export default function DashboardPage() {
               setShowInterRaterModal={setShowInterRaterModal}
               handleExportCalPoolA={handleExportCalPoolA}
             />
-          ) : activeTab === 'full-execution' ? (
+          ) : (activeTab === 'full-execution' || activeTab.startsWith('pipeline-')) ? (
             <PipelineExecutionView
               projectsHook={projectsHook}
               showToast={showToast}
@@ -328,15 +366,39 @@ export default function DashboardPage() {
               manualScreeningHook={manualScreeningHook}
               preSelectedPaperIds={preSelectedPaperIds}
               setPreSelectedPaperIds={setPreSelectedPaperIds}
+              activeSection={
+                activeTab === 'pipeline-llm-operations' ? 'llm' :
+                activeTab === 'pipeline-manual-screening' ? 'manual' :
+                activeTab === 'pipeline-remote-workers' ? 'workers' :
+                'acquisition'
+              }
+              onSectionChange={(section) => {
+                setActiveTab(`pipeline-${section === 'acquisition' ? 'data-acquisition' : section === 'llm' ? 'llm-operations' : section === 'manual' ? 'manual-screening' : 'remote-workers'}`);
+              }}
             />
-          ) : activeTab === 'post-validation' ? (
+          ) : (activeTab === 'post-validation-umbrellanizer' || activeTab === 'post-validation-rolling-batch') ? (
             <PostValidationView
+              activeSubTab={activeTab === 'post-validation-umbrellanizer' ? 'umbrellanizer' : 'rolling-batch'}
               projectId={activeProjectId || ''}
               showToast={showToast}
             />
-          ) : showImport ? (
+          ) : (activeTab === 'insight-export-accounting' || activeTab === 'insight-export-rigor' || activeTab === 'insight-export-cohort' || activeTab === 'insight-export-fair-data' || activeTab === 'insight-export-gold-mine') ? (
+            <InsightExportView
+              activeTab={activeTab}
+              projectId={activeProjectId || ''}
+              showToast={showToast}
+              searchTerm={cohortSearchTerm}
+              setSearchTerm={setCohortSearchTerm}
+              showFilters={cohortShowFilters}
+              setShowFilters={setCohortShowFilters}
+              activeFiltersCount={cohortActiveFiltersCount}
+              setActiveFiltersCount={setCohortActiveFiltersCount}
+            />
+          ) : activeTab === 'paper-database-ingestion' ? (
             <IngestionHubView
-              setShowImport={setShowImport}
+              setShowImport={(show) => {
+                if (!show) setActiveTab('paper-database-raw');
+              }}
               showToast={showToast}
               papers={papersHook.papers}
               loadPapers={loadPapers}
@@ -361,7 +423,9 @@ export default function DashboardPage() {
               setPipelineStatusFilter={papersHook.setPipelineStatusFilter}
               ecTriggerFilter={papersHook.ecTriggerFilter}
               setEcTriggerFilter={papersHook.setEcTriggerFilter}
-              setShowImport={setShowImport}
+              setShowImport={(show) => {
+                if (show) setActiveTab('paper-database-ingestion');
+              }}
               setDeleteAllConfirm={papersHook.setDeleteAllConfirm}
               cloudName={projects.find((p: any) => String(p.id) === String(activeProjectId))?.cloud_provider === 'onedrive' ? 'OneDrive' : 'Google Drive'}
               loadingPapers={papersHook.loadingPapers}

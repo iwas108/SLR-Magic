@@ -1,5 +1,128 @@
 # SLR IDE Improvements Log
 
+## #247 - Documented Stage 3 Rolling Batch "Agreement" Calculation Mechanics (2026-07-21)
+- **Goal**: Clarify and formally document how "Agreement" is defined in the Stage 3 Rolling Batch Validation metric, following an audit of paper `George_2025_ExplainableDigi_1a630` which appeared to conflict with the reported 100% agreement result (second reviewer gave Exclude while AI gave INCLUDE).
+- **Finding**: "Agreement" in Stage 3 is **ordinal QA score proximity**, NOT an Include/Exclude decision label match. The stats engine compares each of the 8 QA dimension scores (AI vs Gold Standard) independently. A pair is classified as *agreement* when `|ai_score - gold_score| < 1.0`, and as a *critical miss* only when `|ai_score - gold_score| >= 1.0`. A 0.5-point ordinal deviation (e.g., AI scores 1.0, human scores 0.5) is explicitly permitted and counts as agreement. Two raters can hold opposing final Include/Exclude decisions while contributing 100% QA agreement if their per-dimension scores are all within the 0.5-point tolerance band.
+- **Root Cause of Apparent Mismatch**: The paper in question had AI total QA = 4.5 (→ INCLUDE at boundary) vs human total QA = 4.0 (→ Exclude below threshold), driven by a single 0.5-point gap on QA2. Since 0.5 < 1.0, all 8 QA pairs counted as agreement, producing 100% agreement and 0% critical miss — which is the correct and expected result per the methodology.
+- **Changes**:
+  - Modified [methodology.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/methodology.md): Added new sub-section §2.3.1 "Stage 3 Agreement Definition (Ordinal QA Proximity — NOT Decision Label)" with the per-pair classification rule table, all aggregate formula definitions, the exit threshold conditions, and the QA key schema mapping note (AI uses `qa1_aims`-style keys; human uses `QA1`-style short codes; matched via case-insensitive prefix logic).
+  - Modified [stats/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/stats/route.ts): Added prominent JSDoc block and inline comments on the Stage 3 agreement loop explaining the ordinal-proximity rule, the QA key schema difference, and the critical miss threshold.
+- **Verification**: No code logic changed — documentation only. Compilation state unchanged.
+
+## #246 - Fixed Pre-Calibration Filling Status Stats Loading (2026-07-21)
+- **Goal**: Fix bug where "Pre-Calibration Filling Status" cards in the Scientific Rigor panel were not loading the paper counts correctly.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/projects/%5Bid%5D/route.ts): Updated the single project GET endpoint to query and attach the project's statistics (specifically the `pool_a_count`, `pool_b_count`, and `pool_c_count` values from `calibration_papers`) to the response object, aligning it with how the projects list page computes stats.
+- **Verification**: Verified successfully with `npx tsc --noEmit`.
+
+## #245 - Prisma Diagram Configuration Modal & Export Upgrade (2026-07-21)
+- **Goal**: Implement a configuration modal for customizing the PRISMA flowchart (collapsing empty columns, monochrome themes, custom fonts, spacing) and high-resolution scaling for print export.
+- **Changes**:
+  - Created [PrismaConfigModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/PrismaConfigModal.tsx): Configurable React form containing toggles for collapsing the right column, changing the theme to monochrome, choosing fonts/base sizes, and choosing box padding, border radius, and export scale (up to 4x Print/300DPI).
+  - Modified [PrismaFlowDiagram.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/PrismaFlowDiagram.tsx): Integrated the config modal, set up localStorage persistence, dynamically re-calculated x/y/width coordinates when column is collapsed, and used HTML5 backing store scaling (`exportScale`) for high-resolution PNG export.
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/files.md): Documented the new config modal component.
+- **Verification**: Verified successfully with `npx tsc --noEmit`.
+
+## #244 - PRISMA 2020 Flowchart Implementation (2026-07-20)
+- **Goal**: Implement a publication-ready, downloadable, dynamic PRISMA 2020 flowchart inside the Scientific Rigor panel, auto-populated from active project database tables.
+- **Changes**:
+  - Created [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/insight/prisma/route.ts): API route that queries the project's papers to calculate 20 detailed study identification, screening, and exclusion parameters. Supports grouping database papers by their `Source`, filtering other methods by snowballing types, and breaking down exclusions by Stage 1 & 2 EC codes and Stage 3 QA gates.
+  - Created [PrismaFlowDiagram.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/PrismaFlowDiagram.tsx): Canvas-based component that draws the complete standard two-column PRISMA diagram. Implemented toggles for "Academic Style" (clean white background) and "App Theme Style" (dark/light mode aware) along with full-resolution PNG downloading.
+  - Modified [ScientificRigorPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/ScientificRigorPanel.tsx): Mounted the `PrismaFlowDiagram` component at the top of the scientific rigor panel.
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/files.md): Documented the new API endpoint and React components.
+- **Verification**: Verified workspace compilation with `npx tsc --noEmit`.
+
+## #243 - Removed Individual QA Criteria Points Filter from Final Cohort (2026-07-20)
+- **Goal**: Remove individual QA criteria points filter control from the Final Cohort filtering options.
+- **Changes**:
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Removed the `selectedQaItemFilters` state, the corresponding selector column UI elements, filter count computation dependencies, and its evaluation loop.
+- **Verification**: Verified compilation successfully with `npx tsc --noEmit`.
+
+## #242 - Removed Internal Tabs Header from Pipeline Execution View (2026-07-20)
+- **Goal**: Remove redundant internal tabs header from the Pipeline Execution View since the sub-items are now fully integrated and navigated directly via the left sidebar.
+- **Changes**:
+  - Modified [PipelineExecutionView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PipelineExecutionView.tsx): Deleted the redundant header tab bar elements.
+- **Verification**: Verified compilation successfully with `npx tsc --noEmit`.
+
+## #241 - Left Sidebar Expanded Submenus for Paper Database & Pipeline Execution (2026-07-20)
+- **Goal**: Expand "Paper Database" and "Pipeline Execution" menus in the left sidebar to host nested child items for a more granular workflow experience.
+- **Changes**:
+  - Modified [Sidebar.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/Sidebar.tsx): Added nested children mapping to the `paper-database` parent item (Ingestion Hub, Raw Data) and the `full-execution` parent item (Data Acquisition, LLM Operations, Manual Screening, Remote Workers). Enabled `paper-database` and `full-execution` expanded states by default.
+  - Modified [PipelineExecutionView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PipelineExecutionView.tsx): Exposed `activeSection` and `onSectionChange` props to coordinate internal tabs switching with sidebar sub-item highlights.
+  - Modified [page.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/page.tsx): Updated rendering selectors and callbacks; removed obsolete `showImport` state variable in favor of declarative `activeTab` states.
+- **Verification**: Verified compilation successfully with `npx tsc --noEmit`.
+
+## #240 - Fixed Pre-Calibration Statistics & Papers Data Loading Mismatch (2026-07-20)
+- **Goal**: Fix bugs in Pre-Calibration view where the statistics tab shows no card (or placeholders) and the papers tab is stuck on "Loading calibration data...".
+- **Changes**:
+  - Modified [useCalibration.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useCalibration.ts): Replaced strict `activeTab === 'pre-calibration'` checks with `activeTab?.startsWith('pre-calibration')` so that calibration data and stage statistics are successfully fetched and synchronized when navigating to `pre-calibration-statistics` or `pre-calibration-papers`.
+- **Verification**: Verified workspace compilation with `npx tsc --noEmit` which completed successfully with zero build errors.
+
+## #239 - Final Cohort Interactive Column Width Resizing & LocalStorage Persistence (2026-07-20)
+- **Goal**: Add drag-to-resize columns in the Final Cohort table and save widths to localStorage on a per-project basis.
+- **Changes**:
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx):
+    - Added mouse event handlers to dynamically scale columns within clamped limits (40px to 500px) when dragging headers.
+    - Implemented persistence in localStorage scoped by `projectId` (`slr_cohort_column_widths_${projectId}`).
+    - Replaced tailwind class-based column widths on `th` and `td` with dynamic inline styles.
+    - Integrated thin resizer handle overlays at the right boundaries of table headers.
+- **Verification**: Verified compilation with `npx tsc --noEmit` completing successfully with zero build errors.
+
+## #238 - Final Cohort Bug Fixes & Wide Tabular View Enhancements (2026-07-20)
+- **Goal**: Resolve issues with Final Cohort wide tabular view regarding column widths, tooltip behaviors, logic traces, and Umbrellanizer justification matching.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/insight/final-cohort/route.ts): Joined and merged the `logic_trace` from `llm_audit_log` into the returned `ai_quality_assessment` payload to show logic trace for QA checklist items.
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx):
+    - Adjusted standard column widths to match Google Sheets default cell dimensions (e.g. w-[70px] for ID, w-[150px] for Title, w-[100px] for Authors, w-[60px] for Year, w-[80px] for DOI, w-[100px] for Publisher, w-[90px] for Overall QA, w-[120px] for dynamic QA keys, and w-[180px] for dynamic extracted keys) ensuring headers do not wrap or truncate.
+    - Implemented a custom event listener (`close-all-tooltips`) inside the `ClickableCell` component to close any other open tooltips immediately when a new one is opened.
+    - Updated `getUmbrellanizerJustification` helper to correctly unwrap values from object representations with a `value` property, enabling correct match of taxonomy justifications.
+    - Added `getOriginalExtractedVal` helper and updated `ClickableCell` to display the original raw extracted value inside the value copy tooltip if it differs from the mapped category.
+- **Verification**: Verified compilation with `npx tsc --noEmit` completing successfully with zero build errors.
+
+## #237 - Final Cohort UI/UX Refactoring & Wide Tabular View (2026-07-20)
+- **Goal**: Optimize viewport efficiency in the Final Cohort tab and transition the papers display to a wide, Google Sheets-style spreadsheet layout.
+- **Changes**:
+  - Modified [page.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/page.tsx): Moved Final Cohort search and filter controls from the panel body to the main page header.
+  - Modified [InsightExportView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/InsightExportView.tsx): Hooked up state props delegation from page header to cohort panel.
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/insight/final-cohort/route.ts): Selected the missing stage columns (`ai_stage`, `manual_stage`), `Publisher`, `Original_Publisher`, and `citation_count` from SQLite db.
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx):
+    - Removed inline filter bar, implemented wide spreadsheet table layout with highly compact column widths (80px for ID, 180px for Title, 60px for QA, etc.) to match Google Sheets.
+    - Fixed `Overall_QA` scores by introducing Stage Dominance float-parsing rules that handle stringified fractions (e.g. `"1.0"`, `"0.5"`) correctly.
+    - Integrated a custom `ClickableCell` component on all data fields, truncating cell contents into one line by default, keeping row heights condensed. Removed cell expand-on-click behaviour.
+    - Added an automatic document `mousedown` listener to close the active copy popover immediately if a user clicks outside the cell area or selects another popup.
+    - Corrected the QA logic trace lookup to map the correct `appraisal_reasoning` sub-keys (`k + "_analysis"`) nested inside quality appraisals.
+    - Corrected the taxonomy justification resolver to extract the raw extracted variables from the database JSON string before checking the mapping tables.
+    - Added sorting indicators next to every column title. Implemented a `useMemo` client-side sorting function to order papers dynamically by clicking the headers.
+- **Verification**: Verified compilation with `npx tsc --noEmit` completing successfully with zero build errors.
+
+## #236 - Removed Duplicated Umbrellanizer Audit Logging (2026-07-20)
+- **Goal**: Prevent duplicate and unnecessary insertion of Umbrellanizer run data into `llm_audit_log` (since Umbrellanizer already records mappings directly inside `umbrellanizer_results`).
+- **Changes**:
+  - Modified [umbrellanizer.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/umbrellanizer.py): Removed the `log_interaction` call which wrote Umbrellanizer inputs, outputs, and `UmbrellanizerSchema` into `llm_audit_log`. Removed the unused `log_interaction` import.
+- **Verification**: Confirmed script syntax cleanliness and verified workspace builds successfully.
+
+## #235 - Post-Validation Rolling Batch Engine Integration (2026-07-19)
+- **Goal**: Implement the Post-Validation Rolling Batch validation workflow to enforce sliding quality control audits on Scientist and Miner stages.
+- **Changes**:
+  - Modified [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts): Registered rolling batch schema tables (`rolling_batches`, `rolling_batch_papers`, `rolling_batch_reviewer_decisions`, `rolling_batch_commit_ledger`) and ran fallback migrations adding `rolling_batch_size` column to `projects`.
+  - Created API Endpoints:
+    - [initialize/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/initialize/route.ts): Handles rolling validation queueing and paper snapshots.
+    - [status/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/status/route.ts): Returns status logs and timeline metrics.
+    - [export/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/export/route.ts): Generates blinded template exports.
+    - [import/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Consumes completed reviewer feedback and calculates consensus agreements.
+    - [adjudicate/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/adjudicate/route.ts): Performs consensus updates on discrepancy rows.
+    - [decisions/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/decisions/route.ts): Exposes reviewer splits and ledger audits.
+    - [stats/route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/stats/route.ts): Computes Kappa, CI lower bounds, Critical Misses, and Semantic Agreement metrics.
+  - Created React Hooks & Views:
+    - [useRollingBatch.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useRollingBatch.ts): Custom React state controller hook.
+    - [RollingBatchView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchView.tsx): Orchestrates layouts, slot drops, and discrepancy lists. Modified onSuccess callback of the Adjudication modal to persist modal view state rather than auto-closing, and added a useEffect to rehydrate the active `selectedDiscrepancy` from reloaded batch records.
+    - [BatchStatisticsCards.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/BatchStatisticsCards.tsx): Visualizes sequential audit stopping rules and target thresholds.
+    - [RollingBatchAdjudicationModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchAdjudicationModal.tsx): Split-pane modal for conflict resolution. Added `localDiscrepancies` snapshot state to preserve pagination indices when resolved papers are dynamically filtered out of the active parent list.
+    - [BatchImportSlot.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/BatchImportSlot.tsx): Import card widget.
+  - Modified [PostValidationView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PostValidationView.tsx): Rendered `RollingBatchView` inside the sub-tab panel.
+  - Modified [CreateProjectModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/CreateProjectModal.tsx), [ProjectSettingsModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/ProjectSettingsModal.tsx), and [ProjectCalibrationSettings.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/settings/ProjectCalibrationSettings.tsx): Integrated the customizable `rolling_batch_size` target settings.
+- **Verification**: Verified compilation with `npx tsc --noEmit` and logged updates.
+
 ## #234 - Post-Validation Umbrellanizer Engine Integration (2026-07-19)
 - **Goal**: Implement token taxonomy normalization workflow to group raw extracted tokens under Miner stage into unified category labels.
 - **Changes**:

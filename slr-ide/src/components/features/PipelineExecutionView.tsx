@@ -33,6 +33,8 @@ interface PipelineExecutionViewProps {
   manualScreeningHook: any;
   preSelectedPaperIds?: string[];
   setPreSelectedPaperIds?: React.Dispatch<React.SetStateAction<string[]>>;
+  activeSection?: 'acquisition' | 'llm' | 'manual' | 'workers';
+  onSectionChange?: (section: 'acquisition' | 'llm' | 'manual' | 'workers') => void;
 }
 
 export default function PipelineExecutionView({
@@ -42,7 +44,9 @@ export default function PipelineExecutionView({
   pipelineHook,
   manualScreeningHook,
   preSelectedPaperIds,
-  setPreSelectedPaperIds
+  setPreSelectedPaperIds,
+  activeSection,
+  onSectionChange
 }: PipelineExecutionViewProps) {
   const { activeProject, loadProjects } = projectsHook;
   const {
@@ -70,14 +74,21 @@ export default function PipelineExecutionView({
   const isScraperLocked = isLocked && !operationModal?.isExecuting;
 
   const [activeTab, setActiveTab] = useState<'acquisition' | 'llm' | 'manual' | 'workers'>(
-    preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'llm' : 'acquisition'
+    activeSection || (preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'llm' : 'acquisition')
   );
+
+  useEffect(() => {
+    if (activeSection) {
+      setActiveTab(activeSection);
+    }
+  }, [activeSection]);
 
   useEffect(() => {
     if (preSelectedPaperIds && preSelectedPaperIds.length > 0) {
       setActiveTab('llm');
+      if (onSectionChange) onSectionChange('llm');
     }
-  }, [preSelectedPaperIds]);
+  }, [preSelectedPaperIds, onSectionChange]);
 
   let statsFound = 0;
   let statsNotFound = 0;
@@ -106,54 +117,6 @@ export default function PipelineExecutionView({
 
   return (
     <div className="h-full flex flex-col gap-6 animate-in fade-in duration-300 relative">
-      {/* Top Bar for Tabs */}
-      <div className="flex border-b border-border/80 text-[11px] font-bold uppercase tracking-wider gap-6 pb-0.5 select-none shrink-0">
-        <button
-          onClick={() => setActiveTab('acquisition')}
-          className={`flex items-center gap-2 pb-2 transition-all relative ${
-            activeTab === 'acquisition'
-              ? 'text-foreground border-b-2 border-primary font-black'
-              : 'text-muted-foreground hover:text-foreground font-semibold'
-          }`}
-        >
-          <Database className="w-4 h-4" />
-          Data Acquisition Pipeline
-        </button>
-        <button
-          onClick={() => setActiveTab('llm')}
-          className={`flex items-center gap-2 pb-2 transition-all relative ${
-            activeTab === 'llm'
-              ? 'text-foreground border-b-2 border-primary font-black'
-              : 'text-muted-foreground hover:text-foreground font-semibold'
-          }`}
-        >
-          <BrainCircuit className="w-4 h-4" />
-          LLM Pipeline Operations
-        </button>
-        <button
-          onClick={() => setActiveTab('manual')}
-          className={`flex items-center gap-2 pb-2 transition-all relative ${
-            activeTab === 'manual'
-              ? 'text-foreground border-b-2 border-primary font-black'
-              : 'text-muted-foreground hover:text-foreground font-semibold'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          Manual Screening Pipeline
-        </button>
-        <button
-          onClick={() => setActiveTab('workers')}
-          className={`flex items-center gap-2 pb-2 transition-all relative ${
-            activeTab === 'workers'
-              ? 'text-foreground border-b-2 border-primary font-black'
-              : 'text-muted-foreground hover:text-foreground font-semibold'
-          }`}
-        >
-          <Server className="w-4 h-4" />
-          Remote Workers
-        </button>
-      </div>
-
       {/* Main Content Area */}
       <div className="flex-1 min-h-0">
         {activeTab === 'acquisition' && (

@@ -9,7 +9,7 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
   const data = JSON.parse(jsonText);
   const updates = {};
 
-  const isPoolC = session?.poolType === 'CAL_Pool_C' || session?.poolType === 'pool_c';
+  const isPoolC = session?.poolType === 'CAL_Pool_C' || session?.poolType === 'pool_c' || session?.poolType === 'QC_Batch';
 
   // 1. Parse decision, exclusion code, reasoning
   let decision = null;

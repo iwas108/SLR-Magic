@@ -56,7 +56,7 @@ export const StorageService = {
             if (!decision) return false;
             
             // Basic validation
-            const hasBasic = decision && (poolType === 'CAL_Pool_C' || 
+            const hasBasic = decision && (poolType === 'CAL_Pool_C' || poolType === 'pool_c' || poolType === 'QC_Batch' || 
                              ((app.Human_Rationale || app.Reviewer_Reasoning) && 
                               String(app.Human_Rationale || app.Reviewer_Reasoning).trim() !== ''));
             
@@ -70,7 +70,7 @@ export const StorageService = {
 
             // Stage 2.2/2.3 / CAL_Pool_C dynamic check validation:
             if (decision === 'Include') {
-              if (poolType === 'CAL_Pool_C') {
+              if (poolType === 'CAL_Pool_C' || poolType === 'pool_c' || poolType === 'QC_Batch') {
                 const qaRules = session.metadata?.qa_rules || session.metadata?.qaRules || [];
                 const qaScores = app.Human_QA_Scores || {};
                 for (const rule of qaRules) {

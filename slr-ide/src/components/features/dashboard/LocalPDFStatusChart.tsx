@@ -7,10 +7,14 @@ interface LocalPDFStatusChartProps {
 
 export default function LocalPDFStatusChart({ activeProject }: LocalPDFStatusChartProps) {
   const stats = activeProject?.stats || { total: 0, acquired: 0, synced: 0, duplicates: 0 };
-  const pendingAcquisition = Math.max(0, stats.total - stats.acquired);
+  const stageStats = activeProject?.stats?.stageStats || {};
+  const stage1 = stageStats['1'] || { included: 0, excluded: 0, unprocessed: 0, total: 0 };
+  const targetPapers = stage1.included || 0;
+
+  const pendingAcquisition = Math.max(0, targetPapers - stats.acquired);
   const pendingSync = Math.max(0, stats.acquired - stats.synced);
 
-  const acquiredPct = stats.total > 0 ? Math.round((stats.acquired / stats.total) * 100) : 0;
+  const acquiredPct = targetPapers > 0 ? Math.round((stats.acquired / targetPapers) * 100) : 0;
   const syncedPct = stats.acquired > 0 ? Math.round((stats.synced / stats.acquired) * 100) : 0;
 
   return (
@@ -36,14 +40,14 @@ export default function LocalPDFStatusChart({ activeProject }: LocalPDFStatusCha
               <HardDrive className="w-4 h-4 text-emerald-500" />
               <span>Local Cached Assets</span>
             </div>
-            <span className="text-xs font-mono font-bold text-emerald-500">{stats.acquired} / {stats.total}</span>
+            <span className="text-xs font-mono font-bold text-emerald-500">{stats.acquired} / {targetPapers}</span>
           </div>
           <div className="space-y-1">
             <div className="w-full bg-secondary rounded-full h-2 overflow-hidden border border-border/30">
               <div className="bg-emerald-500 h-2 rounded-full transition-all duration-500" style={{ width: `${acquiredPct}%` }} />
             </div>
             <p className="text-[10px] text-muted-foreground pt-1">
-              {pendingAcquisition > 0 ? `${pendingAcquisition} papers pending scraper acquisition` : 'All project papers successfully acquired locally.'}
+              {pendingAcquisition > 0 ? `${pendingAcquisition} papers pending scraper acquisition` : 'All fast filter included papers successfully acquired locally.'}
             </p>
           </div>
         </div>

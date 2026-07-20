@@ -24,6 +24,7 @@ interface DashboardViewProps {
   setDeleteProjectConfirmationText: React.Dispatch<React.SetStateAction<string>>;
   
   editingProject: any;
+  setActiveTab: (tab: string) => void;
   projectsHook: {
     projects: any[];
     activeProjectId: string;
@@ -52,6 +53,7 @@ export default function DashboardView({
   deleteProjectConfirmationText,
   setDeleteProjectConfirmationText,
   editingProject,
+  setActiveTab,
   projectsHook
 }: DashboardViewProps) {
   const {
@@ -88,6 +90,7 @@ export default function DashboardView({
           setShowCreateProjectModal={setShowCreateProjectModal}
           openProjectSettings={openProjectSettings}
           showToast={showToast}
+          setActiveTab={setActiveTab}
         />
 
         {/* Full-Page Projects Manager */}

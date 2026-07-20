@@ -227,7 +227,7 @@ const Dashboard = ({ onNavigate }) => {
     ? Math.round((totalCompletedPapers / totalPapersCount) * 100) 
     : 0;
 
-  const poolTypes = ['All', 'CAL_Pool_A', 'CAL_Pool_B', 'CAL_Pool_C', 'QC_Audit_Batch'];
+  const poolTypes = ['All', 'CAL_Pool_A', 'CAL_Pool_B', 'CAL_Pool_C', 'QC_Batch'];
 
   return (
     <div className="container mx-auto px-4 mt-2 pb-12">
@@ -423,7 +423,7 @@ const Dashboard = ({ onNavigate }) => {
                             ? 'bg-purple-50 border-purple-200 text-purple-750 dark:bg-purple-950/45 dark:border-purple-900/60 dark:text-purple-300' 
                             : session.poolType === 'CAL_Pool_B'
                             ? 'bg-amber-50 border-amber-200 text-amber-750 dark:bg-amber-950/45 dark:border-amber-900/60 dark:text-amber-300'
-                            : session.poolType === 'CAL_Pool_C'
+                            : (session.poolType === 'CAL_Pool_C' || session.poolType === 'QC_Batch')
                             ? 'bg-emerald-50 border-emerald-200 text-emerald-750 dark:bg-emerald-950/45 dark:border-emerald-900/60 dark:text-emerald-300'
                             : 'bg-rose-50 border-rose-200 text-rose-750 dark:bg-rose-950/45 dark:border-rose-900/60 dark:text-rose-300'
                         }`}>

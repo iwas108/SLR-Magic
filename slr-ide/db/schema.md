@@ -384,6 +384,71 @@ Stores potential duplicate pairs identified by the fuzzy heuristic matching engi
 
 ---
 
+### Table: `rolling_batches`
+Tracks the lifecycle of rolling audit batches.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | TEXT | PRIMARY KEY | Unique UUID identifier for the batch |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `batch_number` | INTEGER | NOT NULL | Sequential batch number within project |
+| `status` | TEXT | NOT NULL DEFAULT 'pending_review' | State: `pending_review`, `awaiting_adjudication`, `complete` |
+| `created_at` | TEXT | NOT NULL | Timestamp of creation |
+| `finalized_at` | TEXT | | Timestamp when adjudication was finalized |
+
+---
+
+### Table: `rolling_batch_papers`
+Holds snapshots of papers selected for a rolling batch. Shares exact schema parity with the `papers` (and `calibration_papers`) table, mapped to specific batches.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `Paper_ID` | TEXT | PRIMARY KEY (with `batch_id`) | Unique paper identifier |
+| `batch_id` | TEXT | NOT NULL | Reference to `rolling_batches(id)` |
+| `batch_number` | INTEGER | NOT NULL | Sequential batch number |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| *Other columns* | | | Shares all metadata/decision/extraction columns of the `papers` table |
+
+---
+
+### Table: `rolling_batch_reviewer_decisions`
+Stores individual reviewer decisions for rolling batch double-blind review.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique record key |
+| `batch_id` | TEXT | NOT NULL | Reference to `rolling_batches(id)` |
+| `batch_number` | INTEGER | NOT NULL | Sequential batch number |
+| `paper_id` | TEXT | NOT NULL | Reference to `rolling_batch_papers(Paper_ID)` |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `reviewer_name` | TEXT | NOT NULL | Unique reviewer shortname |
+| `qa_scores` | TEXT | | JSON string containing reviewer's QA scores |
+| `extracted_data` | TEXT | | JSON string containing reviewer's extractions |
+| `imported_at` | TEXT | NOT NULL | Timestamp of import |
+
+---
+
+### Table: `rolling_batch_commit_ledger`
+Tracks immutable audit trail for rolling batch adjudication commits.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique record key |
+| `commit_hash` | TEXT | NOT NULL | 8-character SHA-256 commit hash |
+| `batch_id` | TEXT | NOT NULL | Reference to `rolling_batches(id)` |
+| `batch_number` | INTEGER | NOT NULL | Sequential batch number |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `paper_id` | TEXT | NOT NULL | Reference to `rolling_batch_papers(Paper_ID)` |
+| `adjudicator` | TEXT | NOT NULL | Name of adjudicator or system import source |
+| `previous_state` | TEXT | NOT NULL | JSON string representation of paper's prior decision state |
+| `resolved_qa_scores` | TEXT | | JSON string of resolved consensus QA scores |
+| `resolved_extracted_data` | TEXT | | JSON string of resolved consensus extractions |
+| `commit_message` | TEXT | NOT NULL | Commit comment/adjudication message |
+| `timestamp` | TEXT | NOT NULL | ISO datetime of resolution |
+
+---
+
+
 ## 2. Schema Incremental Changes
 
 ### Baseline (2026-06-05)
@@ -434,5 +499,12 @@ Stores potential duplicate pairs identified by the fuzzy heuristic matching engi
 ### Schema Split: Exclusion Codes Migration (2026-07-18)
 *   Split combined `ai_decision` and `manual_decision` values (e.g. `EXCLUDE (EC-1)`) into clean decisions (`INCLUDE`/`EXCLUDE`) and dedicated `ai_exclusion_code` / `manual_exclusion_code` columns.
 *   Applied changes to both `papers` and `calibration_papers` tables.
+
+### Rolling Batch Post-Validation Update (2026-07-19)
+*   Added `rolling_batches` table to track lifecycle of rolling audit batches.
+*   Added `rolling_batch_papers` table to hold snapshots of papers in a batch.
+*   Added `rolling_batch_reviewer_decisions` table to store double-blind reviewer responses.
+*   Added `rolling_batch_commit_ledger` table to record immutable adjudication audit trail.
+*   Added `rolling_batch_size` column (INTEGER, default 20) to `projects` table.
 
 

@@ -4,6 +4,16 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#018] Post-Validation Rolling Batch (QC_Batch) Ingestion & Screening - 2026-07-19
+
+- **QC_Batch (Rolling Batch) Integration**:
+  - Integrated support for `QC_Batch` pool type inside the IndexedDB store initialization and completion checker (`StorageService.js`).
+  - Rendered `QC_Batch` sessions cleanly on the workspace dashboard (`Dashboard.jsx`) with appropriate color tagging.
+- **Blinded Evaluation Form Pool C Mirroring**:
+  - Re-routed evaluation logic in `PreScreen.jsx`, `ReviewScreen.jsx`, and `AutofillModal.jsx` to map the `QC_Batch` pool type to the `isPoolC` structured quality assessment and data extraction flow.
+  - Fixed `isPaperValid` evaluation validator in `ReviewScreen.jsx` to correctly trigger for `pool_c` and `QC_Batch`, disabling the "Next Paper" and "Complete Review" buttons when form inputs are empty or invalid.
+- **Verification**: Verified Vite build `npm run build` completed successfully.
+
 ## [#001] Giga-Refactor & SLR-IDE Integration - 2026-06-11
 
 - **Vite SPA Re-Route**: Migrated systematic review workflow connection from Google Apps Script (GAS) to local `slr-ide` Next.js desktop workspace.

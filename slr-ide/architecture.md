@@ -149,3 +149,15 @@ To support smart PDF vector-matching and advanced semantic discovery within the 
 ### 4.4 Smart PDF Vector-Matching (Stage 5)
 *   The vector index is integrated directly into the `match_cache.py` matching workflow. If standard strategies fail (exact ID, exact DOI, fuzzy title, page-1 substring), a final **Stage 5: Semantic Vector Match** checks candidate page-1 PDF text blocks semantically against the paper's title and abstract, matching if the similarity exceeds `SEMANTIC_MATCH_THRESHOLD` (default: `0.65`). The vector database auto-indexes new cached PDFs incrementally prior to run.
 
+### 2.8 Post-Validation Rolling Batch Engine
+*   **Sequential stopping logic**: Implements sequential quality control monitoring on sliding cohorts (rolling validation batches) of a customizable size (e.g. 20 papers).
+*   **Dynamic Batching**: Paper selection automatically selects candidate papers (excluding manual overrides, duplicates, and papers from calibration pools A, B, C, or previous batches) and assigns them to a new entry in `rolling_batches`.
+*   **Agreement Audit**: Reviews are exported as blinded `.slr` template packages using `pool_type = 'QC_Batch'`. Once two reviews are imported, the system calculates agreements, Kappa coefficients, and details discrepancies.
+*   **Adjudication Workspace**: Discrepancies are adjudicated through a fullscreen split-pane workspace (`RollingBatchAdjudicationModal`) similar to Pool C calibration. Once finalized, consensus results are committed to the `rolling_batch_commit_ledger`.
+*   **Stopping Criteria Rules**:
+    *   *Stage 3 (Scientist)*: Triggers a "Critical Miss" alert when the absolute scoring delta between human consensus and AI score is exactly 1.0 (on an 8-point ordinal scale). The stage passes if `Critical Miss Rate = 0%`.
+    *   *Stage 4 (Miner) Schema Integrity*: Evaluates `ai_extracted_data` structure against programmatic JSON schemas. It passes if schema conformance is exactly `100%` (0 missing keys, 100% correct type match).
+    *   *Stage 4 (Miner) Semantic Agreement*: Evaluates semantic similarity between extracted values using the `umbrellanizer_results` mapping dictionary, serving as an informational-only metric.
+    *   *Sequential stopping rule*: Evaluates stopping criteria over two consecutive cohorts (current cohort $B$ and previous cohort $B-1$). If `s3.passed && s4.passed` for both cohorts, the sequential stopping exit is triggered (`auditPassed = true`), concluding the quality control validation.
+
+

@@ -288,12 +288,12 @@ class LLMQueueHandler:
                     SET ai_stage = ?,
                         ai_decision = ?,
                         ai_exclusion_code = ?,
-                        ai_rationale = ?,
-                        ai_quality_assessment = ?,
-                        ai_extracted_data = ?
+                        ai_rationale = COALESCE(?, ai_rationale),
+                        ai_quality_assessment = COALESCE(?, ai_quality_assessment),
+                        ai_extracted_data = COALESCE(?, ai_extracted_data)
                     WHERE Paper_ID = ?
                     """,
-                    (incoming_stage, ai_decision, ai_exclusion_code, rationale_text,
+                    (incoming_stage, ai_decision, ai_exclusion_code, rationale_text or None,
                      qa_scores_json, extracted_data_json, paper_id)
                 )
                 logger.info(f"AI screening decision for paper {paper_id} saved to papers table ai_* columns.")

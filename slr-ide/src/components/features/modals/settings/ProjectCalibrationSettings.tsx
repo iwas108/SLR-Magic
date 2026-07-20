@@ -9,6 +9,8 @@ interface ProjectCalibrationSettingsProps {
     setProjectFormPoolB: (v: string) => void;
     projectFormPoolC: string;
     setProjectFormPoolC: (v: string) => void;
+    projectFormRollingBatchSize: string;
+    setProjectFormRollingBatchSize: (v: string) => void;
     projectFormQaDefinition: string;
     projectFormQuestions: string;
     projectFormExclusionCriteria: string;
@@ -111,6 +113,7 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
       </div>
 
       <div className="space-y-4 pt-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
             {calibrationSubTab === 'pool_a' ? 'Pool A Target Size' : calibrationSubTab === 'pool_b' ? 'Pool B Target Size' : 'Pool C Target Size'}
@@ -128,6 +131,18 @@ export default function ProjectCalibrationSettings({ form }: ProjectCalibrationS
             className="w-full px-3 py-1.5 text-xs bg-secondary/35 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-mono font-bold"
           />
         </div>
+        <div>
+          <label className="block text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+            Post-Validation Rolling Batch Size
+          </label>
+          <input
+            type="number"
+            value={form.projectFormRollingBatchSize}
+            onChange={(e) => form.setProjectFormRollingBatchSize(e.target.value)}
+            className="w-full px-3 py-1.5 text-xs bg-secondary/35 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-mono font-bold"
+          />
+        </div>
+      </div>
 
         {/* Sub-tab specific configurations */}
         {(() => {

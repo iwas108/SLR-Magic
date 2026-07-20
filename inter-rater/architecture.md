@@ -149,7 +149,7 @@ For reviews under **CAL_Pool_A**, the `.slr` file schema is standardized to ensu
 }
 ```
 
-### 4.2 Legacy Pools Schemas (CAL_Pool_B, CAL_Pool_C, QC Audit)
+### 4.2 Legacy Pools Schemas (CAL_Pool_B, CAL_Pool_C, QC_Batch)
 Other calibration pools are currently not migrated to this restricted format. They preserve the legacy import/export schema configurations:
 - **Project Metadata**: Uses camelCase keys (e.g., `projectName`, `researchQuestions`, `inclusionCriteria`, `exclusionCriteria`, `poolType`, `exportDate`, `ecRules`, `reasoningTemplate`).
 - **Paper Objects**: Retain complete paper details including `Abstract`, `Authors`, `DOI`, `PDF_Link`, `Import_Source`, etc., alongside dynamic quality appraisal and data extraction attributes.
@@ -161,7 +161,7 @@ Other calibration pools are currently not migrated to this restricted format. Th
 The application features a modern styling system using Tailwind CSS:
 - **Unified Navigation Header**: The active review header (including project details, save indicators, Cookbook reference toggles, paper counters, and theme dropdowns) is merged directly into the top navigation bar to save vertical space.
 - **Viewport-Locked Full-Width Layout**: The review page uses a viewport-locked layout where the main reader takes up 100% of the horizontal space. Navigation is moved into a left-aligned vertical tabs sidebar (w-48), maximizing the vertical height for the PDF reader. PDF reader utility headers ("Viewer Mode" / "Open in Browser") are removed so that the PDF reader iframe occupies 100% of the panel content viewport. Paper details and metadata are consolidated in a dedicated Details tab alongside Abstract and PDF content. Special for CAL_Pool_A, the Paper Details tab link is hidden, and all metadata is rendered directly inside the Abstract tab.
-- **Sliding Evaluation Drawer**: The Blinded Evaluation form is contained inside an overlay sliding side drawer from the right, toggled by a Floating Action Button or key shortcuts (`Space`/`V`/`I`/`E`), allowing the reviewer to check PDF text while writing appraisal rationale. Special for CAL_Pool_C, it dynamically renders dedicated Quality Assessment (QA) scoring lists and Data Extraction input fields mapping to the custom rules defined in the session's exported schema.
+- **Sliding Evaluation Drawer**: The Blinded Evaluation form is contained inside an overlay sliding side drawer from the right, toggled by a Floating Action Button or key shortcuts (`Space`/`V`/`I`/`E`), allowing the reviewer to check PDF text while writing appraisal rationale. Special for CAL_Pool_C and QC_Batch, it dynamically renders dedicated Quality Assessment (QA) scoring lists and Data Extraction input fields mapping to the custom rules defined in the session's exported schema.
 - **Theme Engine**: Integrates standard Tailwind utility classes with support for light, dark, and system themes across all components.
 - **Embedded Offline PDF Reader**: Embedded PDFs are stored as Base64 strings inside the `.slr` file, whitelisted and stored in IndexedDB. At runtime, they are converted into browser-level native `Blob` URLs and loaded inside an `<iframe>` dynamically, bypassing CORS restrictions, cross-origin security blocks, and internet dependency.
 - **Stats Dashboard Grid**: Renders premium high-level cards summarizing global systematic review analytics.

@@ -32,6 +32,7 @@ export default function CreateProjectModal({
       pool_a_size: Number(form.poolA),
       pool_b_size: Number(form.poolB),
       pool_c_size: Number(form.poolC),
+      rolling_batch_size: Number(form.rollingBatchSize),
       gdrive_dest_path: form.gdriveDest,
       cloud_provider: form.cloudProvider,
       rclone_remote_name: form.remoteName,
@@ -178,7 +179,7 @@ export default function CreateProjectModal({
 
           <div className="border-t border-border pt-4">
             <h4 className="block text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-2">Pre-Calibration Pools Target Size</h4>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div>
                 <label className="block text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Pool A Target</label>
                 <input
@@ -203,6 +204,15 @@ export default function CreateProjectModal({
                   type="number"
                   value={form.poolC}
                   onChange={(e) => form.setPoolC(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs bg-secondary/35 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-mono text-center font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Rolling Batch</label>
+                <input
+                  type="number"
+                  value={form.rollingBatchSize}
+                  onChange={(e) => form.setRollingBatchSize(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs bg-secondary/35 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-mono text-center font-bold"
                 />
               </div>

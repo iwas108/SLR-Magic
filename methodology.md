@@ -60,6 +60,40 @@ Replaces flat percentage sampling with precision-based sequential estimation.
     * **Formula:** `CI_lower = p_hat - (1.96 * SE) >= tau` 
     * (Where tau = 0.80 for filtering/classification, and tau = 0.65 for qualitative scoring).
 
+#### 2.3.1 Stage 3 "Agreement" Definition (Ordinal QA Proximity — NOT Decision Label)
+
+> **Critical distinction**: "Agreement" in Stage 3 is **ordinal score proximity**, not an Include/Exclude label match. Two raters can produce opposing final decisions and still register 100% agreement if their per-dimension QA scores are close enough.
+
+For each paper in a completed rolling batch, the system compares the AI's QA scores (`ai_quality_assessment` in `rolling_batch_papers`) against the Gold Standard QA scores (`manual_quality_assessment`, set by adjudicated human consensus) **dimension by dimension** across all 8 QA criteria.
+
+**Per-pair classification rule:**
+
+| Condition | Classification |
+| :--- | :--- |
+| `\|ai_score - gold_score\| < 1.0` | ✅ **Agreement** (counted in `p_hat`) |
+| `\|ai_score - gold_score\| >= 1.0` | ❌ **Critical Miss** (counted in `critical_miss_rate`) |
+
+This means a **0.5-point ordinal deviation** (e.g., AI scores 1.0, human scores 0.5, or vice-versa) is explicitly classified as **agreement**, not a miss. Only a full 1.0-point jump (e.g., AI scores 1.0, human scores 0.0, or vice-versa) is a critical miss.
+
+**Aggregate statistics computed per cumulative cohort:**
+
+```
+totalQAPairs      = count of all (ai, gold) score pairs where both values are non-null
+qaAgreementCount  = count of pairs where |ai - gold| < 1.0
+qaCriticalMissCount = count of pairs where |ai - gold| >= 1.0
+
+p_hat               = qaAgreementCount / totalQAPairs
+critical_miss_rate  = (qaCriticalMissCount / totalQAPairs) × 100%
+SE                  = sqrt(p_hat × (1 - p_hat) / totalQAPairs)
+CI_lower            = max(0, p_hat - 1.96 × SE)
+```
+
+**Exit threshold (Stage 3 passes when both hold simultaneously):**
+1. `CI_lower >= 0.65`
+2. `critical_miss_rate === 0%`
+
+**Key schema note**: The AI QA keys are stored as extended lowercase identifiers (`qa1_aims`, `qa2_context`, …), while human QA keys are stored as uppercase short codes (`QA1`, `QA2`, …). The stats engine resolves both to the same QA rule via case-insensitive prefix matching against the `pool_c_qa_rules` codes (e.g., `"QA1"` matches both `"qa1"` exact and `"qa1_aims"` prefix).
+
 ### 2.4 Decision Sourcing Precedence (Source of Truth)
 To prevent metric inflation and pipeline leakages, resolving whether a paper is designated as `INCLUDE` or `EXCLUDE` requires evaluating stage precedence rather than treating database decisions as flat column values:
 1.  **Stage Dominance**: The system evaluates decisions at `Stage_active = MAX(manual_stage, ai_stage)`. The decision mapped to the higher stage value is the active source of truth.
