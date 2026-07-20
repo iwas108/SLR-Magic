@@ -5,16 +5,38 @@ interface StatsRowProps {
   label: string;
   value: string;
   subValue?: string;
+  tooltip?: {
+    title: string;
+    formula?: string;
+    meaning: string;
+  };
 }
 
-function StatsRow({ label, value, subValue }: StatsRowProps) {
+function StatsRow({ label, value, subValue, tooltip }: StatsRowProps) {
   return (
-    <div className="flex justify-between items-center py-1.5 border-b border-border/40 last:border-0 text-xs">
-      <span className="text-muted-foreground">{label}</span>
+    <div className="flex justify-between items-center py-1.5 border-b border-border/40 last:border-0 text-xs relative group/tooltip">
+      {tooltip ? (
+        <span className="text-muted-foreground border-b border-dotted border-muted-foreground/40 cursor-help select-none">
+          {label}
+        </span>
+      ) : (
+        <span className="text-muted-foreground">{label}</span>
+      )}
+      
       <div className="text-right font-bold text-foreground">
         <span>{value}</span>
         {subValue && <span className="text-[10px] text-muted-foreground font-normal ml-1">({subValue})</span>}
       </div>
+
+      {tooltip && (
+        <div className="absolute left-0 bottom-full mb-1.5 hidden group-hover/tooltip:block z-20 w-64 p-2.5 bg-popover border border-border rounded-lg shadow-xl text-left text-[9px] text-popover-foreground pointer-events-none">
+          <p className="font-extrabold text-[10px] border-b border-border pb-0.5 mb-1 text-primary">{tooltip.title}</p>
+          {tooltip.formula && (
+            <p className="mb-1"><strong>Formula/Calculation:</strong> {tooltip.formula}</p>
+          )}
+          <p><strong>Scientific Meaning:</strong> {tooltip.meaning}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -67,20 +89,40 @@ export default function BatchStatisticsCards({
             <StatsRow 
               label="QA Agreement (p̂)" 
               value={`${(s3.p_hat * 100).toFixed(1)}%`} 
+              tooltip={{
+                title: "QA Agreement (p̂)",
+                formula: "qaAgreementCount / totalQAPairs",
+                meaning: "The proportion of total evaluated QA score pairs between the AI and human reviewers that match. An agreement counts if the absolute score difference is strictly less than 1.0 (allowing minor 0.5-point deviations)."
+              }}
             />
             <StatsRow 
               label="Standard Error (SE)" 
               value={s3.SE.toFixed(4)} 
+              tooltip={{
+                title: "Standard Error (SE)",
+                formula: "sqrt(p_hat * (1 - p_hat) / n)",
+                meaning: "Measures the statistical variation of the agreement rate estimation across the cumulative validation cohort sample size (n)."
+              }}
             />
             <StatsRow 
               label="95% CI Lower Bound" 
               value={s3.CI_lower.toFixed(3)} 
               subValue="target ≥ 0.65"
+              tooltip={{
+                title: "95% CI Lower Bound",
+                formula: "p_hat - (1.96 * SE)",
+                meaning: "The statistical lower limit of agreement. We are 95% confident the true agreement rate exceeds this boundary. The pipeline requires this lower bound to stably clear the 0.65 quality line."
+              }}
             />
             <StatsRow 
               label="Critical Miss Rate" 
               value={`${s3.critical_miss_rate.toFixed(1)}%`} 
               subValue="target = 0%"
+              tooltip={{
+                title: "Critical Miss Rate",
+                formula: "(qaCriticalMissCount / totalQAPairs) * 100%",
+                meaning: "The rate of critical deviations where a criteria's score differs by 1.0 or more (e.g. AI gives 1.0 while human consensus is 0.0, indicating a complete misinterpretation). Must be strictly 0% to exit."
+              }}
             />
           </div>
         </div>
@@ -111,11 +153,21 @@ export default function BatchStatisticsCards({
               label="Schema Integrity Rate" 
               value={`${s4.schema_integrity_rate.toFixed(1)}%`} 
               subValue="target = 100%"
+              tooltip={{
+                title: "Schema Integrity Rate",
+                formula: "structurallyValidPapers / papers.length",
+                meaning: "The percentage of AI-generated extractions that strictly comply with the structured JSON schema format, type definitions, and required keys. Must be 100%."
+              }}
             />
             <StatsRow 
               label="95% CI Lower Bound" 
               value={s4.CI_lower.toFixed(3)} 
               subValue="target ≥ 0.80"
+              tooltip={{
+                title: "95% CI Lower Bound",
+                formula: "schema_integrity_rate - (1.96 * SE)",
+                meaning: "The lower boundary of 95% statistical confidence for schema integrity. The audit requires this lower bound to stably clear the 0.80 line before finalizing the pipeline."
+              }}
             />
             
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80 mt-2.5 mb-1 select-none">Content Validation</div>
@@ -123,6 +175,11 @@ export default function BatchStatisticsCards({
               label="Semantic Agreement" 
               value={`${s4.semantic_agreement.toFixed(1)}%`} 
               subValue="informational"
+              tooltip={{
+                title: "Semantic Agreement",
+                formula: "matchingKeysCount / totalKeysEvaluated",
+                meaning: "The matching rate of extracted entities/tokens after mapping to standardized categories via the Umbrellanizer lookup tables. Serves as an informational alignment diagnostic metric."
+              }}
             />
           </div>
         </div>

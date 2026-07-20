@@ -1,5 +1,11 @@
 # SLR IDE Improvements Log
 
+## #248 - Added Informative Tooltips to Rolling Batch Validation (2026-07-21)
+- **Goal**: Introduce helpful context tooltips to the Rolling Batch Validation metrics matching the tooltip style of the pre-calibration Gold Standard comparisons.
+- **Changes**:
+  - Modified [BatchStatisticsCards.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/BatchStatisticsCards.tsx): Enhanced `StatsRow` component to support tooltip hover triggers and styled popovers. Added details for **QA Agreement (p̂)**, **Standard Error (SE)**, **95% CI Lower Bound** (Stage 3 & 4), **Critical Miss Rate**, **Schema Integrity Rate**, and **Semantic Agreement**.
+- **Verification**: Successfully compiled via `npx tsc --noEmit`.
+
 ## #247 - Documented Stage 3 Rolling Batch "Agreement" Calculation Mechanics (2026-07-21)
 - **Goal**: Clarify and formally document how "Agreement" is defined in the Stage 3 Rolling Batch Validation metric, following an audit of paper `George_2025_ExplainableDigi_1a630` which appeared to conflict with the reported 100% agreement result (second reviewer gave Exclude while AI gave INCLUDE).
 - **Finding**: "Agreement" in Stage 3 is **ordinal QA score proximity**, NOT an Include/Exclude decision label match. The stats engine compares each of the 8 QA dimension scores (AI vs Gold Standard) independently. A pair is classified as *agreement* when `|ai_score - gold_score| < 1.0`, and as a *critical miss* only when `|ai_score - gold_score| >= 1.0`. A 0.5-point ordinal deviation (e.g., AI scores 1.0, human scores 0.5) is explicitly permitted and counts as agreement. Two raters can hold opposing final Include/Exclude decisions while contributing 100% QA agreement if their per-dimension scores are all within the 0.5-point tolerance band.
