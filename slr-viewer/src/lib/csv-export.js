@@ -1,180 +1,293 @@
-import React, { useState } from 'react';
-import { Download, Table, ExternalLink } from 'lucide-react';
 import Papa from 'papaparse';
 
 export function exportFinalCohortCsv(sessionData, filteredPapers = null) {
   const papers = filteredPapers || sessionData?.final_cohort?.papers || [];
   const project = sessionData?.project || {};
-  const umbrellanizerMap = sessionData?.final_cohort?.umbrellanizer_mappings || {};
+  const rawUmbMap = sessionData?.final_cohort?.umbrellanizer_mappings || {};
 
+  // Standardize Umbrellanizer taxonomy map lookup
+  const umbrellanizerMap = {};
+  if (typeof rawUmbMap === 'object' && rawUmbMap !== null) {
+    Object.entries(rawUmbMap).forEach(([k, v]) => {
+      if (Array.isArray(v)) {
+        const map = {};
+        v.forEach(item => {
+          if (item && item.raw_token) {
+            map[item.raw_token.trim().toLowerCase()] = item;
+          }
+        });
+        umbrellanizerMap[k] = map;
+      } else if (typeof v === 'object' && v !== null) {
+        umbrellanizerMap[k] = v;
+      }
+    });
+  }
+
+  // Helper to resolve Umbrellanizer category value
+  const resolveUmbrellanizerValue = (val, key) => {
+    if (val === undefined || val === null || val === '') return '';
+    const rawVal = String(val).trim();
+    const raw = rawVal.toLowerCase().replace(/\s+/g, ' ');
+    const map = umbrellanizerMap[key] || {};
+    
+    const matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === raw);
+    if (!matchedKey) return rawVal;
+    
+    const mappedVal = map[matchedKey];
+    if (!mappedVal) return rawVal;
+    
+    if (typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
+      return String(mappedVal.umbrella_category || matchedKey).trim();
+    }
+    if (Array.isArray(mappedVal)) {
+      return String(mappedVal[0] || matchedKey).trim();
+    }
+    return String(mappedVal).trim();
+  };
+
+  // Helper to resolve Umbrellanizer justification
+  const getUmbrellanizerJustification = (rawVal, key) => {
+    if (rawVal === undefined || rawVal === null || rawVal === '') return '';
+    const map = umbrellanizerMap[key] || {};
+
+    const resolveSingle = (singleRaw) => {
+      const r = String(singleRaw).trim();
+      const rNorm = r.toLowerCase().replace(/\s+/g, ' ');
+      let matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === rNorm);
+      
+      if (!matchedKey) {
+        matchedKey = Object.keys(map).find(k => {
+          const mappedVal = map[k];
+          if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
+            return String(mappedVal.umbrella_category || '').trim().toLowerCase().replace(/\s+/g, ' ') === rNorm;
+          }
+          return false;
+        });
+      }
+
+      if (matchedKey) {
+        const mappedVal = map[matchedKey];
+        if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
+          return String(mappedVal.justification || '').trim();
+        }
+      }
+      return '';
+    };
+
+    if (Array.isArray(rawVal)) {
+      return rawVal.map(resolveSingle).filter(Boolean).join(' || ');
+    }
+    return resolveSingle(rawVal);
+  };
+
+  const qaKeysSet = new Set();
+  const extKeysSet = new Set();
+
+  const processedPapers = papers.map((paper) => {
+    const manualStage = paper.manual_stage || 0;
+    const aiStage = paper.ai_stage || 0;
+    const isManualDominant = manualStage >= aiStage;
+
+    // Parse QA Assessment
+    const qaObjRaw = isManualDominant
+      ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '')
+      : (paper.ai_quality_assessment || paper.manual_quality_assessment || '');
+
+    let qaTotalScore = 0;
+    const qaItems = {};
+    const qaTraces = {};
+
+    if (qaObjRaw) {
+      let parsed = qaObjRaw;
+      if (typeof qaObjRaw === 'string') {
+        try { parsed = JSON.parse(qaObjRaw); } catch (e) {}
+      }
+
+      if (typeof parsed === 'object' && parsed !== null) {
+        const qaObj = parsed.qa_scores || parsed;
+        const logicTrace = parsed.logic_trace || {};
+        const appraisalReasoning = logicTrace.appraisal_reasoning || {};
+
+        Object.entries(qaObj).forEach(([k, v]) => {
+          if (k.startsWith('_') || k === 'logic_trace' || k === '_scientist_logic_trace' || k === 'qa_scores') return;
+          qaKeysSet.add(k);
+
+          const val = (v && typeof v === 'object' && 'value' in v) ? v.value : v;
+          const valStr = String(val ?? '');
+          qaItems[k] = valStr;
+
+          const traceVal = appraisalReasoning[k + '_analysis'] || appraisalReasoning[k] || '';
+          let evidenceVal = '';
+
+          if (v && typeof v === 'object') {
+            if (v.evidence) {
+              evidenceVal = String(v.evidence);
+            } else if (v.logic_trace?.evidence) {
+              evidenceVal = String(v.logic_trace.evidence);
+            }
+          }
+
+          qaTraces[k] = { mapping: String(traceVal || ''), evidence: evidenceVal };
+
+          const numVal = parseFloat(valStr);
+          if (!isNaN(numVal)) {
+            qaTotalScore += numVal;
+          } else if (['YES', 'PASS', 'TRUE'].includes(valStr.toUpperCase().trim())) {
+            qaTotalScore += 1;
+          }
+        });
+      } else {
+        const num = parseFloat(qaObjRaw);
+        if (!isNaN(num)) qaTotalScore = num;
+      }
+    }
+
+    // Parse Extracted Data
+    const extObjRaw = isManualDominant
+      ? (paper.manual_extracted_data || paper.ai_extracted_data || '')
+      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+
+    const extItems = {};
+    const extTraces = {};
+
+    if (extObjRaw) {
+      let parsed = extObjRaw;
+      if (typeof extObjRaw === 'string') {
+        try { parsed = JSON.parse(extObjRaw); } catch (e) {}
+      }
+
+      if (typeof parsed === 'object' && parsed !== null) {
+        const extObj = parsed.extracted_data || parsed;
+        const logicTrace = parsed.logic_trace || extObj.logic_trace || {};
+        const locateMapping = logicTrace.extraction_mapping || logicTrace || {};
+
+        Object.entries(extObj).forEach(([k, v]) => {
+          if (k.startsWith('_') || k === 'logic_trace' || k === '_scientist_logic_trace') return;
+          extKeysSet.add(k);
+
+          let origVal = v;
+          if (v && typeof v === 'object' && 'value' in v) {
+            origVal = v.value;
+          }
+
+          const origStr = Array.isArray(origVal) ? origVal.join('; ') : (origVal !== undefined && origVal !== null ? String(origVal) : '');
+          
+          let resolvedStr = '';
+          if (Array.isArray(origVal)) {
+            const mapped = Array.from(new Set(origVal.map(item => resolveUmbrellanizerValue(item, k)))).filter(Boolean);
+            resolvedStr = mapped.join('; ');
+          } else if (origVal !== undefined && origVal !== null && origVal !== '') {
+            resolvedStr = resolveUmbrellanizerValue(origStr, k);
+          }
+
+          extItems[k] = resolvedStr;
+
+          const mapping = locateMapping[`locate_${k}`] || locateMapping[k] || '';
+          let evidence = '';
+          if (v && typeof v === 'object') {
+            if ('evidence' in v) {
+              evidence = String(v.evidence || '');
+            } else if ('logic_trace' in v && v.logic_trace) {
+              evidence = String(v.logic_trace.evidence || '');
+            }
+          }
+
+          const justification = getUmbrellanizerJustification(origVal, k);
+
+          extTraces[k] = {
+            original: origStr,
+            mapping: String(mapping || ''),
+            evidence,
+            justification
+          };
+        });
+      }
+    }
+
+    return {
+      paper,
+      qaTotalScore,
+      qaItems,
+      qaTraces,
+      extItems,
+      extTraces
+    };
+  });
+
+  const sortedQaKeys = Array.from(qaKeysSet).sort();
+  const sortedExtKeys = Array.from(extKeysSet).sort();
+
+  // Dynamic CSV Headers
   const headers = [
     'Paper_ID',
     'Title',
     'Authors',
     'Year',
     'DOI',
-    'Publisher',
-    'Original_Publisher',
     'Import_Source',
-    'Citation_Count',
     'Local_PDF_Status',
-    'Decision_Source',
-    'Active_Stage',
-    'QA_Total_Score',
-    'QA_1_Value',
-    'QA_1_Evidence',
-    'QA_2_Value',
-    'QA_2_Evidence',
-    'QA_3_Value',
-    'QA_3_Evidence',
-    'QA_4_Value',
-    'QA_4_Evidence',
-    'QA_5_Value',
-    'QA_5_Evidence',
-    'QA_6_Value',
-    'QA_6_Evidence',
-    'QA_7_Value',
-    'QA_7_Evidence',
-    'QA_8_Value',
-    'QA_8_Evidence',
-    'RQ_1_Raw',
-    'RQ_1_Umbrella',
-    'RQ_2_Raw',
-    'RQ_2_Umbrella',
-    'RQ_3_Raw',
-    'RQ_3_Umbrella',
-    'RQ_4_Raw',
-    'RQ_4_Umbrella',
-    'RQ_5_Raw',
-    'RQ_5_Umbrella',
-    'RQ_6_Raw',
-    'RQ_6_Umbrella',
-    'RQ_7_Raw',
-    'RQ_7_Umbrella',
-    'RQ_8_Raw',
-    'RQ_8_Umbrella',
-    'RQ_9_Raw',
-    'RQ_9_Umbrella',
-    'Abstract',
+    'PDF_Link',
+    'Publisher',
+    'Citation_Count',
+    'Overall_QA'
   ];
 
-  const rows = papers.map((paper) => {
-    const manualStage = paper.manual_stage || 0;
-    const aiStage = paper.ai_stage || 0;
+  // Dynamic QA headers + tt_* columns
+  sortedQaKeys.forEach(qaKey => {
+    headers.push(qaKey);
+    headers.push(`tt_mapping_${qaKey}`);
+    headers.push(`tt_evidence_${qaKey}`);
+  });
 
-    let decisionSource = 'AI';
-    if (manualStage > aiStage) {
-      decisionSource = 'Manual';
-    } else if (manualStage === aiStage && paper.manual_decision) {
-      decisionSource = 'Manual (Override)';
-    }
+  // Dynamic Extracted headers + tt_* columns
+  sortedExtKeys.forEach(extKey => {
+    headers.push(extKey);
+    headers.push(`tt_original_${extKey}`);
+    headers.push(`tt_mapping_${extKey}`);
+    headers.push(`tt_evidence_${extKey}`);
+    headers.push(`tt_justification_${extKey}`);
+  });
 
-    const activeStage = Math.max(manualStage, aiStage);
+  headers.push('Abstract');
 
-    // QA scores & evidence
-    const qaObj = paper.manual_quality_assessment || paper.ai_quality_assessment;
-    let qaTotalScore = 0;
-    const qaValues = {};
-    const qaEvidences = {};
+  // Build CSV Rows
+  const rows = processedPapers.map(({ paper, qaTotalScore, qaItems, qaTraces, extItems, extTraces }) => {
+    const publisherVal = paper.Publisher || paper.Original_Publisher || '';
 
-    if (qaObj) {
-      for (let i = 1; i <= 8; i++) {
-        const key = `qa${i}`;
-        const item = qaObj[key];
-        if (item) {
-          const valStr = typeof item === 'object' ? item.value || '0' : String(item);
-          qaValues[key] = valStr;
-          qaTotalScore += parseFloat(valStr) || 0;
-          qaEvidences[key] = typeof item === 'object' ? item.evidence || '' : '';
-        } else {
-          qaValues[key] = '0';
-          qaEvidences[key] = '';
-        }
-      }
-    }
-
-    // Extracted data & umbrella
-    const extObj = paper.manual_extracted_data || paper.ai_extracted_data;
-    const rqRaws = {};
-    const rqUmbrellas = {};
-
-    for (let i = 1; i <= 9; i++) {
-      const rqKey = `rq${i}`;
-      let rawVal = extObj ? extObj[rqKey] || '' : '';
-      if (Array.isArray(rawVal)) {
-        rawVal = rawVal.join('; ');
-      } else if (typeof rawVal === 'object' && rawVal !== null) {
-        rawVal = JSON.stringify(rawVal);
-      } else {
-        rawVal = String(rawVal);
-      }
-
-      rqRaws[rqKey] = rawVal;
-
-      let umbrellaVal = rawVal;
-      const fieldMapping = umbrellanizerMap[rqKey];
-      if (fieldMapping && Array.isArray(fieldMapping)) {
-        const normalized = rawVal.trim().toLowerCase();
-        const found = fieldMapping.find(
-          (m) => m.raw_token && m.raw_token.trim().toLowerCase() === normalized
-        );
-        if (found) {
-          umbrellaVal = found.umbrella_category;
-        }
-      }
-      rqUmbrellas[rqKey] = umbrellaVal;
-    }
-
-    return [
+    const row = [
       paper.Paper_ID || '',
       paper.Title || '',
       paper.Authors || '',
       paper.Year || '',
       paper.DOI || '',
-      paper.Publisher || '',
-      paper.Original_Publisher || '',
       paper.Import_Source || '',
-      paper.citation_count || 0,
       paper.Local_PDF_Status || '',
-      decisionSource,
-      activeStage,
-      qaTotalScore.toFixed(1),
-      qaValues['qa1'] || '',
-      qaEvidences['qa1'] || '',
-      qaValues['qa2'] || '',
-      qaEvidences['qa2'] || '',
-      qaValues['qa3'] || '',
-      qaEvidences['qa3'] || '',
-      qaValues['qa4'] || '',
-      qaEvidences['qa4'] || '',
-      qaValues['qa5'] || '',
-      qaEvidences['qa5'] || '',
-      qaValues['qa6'] || '',
-      qaEvidences['qa6'] || '',
-      qaValues['qa7'] || '',
-      qaEvidences['qa7'] || '',
-      qaValues['qa8'] || '',
-      qaEvidences['qa8'] || '',
-      rqRaws['rq1'] || '',
-      rqUmbrellas['rq1'] || '',
-      rqRaws['rq2'] || '',
-      rqUmbrellas['rq2'] || '',
-      rqRaws['rq3'] || '',
-      rqUmbrellas['rq3'] || '',
-      rqRaws['rq4'] || '',
-      rqUmbrellas['rq4'] || '',
-      rqRaws['rq5'] || '',
-      rqUmbrellas['rq5'] || '',
-      rqRaws['rq6'] || '',
-      rqUmbrellas['rq6'] || '',
-      rqRaws['rq7'] || '',
-      rqUmbrellas['rq7'] || '',
-      rqRaws['rq8'] || '',
-      rqUmbrellas['rq8'] || '',
-      rqRaws['rq9'] || '',
-      rqUmbrellas['rq9'] || '',
-      paper.Abstract || '',
+      paper.PDF_Link || '',
+      publisherVal,
+      paper.citation_count ?? 0,
+      qaTotalScore.toFixed(1)
     ];
+
+    sortedQaKeys.forEach(qaKey => {
+      const val = qaItems[qaKey] || '';
+      const trace = qaTraces[qaKey] || { mapping: '', evidence: '' };
+      row.push(val);
+      row.push(trace.mapping);
+      row.push(trace.evidence);
+    });
+
+    sortedExtKeys.forEach(extKey => {
+      const val = extItems[extKey] || '';
+      const trace = extTraces[extKey] || { original: '', mapping: '', evidence: '', justification: '' };
+      row.push(val);
+      row.push(trace.original);
+      row.push(trace.mapping);
+      row.push(trace.evidence);
+      row.push(trace.justification);
+    });
+
+    row.push(paper.Abstract || '');
+    return row;
   });
 
   const csvString = Papa.unparse({

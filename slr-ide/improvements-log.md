@@ -1,3 +1,9 @@
+## #268 - Cohort Table View 100% CSV Tabular Export with Tooltips (2026-07-21)
+- **Goal**: Export 100% of Cohort Table View dynamic columns, scores, extracted research variables, and tooltip logic traces (`tt_*`) into the CSV Tabular Export.
+- **Changes**:
+  - Modified [route.ts (csv-tabular export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/csv-tabular/route.ts): Replaced static hardcoded headers with dynamic key discovery for QA criteria (`qaKeys`) and extracted research variables (`extKeys`). Implemented stage dominance parsing (`manual` over `ai`), Umbrellanizer category mapping resolution, and placed tooltip columns (`tt_original_*`, `tt_mapping_*`, `tt_evidence_*`, `tt_justification_*`) immediately following their related parent data column.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 build errors.
+
 ## #267 - Type-Safe SQLite CAST Matching in Adjudicate & Export Routes (2026-07-21)
 - **Goal**: Guarantee 100% data parity for Stage Comparisons (Pool C Pre-Norm Yield 85.5%) when exporting `.slr-viewer` files from `slr-ide`.
 - **Changes**:

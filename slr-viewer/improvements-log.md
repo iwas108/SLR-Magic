@@ -1,5 +1,11 @@
 # SLR Viewer Improvements Log
 
+## #031 - Cohort Table View 100% CSV Tabular Export with Tooltips (2026-07-21)
+- **Goal**: Upgrade `slr-viewer` CSV generator function `exportFinalCohortCsv` to export 100% of Cohort Table View dynamic columns, scores, extracted research variables, and tooltip logic traces (`tt_*`).
+- **Changes**:
+  - Modified [csv-export.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/lib/csv-export.js): Replaced static hardcoded headers with dynamic key discovery for QA criteria (`qaKeys`) and extracted research variables (`extKeys`). Implemented stage dominance parsing (`manual` over `ai`), Umbrellanizer category mapping resolution, and placed tooltip columns (`tt_original_*`, `tt_mapping_*`, `tt_evidence_*`, `tt_justification_*`) immediately following their related parent data column.
+- **Verification**: Verified with `npx vite build` returning 0 errors.
+
 ## #030 - Node 2.4 Prompt Templates Registry Export & Drawer Inspector (2026-07-21)
 - **Goal**: Export `prompt_templates` from SQLite in `slr-ide` export API and display registered system & user prompt templates in Node 2.4 ("Frozen Prompt & Schema Mount") drawer.
 - **Changes**:
