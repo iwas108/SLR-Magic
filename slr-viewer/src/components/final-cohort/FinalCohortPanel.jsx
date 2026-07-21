@@ -1,233 +1,20 @@
-'use client';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { 
+  Loader2, 
+  ChevronLeft, 
+  ChevronRight, 
+  Check, 
+  ExternalLink, 
+  X, 
+  BarChart2, 
+  Search, 
+  Filter 
+} from 'lucide-react';
+import ClickableCell from './ClickableCell';
+import VisualizerModal from './VisualizerModal';
+import { useViewerData } from '../../context/ViewerContext';
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Loader2, ChevronLeft, ChevronRight, Check, ExternalLink, Eye, Link2, X, Copy, BarChart2 } from 'lucide-react';
-import { useAppSync } from '@/hooks/useAppSync';
-import VisualizerModal from '../modals/VisualizerModal';
-
-// Condensed clickable cell helper with copy & trace tooltips (expand-on-click removed)
-const ClickableCell = ({ 
-  children, 
-  className = "",
-  title,
-  valueToCopy,
-  traceInfo,
-  originalValue,
-  pdfLink
-}: { 
-  children: React.ReactNode; 
-  className?: string;
-  title?: string;
-  valueToCopy?: string;
-  traceInfo?: { mapping?: string; evidence?: string; justification?: string };
-  originalValue?: string;
-  pdfLink?: string;
-}) => {
-  const [activeTooltip, setActiveTooltip] = useState<'value' | 'trace' | null>(null);
-  const [copiedType, setCopiedType] = useState<'value' | 'trace-mapping' | 'trace-evidence' | 'trace-justification' | 'original' | null>(null);
-  const cellRef = useRef<HTMLDivElement>(null);
-
-  // Auto close tooltip when clicking outside
-  useEffect(() => {
-    if (!activeTooltip) return;
-    const handleDocumentClick = (e: MouseEvent) => {
-      if (cellRef.current && !cellRef.current.contains(e.target as Node)) {
-        setActiveTooltip(null);
-      }
-    };
-    document.addEventListener('mousedown', handleDocumentClick);
-    return () => document.removeEventListener('mousedown', handleDocumentClick);
-  }, [activeTooltip]);
-
-  // Listen for custom event to close other tooltips when one opens
-  useEffect(() => {
-    const handleCloseAll = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail?.exceptRef !== cellRef) {
-        setActiveTooltip(null);
-      }
-    };
-    window.addEventListener('close-all-tooltips', handleCloseAll);
-    return () => window.removeEventListener('close-all-tooltips', handleCloseAll);
-  }, []);
-
-  const setAndBroadcastTooltip = (type: 'value' | 'trace' | null) => {
-    setActiveTooltip(type);
-    if (type) {
-      window.dispatchEvent(new CustomEvent('close-all-tooltips', { detail: { exceptRef: cellRef } }));
-    }
-  };
-
-  const handleCopy = (text: string, type: 'value' | 'trace-mapping' | 'trace-evidence' | 'trace-justification' | 'original') => {
-    navigator.clipboard.writeText(text);
-    setCopiedType(type);
-    setTimeout(() => setCopiedType(null), 2000);
-  };
-
-  return (
-    <div ref={cellRef} className="relative group/cell w-full h-full min-h-[22px]">
-      {/* Content wrapper (always condensed to one line) */}
-      <div 
-        title={title}
-        className={`transition-all duration-150 select-text pr-10 truncate max-h-[18px] overflow-hidden whitespace-nowrap text-ellipsis block ${className}`}
-      >
-        {children}
-      </div>
-
-      {/* Action Buttons on top right (visible on cell hover or when tooltip is open) */}
-      <div className={`absolute right-1 top-0.5 flex items-center gap-1 opacity-0 group-hover/cell:opacity-100 transition-opacity duration-150 z-10 ${activeTooltip ? 'opacity-100' : ''}`}>
-        {valueToCopy && (
-          <button
-            onClick={() => setAndBroadcastTooltip(activeTooltip === 'value' ? null : 'value')}
-            className={`p-0.5 rounded hover:bg-secondary border border-border/40 text-muted-foreground hover:text-foreground transition-colors bg-card/90 shadow-sm ${activeTooltip === 'value' ? 'bg-secondary text-primary border-primary/30' : ''}`}
-            title="View and copy cell value"
-          >
-            <Eye className="w-3 h-3" />
-          </button>
-        )}
-        
-        {traceInfo && (traceInfo.mapping || traceInfo.evidence || traceInfo.justification) && (
-          <button
-            onClick={() => setAndBroadcastTooltip(activeTooltip === 'trace' ? null : 'trace')}
-            className={`p-0.5 rounded hover:bg-secondary border border-border/40 text-muted-foreground hover:text-foreground transition-colors bg-card/90 shadow-sm ${activeTooltip === 'trace' ? 'bg-secondary text-primary border-primary/30' : ''}`}
-            title="View extraction logic trace"
-          >
-            <Link2 className="w-3 h-3" />
-          </button>
-        )}
-      </div>
-
-      {/* Dismissable value copy tooltip */}
-      {activeTooltip === 'value' && valueToCopy && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-72 p-3 bg-popover border border-border rounded-lg shadow-xl text-left text-[11px] text-popover-foreground flex flex-col gap-2">
-          <div className="flex justify-between items-center border-b border-border pb-1">
-            <span className="font-bold text-[10px] uppercase text-primary">Copy Cell Value</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => handleCopy(valueToCopy, 'value')}
-                className="p-1 hover:bg-secondary rounded border border-border flex items-center gap-1 text-[9px] font-bold text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {copiedType === 'value' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                {copiedType === 'value' ? 'Copied' : 'Copy'}
-              </button>
-              <button
-                onClick={() => setActiveTooltip(null)}
-                className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-          <div className="bg-secondary/40 p-2 rounded text-[10px] font-medium font-mono max-h-24 overflow-y-auto select-all break-all leading-normal">
-            {valueToCopy}
-          </div>
-          {originalValue && originalValue !== valueToCopy && (
-            <div className="flex flex-col gap-1 border-t border-border/60 pt-1.5 mt-0.5">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-[10px] uppercase text-muted-foreground">Original Value</span>
-                <button
-                  onClick={() => handleCopy(originalValue, 'original')}
-                  className="p-1 hover:bg-secondary rounded border border-border flex items-center gap-1 text-[9px] font-bold text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {copiedType === 'original' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  {copiedType === 'original' ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="bg-secondary/40 p-2 rounded text-[10px] font-medium font-mono max-h-24 overflow-y-auto select-all break-all leading-normal">
-                {originalValue}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Dismissable trace copy tooltip */}
-      {activeTooltip === 'trace' && traceInfo && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-80 p-3 bg-popover border border-border rounded-lg shadow-xl text-left text-[11px] text-popover-foreground flex flex-col gap-3">
-          <div className="flex justify-between items-center border-b border-border pb-1">
-            <span className="font-bold text-[10px] uppercase text-primary">Logic Trace & Details</span>
-            <div className="flex items-center gap-1.5">
-              {pdfLink && (
-                <a
-                  href={pdfLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[9px] font-bold text-primary hover:underline cursor-pointer"
-                  title="Open PDF Document"
-                >
-                  <ExternalLink className="w-2.5 h-2.5" />
-                  PDF Link
-                </a>
-              )}
-              <button
-                onClick={() => setActiveTooltip(null)}
-                className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-          
-          {traceInfo.mapping && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-center">
-                <span className="text-[9px] uppercase font-extrabold text-muted-foreground">Mapping Rules / Reasoning</span>
-                <button
-                  onClick={() => handleCopy(traceInfo.mapping!, 'trace-mapping')}
-                  className="inline-flex items-center gap-1 text-[9px] font-bold text-primary hover:underline"
-                >
-                  {copiedType === 'trace-mapping' ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5" />}
-                  {copiedType === 'trace-mapping' ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="bg-secondary/40 p-2 rounded text-[10px] font-semibold max-h-20 overflow-y-auto select-all break-words leading-normal">
-                {traceInfo.mapping}
-              </div>
-            </div>
-          )}
-          
-          {traceInfo.evidence && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-center">
-                <span className="text-[9px] uppercase font-extrabold text-muted-foreground">Evidence Quote</span>
-                <button
-                  onClick={() => handleCopy(traceInfo.evidence!, 'trace-evidence')}
-                  className="inline-flex items-center gap-1 text-[9px] font-bold text-primary hover:underline"
-                >
-                  {copiedType === 'trace-evidence' ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5" />}
-                  {copiedType === 'trace-evidence' ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="bg-secondary/40 p-2 rounded text-[10px] font-medium italic max-h-20 overflow-y-auto select-all break-words leading-normal">
-                "{traceInfo.evidence}"
-              </div>
-            </div>
-          )}
-
-          {traceInfo.justification && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-center">
-                <span className="text-[9px] uppercase font-extrabold text-muted-foreground">Taxonomy Justification</span>
-                <button
-                  onClick={() => handleCopy(traceInfo.justification!, 'trace-justification')}
-                  className="inline-flex items-center gap-1 text-[9px] font-bold text-primary hover:underline"
-                >
-                  {copiedType === 'trace-justification' ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5" />}
-                  {copiedType === 'trace-justification' ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="bg-secondary/40 p-2 rounded text-[10px] font-semibold max-h-20 overflow-y-auto select-all break-words leading-normal">
-                {traceInfo.justification}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const DEFAULT_WIDTHS: Record<string, number> = {
+const DEFAULT_WIDTHS = {
   Paper_ID: 70,
   Title: 150,
   Authors: 100,
@@ -241,61 +28,52 @@ const DEFAULT_WIDTHS: Record<string, number> = {
   Overall_QA: 90
 };
 
-interface FinalCohortPanelProps {
-  projectId: string;
-  showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-  searchTerm: string;
-  setSearchTerm: (val: string) => void;
-  showFilters: boolean;
-  setShowFilters: (val: boolean) => void;
-  setActiveFiltersCount: (val: number) => void;
-  isVisualizerOpen?: boolean;
-  setIsVisualizerOpen?: (val: boolean) => void;
-}
+export default function FinalCohortPanel() {
+  const {
+    activeSession,
+    showToast,
+    searchTerm,
+    setSearchTerm,
+    showFilters,
+    setShowFilters,
+    activeFiltersCount: globalActiveFiltersCount,
+    setActiveFiltersCount,
+    isVisualizerOpen: globalIsVisualizerOpen,
+    setIsVisualizerOpen: globalSetIsVisualizerOpen
+  } = useViewerData();
+  const projectId = activeSession?.id || 'viewer-project';
 
-export default function FinalCohortPanel({
-  projectId,
-  showToast,
-  searchTerm,
-  setSearchTerm,
-  showFilters,
-  setShowFilters,
-  setActiveFiltersCount,
-  isVisualizerOpen: externalIsVisualizerOpen,
-  setIsVisualizerOpen: externalSetIsVisualizerOpen
-}: FinalCohortPanelProps) {
-  const [allPapers, setAllPapers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(50);
-
-  // Sorting States
-  const [sortField, setSortField] = useState<string>('Paper_ID');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-
-  // Filter States
-  const [minQaScore, setMinQaScore] = useState<number | ''>('');
-  const [maxQaScore, setMaxQaScore] = useState<number | ''>('');
-  const [selectedExtractedFilters, setSelectedExtractedFilters] = useState<Record<string, string[]>>({});
+  // Read data from the offline session snapshot directly
+  const allPapers = useMemo(() => activeSession?.rawData?.final_cohort?.papers || [], [activeSession]);
+  const umbrellanizerMap = useMemo(() => activeSession?.rawData?.final_cohort?.umbrellanizer_mappings || {}, [activeSession]);
+  const projectData = useMemo(() => activeSession?.rawData?.project || {}, [activeSession]);
+  const [minQaScore, setMinQaScore] = useState('');
+  const [maxQaScore, setMaxQaScore] = useState('');
+  const [selectedExtractedFilters, setSelectedExtractedFilters] = useState({});
   const [pdfFilter, setPdfFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [doiStatusFilter, setDoiStatusFilter] = useState('');
   const [pdfLinkFilter, setPdfLinkFilter] = useState('');
   const [yearFilter, setYearFilter] = useState('');
   const [publisherFilter, setPublisherFilter] = useState('');
-  const [umbrellanizerMap, setUmbrellanizerMap] = useState<Record<string, Record<string, string>>>({});
+
+  // Pagination & Sorting States
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [sortField, setSortField] = useState('Paper_ID');
+  const [sortDirection, setSortDirection] = useState('asc');
   const [internalIsVisualizerOpen, setInternalIsVisualizerOpen] = useState(false);
-  const isVisualizerOpen = externalIsVisualizerOpen !== undefined ? externalIsVisualizerOpen : internalIsVisualizerOpen;
-  const setIsVisualizerOpen = externalSetIsVisualizerOpen || setInternalIsVisualizerOpen;
-  const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
+  const isVisualizerOpen = globalIsVisualizerOpen !== undefined ? globalIsVisualizerOpen : internalIsVisualizerOpen;
+  const setIsVisualizerOpen = globalSetIsVisualizerOpen || setInternalIsVisualizerOpen;
+  const [selectedPaperId, setSelectedPaperId] = useState(null);
 
   // Column Width Resizing State
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [columnWidths, setColumnWidths] = useState({});
 
   useEffect(() => {
     if (!projectId) return;
     try {
-      const saved = localStorage.getItem(`slr_cohort_column_widths_${projectId}`);
+      const saved = localStorage.getItem(`slr_viewer_cohort_column_widths_${projectId}`);
       if (saved) {
         setColumnWidths(JSON.parse(saved));
       } else {
@@ -306,7 +84,7 @@ export default function FinalCohortPanel({
     }
   }, [projectId]);
 
-  const getColWidth = useCallback((key: string, isQa = false, isExt = false) => {
+  const getColWidth = useCallback((key, isQa = false, isExt = false) => {
     if (columnWidths[key] !== undefined) return columnWidths[key];
     if (DEFAULT_WIDTHS[key] !== undefined) return DEFAULT_WIDTHS[key];
     if (isQa) return 120;
@@ -314,27 +92,27 @@ export default function FinalCohortPanel({
     return 100;
   }, [columnWidths]);
 
-  const handleResizeStart = (e: React.MouseEvent, colKey: string, isQa = false, isExt = false) => {
+  const handleResizeStart = (e, colKey, isQa = false, isExt = false) => {
     e.preventDefault();
     e.stopPropagation();
     
     const startX = e.pageX;
     const startWidth = getColWidth(colKey, isQa, isExt);
     
-    const handleMouseMove = (moveEvent: MouseEvent) => {
+    const handleMouseMove = (moveEvent) => {
       const deltaX = moveEvent.pageX - startX;
       const newWidth = Math.max(40, Math.min(500, startWidth + deltaX));
       setColumnWidths(prev => ({ ...prev, [colKey]: newWidth }));
     };
     
-    const handleMouseUp = (upEvent: MouseEvent) => {
+    const handleMouseUp = (upEvent) => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
       
       setColumnWidths(prev => {
         const next = { ...prev, [colKey]: Math.max(40, Math.min(500, startWidth + (upEvent.pageX - startX))) };
         try {
-          localStorage.setItem(`slr_cohort_column_widths_${projectId}`, JSON.stringify(next));
+          localStorage.setItem(`slr_viewer_cohort_column_widths_${projectId}`, JSON.stringify(next));
         } catch (e) {
           console.error('Failed to save column widths:', e);
         }
@@ -347,17 +125,16 @@ export default function FinalCohortPanel({
   };
 
   // Helper to resolve raw token to umbrellanized value
-  const resolveUmbrellanizerValue = useCallback((val: any, key: string) => {
+  const resolveUmbrellanizerValue = useCallback((val, key) => {
     if (val === undefined || val === null || val === '') return '';
     const rawVal = String(val).trim();
     const raw = rawVal.toLowerCase().replace(/\s+/g, ' ');
     const map = umbrellanizerMap[key] || {};
     
-    // Case-insensitive key matching
     const matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === raw);
-    if (!matchedKey) return rawVal; // Fallback to raw string if unmapped
+    if (!matchedKey) return rawVal;
     
-    const mappedVal = map[matchedKey] as any;
+    const mappedVal = map[matchedKey];
     if (!mappedVal) return rawVal;
     
     if (typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
@@ -369,8 +146,8 @@ export default function FinalCohortPanel({
     return String(mappedVal).trim();
   }, [umbrellanizerMap]);
 
-  // Helper to resolve Umbrellanizer taxonomy mapping justification using the raw database string
-  const getUmbrellanizerJustification = useCallback((resolvedVal: any, key: string, paper: any) => {
+  // Helper to resolve Umbrellanizer taxonomy mapping justification
+  const getUmbrellanizerJustification = useCallback((resolvedVal, key, paper) => {
     const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
     const extStr = isManualDominant 
       ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
@@ -378,12 +155,11 @@ export default function FinalCohortPanel({
     if (!extStr) return '';
 
     try {
-      const parsed = JSON.parse(extStr);
+      const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
       const extObj = parsed.extracted_data || parsed;
       let rawVal = extObj[key];
       if (rawVal === undefined || rawVal === null || rawVal === '') return '';
 
-      // Unwrap the value if it's stored in an object structure with a 'value' property
       if (rawVal && typeof rawVal === 'object' && 'value' in rawVal) {
         rawVal = rawVal.value;
       }
@@ -391,16 +167,14 @@ export default function FinalCohortPanel({
 
       const map = umbrellanizerMap[key] || {};
       
-      const resolveSingle = (singleRaw: any) => {
+      const resolveSingle = (singleRaw) => {
         const r = String(singleRaw).trim();
         const rNorm = r.toLowerCase().replace(/\s+/g, ' ');
-        // 1. Try matching the raw value directly
         let matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === rNorm);
         
-        // 2. Try matching the umbrella_category if matching raw failed
         if (!matchedKey) {
           matchedKey = Object.keys(map).find(k => {
-            const mappedVal = map[k] as any;
+            const mappedVal = map[k];
             if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
               return String(mappedVal.umbrella_category || '').trim().toLowerCase().replace(/\s+/g, ' ') === rNorm;
             }
@@ -409,7 +183,7 @@ export default function FinalCohortPanel({
         }
 
         if (matchedKey) {
-          const mappedVal = map[matchedKey] as any;
+          const mappedVal = map[matchedKey];
           if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
             return String(mappedVal.justification || '').trim();
           }
@@ -425,55 +199,8 @@ export default function FinalCohortPanel({
     return '';
   }, [umbrellanizerMap]);
 
-  // Fetch all final cohort papers at once for client-side deep filtering
-  const loadData = useCallback(async () => {
-    if (!projectId) return;
-    setLoading(true);
-    try {
-      // Fetch a large limit (e.g. 5000) to ensure we get all final cohort papers for client-side filtering
-      const res = await fetch(`/api/insight/final-cohort?projectId=${projectId}&limit=5000&page=1`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const json = await res.json();
-      const papers = json.papers || [];
-      setAllPapers(papers);
-
-      // Fetch Umbrellanizer results
-      const umbRes = await fetch(`/api/umbrellanizer?project_id=${projectId}`);
-      if (umbRes.ok) {
-        const umbJson = await umbRes.json();
-        const map: Record<string, Record<string, string>> = {};
-        if (umbJson.results && Array.isArray(umbJson.results)) {
-          umbJson.results.forEach((row: any) => {
-            try {
-              map[row.extracted_data_key] = JSON.parse(row.umbrella_mapping || '{}');
-            } catch (e) {}
-          });
-        }
-        setUmbrellanizerMap(map);
-      }
-    } catch (err) {
-      showToast('Error loading final cohort data', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId, showToast]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  useAppSync({
-    loadPapers: loadData,
-    loadProjects: () => {},
-    loadCalPapers: () => {},
-    loadAssignPapers: () => {},
-    loadDuplicatesCount: () => {},
-    checkBatchStatus: () => {},
-    loadScreeningPapers: () => {}
-  });
-
-  // Parse QA Assessment helpers with stage dominance, float score calculation, and trace mappings extraction
-  const parseQaAssessment = useCallback((paper: any) => {
+  // Parse QA Assessment helpers with stage dominance
+  const parseQaAssessment = useCallback((paper) => {
     const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
     const qaStr = isManualDominant 
       ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '') 
@@ -481,36 +208,33 @@ export default function FinalCohortPanel({
 
     if (!qaStr) return { score: 0, items: {}, traces: {} };
     try {
-      const parsed = JSON.parse(qaStr);
+      const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
       if (typeof parsed === 'object' && parsed !== null) {
         const qaObj = parsed.qa_scores || parsed;
         const logicTrace = parsed.logic_trace || {};
         const appraisalReasoning = logicTrace.appraisal_reasoning || {};
         
         let score = 0;
-        const items: Record<string, string> = {};
-        const traces: Record<string, { extraction_mapping?: string; evidence?: string }> = {};
+        const items = {};
+        const traces = {};
 
         Object.entries(qaObj).forEach(([k, v]) => {
           if (k.startsWith('_') || k === 'logic_trace' || k === '_scientist_logic_trace' || k === 'qa_scores') return;
-          const val = (v && typeof v === 'object' && 'value' in v) ? (v as any).value : v;
+          const val = (v && typeof v === 'object' && 'value' in v) ? v.value : v;
           items[k] = String(val);
 
-          // Resolve appraisal reasoning for the key (e.g., qa1_aims -> qa1_aims_analysis)
           let traceVal = appraisalReasoning[k + '_analysis'] || appraisalReasoning[k] || '';
           let evidenceVal = '';
 
           if (v && typeof v === 'object') {
-            const vObj = v as any;
-            if (vObj.evidence) {
-              evidenceVal = String(vObj.evidence);
-            } else if (vObj.logic_trace?.evidence) {
-              evidenceVal = String(vObj.logic_trace.evidence);
+            if (v.evidence) {
+              evidenceVal = String(v.evidence);
+            } else if (v.logic_trace?.evidence) {
+              evidenceVal = String(v.logic_trace.evidence);
             }
           }
           traces[k] = { extraction_mapping: String(traceVal || ''), evidence: evidenceVal };
 
-          // Parse numeric floats properly to support fractional QA points (e.g. 0.5)
           const numVal = parseFloat(String(val));
           if (!isNaN(numVal)) {
             score += numVal;
@@ -533,7 +257,7 @@ export default function FinalCohortPanel({
   }, []);
 
   // Parse Extracted Data helpers with stage dominance
-  const parseExtractedData = useCallback((paper: any) => {
+  const parseExtractedData = useCallback((paper) => {
     const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
     const extStr = isManualDominant 
       ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
@@ -544,15 +268,15 @@ export default function FinalCohortPanel({
       const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
       if (typeof parsed === 'object' && parsed !== null) {
         const extObj = parsed.extracted_data || parsed;
-        const resolved: Record<string, any> = {};
+        const resolved = {};
         Object.entries(extObj).forEach(([k, v]) => {
           if (k.startsWith('_') || k === 'logic_trace' || k === '_scientist_logic_trace') return;
           let val = v;
           if (v && typeof v === 'object' && 'value' in v) {
-            val = (v as any).value;
+            val = v.value;
           }
           
-          const rawTokens: string[] = [];
+          const rawTokens = [];
           if (Array.isArray(val)) {
             val.forEach(item => {
               if (typeof item === 'string' && item.includes(',') && !k.startsWith('rq8_a')) {
@@ -585,7 +309,7 @@ export default function FinalCohortPanel({
   }, [resolveUmbrellanizerValue]);
 
   // Helper to fetch original raw extracted data before umbrellanizer category mapping
-  const getOriginalExtractedVal = useCallback((paper: any, key: string) => {
+  const getOriginalExtractedVal = useCallback((paper, key) => {
     const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
     const extStr = isManualDominant 
       ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
@@ -593,12 +317,12 @@ export default function FinalCohortPanel({
 
     if (!extStr) return null;
     try {
-      const parsed = JSON.parse(extStr);
+      const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
       if (typeof parsed === 'object' && parsed !== null) {
         const extObj = parsed.extracted_data || parsed;
         let val = extObj[key];
         if (val && typeof val === 'object' && 'value' in val) {
-          val = (val as any).value;
+          val = val.value;
         }
         return val;
       }
@@ -606,8 +330,8 @@ export default function FinalCohortPanel({
     return null;
   }, []);
 
-  // Parse Extracted Data logic traces & quotes dynamically from DB fields
-  const parseExtractedTraces = useCallback((paper: any) => {
+  // Parse Extracted Data logic traces & quotes dynamically
+  const parseExtractedTraces = useCallback((paper) => {
     const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
     const extStr = isManualDominant 
       ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
@@ -615,13 +339,13 @@ export default function FinalCohortPanel({
 
     if (!extStr) return { mapping: {}, evidence: {} };
     try {
-      const parsed = JSON.parse(extStr);
+      const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
       const extObj = parsed.extracted_data || parsed;
       const logicTrace = parsed.logic_trace || extObj.logic_trace || {};
       const locateMapping = logicTrace.extraction_mapping || logicTrace || {};
       
-      const mapping: Record<string, string> = {};
-      const evidence: Record<string, string> = {};
+      const mapping = {};
+      const evidence = {};
       
       Object.keys(extObj).forEach(key => {
         if (key.startsWith('_') || key === 'logic_trace' || key === '_scientist_logic_trace') return;
@@ -643,10 +367,10 @@ export default function FinalCohortPanel({
 
   // Extract all unique filter options from the dataset dynamically
   const filterOptions = useMemo(() => {
-    const qaKeysSet = new Set<string>();
-    const extKeysMap = new Map<string, Set<string>>();
-    const yearSet = new Set<string>();
-    const publisherSet = new Set<string>();
+    const qaKeysSet = new Set();
+    const extKeysMap = new Map();
+    const yearSet = new Set();
+    const publisherSet = new Set();
 
     allPapers.forEach(p => {
       if (p.Year) yearSet.add(String(p.Year).trim());
@@ -664,15 +388,15 @@ export default function FinalCohortPanel({
             extKeysMap.set(k, new Set());
           }
           if (Array.isArray(v)) {
-            v.forEach(val => extKeysMap.get(k)!.add(String(val)));
+            v.forEach(val => extKeysMap.get(k).add(String(val)));
           } else {
-            extKeysMap.get(k)!.add(String(v));
+            extKeysMap.get(k).add(String(v));
           }
         }
       });
     });
 
-    const extOptions: Record<string, string[]> = {};
+    const extOptions = {};
     extKeysMap.forEach((valSet, key) => {
       extOptions[key] = Array.from(valSet).sort();
     });
@@ -688,7 +412,6 @@ export default function FinalCohortPanel({
   // Apply deep filtering
   const filteredPapers = useMemo(() => {
     return allPapers.filter(p => {
-      // Search search term
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         const matchesSearch = 
@@ -700,12 +423,10 @@ export default function FinalCohortPanel({
         if (!matchesSearch) return false;
       }
 
-      // QA Overall Score Filter
       const { score } = parseQaAssessment(p);
       if (minQaScore !== '' && score < minQaScore) return false;
       if (maxQaScore !== '' && score > maxQaScore) return false;
 
-      // Extracted Key Filters
       const ext = parseExtractedData(p);
       for (const [extKey, targetVals] of Object.entries(selectedExtractedFilters)) {
         if (targetVals && targetVals.length > 0) {
@@ -721,10 +442,8 @@ export default function FinalCohortPanel({
         }
       }
 
-      // PDF Status Filter
       if (pdfFilter && p.Local_PDF_Status !== pdfFilter) return false;
 
-      // Source Scope Filter
       if (sourceFilter) {
         const importSrc = p.Import_Source || '';
         if (sourceFilter === 'manual') {
@@ -738,14 +457,12 @@ export default function FinalCohortPanel({
         }
       }
 
-      // DOI Status Filter
       if (doiStatusFilter) {
         const hasDoi = !!(p.DOI && p.DOI.trim());
         if (doiStatusFilter === 'empty' && hasDoi) return false;
         if (doiStatusFilter === 'has_doi' && !hasDoi) return false;
       }
 
-      // PDF Link Filter
       if (pdfLinkFilter) {
         const hasLink = !!(p.PDF_Link && p.PDF_Link.trim());
         if (pdfLinkFilter === 'empty' && hasLink) return false;
@@ -771,8 +488,8 @@ export default function FinalCohortPanel({
     if (!sortField) return papersCopy;
 
     papersCopy.sort((a, b) => {
-      let valA: any = '';
-      let valB: any = '';
+      let valA = '';
+      let valB = '';
 
       if (sortField.startsWith('qa:')) {
         const qaKey = sortField.substring(3);
@@ -858,12 +575,13 @@ export default function FinalCohortPanel({
     return count;
   }, [minQaScore, maxQaScore, selectedExtractedFilters, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, yearFilter, publisherFilter]);
 
-  // Sync the active filters count back to the parent page header
   useEffect(() => {
-    setActiveFiltersCount(activeFiltersCount);
+    if (setActiveFiltersCount) {
+      setActiveFiltersCount(activeFiltersCount);
+    }
   }, [activeFiltersCount, setActiveFiltersCount]);
 
-  const toggleExtractedFilterValue = (key: string, val: string) => {
+  const toggleExtractedFilterValue = (key, val) => {
     setSelectedExtractedFilters(prev => {
       const current = prev[key] || [];
       const next = current.includes(val) 
@@ -874,7 +592,7 @@ export default function FinalCohortPanel({
   };
 
   // High fidelity visual renderers for grid cells
-  const getPdfStatusBadge = (status: string) => {
+  const getPdfStatusBadge = (status) => {
     const s = String(status || '').toUpperCase();
     switch (s) {
       case 'SYNCED':
@@ -894,7 +612,7 @@ export default function FinalCohortPanel({
     }
   };
 
-  const renderQaVal = (val: string) => {
+  const renderQaVal = (val) => {
     if (!val) return <span className="text-muted-foreground/30">-</span>;
     const normalized = String(val).toUpperCase().trim();
     if (['YES', 'PASS', 'TRUE', '1', '1.0'].includes(normalized)) {
@@ -906,14 +624,13 @@ export default function FinalCohortPanel({
     return <span className="px-1 py-0.2 rounded bg-secondary text-foreground text-[9px] font-bold">{val}</span>;
   };
 
-  // Render extracted values as clean ordinary text with a small badge counter for duplicate values
-  const renderExtractedVal = (val: any) => {
+  const renderExtractedVal = (val) => {
     if (val === undefined || val === null || val === '') {
       return <span className="text-muted-foreground/30">-</span>;
     }
     
-    const processArray = (arr: any[]) => {
-      const counts: Record<string, number> = {};
+    const processArray = (arr) => {
+      const counts = {};
       arr.forEach(item => {
         const s = String(item).trim();
         if (s) {
@@ -948,7 +665,7 @@ export default function FinalCohortPanel({
     return <span className="text-[10px] text-foreground font-semibold">{String(val)}</span>;
   };
 
-  const handleColumnSort = (field: string) => {
+  const handleColumnSort = (field) => {
     if (sortField === field) {
       setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -957,7 +674,7 @@ export default function FinalCohortPanel({
     }
   };
 
-  const renderSortIndicator = (field: string) => {
+  const renderSortIndicator = (field) => {
     if (sortField !== field) {
       return <span className="opacity-30 ml-0.5">⇅</span>;
     }
@@ -973,14 +690,13 @@ export default function FinalCohortPanel({
             <span className="text-xs font-bold text-foreground">Deep Cohort Filters</span>
             <button
               onClick={clearAllFilters}
-              className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline"
+              className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline cursor-pointer"
             >
               Clear All Filters
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {/* Column 1: QA Score Limits */}
             <div className="space-y-3">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Overall QA Score Range</span>
               <div className="flex items-center gap-2">
@@ -1002,7 +718,6 @@ export default function FinalCohortPanel({
               </div>
             </div>
 
-            {/* Column 3: Extracted Taxonomy Key Filters */}
             <div className="space-y-3 col-span-2">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Extracted Taxonomy Variables</span>
               {Object.keys(filterOptions.extracted).length === 0 ? (
@@ -1011,20 +726,21 @@ export default function FinalCohortPanel({
                 <div className="max-h-36 overflow-y-auto border border-border rounded-lg p-2 bg-secondary/15 space-y-3">
                   {Object.entries(filterOptions.extracted).map(([key, options]) => (
                     <div key={key} className="space-y-1">
-                      <span className="text-[10px] font-bold text-foreground block bg-secondary/35 px-1 py-0.5 rounded">{key}</span>
-                      <div className="pl-1 space-y-1">
-                        {options.map(val => {
-                          const isSelected = (selectedExtractedFilters[key] || []).includes(val);
+                      <span className="text-[9px] font-extrabold text-foreground uppercase tracking-wider block">{key}</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {options.map((opt) => {
+                          const isSelected = (selectedExtractedFilters[key] || []).includes(opt);
                           return (
                             <button
-                              key={val}
-                              onClick={() => toggleExtractedFilterValue(key, val)}
-                              className={`w-full flex items-center justify-between text-left text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                                isSelected ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-secondary text-muted-foreground'
+                              key={opt}
+                              onClick={() => toggleExtractedFilterValue(key, opt)}
+                              className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-colors cursor-pointer ${
+                                isSelected
+                                  ? 'bg-primary text-primary-foreground border-primary'
+                                  : 'bg-secondary hover:bg-secondary/80 border-border text-muted-foreground'
                               }`}
                             >
-                              <span className="truncate pr-2">{val}</span>
-                              {isSelected && <Check className="w-3 h-3 shrink-0" />}
+                              {opt}
                             </button>
                           );
                         })}
@@ -1035,14 +751,13 @@ export default function FinalCohortPanel({
               )}
             </div>
 
-            {/* Column 4: Paper Metadata Filters */}
             <div className="space-y-3">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Paper Metadata</span>
-              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Quick Attribute Scope</span>
+              <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] font-bold text-muted-foreground uppercase">PDF Status</label>
                   <select
-                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full"
+                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full cursor-pointer"
                     value={pdfFilter}
                     onChange={(e) => setPdfFilter(e.target.value)}
                   >
@@ -1060,7 +775,7 @@ export default function FinalCohortPanel({
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] font-bold text-muted-foreground uppercase">Source Scope</label>
                   <select
-                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full"
+                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full cursor-pointer"
                     value={sourceFilter}
                     onChange={(e) => setSourceFilter(e.target.value)}
                   >
@@ -1075,7 +790,7 @@ export default function FinalCohortPanel({
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] font-bold text-muted-foreground uppercase">DOI Status</label>
                   <select
-                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full"
+                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full cursor-pointer"
                     value={doiStatusFilter}
                     onChange={(e) => setDoiStatusFilter(e.target.value)}
                   >
@@ -1088,7 +803,7 @@ export default function FinalCohortPanel({
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] font-bold text-muted-foreground uppercase">Year</label>
                   <select
-                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full"
+                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full cursor-pointer"
                     value={yearFilter}
                     onChange={(e) => setYearFilter(e.target.value)}
                   >
@@ -1102,7 +817,7 @@ export default function FinalCohortPanel({
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] font-bold text-muted-foreground uppercase">Publisher</label>
                   <select
-                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full"
+                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full cursor-pointer"
                     value={publisherFilter}
                     onChange={(e) => setPublisherFilter(e.target.value)}
                   >
@@ -1116,7 +831,7 @@ export default function FinalCohortPanel({
                 <div className="flex flex-col gap-1">
                   <label className="text-[9px] font-bold text-muted-foreground uppercase">PDF Link</label>
                   <select
-                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full"
+                    className="bg-secondary border border-border rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-bold w-full cursor-pointer"
                     value={pdfLinkFilter}
                     onChange={(e) => setPdfLinkFilter(e.target.value)}
                   >
@@ -1131,9 +846,8 @@ export default function FinalCohortPanel({
         </div>
       )}
 
-      {/* Wide Tabular Table Container - Takes 100% of parent container */}
+      {/* Tabular Table Container - Takes 100% of parent container */}
       <div className="flex-1 flex flex-col overflow-hidden w-full h-full border-t border-border">
-        {/* Table Header Toolbar */}
         <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-secondary/15 shrink-0 select-none">
           <div className="flex items-center gap-2.5">
             <span className="text-xs font-bold text-foreground">Cohort Table View</span>
@@ -1143,11 +857,7 @@ export default function FinalCohortPanel({
           </div>
         </div>
 
-        {loading ? (
-          <div className="h-full flex items-center justify-center text-muted-foreground">
-            <Loader2 className="w-6 h-6 animate-spin" />
-          </div>
-        ) : sortedPapers.length === 0 ? (
+        {sortedPapers.length === 0 ? (
           <div className="h-full flex items-center justify-center text-center p-6 text-muted-foreground text-xs italic">
             No papers match the current filters.
           </div>
@@ -1343,7 +1053,6 @@ export default function FinalCohortPanel({
                             : 'hover:bg-secondary/20'
                         }`}
                       >
-                        {/* Essential database columns wrapped in ClickableCell */}
                         <td 
                           className="p-2 border-b border-border/50"
                           style={{ width: getColWidth('Paper_ID'), minWidth: getColWidth('Paper_ID'), maxWidth: getColWidth('Paper_ID') }}
@@ -1447,7 +1156,7 @@ export default function FinalCohortPanel({
                           </ClickableCell>
                         </td>
                         
-                        {/* Dynamic QA Columns with copy popups (logic trace reads appraisal_reasoning) */}
+                        {/* Dynamic QA Columns */}
                         {filterOptions.qaKeys.map((qaKey) => {
                           const val = items[qaKey];
                           const trace = traces[qaKey] || {};
@@ -1472,7 +1181,7 @@ export default function FinalCohortPanel({
                           );
                         })}
 
-                        {/* Dynamic Extracted Columns with copy popups (includes justification trace details) */}
+                        {/* Dynamic Extracted Columns */}
                         {Object.keys(filterOptions.extracted).map((extKey) => {
                           const val = ext[extKey];
                           const mapping = extTraces.mapping[extKey] || '';
@@ -1517,7 +1226,7 @@ export default function FinalCohortPanel({
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground font-semibold uppercase">Rows:</span>
                   <select
-                    className="bg-secondary border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-primary font-bold"
+                    className="bg-secondary border border-border rounded px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-primary font-bold cursor-pointer"
                     value={limit}
                     onChange={(e) => {
                       setLimit(Number(e.target.value));
@@ -1534,7 +1243,7 @@ export default function FinalCohortPanel({
                   <button
                     disabled={page === 1}
                     onClick={() => setPage(p => Math.max(1, p - 1))}
-                    className="p-1 hover:bg-background rounded-md text-muted-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                    className="p-1 hover:bg-background rounded-md text-muted-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -1544,7 +1253,7 @@ export default function FinalCohortPanel({
                   <button
                     disabled={page === totalPages}
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    className="p-1 hover:bg-background rounded-md text-muted-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                    className="p-1 hover:bg-background rounded-md text-muted-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>

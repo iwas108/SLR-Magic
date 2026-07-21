@@ -24,10 +24,11 @@ export async function GET(request: Request) {
         JOIN (
           SELECT paper_id, MAX(timestamp) as max_ts
           FROM calibration_commit_ledger
-          WHERE project_id = ?
+          WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
           GROUP BY paper_id
         ) latest ON l.paper_id = latest.paper_id AND l.timestamp = latest.max_ts
-      `).all(activeProjectId) as { paper_id: string; pool: string; adjudicated_decision: string; resolved_qa_scores: string; resolved_extracted_data: string }[];
+        WHERE CAST(l.project_id AS TEXT) = CAST(? AS TEXT)
+      `).all(activeProjectId, activeProjectId) as { paper_id: string; pool: string; adjudicated_decision: string; resolved_qa_scores: string; resolved_extracted_data: string }[];
 
       // Query project rules to parse fatal flaws and keys
       const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
@@ -72,7 +73,7 @@ export async function GET(request: Request) {
             const auditRow = db.prepare(`
               SELECT structured_output 
               FROM llm_audit_log 
-              WHERE project_id = ? AND paper_id = ? AND task_type = 'scientist' AND status = 'SUCCESS'
+              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'scientist' AND status = 'SUCCESS'
               ORDER BY created_at DESC LIMIT 1
             `).get(activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
 
@@ -193,7 +194,7 @@ export async function GET(request: Request) {
             const auditRow = db.prepare(`
               SELECT structured_output 
               FROM llm_audit_log 
-              WHERE project_id = ? AND paper_id = ? AND task_type = 'miner' AND status = 'SUCCESS'
+              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'miner' AND status = 'SUCCESS'
               ORDER BY created_at DESC LIMIT 1
             `).get(activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
 
@@ -255,7 +256,7 @@ export async function GET(request: Request) {
           const auditRow = db.prepare(`
             SELECT structured_output 
             FROM llm_audit_log 
-            WHERE project_id = ? AND paper_id = ? AND task_type = ? AND status = 'SUCCESS'
+            WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = ? AND status = 'SUCCESS'
             ORDER BY created_at DESC LIMIT 1
           `).get(activeProjectId, entry.paper_id, stageNum === 1 ? 'fast_filter' : 'gatekeeper') as { structured_output: string } | undefined;
 

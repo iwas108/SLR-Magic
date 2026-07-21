@@ -51,8 +51,11 @@ export async function GET(request: Request) {
     `).all(projectId) as any[];
 
     // Other sources filter list
-    const otherSources = ['Backward Snowball', 'Forward Snowball', 'Manual Search', 'Manual Ingestion'];
-    const isOtherSource = (src: string) => otherSources.includes(src);
+    const otherSources = ['backward snowball', 'forward snowball', 'manual search', 'manual ingestion'];
+    const isOtherSource = (src: string) => {
+      if (!src) return false;
+      return otherSources.includes(src.trim().toLowerCase());
+    };
 
     // Helpers to resolve decision and stage
     const resolvePaper = (paper: any) => {

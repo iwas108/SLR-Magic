@@ -1,40 +1,7 @@
 import React from 'react';
 import { CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react';
 
-interface StageStats {
-  pool: string;
-  stage: number;
-  total: number;
-  evaluated: number;
-  TP?: number;
-  TN?: number;
-  FP?: number;
-  FN?: number;
-  recall?: number;
-  precision?: number;
-  f1?: number;
-  kappa?: number;
-  weighted_kappa?: number;
-  raw_agreement_pct?: number;
-  minor_deviation_pct?: number;
-  critical_miss_pct?: number;
-  missing_keys_pct?: number;
-  type_match_pct?: number;
-  exact_match_pct?: number;
-  pre_normalization_yield?: number;
-  schema_integrity_pct?: number;
-  title: string;
-  stageName: string;
-  thresholds: any;
-  passes: boolean;
-}
-
-interface StageComparisonPanelProps {
-  stageStats: StageStats[];
-  loading: boolean;
-}
-
-export default function StageComparisonPanel({ stageStats, loading }: StageComparisonPanelProps) {
+export default function StageComparisonPanel({ stageStats, loading }) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
@@ -55,7 +22,7 @@ export default function StageComparisonPanel({ stageStats, loading }: StageCompa
   if (!stageStats || stageStats.length === 0) {
     return (
       <div className="bg-card border border-border p-6 rounded-xl text-center text-muted-foreground text-xs">
-        No stage comparison statistics available. Run some calibration papers to view results.
+        No stage comparison statistics available in this snapshot.
       </div>
     );
   }
@@ -256,7 +223,7 @@ export default function StageComparisonPanel({ stageStats, loading }: StageCompa
             
             <div className="text-[9px] text-muted-foreground/75 mt-3 border-t border-border/40 pt-1.5 flex justify-between font-medium">
               <span>Evaluated: {stat.evaluated}</span>
-              <span>Total Adjudicated: {stat.total}</span>
+              <span>Total Adjudicated: {stat.total || stat.evaluated}</span>
             </div>
           </div>
         );

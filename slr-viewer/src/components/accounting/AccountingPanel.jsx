@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   DollarSign,
   Zap,
@@ -14,13 +12,9 @@ import {
   ChevronsLeft,
   ChevronsRight
 } from 'lucide-react';
+import { useViewerData } from '../../context/ViewerContext';
 
-interface AccountingPanelProps {
-  projectId: string;
-  showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-}
-
-const STAGE_CONFIGS: Record<string, { label: string; border: string; bg: string; text: string }> = {
+const STAGE_CONFIGS = {
   fast_filter: {
     label: 'Fast Filter',
     border: 'border-t-4 border-t-sky-500',
@@ -53,42 +47,28 @@ const STAGE_CONFIGS: Record<string, { label: string; border: string; bg: string;
   }
 };
 
-export default function AccountingPanel({ projectId, showToast }: AccountingPanelProps) {
-  const [data, setData] = useState<{ overallStats?: any; pipelineBreakdown: any[]; expensiveCalls: any[] } | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function AccountingPanel() {
+  const { activeSession, loading } = useViewerData();
+
+  const accountingData = activeSession?.rawData?.accounting || null;
+  const overallStats = accountingData?.summary || null;
+  const pipelineBreakdown = accountingData?.pipeline_breakdown || [];
+  const expensiveCalls = accountingData?.top_expensive_calls || [];
 
   // Sorting, Filtering & Pagination State
-  const [sortField, setSortField] = useState<string>('cost_usd');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [taskFilter, setTaskFilter] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(25);
-
-  useEffect(() => {
-    async function fetchData() {
-      if (!projectId) return;
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/insight/accounting?projectId=${projectId}`);
-        if (!res.ok) throw new Error('Failed to fetch');
-        const json = await res.json();
-        setData(json);
-      } catch (err) {
-        showToast('Error loading accounting data', 'error');
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [projectId, showToast]);
+  const [sortField, setSortField] = useState('cost_usd');
+  const [sortDirection, setSortDirection] = useState('desc');
+  const [taskFilter, setTaskFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const filteredCalls = useMemo(() => {
-    const list = data?.expensiveCalls || [];
-    if (taskFilter === 'all') return list;
-    return list.filter(
+    if (!expensiveCalls) return [];
+    if (taskFilter === 'all') return expensiveCalls;
+    return expensiveCalls.filter(
       (c) => (c.task_type || '').toLowerCase() === taskFilter.toLowerCase()
     );
-  }, [data?.expensiveCalls, taskFilter]);
+  }, [expensiveCalls, taskFilter]);
 
   const sortedCalls = useMemo(() => {
     if (!filteredCalls) return [];
@@ -96,15 +76,12 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
       let aVal = a[sortField];
       let bVal = b[sortField];
 
-      if (sortField === 'task_type') {
+      if (sortField === 'task_type' || sortField === 'model_id') {
         aVal = (aVal || '').toString().toLowerCase();
         bVal = (bVal || '').toString().toLowerCase();
-      } else if (sortField === 'model_id') {
-        aVal = (aVal || '').toString().toLowerCase();
-        bVal = (bVal || '').toString().toLowerCase();
-      } else if (sortField === 'created_at') {
-        aVal = new Date(aVal || 0).getTime();
-        bVal = new Date(bVal || 0).getTime();
+      } else if (sortField === 'created_at' || sortField === 'timestamp') {
+        aVal = new Date(a.created_at || a.timestamp || 0).getTime();
+        bVal = new Date(b.created_at || b.timestamp || 0).getTime();
       } else {
         aVal = Number(aVal || 0);
         bVal = Number(bVal || 0);
@@ -121,7 +98,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedCalls = sortedCalls.slice(startIndex, startIndex + pageSize);
 
-  const handleSort = (field: string) => {
+  const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -135,35 +112,40 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
     return <div className="p-4 flex items-center justify-center text-muted-foreground">Loading accounting data...</div>;
   }
 
-  if (!data) return null;
+  if (!accountingData) {
+    return (
+      <div className="bg-card border border-border p-8 rounded-xl text-center text-muted-foreground text-xs">
+        No accounting data available in this snapshot.
+      </div>
+    );
+  }
 
-  const totalCost = data.pipelineBreakdown.reduce((sum, item) => sum + (item.total_cost || 0), 0);
-  const totalTokens = data.pipelineBreakdown.reduce((sum, item) => sum + (item.total_tokens || 0), 0);
-  const overallStats = data.overallStats;
+  const totalCost = pipelineBreakdown.reduce((sum, item) => sum + (item.total_cost || 0), 0);
+  const totalTokens = pipelineBreakdown.reduce((sum, item) => sum + (item.total_tokens || 0), 0);
 
-  const breakdownMap = new Map<string, any>();
-  data.pipelineBreakdown.forEach((item) => {
+  const breakdownMap = new Map();
+  pipelineBreakdown.forEach((item) => {
     breakdownMap.set((item.task_type || '').toLowerCase(), item);
   });
 
-  const getMinCost = (itemData: any, taskType: string) => {
+  const getMinCost = (itemData, taskType) => {
     const rawMin = itemData?.min_cost;
     if (rawMin !== undefined && rawMin !== null && Number(rawMin) > 0) {
       return Number(rawMin);
     }
-    const stageCalls = (data?.expensiveCalls || []).filter(
+    const stageCalls = expensiveCalls.filter(
       (c) => (c.task_type || '').toLowerCase() === (taskType || '').toLowerCase()
     );
     const validCosts = stageCalls.map((c) => Number(c.cost_usd || 0)).filter((c) => c > 0);
     return validCosts.length > 0 ? Math.min(...validCosts) : 0;
   };
 
-  const getMinTokens = (itemData: any, taskType: string) => {
+  const getMinTokens = (itemData, taskType) => {
     const rawMin = itemData?.min_tokens;
     if (rawMin !== undefined && rawMin !== null && Number(rawMin) > 0) {
       return Number(rawMin);
     }
-    const stageCalls = (data?.expensiveCalls || []).filter(
+    const stageCalls = expensiveCalls.filter(
       (c) => (c.task_type || '').toLowerCase() === (taskType || '').toLowerCase()
     );
     const validTokens = stageCalls.map((c) => Number(c.total_tokens || 0)).filter((c) => c > 0);
@@ -175,11 +157,11 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
     if (rawMin !== undefined && rawMin !== null && Number(rawMin) > 0) {
       return Number(rawMin);
     }
-    const breakdownMins = (data?.pipelineBreakdown || [])
-      .map((item: any) => getMinCost(item, item.task_type))
-      .filter((v: number) => v > 0);
+    const breakdownMins = pipelineBreakdown
+      .map((item) => getMinCost(item, item.task_type))
+      .filter((v) => v > 0);
     if (breakdownMins.length > 0) return Math.min(...breakdownMins);
-    const validCosts = (data?.expensiveCalls || []).map((c) => Number(c.cost_usd || 0)).filter((c) => c > 0);
+    const validCosts = expensiveCalls.map((c) => Number(c.cost_usd || 0)).filter((c) => c > 0);
     return validCosts.length > 0 ? Math.min(...validCosts) : 0;
   };
 
@@ -188,24 +170,17 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
     if (rawMin !== undefined && rawMin !== null && Number(rawMin) > 0) {
       return Number(rawMin);
     }
-    const breakdownMins = (data?.pipelineBreakdown || [])
-      .map((item: any) => getMinTokens(item, item.task_type))
-      .filter((v: number) => v > 0);
+    const breakdownMins = pipelineBreakdown
+      .map((item) => getMinTokens(item, item.task_type))
+      .filter((v) => v > 0);
     if (breakdownMins.length > 0) return Math.min(...breakdownMins);
-    const validTokens = (data?.expensiveCalls || []).map((c) => Number(c.total_tokens || 0)).filter((c) => c > 0);
+    const validTokens = expensiveCalls.map((c) => Number(c.total_tokens || 0)).filter((c) => c > 0);
     return validTokens.length > 0 ? Math.min(...validTokens) : 0;
   };
 
-  const renderStatsSubGrid = (
-    minCost?: number,
-    avgCost?: number,
-    maxCost?: number,
-    minTokens?: number,
-    avgTokens?: number,
-    maxTokens?: number
-  ) => {
-    const formatCost = (val?: number) => (val !== undefined && val !== null && val !== Infinity && val > 0 ? `$${val.toFixed(4)}` : '$0.0000');
-    const formatTokens = (val?: number) => (val !== undefined && val !== null && val !== Infinity && val > 0 ? Math.round(val).toLocaleString() : '0');
+  const renderStatsSubGrid = (minCost, avgCost, maxCost, minTokens, avgTokens, maxTokens) => {
+    const formatCost = (val) => (val !== undefined && val !== null && val !== Infinity && Number(val) > 0 ? `$${Number(val).toFixed(4)}` : '$0.0000');
+    const formatTokens = (val) => (val !== undefined && val !== null && val !== Infinity && Number(val) > 0 ? Math.round(Number(val)).toLocaleString() : '0');
 
     return (
       <div className="grid grid-cols-3 gap-1 mt-3 pt-2.5 border-t border-border/60 text-xs bg-muted/20 p-2 rounded-md font-normal">
@@ -228,7 +203,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
     );
   };
 
-  const renderStageCard = (key: string, itemData: any, extraClass = '') => {
+  const renderStageCard = (key, itemData, extraClass = '') => {
     const config = STAGE_CONFIGS[key] || {
       label: key.replace('_', ' '),
       border: 'border-t-4 border-t-primary',
@@ -236,8 +211,8 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
       text: 'text-primary'
     };
 
-    const cost = itemData?.total_cost || 0;
-    const tokens = itemData?.total_tokens || 0;
+    const cost = Number(itemData?.total_cost || 0);
+    const tokens = Number(itemData?.total_tokens || 0);
 
     return (
       <div className={`bg-card border border-border ${config.border} p-4 rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between ${extraClass}`}>
@@ -279,7 +254,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Total Spend - Takes 2 rows in column 1 */}
+          {/* Total Spend */}
           <div className="md:row-span-2 md:col-span-1 bg-card border border-border border-t-4 border-t-emerald-500 p-5 rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between">
@@ -290,15 +265,15 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
               </div>
               <div className="mt-4">
                 <div className="text-3xl font-normal text-foreground tracking-tight">
-                  ${(overallStats?.total_cost || totalCost).toFixed(4)}
+                  ${Number(overallStats?.total_cost_usd || overallStats?.total_cost || totalCost).toFixed(4)}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1.5 font-normal">
                   <Hash className="w-3.5 h-3.5" />
-                  <span>{(overallStats?.total_tokens || totalTokens).toLocaleString()} total tokens</span>
+                  <span>{Number(overallStats?.total_tokens || totalTokens).toLocaleString()} total tokens</span>
                 </div>
                 {overallStats?.total_calls ? (
                   <div className="text-[11px] text-muted-foreground/80 mt-1 font-mono font-normal">
-                    {overallStats.total_calls.toLocaleString()} API calls logged
+                    {Number(overallStats.total_calls).toLocaleString()} API calls logged
                   </div>
                 ) : null}
               </div>
@@ -314,12 +289,10 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
             )}
           </div>
 
-          {/* Row 1 Right: Fast Filter, Gatekeeper, Scientist */}
           {renderStageCard('fast_filter', breakdownMap.get('fast_filter'))}
           {renderStageCard('gatekeeper', breakdownMap.get('gatekeeper'))}
           {renderStageCard('scientist', breakdownMap.get('scientist'))}
 
-          {/* Row 2 Right: Miner, Umbrellanizer (Spans 2 columns) */}
           {renderStageCard('miner', breakdownMap.get('miner'))}
           {renderStageCard('umbrellanizer', breakdownMap.get('umbrellanizer'), 'md:col-span-2')}
         </div>
@@ -423,7 +396,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
                 {paginatedCalls.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-xs italic">
-                      No API calls logged yet.
+                      No API calls logged in this snapshot.
                     </td>
                   </tr>
                 ) : (
@@ -432,11 +405,11 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
                       <td className="px-4 py-1.5 font-medium text-xs text-foreground capitalize">
                         {call.task_type ? call.task_type.replace('_', ' ') : 'Unknown'}
                       </td>
-                      <td className="px-4 py-1.5 font-mono text-xs text-muted-foreground">{call.model_id}</td>
+                      <td className="px-4 py-1.5 font-mono text-xs text-muted-foreground">{call.model_id || '—'}</td>
                       <td className="px-4 py-1.5 text-right font-normal text-xs font-mono">{call.total_tokens?.toLocaleString() || 0}</td>
                       <td className="px-4 py-1.5 text-right font-semibold text-xs font-mono text-destructive">${(call.cost_usd || 0).toFixed(4)}</td>
                       <td className="px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(call.created_at).toLocaleString()}
+                        {call.timestamp || call.created_at ? new Date(call.timestamp || call.created_at).toLocaleString() : '—'}
                       </td>
                     </tr>
                   ))
@@ -458,7 +431,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
                 <button
                   onClick={() => setCurrentPage(1)}
                   disabled={currentPage === 1}
-                  className="p-1.5 rounded-md border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 rounded-md border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                   title="First Page"
                 >
                   <ChevronsLeft className="w-4 h-4" />
@@ -466,7 +439,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="p-1.5 rounded-md border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 rounded-md border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                   title="Previous Page"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -477,7 +450,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
                 <button
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages || totalPages === 0}
-                  className="p-1.5 rounded-md border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 rounded-md border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                   title="Next Page"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -485,7 +458,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
                 <button
                   onClick={() => setCurrentPage(totalPages)}
                   disabled={currentPage === totalPages || totalPages === 0}
-                  className="p-1.5 rounded-md border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-1.5 rounded-md border border-border bg-card hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                   title="Last Page"
                 >
                   <ChevronsRight className="w-4 h-4" />
@@ -498,7 +471,7 @@ export default function AccountingPanel({ projectId, showToast }: AccountingPane
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="bg-card border border-border text-foreground text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="bg-card border border-border text-foreground text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
               >
                 <option value={10}>10 / page</option>
                 <option value={25}>25 / page</option>

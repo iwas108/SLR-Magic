@@ -1,85 +1,56 @@
-'use client';
-
 import React, { useState } from 'react';
 import { Download, Eye, Table, ShieldCheck, Loader2 } from 'lucide-react';
+import { useViewerData } from '../../context/ViewerContext';
+import { exportFinalCohortCsv } from '../../lib/csv-export';
 
-interface FairDataExportPanelProps {
-  projectId: string;
-  showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-}
-
-export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
-  projectId,
-  showToast,
-}) => {
+export default function FairDataExportPanel() {
+  const { activeSession, showToast } = useViewerData();
   const [exportingViewer, setExportingViewer] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
 
-  const handleExportViewer = async () => {
-    if (!projectId) return;
+  const handleExportViewer = () => {
+    if (!activeSession || !activeSession.rawData) {
+      showToast('No active session to export', 'error');
+      return;
+    }
     setExportingViewer(true);
     try {
-      const response = await fetch(`/api/export/slr-viewer?projectId=${projectId}`);
-      if (!response.ok) throw new Error('Failed to generate SLR Viewer export');
-
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `slr_export_${projectId}.slr-viewer`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (match && match[1]) {
-          filename = match[1];
-        }
-      }
-
-      const blob = await response.blob();
+      const jsonStr = JSON.stringify(activeSession.rawData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = filename;
+      const safeName = (activeSession.projectName || 'project').toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      const dateStr = new Date().toISOString().split('T')[0];
+      a.download = `${safeName}_slr_export_${dateStr}.slr-viewer`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      showToast('SLR Viewer export (.slr-viewer) generated successfully', 'success');
-    } catch (err: any) {
-      console.error('Export SLR Viewer Error:', err);
-      showToast(err.message || 'Export failed', 'error');
+      showToast('SLR Viewer snapshot exported successfully', 'success');
+    } catch (e) {
+      showToast('Failed to export .slr-viewer file', 'error');
     } finally {
       setExportingViewer(false);
     }
   };
 
-  const handleExportCsv = async () => {
-    if (!projectId) return;
+  const handleExportCsv = () => {
+    if (!activeSession || !activeSession.rawData) {
+      showToast('No active session to export', 'error');
+      return;
+    }
     setExportingCsv(true);
     try {
-      const response = await fetch(`/api/export/csv-tabular?projectId=${projectId}`);
-      if (!response.ok) throw new Error('Failed to generate CSV export');
+      const cohortData = activeSession.rawData.final_cohort || {};
+      const projectData = activeSession.rawData.project || {};
+      const papers = cohortData.papers || [];
 
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `cohort_export_${projectId}.csv`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (match && match[1]) {
-          filename = match[1];
-        }
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      showToast('CSV Tabular export (.csv) generated successfully', 'success');
-    } catch (err: any) {
-      console.error('Export CSV Error:', err);
-      showToast(err.message || 'Export failed', 'error');
+      exportFinalCohortCsv({ final_cohort: cohortData, project: projectData }, papers);
+      showToast('CSV Tabular export generated successfully', 'success');
+    } catch (e) {
+      showToast('Failed to export CSV file', 'error');
     } finally {
       setExportingCsv(false);
     }
@@ -135,8 +106,8 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
 
           <button
             onClick={handleExportViewer}
-            disabled={exportingViewer || !projectId}
-            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm uppercase tracking-wide"
+            disabled={exportingViewer || !activeSession}
+            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm uppercase tracking-wide cursor-pointer"
           >
             {exportingViewer ? (
               <>
@@ -183,8 +154,8 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
 
           <button
             onClick={handleExportCsv}
-            disabled={exportingCsv || !projectId}
-            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm uppercase tracking-wide"
+            disabled={exportingCsv || !activeSession}
+            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm uppercase tracking-wide cursor-pointer"
           >
             {exportingCsv ? (
               <>
@@ -202,6 +173,4 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
       </div>
     </div>
   );
-};
-
-export default FairDataExportPanel;
+}

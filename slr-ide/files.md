@@ -205,6 +205,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/DeleteAllPapersConfirmModal.tsx`| Modal Component| Standalone security dialog verifying active project name before executing bulk wipe of all project papers. |
 | `components/features/modals/CsvReviewModal.tsx` | Modal Component | Standalone modal component for reviewing mapped CSV structures and duplicate exclusions prior to importing. |
 | `components/features/modals/PrismaConfigModal.tsx` | Modal Component | Standalone modal component for customizing the PRISMA diagram layout, colors, typography, box styles, and export scale. |
+| `src/components/features/modals/VisualizerModal.tsx` | Modal Component | Fullscreen modal wizard providing 17 Apache ECharts scientific visualizations (including Radar, Funnel, Boxplot, Sunburst, Graph, Gauge, and Calendar), category data limiting, dynamic multi-level depth mapping (Sankey & Sunburst), layout overflow label fixes, property styling, and SVG/high-DPI PNG exports. |
 | `components/features/modals/VectorBuildModal.tsx` | Modal Component | Standalone progress and console log dialog for building and updating vector indices. |
 | `components/features/modals/FullscreenAssignModal.tsx` | Modal Component| Standalone fullscreen modal composing pool stats header, paper list, and selection assign details view. |
 | `components/features/modals/fullscreen-assign/PoolStatsHeader.tsx` | UI Component | Header statistics and tag breakdown popovers for Pools A, B, and C. |
@@ -249,7 +250,11 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/duplicates/resolve/route.ts`| REST Endpoint | Handles POST requests to adjudicate duplicate pairs (`KEEP_BOTH`, `CONFIRMED_DUPLICATE`), executing atomic merge transactions. |
 | `api/duplicates/scan/route.ts` | REST Endpoint | Handles POST/GET requests to spawn the Python duplicate detection background process and stream live EventSource progress updates. |
 | `api/export/route.ts` | REST Endpoint | Handles POST requests to export filtered paper databases and screening results to downloadable CSV files or Google Sheets. |
+| `api/export/fair-data/route.ts` | REST Endpoint | Handles GET requests to generate complete database table JSON dumps for FAIR compliance. |
 | `api/export/inter-rater/route.ts`| REST Endpoint | Handles POST requests to generate standalone blinded review export packages (`.slr` schema) for use in the offline `inter-rater` SPA. |
+| `api/export/slr-viewer/route.ts` | REST Endpoint | Handles GET requests to generate pre-computed SLR Viewer snapshot dataset files (`.slr-viewer` format). |
+| `api/export/csv-tabular/route.ts` | REST Endpoint | Handles GET requests to export the Final Cohort table in FAIR-compliant CSV format with all quality scores, evidence, and extracted variables. |
+
 | `api/import/route.ts` | REST Endpoint | Handles POST requests for CSV uploads, executing data parsing, duplicate DOI checks, and batch insertion into `papers`. |
 | `api/import/inter-rater/route.ts`| REST Endpoint | Handles POST requests to ingest completed `.slr` review packages from external raters, inserting records into `reviewer_decisions`. |
 | `api/insight/accounting/route.ts` | REST Endpoint | Calculates API usage and token cost metrics breakdown per task type for the active project. |

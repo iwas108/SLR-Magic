@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, ChevronUp, ChevronDown, BarChart2 } from 'lucide-react';
 
 import Sidebar from '@/components/Sidebar';
 import DashboardView from '../components/features/DashboardView';
@@ -49,6 +49,9 @@ export default function DashboardPage() {
   const [deleteProjectConfirmationText, setDeleteProjectConfirmationText] = useState('');
   const [savingProject, setSavingProject] = useState(false);
   const [compressOnSync, setCompressOnSync] = useState(false);
+
+  // Cohort Table Visualizer state
+  const [isCohortVisualizerOpen, setIsCohortVisualizerOpen] = useState(false);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     const id = Date.now() + Math.random();
@@ -290,7 +293,7 @@ export default function DashboardPage() {
           </div>
 
           {activeTab === 'insight-export-cohort' && (
-            <div className="flex items-center gap-3 w-[50%] max-w-lg">
+            <div className="flex items-center gap-2 max-w-xl">
               <div className="flex-1 relative">
                 <Search className="w-3.5 h-3.5 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -301,6 +304,14 @@ export default function DashboardPage() {
                   className="w-full bg-secondary/35 border border-border rounded-lg pl-9 pr-4 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-medium"
                 />
               </div>
+
+              <button
+                onClick={() => setIsCohortVisualizerOpen(true)}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 transition-all shrink-0 cursor-pointer hover:scale-105 active:scale-95"
+              >
+                <BarChart2 className="w-3.5 h-3.5" />
+                Visualize Cohort
+              </button>
 
               <button
                 onClick={() => setCohortShowFilters(!cohortShowFilters)}
@@ -323,7 +334,7 @@ export default function DashboardPage() {
           )}
         </header>
 
-        <div className="flex-1 overflow-hidden p-6 relative">
+        <div className={`flex-1 overflow-hidden relative ${activeTab === 'insight-export-cohort' ? 'p-0' : 'p-6'}`}>
           {activeTab === 'dashboard' ? (
             <DashboardView
               showToast={showToast}
@@ -393,6 +404,8 @@ export default function DashboardPage() {
               setShowFilters={setCohortShowFilters}
               activeFiltersCount={cohortActiveFiltersCount}
               setActiveFiltersCount={setCohortActiveFiltersCount}
+              isVisualizerOpen={isCohortVisualizerOpen}
+              setIsVisualizerOpen={setIsCohortVisualizerOpen}
             />
           ) : activeTab === 'paper-database-ingestion' ? (
             <IngestionHubView

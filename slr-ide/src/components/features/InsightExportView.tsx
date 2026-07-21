@@ -18,6 +18,8 @@ interface InsightExportViewProps {
   setShowFilters?: (val: boolean) => void;
   activeFiltersCount?: number;
   setActiveFiltersCount?: (val: number) => void;
+  isVisualizerOpen?: boolean;
+  setIsVisualizerOpen?: (val: boolean) => void;
 }
 
 export default function InsightExportView({
@@ -29,7 +31,9 @@ export default function InsightExportView({
   showFilters,
   setShowFilters,
   activeFiltersCount,
-  setActiveFiltersCount
+  setActiveFiltersCount,
+  isVisualizerOpen,
+  setIsVisualizerOpen
 }: InsightExportViewProps) {
   if (!projectId) {
     return (
@@ -40,9 +44,9 @@ export default function InsightExportView({
   }
 
   return (
-    <div className="flex flex-col h-full bg-card rounded-lg border border-border overflow-hidden">
+    <div className={`flex flex-col h-full bg-background overflow-hidden ${activeTab === 'insight-export-cohort' ? '' : 'rounded-lg border border-border'}`}>
       <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex-1 overflow-auto p-4 bg-background">
+        <div className={`flex-1 overflow-auto bg-background ${activeTab === 'insight-export-cohort' ? 'p-0 flex flex-col h-full' : 'p-4'}`}>
           {activeTab === 'insight-export-accounting' && <AccountingPanel projectId={projectId} showToast={showToast} />}
           {activeTab === 'insight-export-rigor' && <ScientificRigorPanel projectId={projectId} showToast={showToast} />}
           {activeTab === 'insight-export-cohort' && (
@@ -54,6 +58,8 @@ export default function InsightExportView({
               showFilters={showFilters || false}
               setShowFilters={setShowFilters || (() => {})}
               setActiveFiltersCount={setActiveFiltersCount || (() => {})}
+              isVisualizerOpen={isVisualizerOpen}
+              setIsVisualizerOpen={setIsVisualizerOpen}
             />
           )}
           {activeTab === 'insight-export-fair-data' && <FairDataExportPanel projectId={projectId} showToast={showToast} />}

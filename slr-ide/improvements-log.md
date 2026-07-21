@@ -1,4 +1,139 @@
-# SLR IDE Improvements Log
+## #267 - Type-Safe SQLite CAST Matching in Adjudicate & Export Routes (2026-07-21)
+- **Goal**: Guarantee 100% data parity for Stage Comparisons (Pool C Pre-Norm Yield 85.5%) when exporting `.slr-viewer` files from `slr-ide`.
+- **Changes**:
+  - Modified [route.ts (adjudicate stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts) & [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Updated all SQL queries on `calibration_commit_ledger`, `llm_audit_log`, `rolling_batches`, and `umbrellanizer_results` to use `WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)`. This ensures string vs integer project ID matching parity in SQLite database queries when calculating and exporting stage statistics.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
+## #266 - Zero Mockup & Synthetic Fallback Audit (2026-07-21)
+- **Goal**: Strict scientific data integrity audit to remove all synthetic call rows, hardcoded metric fallbacks, and fake default numbers across `slr-ide` and `slr-viewer`.
+- **Changes**:
+  - Modified [AccountingPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/AccountingPanel.tsx) & [AccountingPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/accounting/AccountingPanel.jsx): Completely removed synthetic `id: 'synthetic_umbrellanizer'` row generation. Table displays strictly genuine logged call records from database audit logs.
+  - Modified [BatchStatisticsCards.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/scientific-rigor/BatchStatisticsCards.jsx): Removed hardcoded fallback mockup values (`100`, `1.0`, `94.2`) for Stage 4 Schema Integrity, CI Lower Bound, and Semantic Agreement, replacing them with exact nullish evaluation (`?? 0`).
+- **Verification**: Verified with `npx tsc --noEmit` and `npm run build` with 0 errors.
+
+## #265 - Gold Standard vs AI Stage Comparison Parity Fix (2026-07-21)
+- **Goal**: Fix discrepancy between `slr-ide` and `slr-viewer` Stage Comparison Pre-Norm Yield metric (85.5% vs 100%) and eliminate fallback mockup numbers in export payloads.
+- **Changes**:
+  - Modified [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Fixed typo in `checkFuzzyMatch` subset calculation (`getTokens(ai)` replaced with `gTokens`) that forced 100% match yield. Removed hardcoded fallback mockup values (`0.912`, `0.885`, `0.95`, `0.78`, `85.0`, `92.5`) across all 4 stage comparison objects in favor of exact calculated numbers with `?? 0`.
+  - Modified [StageComparisonPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/pre-calibration/StageComparisonPanel.tsx): Switched Pre-Norm Yield fallback from `||` to nullish coalescing `??`.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
+## #264 - Accounting Panel Pipeline Breakdown Unbolding & Umbrellanizer Top Calls (2026-07-21)
+- **Goal**: Unbold text elements in the Pipeline Cost Breakdown panel, replace zero MIN displays with the minimum positive value closest to 0, and ensure `umbrellanizer` task calls appear reliably in the Top Expensive API Calls table.
+- **Changes**:
+  - Modified [AccountingPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/AccountingPanel.tsx): Replaced `font-bold`/`font-semibold` text styling with `font-normal`. Implemented positive-only MIN cost and token resolution. Added a Task select dropdown (`All Tasks`, `Fast Filter`, `Gatekeeper`, `Scientist`, `Miner`, `Umbrellanizer`) and fallback Umbrellanizer call synthesis from `pipelineBreakdown`.
+  - Modified [route.ts (accounting insight)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/insight/accounting/route.ts) & [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Updated SQL queries to use `WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)` ensuring type-safe SQLite matching across string/integer project IDs, and `UNION`ed `llm_audit_log` with `umbrellanizer_results`.
+- **Verification**: Verified with `npx tsc --noEmit` passing cleanly with zero errors.
+
+## #263 - Cohort Table Full-Height Layout & Topbar Visualizer Button (2026-07-21)
+- **Goal**: Move the "Visualize Cohort" button up beside the "Advanced Filters" button in the top navigation header and remove card containers so the Cohort Table View fills 100% of the parent container space.
+- **Changes**:
+  - Modified [page.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/page.tsx): Placed `Visualize Cohort` button in header bar next to `Advanced Filters`, added `isCohortVisualizerOpen` state, and conditionally removed container padding (`p-0`).
+  - Modified [InsightExportView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/InsightExportView.tsx): Passed visualizer props and removed outer card border/margin when viewing the cohort table.
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Removed card borders/rounded-xl/shadows and removed redundant subheader Visualize button so the table takes 100% container height and width.
+- **Verification**: Verified with `npx tsc --noEmit` returning zero build errors.
+
+## #262 - Added Year & Publisher Quick Attribute Scope Filters (2026-07-21)
+- **Goal**: Add dynamic "Year" and "Publisher" filter dropdowns to the Quick Attribute Scope / Paper Metadata filter section in Cohort Table View.
+- **Changes**:
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Added `yearFilter` and `publisherFilter` states, dynamically extracted unique `years` (sorted descending) and `publishers` (sorted alphabetically) in `filterOptions`, and added UI select dropdowns under Paper Metadata.
+- **Verification**: Verified with `npx tsc --noEmit` returning zero build errors.
+
+## #261 - Fixed Extracted Taxonomy Variable Token Splitting & Deep Filtering (2026-07-21)
+- **Goal**: Fix extracted taxonomy variable filtering in Cohort Table View to accurately split multi-token raw strings (e.g., `"Smart Home, Aerospace"`) and match both resolved umbrella categories and raw tokens.
+- **Changes**:
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Updated `parseExtractedData` to split comma-separated tokens before Umbrellanizer mapping, and updated `filteredPapers` to evaluate unified `allTokens` (resolved + original) against selected filter target values.
+- **Verification**: Verified with `npx tsc --noEmit` returning zero build errors.
+
+## #260 - Added Active Row Highlighting in Cohort Table View (2026-07-21)
+- **Goal**: Provide active row selection and visual background highlighting when a paper row, cell, or tooltip button is clicked in Cohort Table View.
+- **Changes**:
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Added `selectedPaperId` state and applied active row highlighting (`bg-primary/15 dark:bg-primary/25 border-l-2 border-l-primary`) on click.
+- **Verification**: Verified with `npx tsc --noEmit` returning zero build errors.
+
+## #259 - Added PDF File Link to Logic Trace & Details Popovers (2026-07-21)
+- **Goal**: Add a direct PDF file link button on the right side of the "Logic Trace & Details" popover header in `slr-ide` Cohort Table View.
+- **Changes**:
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Added `pdfLink` prop to `ClickableCell` and rendered a direct PDF link (`PDF Link` with `ExternalLink` icon) in the header bar of the trace popover.
+- **Verification**: Verified with `npx tsc --noEmit` returning zero build errors.
+
+## #258 - Fixed SLR Viewer Export Column Mapping & Extracted Metadata Filtering (2026-07-21)
+- **Goal**: Fix `umbrellanizer_results` column name queries in `slr-ide`'s export endpoint `/api/export/slr-viewer` and filter internal metadata fields from extracted data tables.
+- **Changes**:
+  - Modified [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Replaced invalid column names (`field_name`, `taxonomy_mapping`) with correct SQLite schema columns (`extracted_data_key`, `umbrella_mapping`) to export populated taxonomy mappings in `.slr-viewer` snapshot files.
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Added metadata key exclusions (`_` prefix, `logic_trace`, `_scientist_logic_trace`) in `parseExtractedData`, `parseExtractedTraces`, and `filterOptions`.
+- **Verification**: Verified with `npx tsc --noEmit`.
+
+## #257 - Realigned SLR Viewer Exporter Calculations (2026-07-21)
+- **Goal**: Realign PRISMA flowchart calculations and scientist structured output logic trace merging inside `/api/export/slr-viewer` to resolve data parity bugs.
+- **Changes**:
+  - Modified [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Realigned `prismaData` calculation to match the dynamic classification, database sources array mapping, and stage exclusions of `/api/insight/prisma/route.ts`. Integrated `logic_trace` merging from `llm_audit_log` into `ai_quality_assessment` for all cohort papers.
+- **Verification**: Verified successfully with `npx tsc --noEmit`.
+
+## #256 - SLR Viewer Export Schema Enrichment for Complete Project Rules (2026-07-21)
+- **Goal**: Expand `slr-ide`'s `/api/export/slr-viewer` GET endpoint to export complete project configuration rules and pool sizing targets.
+- **Changes**:
+  - Modified [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Added `ec_rules`, `pool_c_qa_rules`, `pool_c_extraction_rules`, and explicit pool filling stats (`pool_a_count`, `pool_b_count`, `pool_c_count`, `pool_a_size`, `pool_b_size`, `pool_c_size`) to `exportPayload.project`.
+- **Verification**: Verified successfully with `npx tsc --noEmit` returning zero build errors.
+
+## #255 - Fix SQLite Column Name Error in Accounting Export Query (2026-07-21)
+- **Goal**: Fix runtime crash when executing the SLR Viewer export due to `no such column: timestamp` in the `llm_audit_log` query.
+- **Changes**:
+  - Modified [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Aliased the `created_at` column as `timestamp` inside the query fetching `expensiveCalls` from the `llm_audit_log` table.
+- **Verification**: Verified successfully with `npx tsc --noEmit` returning zero build errors.
+
+## #254 - Multi-Tier Cohort Papers Query Fallbacks for SLR Viewer Export (2026-07-21)
+- **Goal**: Prevent empty cohort paper datasets in `.slr-viewer` export payloads by adding multi-tier database query fallbacks.
+- **Changes**:
+  - Modified [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Added 3 fallback tiers when querying `cohortPapers` (Tier 1: Included papers at any stage; Tier 2: Non-duplicate papers in project; Tier 3: All papers in project), ensuring exported `.slr-viewer` files are never empty even if exported mid-pipeline.
+- **Verification**: Verified successfully with `npx tsc --noEmit` passing with 0 errors.
+
+## #253 - SLR Viewer Export Schema Dynamic Stage Comparisons & Rolling Batch QC Completion (2026-07-21)
+- **Goal**: Upgrade `slr-ide`'s `.slr-viewer` dataset export API route (`/api/export/slr-viewer`) to dynamically compute real Stage Comparisons and Rolling Batch Sequential Audit statistics directly from SQLite database tables.
+- **Changes**:
+  - Upgraded [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts):
+    - Computed dynamic stage comparisons from `calibration_commit_ledger` and `calibration_papers` (Recall, Precision, F1, Kappa, Schema Integrity, and Pass/Fail status for Stages 1-4).
+    - Computed dynamic rolling batch statistics from `rolling_batches` and `rolling_batch_papers` (`cumulative_stats`, `individual_batch_stats`, `audit_passed`, `batches`).
+- **Verification**: Verified successfully with `npx tsc --noEmit` passing cleanly with zero errors.
+
+## #252 - Split FAIR Data Export into SLR Viewer (.slr-viewer) and CSV Tabular (.csv) Exports (2026-07-21)
+- **Goal**: Split the "FAIR Data Export" panel in `slr-ide` into two dedicated export cards: (1) SLR Viewer Export (`.slr-viewer` JSON snapshot for presentation), and (2) CSV Tabular Export (`.csv` for FAIR compliance).
+- **Changes**:
+  - Created [route.ts (slr-viewer)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): New GET API route assembling project metadata, PRISMA 2020 values, stage comparison metrics, pool filling status, rolling batch QC, final cohort paper records, taxonomy mappings, and token spend accounting into a single `.slr-viewer` JSON snapshot payload.
+  - Created [route.ts (csv-tabular)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/csv-tabular/route.ts): New GET API route building a FAIR-compliant CSV containing all final cohort paper metadata, decision sources, QA scores (QA-1..QA-8) with justification quotes, and extracted research variables (RQ-1..RQ-9) with Umbrellanizer categories.
+  - Modified [FairDataExportPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FairDataExportPanel.tsx): Redesigned panel into two side-by-side export cards with custom icons, module breakdowns, and instant download triggers.
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/files.md): Documented new export endpoints.
+- **Verification**: Verified successfully with `npx tsc --noEmit` returning zero build errors.
+
+## #251 - SLR Cohort Visualizer Wizard Data Limiting, Dynamic Depth & 17 Chart Types (2026-07-21)
+- **Goal**: Add category data limiting, dynamic multi-level depth mapping (Sankey & Sunburst), a double-layered label overflow fix, and expand chart templates to 17 scientific types.
+- **Changes**:
+  - Modified [VisualizerModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/VisualizerModal.tsx):
+    - **Universal Data Limiting & Dynamic Depth Hierarchy**: Extended category data limiting (`limitCategoryMap`) to **Graph Network** and **Heatmap Matrix** charts to prevent grid/node clutter. Upgraded **Treemap** and **Sunburst Ring** to support dynamic multi-level depth mapping (2 to 6 levels) with recursive per-level max node limiting (`sankeyMaxNodes`), automatically grouping minority tail slices/tiles into an `"Other"` category.
+    - **Gauge KPI Custom Scaling**: Added customizable max target scale input (`gaugeMaxScale`) in Step 3 for Gauge Dial charts.
+    - **Sankey Outer Edge Padding & Label Alignment**: Added outer node edge padding controls (left % & right %) and per-level label position selectors (Left vs Right toggle per level).
+    - **7 New Scientific Chart Types & SLR IDE Light Mode**: Added Radar/Spider, Funnel, Boxplot, Sunburst Ring, Graph Network, Gauge KPI, and Calendar Heatmap. Added **SLR IDE Light Mode** theme palette preset to Step 3 customization options.
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/files.md): Updated entry for `VisualizerModal.tsx`.
+- **Verification**: Verified successfully with `npx tsc --noEmit` returning zero build errors.
+
+## #250 - Refactored SLR Cohort Visualizer Wizard to Chart-First 4-Step Flow (2026-07-21)
+- **Goal**: Refactor the Visualizer Wizard to structure step 2 (Data Mapping) and step 3 (Styling Customization) dynamically around the chart type selected in step 1, with the main interactive ECharts canvas rendered on step 4.
+- **Changes**:
+  - Modified [VisualizerModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/VisualizerModal.tsx):
+    - **Step 1 (Chart Selection)**: Dropdown selection and informative use-case cards for all 10 academic charts (Vertical/Horizontal Bar, Stacked Bar, Line, Pie/Donut, Scatter Plot, Bubble Chart, Treemap, Heatmap Matrix, and Sankey Flow).
+    - **Step 2 (Chart-Tailored Data Mapping)**: Dynamic field mappings specific to selected chart structure (Single categorical for bar/pie; Secondary stack for 2D bar; Temporal ordinal for line; Dual/triple numerical selectors for scatter/bubble; Multi-node sequence for Sankey flow). Cell value treatment toggles (Umbrellanizer, multi-value cell splitting, empty value exclusion).
+    - **Step 3 (Chart-Tailored Style Customization)**: Figure titles, subtitle, journal theme palette, font family/size, legend layout, and type-specific controls (donut hole radius, smooth curve spline, sankey node width/gap, marker size scale).
+    - **Step 4 (Visualization & Scientific Export)**: Dedicated fullscreen interactive ECharts canvas with format select (SVG vs PNG) and DPI scaling controls (1x to 4x for 300+ DPI print figures).
+- **Verification**: Verified with `npx tsc --noEmit` returning zero build errors.
+
+## #249 - SLR Cohort Visualizer Wizard using Apache ECharts (2026-07-21)
+- **Goal**: Implement a publication-ready data visualizer wizard for the Final Cohort view with 10 academic chart types, property customization, and high-res vector SVG and PNG exports.
+- **Changes**:
+  - Installed `echarts` (v5.6.0) package.
+  - Created [VisualizerModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/VisualizerModal.tsx): Fullscreen modal wizard offering 10 top-used academic charts (Vertical/Horizontal Bar, Stacked Bar, Line/Area, Pie/Donut, Scatter Plot, Bubble Chart, Treemap, Heatmap Matrix, and Sankey Flow), field mapping, taxonomy options, property styling, and SVG/high-DPI PNG exports.
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Added table header toolbar with filtered paper stats and the "Visualize Cohort" trigger button.
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/files.md): Logged the new `VisualizerModal.tsx` component.
+- **Verification**: Verified successfully with `npx tsc --noEmit` returning zero build errors.
 
 ## #248 - Added Informative Tooltips to Rolling Batch Validation (2026-07-21)
 - **Goal**: Introduce helpful context tooltips to the Rolling Batch Validation metrics matching the tooltip style of the pre-calibration Gold Standard comparisons.
