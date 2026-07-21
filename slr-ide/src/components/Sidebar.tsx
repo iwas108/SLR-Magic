@@ -153,12 +153,14 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOp
             const Icon = item.icon;
             const isActive = activeTab === item.id || isParentOfActive(item);
 
+            const Component = item.children ? 'div' : 'button';
+
             return (
               <div key={item.id} className="space-y-1">
-                <button
-                  disabled={item.disabled}
+                <Component
+                  {...(item.children ? {} : { disabled: item.disabled })}
                   onClick={() => handleItemClick(item)}
-                  className={`relative w-full flex items-center rounded-lg text-xs font-semibold transition-all duration-200 group text-left ${
+                  className={`relative w-full flex items-center rounded-lg text-xs font-semibold transition-all duration-200 group text-left cursor-pointer ${
                     isCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2.5'
                   } ${
                     isActive
@@ -212,7 +214,7 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOp
                       </div>
                     </div>
                   )}
-                </button>
+                </Component>
 
                 {!isCollapsed && item.children && expandedParents[item.id] && (
                   <div className="pl-6 mt-1 space-y-1 animate-in slide-in-from-top-1 duration-150">
