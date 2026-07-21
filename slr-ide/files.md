@@ -46,14 +46,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 
 ## 4. Scratch & Utilities (`slr-ide/scratch/`)
 
-| File Path | Architectural Layer | Function & Purpose |
-| :--- | :--- | :--- |
-| `extract_from_sourcemap.py` | Utility / Debugging | Python utility script designed to parse JavaScript sourcemaps and extract original source code files for debugging purposes. |
-| `migrate.js` | Database / Migration | Node.js execution script responsible for running DDL schema creation and initializing default tables/configurations in `slr.db`. |
-| `test_epoch3.py` | Testing | Automated test suite verifying the correctness of frontend UI components, state orchestration, and synchronization logic from Epoch 3. |
-| `test_epoch4.py` | Testing | Automated test suite validating inter-rater adjudication logic, QA scoring, data extraction structures, and ledger commits from Epoch 4. |
-| `recalculate_costs.js` | Utility / Database | One-time database utility script to recalculate LLM costs in audit logs and project spends. |
-| `patch_pipeline_status.js` | Utility / Database | One-time database patch script to align paper Status values with higher level manual_stage values. |
+> [!NOTE]
+> All temporary scratch scripts, test runners, and one-off patch migration utilities have been cleaned up and removed prior to public repository release.
+
 
 ---
 

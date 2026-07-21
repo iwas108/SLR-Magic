@@ -100,5 +100,7 @@ This document tracks all new features, bug fixes, refactoring operations, and do
 | #095 | 2026-07-20 | Bug Fix | slr-ide | Resolve issues in Final Cohort wide tabular view: adjusted column widths to provide enough space for headers, implemented custom event listener to auto-close tooltips on click/open, fixed Umbrellanizer matching by unwrapping values, merged logic_trace from llm_audit_log, and added original raw value to the visible cell copy tooltip. | Final Cohort Bug Fixes |
 | #096 | 2026-07-20 | Feature | slr-ide | Implemented dynamic column resizing with thin hover-active visual drag handles on all table columns of the Final Cohort Panel, persisting customized widths in localStorage scoped by project ID. | Final Cohort Column Resizing & Persistence |
 | #097 | 2026-07-20 | Cleanup | slr-ide | Removed the "Individual QA Criteria Points" filter options and its evaluation logic from the Final Cohort Panel. | Removed QA Criteria Filters |
+| #098 | 2026-07-21 | Refactor / Cleanup | slr-ide | Cleaned up all 19 temporary scratch scripts, patch migration files, test output PDFs (`test_out*.pdf`), legacy `CLAUDE.md`, and `git-clean.sh`. Added `scratch/`, `**/scratch/`, `*.patch`, `*.diff` to root `.gitignore` and updated `slr-ide/files.md` registry for repository release. | Repo Publishing Cleanup |
+
 
 

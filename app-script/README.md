@@ -1,79 +1,76 @@
-# SLR Magic: Google Apps Script Core ✨
+# SLR Magic: App Script FAIR Database (`app-script/`) ✨
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Module: App Script](https://img.shields.io/badge/Module-App%20Script-blue.svg)
 ![Platform: Google Apps Script](https://img.shields.io/badge/Platform-Google%20Apps%20Script-4285F4.svg)
+![Database: Google Sheets](https://img.shields.io/badge/Database-Google%20Sheets-34A853.svg)
 
 ## Overview
 
-This module is the core orchestration hub of the SLR Magic Google Sheets application. It manages the Systematic Literature Review pipeline, supporting metadata ingestion, manual review screening, synthesis, and visual analysis.
+The **App Script** module is a lightweight Google Apps Script codebase that operates directly within the Google Sheets environment. Under SLR Magic's local-first architecture, this module **only acts as a FAIR-compliant database endpoint** to ingest, organize, and visualize exported `.csv` datasets from `slr-ide`. 
 
-## Table of Contents
+By decoupling heavy LLM processing and storing credentials locally in `slr-ide`, the Google Apps Script footprint requires **zero sensitive Google OAuth app permissions**, ensuring maximum data security, privacy, and trust compliance.
 
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Workspace](#running-the-workspace)
+---
 
 ## Key Features
 
-- **Automated Environment Setup:** Instantly generates the necessary worksheet structures (`00_Raw_Harvest` and `05_Synthesis`).
-- **Structured Metadata Ingestion:** Bulk ingest CSV records from Scopus or Web of Science with interactive column mapping and fuzzy-matching, or add manual references.
-- **Deduplication Guardrail:** Prevents importing duplicates by normalising DOIs and paper Titles.
-- **Manual review screening & synthesis:** Tags chosen literature with Status `INCLUDE` and copies them to the synthesis collection sheet.
-- **Visual Analytics:** Generates built-in charts (Sankey, Pie, Bar, Stack Bar, Line, Radar) directly in the spreadsheet from reviews using ECharts.
+- **FAIR Data Compliance:** Ingests exported CSV datasets from `slr-ide` into structured, findable, accessible, interoperable, and reusable Google Sheets tables.
+- **Automated Sheet Initialization:** Dynamically generates standardized worksheet structures (`00_Raw_Harvest` for full bibliographies and `05_Synthesis` for included literature).
+- **Interactive ECharts Visualizations:** Renders rich ECharts chart dialogs directly within Google Sheets (Sankey diagrams, Bar charts, Stack Bar, Pie charts, Line plots, and Radar graphs).
+- **Metadata Deduplication:** Guardrails against duplicate record creation using DOI and Title normalization.
+- **Inter-Rater & Cohort Importers:** Supports importing blinded inter-rater datasets and final cohort synthesis exports.
 
-## Prerequisites
+---
 
-- **Node.js:** Needed to run `clasp` locally. Install from [nodejs.org](https://nodejs.org/).
-- **Clasp (Command Line Apps Script Projects):** Install globally via npm:
+## Prerequisites & Installation
+
+### Prerequisites
+- **Node.js:** v18.0.0 or higher
+- **Clasp (Command Line Apps Script Projects):** Install globally:
   ```bash
   npm install -g @google/clasp
   ```
-- **Google Account:** Ensure the Apps Script API is enabled at [script.google.com/home/usersettings](https://script.google.com/home/usersettings).
+- **Google Account:** Enable the Google Apps Script API at [script.google.com/home/usersettings](https://script.google.com/home/usersettings).
 
-## Installation
+### Deployment via Clasp
 
-This project uses **clasp** to push local code to Google's servers.
-
-1. **Login to Google:**
+1. **Login to Google Account:**
    ```bash
    clasp login
    ```
-   *(This opens a browser window for authorization).*
 
-2. **Create or Clone the Project:**
-   - **Option A (Fresh Setup - Recommended):** Create a new bound Google Sheet project:
+2. **Create or Clone Project:**
+   - **New Project:**
      ```bash
-     clasp create --type sheets --title "SLR Magic Project"
+     clasp create --type sheets --title "SLR Magic FAIR Database"
      ```
-   - **Option B (Existing Project):**
+   - **Existing Script:**
      ```bash
      clasp clone <your-script-id>
      ```
 
-3. **Deploy Code:**
-   Push the local files from the `app-script/` directory to the Google cloud:
+3. **Push Code to Google Servers:**
    ```bash
+   cd app-script
    clasp push
    ```
 
-4. **Open the Sheet:**
+4. **Open Bound Spreadsheet:**
    ```bash
    clasp open
    ```
 
-## Configuration
+---
 
-1. In the newly opened Google Sheet, select the **SLR Magic > Configure Settings** menu.
-2. Under **Research Manifesto**, set up the Project Name, Manifesto, Objectives, and Questions.
-3. Use the **Ingestion Hub** to import your bibliography files.
+## Usage Workflow
 
-## Running the Workspace
+1. **Initialize Workspace:** Open the Google Sheet and select **SLR Magic > Initialize Workspace** to build required sheets.
+2. **Ingest Exported Dataset:** Select **SLR Magic > Ingestion Hub** to import `.csv` datasets exported from `slr-ide`.
+3. **Explore Visual Analytics:** Open the chart dialogs (**SLR Magic > Visualizations**) to view dynamic Sankey flows, breakdown charts, and synthesis metrics.
 
-1. **Initialization:** Click **SLR Magic > Initialize Workspace** to generate the required sheets.
-2. **Metadata Ingestion:** Import your bibliography exports inside the Ingestion Hub.
-3. **Screening:** Review papers in `00_Raw_Harvest` and set the `Status` column to `INCLUDE` for the chosen papers.
-4. **Data Sync:** Click **SLR Magic > Process Data Collection** to compile the selected papers into `05_Synthesis`.
-5. **Visualization:** Open chart dialogues to explore categories and trends.
+---
+
+## Documentation
+
+- 📐 **[Module Architecture (`architecture.md`)](./architecture.md)**
+- 📜 **[Technical Debt Ledger (`technical_debt_ledger.md`)](./technical_debt_ledger.md)**

@@ -8,6 +8,7 @@ This document serves as a comprehensive index of every file within the `slr-view
 
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
+| `README.md` | Documentation | Module-scoped overview detailing standalone viewer features, IndexedDB storage, and setup instructions. |
 | `architecture.md` | Documentation | Module-scoped blueprint detailing the offline React SPA design, Dexie database model, and GitHub Pages deployment configuration. |
 | `improvements-log.md` | Documentation | Chronological log tracking iterations, feature creation, and bug fixes for `slr-viewer`. |
 | `files.md` | Documentation | Directory index of every file in `slr-viewer` adhering to mandatory agent directory requirements. |

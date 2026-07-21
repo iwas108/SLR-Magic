@@ -1,3 +1,12 @@
+## #269 - Codebase Scratch & Patch File Cleanup for Repository Release (2026-07-21)
+- **Goal**: Clean up all temporary scratch scripts, patch files, test outputs, and unused utility scripts across the entire repository to prepare for clean public repository release.
+- **Changes**:
+  - Deleted 19 temporary scripts from `scratch/` and `slr-ide/scratch/` (`check_db.py`, `check_db_details.py`, `check_db_exact.py`, `find_slr_csv.py`, `check.js`, `check_json.py`, `extract_from_sourcemap.py`, `find_large_files.js`, `inspect_db.js`, `inspect_paper.js`, `migrate-cal.js`, `migrate-status.js`, `migrate-v2.js`, `migrate.js`, `migrate_manual_audit.ts`, `patch_pipeline_status.js`, `recalculate_costs.js`, `test_epoch3.py`, `test_epoch4.py`).
+  - Removed temporary test PDFs (`slr-ide/test_out*.pdf`), legacy `slr-ide/CLAUDE.md`, and `app-script/git-clean.sh`.
+  - Updated root [.gitignore](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/.gitignore) with exclusions for `scratch/`, `**/scratch/`, `*.patch`, and `*.diff`.
+  - Updated [slr-ide/files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/files.md) registry Section 4.
+- **Verification**: Verified with `git status` showing clean workspace.
+
 ## #268 - Cohort Table View 100% CSV Tabular Export with Tooltips (2026-07-21)
 - **Goal**: Export 100% of Cohort Table View dynamic columns, scores, extracted research variables, and tooltip logic traces (`tt_*`) into the CSV Tabular Export.
 - **Changes**:

@@ -53,3 +53,9 @@ rclone.conf
 .chrome_profile/**
 chrome_profile
 chrome_profile/**
+
+# Scratch & Temporary Patches
+scratch/
+**/scratch/
+*.patch
+*.diff
