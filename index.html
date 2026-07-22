@@ -110,6 +110,7 @@
             <!-- Header Actions -->
             <div class="flex items-center space-x-3">
                 <nav class="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <button onclick="scrollToSection('deployments')" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Live SPAs</button>
                     <button onclick="scrollToSection('modules')" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Modules</button>
                     <button onclick="scrollToSection('gallery')" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Gallery</button>
                     <button onclick="scrollToSection('rigor')" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Rigor & Math</button>
@@ -158,13 +159,17 @@
 
             <!-- CTA Buttons -->
             <div class="flex flex-wrap justify-center items-center gap-4 mb-12">
-                <button onclick="scrollToSection('modules')" class="px-8 py-3.5 rounded-xl font-semibold bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white transition-all duration-200 shadow-xl shadow-brand-600/30 flex items-center space-x-2">
+                <a href="https://iwas108.github.io/SLR-Magic/inter-rater/dist/" target="_blank" rel="noopener noreferrer" class="px-7 py-3.5 rounded-xl font-semibold bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white transition-all duration-200 shadow-xl shadow-purple-600/30 flex items-center space-x-2">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                    <span>Launch Inter-Rater SPA</span>
+                </a>
+                <a href="https://iwas108.github.io/SLR-Magic/slr-viewer/dist/" target="_blank" rel="noopener noreferrer" class="px-7 py-3.5 rounded-xl font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white transition-all duration-200 shadow-xl shadow-emerald-600/30 flex items-center space-x-2">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                    <span>Launch SLR Viewer SPA</span>
+                </a>
+                <button onclick="scrollToSection('modules')" class="px-7 py-3.5 rounded-xl font-semibold glass-panel hover:bg-slate-200 dark:hover:bg-slate-800/80 transition-all duration-200 flex items-center space-x-2">
+                    <i data-lucide="laptop" class="w-5 h-5"></i>
                     <span>Explore Workspace Suite</span>
-                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
-                </button>
-                <button onclick="openDocDrawer()" class="px-8 py-3.5 rounded-xl font-semibold glass-panel hover:bg-slate-200 dark:hover:bg-slate-800/80 transition-all duration-200 flex items-center space-x-2">
-                    <i data-lucide="file-text" class="w-5 h-5"></i>
-                    <span>System Architecture Blueprint</span>
                 </button>
             </div>
 
@@ -184,6 +189,67 @@
                         <i data-lucide="copy" class="w-4 h-4"></i>
                     </button>
                 </div>
+            </div>
+        </section>
+
+        <!-- Live Deployment Links Showcase Cards -->
+        <section id="deployments" class="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 text-xs font-semibold tracking-wide uppercase mb-3">
+                    <i data-lucide="globe" class="w-4 h-4"></i>
+                    <span>Live Web Deployments</span>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">Instant Web Application Access</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Deployment Card 1: Landing Page -->
+                <a href="https://iwas108.github.io/SLR-Magic/" class="glass-panel p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl hover:-translate-y-1 transition-all group block">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-brand-500/20 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                            <i data-lucide="home" class="w-5 h-5"></i>
+                        </div>
+                        <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold border border-brand-500/20">Main Portal</span>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 dark:text-white mb-2 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">SLR Magic Main Portal</h3>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mb-4">Platform overview, interactive visual gallery, and system blueprints.</p>
+                    <div class="text-xs font-mono text-brand-600 dark:text-brand-400 truncate flex items-center space-x-1 font-semibold">
+                        <span>https://iwas108.github.io/SLR-Magic/</span>
+                        <i data-lucide="external-link" class="w-3.5 h-3.5 ml-1"></i>
+                    </div>
+                </a>
+
+                <!-- Deployment Card 2: Inter-Rater SPA -->
+                <a href="https://iwas108.github.io/SLR-Magic/inter-rater/dist/" target="_blank" rel="noopener noreferrer" class="glass-panel p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl hover:-translate-y-1 transition-all group block">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                            <i data-lucide="users" class="w-5 h-5"></i>
+                        </div>
+                        <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold border border-purple-500/20">Live Web SPA</span>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 dark:text-white mb-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">Inter-Rater Reviewer SPA</h3>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mb-4">Offline blinded review workspace with Cohen's Kappa calculation engine.</p>
+                    <div class="text-xs font-mono text-purple-600 dark:text-purple-400 truncate flex items-center space-x-1 font-semibold">
+                        <span>.../inter-rater/dist/</span>
+                        <i data-lucide="external-link" class="w-3.5 h-3.5 ml-1"></i>
+                    </div>
+                </a>
+
+                <!-- Deployment Card 3: SLR Viewer SPA -->
+                <a href="https://iwas108.github.io/SLR-Magic/slr-viewer/dist/" target="_blank" rel="noopener noreferrer" class="glass-panel p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl hover:-translate-y-1 transition-all group block">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                        </div>
+                        <span class="text-xs font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/20">Live Web SPA</span>
+                    </div>
+                    <h3 class="font-bold text-lg text-slate-900 dark:text-white mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">SLR Viewer Analytics SPA</h3>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mb-4">Interactive 2D PRISMA 2020 canvas and 17 scientific ECharts panels.</p>
+                    <div class="text-xs font-mono text-emerald-600 dark:text-emerald-400 truncate flex items-center space-x-1 font-semibold">
+                        <span>.../slr-viewer/dist/</span>
+                        <i data-lucide="external-link" class="w-3.5 h-3.5 ml-1"></i>
+                    </div>
+                </a>
             </div>
         </section>
 
@@ -416,28 +482,32 @@ npm run dev</pre>
                 desc: 'The central command center for the entire SLR pipeline. Manages SQLite database, smart PDF caching, 4-stage Gemini LLM queue processing, encrypted vault key storage, and Turbovec vector search.',
                 badge: 'Desktop Execution Engine',
                 img: './docs/ss/01-slr-ide-dashboard.jpg',
-                features: ['CSV Ingestion Hub & Deduplication', 'Smart PDF Cache Matcher & Headless Scraper', '4-Stage Gemini LLM Queue (Fast Filter, Gatekeeper, Scientist, Miner)', 'Turbovec RPC Vector Search Daemon', 'Encrypted AES-256 Key Vault']
+                features: ['CSV Ingestion Hub & Deduplication', 'Smart PDF Cache Matcher & Headless Scraper', '4-Stage Gemini LLM Queue (Fast Filter, Gatekeeper, Scientist, Miner)', 'Turbovec RPC Vector Search Daemon', 'Encrypted AES-256 Key Vault'],
+                demoUrl: 'https://iwas108.github.io/SLR-Magic/'
             },
             'inter-rater': {
                 title: 'Inter-Rater SPA (Blinded Review & Calibration)',
                 desc: 'Offline React 19 SPA enabling independent human reviewers to evaluate assigned paper pools without visibility into AI or peer rater choices.',
                 badge: 'Double-Blind Reviewer SPA',
                 img: './docs/ss/32-inter-rater-blinded-inter-rater-review-workspace-1.jpg',
-                features: ['Blinded Evaluation Mode', "Cohen's Kappa (κ) Agreement Engine", 'Offline localStorage Session Persistence', 'Native .slr JSON Schema Exchange', 'QA Score Alignment Sliders']
+                features: ['Blinded Evaluation Mode', "Cohen's Kappa (κ) Agreement Engine", 'Offline localStorage Session Persistence', 'Native .slr JSON Schema Exchange', 'QA Score Alignment Sliders'],
+                demoUrl: 'https://iwas108.github.io/SLR-Magic/inter-rater/dist/'
             },
             'slr-viewer': {
                 title: 'SLR Viewer (IndexedDB & ECharts Analytics)',
                 desc: 'Standalone read-only React SPA for exploring .slr-viewer dataset snapshots, rendering interactive 2D PRISMA 2020 flowcharts, and visualizing 17 scientific charts.',
                 badge: 'Read-Only Visual Dashboard',
                 img: './docs/ss/40-slr-viewer-scientific-rigor-calibration-to-validation-dashboard.jpg',
-                features: ['Offline Dexie.js (IndexedDB) Persistence', '2D Interactive PRISMA 2020 Canvas', '17 Scientific ECharts Panels (Sankey, Radar, Stacked Bar)', 'API Spend & Accounting Breakdown', 'Vector SVG & High-DPI PNG Exporter']
+                features: ['Offline Dexie.js (IndexedDB) Persistence', '2D Interactive PRISMA 2020 Canvas', '17 Scientific ECharts Panels (Sankey, Radar, Stacked Bar)', 'API Spend & Accounting Breakdown', 'Vector SVG & High-DPI PNG Exporter'],
+                demoUrl: 'https://iwas108.github.io/SLR-Magic/slr-viewer/dist/'
             },
             'app-script': {
                 title: 'App Script (FAIR Spreadsheet Database Endpoint)',
                 desc: 'Lightweight Google Apps Script endpoint running directly inside Google Sheets to store exported CSV datasets under zero-OAuth permissions.',
                 badge: 'Google Sheets Endpoint',
                 img: './docs/ss/30-slr-ide-insight-and-export-scientific-rigor-cloud-gold-mine.jpg',
-                features: ['FAIR Data Spreadsheet Compliance', 'Zero Google OAuth Permission Footprint', 'In-Sheet ECharts Visualization Dialogs', 'Metadata Deduplication Rules', 'Seamless CSV Dataset Ingestion']
+                features: ['FAIR Data Spreadsheet Compliance', 'Zero Google OAuth Permission Footprint', 'In-Sheet ECharts Visualization Dialogs', 'Metadata Deduplication Rules', 'Seamless CSV Dataset Ingestion'],
+                demoUrl: 'https://iwas108.github.io/SLR-Magic/'
             }
         };
 
@@ -544,6 +614,12 @@ npm run dev</pre>
                                 </div>
                             `).join('')}
                         </div>
+                        ${mod.demoUrl ? `
+                            <a href="${mod.demoUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-md transition-all">
+                                <span>Launch Live Application</span>
+                                <i data-lucide="external-link" class="w-4 h-4"></i>
+                            </a>
+                        ` : ''}
                     </div>
                     <div class="relative group cursor-pointer" onclick="openLightbox('${mod.img}', '${mod.title}')">
                         <img src="${mod.img}" alt="${mod.title}" class="rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/60 object-cover w-full transform group-hover:scale-[1.02] transition-all duration-300">
