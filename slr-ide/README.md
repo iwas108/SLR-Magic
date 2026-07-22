@@ -15,7 +15,7 @@
 
 | Ingestion Hub | 4-Stage Gemini Operations |
 | :---: | :---: |
-| ![Ingestion Hub](../docs/ss/01-slr-ide-ingestion-hub.jpg) | ![LLM Operations](../docs/ss/02-llm-pipeline.png) |
+| ![Ingestion Hub](../docs/ss/02-slr-ide-ingestion-hub.jpg) | ![LLM Operations](../docs/ss/14-slr-ide-pipeline-execution-llm-operations-api-call-execution.jpg) |
 | *Figure 1: CSV import & duplicate resolution.* | *Figure 2: Chained multi-turn LLM screening.* |
 
 ---

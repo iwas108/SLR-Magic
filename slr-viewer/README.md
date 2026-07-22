@@ -16,7 +16,7 @@ Operating 100% offline via **Dexie.js (IndexedDB)**, it provides researchers, pe
 
 | 2D PRISMA 2020 Canvas | 17 Scientific ECharts Panels |
 | :---: | :---: |
-| ![PRISMA Canvas](../docs/ss/07-prisma-canvas.png) | ![SLR Viewer Analytics](../docs/ss/08-slr-viewer-analytics.png) |
+| ![PRISMA Canvas](../docs/ss/39-slr-viewer-scientific-rigor-prisma-2020-flowchart-auto-generated.jpg) | ![SLR Viewer Analytics](../docs/ss/40-slr-viewer-scientific-rigor-calibration-to-validation-dashboard.jpg) |
 | *Figure 1: Interactive 2D PRISMA flowchart.* | *Figure 2: Multi-level Sankey diagrams & radar graphs.* |
 
 ---
