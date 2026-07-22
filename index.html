@@ -43,7 +43,7 @@
                             950: '#0f172a',
                         },
                         darkbg: '#0B0F17',
-                        darkcard: '#131B2E',
+                        lightbg: '#F8FAFC',
                     }
                 }
             }
@@ -52,18 +52,25 @@
 
     <style>
         .glass-panel {
-            background: rgba(19, 27, 46, 0.7);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .light .glass-panel {
-            background: rgba(255, 255, 255, 0.85);
+            background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(0, 0, 0, 0.08);
+            color: #0f172a;
+        }
+        .dark .glass-panel {
+            background: rgba(19, 27, 46, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #f8fafc;
         }
         .gradient-text {
+            background: linear-gradient(135deg, #1d4ed8 0%, #7e22ce 50%, #be185d 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .dark .gradient-text {
             background: linear-gradient(135deg, #60a5fa 0%, #a855f7 50%, #ec4899 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -78,13 +85,13 @@
         ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.7); }
     </style>
 </head>
-<body class="bg-darkbg light:bg-slate-50 text-slate-100 light:text-slate-900 font-sans transition-colors duration-300 min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
+<body class="bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-100 font-sans transition-colors duration-300 min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
 
     <!-- Glowing Background Mesh -->
     <div class="fixed inset-0 pointer-events-none overflow-hidden -z-10">
-        <div class="absolute -top-40 -left-40 w-96 h-96 bg-brand-600/20 rounded-full blur-[128px]"></div>
-        <div class="absolute top-1/3 -right-40 w-96 h-96 bg-purple-600/15 rounded-full blur-[128px]"></div>
-        <div class="absolute -bottom-40 left-1/3 w-96 h-96 bg-pink-600/15 rounded-full blur-[128px]"></div>
+        <div class="absolute -top-40 -left-40 w-96 h-96 bg-brand-500/10 dark:bg-brand-600/20 rounded-full blur-[128px]"></div>
+        <div class="absolute top-1/3 -right-40 w-96 h-96 bg-purple-500/10 dark:bg-purple-600/15 rounded-full blur-[128px]"></div>
+        <div class="absolute -bottom-40 left-1/3 w-96 h-96 bg-pink-500/10 dark:bg-pink-600/15 rounded-full blur-[128px]"></div>
     </div>
 
     <!-- Navigation Header -->
@@ -95,24 +102,24 @@
                     <i data-lucide="sparkles" class="w-5 h-5 text-white"></i>
                 </div>
                 <div>
-                    <span class="text-xl font-bold tracking-tight font-mono">SLR<span class="gradient-text">Magic</span></span>
-                    <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">v2.5.0</span>
+                    <span class="text-xl font-bold tracking-tight font-mono text-slate-900 dark:text-white">SLR<span class="gradient-text">Magic</span></span>
+                    <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">v2.5.0</span>
                 </div>
             </div>
 
             <!-- Header Actions -->
             <div class="flex items-center space-x-3">
-                <nav class="hidden md:flex items-center space-x-6 text-sm font-medium">
-                    <button onclick="scrollToSection('modules')" class="hover:text-brand-400 transition-colors">Modules</button>
-                    <button onclick="scrollToSection('gallery')" class="hover:text-brand-400 transition-colors">Gallery</button>
-                    <button onclick="scrollToSection('rigor')" class="hover:text-brand-400 transition-colors">Rigor & Math</button>
-                    <button onclick="scrollToSection('quickstart')" class="hover:text-brand-400 transition-colors">Quickstart</button>
+                <nav class="hidden md:flex items-center space-x-6 text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <button onclick="scrollToSection('modules')" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Modules</button>
+                    <button onclick="scrollToSection('gallery')" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Gallery</button>
+                    <button onclick="scrollToSection('rigor')" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Rigor & Math</button>
+                    <button onclick="scrollToSection('quickstart')" class="hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Quickstart</button>
                 </nav>
 
-                <div class="h-4 w-[1px] bg-slate-700 light:bg-slate-300 hidden md:block"></div>
+                <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 hidden md:block"></div>
 
                 <!-- Theme Toggle Button -->
-                <button id="theme-toggle" onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-800/80 light:bg-slate-200/80 hover:bg-slate-700 transition-colors text-slate-300 light:text-slate-700" title="Toggle Light/Dark Theme">
+                <button id="theme-toggle" onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-200 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300" title="Toggle Light/Dark Theme">
                     <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
                     <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
                 </button>
@@ -124,7 +131,7 @@
                 </button>
 
                 <!-- GitHub Link -->
-                <a href="https://github.com/iwas108/SLR-Magic" target="_blank" rel="noopener noreferrer" class="p-2 rounded-lg bg-slate-800/80 light:bg-slate-200/80 hover:bg-slate-700 transition-colors text-slate-300 light:text-slate-700" title="View GitHub Repository">
+                <a href="https://github.com/iwas108/SLR-Magic" target="_blank" rel="noopener noreferrer" class="p-2 rounded-lg bg-slate-200 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300" title="View GitHub Repository">
                     <i data-lucide="github" class="w-5 h-5"></i>
                 </a>
             </div>
@@ -135,17 +142,17 @@
     <main class="flex-grow">
         <!-- Hero Section -->
         <section class="relative pt-20 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
-            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 text-xs font-semibold tracking-wide uppercase mb-6 animate-pulse">
+            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-400 border border-brand-500/20 text-xs font-semibold tracking-wide uppercase mb-6 animate-pulse">
                 <i data-lucide="shield-check" class="w-4 h-4"></i>
                 <span>Local-First &bull; Double-Blind Calibrated &bull; PRISMA 2020</span>
             </div>
 
-            <h1 class="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6">
+            <h1 class="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 text-slate-900 dark:text-white">
                 Systematic Literature Reviews <br>
                 <span class="gradient-text">Automated with Absolute Rigor</span>
             </h1>
 
-            <p class="max-w-3xl mx-auto text-lg sm:text-xl text-slate-400 light:text-slate-600 mb-10 leading-relaxed">
+            <p class="max-w-3xl mx-auto text-lg sm:text-xl text-slate-600 dark:text-slate-400 mb-10 leading-relaxed">
                 SLR Magic combines stateful 4-stage Gemini LLM screening with double-blind human calibration sandboxes. Retain 100% data privacy on your local machine with zero-leakage SQLite architecture.
             </p>
 
@@ -155,14 +162,14 @@
                     <span>Explore Workspace Suite</span>
                     <i data-lucide="arrow-right" class="w-5 h-5"></i>
                 </button>
-                <button onclick="openDocDrawer()" class="px-8 py-3.5 rounded-xl font-semibold glass-panel hover:bg-slate-800/80 transition-all duration-200 flex items-center space-x-2">
+                <button onclick="openDocDrawer()" class="px-8 py-3.5 rounded-xl font-semibold glass-panel hover:bg-slate-200 dark:hover:bg-slate-800/80 transition-all duration-200 flex items-center space-x-2">
                     <i data-lucide="file-text" class="w-5 h-5"></i>
                     <span>System Architecture Blueprint</span>
                 </button>
             </div>
 
             <!-- Terminal Copy Card -->
-            <div class="max-w-2xl mx-auto glass-panel rounded-2xl p-4 text-left font-mono text-sm border shadow-2xl relative group">
+            <div class="max-w-2xl mx-auto glass-panel rounded-2xl p-4 text-left font-mono text-sm border border-slate-200 dark:border-slate-800 shadow-2xl relative group bg-slate-900 text-slate-100 dark:bg-slate-950 dark:text-brand-300">
                 <div class="flex items-center justify-between text-xs text-slate-400 mb-2 border-b border-slate-700/50 pb-2">
                     <div class="flex space-x-1.5">
                         <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
@@ -181,23 +188,23 @@
         </section>
 
         <!-- Stats Bar -->
-        <section class="border-y border-slate-800 light:border-slate-200 bg-slate-900/50 light:bg-slate-100/50 py-8 px-4">
+        <section class="border-y border-slate-200 dark:border-slate-800/80 bg-slate-100/80 dark:bg-slate-900/50 py-8 px-4">
             <div class="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
                 <div>
-                    <div class="text-3xl font-extrabold text-brand-400 font-mono">4 Stages</div>
-                    <div class="text-xs uppercase tracking-wider text-slate-400 mt-1">LLM Pipeline Queue</div>
+                    <div class="text-3xl font-extrabold text-brand-600 dark:text-brand-400 font-mono">4 Stages</div>
+                    <div class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">LLM Pipeline Queue</div>
                 </div>
                 <div>
-                    <div class="text-3xl font-extrabold text-purple-400 font-mono">100%</div>
-                    <div class="text-xs uppercase tracking-wider text-slate-400 mt-1">Target Recall (Stage 1)</div>
+                    <div class="text-3xl font-extrabold text-purple-600 dark:text-purple-400 font-mono">100%</div>
+                    <div class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">Target Recall (Stage 1)</div>
                 </div>
                 <div>
-                    <div class="text-3xl font-extrabold text-emerald-400 font-mono">17 Charts</div>
-                    <div class="text-xs uppercase tracking-wider text-slate-400 mt-1">Scientific Analytics</div>
+                    <div class="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">17 Charts</div>
+                    <div class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">Scientific Analytics</div>
                 </div>
                 <div>
-                    <div class="text-3xl font-extrabold text-pink-400 font-mono">0 OAuth</div>
-                    <div class="text-xs uppercase tracking-wider text-slate-400 mt-1">Zero-Leakage Security</div>
+                    <div class="text-3xl font-extrabold text-pink-600 dark:text-pink-400 font-mono">0 OAuth</div>
+                    <div class="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">Zero-Leakage Security</div>
                 </div>
             </div>
         </section>
@@ -205,53 +212,53 @@
         <!-- Interactive Module Showcase Section -->
         <section id="modules" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
             <div class="text-center mb-12">
-                <h2 class="text-3xl sm:text-4xl font-extrabold mb-4">Workspace & Modular Suite</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">Click through the four integrated sub-modules powering the SLR Magic ecosystem.</p>
+                <h2 class="text-3xl sm:text-4xl font-extrabold mb-4 text-slate-900 dark:text-white">Workspace & Modular Suite</h2>
+                <p class="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Click through the four integrated sub-modules powering the SLR Magic ecosystem.</p>
             </div>
 
             <!-- Tab Buttons -->
-            <div class="flex flex-wrap justify-center gap-3 mb-10">
+            <div class="flex flex-wrap justify-center gap-3 mb-10" id="module-tabs">
                 <button onclick="switchTab('slr-ide')" id="tab-btn-slr-ide" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 bg-brand-600 text-white shadow-lg shadow-brand-600/30">
                     <i data-lucide="laptop" class="w-4 h-4"></i>
                     <span>SLR IDE (Next.js Desktop)</span>
                 </button>
-                <button onclick="switchTab('inter-rater')" id="tab-btn-inter-rater" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-800 text-slate-300">
+                <button onclick="switchTab('inter-rater')" id="tab-btn-inter-rater" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
                     <i data-lucide="users" class="w-4 h-4"></i>
                     <span>Inter-Rater SPA</span>
                 </button>
-                <button onclick="switchTab('slr-viewer')" id="tab-btn-slr-viewer" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-800 text-slate-300">
+                <button onclick="switchTab('slr-viewer')" id="tab-btn-slr-viewer" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
                     <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
                     <span>SLR Viewer (IndexedDB)</span>
                 </button>
-                <button onclick="switchTab('app-script')" id="tab-btn-app-script" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-800 text-slate-300">
+                <button onclick="switchTab('app-script')" id="tab-btn-app-script" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
                     <i data-lucide="table" class="w-4 h-4"></i>
                     <span>App Script (FAIR Endpoint)</span>
                 </button>
             </div>
 
             <!-- Tab Content Display Card -->
-            <div id="tab-content" class="glass-panel rounded-3xl p-6 sm:p-8 border shadow-2xl transition-all duration-300">
+            <div id="tab-content" class="glass-panel rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-2xl transition-all duration-300">
                 <!-- Dynamically populated via JS -->
             </div>
         </section>
 
-        <!-- 56-Screenshot Interactive Modal Gallery Section -->
-        <section id="gallery" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-800/80">
+        <!-- 48-Screenshot Interactive Modal Gallery Section -->
+        <section id="gallery" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-200 dark:border-slate-800/80">
             <div class="text-center mb-12">
-                <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-semibold tracking-wide uppercase mb-3">
+                <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20 text-xs font-semibold tracking-wide uppercase mb-3">
                     <i data-lucide="image" class="w-4 h-4"></i>
                     <span>Visual Evidence Gallery</span>
                 </div>
-                <h2 class="text-3xl sm:text-4xl font-extrabold mb-4">Complete Screenshot Showcase</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">Explore high-resolution interface captures across every phase of the SLR Magic workspace.</p>
+                <h2 class="text-3xl sm:text-4xl font-extrabold mb-4 text-slate-900 dark:text-white">Complete Screenshot Showcase</h2>
+                <p class="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Explore high-resolution interface captures across every phase of the SLR Magic workspace.</p>
 
                 <!-- Category Filters -->
                 <div class="flex flex-wrap justify-center gap-2 mt-6" id="gallery-filters">
-                    <button onclick="filterGallery('all')" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-brand-600 text-white">All (56)</button>
-                    <button onclick="filterGallery('ingestion')" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">Ingestion</button>
-                    <button onclick="filterGallery('llm')" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">LLM Pipeline</button>
-                    <button onclick="filterGallery('calibration')" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">Calibration & Inter-Rater</button>
-                    <button onclick="filterGallery('prisma')" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">PRISMA & Analytics</button>
+                    <button onclick="filterGallery('all', this)" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-brand-600 text-white">All (48)</button>
+                    <button onclick="filterGallery('ingestion', this)" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">Ingestion & PDF</button>
+                    <button onclick="filterGallery('llm', this)" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">LLM Pipeline</button>
+                    <button onclick="filterGallery('calibration', this)" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">Calibration & Inter-Rater</button>
+                    <button onclick="filterGallery('prisma', this)" class="gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">PRISMA & Analytics</button>
                 </div>
             </div>
 
@@ -262,90 +269,90 @@
         </section>
 
         <!-- Rigor & Math Section -->
-        <section id="rigor" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-800/80">
+        <section id="rigor" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-200 dark:border-slate-800/80">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div>
-                    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold tracking-wide uppercase mb-4">
+                    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold tracking-wide uppercase mb-4">
                         <i data-lucide="binary" class="w-4 h-4"></i>
                         <span>Methodological Targets</span>
                     </div>
-                    <h2 class="text-3xl sm:text-4xl font-extrabold mb-6">Scientific Validation Standard</h2>
-                    <p class="text-slate-400 leading-relaxed mb-6">
+                    <h2 class="text-3xl sm:text-4xl font-extrabold mb-6 text-slate-900 dark:text-white">Scientific Validation Standard</h2>
+                    <p class="text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
                         SLR Magic enforces non-negotiable statistical stopping criteria and quality thresholds at every execution tier to eliminate hallucination risks and prevent false exclusion of valid research papers.
                     </p>
 
                     <div class="space-y-4">
                         <div class="glass-panel p-4 rounded-xl border border-brand-500/20">
                             <div class="flex justify-between items-center mb-1">
-                                <span class="font-semibold text-brand-400">Stage 1: Fast Filter (Recall Target)</span>
-                                <span class="font-mono text-sm font-bold text-emerald-400">Recall ≥ 100% | F1 ≥ 85%</span>
+                                <span class="font-semibold text-brand-600 dark:text-brand-400">Stage 1: Fast Filter (Recall Target)</span>
+                                <span class="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">Recall ≥ 100% | F1 ≥ 85%</span>
                             </div>
-                            <p class="text-xs text-slate-400">Title & abstract inclusion filter ensuring zero false exclusions before full-text acquisition.</p>
+                            <p class="text-xs text-slate-600 dark:text-slate-400">Title & abstract inclusion filter ensuring zero false exclusions before full-text acquisition.</p>
                         </div>
 
                         <div class="glass-panel p-4 rounded-xl border border-purple-500/20">
                             <div class="flex justify-between items-center mb-1">
-                                <span class="font-semibold text-purple-400">Stage 2: Gatekeeper (Precision Target)</span>
-                                <span class="font-mono text-sm font-bold text-emerald-400">Precision ≥ 85% | Recall ≥ 90%</span>
+                                <span class="font-semibold text-purple-600 dark:text-purple-400">Stage 2: Gatekeeper (Precision Target)</span>
+                                <span class="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">Precision ≥ 85% | Recall ≥ 90%</span>
                             </div>
-                            <p class="text-xs text-slate-400">Methodological full-text verification evaluating inclusion criteria alignment.</p>
+                            <p class="text-xs text-slate-600 dark:text-slate-400">Methodological full-text verification evaluating inclusion criteria alignment.</p>
                         </div>
 
                         <div class="glass-panel p-4 rounded-xl border border-pink-500/20">
                             <div class="flex justify-between items-center mb-1">
-                                <span class="font-semibold text-pink-400">Inter-Rater Agreement (Cohen's Kappa)</span>
-                                <span class="font-mono text-sm font-bold text-brand-300">κ = (Po - Pe) / (1 - Pe)</span>
+                                <span class="font-semibold text-pink-600 dark:text-pink-400">Inter-Rater Agreement (Cohen's Kappa)</span>
+                                <span class="font-mono text-sm font-bold text-brand-700 dark:text-brand-300">κ = (Po - Pe) / (1 - Pe)</span>
                             </div>
-                            <p class="text-xs text-slate-400">Double-blind agreement metric calculated across blinded human reviewers.</p>
+                            <p class="text-xs text-slate-600 dark:text-slate-400">Double-blind agreement metric calculated across blinded human reviewers.</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Interactive PRISMA Canvas Preview Card -->
-                <div class="glass-panel rounded-3xl p-6 border shadow-2xl relative overflow-hidden group">
-                    <img src="./docs/ss/07-prisma-canvas.png" alt="PRISMA 2020 Flowchart Canvas" class="rounded-xl w-full object-cover shadow-lg transform group-hover:scale-[1.02] transition-transform duration-300 cursor-pointer" onclick="openLightbox('./docs/ss/07-prisma-canvas.png', 'Interactive PRISMA 2020 Flowchart Canvas')">
-                    <div class="mt-4 flex items-center justify-between text-xs text-slate-400">
+                <div class="glass-panel rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl relative overflow-hidden group">
+                    <img src="./docs/ss/39-slr-viewer-scientific-rigor-prisma-2020-flowchart-auto-generated.jpg" alt="PRISMA 2020 Flowchart Canvas" class="rounded-xl w-full object-cover shadow-lg transform group-hover:scale-[1.02] transition-transform duration-300 cursor-pointer" onclick="openLightbox('./docs/ss/39-slr-viewer-scientific-rigor-prisma-2020-flowchart-auto-generated.jpg', 'Interactive PRISMA 2020 Flowchart Canvas')">
+                    <div class="mt-4 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                         <span>Figure: SLR Viewer 2D PRISMA 2020 Flowchart Generator</span>
-                        <span class="text-brand-400 font-medium">Click image to expand &rarr;</span>
+                        <span class="text-brand-600 dark:text-brand-400 font-medium">Click image to expand &rarr;</span>
                     </div>
                 </div>
             </div>
         </section>
 
         <!-- Quickstart Commands Section -->
-        <section id="quickstart" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-800/80">
+        <section id="quickstart" class="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-slate-200 dark:border-slate-800/80">
             <div class="text-center mb-12">
-                <h2 class="text-3xl font-extrabold mb-4">Quick Start Setup Guide</h2>
-                <p class="text-slate-400 max-w-2xl mx-auto">Get up and running locally in under 2 minutes.</p>
+                <h2 class="text-3xl font-extrabold mb-4 text-slate-900 dark:text-white">Quick Start Setup Guide</h2>
+                <p class="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Get up and running locally in under 2 minutes.</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- Card 1 -->
-                <div class="glass-panel p-6 rounded-2xl border">
-                    <div class="w-10 h-10 rounded-lg bg-brand-500/20 text-brand-400 flex items-center justify-center font-mono font-bold mb-4">01</div>
-                    <h3 class="font-bold text-lg mb-2">1. Launch SLR IDE</h3>
-                    <p class="text-xs text-slate-400 mb-4">Desktop execution engine & Gemini LLM pipeline.</p>
-                    <pre class="bg-slate-950 p-3 rounded-lg text-xs font-mono text-brand-300 overflow-x-auto">cd slr-ide
+                <div class="glass-panel p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <div class="w-10 h-10 rounded-lg bg-brand-500/20 text-brand-600 dark:text-brand-400 flex items-center justify-center font-mono font-bold mb-4">01</div>
+                    <h3 class="font-bold text-lg mb-2 text-slate-900 dark:text-white">1. Launch SLR IDE</h3>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mb-4">Desktop execution engine & Gemini LLM pipeline.</p>
+                    <pre class="bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-brand-300 p-3 rounded-lg text-xs font-mono border border-slate-200 dark:border-slate-800/80 overflow-x-auto">cd slr-ide
 npm install
 npm run dev</pre>
                 </div>
 
                 <!-- Card 2 -->
-                <div class="glass-panel p-6 rounded-2xl border">
-                    <div class="w-10 h-10 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center font-mono font-bold mb-4">02</div>
-                    <h3 class="font-bold text-lg mb-2">2. Inter-Rater SPA</h3>
-                    <p class="text-xs text-slate-400 mb-4">Offline blinded human review workspace.</p>
-                    <pre class="bg-slate-950 p-3 rounded-lg text-xs font-mono text-purple-300 overflow-x-auto">cd inter-rater
+                <div class="glass-panel p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <div class="w-10 h-10 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center font-mono font-bold mb-4">02</div>
+                    <h3 class="font-bold text-lg mb-2 text-slate-900 dark:text-white">2. Inter-Rater SPA</h3>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mb-4">Offline blinded human review workspace.</p>
+                    <pre class="bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-purple-300 p-3 rounded-lg text-xs font-mono border border-slate-200 dark:border-slate-800/80 overflow-x-auto">cd inter-rater
 npm install
 npm run dev</pre>
                 </div>
 
                 <!-- Card 3 -->
-                <div class="glass-panel p-6 rounded-2xl border">
-                    <div class="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-mono font-bold mb-4">03</div>
-                    <h3 class="font-bold text-lg mb-2">3. SLR Viewer</h3>
-                    <p class="text-xs text-slate-400 mb-4">Offline snapshot analysis & ECharts visualizer.</p>
-                    <pre class="bg-slate-950 p-3 rounded-lg text-xs font-mono text-emerald-300 overflow-x-auto">cd slr-viewer
+                <div class="glass-panel p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-mono font-bold mb-4">03</div>
+                    <h3 class="font-bold text-lg mb-2 text-slate-900 dark:text-white">3. SLR Viewer</h3>
+                    <p class="text-xs text-slate-600 dark:text-slate-400 mb-4">Offline snapshot analysis & ECharts visualizer.</p>
+                    <pre class="bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-emerald-300 p-3 rounded-lg text-xs font-mono border border-slate-200 dark:border-slate-800/80 overflow-x-auto">cd slr-viewer
 npm install
 npm run dev</pre>
                 </div>
@@ -354,19 +361,19 @@ npm run dev</pre>
     </main>
 
     <!-- Footer -->
-    <footer class="border-t border-slate-800/80 bg-slate-950 py-10 px-4 text-center text-slate-400 text-sm">
+    <footer class="border-t border-slate-200 dark:border-slate-800/80 bg-slate-100 dark:bg-slate-950 py-10 px-4 text-center text-slate-600 dark:text-slate-400 text-sm">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="flex items-center space-x-2 font-mono">
-                <i data-lucide="sparkles" class="w-4 h-4 text-brand-400"></i>
-                <span class="font-bold text-slate-200">SLR Magic</span>
+                <i data-lucide="sparkles" class="w-4 h-4 text-brand-600 dark:text-brand-400"></i>
+                <span class="font-bold text-slate-800 dark:text-slate-200">SLR Magic</span>
                 <span>&bull; MIT License</span>
             </div>
             <div>
                 &copy; 2026 iwas108 &bull; Open-Source Systematic Review Platform
             </div>
             <div class="flex items-center space-x-4">
-                <a href="https://github.com/iwas108/SLR-Magic" class="hover:text-white transition-colors">GitHub Repository</a>
-                <a href="architecture.md" class="hover:text-white transition-colors">Architecture</a>
+                <a href="https://github.com/iwas108/SLR-Magic" class="hover:text-slate-900 dark:hover:text-white transition-colors">GitHub Repository</a>
+                <a href="architecture.md" class="hover:text-slate-900 dark:hover:text-white transition-colors">Architecture</a>
             </div>
         </div>
     </footer>
@@ -382,17 +389,17 @@ npm run dev</pre>
 
     <!-- Documentation Reader Modal -->
     <div id="doc-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4 sm:p-6" onclick="closeDocDrawer(event)">
-        <div class="glass-panel w-full max-w-4xl max-h-[90vh] rounded-3xl p-6 sm:p-8 flex flex-col shadow-2xl border" onclick="event.stopPropagation()">
-            <div class="flex items-center justify-between pb-4 border-b border-slate-700/60 mb-6">
+        <div class="glass-panel w-full max-w-4xl max-h-[90vh] rounded-3xl p-6 sm:p-8 flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-700/60 mb-6">
                 <div class="flex items-center space-x-2 font-mono">
-                    <i data-lucide="file-text" class="w-5 h-5 text-brand-400"></i>
-                    <span class="font-bold text-lg">README.md Viewer</span>
+                    <i data-lucide="file-text" class="w-5 h-5 text-brand-600 dark:text-brand-400"></i>
+                    <span class="font-bold text-lg text-slate-900 dark:text-white">README.md Viewer</span>
                 </div>
-                <button onclick="closeDocDrawer()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300">
+                <button onclick="closeDocDrawer()" class="p-2 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div id="doc-content" class="overflow-y-auto pr-4 prose prose-invert max-w-none text-slate-300">
+            <div id="doc-content" class="overflow-y-auto pr-4 prose prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-300">
                 <div class="text-center py-12 text-slate-500 animate-pulse">Loading README documentation...</div>
             </div>
         </div>
@@ -400,7 +407,9 @@ npm run dev</pre>
 
     <!-- Interactive Logic Script -->
     <script>
-        // Data Store for Modules & Screenshots
+        let currentActiveTab = 'slr-ide';
+        let currentActiveCat = 'all';
+
         const modulesData = {
             'slr-ide': {
                 title: 'SLR IDE Sub-module (Next.js 15 Desktop App)',
@@ -413,14 +422,14 @@ npm run dev</pre>
                 title: 'Inter-Rater SPA (Blinded Review & Calibration)',
                 desc: 'Offline React 19 SPA enabling independent human reviewers to evaluate assigned paper pools without visibility into AI or peer rater choices.',
                 badge: 'Double-Blind Reviewer SPA',
-                img: './docs/ss/05-inter-rater-blinded.png',
+                img: './docs/ss/32-inter-rater-blinded-inter-rater-review-workspace-1.jpg',
                 features: ['Blinded Evaluation Mode', "Cohen's Kappa (κ) Agreement Engine", 'Offline localStorage Session Persistence', 'Native .slr JSON Schema Exchange', 'QA Score Alignment Sliders']
             },
             'slr-viewer': {
                 title: 'SLR Viewer (IndexedDB & ECharts Analytics)',
                 desc: 'Standalone read-only React SPA for exploring .slr-viewer dataset snapshots, rendering interactive 2D PRISMA 2020 flowcharts, and visualizing 17 scientific charts.',
                 badge: 'Read-Only Visual Dashboard',
-                img: './docs/ss/08-slr-viewer-analytics.png',
+                img: './docs/ss/40-slr-viewer-scientific-rigor-calibration-to-validation-dashboard.jpg',
                 features: ['Offline Dexie.js (IndexedDB) Persistence', '2D Interactive PRISMA 2020 Canvas', '17 Scientific ECharts Panels (Sankey, Radar, Stacked Bar)', 'API Spend & Accounting Breakdown', 'Vector SVG & High-DPI PNG Exporter']
             },
             'app-script': {
@@ -433,22 +442,54 @@ npm run dev</pre>
         };
 
         const galleryImages = [
-            { src: './docs/ss/01-ingestion-hub.png', title: '01 Ingestion Hub', cat: 'ingestion' },
-            { src: './docs/ss/01-slr-ide-dashboard.jpg', title: 'SLR IDE Main Dashboard', cat: 'ingestion' },
-            { src: './docs/ss/02-llm-pipeline.png', title: '02 LLM Pipeline Operations', cat: 'llm' },
-            { src: './docs/ss/03-calibration-sandbox.png', title: '03 Calibration Sandbox', cat: 'calibration' },
-            { src: './docs/ss/04-cohort-table.png', title: '04 Wide Cohort Table', cat: 'ingestion' },
-            { src: './docs/ss/05-inter-rater-blinded.png', title: '05 Blinded Inter-Rater Reviewer', cat: 'calibration' },
-            { src: './docs/ss/06-inter-rater-agreement.png', title: '06 Inter-Rater Agreement Matrix', cat: 'calibration' },
-            { src: './docs/ss/07-prisma-canvas.png', title: '07 PRISMA 2020 Flowchart Canvas', cat: 'prisma' },
-            { src: './docs/ss/08-slr-viewer-analytics.png', title: '08 SLR Viewer Analytics', cat: 'prisma' },
-            { src: './docs/ss/10-slr-ide-pipeline-execution-data-aquisition-pipeline-cloud-sync.jpg', title: 'PDF Data Acquisition & Sync', cat: 'ingestion' },
-            { src: './docs/ss/14-slr-ide-pipeline-execution-llm-operations-api-call-execution.jpg', title: 'LLM API Queue Execution', cat: 'llm' },
-            { src: './docs/ss/15-slr-ide-pipeline-execution-llm-operations-audit-trail.jpg', title: 'LLM Spend & Audit Trail', cat: 'llm' },
-            { src: './docs/ss/17-slr-ide-pipeline-execution-Remote-Workers-PDFs-Scraper.jpg', title: 'Headless Scraper Worker', cat: 'ingestion' },
-            { src: './docs/ss/21-slr-ide-insight-and-export-scientific-rigor-prisma-2020-auto-generated.jpg', title: 'Auto PRISMA Generator', cat: 'prisma' },
-            { src: './docs/ss/29-slr-ide-insight-and-export-scientific-rigor-FAIR-Data-Export.jpg', title: 'FAIR CSV Exporter', cat: 'prisma' },
-            { src: './docs/ss/30-slr-ide-insight-and-export-scientific-rigor-cloud-gold-mine.jpg', title: 'Google Sheets FAIR Database', cat: 'prisma' },
+            { src: './docs/ss/01-slr-ide-dashboard.jpg', title: '01 SLR IDE Dashboard', cat: 'ingestion' },
+            { src: './docs/ss/02-slr-ide-ingestion-hub.jpg', title: '02 SLR IDE Ingestion Hub', cat: 'ingestion' },
+            { src: './docs/ss/03-slr-ide-raw-data.jpg', title: '03 SLR IDE Raw Data', cat: 'ingestion' },
+            { src: './docs/ss/04-slr-ide-pre-calibration-statistics.jpg', title: '04 Pre-Calibration Statistics', cat: 'calibration' },
+            { src: './docs/ss/05-slr-ide-pre-calibration-papers.jpg', title: '05 Pre-Calibration Papers', cat: 'calibration' },
+            { src: './docs/ss/06-slr-ide-pre-calibration-assign-papers-to-calibration-pools-semantic-search.jpg', title: '06 Assign Pools Semantic Search', cat: 'calibration' },
+            { src: './docs/ss/07-slr-ide-pre-calibration-assign-papers-to-calibration-pools-semantic-paper-details-metadata.jpg', title: '07 Paper Details Metadata', cat: 'calibration' },
+            { src: './docs/ss/08-slr-ide-pre-calibration-inter-rater-dashboard-pool-a.jpg', title: '08 Inter-Rater Dashboard Pool A', cat: 'calibration' },
+            { src: './docs/ss/09-slr-ide-pre-calibration-inter-rater-dashboard-pool-c-calibration-adjudication.jpg', title: '09 Pool C Calibration Adjudication', cat: 'calibration' },
+            { src: './docs/ss/10-slr-ide-pipeline-execution-data-aquisition-pipeline-cloud-sync.jpg', title: '10 Data Acquisition & Cloud Sync', cat: 'ingestion' },
+            { src: './docs/ss/11-slr-ide-pipeline-execution-llm-operations-pipeline-vault-unlock.jpg', title: '11 Vault Unlock Workspace', cat: 'llm' },
+            { src: './docs/ss/12-slr-ide-pipeline-execution-llm-operations-prompt-library.jpg', title: '12 Prompt Library', cat: 'llm' },
+            { src: './docs/ss/13-slr-ide-pipeline-execution-llm-operations-prompt-edit.jpg', title: '13 Prompt Editor Workspace', cat: 'llm' },
+            { src: './docs/ss/14-slr-ide-pipeline-execution-llm-operations-api-call-execution.jpg', title: '14 LLM API Call Execution', cat: 'llm' },
+            { src: './docs/ss/15-slr-ide-pipeline-execution-llm-operations-audit-trail.jpg', title: '15 LLM Operations Audit Trail', cat: 'llm' },
+            { src: './docs/ss/16-slr-ide-pipeline-execution-manual-screening-workspace.jpg', title: '16 Manual Screening Workspace', cat: 'llm' },
+            { src: './docs/ss/17-slr-ide-pipeline-execution-Remote-Workers-PDFs-Scraper.jpg', title: '17 Remote Worker Scraper', cat: 'ingestion' },
+            { src: './docs/ss/18-slr-ide-post-validation-umbrellanizer-workspace.jpg', title: '18 Umbrellanizer Workspace', cat: 'llm' },
+            { src: './docs/ss/19-slr-ide-post-validation-rolling-batch-audit-workspace.jpg', title: '19 Rolling Batch Audit Workspace', cat: 'calibration' },
+            { src: './docs/ss/20-slr-ide-insight-and-export-accounting-dashboard.jpg', title: '20 Accounting Spend Dashboard', cat: 'prisma' },
+            { src: './docs/ss/21-slr-ide-insight-and-export-scientific-rigor-prisma-2020-auto-generated.jpg', title: '21 Auto PRISMA 2020 Flowchart', cat: 'prisma' },
+            { src: './docs/ss/22-slr-ide-insight-and-export-scientific-rigor-pre-calibration-until-post-validation-dashboard.jpg', title: '22 Scientific Rigor Dashboard', cat: 'prisma' },
+            { src: './docs/ss/23-slr-ide-insight-and-export-scientific-rigor-final-cohort-table.jpg', title: '23 Final Cohort Synthesis Table', cat: 'prisma' },
+            { src: './docs/ss/24-slr-ide-insight-and-export-scientific-rigor-final-cohort-visualizer-wizard-1.jpg', title: '24 Visualizer Wizard Setup', cat: 'prisma' },
+            { src: './docs/ss/25-slr-ide-insight-and-export-scientific-rigor-final-cohort-visualizer-wizard-2.jpg', title: '25 Visualizer Wizard Charts', cat: 'prisma' },
+            { src: './docs/ss/26-slr-ide-insight-and-export-scientific-rigor-final-cohort-visualizer-wizard-3.jpg', title: '26 Visualizer Wizard Config', cat: 'prisma' },
+            { src: './docs/ss/27-slr-ide-insight-and-export-scientific-rigor-final-cohort-visualizer-wizard-4.jpg', title: '27 Visualizer Wizard Sankey', cat: 'prisma' },
+            { src: './docs/ss/28-slr-ide-insight-and-export-scientific-rigor-final-cohort-visualizer-wizard-5.jpg', title: '28 Visualizer Export Panel', cat: 'prisma' },
+            { src: './docs/ss/29-slr-ide-insight-and-export-scientific-rigor-FAIR-Data-Export.jpg', title: '29 FAIR Data CSV Exporter', cat: 'prisma' },
+            { src: './docs/ss/30-slr-ide-insight-and-export-scientific-rigor-cloud-gold-mine.jpg', title: '30 Cloud Gold Mine Sync', cat: 'prisma' },
+            { src: './docs/ss/31-inter-rater-imported-project-dashboard.jpg', title: '31 Inter-Rater Project Dashboard', cat: 'calibration' },
+            { src: './docs/ss/32-inter-rater-blinded-inter-rater-review-workspace-1.jpg', title: '32 Blinded Inter-Rater Review 1', cat: 'calibration' },
+            { src: './docs/ss/33-inter-rater-blinded-inter-rater-review-workspace-2.jpg', title: '33 Blinded Inter-Rater Review 2', cat: 'calibration' },
+            { src: './docs/ss/34-slr-viewer-session-board-with-import-slr-viewer-file.jpg', title: '34 SLR Viewer Session Board', cat: 'prisma' },
+            { src: './docs/ss/35-slr-viewer-research-workflow-dashboard-1.jpg', title: '35 SLR Viewer Dashboard 1', cat: 'prisma' },
+            { src: './docs/ss/36-slr-viewer-research-workflow-dashboard-2.jpg', title: '36 SLR Viewer Dashboard 2', cat: 'prisma' },
+            { src: './docs/ss/37-slr-viewer-research-workflow-dashboard-3.jpg', title: '37 SLR Viewer Dashboard 3', cat: 'prisma' },
+            { src: './docs/ss/38-slr-viewer-research-workflow-dashboard-4.jpg', title: '38 SLR Viewer Dashboard 4', cat: 'prisma' },
+            { src: './docs/ss/39-slr-viewer-scientific-rigor-prisma-2020-flowchart-auto-generated.jpg', title: '39 SLR Viewer PRISMA 2020 Flowchart', cat: 'prisma' },
+            { src: './docs/ss/40-slr-viewer-scientific-rigor-calibration-to-validation-dashboard.jpg', title: '40 SLR Viewer Validation Dashboard', cat: 'prisma' },
+            { src: './docs/ss/41-slr-viewer-final-data-cohort-table.jpg', title: '41 SLR Viewer Final Cohort Table', cat: 'prisma' },
+            { src: './docs/ss/42-slr-viewer-final-data-cohort-visualizer-1.jpg', title: '42 SLR Viewer Visualizer 1', cat: 'prisma' },
+            { src: './docs/ss/43-slr-viewer-final-data-cohort-visualizer-2.jpg', title: '43 SLR Viewer Visualizer 2', cat: 'prisma' },
+            { src: './docs/ss/44-slr-viewer-final-data-cohort-visualizer-3.jpg', title: '44 SLR Viewer Visualizer 3', cat: 'prisma' },
+            { src: './docs/ss/45-slr-viewer-final-data-cohort-visualizer-4.jpg', title: '45 SLR Viewer Visualizer 4', cat: 'prisma' },
+            { src: './docs/ss/46-slr-viewer-final-data-cohort-visualizer-5.jpg', title: '46 SLR Viewer Visualizer 5', cat: 'prisma' },
+            { src: './docs/ss/47-slr-viewer-accounting-dashboard.jpg', title: '47 SLR Viewer Spend Dashboard', cat: 'prisma' },
+            { src: './docs/ss/48-slr-viewer-fair-data-export.jpg', title: '48 SLR Viewer FAIR Export', cat: 'prisma' }
         ];
 
         // Initialize App State
@@ -463,21 +504,22 @@ npm run dev</pre>
             const html = document.documentElement;
             if (html.classList.contains('dark')) {
                 html.classList.remove('dark');
-                html.classList.add('light');
             } else {
-                html.classList.remove('light');
                 html.classList.add('dark');
             }
+            switchTab(currentActiveTab);
+            filterGallery(currentActiveCat);
         }
 
         // Module Tab Switcher
         function switchTab(modKey) {
+            currentActiveTab = modKey;
             const mod = modulesData[modKey];
             if (!mod) return;
 
             // Reset buttons
             document.querySelectorAll('.module-tab-btn').forEach(btn => {
-                btn.className = 'module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel text-slate-300 hover:bg-slate-800';
+                btn.className = 'module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300';
             });
 
             // Highlight active button
@@ -491,20 +533,20 @@ npm run dev</pre>
             container.innerHTML = `
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
                     <div>
-                        <span class="inline-block px-3 py-1 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 text-xs font-semibold uppercase tracking-wider mb-4">${mod.badge}</span>
-                        <h3 class="text-2xl sm:text-3xl font-extrabold mb-4">${mod.title}</h3>
-                        <p class="text-slate-400 leading-relaxed mb-6">${mod.desc}</p>
+                        <span class="inline-block px-3 py-1 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 text-xs font-semibold uppercase tracking-wider mb-4">${mod.badge}</span>
+                        <h3 class="text-2xl sm:text-3xl font-extrabold mb-4 text-slate-900 dark:text-white">${mod.title}</h3>
+                        <p class="text-slate-600 dark:text-slate-400 leading-relaxed mb-6">${mod.desc}</p>
                         <div class="space-y-2 mb-6">
                             ${mod.features.map(f => `
-                                <div class="flex items-center space-x-2 text-sm text-slate-300">
-                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+                                <div class="flex items-center space-x-2 text-sm text-slate-700 dark:text-slate-300">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
                                     <span>${f}</span>
                                 </div>
                             `).join('')}
                         </div>
                     </div>
                     <div class="relative group cursor-pointer" onclick="openLightbox('${mod.img}', '${mod.title}')">
-                        <img src="${mod.img}" alt="${mod.title}" class="rounded-2xl shadow-2xl border border-slate-700/60 object-cover w-full transform group-hover:scale-[1.02] transition-all duration-300">
+                        <img src="${mod.img}" alt="${mod.title}" class="rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/60 object-cover w-full transform group-hover:scale-[1.02] transition-all duration-300">
                         <div class="absolute inset-0 bg-brand-950/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <span class="px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-semibold shadow-lg">Click to Zoom Preview</span>
                         </div>
@@ -516,25 +558,35 @@ npm run dev</pre>
 
         // Render Screenshot Gallery
         function renderGallery(cat) {
+            currentActiveCat = cat;
             const grid = document.getElementById('gallery-grid');
             const items = cat === 'all' ? galleryImages : galleryImages.filter(img => img.cat === cat);
 
             grid.innerHTML = items.map(img => `
-                <div class="glass-panel rounded-2xl overflow-hidden border shadow-lg group cursor-pointer transition-all hover:-translate-y-1" onclick="openLightbox('${img.src}', '${img.title}')">
+                <div class="glass-panel rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-lg group cursor-pointer transition-all hover:-translate-y-1" onclick="openLightbox('${img.src}', '${img.title}')">
                     <div class="relative overflow-hidden aspect-video">
                         <img src="${img.src}" alt="${img.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
-                        <div class="absolute inset-0 bg-gradient-to-t from-darkbg/90 via-transparent to-transparent opacity-80"></div>
-                        <div class="absolute bottom-3 left-3 right-3 text-xs font-semibold text-slate-200 truncate font-mono">${img.title}</div>
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/30 to-transparent opacity-80"></div>
+                        <div class="absolute bottom-3 left-3 right-3 text-xs font-semibold text-white truncate font-mono">${img.title}</div>
                     </div>
                 </div>
             `).join('');
         }
 
-        function filterGallery(cat) {
+        function filterGallery(cat, btnEl) {
+            currentActiveCat = cat;
             document.querySelectorAll('.gallery-filter-btn').forEach(btn => {
-                btn.className = 'gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300';
+                btn.className = 'gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors';
             });
-            event.target.className = 'gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-brand-600 text-white';
+            if (!btnEl && window.event && window.event.target && window.event.target.classList.contains('gallery-filter-btn')) {
+                btnEl = window.event.target;
+            }
+            if (btnEl) {
+                btnEl.className = 'gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-brand-600 text-white transition-colors';
+            } else {
+                const defaultBtn = document.querySelector(`.gallery-filter-btn[onclick*="'${cat}'"]`);
+                if (defaultBtn) defaultBtn.className = 'gallery-filter-btn px-4 py-1.5 rounded-full text-xs font-semibold bg-brand-600 text-white transition-colors';
+            }
             renderGallery(cat);
         }
 
@@ -563,7 +615,7 @@ npm run dev</pre>
                     contentDiv.dataset.loaded = "true";
                 })
                 .catch(() => {
-                    contentDiv.innerHTML = '<p class="text-red-400">Failed to load online README. Showing local version.</p>';
+                    contentDiv.innerHTML = '<p class="text-red-600 dark:text-red-400">Failed to load online README. Showing local version.</p>';
                 });
         }
         function closeDocDrawer(e) {

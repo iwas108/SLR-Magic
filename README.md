@@ -38,7 +38,7 @@ Import paper collections from major bibliographic databases (Scopus, Web of Scie
 
 | Ingestion Hub Workspace | Raw Metadata Ingestion |
 | :---: | :---: |
-| ![01 Ingestion Hub](./docs/ss/01-ingestion-hub.png) | ![02 SLR IDE Ingestion](./docs/ss/02-slr-ide-ingestion-hub.jpg) |
+| ![02 SLR IDE Ingestion](./docs/ss/02-slr-ide-ingestion-hub.jpg) | ![03 SLR IDE Raw Data](./docs/ss/03-slr-ide-raw-data.jpg) |
 | *Figure 1.1: Interactive CSV schema mapper with real-time duplicate preview.* | *Figure 1.2: Title similarity matching and DOI conflict resolution.* |
 
 ---
@@ -58,7 +58,7 @@ Chained LLM execution powered by the Google Gemini Interactions API with statefu
 
 | Sequential LLM Operations | LLM Execution & Audit Log |
 | :---: | :---: |
-| ![02 LLM Pipeline](./docs/ss/02-llm-pipeline.png) | ![15 LLM Audit Log](./docs/ss/15-slr-ide-pipeline-execution-llm-operations-audit-trail.jpg) |
+| ![14 LLM API Call Execution](./docs/ss/14-slr-ide-pipeline-execution-llm-operations-api-call-execution.jpg) | ![15 LLM Audit Log](./docs/ss/15-slr-ide-pipeline-execution-llm-operations-audit-trail.jpg) |
 | *Figure 3.1: 4-Stage screening (Fast Filter, Gatekeeper, Scientist, Miner).* | *Figure 3.2: Real-time execution monitor, token counter, and spend audit log.* |
 
 ---
@@ -68,12 +68,12 @@ Blind human reviewers evaluate assigned paper pools independently to calculate s
 
 | Pre-Calibration Sandbox | Blinded Human Reviewer SPA |
 | :---: | :---: |
-| ![03 Calibration Sandbox](./docs/ss/03-calibration-sandbox.png) | ![05 Inter-Rater Blinded](./docs/ss/05-inter-rater-blinded.png) |
+| ![04 Calibration Sandbox](./docs/ss/04-slr-ide-pre-calibration-statistics.jpg) | ![32 Inter-Rater Blinded](./docs/ss/32-inter-rater-blinded-inter-rater-review-workspace-1.jpg) |
 | *Figure 4.1: Pre-calibration agreement metrics and prompt tuning.* | *Figure 4.2: Standalone blinded human reviewer workspace.* |
 
 | Discrepancy Matrix & Cohen's Kappa | Pool Calibration Adjudication |
 | :---: | :---: |
-| ![06 Inter-Rater Agreement](./docs/ss/06-inter-rater-agreement.png) | ![09 Pool Adjudication](./docs/ss/09-slr-ide-pre-calibration-inter-rater-dashboard-pool-c-calibration-adjudication.jpg) |
+| ![08 Inter-Rater Dashboard](./docs/ss/08-slr-ide-pre-calibration-inter-rater-dashboard-pool-a.jpg) | ![09 Pool Adjudication](./docs/ss/09-slr-ide-pre-calibration-inter-rater-dashboard-pool-c-calibration-adjudication.jpg) |
 | *Figure 4.3: Inter-rater agreement matrix and QA score alignment.* | *Figure 4.4: Adjudication panel resolving rater/AI discrepancies.* |
 
 ---
@@ -83,7 +83,7 @@ Generate publication-ready 2D PRISMA 2020 flowcharts alongside 17 interactive EC
 
 | Interactive PRISMA 2020 Canvas | Scientific Rigor & ECharts Analytics |
 | :---: | :---: |
-| ![07 PRISMA Canvas](./docs/ss/07-prisma-canvas.png) | ![08 SLR Viewer Analytics](./docs/ss/08-slr-viewer-analytics.png) |
+| ![39 PRISMA Canvas](./docs/ss/39-slr-viewer-scientific-rigor-prisma-2020-flowchart-auto-generated.jpg) | ![40 SLR Viewer Analytics](./docs/ss/40-slr-viewer-scientific-rigor-calibration-to-validation-dashboard.jpg) |
 | *Figure 5.1: 2D interactive PRISMA flowchart with SVG export.* | *Figure 5.2: Multi-level Sankey diagrams, radar charts, and spend grids.* |
 
 ---

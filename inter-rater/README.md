@@ -14,7 +14,7 @@ The **Inter-Rater SPA** is a standalone, offline-capable React Single-Page Appli
 
 | Blinded Review Workspace | Cohen's Kappa Agreement Dashboard |
 | :---: | :---: |
-| ![Blinded Review](../docs/ss/05-inter-rater-blinded.png) | ![Inter-Rater Agreement](../docs/ss/06-inter-rater-agreement.png) |
+| ![Blinded Review](../docs/ss/32-inter-rater-blinded-inter-rater-review-workspace-1.jpg) | ![Inter-Rater Agreement](../docs/ss/08-slr-ide-pre-calibration-inter-rater-dashboard-pool-a.jpg) |
 | *Figure 1: Blinded paper review interface.* | *Figure 2: Statistical inter-rater agreement matrix.* |
 
 ---
