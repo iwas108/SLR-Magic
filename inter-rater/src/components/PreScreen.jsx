@@ -16,7 +16,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
     loadData();
   }, [sessionId, onNavigate]);
 
-  if (!session) return <div className="p-8 text-center text-gray-550 dark:text-gray-400">Loading research context...</div>;
+  if (!session) return <div className="p-8 text-center text-muted-foreground">Loading research context...</div>;
 
   const metadata = session.metadata || {};
   const project_name = session.projectName || metadata.project_name || metadata.projectName || 'Not specified';
@@ -78,14 +78,14 @@ const PreScreen = ({ sessionId, onNavigate }) => {
           {research_questions && (
             <div>
               <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Research Questions</h3>
-              <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed font-mono bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-855">{research_questions}</p>
+              <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed font-mono bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800">{research_questions}</p>
             </div>
           )}
 
           {research_manifesto && (
             <div>
               <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Research Manifesto</h3>
-              <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-855">{research_manifesto}</p>
+              <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800">{research_manifesto}</p>
             </div>
           )}
 
@@ -99,7 +99,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
           {exclusion_criteria && (
             <div>
               <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Exclusion Criteria</h3>
-              <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-855">{exclusion_criteria}</p>
+              <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800">{exclusion_criteria}</p>
             </div>
           )}
 
@@ -108,11 +108,11 @@ const PreScreen = ({ sessionId, onNavigate }) => {
               <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">EC Rules (Exclusion Codes)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {ec_rules.map((rule, idx) => (
-                  <div key={idx} className="p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-855 rounded-xl">
-                    <span className="inline-block px-2.5 py-0.5 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-355 border border-rose-105 dark:border-rose-900/30 text-[10px] font-bold rounded mb-2">
+                  <div key={idx} className="p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl">
+                    <span className="inline-block px-2.5 py-0.5 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-100 dark:border-rose-900/30 text-[10px] font-bold rounded mb-2">
                       {rule.code}
                     </span>
-                    <p className="text-xs text-gray-650 dark:text-gray-300 leading-relaxed">{rule.description}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{rule.description}</p>
                   </div>
                 ))}
               </div>
@@ -123,7 +123,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
           {(isPoolB || isPoolC) && quality_assurance_definition && (
             <div>
               <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Quality Assurance Definition</h3>
-              <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-855">{quality_assurance_definition}</p>
+              <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-100 dark:border-gray-800">{quality_assurance_definition}</p>
             </div>
           )}
 
@@ -133,7 +133,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
               <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">QA Scoring Rules</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {qa_rules.map((rule, idx) => (
-                  <div key={idx} className="p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-855 rounded-xl">
+                  <div key={idx} className="p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl">
                     <span className="inline-block px-2.5 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-100/30 text-[10px] font-bold rounded mb-2">
                       {rule.code}
                     </span>
@@ -172,7 +172,7 @@ const PreScreen = ({ sessionId, onNavigate }) => {
               <h3 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3">Data Extraction Schema</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {extraction_rules.map((rule, idx) => (
-                  <div key={idx} className="p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-855 rounded-xl">
+                  <div key={idx} className="p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl">
                     <span className="inline-block px-2.5 py-0.5 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-100/30 text-[10px] font-mono rounded mb-2">
                       {rule.json_key || rule.key}
                     </span>

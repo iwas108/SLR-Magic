@@ -1,119 +1,201 @@
 # SLR Magic ✨
+### *Enterprise Local-First, AI-Assisted Systematic Literature Review Platform*
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Architecture: Local--First](https://img.shields.io/badge/Architecture-Local--First-blue.svg)
-![Domain: Systematic%20Literature%20Review](https://img.shields.io/badge/Domain-Systematic%20Literature%20Review-success.svg)
-
-## Overview
-
-**SLR Magic** is an advanced, local-first, AI-assisted platform designed to accelerate, calibrate, and standardize Systematic Literature Reviews (SLRs). By combining Large Language Model (LLM) automation with strict human-in-the-loop double-blind adjudication, SLR Magic automates labor-intensive review phases—such as abstract screening, full-text validation, quality assessment, and structured taxonomy extraction—while guaranteeing scientific rigor and reproducibility.
-
-The system features a **Local-First & File-Based Architecture** that ensures complete data privacy and security. Paper metadata, local PDF repositories, vectors, and encryption key vaults remain on the reviewer's local workstation, synchronized via standardized `.slr` (JSON), `.slr-viewer` (snapshots), and FAIR-compliant `.csv` datasets.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
+[![Architecture: Local-First](https://img.shields.io/badge/Architecture-Local--First%20%26%20File--Based-0052CC.style=for-the-badge&logo=sqlite&logoColor=white)](architecture.md)
+[![AI Engine: Gemini Interactions](https://img.shields.io/badge/AI%20Engine-Google%20Gemini%202.5-8E75B2.svg?style=for-the-badge&logo=googlegemini&logoColor=white)](slr-ide)
+[![Compliance: PRISMA 2020](https://img.shields.io/badge/Compliance-PRISMA%202020-success.svg?style=for-the-badge&logo=readme&logoColor=white)](methodology.md)
+[![Validation: Inter--Rater](https://img.shields.io/badge/Validation-Cohen's%20Kappa%20%CE%BA-purple.svg?style=for-the-badge&logo=analytics&logoColor=white)](inter-rater)
 
 ---
 
-## Workspace & Active Modules
+## 🌟 Executive Overview
 
-The repository is structured into four core active modules:
+**SLR Magic** is an advanced, local-first platform designed to accelerate, calibrate, and standardize **Systematic Literature Reviews (SLRs)** for modern scientific research. By integrating stateful Large Language Model (LLM) automation with strict human-in-the-loop double-blind calibration, SLR Magic automates high-volume research tasks—such as multi-stage abstract screening, full-text validation, quality assessment, and structured taxonomy extraction—without compromising methodological rigor or data privacy.
 
 ```
-SLR-Magic/
-├── slr-ide/        # Next.js + SQLite local desktop IDE & execution engine
-├── inter-rater/    # Standalone offline React SPA for blinded human review & calibration
-├── slr-viewer/     # Standalone read-only HTML5/React SPA for snapshot dataset analysis
-└── app-script/     # Google Apps Script FAIR-compliant database export endpoint
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                             SLR MAGIC PLATFORM ARCHITECTURE                     │
+├───────────────────────────────────┬──────────────────────────────────────────────┤
+│  🚀 SLR IDE (slr-ide/)            │  👥 INTER-RATER SPA (inter-rater/)           │
+│  - Next.js 15 + SQLite Desktop    │  - Standalone Offline React 19 SPA           │
+│  - 4-Stage Gemini LLM Pipeline    │  - Blinded Human Reviewer Isolation          │
+│  - Turbovec Semantic Vector RPC   │  - Cohen's Kappa (κ) Agreement Engine        │
+├───────────────────────────────────┼──────────────────────────────────────────────┤
+│  📊 SLR VIEWER (slr-viewer/)      │  📑 APP SCRIPT (app-script/)                 │
+│  - Read-Only Snapshot Visualizer │  - Google Sheets FAIR Database Endpoint      │
+│  - Interactive PRISMA 2020 Canvas │  - Zero-OAuth Permission Security Model      │
+│  - 17 Scientific ECharts Panels   │  - Automated Tabular Ingestion & Sync        │
+└───────────────────────────────────┴──────────────────────────────────────────────┘
 ```
+
+---
+
+## 🗺️ End-to-End SLR Workflow & Visual Showcase
+
+### 1. Ingestion Hub & Deduplication Guardrails
+Import paper collections from major bibliographic databases (Scopus, Web of Science, PubMed, IEEE Xplore) with dynamic column mapping and automated deduplication.
+
+| Ingestion Hub Workspace | Raw Metadata Ingestion |
+| :---: | :---: |
+| ![01 Ingestion Hub](./docs/ss/01-ingestion-hub.png) | ![02 SLR IDE Ingestion](./docs/ss/02-slr-ide-ingestion-hub.jpg) |
+| *Figure 1.1: Interactive CSV schema mapper with real-time duplicate preview.* | *Figure 1.2: Title similarity matching and DOI conflict resolution.* |
+
+---
+
+### 2. PDF Acquisition & Smart Cache Matching
+Local PDF acquisition via multi-tier caching (MD5, DOI, title similarity, OCR page-1 matching) and headless scraper integration.
+
+| Automated PDF Acquisition | Stealth Web Scraper Engine |
+| :---: | :---: |
+| ![10 PDF Acquisition](./docs/ss/10-slr-ide-pipeline-execution-data-aquisition-pipeline-cloud-sync.jpg) | ![17 PDF Scraper](./docs/ss/17-slr-ide-pipeline-execution-Remote-Workers-PDFs-Scraper.jpg) |
+| *Figure 2.1: Local PDF repository caching and cloud rclone sync.* | *Figure 2.2: Automated headless browser web scraper worker.* |
+
+---
+
+### 3. 4-Stage Sequential LLM Screening Pipeline
+Chained LLM execution powered by the Google Gemini Interactions API with stateful multi-turn context and cryptographic AES-256 API key encryption.
+
+| Sequential LLM Operations | LLM Execution & Audit Log |
+| :---: | :---: |
+| ![02 LLM Pipeline](./docs/ss/02-llm-pipeline.png) | ![15 LLM Audit Log](./docs/ss/15-slr-ide-pipeline-execution-llm-operations-audit-trail.jpg) |
+| *Figure 3.1: 4-Stage screening (Fast Filter, Gatekeeper, Scientist, Miner).* | *Figure 3.2: Real-time execution monitor, token counter, and spend audit log.* |
+
+---
+
+### 4. Double-Blind Pre-Calibration & Inter-Rater SPA
+Blind human reviewers evaluate assigned paper pools independently to calculate statistical agreement before executing large-scale automated runs.
+
+| Pre-Calibration Sandbox | Blinded Human Reviewer SPA |
+| :---: | :---: |
+| ![03 Calibration Sandbox](./docs/ss/03-calibration-sandbox.png) | ![05 Inter-Rater Blinded](./docs/ss/05-inter-rater-blinded.png) |
+| *Figure 4.1: Pre-calibration agreement metrics and prompt tuning.* | *Figure 4.2: Standalone blinded human reviewer workspace.* |
+
+| Discrepancy Matrix & Cohen's Kappa | Pool Calibration Adjudication |
+| :---: | :---: |
+| ![06 Inter-Rater Agreement](./docs/ss/06-inter-rater-agreement.png) | ![09 Pool Adjudication](./docs/ss/09-slr-ide-pre-calibration-inter-rater-dashboard-pool-c-calibration-adjudication.jpg) |
+| *Figure 4.3: Inter-rater agreement matrix and QA score alignment.* | *Figure 4.4: Adjudication panel resolving rater/AI discrepancies.* |
+
+---
+
+### 5. PRISMA 2020 Canvas & Scientific Visualizations
+Generate publication-ready 2D PRISMA 2020 flowcharts alongside 17 interactive ECharts analytics panels.
+
+| Interactive PRISMA 2020 Canvas | Scientific Rigor & ECharts Analytics |
+| :---: | :---: |
+| ![07 PRISMA Canvas](./docs/ss/07-prisma-canvas.png) | ![08 SLR Viewer Analytics](./docs/ss/08-slr-viewer-analytics.png) |
+| *Figure 5.1: 2D interactive PRISMA flowchart with SVG export.* | *Figure 5.2: Multi-level Sankey diagrams, radar charts, and spend grids.* |
+
+---
+
+### 6. FAIR Data Export & Google Sheets Endpoint
+Export structured research datasets into FAIR-compliant `.csv` tables, `.slr-viewer` offline snapshots, or cloud-synced Google Sheets.
+
+| FAIR Data Tabular Exporter | Google Sheets Endpoint |
+| :---: | :---: |
+| ![29 FAIR Data Export](./docs/ss/29-slr-ide-insight-and-export-scientific-rigor-FAIR-Data-Export.jpg) | ![30 Cloud Gold Mine](./docs/ss/30-slr-ide-insight-and-export-scientific-rigor-cloud-gold-mine.jpg) |
+| *Figure 6.1: 100% complete CSV exporter with inline logic traces.* | *Figure 6.2: Synchronized FAIR database endpoint for collaborative review.* |
+
+---
+
+## 🏛️ Platform Architecture & Active Modules
+
+The SLR Magic workspace consists of four modular applications:
 
 ### 1. 🚀 [SLR IDE (`slr-ide/`)](./slr-ide)
-- **Role:** The main control center and desktop application for the entire SLR pipeline.
-- **Tech Stack:** Next.js (App Router), SQLite (`slr.db`), Python 3.10 Engine, Google Gemini Interactions API (`google-genai`), Sentence-Transformers (Turbovec daemon), Rclone.
-- **Core Features:**
-  - **Ingestion Hub:** Interactive CSV metadata importer with column mapping, duplicate preview, and title/DOI deduplication guardrails.
-  - **PDF Retrieval Engine:** Smart Cache Matcher (MD5, DOI, title similarity, page 1 text/OCR fallback) and automated browser scraper using `undetected-chromedriver`.
-  - **4-Stage LLM Screening Pipeline:** Fast Filter (Stage 1), Gatekeeper (Stage 2), Scientist (Stage 3 QA), and Miner (Stage 4 Data Extraction) with multi-turn interaction chaining.
-  - **Encrypted Key Vault:** AES-256-GCM + PBKDF2 vault securing LLM credentials in local SQLite.
-  - **Turbovec Vector Search Daemon:** Persistent Python background RPC worker process for sub-100ms semantic similarity searches.
-  - **Pre-Calibration & Post-Validation:** Double-blind calibration sandbox, sequential rolling batch quality control (QC), and Umbrellanizer category mapping.
-  - **Cohort Table & Exporters:** Wide tabular cohort view with dynamic column resizing, 100% CSV Tabular Export (with tooltip logic traces), and `.slr-viewer` snapshot builder.
+- **Role:** Main desktop IDE & execution pipeline container.
+- **Tech Stack:** Next.js 15 (App Router), SQLite (`slr.db`), Python 3.10 Daemon, `google-genai`, Rclone.
+- **Key Features:** CSV Ingestion Hub, Smart PDF Cache Matcher, 4-Stage Gemini Screening Queue, Encrypted Key Vault, Turbovec RPC Vector Daemon, Pre-Calibration Sandbox, Wide Cohort Exporter.
 
 ### 2. 👥 [Inter-Rater SPA (`inter-rater/`)](./inter-rater)
-- **Role:** Blinded human review and calibration tool.
-- **Tech Stack:** React 19, Vite, Tailwind CSS.
-- **Core Features:**
-  - Independent, blinded paper evaluation without visibility into other raters' choices or AI decisions.
-  - Offline session persistence via `localStorage`.
-  - Automatic calculation of inter-rater agreement metrics (Cohen's Kappa, percent agreement, QA score comparisons).
-  - Native `.slr` JSON schema file import and export.
+- **Role:** Blinded human review & calibration web tool.
+- **Tech Stack:** React 19, Vite 8, Tailwind CSS 4.
+- **Key Features:** Blinded evaluation mode, Cohen's Kappa ($\kappa$) calculator, offline `localStorage` persistence, native `.slr` JSON schema file import/export.
 
 ### 3. 📊 [SLR Viewer (`slr-viewer/`)](./slr-viewer)
-- **Role:** Standalone offline dashboard for reviewing exported SLR snapshot datasets.
-- **Tech Stack:** React 19, Vite, Tailwind CSS, Dexie.js (IndexedDB), Apache ECharts.
-- **Core Features:**
-  - Offline `.slr-viewer` JSON snapshot file import into IndexedDB.
-  - **PRISMA 2020 Canvas:** Interactive 2D canvas rendering PRISMA flowcharts with high-resolution PNG export.
-  - **Cohort Analytics & Visualizer:** 17 scientific chart types (Sankey diagrams, bar/stack charts, radar, line, pie) with vector SVG export.
-  - **Scientific Rigor & Accounting:** Per-stage spend grid, top expensive API call logs, and FAIR dataset re-export.
+- **Role:** Standalone offline dashboard for dataset snapshot analysis.
+- **Tech Stack:** React 19, Vite 8, Dexie.js (IndexedDB), Apache ECharts 6.
+- **Key Features:** Offline `.slr-viewer` snapshot import, interactive 2D PRISMA 2020 canvas, 17 scientific charts (Sankey, Radar, Stacked Bar), per-stage LLM spend grid.
 
 ### 4. 📑 [App Script (`app-script/`)](./app-script)
-- **Role:** Lightweight Google Sheets integration serving as a FAIR-compliant spreadsheet database.
+- **Role:** FAIR-compliant database endpoint for Google Sheets.
 - **Tech Stack:** Google Apps Script, Google Sheets, ECharts UI.
-- **Core Features:**
-  - Spreadsheet dataset ingestion for exported CSV records from `slr-ide`.
-  - Interactive visualization dialogs directly inside Google Sheets.
-  - Zero Google API app permission footprint for maximum security.
+- **Key Features:** Direct CSV dataset ingestion, embedded sheet dialog visualizations, zero Google OAuth app permissions for maximum privacy.
 
 ---
 
-## Quick Start Guide
+## 🔬 Mathematical Calibration & Screening Rigor
 
-### Running SLR IDE (Main Desktop Application)
+SLR Magic enforces strict statistical validation targets defined in [`methodology.md`](./methodology.md):
+
+| Screening Stage | Focus Area | Validation Target | Target Metric |
+| :--- | :--- | :--- | :--- |
+| **Stage 1 (Fast Filter)** | Title & Abstract Screening | $Recall \ge 100\%$, $F_1 \ge 85\%$ | Zero false negatives |
+| **Stage 2 (Gatekeeper)** | Full-Text Inclusion Verification | $Precision \ge 85\%$, $Recall \ge 90\%$ | Methodological soundness |
+| **Stage 3 (Scientist)** | Quality Assessment (QA) | $Critical\ Miss\ Rate = 0\%$ | Ordinal tolerance $\le 0.5$ |
+| **Stage 4 (Miner)** | Structured Data Extraction | $Schema\ Integrity = 100\%$ | 0 missing JSON keys |
+
+### Inter-Rater Agreement Equation (Cohen's Kappa)
+$$\kappa = \frac{P_o - P_e}{1 - P_e}$$
+*Where $P_o$ is observed agreement and $P_e$ is expected chance agreement.*
+
+---
+
+## 🔒 Security & Local-First Privacy Model
+
+- **Zero Database Leakage:** SQLite files (`slr.db`), downloaded PDFs, and local vector indexes are excluded from version control via strict `.gitignore` rules.
+- **Encrypted Vault:** LLM credentials are encrypted with AES-256-GCM + PBKDF2 inside local SQLite.
+- **Offline Capable:** All core SPAs (`inter-rater/`, `slr-viewer/`) run entirely offline in client browsers without sending data to external tracking servers.
+
+---
+
+## ⚡ Quick Start Guide
+
+### 1. Launching SLR IDE (Main Desktop App)
 ```bash
-# 1. Navigate to slr-ide
 cd slr-ide
-
-# 2. Install Node.js dependencies
 npm install
 
-# 3. Set up Python virtual environment (for scrapers and vector daemon)
+# Setup Python environment for scrapers & Turbovec daemon
 python -m venv python_engine/venv
-source python_engine/venv/bin/activate  # On Windows: python_engine\venv\Scripts\activate
+source python_engine/venv/bin/activate # Windows: python_engine\venv\Scripts\activate
 pip install -r python_engine/requirements.txt
 
-# 4. Start local development server
+# Start Next.js desktop engine
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open **`http://localhost:3000`** in your browser.
 
-### Running Inter-Rater SPA
+### 2. Launching Inter-Rater SPA
 ```bash
 cd inter-rater
 npm install
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open **`http://localhost:3001`** in your browser.
 
-### Running SLR Viewer
+### 3. Launching SLR Viewer
 ```bash
 cd slr-viewer
 npm install
 npm run dev
 ```
-Open [http://localhost:3002](http://localhost:3002) in your browser.
+Open **`http://localhost:3002`** in your browser.
 
 ---
 
-## Documentation Map
+## 📘 Documentation Index
 
-- 📘 **[SLR IDE Documentation](./slr-ide/README.md)** (Architecture & Features)
-- 📘 **[Inter-Rater SPA Documentation](./inter-rater/README.md)** (Blinded Review & Calibration)
-- 📘 **[SLR Viewer Documentation](./slr-viewer/README.md)** (Snapshot Analytics & PRISMA)
-- 📘 **[App Script Documentation](./app-script/README.md)** (Spreadsheet FAIR Database)
-- 📐 **[System Architecture Blueprint](./architecture.md)** (Module-scoped compiled architecture)
-- 🎯 **[Methodology & Calibration Standards](./methodology.md)** (Mathematical targets, thresholds & prompt seeds)
-- 📜 **[System Improvements Log](./improvements.md)** (Chronological iteration history)
+- 📐 **[System Architecture Blueprint (`architecture.md`)](./architecture.md)**
+- 🎯 **[Methodology & Calibration Standards (`methodology.md`)](./methodology.md)**
+- 📜 **[System Improvements History (`improvements.md`)](./improvements.md)**
+- 📘 **[SLR IDE Documentation (`slr-ide/README.md`)](./slr-ide/README.md)**
+- 📘 **[Inter-Rater SPA Documentation (`inter-rater/README.md`)](./inter-rater/README.md)**
+- 📘 **[SLR Viewer Documentation (`slr-viewer/README.md`)](./slr-viewer/README.md)**
+- 📘 **[App Script Documentation (`app-script/README.md`)](./app-script/README.md)**
 
 ---
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for complete details.

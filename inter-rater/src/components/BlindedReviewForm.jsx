@@ -226,11 +226,11 @@ const BlindedReviewForm = ({
             <span className="block text-[10px] font-bold opacity-60 uppercase tracking-wider">Fatal Flaw Gate</span>
             <div className="text-xs font-black flex items-center gap-1.5 h-7">
               {fatalFlaw ? (
-                <span className="text-rose-650 dark:text-rose-400 flex items-center gap-1 leading-tight text-[11px]">
+                <span className="text-rose-700 dark:text-rose-400 flex items-center gap-1 leading-tight text-[11px]">
                   🚨 Fatal Flaw ({fatalRulesTriggered.join(', ')})
                 </span>
               ) : completedCount > 0 ? (
-                <span className="text-emerald-650 dark:text-emerald-450 flex items-center gap-1">
+                <span className="text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
                   🛡️ Clear
                 </span>
               ) : (
@@ -244,8 +244,8 @@ const BlindedReviewForm = ({
         {allCompleted && (
           <div className={`text-center py-1.5 px-3 rounded-lg text-xs font-extrabold border ${
             isExcluded 
-              ? 'bg-rose-100/50 dark:bg-rose-950/40 border-rose-200/60' 
-              : 'bg-emerald-100/50 dark:bg-emerald-950/40 border-emerald-200/60'
+              ? 'bg-rose-100/50 dark:bg-rose-900/40 border-rose-200/60' 
+              : 'bg-emerald-100/50 dark:bg-emerald-900/40 border-emerald-200/60'
           }`}>
             {isExcluded ? '❌ Automatically Excluded by QA Rules' : '✅ Automatically Included by QA Rules'}
           </div>
@@ -292,7 +292,7 @@ const BlindedReviewForm = ({
   return (
     <div className="space-y-6">
       {/* 1. Reviewer Decision */}
-      <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-850">
+      <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
         <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
           Inclusion Decision <span className="text-red-500">*</span>
         </label>
@@ -302,13 +302,13 @@ const BlindedReviewForm = ({
             onClick={() => handleInputChange('Human_Decision', 'Include')}
             className={`group flex flex-col items-center justify-center p-5 rounded-2xl border-2 transition-all duration-300 text-center relative overflow-hidden ${
               decision === 'Include'
-                ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500 text-emerald-900 dark:text-emerald-300 shadow-lg shadow-emerald-500/10'
-                : 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/80 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-750 hover:shadow-sm'
+                ? 'bg-emerald-50/50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-900 dark:text-emerald-300 shadow-lg shadow-emerald-500/10'
+                : 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/80 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-700 hover:shadow-sm'
             }`}
           >
             {/* Background Accent glow */}
             <div className={`absolute -right-6 -bottom-6 w-16 h-16 rounded-full transition-all duration-300 ${
-              decision === 'Include' ? 'bg-emerald-500/10 scale-150' : 'bg-transparent group-hover:bg-gray-150/50 dark:group-hover:bg-gray-700/30'
+              decision === 'Include' ? 'bg-emerald-500/10 scale-150' : 'bg-transparent group-hover:bg-gray-100/50 dark:group-hover:bg-gray-700/30'
             }`} />
             
             <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2.5 transition-all duration-300 ${
@@ -322,7 +322,7 @@ const BlindedReviewForm = ({
             </div>
             
             <span className={`text-xs font-extrabold tracking-wide uppercase transition-colors duration-300 ${
-              decision === 'Include' ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-650 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200'
+              decision === 'Include' ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-600 dark:text-gray-400 group-hover:text-gray-800 dark:group-hover:text-gray-200'
             }`}>
               Include
             </span>
@@ -334,8 +334,8 @@ const BlindedReviewForm = ({
             onClick={() => handleInputChange('Human_Decision', 'Exclude')}
             className={`group flex flex-col items-center justify-center p-5 rounded-2xl border-2 transition-all duration-300 text-center relative overflow-hidden ${
               decision === 'Exclude'
-                ? 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-500 text-rose-900 dark:text-rose-300 shadow-lg shadow-rose-500/10'
-                : 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/80 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-750 hover:shadow-sm'
+                ? 'bg-rose-50/50 dark:bg-rose-900/20 border-rose-500 text-rose-900 dark:text-rose-300 shadow-lg shadow-rose-500/10'
+                : 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/80 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-700 hover:shadow-sm'
             }`}
           >
             {/* Background Accent glow */}
@@ -366,7 +366,7 @@ const BlindedReviewForm = ({
       {/* 2. Conditional Exclusion Rules (Only if Exclude is chosen) */}
       {decision === 'Exclude' && resolvedECRules.length > 0 && (
         <div className="bg-rose-50/20 dark:bg-rose-950/10 p-4 rounded-xl border border-rose-100 dark:border-rose-900/30 space-y-3">
-          <label className="block text-xs font-bold text-rose-850 dark:text-rose-300 uppercase tracking-wider">
+          <label className="block text-xs font-bold text-rose-800 dark:text-rose-300 uppercase tracking-wider">
             Select Exclusion Trigger <span className="text-red-500">*</span>
           </label>
           <div className="space-y-2.5">
@@ -380,7 +380,7 @@ const BlindedReviewForm = ({
                   className={`w-full text-left p-3.5 rounded-xl border transition-all duration-200 flex items-start gap-3 relative overflow-hidden group ${
                     isSelected
                       ? 'bg-rose-50/70 dark:bg-rose-950/25 border-rose-500 shadow-md shadow-rose-500/5'
-                      : 'bg-white dark:bg-gray-800/80 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-750'
+                      : 'bg-white dark:bg-gray-800/80 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50/50 dark:hover:bg-gray-700'
                   }`}
                 >
                   {/* Left Radio Check Indicator */}
@@ -400,12 +400,12 @@ const BlindedReviewForm = ({
                       <span className={`px-2 py-0.5 text-[9px] font-black rounded border tracking-wide uppercase ${
                         isSelected
                           ? 'bg-rose-600 border-rose-600 text-white shadow-sm'
-                          : 'bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-350'
+                          : 'bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-950/40 dark:border-rose-900/40 dark:text-rose-300'
                       }`}>
                         {rule.code}
                       </span>
                       {idx < 9 && (
-                        <span className="text-[10px] text-gray-405 dark:text-gray-500 font-semibold font-mono">
+                        <span className="text-[10px] text-muted-foreground font-semibold font-mono">
                           Shortcut: [{idx + 1}]
                         </span>
                       )}
@@ -430,7 +430,7 @@ const BlindedReviewForm = ({
               {/* QA Rules section */}
               {qaRules.length > 0 && (
                 <div className="space-y-4">
-                  <div className="border-b border-gray-150 dark:border-gray-800 pb-2 mb-2">
+                  <div className="border-b border-border pb-2 mb-2">
                     <h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                       Quality Assessment (QA) Scoring
                     </h3>
@@ -442,7 +442,7 @@ const BlindedReviewForm = ({
                     const description = (rule.description && rule.description !== rule.title) ? rule.description : '';
 
                     return (
-                      <div key={rule.code} className="bg-gray-50/30 dark:bg-gray-900/20 p-4 rounded-xl border border-gray-155 dark:border-gray-800 space-y-3">
+                      <div key={rule.code} className="bg-gray-50/30 dark:bg-gray-900/20 p-4 rounded-xl border border-border space-y-3">
                         <div>
                           <h4 className="text-xs font-extrabold text-gray-900 dark:text-white leading-snug">
                             {label} <span className="text-red-500">*</span>
@@ -461,7 +461,7 @@ const BlindedReviewForm = ({
 
                         <div>
                           <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Score Option</label>
-                          <div className="flex bg-gray-100 dark:bg-gray-850 p-1 rounded-xl gap-1">
+                          <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl gap-1">
                             {['1.0', '0.5', '0.0'].map((val) => {
                               const isSelected = item.value !== null && item.value !== undefined && item.value !== '' && Number(item.value) === Number(val);
                               return (
@@ -528,7 +528,7 @@ const BlindedReviewForm = ({
               {/* Data Extraction rules section */}
               {extractionRules.length > 0 && (
                 <div className="space-y-4 pt-4">
-                  <div className="border-b border-gray-150 dark:border-gray-800 pb-2 mb-2">
+                  <div className="border-b border-border pb-2 mb-2">
                     <h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                       Data Extraction Parameters
                     </h3>
@@ -540,7 +540,7 @@ const BlindedReviewForm = ({
                     const description = (rule.description && rule.description !== rule.label) ? rule.description : '';
 
                     return (
-                      <div key={rule.json_key} className="bg-gray-50/30 dark:bg-gray-900/20 p-4 rounded-xl border border-gray-155 dark:border-gray-800 space-y-3">
+                      <div key={rule.json_key} className="bg-gray-50/30 dark:bg-gray-900/20 p-4 rounded-xl border border-border space-y-3">
                         <div>
                           <h4 className="text-xs font-extrabold text-gray-900 dark:text-white leading-snug">
                             {label} <span className="text-red-500">*</span>
@@ -600,13 +600,13 @@ const BlindedReviewForm = ({
                 const item = currentRow[key] || { value: '', evidence: '' };
 
                 return (
-                  <div key={key} className="bg-gray-50/30 dark:bg-gray-900/20 p-4 rounded-xl border border-gray-150 dark:border-gray-800 space-y-3">
+                  <div key={key} className="bg-gray-50/30 dark:bg-gray-900/20 p-4 rounded-xl border border-border space-y-3">
                     <div>
                       <h4 className="text-sm font-bold text-gray-900 dark:text-white leading-snug">
                         {label} <span className="text-red-500">*</span>
                       </h4>
                       {description && (
-                        <p className="text-xs text-gray-550 dark:text-gray-400 mt-1 whitespace-pre-wrap leading-normal font-medium bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800/40 p-2.5 rounded-lg">
+                        <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap leading-normal font-medium bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800/40 p-2.5 rounded-lg">
                           {description}
                         </p>
                       )}
@@ -673,7 +673,7 @@ const BlindedReviewForm = ({
 
       {/* 4. Reviewer Reasoning */}
       {!isPoolC && (
-        <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-150 dark:border-gray-800 space-y-3">
+        <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-xl border border-border space-y-3">
           <label htmlFor="reviewerReasoning" className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
             Reviewer Reasoning / Rationale <span className="text-red-500">*</span>
           </label>
@@ -683,7 +683,7 @@ const BlindedReviewForm = ({
             <div className="relative">
               <input
                 type="text"
-                className="w-full pl-3 pr-8 py-2.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs text-gray-800 dark:text-gray-250 transition-all"
+                className="w-full pl-3 pr-8 py-2.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs text-gray-800 dark:text-gray-200 transition-all"
                 placeholder="Type to search or add new template..."
                 value={searchVal}
                 onChange={(e) => {
@@ -697,7 +697,7 @@ const BlindedReviewForm = ({
                 onClick={() => {
                   setIsDropdownOpen(!isDropdownOpen);
                 }}
-                className="absolute right-2.5 top-3.5 text-gray-400 hover:text-gray-650 dark:hover:text-gray-300"
+                className="absolute right-2.5 top-3.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
               >
                 <svg className={`w-3.5 h-3.5 transform transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
@@ -725,7 +725,7 @@ const BlindedReviewForm = ({
                           setSearchVal('');
                           setIsDropdownOpen(false);
                         }}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded-lg text-gray-750 dark:text-gray-300 transition-colors truncate"
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded-lg text-gray-700 dark:text-gray-300 transition-colors truncate"
                         title={item}
                       >
                         {item}
@@ -762,7 +762,7 @@ const BlindedReviewForm = ({
           </div>
 
           <textarea
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs transition-all text-gray-855 dark:text-gray-250"
+            className="w-full px-3 py-2 border border-border bg-background rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-xs transition-all text-foreground"
             id="reviewerReasoning"
             rows="3.5"
             value={currentRow.Human_Rationale || currentRow.Reviewer_Reasoning || ''}

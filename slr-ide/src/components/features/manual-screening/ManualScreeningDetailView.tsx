@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Check, X, FileText, ArrowRightLeft, ShieldAlert, 
-  HelpCircle, CheckCircle2, ChevronRight, AlertCircle, Trash
+  HelpCircle, CheckCircle2, ChevronRight, AlertCircle, Trash,
+  Eye, Download, ExternalLink, LayoutDashboard, Loader2
 } from 'lucide-react';
 import { Paper, Project } from '@/types';
+import PdfPreview from '../modals/paper-details/PdfPreview';
+import { broadcastSync } from '@/lib/sync-utils';
 
 interface ManualScreeningDetailViewProps {
   projects: Project[];
@@ -53,6 +56,27 @@ export default function ManualScreeningDetailView({
   onClear
 }: ManualScreeningDetailViewProps) {
   const activeProj = projects.find(p => String(p.id) === String(activeProjectId));
+  const [activeDetailTab, setActiveDetailTab] = useState<'metadata' | 'pdf'>('metadata');
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleAcquirePdf = async () => {
+    if (!selectedPaper?.Paper_ID) return;
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch('/api/pdf/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperId: selectedPaper.Paper_ID })
+      });
+      if (res.ok) {
+        broadcastSync('SYNC_PAPERS');
+      }
+    } catch (err) {
+      console.error('Failed to initiate single paper PDF acquisition:', err);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   // Load criteria configs from project schema
   const getEcRules = () => {
@@ -265,7 +289,7 @@ export default function ManualScreeningDetailView({
       errors.push('Rationale/Justification is required.');
     }
 
-    if (manualStage !== 'scientist') {
+    if (manualStage !== 'scientist' && manualStage !== 'miner') {
       if (!manualDecision) {
         errors.push('Human Decision Override is required.');
       } else if (manualDecision === 'EXCLUDE' && ecRules.length > 0 && !manualEcTrigger) {
@@ -317,9 +341,45 @@ export default function ManualScreeningDetailView({
   return (
     <div className="flex-1 bg-background p-6 overflow-y-auto flex flex-col space-y-6 border-l border-border/80">
       
-      {/* Detail View Header controls */}
-      <div className="flex items-center justify-between shrink-0 select-none pb-2 border-b border-border/40">
-        <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Manual Screening detail</span>
+      {/* Detail View Header controls & Top-Level Tab Switcher */}
+      <div className="flex items-center justify-between shrink-0 select-none pb-2 border-b border-border/40 gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Manual Screening detail</span>
+          
+          {/* Tabs Switcher */}
+          <div className="flex items-center bg-secondary/50 border border-border rounded-lg p-0.5">
+            <button
+              onClick={() => setActiveDetailTab('metadata')}
+              className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeDetailTab === 'metadata'
+                  ? 'bg-card text-foreground shadow-sm border border-border/50 font-extrabold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Metadata & Decisions</span>
+            </button>
+            <button
+              onClick={() => setActiveDetailTab('pdf')}
+              className={`px-3 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeDetailTab === 'pdf'
+                  ? 'bg-card text-foreground shadow-sm border border-border/50 font-extrabold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5 text-primary" />
+              <span>Full-Text PDF Viewer</span>
+              <span className={`px-1.5 py-0.2 text-[8px] font-black uppercase rounded ml-1 ${
+                selectedPaper.Local_PDF_Path
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+              }`}>
+                {selectedPaper.Local_PDF_Path ? 'AVAILABLE' : 'OFFLINE'}
+              </span>
+            </button>
+          </div>
+        </div>
+
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
@@ -331,8 +391,72 @@ export default function ManualScreeningDetailView({
         </div>
       </div>
 
-      {/* Main Content Workspace Layout */}
-      <div className="flex flex-col xl:flex-row gap-6 w-full pb-8">
+      {activeDetailTab === 'pdf' ? (
+        /* Full-Width PDF Viewer Tab View */
+        <div className="flex-1 w-full min-h-[650px] h-[calc(100vh-200px)] bg-card border border-border rounded-xl overflow-hidden shadow-sm flex flex-col">
+          {selectedPaper.Local_PDF_Path ? (
+            <PdfPreview localPdfPath={selectedPaper.Local_PDF_Path} />
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-xl mx-auto space-y-4 my-auto">
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-500">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-base text-foreground">Local PDF Document Offline</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  No local PDF binary file was found on disk for paper <code className="font-mono text-[10px] font-bold">{selectedPaper.Paper_ID}</code>.
+                  Full-text screening inspection requires local PDF acquisition.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={handleAcquirePdf}
+                  disabled={downloadingPdf}
+                  className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-bold rounded-xl shadow flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {downloadingPdf ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Acquiring PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Acquire / Download PDF</span>
+                    </>
+                  )}
+                </button>
+
+                {selectedPaper.DOI && (
+                  <a
+                    href={`https://doi.org/${encodeURIComponent(selectedPaper.DOI)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl flex items-center gap-2 transition-colors"
+                  >
+                    <span>Publisher DOI</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                {selectedPaper.PDF_Link && (
+                  <a
+                    href={selectedPaper.PDF_Link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl flex items-center gap-2 transition-colors"
+                  >
+                    <span>Direct Web Link</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Main Content Workspace Layout (Metadata & Decisions) */
+        <div className="flex flex-col xl:flex-row gap-6 w-full pb-8">
         
         {/* Left Side: Metadata Card */}
         <div className="flex-1 space-y-5">
@@ -466,7 +590,7 @@ export default function ManualScreeningDetailView({
             <div className="space-y-4">
               {renderStageSelector()}
 
-              {manualStage !== 'scientist' ? (
+              {manualStage !== 'scientist' && manualStage !== 'miner' ? (
                 <>
                   <div>
                     <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Human Decision Override</label>
@@ -513,6 +637,14 @@ export default function ManualScreeningDetailView({
                     </div>
                   )}
                 </>
+              ) : manualStage === 'miner' ? (
+                /* Miner stage info banner */
+                <div className="p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-xs space-y-1">
+                  <span className="block text-[9px] uppercase tracking-wider text-emerald-400 font-black">Stage 4: Miner (Data Extraction)</span>
+                  <p className="text-[11px] font-semibold text-muted-foreground leading-relaxed">
+                    Paper screening decision is set to <strong className="text-emerald-400 font-extrabold uppercase">INCLUDE</strong>. Complete the data extraction variables below.
+                  </p>
+                </div>
               ) : (
                 /* Scientist stage auto-calculated info banner */
                 <div className="p-3 bg-secondary/30 rounded-lg border border-border/80 text-xs space-y-1.5">
@@ -766,6 +898,7 @@ export default function ManualScreeningDetailView({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

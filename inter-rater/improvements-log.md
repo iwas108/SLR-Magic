@@ -4,6 +4,23 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#020] Class-Based Dark Mode Enforcer (@variant dark) - 2026-07-22
+
+- **Tailwind v4 Dark Variant Selector**:
+  - Added `@variant dark (&:where(.dark, .dark *));` to `src/index.css`.
+  - Resolved issue where Tailwind CSS v4 defaulted to `@media (prefers-color-scheme: dark)`, causing dark utility styles on cards and tables to remain active even when switching to `.light` theme mode on OS environments with system dark mode enabled.
+- **Verification**: Verified Vite build `npm run build` completed successfully.
+
+## [#019] Tailwind v4 Upgrade & Platform Theme Token Synchronization - 2026-07-22
+
+- **Tailwind v4 Upgrade (`@tailwindcss/vite`)**:
+  - Upgraded Tailwind CSS from v3 (`^3.4.19`) to v4 (`^4.0.0`) using the official `@tailwindcss/vite` plugin in `vite.config.js`.
+  - Removed deprecated `tailwind.config.js`, `postcss.config.js`, `autoprefixer`, and `postcss` dependencies.
+- **Platform Design System & Token Synchronization**:
+  - Updated `src/index.css` to use `@import "tailwindcss";` and synchronized platform HSL theme variables (`:root`, `.light`) and `@theme` definitions 1:1 with `slr-ide/src/app/globals.css`.
+  - Applied customized dark theme scrollbars and smooth body theme transitions.
+- **Verification**: Verified Vite build `npm run build` completed cleanly with zero warnings or errors.
+
 ## [#018] Post-Validation Rolling Batch (QC_Batch) Ingestion & Screening - 2026-07-19
 
 - **QC_Batch (Rolling Batch) Integration**:

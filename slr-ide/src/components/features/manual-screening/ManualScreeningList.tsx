@@ -11,6 +11,23 @@ interface ManualScreeningListProps {
   setScreeningStageFilter: (v: string) => void;
   screeningDecisionFilter: string;
   setScreeningDecisionFilter: (v: string) => void;
+  pdfFilter?: string;
+  setPdfFilter?: (v: string) => void;
+  sourceFilter?: string;
+  setSourceFilter?: (v: string) => void;
+  doiStatusFilter?: string;
+  setDoiStatusFilter?: (v: string) => void;
+  pdfLinkFilter?: string;
+  setPdfLinkFilter?: (v: string) => void;
+  pipelineStageFilter?: string;
+  setPipelineStageFilter?: (v: string) => void;
+  pipelineStatusFilter?: string;
+  setPipelineStatusFilter?: (v: string) => void;
+  ecTriggerFilter?: string;
+  setEcTriggerFilter?: (v: string) => void;
+  ecTriggers?: string[];
+  loadingEcTriggers?: boolean;
+  clearAllFilters?: () => void;
   screeningSortBy: string;
   setScreeningSortBy: React.Dispatch<React.SetStateAction<string>>;
   screeningSortOrder: 'ASC' | 'DESC';
@@ -37,6 +54,23 @@ export default function ManualScreeningList({
   setScreeningStageFilter,
   screeningDecisionFilter,
   setScreeningDecisionFilter,
+  pdfFilter = '',
+  setPdfFilter,
+  sourceFilter = '',
+  setSourceFilter,
+  doiStatusFilter = '',
+  setDoiStatusFilter,
+  pdfLinkFilter = '',
+  setPdfLinkFilter,
+  pipelineStageFilter = '',
+  setPipelineStageFilter,
+  pipelineStatusFilter = '',
+  setPipelineStatusFilter,
+  ecTriggerFilter = '',
+  setEcTriggerFilter,
+  ecTriggers = [],
+  loadingEcTriggers = false,
+  clearAllFilters,
   screeningSortBy,
   setScreeningSortBy,
   screeningSortOrder,
@@ -80,19 +114,44 @@ export default function ManualScreeningList({
     setScreeningSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
   };
 
-  const clearAllFilters = () => {
-    setScreeningStageFilter('');
-    setScreeningDecisionFilter('');
+  const handleClearAll = () => {
+    if (clearAllFilters) {
+      clearAllFilters();
+    } else {
+      setScreeningStageFilter('');
+      setScreeningDecisionFilter('');
+      if (setPdfFilter) setPdfFilter('');
+      if (setSourceFilter) setSourceFilter('');
+      if (setDoiStatusFilter) setDoiStatusFilter('');
+      if (setPdfLinkFilter) setPdfLinkFilter('');
+      if (setPipelineStageFilter) setPipelineStageFilter('');
+      if (setPipelineStatusFilter) setPipelineStatusFilter('');
+      if (setEcTriggerFilter) setEcTriggerFilter('');
+    }
   };
 
   const anyActiveFilter = !!(
     screeningStageFilter ||
-    screeningDecisionFilter
+    screeningDecisionFilter ||
+    pdfFilter ||
+    sourceFilter ||
+    doiStatusFilter ||
+    pdfLinkFilter ||
+    pipelineStageFilter ||
+    pipelineStatusFilter ||
+    ecTriggerFilter
   );
 
   const activeFilterCount = [
     screeningStageFilter,
-    screeningDecisionFilter
+    screeningDecisionFilter,
+    pdfFilter,
+    sourceFilter,
+    doiStatusFilter,
+    pdfLinkFilter,
+    pipelineStageFilter,
+    pipelineStatusFilter,
+    ecTriggerFilter
   ].filter(Boolean).length;
 
   return (
@@ -148,49 +207,208 @@ export default function ManualScreeningList({
             </button>
 
             {showFilters && (
-              <div className="absolute top-full left-0 mt-2 w-72 bg-card border border-border rounded-xl shadow-xl z-50 p-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
+              <div className="absolute top-full left-0 mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 p-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
                 <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                  <span className="text-xs font-black text-foreground uppercase tracking-wider">Advanced Filters</span>
+                  <span className="text-xs font-black text-foreground uppercase tracking-wider">Unified Workspace Filters</span>
                   <button
-                    onClick={clearAllFilters}
+                    onClick={handleClearAll}
                     className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline cursor-pointer"
                   >
                     Clear All
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
-                  {/* Manual Screening Decision */}
-                  <div className="flex flex-col gap-1 text-[10px] font-bold">
-                    <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Manual Screening Decision</label>
-                    <select
-                      value={screeningDecisionFilter}
-                      onChange={(e) => setScreeningDecisionFilter(e.target.value)}
-                      className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
-                    >
-                      <option value="">All Results</option>
-                      <option value="none">Unscreened (Pending)</option>
-                      <option value="INCLUDE">INCLUDE</option>
-                      <option value="EXCLUDE">EXCLUDE</option>
-                      <option value="UNCERTAIN">UNCERTAIN</option>
-                    </select>
+                <div className="flex flex-col gap-3 max-h-[360px] overflow-y-auto pr-1">
+                  {/* Category 1: Human Screening */}
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[9px] font-black text-primary uppercase tracking-widest">Human Screening</span>
+                    
+                    {/* Manual Screening Decision */}
+                    <div className="flex flex-col gap-1 text-[10px] font-bold">
+                      <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Manual Decision</label>
+                      <select
+                        value={screeningDecisionFilter}
+                        onChange={(e) => setScreeningDecisionFilter(e.target.value)}
+                        className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                      >
+                        <option value="">All Decisions</option>
+                        <option value="none">Unscreened (Pending)</option>
+                        <option value="INCLUDE">INCLUDE</option>
+                        <option value="EXCLUDE">EXCLUDE</option>
+                        <option value="UNCERTAIN">UNCERTAIN</option>
+                      </select>
+                    </div>
+
+                    {/* Human Screening Stage Filter */}
+                    <div className="flex flex-col gap-1 text-[10px] font-bold">
+                      <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Human Stage</label>
+                      <select
+                        value={screeningStageFilter}
+                        onChange={(e) => setScreeningStageFilter(e.target.value)}
+                        className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                      >
+                        <option value="">All Stages</option>
+                        <option value="none">None Assigned</option>
+                        <option value="fast_filter">Fast Filter</option>
+                        <option value="gatekeeper">Gatekeeper</option>
+                        <option value="scientist">Scientist</option>
+                        <option value="miner">Miner</option>
+                      </select>
+                    </div>
                   </div>
 
-                  {/* Human Screening Stage Filter */}
-                  <div className="flex flex-col gap-1 text-[10px] font-bold">
-                    <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Human Screening Stage</label>
-                    <select
-                      value={screeningStageFilter}
-                      onChange={(e) => setScreeningStageFilter(e.target.value)}
-                      className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
-                    >
-                      <option value="">All Stages</option>
-                      <option value="none">None Assigned</option>
-                      <option value="fast_filter">Fast Filter</option>
-                      <option value="gatekeeper">Gatekeeper</option>
-                      <option value="scientist">Scientist</option>
-                      <option value="miner">Miner</option>
-                    </select>
+                  <div className="border-t border-border/40 my-0.5" />
+
+                  {/* Category 2: AI Pipeline */}
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">AI Pipeline Stage & Status</span>
+                    
+                    {/* Pipeline Stage */}
+                    <div className="flex flex-col gap-1 text-[10px] font-bold">
+                      <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Pipeline Stage</label>
+                      <select
+                        value={pipelineStageFilter}
+                        onChange={(e) => {
+                          if (setPipelineStageFilter) setPipelineStageFilter(e.target.value);
+                          if (setPipelineStatusFilter) setPipelineStatusFilter('');
+                          if (setEcTriggerFilter) setEcTriggerFilter('');
+                        }}
+                        className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                      >
+                        <option value="">All Pipeline Stages</option>
+                        <option value="1">Stage 1: Fast Filter</option>
+                        <option value="2">Stage 2: Gatekeeper</option>
+                        <option value="3">Stage 3: Scientist</option>
+                        <option value="4">Stage 4: Miner</option>
+                      </select>
+                    </div>
+
+                    {/* Pipeline Status (Stage-dependent) */}
+                    {pipelineStageFilter && (
+                      <div className="flex flex-col gap-1 text-[10px] font-bold">
+                        <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Pipeline Status</label>
+                        <select
+                          value={pipelineStatusFilter}
+                          onChange={(e) => setPipelineStatusFilter && setPipelineStatusFilter(e.target.value)}
+                          className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                        >
+                          <option value="">All Pipeline Statuses</option>
+                          {pipelineStageFilter === '1' && (
+                            <>
+                              <option value="included">Included</option>
+                              <option value="excluded">Excluded</option>
+                              <option value="unprocessed">Unprocessed</option>
+                            </>
+                          )}
+                          {pipelineStageFilter === '2' && (
+                            <>
+                              <option value="included">Included</option>
+                              <option value="excluded">Excluded</option>
+                              <option value="unprocessed">Unprocessed (Has PDF)</option>
+                              <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                              <option value="pending_pdf">Pending PDF</option>
+                            </>
+                          )}
+                          {(pipelineStageFilter === '3' || pipelineStageFilter === '4') && (
+                            <>
+                              <option value="included">Included</option>
+                              <option value="excluded">Excluded</option>
+                              <option value="unprocessed">Unprocessed (Has PDF)</option>
+                              <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Exclusion Trigger */}
+                    {pipelineStageFilter && (
+                      <div className="flex flex-col gap-1 text-[10px] font-bold">
+                        <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Exclusion Trigger</label>
+                        <select
+                          value={ecTriggerFilter}
+                          onChange={(e) => setEcTriggerFilter && setEcTriggerFilter(e.target.value)}
+                          disabled={loadingEcTriggers}
+                          className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                        >
+                          <option value="">Any Exclusion Trigger</option>
+                          <option value="Unspecified">Unspecified / No Code</option>
+                          {ecTriggers.map((code) => (
+                            <option key={code} value={code}>{code}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-border/40 my-0.5" />
+
+                  {/* Category 3: Metadata & Assets */}
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Metadata & Assets</span>
+                    
+                    {/* PDF Status */}
+                    <div className="flex flex-col gap-1 text-[10px] font-bold">
+                      <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Local PDF Status</label>
+                      <select
+                        value={pdfFilter}
+                        onChange={(e) => setPdfFilter && setPdfFilter(e.target.value)}
+                        className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                      >
+                        <option value="">Any PDF Status</option>
+                        <option value="IGNORED">IGNORED</option>
+                        <option value="MISSING">MISSING</option>
+                        <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
+                        <option value="MATCHED">MATCHED</option>
+                        <option value="DOWNLOADED">DOWNLOADED</option>
+                        <option value="SYNCED">SYNCED</option>
+                        <option value="FAILED">FAILED</option>
+                      </select>
+                    </div>
+
+                    {/* Source Scope */}
+                    <div className="flex flex-col gap-1 text-[10px] font-bold">
+                      <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">Source Scope</label>
+                      <select
+                        value={sourceFilter}
+                        onChange={(e) => setSourceFilter && setSourceFilter(e.target.value)}
+                        className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                      >
+                        <option value="">Any Source</option>
+                        <option value="manual">Manual Ingestion</option>
+                        <option value="backward">Backward Snowball</option>
+                        <option value="forward">Forward Snowball</option>
+                        <option value="csv">CSV Import</option>
+                      </select>
+                    </div>
+
+                    {/* DOI Status */}
+                    <div className="flex flex-col gap-1 text-[10px] font-bold">
+                      <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">DOI Status</label>
+                      <select
+                        value={doiStatusFilter}
+                        onChange={(e) => setDoiStatusFilter && setDoiStatusFilter(e.target.value)}
+                        className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                      >
+                        <option value="">Any DOI Status</option>
+                        <option value="has_doi">Has DOI</option>
+                        <option value="empty">Missing DOI</option>
+                      </select>
+                    </div>
+
+                    {/* PDF Link Status */}
+                    <div className="flex flex-col gap-1 text-[10px] font-bold">
+                      <label className="text-muted-foreground/60 uppercase text-[8px] tracking-wider">PDF Link Availability</label>
+                      <select
+                        value={pdfLinkFilter}
+                        onChange={(e) => setPdfLinkFilter && setPdfLinkFilter(e.target.value)}
+                        className="w-full bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                      >
+                        <option value="">Any Link Status</option>
+                        <option value="has_link">Has PDF Link</option>
+                        <option value="empty">Missing Link</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>

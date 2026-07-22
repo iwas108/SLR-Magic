@@ -37,6 +37,23 @@ export default function ManualScreeningView({
     setScreeningStageFilter,
     screeningDecisionFilter,
     setScreeningDecisionFilter,
+    pdfFilter,
+    setPdfFilter,
+    sourceFilter,
+    setSourceFilter,
+    doiStatusFilter,
+    setDoiStatusFilter,
+    pdfLinkFilter,
+    setPdfLinkFilter,
+    pipelineStageFilter,
+    setPipelineStageFilter,
+    pipelineStatusFilter,
+    setPipelineStatusFilter,
+    ecTriggerFilter,
+    setEcTriggerFilter,
+    ecTriggers,
+    loadingEcTriggers,
+    clearAllFilters,
     screeningStats,
     loadScreeningStats,
     screeningSortBy,
@@ -80,6 +97,23 @@ export default function ManualScreeningView({
         setScreeningStageFilter={setScreeningStageFilter}
         screeningDecisionFilter={screeningDecisionFilter}
         setScreeningDecisionFilter={setScreeningDecisionFilter}
+        pdfFilter={pdfFilter}
+        setPdfFilter={setPdfFilter}
+        sourceFilter={sourceFilter}
+        setSourceFilter={setSourceFilter}
+        doiStatusFilter={doiStatusFilter}
+        setDoiStatusFilter={setDoiStatusFilter}
+        pdfLinkFilter={pdfLinkFilter}
+        setPdfLinkFilter={setPdfLinkFilter}
+        pipelineStageFilter={pipelineStageFilter}
+        setPipelineStageFilter={setPipelineStageFilter}
+        pipelineStatusFilter={pipelineStatusFilter}
+        setPipelineStatusFilter={setPipelineStatusFilter}
+        ecTriggerFilter={ecTriggerFilter}
+        setEcTriggerFilter={setEcTriggerFilter}
+        ecTriggers={ecTriggers}
+        loadingEcTriggers={loadingEcTriggers}
+        clearAllFilters={clearAllFilters}
         screeningSortBy={screeningSortBy}
         setScreeningSortBy={setScreeningSortBy}
         screeningSortOrder={screeningSortOrder}

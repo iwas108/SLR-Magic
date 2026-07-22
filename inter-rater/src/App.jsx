@@ -24,16 +24,21 @@ function App() {
     if (!themeLoaded) return;
 
     const applyTheme = () => {
+      const root = document.documentElement;
       if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
+        root.classList.add('dark');
+        root.classList.remove('light');
       } else if (theme === 'light') {
-        document.documentElement.classList.remove('dark');
+        root.classList.add('light');
+        root.classList.remove('dark');
       } else {
         const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
         if (isDark) {
-          document.documentElement.classList.add('dark');
+          root.classList.add('dark');
+          root.classList.remove('light');
         } else {
-          document.documentElement.classList.remove('dark');
+          root.classList.add('light');
+          root.classList.remove('dark');
         }
       }
     };
@@ -61,11 +66,11 @@ function App() {
   };
 
   return (
-    <div className={`App bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-200 flex flex-col ${
+    <div className={`App bg-background text-foreground min-h-screen transition-colors duration-200 flex flex-col ${
       currentView === 'review' ? 'h-screen overflow-hidden' : 'pb-12'
     }`}>
       {currentView !== 'review' && (
-        <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-800 mb-8 py-4 shadow-sm transition-colors duration-200 shrink-0">
+        <nav className="bg-card border-b border-border mb-8 py-4 shadow-sm transition-colors duration-200 shrink-0">
           <div className="container mx-auto px-4 flex justify-between items-center">
             <span 
               className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent cursor-pointer" 
@@ -75,11 +80,11 @@ function App() {
             </span>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Theme:</span>
+              <span className="text-xs text-muted-foreground font-medium">Theme:</span>
               <select
                 value={theme}
                 onChange={(e) => handleThemeChange(e.target.value)}
-                className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-2.5 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                className="bg-secondary text-secondary-foreground border border-border rounded-lg px-2.5 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
               >
                 <option value="light">☀️ Light</option>
                 <option value="dark">🌙 Dark</option>

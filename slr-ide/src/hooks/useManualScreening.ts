@@ -19,9 +19,40 @@ export function useManualScreening(
   const [screeningSearchMode, setScreeningSearchMode] = useState<'keyword' | 'semantic'>('keyword');
   const [screeningStageFilter, setScreeningStageFilter] = useState('');
   const [screeningDecisionFilter, setScreeningDecisionFilter] = useState('');
+  
+  // Paper Database Table Filters Parity
+  const [pdfFilter, setPdfFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [doiStatusFilter, setDoiStatusFilter] = useState('');
+  const [pdfLinkFilter, setPdfLinkFilter] = useState('');
+  const [pipelineStageFilter, setPipelineStageFilter] = useState('');
+  const [pipelineStatusFilter, setPipelineStatusFilter] = useState('');
+  const [ecTriggerFilter, setEcTriggerFilter] = useState('');
+  const [ecTriggers, setEcTriggers] = useState<string[]>([]);
+  const [loadingEcTriggers, setLoadingEcTriggers] = useState(false);
+
   const [screeningSortBy, setScreeningSortBy] = useState('Paper_ID');
   const [screeningSortOrder, setScreeningSortOrder] = useState<'ASC' | 'DESC'>('ASC');
   const [screeningSearchTime, setScreeningSearchTime] = useState<number | null>(null);
+
+  // Fetch EC triggers when pipelineStageFilter changes
+  useEffect(() => {
+    const fetchEcTriggers = async () => {
+      setLoadingEcTriggers(true);
+      try {
+        const res = await fetch(`/api/papers?getEcTriggers=true&pipelineStage=${pipelineStageFilter}`);
+        if (res.ok) {
+          const data = await res.json();
+          setEcTriggers(data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load EC triggers:', err);
+      } finally {
+        setLoadingEcTriggers(false);
+      }
+    };
+    fetchEcTriggers();
+  }, [pipelineStageFilter]);
   
   // Project-wide stats state
   const [screeningStats, setScreeningStats] = useState<{
@@ -163,6 +194,13 @@ export function useManualScreening(
       if (screeningSearch) params.append('search', screeningSearch);
       if (screeningStageFilter) params.append('manualStage', screeningStageFilter);
       if (screeningDecisionFilter) params.append('manualDecision', screeningDecisionFilter);
+      if (pdfFilter) params.append('pdfStatus', pdfFilter);
+      if (sourceFilter) params.append('source', sourceFilter);
+      if (doiStatusFilter) params.append('doiStatus', doiStatusFilter);
+      if (pdfLinkFilter) params.append('pdfLink', pdfLinkFilter);
+      if (pipelineStageFilter) params.append('pipelineStage', pipelineStageFilter);
+      if (pipelineStatusFilter) params.append('pipelineStatus', pipelineStatusFilter);
+      if (ecTriggerFilter) params.append('ecTrigger', ecTriggerFilter);
       
       params.append('sortBy', screeningSortBy);
       params.append('sortOrder', screeningSortOrder);
@@ -187,6 +225,8 @@ export function useManualScreening(
   }, [
     screeningPage, screeningLimit, screeningSortBy, screeningSortOrder, 
     screeningSearch, screeningStageFilter, screeningDecisionFilter,
+    pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter,
+    pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter,
     screeningSearchMode, showToast
   ]);
 
@@ -236,6 +276,33 @@ export function useManualScreening(
               : p.manual_stage === (stageFilterMap[screeningStageFilter] || 0)
           );
         }
+        if (pdfFilter) {
+          results = results.filter((p: Paper) => p.Local_PDF_Status === pdfFilter);
+        }
+        if (sourceFilter) {
+          results = results.filter((p: Paper) => {
+            if (sourceFilter === 'manual') {
+              return p.Import_Source === 'Manual Search' || p.Import_Source === 'Manual Ingestion';
+            } else if (sourceFilter === 'backward') {
+              return p.Import_Source === 'Backward Snowball';
+            } else if (sourceFilter === 'forward') {
+              return p.Import_Source === 'Forward Snowball';
+            } else if (sourceFilter === 'csv') {
+              return !['Manual Search', 'Manual Ingestion', 'Backward Snowball', 'Forward Snowball'].includes(p.Import_Source || '');
+            }
+            return true;
+          });
+        }
+        if (doiStatusFilter) {
+          results = results.filter((p: Paper) => 
+            doiStatusFilter === 'empty' ? (!p.DOI || p.DOI.trim() === '') : (p.DOI && p.DOI.trim() !== '')
+          );
+        }
+        if (pdfLinkFilter) {
+          results = results.filter((p: Paper) => 
+            pdfLinkFilter === 'empty' ? (!p.PDF_Link || p.PDF_Link.trim() === '') : (p.PDF_Link && p.PDF_Link.trim() !== '')
+          );
+        }
 
         setScreeningPapers(results);
         setScreeningTotal(results.length);
@@ -252,7 +319,8 @@ export function useManualScreening(
       setScreeningLoading(false);
     }
   }, [
-    screeningSearch, screeningDecisionFilter, screeningStageFilter, showToast
+    screeningSearch, screeningDecisionFilter, screeningStageFilter,
+    pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, showToast
   ]);
 
   // Save manual screening decision
@@ -410,11 +478,25 @@ export function useManualScreening(
     }
   }, [loadScreeningPapers, screeningSearchMode]);
 
+  const clearAllFilters = useCallback(() => {
+    setScreeningStageFilter('');
+    setScreeningDecisionFilter('');
+    setPdfFilter('');
+    setSourceFilter('');
+    setDoiStatusFilter('');
+    setPdfLinkFilter('');
+    setPipelineStageFilter('');
+    setPipelineStatusFilter('');
+    setEcTriggerFilter('');
+  }, []);
+
   // Auto-reset pagination on filter edits
   useEffect(() => {
     setScreeningPage(1);
   }, [
-    screeningSearch, screeningStageFilter, screeningDecisionFilter
+    screeningSearch, screeningStageFilter, screeningDecisionFilter,
+    pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter,
+    pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter
   ]);
 
   return {
@@ -434,6 +516,15 @@ export function useManualScreening(
     setScreeningStageFilter,
     screeningDecisionFilter,
     setScreeningDecisionFilter,
+    pdfFilter, setPdfFilter,
+    sourceFilter, setSourceFilter,
+    doiStatusFilter, setDoiStatusFilter,
+    pdfLinkFilter, setPdfLinkFilter,
+    pipelineStageFilter, setPipelineStageFilter,
+    pipelineStatusFilter, setPipelineStatusFilter,
+    ecTriggerFilter, setEcTriggerFilter,
+    ecTriggers, loadingEcTriggers,
+    clearAllFilters,
     screeningStats,
     loadScreeningStats,
     screeningSortBy,

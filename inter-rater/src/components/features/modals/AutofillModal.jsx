@@ -339,10 +339,10 @@ const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal 
       {/* Backdrop overlay */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-155 dark:border-gray-700 flex flex-col relative z-10 transform scale-100 transition-all max-h-[90vh]">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col relative z-10 transform scale-100 transition-all max-h-[90vh]">
         
         {/* Header */}
-        <div className="flex justify-between items-center pb-3.5 border-b border-gray-150 dark:border-gray-700 shrink-0">
+        <div className="flex justify-between items-center pb-3.5 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -353,14 +353,14 @@ const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal 
               <h3 className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-wider">
                 JSON Autofill Validator
               </h3>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase mt-0.5">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase mt-0.5">
                 Active Pool: <span className="text-indigo-600 dark:text-indigo-400">{poolName}</span>
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-655 dark:hover:text-gray-250 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
@@ -370,7 +370,7 @@ const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal 
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto py-4 space-y-4 min-h-0 text-sm">
-          <p className="text-xs text-gray-550 dark:text-gray-300 leading-relaxed font-medium">
+          <p className="text-xs text-muted-foreground leading-relaxed font-medium">
             Paste the JSON logic trace output for this study. The system will automatically validate the syntax and map the values to auto-populate the active review form.
           </p>
 
@@ -378,13 +378,13 @@ const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal 
             value={jsonText}
             onChange={handleTextChange}
             placeholder={`Paste raw JSON here...\nExample:\n{\n  "final_evaluation": {\n    "decision": "INCLUDE",\n    "reasoning": "No explicit exclusion found."\n  }\n}`}
-            className="w-full h-56 p-3 font-mono text-[11px] border border-gray-300 dark:border-gray-750 bg-gray-50 dark:bg-gray-900 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-gray-800 dark:text-gray-200 transition-all resize-none shrink-0"
+            className="w-full h-56 p-3 font-mono text-[11px] border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-gray-800 dark:text-gray-200 transition-all resize-none shrink-0"
           />
 
           {/* Validation Status Block */}
           {!jsonText.trim() ? (
-            <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-150 dark:border-gray-800 text-xs font-semibold text-gray-400 dark:text-gray-500 flex items-center gap-2">
-              <svg className="w-4 h-4 text-gray-400 dark:text-gray-605 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-border text-xs font-semibold text-muted-foreground flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-400 dark:text-gray-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               Waiting for JSON input...
@@ -398,17 +398,17 @@ const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal 
               </div>
             </div>
           ) : (
-            <div className="p-4 bg-emerald-50/40 dark:bg-emerald-955/10 rounded-xl border border-emerald-250 dark:border-emerald-900/30 text-xs text-emerald-850 dark:text-emerald-300 flex items-start gap-2.5">
+            <div className="p-4 bg-emerald-50/40 dark:bg-emerald-950/10 rounded-xl border border-emerald-200 dark:border-emerald-900/30 text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5">
               <span className="text-base shrink-0 leading-none">🟢</span>
               <div className="space-y-2 flex-1 min-w-0">
-                <span className="font-black block uppercase tracking-wider text-[10px] text-emerald-750 dark:text-emerald-450">JSON Parsed Successfully</span>
+                <span className="font-black block uppercase tracking-wider text-[10px] text-emerald-700 dark:text-emerald-400">JSON Parsed Successfully</span>
                 <div className="space-y-1.5">
                   <span className="font-bold opacity-80 block">Detected parameters to autofill:</span>
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
                     {validation.summary.map((sum, i) => (
                       <span
                         key={i}
-                        className="px-2 py-0.5 bg-emerald-100/50 dark:bg-emerald-900/30 border border-emerald-200/50 dark:border-emerald-800/40 rounded-md font-semibold text-[10px] tracking-wide text-emerald-800 dark:text-emerald-350"
+                        className="px-2 py-0.5 bg-emerald-100/50 dark:bg-emerald-900/30 border border-emerald-200/50 dark:border-emerald-800/40 rounded-md font-semibold text-[10px] tracking-wide text-emerald-800 dark:text-emerald-300"
                       >
                         {sum}
                       </span>
@@ -421,10 +421,10 @@ const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal 
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 pt-3.5 border-t border-gray-150 dark:border-gray-700 shrink-0">
+        <div className="flex justify-end gap-3 pt-3.5 border-t border-border shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-650 hover:bg-gray-100 dark:hover:bg-gray-700/60 text-gray-700 dark:text-gray-300 text-xs font-bold rounded-xl transition-all"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700/60 text-gray-700 dark:text-gray-300 text-xs font-bold rounded-xl transition-all"
           >
             Cancel
           </button>

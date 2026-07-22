@@ -325,7 +325,7 @@ const Dashboard = ({ onNavigate }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
-          <span className="text-xs font-semibold text-gray-505 dark:text-gray-400 mr-2">Filter Pool:</span>
+          <span className="text-xs font-semibold text-muted-foreground mr-2">Filter Pool:</span>
           {poolTypes.map(pool => (
             <button
               key={pool}
@@ -347,7 +347,7 @@ const Dashboard = ({ onNavigate }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-450 text-xs uppercase font-extrabold border-b border-gray-200 dark:border-gray-800">
+              <tr className="bg-gray-50 dark:bg-gray-900 text-muted-foreground text-xs uppercase font-extrabold border-b border-gray-200 dark:border-gray-800">
                 <th className="px-6 py-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" onClick={() => handleSort('projectName')}>
                   <div className="flex items-center gap-1">
                     Project Name
@@ -396,7 +396,7 @@ const Dashboard = ({ onNavigate }) => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0l-8 5-8-5" />
                       </svg>
                       <p className="font-semibold text-xs text-gray-400 uppercase tracking-wider">No reviews found</p>
-                      <p className="text-xs text-gray-450 mt-1">Import a .slr file from your SLR IDE workspace to start.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Import a .slr file from your SLR IDE workspace to start.</p>
                     </div>
                   </td>
                 </tr>
@@ -420,12 +420,12 @@ const Dashboard = ({ onNavigate }) => {
                       <td className="px-6 py-4">
                         <span className={`inline-block px-2.5 py-0.5 text-[10px] font-extrabold rounded-md border ${
                           session.poolType === 'CAL_Pool_A' 
-                            ? 'bg-purple-50 border-purple-200 text-purple-750 dark:bg-purple-950/45 dark:border-purple-900/60 dark:text-purple-300' 
+                            ? 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-950/45 dark:border-purple-900/60 dark:text-purple-300' 
                             : session.poolType === 'CAL_Pool_B'
-                            ? 'bg-amber-50 border-amber-200 text-amber-750 dark:bg-amber-950/45 dark:border-amber-900/60 dark:text-amber-300'
+                            ? 'bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/45 dark:border-amber-900/60 dark:text-amber-300'
                             : (session.poolType === 'CAL_Pool_C' || session.poolType === 'QC_Batch')
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-750 dark:bg-emerald-950/45 dark:border-emerald-900/60 dark:text-emerald-300'
-                            : 'bg-rose-50 border-rose-200 text-rose-750 dark:bg-rose-950/45 dark:border-rose-900/60 dark:text-rose-300'
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/45 dark:border-emerald-900/60 dark:text-emerald-300'
+                            : 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/45 dark:border-rose-900/60 dark:text-rose-300'
                         }`}>
                           {session.poolType}
                         </span>
@@ -513,7 +513,7 @@ const Dashboard = ({ onNavigate }) => {
 
         {/* Pagination Footer */}
         {totalItems > 0 && (
-          <div className="bg-gray-50 dark:bg-gray-900/50 px-6 py-4 border-t border-gray-150 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-bold text-gray-500 dark:text-gray-400">
+          <div className="bg-gray-50 dark:bg-gray-900/50 px-6 py-4 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-bold text-muted-foreground">
             <div className="flex items-center gap-4">
               <span>
                 Showing {Math.min(totalItems, (currentPage - 1) * pageSize + 1)} to {Math.min(totalItems, currentPage * pageSize)} of {totalItems} projects
@@ -534,7 +534,7 @@ const Dashboard = ({ onNavigate }) => {
 
             <div className="flex items-center gap-1">
               <button
-                className="px-3 py-1.5 border border-gray-300 dark:border-gray-750 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
               >
@@ -546,7 +546,7 @@ const Dashboard = ({ onNavigate }) => {
                   className={`px-3 py-1.5 rounded-lg transition-colors ${
                     currentPage === page
                       ? 'bg-blue-600 text-white shadow-sm'
-                      : 'border border-gray-300 dark:border-gray-755 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      : 'border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
                   onClick={() => setCurrentPage(page)}
                 >
@@ -554,7 +554,7 @@ const Dashboard = ({ onNavigate }) => {
                 </button>
               ))}
               <button
-                className="px-3 py-1.5 border border-gray-300 dark:border-gray-755 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
               >
@@ -567,7 +567,7 @@ const Dashboard = ({ onNavigate }) => {
 
       {showExportModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-750 max-w-md w-full overflow-hidden shadow-2xl transform transition-all duration-300 scale-100">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 max-w-md w-full overflow-hidden shadow-2xl transform transition-all duration-300 scale-100">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-2">
                 <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -575,7 +575,7 @@ const Dashboard = ({ onNavigate }) => {
                 </svg>
                 Confirm Reviewer Identity
               </h3>
-              <p className="text-sm text-gray-505 dark:text-gray-400 mb-4">
+              <p className="text-sm text-muted-foreground mb-4">
                 Please enter your short name. An identity suffix will be generated to guarantee anonymity in the adjudication process.
               </p>
               

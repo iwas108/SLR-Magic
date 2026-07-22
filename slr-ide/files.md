@@ -154,7 +154,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `hooks/useProjects.ts` | Custom Hook | Manages project listing retrieval, active project switching, and cloud provider (Google Drive / OneDrive) configuration state. |
 | `hooks/usePipeline.ts` | Custom Hook | Manages sequential PDF acquisition/OCR batch pipeline state, Server-Sent Events logging, and cancel controllers. |
 | `hooks/useCalibration.ts` | Custom Hook | Manages consensus screening pre-calibration pools, Kappa metrics calculation, and single-paper crawler executions. |
-| `hooks/useManualScreening.ts` | Custom Hook | State and business logic manager for the manual screening pipeline workspace, handling keyword/semantic filtering with unified filter parity (9 filters total) and CRUD updates. |
+| `hooks/useManualScreening.ts` | Custom Hook | State and business logic manager for the manual screening pipeline workspace, handling keyword/semantic filtering with unified Paper Database filter parity (10 filter parameters total) and CRUD updates. |
 
 ### UI Components & Features (`src/components/`)
 | File Path | Architectural Layer | Function & Purpose |
@@ -179,8 +179,8 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/insight-export/ScientificRigorPanel.tsx` | UI Component | Renders the scientific rigor panel with pre-calibration metrics, stage comparisons, and rolling batch validation. |
 | `components/features/insight-export/PrismaFlowDiagram.tsx` | UI Component | Canvas-rendered interactive PRISMA 2020 Flow Diagram with PNG download support. |
 | `components/features/manual-screening/ManualScreeningStatsHeader.tsx` | UI Component | Top bar summary calculations showing active manual stages and result metrics with fullscreen controls. |
-| `components/features/manual-screening/ManualScreeningList.tsx` | UI Component | Left-hand panel matching list with keyword/semantic filters and sorting drop-downs. |
-| `components/features/manual-screening/ManualScreeningDetailView.tsx` | Presentation Component | Right-hand dashboard displaying metadata, inline PDF previews, and manual stage decision editors (QA and variables extraction). |
+| `components/features/manual-screening/ManualScreeningList.tsx` | UI Component | Left-hand panel matching list with keyword/semantic search, complete Paper Database filter popover, and sorting drop-downs. |
+| `components/features/manual-screening/ManualScreeningDetailView.tsx` | Presentation Component | Right-hand dashboard displaying metadata, top-level tabbed full-text PDF viewer, offline PDF fallback downloader, and manual stage decision editors (QA and variables extraction). |
 | `components/features/manual-screening/ManualScreeningView.tsx` | View Component | Main manual screening dashboard container providing fullscreen swap modes. |
 | `components/features/ProjectManager.tsx` | View Component | Management interface for creating new literature review projects, defining research questions, and updating project metadata. |
 | `components/features/PromptLibraryView.tsx` | View Component | Interface for versioning, organizing, and testing reusable system prompt templates and structured JSON extraction schemas. |
@@ -268,7 +268,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/llm/screen/route.ts` | REST Endpoint | Handles POST requests to initiate a single-paper LLM screening or data extraction execution. |
 | `api/llm/screen/logs/route.ts` | REST Endpoint | Handles GET requests to retrieve raw prompt payloads, LLM completions, and execution logs for a specific screening job. |
 | `api/papers/route.ts` | REST Endpoint | Handles GET requests for querying, filtering, sorting, and server-side paginating paper records from `slr.db`. |
-| `api/papers/manual-screening/route.ts` | REST Endpoint | Handles GET requests to filter, sort, search, and paginate manual screening papers workspace list. |
+| `api/papers/manual-screening/route.ts` | REST Endpoint | Handles GET requests to filter (with full Paper Database filter parity), sort, search, and paginate manual screening papers workspace list. |
 | `api/papers/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests for retrieving, updating, or permanently deleting a single paper record by its `Paper_ID`. |
 | `api/papers/purge-check/route.ts` | REST Endpoint | Handles POST requests to match current project database papers against an incoming CSV list and return candidate papers for deletion. |
 | `api/papers/purge/route.ts` | REST Endpoint | Handles POST requests to execute bulk deletion of selected papers, their corresponding duplicate papers, and project-scoped PDF files. |

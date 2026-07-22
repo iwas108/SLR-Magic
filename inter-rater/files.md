@@ -11,12 +11,10 @@ This document serves as a comprehensive index of every file within the `inter-ra
 | `agents.md` | Governance / Directives | Master workspace directives and behavioral guidelines for coding agents operating in `inter-rater`. |
 | `architecture.md` | Documentation | Module-scoped blueprint detailing the offline React SPA, IndexedDB synchronization schema, and component layout structure. |
 | `improvements-log.md` | Documentation | Chronological log of incremental features, bug fixes, refactoring iterations, and optimizations with sequential IDs. |
-| `package.json` | Dependency / Scripts | Defines NPM package dependencies, project metadata, and execution scripts (e.g., `dev`, `build`, `lint`). |
+| `package.json` | Dependency / Scripts | Defines NPM package dependencies, Tailwind v4 + `@tailwindcss/vite`, project metadata, and execution scripts (e.g., `dev`, `build`, `lint`). |
 | `package-lock.json` | Dependency | Lockfile ensuring reproducible dependency tree installation across environments. |
-| `vite.config.js` | Build Configuration | Vite bundler configuration including dev server port mappings and React plugin integrations. |
+| `vite.config.js` | Build Configuration | Vite bundler configuration including `@tailwindcss/vite` plugin, dev server port mappings, and React plugin integrations. |
 | `eslint.config.js` | Linting Configuration | ESLint configuration file defining strict code quality rules and linting standards. |
-| `postcss.config.js` | Build Configuration | PostCSS configuration for styling utilities and global stylesheets. |
-| `tailwind.config.js` | Styling Configuration | Tailwind CSS utility configurations, theme extensions, and dark mode triggers. |
 | `index.html` | Entrypoint | Main HTML document housing the Vite SPA bundle mount point `<div id="root">`. |
 | `README.md` | Documentation | General developer onboarding guide and quickstart instructions for the `inter-rater` SPA workspace. |
 | `.gitignore` | Security / Git | Git exclusion rules preventing local dependencies, environment variables, and build outputs from leaking. |
@@ -30,7 +28,7 @@ This document serves as a comprehensive index of every file within the `inter-ra
 | `main.jsx` | Entrypoint | React application mount entrypoint initializing the main render loop onto the HTML root node. |
 | `App.jsx` | Routing / Shell | Root application routing wrapper coordinating global theme states and view rendering switches. |
 | `App.css` | Styling | Global application CSS styling definitions and CSS variables for light/dark themes. |
-| `index.css` | Styling | Base CSS entrypoint importing Tailwind CSS styles and utilities. |
+| `index.css` | Styling | Base CSS entrypoint importing Tailwind CSS v4 `@import "tailwindcss"`, platform HSL CSS theme tokens, and `@theme` mappings. |
 | `StorageService.js` | Database / Services | Direct interface wrapping IndexedDB (via Dexie) for local storage, CRUD actions, session creation, paper validation, and export generation. |
 
 ---

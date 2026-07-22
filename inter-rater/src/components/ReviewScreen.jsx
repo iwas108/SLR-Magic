@@ -463,16 +463,17 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [session, papers.length, currentIndex, activePaper, handleInputChange, handlePrevious, handleNext, handleComplete, isValid, isPoolA, isPoolC, isEvaluationOpen, isAutofillOpen]);
 
-  if (!session || papers.length === 0) return <div className="p-8 text-center text-gray-550 dark:text-gray-400">Loading session data...</div>;
+  if (!session || papers.length === 0) return <div className="p-8 text-center text-muted-foreground">Loading session data...</div>;
+  if (!session || papers.length === 0) return <div className="p-8 text-center text-muted-foreground">Loading session data...</div>;
 
   const ecRules = session.metadata?.ec_rules || session.metadata?.ecRules || [];
   const qaRules = session.metadata?.qa_rules || session.metadata?.qaRules || [];
   const extractionRules = session.metadata?.extraction_rules || session.metadata?.extractionRules || [];
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
       {/* Combined Unified Navigation Bar */}
-      <nav className="bg-white dark:bg-gray-800 border-b border-gray-205 dark:border-gray-800 py-3.5 px-4 sm:px-6 shadow-sm shrink-0 transition-colors duration-200">
+      <nav className="bg-card border-b border-border py-3.5 px-4 sm:px-6 shadow-sm shrink-0 transition-colors duration-200">
         <div className="max-w-[1800px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Left: Brand + Separator + Project Details */}
           <div className="flex items-center gap-3 min-w-0">
@@ -482,12 +483,12 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
             >
               SLR Magic Inter-Rater
             </span>
-            <div className="hidden sm:block h-6 w-[1px] bg-gray-200 dark:bg-gray-700 shrink-0" />
+            <div className="hidden sm:block h-6 w-[1px] bg-border shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200 truncate max-w-[280px] sm:max-w-[400px] md:max-w-[500px]" title={session.projectName}>
+              <h2 className="text-sm font-bold text-card-foreground truncate max-w-[280px] sm:max-w-[400px] md:max-w-[500px]" title={session.projectName}>
                 {session.projectName}
               </h2>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[280px] sm:max-w-[400px] md:max-w-[500px]">
+              <p className="text-[10px] text-muted-foreground truncate max-w-[280px] sm:max-w-[400px] md:max-w-[500px]">
                 File: {session.filename} • Pool: <span className="font-bold">{session.poolType}</span>
                 {isPoolA && <span className="ml-2 px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded font-semibold text-[9px] uppercase">Abstract Mode</span>}
               </p>
@@ -496,7 +497,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
           {/* Right: Autosave Status, Cookbook, Page counter & Theme */}
           <div className="flex items-center gap-2.5 shrink-0 ml-auto sm:ml-0">
-            <div className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 bg-gray-50/50 dark:bg-gray-900/40 rounded-lg border border-gray-150 dark:border-gray-800">
+            <div className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 bg-secondary rounded-lg border border-border">
               {saveStatus === 'saving' ? (
                 <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                   <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
@@ -506,7 +507,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                   Saving...
                 </span>
               ) : saveStatus === 'error' ? (
-                <span className="flex items-center gap-1 text-rose-600 dark:text-rose-455">
+                <span className="flex items-center gap-1 text-destructive">
                   <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
@@ -524,7 +525,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
             <button
               onClick={() => setIsCookbookOpen(true)}
-              className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/65 dark:text-indigo-303 font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:hover:bg-indigo-900/65 dark:text-indigo-300 font-bold rounded-lg text-[11px] transition-colors flex items-center gap-1"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -532,15 +533,15 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               <span>Research Cookbook</span>
             </button>
 
-            <span className="px-2.5 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-350 rounded-lg text-[11px] font-extrabold border border-gray-205 dark:border-gray-700">
+            <span className="px-2.5 py-1.5 bg-secondary text-secondary-foreground rounded-lg text-[11px] font-extrabold border border-border">
               Paper {currentIndex + 1} of {papers.length}
             </span>
 
-            <div className="flex items-center gap-1.5 border-l border-gray-200 dark:border-gray-700 pl-2.5">
+            <div className="flex items-center gap-1.5 border-l border-border pl-2.5">
               <select
                 value={theme}
                 onChange={(e) => onThemeChange(e.target.value)}
-                className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                className="bg-background border border-border rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
               >
                 <option value="light">☀️ Light</option>
                 <option value="dark">🌙 Dark</option>
@@ -553,11 +554,11 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
       {/* Main Content Area */}
       <div className="flex-1 min-h-0 w-full max-w-[1800px] mx-auto px-4 sm:px-8 xl:px-12 mt-4 flex flex-col overflow-hidden">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-row h-full overflow-hidden mb-6 relative">
+        <div className="bg-card rounded-2xl border border-border shadow-sm flex flex-row h-full overflow-hidden mb-6 relative">
 
           {/* Vertical left tab bar */}
-          <div className="w-48 bg-gray-50/50 dark:bg-gray-900/35 border-r border-gray-200 dark:border-gray-800 p-3 flex flex-col gap-1.5 shrink-0">
-            <div className="text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 mb-1 shrink-0">
+          <div className="w-48 bg-muted/30 border-r border-border p-3 flex flex-col gap-1.5 shrink-0">
+            <div className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider px-3 mb-1 shrink-0">
               Navigation
             </div>
 
@@ -567,7 +568,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                 onClick={() => setActiveLeftTab('pdf')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'pdf'
                   ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  : 'border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                   }`}
               >
                 <span className="text-sm">📄</span>
@@ -580,7 +581,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               onClick={() => setActiveLeftTab('abstract')}
               className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'abstract'
                 ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                : 'border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 }`}
             >
               <span className="text-sm">📝</span>
@@ -592,8 +593,8 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               <button
                 onClick={() => setActiveLeftTab('ecRules')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'ecRules'
-                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-955/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
+                  : 'border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                   }`}
               >
                 <span className="text-sm">🚫</span>
@@ -607,7 +608,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                 onClick={() => setActiveLeftTab('metadata')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'metadata'
                   ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  : 'border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                   }`}
               >
                 <span className="text-sm">ℹ️</span>
@@ -621,7 +622,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                 onClick={() => setActiveLeftTab('qaRulesPreview')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'qaRulesPreview'
                   ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  : 'border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                   }`}
               >
                 <span className="text-sm">⚖️</span>
@@ -635,7 +636,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                 onClick={() => setActiveLeftTab('extractionRulesPreview')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2 border ${activeLeftTab === 'extractionRulesPreview'
                   ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/45 dark:border-blue-900/50 dark:text-blue-300 font-extrabold shadow-sm'
-                  : 'border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-250'
+                  : 'border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                   }`}
               >
                 <span className="text-sm">🧬</span>
@@ -663,45 +664,45 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               {activeLeftTab === 'abstract' ? (
                 <div className="space-y-4">
                   {isPoolA && (
-                    <div className="bg-gray-50/50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-855 rounded-xl p-5 space-y-4">
-                      <h3 className="text-base font-extrabold text-gray-900 dark:text-white leading-snug">
+                    <div className="bg-muted/30 border border-border rounded-xl p-5 space-y-4">
+                      <h3 className="text-base font-extrabold text-foreground leading-snug">
                         {activePaper.standard_metadata.Title || 'No Title Available'}
                       </h3>
 
-                      <div className="border-t border-gray-150 dark:border-gray-800 pt-3 space-y-2.5 text-xs">
+                      <div className="border-t border-border pt-3 space-y-2.5 text-xs">
                         {activePaper.standard_metadata.Year && (
-                          <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
-                            <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Year</span>
-                            <span className="text-gray-800 dark:text-gray-200 font-semibold">{activePaper.standard_metadata.Year}</span>
+                          <div className="flex py-1 border-b border-border">
+                            <span className="w-24 font-bold text-muted-foreground uppercase tracking-wider">Year</span>
+                            <span className="text-foreground font-semibold">{activePaper.standard_metadata.Year}</span>
                           </div>
                         )}
                         {activePaper.standard_metadata.Authors && (
-                          <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
-                            <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Authors</span>
-                            <span className="text-gray-800 dark:text-gray-200 font-normal leading-relaxed">{activePaper.standard_metadata.Authors}</span>
+                          <div className="flex py-1 border-b border-border">
+                            <span className="w-24 font-bold text-muted-foreground uppercase tracking-wider">Authors</span>
+                            <span className="text-foreground font-normal leading-relaxed">{activePaper.standard_metadata.Authors}</span>
                           </div>
                         )}
                         {activePaper.standard_metadata.DOI && (
-                          <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
-                            <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">DOI</span>
-                            <span className="text-gray-800 dark:text-gray-200 font-mono select-all">{activePaper.standard_metadata.DOI}</span>
+                          <div className="flex py-1 border-b border-border">
+                            <span className="w-24 font-bold text-muted-foreground uppercase tracking-wider">DOI</span>
+                            <span className="text-foreground font-mono select-all">{activePaper.standard_metadata.DOI}</span>
                           </div>
                         )}
                         {activePaper.standard_metadata.Publisher && (
-                          <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
-                            <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Publisher</span>
-                            <span className="text-gray-800 dark:text-gray-200 font-normal">{activePaper.standard_metadata.Publisher}</span>
+                          <div className="flex py-1 border-b border-border">
+                            <span className="w-24 font-bold text-muted-foreground uppercase tracking-wider">Publisher</span>
+                            <span className="text-foreground font-normal">{activePaper.standard_metadata.Publisher}</span>
                           </div>
                         )}
                         {activePaper.standard_metadata.Import_Source && (
-                          <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
-                            <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Source</span>
-                            <span className="text-gray-800 dark:text-gray-200 font-normal">{activePaper.standard_metadata.Import_Source}</span>
+                          <div className="flex py-1 border-b border-border">
+                            <span className="w-24 font-bold text-muted-foreground uppercase tracking-wider">Source</span>
+                            <span className="text-foreground font-normal">{activePaper.standard_metadata.Import_Source}</span>
                           </div>
                         )}
                         {activePaper.standard_metadata.PDF_Link && (
-                          <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
-                            <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Original Link</span>
+                          <div className="flex py-1 border-b border-border">
+                            <span className="w-24 font-bold text-muted-foreground uppercase tracking-wider">Original Link</span>
                             <a
                               href={activePaper.standard_metadata.PDF_Link}
                               target="_blank"
@@ -716,19 +717,19 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                     </div>
                   )}
 
-                  <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap font-normal p-4 bg-gray-50/50 dark:bg-gray-900/40 rounded-xl border border-gray-100 dark:border-gray-855">
-                    {isPoolA && <h4 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Abstract</h4>}
+                  <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap font-normal p-4 bg-muted/30 rounded-xl border border-border">
+                    {isPoolA && <h4 className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-2">Abstract</h4>}
                     {activePaper.standard_metadata.Abstract || 'No abstract content is available for this paper.'}
                   </div>
                 </div>
               ) : activeLeftTab === 'ecRules' ? (
                 <div className="space-y-2.5">
                   {ecRules.map((rule, idx) => (
-                    <div key={idx} className="p-3.5 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-155 dark:border-gray-850 rounded-xl">
-                      <span className="inline-block px-2.5 py-0.5 bg-rose-50 text-rose-700 dark:bg-rose-955/40 dark:text-rose-350 border border-rose-100 dark:border-rose-900/40 text-[10px] font-extrabold rounded-md mb-2">
+                    <div key={idx} className="p-3.5 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 rounded-xl">
+                      <span className="inline-block px-2.5 py-0.5 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-100 dark:border-rose-900/40 text-[10px] font-extrabold rounded-md mb-2">
                         {rule.code}
                       </span>
-                      <p className="text-xs text-gray-655 dark:text-gray-305 leading-relaxed font-normal">
+                      <p className="text-xs text-muted-foreground leading-relaxed font-normal">
                         {rule.description}
                       </p>
                     </div>
@@ -736,13 +737,13 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                 </div>
               ) : activeLeftTab === 'qaRulesPreview' ? (
                 <div className="space-y-4">
-                  <div className="border-b border-gray-150 dark:border-gray-800 pb-2">
+                  <div className="border-b border-border pb-2">
                     <h3 className="text-sm font-extrabold text-gray-900 dark:text-white uppercase tracking-wider">
                       Quality Assessment (QA) Scoring Schema
                     </h3>
                   </div>
                   {qaRules.map((rule, idx) => (
-                    <div key={idx} className="p-4 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-155 dark:border-gray-855 rounded-xl space-y-2">
+                    <div key={idx} className="p-4 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 rounded-xl space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-gray-700 dark:text-blue-300 border border-blue-100 dark:border-blue-900/40 text-[10px] font-extrabold rounded-md">
                           {rule.code}
@@ -752,7 +753,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                         </span>
                       </div>
                       {rule.question && (
-                        <p className="text-xs font-semibold text-gray-650 dark:text-gray-400 italic">
+                        <p className="text-xs font-semibold text-muted-foreground italic">
                           ❓ {rule.question}
                         </p>
                       )}
@@ -789,13 +790,13 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                 </div>
               ) : activeLeftTab === 'extractionRulesPreview' ? (
                 <div className="space-y-4">
-                  <div className="border-b border-gray-150 dark:border-gray-800 pb-2">
+                  <div className="border-b border-border pb-2">
                     <h3 className="text-sm font-extrabold text-gray-900 dark:text-white uppercase tracking-wider">
                       Data Extraction Parameters Schema
                     </h3>
                   </div>
                   {extractionRules.map((rule, idx) => (
-                    <div key={idx} className="p-4 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-155 dark:border-gray-850 rounded-xl space-y-2">
+                    <div key={idx} className="p-4 bg-gray-50/50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 rounded-xl space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 bg-purple-50 text-purple-700 dark:bg-gray-700 dark:text-purple-300 border border-purple-100 dark:border-purple-900/40 text-[10px] font-mono font-extrabold rounded-md">
                           {rule.json_key}
@@ -805,12 +806,12 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                         </span>
                       </div>
                       {rule.question && (
-                        <p className="text-xs font-semibold text-gray-655 dark:text-gray-400 italic">
+                        <p className="text-xs font-semibold text-muted-foreground italic">
                           ❓ {rule.question}
                         </p>
                       )}
                       {rule.description && rule.description !== rule.label && (
-                        <p className="text-xs text-gray-550 dark:text-gray-400 leading-relaxed font-normal">
+                        <p className="text-xs text-muted-foreground leading-relaxed font-normal">
                           {rule.description}
                         </p>
                       )}
@@ -818,12 +819,12 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                   ))}
                 </div>
               ) : activeLeftTab === 'metadata' || (!isPoolA && activeLeftTab !== 'pdf') ? (
-                <div className="bg-gray-50/50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-855 rounded-xl p-5 space-y-4">
+                <div className="bg-gray-50/50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 rounded-xl p-5 space-y-4">
                   <h3 className="text-base font-extrabold text-gray-900 dark:text-white leading-snug">
                     {activePaper.standard_metadata.Title || 'No Title Available'}
                   </h3>
 
-                  <div className="border-t border-gray-150 dark:border-gray-800 pt-3 space-y-2.5 text-xs">
+                  <div className="border-t border-border pt-3 space-y-2.5 text-xs">
                     {activePaper.standard_metadata.Year && (
                       <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-800/40">
                         <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Year</span>
@@ -849,7 +850,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                       </div>
                     )}
                     {activePaper.standard_metadata.Import_Source && (
-                      <div className="flex py-1 border-b border-gray-100/50 dark:border-gray-855/40">
+                      <div className="flex py-1 border-b border-border">
                         <span className="w-24 font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Source</span>
                         <span className="text-gray-800 dark:text-gray-200 font-normal">{activePaper.standard_metadata.Import_Source}</span>
                       </div>
@@ -896,13 +897,13 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
       {/* Sliding Side Drawer Container */}
       <div className={`side-drawer-container fixed top-0 right-0 h-full w-[460px] bg-white dark:bg-gray-800 shadow-2xl border-l border-gray-200 dark:border-gray-700 z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${isEvaluationOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="px-5 py-4 border-b border-gray-150 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
+        <div className="px-5 py-4 border-b border-border flex justify-between items-center bg-gray-50 dark:bg-gray-800 shrink-0">
           <h3 className="text-xs font-black text-gray-900 dark:text-white uppercase tracking-wider">
             Blinded Evaluation
           </h3>
           <button
             onClick={() => setIsEvaluationOpen(false)}
-            className="text-gray-400 hover:text-gray-650 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             title="Close (Esc)"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -945,7 +946,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
           </button>
         </div>
 
-        <div className="hidden lg:flex items-center gap-2.5 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-150 dark:border-gray-800 text-[10px] text-gray-500 font-semibold max-w-full overflow-x-auto">
+        <div className="hidden lg:flex items-center gap-2.5 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-xl border border-border text-[10px] text-gray-500 font-semibold max-w-full overflow-x-auto">
           <span className="font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mr-1 shrink-0">Shortcuts:</span>
           <span className="flex items-center gap-1 shrink-0"><kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-sm font-mono text-[9px]">I</kbd> Include</span>
           <span className="flex items-center gap-1 shrink-0"><kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-sm font-mono text-[9px]">E</kbd> Exclude</span>
@@ -981,8 +982,8 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
 
       {isCookbookOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-gray-150 dark:border-gray-700 max-h-[85vh] flex flex-col">
-            <div className="flex justify-between items-center pb-3 border-b border-gray-150 dark:border-gray-700 mb-4 shrink-0">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-border max-h-[85vh] flex flex-col">
+            <div className="flex justify-between items-center pb-3 border-b border-border mb-4 shrink-0">
               <h3 className="text-xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
                 <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -991,7 +992,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               </h3>
               <button
                 onClick={() => setIsCookbookOpen(false)}
-                className="text-gray-400 hover:text-gray-650 dark:hover:text-gray-250 transition-colors"
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -1036,15 +1037,15 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               {ecRules.length > 0 && !isPoolC && (
                 <div>
                   <h4 className="font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wide text-xs mb-2">Exclusion Rules (ecRules)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-150 dark:border-gray-800">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-border">
                     {ecRules.map((rule, idx) => (
-                      <div key={idx} className="p-3 bg-white dark:bg-gray-800 border border-gray-155 dark:border-gray-700 rounded-xl flex flex-col gap-1.5">
+                      <div key={idx} className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex flex-col gap-1.5">
                         <div>
-                          <span className="inline-block px-2.5 py-0.5 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-355 border border-rose-100 dark:border-rose-900/40 text-[10px] font-extrabold rounded-md">
+                          <span className="inline-block px-2.5 py-0.5 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-100 dark:border-rose-900/40 text-[10px] font-extrabold rounded-md">
                             {rule.code}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-650 dark:text-gray-300 leading-relaxed font-normal">{rule.description}</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed font-normal">{rule.description}</p>
                       </div>
                     ))}
                   </div>
@@ -1061,9 +1062,9 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               {isPoolC && session.metadata?.qa_rules && session.metadata.qa_rules.length > 0 && (
                 <div>
                   <h4 className="font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wide text-xs mb-2">QA Scoring Schema</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-155 dark:border-gray-800">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-border">
                     {session.metadata.qa_rules.map((rule, idx) => (
-                      <div key={idx} className="p-3 bg-white dark:bg-gray-800 border border-gray-155 dark:border-gray-705 rounded-xl flex flex-col gap-1">
+                      <div key={idx} className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex flex-col gap-1">
                         <span className="inline-block self-start px-2 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-100/30 text-[10px] font-bold rounded mb-1">
                           {rule.code}
                         </span>
@@ -1072,19 +1073,19 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
                           <div className="mt-1.5 p-2 bg-gray-50 dark:bg-gray-900 border dark:border-gray-800/80 rounded-lg space-y-0.5 text-[9px] text-gray-500 dark:text-gray-400 font-semibold leading-normal">
                             {(rule.score_1_logic || rule.score1Logic) && (
                               <div className="flex gap-1">
-                                <span className="font-bold text-blue-600 dark:text-blue-450 shrink-0">1.0:</span>
+                                <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0">1.0:</span>
                                 <span>{rule.score_1_logic || rule.score1Logic}</span>
                               </div>
                             )}
                             {(rule.score_05_logic || rule.score05Logic) && (
                               <div className="flex gap-1">
-                                <span className="font-bold text-blue-600 dark:text-blue-450 shrink-0">0.5:</span>
+                                <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0">0.5:</span>
                                 <span>{rule.score_05_logic || rule.score05Logic}</span>
                               </div>
                             )}
                             {(rule.score_0_logic || rule.score0Logic) && (
                               <div className="flex gap-1">
-                                <span className="font-bold text-blue-600 dark:text-blue-450 shrink-0">0.0:</span>
+                                <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0">0.0:</span>
                                 <span>{rule.score_0_logic || rule.score0Logic}</span>
                               </div>
                             )}
@@ -1099,9 +1100,9 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               {isPoolC && session.metadata?.extraction_rules && session.metadata.extraction_rules.length > 0 && (
                 <div>
                   <h4 className="font-extrabold text-blue-600 dark:text-blue-400 uppercase tracking-wide text-xs mb-2">Data Extraction Schema</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-155 dark:border-gray-800">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-border">
                     {session.metadata.extraction_rules.map((rule, idx) => (
-                      <div key={idx} className="p-3 bg-white dark:bg-gray-800 border border-gray-155 dark:border-gray-705 rounded-xl flex flex-col gap-1">
+                      <div key={idx} className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl flex flex-col gap-1">
                         <span className="inline-block self-start px-2 py-0.5 bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-100/30 text-[10px] font-mono rounded mb-1">
                           {rule.json_key || rule.key}
                         </span>
@@ -1113,7 +1114,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
               )}
             </div>
 
-            <div className="pt-4 border-t border-gray-155 dark:border-gray-700 mt-4 flex justify-end shrink-0">
+            <div className="pt-4 border-t border-border mt-4 flex justify-end shrink-0">
               <button
                 onClick={() => setIsCookbookOpen(false)}
                 className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md transition-colors text-xs"
