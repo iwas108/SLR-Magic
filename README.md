@@ -7,7 +7,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 [![Architecture: Local-First](https://img.shields.io/badge/Architecture-Local--First%20%26%20File--Based-0052CC.svg?style=for-the-badge&logo=sqlite&logoColor=white)](architecture.md)
-[![AI Engine: Gemini Interactions](https://img.shields.io/badge/AI%20Engine-Google%20Gemini%202.5-8E75B2.svg?style=for-the-badge&logo=googlegemini&logoColor=white)](slr-ide)
+[![AI Engine: Gemini Interactions](https://img.shields.io/badge/AI%20Engine-Google%20Gemini%203-8E75B2.svg?style=for-the-badge&logo=googlegemini&logoColor=white)](slr-ide)
 [![Compliance: PRISMA 2020](https://img.shields.io/badge/Compliance-PRISMA%202020-success.svg?style=for-the-badge&logo=readme&logoColor=white)](methodology.md)
 [![Validation: Inter--Rater](https://img.shields.io/badge/Validation-Cohen's%20Kappa%20%CE%BA-purple.svg?style=for-the-badge&logo=analytics&logoColor=white)](inter-rater)
 
