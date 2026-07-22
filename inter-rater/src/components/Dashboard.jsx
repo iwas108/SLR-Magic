@@ -23,6 +23,92 @@ const Dashboard = ({ onNavigate }) => {
   const [reviewerNameInput, setReviewerNameInput] = useState('');
   const [generatedSuffix, setGeneratedSuffix] = useState('');
 
+  // Direct Upload & Drag-and-Drop State
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+
+  const processAndImportFile = (file) => {
+    if (!file) return;
+    setUploadError('');
+    setIsUploading(true);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const parsedData = JSON.parse(event.target.result);
+
+        if (!parsedData.papers || !Array.isArray(parsedData.papers)) {
+          setUploadError('Invalid file format. The file must contain a "papers" array.');
+          setIsUploading(false);
+          return;
+        }
+
+        const data = parsedData.papers;
+        if (data.length === 0) {
+          setUploadError('The file contains no papers to review.');
+          setIsUploading(false);
+          return;
+        }
+
+        if (!data[0] || !Object.keys(data[0]).includes('Paper_ID')) {
+          setUploadError('The papers must contain a "Paper_ID" attribute.');
+          setIsUploading(false);
+          return;
+        }
+
+        const metadata = parsedData.metadata || {};
+        const session = await StorageService.createSession(file.name, data, metadata);
+        onNavigate('prescreen', { sessionId: session.id });
+      } catch (err) {
+        setUploadError(`Error parsing JSON: ${err.message}`);
+        setIsUploading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      setUploadError('Error reading file.');
+      setIsUploading(false);
+    };
+
+    reader.readAsText(file);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processAndImportFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleBrowseClick = () => {
+    const inputEl = document.getElementById('session-board-hero-upload-input');
+    if (inputEl) {
+      inputEl.value = '';
+      inputEl.click();
+    }
+  };
+
+  const handleFileInputChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processAndImportFile(e.target.files[0]);
+    }
+  };
+
   const handleUpdateSlrClick = (sessionId) => {
     setUpdatingSessionId(sessionId);
     const inputEl = document.getElementById('update-slr-input');
@@ -251,6 +337,129 @@ const Dashboard = ({ onNavigate }) => {
           Import Review (.slr)
         </button>
       </div>
+
+      {/* Hidden file input for hero and quick dropzone direct upload */}
+      <input
+        type="file"
+        id="session-board-hero-upload-input"
+        className="hidden"
+        accept=".slr,application/json"
+        onChange={handleFileInputChange}
+      />
+
+      {/* Upload Hero section when 0 Sessions exist */}
+      {totalSessions === 0 && (
+        <div 
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`relative border-2 border-dashed rounded-3xl p-8 md:p-12 mb-8 text-center transition-all duration-300 ${
+            isDragging 
+              ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 scale-[1.01] shadow-xl' 
+              : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/80 hover:border-blue-400 dark:hover:border-blue-500 shadow-sm'
+          }`}
+        >
+          <div className="max-w-xl mx-auto flex flex-col items-center">
+            <div className="w-20 h-20 rounded-3xl bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6 shadow-inner">
+              {isUploading ? (
+                <svg className="w-10 h-10 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              )}
+            </div>
+
+            <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white mb-2">
+              {isDragging ? 'Drop your .slr file here' : 'Import your SLR Review Session'}
+            </h3>
+            
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 max-w-md leading-relaxed">
+              Drag & drop your exported <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400 font-mono text-xs">.slr</code> file directly onto this board, or browse from your computer to begin evaluation.
+            </p>
+
+            {uploadError && (
+              <div className="w-full mb-6 p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-xl text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-between gap-3 animate-fade-in">
+                <span>{uploadError}</span>
+                <button 
+                  onClick={() => setUploadError('')}
+                  className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={handleBrowseClick}
+                disabled={isUploading}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center gap-2.5 disabled:opacity-50"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0l-4 4m4-4v12" />
+                </svg>
+                {isUploading ? 'Processing File...' : 'Browse .slr File'}
+              </button>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs text-gray-400 dark:text-gray-500">
+              <span className="flex items-center gap-1">
+                <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+                FAIR-Compliant Schema
+              </span>
+              <span>•</span>
+              <span>Offline Local IndexedDB</span>
+              <span>•</span>
+              <span>Double-Blind Adjudication</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Drop Zone Bar when Sessions Exist */}
+      {totalSessions > 0 && (
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={handleBrowseClick}
+          className={`mb-6 p-4 rounded-2xl border border-dashed cursor-pointer transition-all duration-200 flex flex-col sm:flex-row items-center justify-between gap-3 ${
+            isDragging
+              ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 shadow-md scale-[1.005]'
+              : 'border-gray-300 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-blue-400'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                {isDragging ? 'Drop file to import...' : 'Quick Import Review (.slr)'}
+              </span>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Drag & drop your .slr file here or click to browse files directly.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="px-3.5 py-1.5 bg-blue-50 dark:bg-blue-900/40 hover:bg-blue-100 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-lg transition-colors shrink-0"
+          >
+            Select .slr File
+          </button>
+        </div>
+      )}
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

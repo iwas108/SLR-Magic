@@ -1,11 +1,27 @@
 # SLR Magic ✨
 ### *Enterprise Local-First, AI-Assisted Systematic Literature Review Platform*
 
+[![Landing Page](https://img.shields.io/badge/%F0%9F%8C%90%20Live%20Platform-SLR%20Magic%20Docs-2563eb.svg?style=for-the-badge&logo=githubpages&logoColor=white)](https://iwas108.github.io/SLR-Magic/)
+[![Live Inter-Rater SPA](https://img.shields.io/badge/%F0%9F%91%A5%20Live%20SPA-Inter--Rater%20Reviewer-purple.svg?style=for-the-badge&logo=react&logoColor=white)](https://iwas108.github.io/SLR-Magic/inter-rater/dist/)
+[![Live SLR Viewer SPA](https://img.shields.io/badge/%F0%9F%93%8A%20Live%20SPA-SLR%20Viewer%20Analytics-emerald.svg?style=for-the-badge&logo=apacheecharts&logoColor=white)](https://iwas108.github.io/SLR-Magic/slr-viewer/dist/)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
-[![Architecture: Local-First](https://img.shields.io/badge/Architecture-Local--First%20%26%20File--Based-0052CC.style=for-the-badge&logo=sqlite&logoColor=white)](architecture.md)
+[![Architecture: Local-First](https://img.shields.io/badge/Architecture-Local--First%20%26%20File--Based-0052CC.svg?style=for-the-badge&logo=sqlite&logoColor=white)](architecture.md)
 [![AI Engine: Gemini Interactions](https://img.shields.io/badge/AI%20Engine-Google%20Gemini%202.5-8E75B2.svg?style=for-the-badge&logo=googlegemini&logoColor=white)](slr-ide)
 [![Compliance: PRISMA 2020](https://img.shields.io/badge/Compliance-PRISMA%202020-success.svg?style=for-the-badge&logo=readme&logoColor=white)](methodology.md)
 [![Validation: Inter--Rater](https://img.shields.io/badge/Validation-Cohen's%20Kappa%20%CE%BA-purple.svg?style=for-the-badge&logo=analytics&logoColor=white)](inter-rater)
+
+---
+
+## 🌐 Live Web Deployments & Applications
+
+Access the live web deployments of the SLR Magic platform components directly in your browser:
+
+| Application / Module | Live Deployment URL | Purpose |
+| :--- | :--- | :--- |
+| 🏠 **SLR Magic Landing Page** | [https://iwas108.github.io/SLR-Magic/](https://iwas108.github.io/SLR-Magic/) | Platform overview, visual gallery & system documentation |
+| 👥 **Inter-Rater SPA** | [https://iwas108.github.io/SLR-Magic/inter-rater/dist/](https://iwas108.github.io/SLR-Magic/inter-rater/dist/) | Offline double-blind human reviewer workspace |
+| 📊 **SLR Viewer SPA** | [https://iwas108.github.io/SLR-Magic/slr-viewer/dist/](https://iwas108.github.io/SLR-Magic/slr-viewer/dist/) | Interactive PRISMA 2020 flowchart & ECharts visualizer |
 
 ---
 
@@ -107,12 +123,12 @@ The SLR Magic workspace consists of four modular applications:
 - **Tech Stack:** Next.js 15 (App Router), SQLite (`slr.db`), Python 3.10 Daemon, `google-genai`, Rclone.
 - **Key Features:** CSV Ingestion Hub, Smart PDF Cache Matcher, 4-Stage Gemini Screening Queue, Encrypted Key Vault, Turbovec RPC Vector Daemon, Pre-Calibration Sandbox, Wide Cohort Exporter.
 
-### 2. 👥 [Inter-Rater SPA (`inter-rater/`)](./inter-rater)
+### 2. 👥 [Inter-Rater SPA (`inter-rater/`)](./inter-rater) &bull; [Live SPA](https://iwas108.github.io/SLR-Magic/inter-rater/dist/)
 - **Role:** Blinded human review & calibration web tool.
 - **Tech Stack:** React 19, Vite 8, Tailwind CSS 4.
 - **Key Features:** Blinded evaluation mode, Cohen's Kappa ($\kappa$) calculator, offline `localStorage` persistence, native `.slr` JSON schema file import/export.
 
-### 3. 📊 [SLR Viewer (`slr-viewer/`)](./slr-viewer)
+### 3. 📊 [SLR Viewer (`slr-viewer/`)](./slr-viewer) &bull; [Live SPA](https://iwas108.github.io/SLR-Magic/slr-viewer/dist/)
 - **Role:** Standalone offline dashboard for dataset snapshot analysis.
 - **Tech Stack:** React 19, Vite 8, Dexie.js (IndexedDB), Apache ECharts 6.
 - **Key Features:** Offline `.slr-viewer` snapshot import, interactive 2D PRISMA 2020 canvas, 17 scientific charts (Sankey, Radar, Stacked Bar), per-stage LLM spend grid.
@@ -166,7 +182,7 @@ npm run dev
 ```
 Open **`http://localhost:3000`** in your browser.
 
-### 2. Launching Inter-Rater SPA
+### 2. Launching Inter-Rater SPA (Or access [Live Web Version](https://iwas108.github.io/SLR-Magic/inter-rater/dist/))
 ```bash
 cd inter-rater
 npm install
@@ -174,7 +190,7 @@ npm run dev
 ```
 Open **`http://localhost:3001`** in your browser.
 
-### 3. Launching SLR Viewer
+### 3. Launching SLR Viewer (Or access [Live Web Version](https://iwas108.github.io/SLR-Magic/slr-viewer/dist/))
 ```bash
 cd slr-viewer
 npm install

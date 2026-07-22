@@ -218,3 +218,13 @@ This document tracks all changes, refactors, and feature additions applied to th
   - Automatically handles both uppercase/lowercase normalization and flat fallback keys.
   - Preserves underlying pipeline `logic_trace` blocks in IndexedDB for file parity.
 
+## [#018] Session Board Direct Drag-and-Drop Upload Hero & Quick Dropzone - 2026-07-22
+
+- **Prominent Upload Hero for 0 Projects**:
+  - Added a full Drag-and-Drop upload hero section directly to the Session Board (`Dashboard.jsx`) when no projects are loaded (`totalSessions === 0`), featuring a large drop target, direct `.slr` file picker button, schema tips, and instant error handling.
+- **Quick Drag-and-Drop Upload Bar**:
+  - Added a compact drag-and-drop quick-upload zone on the Session Board when projects exist (`totalSessions > 0`), enabling rapid imports without leaving the dashboard view.
+- **Direct File Import & Auto-Navigation**:
+  - Integrated `.slr` schema validation directly into the Session Board file drop and browse event listeners, creating the session in IndexedDB and automatically launching the Pre-Screen review interface upon successful import.
+
+

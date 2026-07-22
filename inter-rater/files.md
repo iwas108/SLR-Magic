@@ -37,7 +37,7 @@ This document serves as a comprehensive index of every file within the `inter-ra
 
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
-| `Dashboard.jsx` | View Component | Project-wide overview board featuring review session lists, overall progress meters, completion stats, and export action controllers. |
+| `Dashboard.jsx` | View Component | Project-wide Session Board featuring review session lists, overall progress meters, completion stats, export action controllers, direct Drag-and-Drop upload hero section for zero-project state, and quick dropzone for active projects. |
 | `ImportWorkflow.jsx` | View Component | Ingestion wizard parsing imported `.slr` JSON review packages, verifying schemas, and adding records to the Dexie store. |
 | `PreScreen.jsx` | View Component | Onboarding screen displaying research objectives, pre-calibration guidelines, and reviewer name registration prior to review start. |
 | `ReviewScreen.jsx` | View Component | Viewport-locked split-screen editor integrating navigation headers, PDF embeds, abstract readers, keyboard event keybinds, and the evaluation form drawer. |
