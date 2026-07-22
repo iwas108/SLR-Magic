@@ -302,6 +302,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `src/app/api/umbrellanizer/papers/route.ts` | REST Endpoint | Handles GET requests to retrieve Miner-passed papers with stage-aware resolved data |
 | `src/components/features/PostValidationView.tsx` | View Component | Switcher panel hosting the Umbrellanizer and Rolling Batch engines |
 | `src/components/features/post-validation/UmbrellanizerView.tsx` | View Component | Main taxonomy normalization view, rendering paper tables and triggering wizards |
+| `src/components/features/post-validation/QuickOverviewModal.tsx` | UI Component | Modal displaying deduplicated category distributions (Taxonomy Trends Quick Overview) with NOT_STATED support and JSON download |
 | `src/components/features/post-validation/UmbrellanizerWizard.tsx` | UI Component | Stepper modal orchestrating prompt variables loading, token dedup lists, LLM runs and mapping results |
 | `src/components/features/post-validation/TokenOccurrenceTable.tsx` | UI Component | Multi-value list counting unique token occurrences and listing source papers |
 | `src/hooks/useUmbrellanizer.ts` | Custom Hook | Custom React hook state manager handling papers, results, polling jobs and taxonomy executions |

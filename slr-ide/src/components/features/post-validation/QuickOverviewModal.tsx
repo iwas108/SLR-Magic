@@ -110,7 +110,7 @@ export default function QuickOverviewModal({
 
         const processVal = (val: any) => {
           const v = String(val).trim();
-          if (!v || v.toUpperCase() === 'NOT_STATED') return;
+          if (!v) return;
           // Resolve mapping
           const mapped = keyMap[v];
           const resolvedVal = mapped ? mapped.umbrella_category : v;
@@ -219,11 +219,11 @@ export default function QuickOverviewModal({
                                   onClick={() => setActiveJustificationKey(isJustActive ? null : itemKey)}
                                   className="text-primary hover:underline font-bold select-none text-left flex items-center gap-1 cursor-pointer focus:outline-none"
                                 >
-                                  <span className="truncate max-w-[240px]">{stat.category}</span>
+                                  <span className={`truncate max-w-[240px] ${stat.category === 'NOT_STATED' ? 'italic text-muted-foreground/75 font-mono' : ''}`}>{stat.category}</span>
                                   <HelpCircle className="w-3 h-3 text-primary/60 shrink-0" />
                                 </button>
                               ) : (
-                                <span className="truncate max-w-[80%] font-medium text-muted-foreground">{stat.category}</span>
+                                <span className={`truncate max-w-[80%] font-medium ${stat.category === 'NOT_STATED' ? 'italic text-muted-foreground/70 font-mono bg-secondary/30 px-1.5 py-0.5 rounded border border-border/40 text-[9px]' : 'text-muted-foreground'}`}>{stat.category}</span>
                               )}
                               <span className="font-mono text-muted-foreground font-medium">
                                 {stat.count} paper{stat.count > 1 ? 's' : ''} ({stat.percentage.toFixed(1)}%)

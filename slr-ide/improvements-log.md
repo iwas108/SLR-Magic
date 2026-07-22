@@ -1,3 +1,9 @@
+## #271 - Include NOT_STATED in Taxonomy Trends Quick Overview (2026-07-22)
+- **Goal**: Include `NOT_STATED` values in the Taxonomy Trends Quick Overview calculation, UI display, and JSON export.
+- **Changes**:
+  - Modified [QuickOverviewModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/QuickOverviewModal.tsx): Updated `processVal` to permit `NOT_STATED` string values (allowing custom Umbrellanizer category mappings if defined, or resolving to `'NOT_STATED'`), added subtle muted styling for `'NOT_STATED'` categories, and preserved JSON download export.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
 ## #270 - Cloud Gold Mine NotebookLM Ingestion & Execution Tracking Upgrade (2026-07-22)
 - **Goal**: Upgrade Cloud Gold Mine export in `slr-ide` for NotebookLM ingestion: inverted theme-first directory hierarchy, multi-category array duplication, QA threshold filtering, dedicated cloud destination path, live NDJSON progress streaming, and cancellation support.
 - **Changes**:

@@ -1,5 +1,11 @@
 # SLR Viewer Improvements Log
 
+## #041 - Include NOT_STATED in Taxonomy Trends Quick Overview (2026-07-22)
+- **Goal**: Include `NOT_STATED` values in Node 3.5 Taxonomy Trends Quick Overview drawer calculation, UI display, and JSON export.
+- **Changes**:
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Updated `processVal` in Node 3.5 Taxonomy Trends calculation to permit `NOT_STATED` string values (supporting custom category mappings or resolving to `'NOT_STATED'`), added subtle muted styling for `'NOT_STATED'` categories, and preserved JSON download export.
+- **Verification**: Verified build with `npm run build` (0 errors).
+
 ## #040 - Fix Gatekeeper Structural Exclusions (EC-4..EC-7) PRISMA Filtering Discrepancy (2026-07-22)
 - **Goal**: Fix discrepancy where Stage 2 Gatekeeper excluded papers (153 records with EC-4) were misclassified as `dbReportsNotRetrieved` due to `Local_PDF_Status === 'IGNORED'` filter, causing `slr-viewer` to show only 4 records.
 - **Changes**:
