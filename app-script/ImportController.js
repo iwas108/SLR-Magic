@@ -1,52 +1,9 @@
 /**
  * ImportController.js
- * Orchestrates the import process.
+ * Orchestrates the import process and deduplication.
  */
 
 const ImportController = (function() {
-
-  /**
-   * Shows the Import Dialog.
-   */
-  function showImportDialog() {
-    const html = HtmlService.createHtmlOutputFromFile('ImportCSVUI')
-      .setWidth(700)
-      .setHeight(600)
-      .setTitle('Import Raw CSV');
-    SpreadsheetApp.getUi().showModalDialog(html, 'Import Raw CSV');
-  }
-
-  /**
-   * Fetches headers from a CSV URL.
-   * @param {string} csvUrl
-   * @returns {Object} { csvHeaders: [], systemHeaders: [] }
-   */
-  function getCSVHeaders(csvUrl) {
-    try {
-      const csvContent = DriveUtils.getFileContent(csvUrl);
-      const data = Utilities.parseCsv(csvContent);
-      if (data.length === 0) throw new Error("CSV file is empty.");
-
-      // Raw CSV headers
-      const csvHeaders = data[0].map(h => h.trim());
-
-      // Existing System Headers from 01_abstract_screening
-      const sheet = SheetUtils.getSheetByName("01_abstract_screening");
-      const lastCol = sheet.getLastColumn();
-      let systemHeaders = [];
-      if (lastCol > 0) {
-        systemHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0].filter(h => h);
-      }
-
-      return {
-        csvHeaders: csvHeaders,
-        systemHeaders: systemHeaders
-      };
-    } catch (e) {
-      console.error(e);
-      throw new Error("Failed to fetch headers: " + e.message);
-    }
-  }
 
   /**
    * Normalizes a string for duplicate checking.
@@ -58,265 +15,229 @@ const ImportController = (function() {
   }
 
   /**
-   * Processes the import.
-   * @param {string} url
-   * @param {string} sourceName
-   * @param {Object} mapping Map of CSV Header -> System Header
+   * Loads existing DOIs and Titles from 00_Raw_Harvest.
    */
-  function processImport(url, sourceName, mapping) {
-    try {
-      // 1. Fetch & Parse CSV
-      const csvContent = DriveUtils.getFileContent(url);
-      const csvData = Utilities.parseCsv(csvContent);
-      if (csvData.length < 2) throw new Error("CSV has no data.");
+  function loadExistingKeys(sheet) {
+    const existingData = SheetUtils.getDataAsObjects(sheet);
+    const existingDois = new Set();
+    const existingTitles = new Set();
 
-      const csvHeaders = csvData[0].map(h => h.trim());
-      const rawRecords = csvData.slice(1);
-
-      // 2. Load Existing Data for Duplicate Check
-      const sheet = SheetUtils.getSheetByName("01_abstract_screening");
-      const existingData = SheetUtils.getDataAsObjects(sheet);
-
-      // Build Set for DOIs (normalized) and Titles (normalized)
-      const existingDois = new Set();
-      const existingTitles = new Set();
-
-      existingData.forEach(row => {
-        if (row["DOI"]) existingDois.add(normalize(row["DOI"]));
-        // DOI_Link might contain DOI
-        if (row["DOI_Link"] && row["DOI_Link"].includes("doi.org/")) {
-             const parts = row["DOI_Link"].split("doi.org/");
-             if (parts.length > 1) existingDois.add(normalize(parts[1]));
-        }
-        if (row["Title"]) existingTitles.add(normalize(row["Title"]));
-      });
-
-      // 3. Process Records
-      const recordsToAppend = [];
-      let duplicateCount = 0;
-
-      // Ensure headers exist in target based on mapping
-      const headerMap = SheetUtils.getHeaderMap(sheet);
-      Object.values(mapping).forEach(destHeader => {
-          if (destHeader && destHeader !== "_CREATE_NEW_") {
-              SheetUtils.ensureColumn(sheet, destHeader, headerMap);
-          }
-      });
-      SheetUtils.ensureColumn(sheet, "Source", headerMap);
-      SheetUtils.ensureColumn(sheet, "Paper_ID", headerMap);
-      SheetUtils.ensureColumn(sheet, "AI_Status", headerMap);
-      SheetUtils.ensureColumn(sheet, "DOI_Link", headerMap); // Ensure this exists
-
-      // We need to re-fetch headerMap if new columns were added?
-      // ensureColumn updates headerMap in place, so we are good.
-
-      rawRecords.forEach(rowArr => {
-        // Construct object from CSV row
-        const csvObj = {};
-        csvHeaders.forEach((h, i) => {
-            csvObj[h] = rowArr[i];
-        });
-
-        // 1. Check Duplicates
-        // Find mapped DOI and Title columns
-        // We look for which CSV header maps to "DOI" or "Title"
-        let doiVal = "";
-        let titleVal = "";
-
-        // Iterate mapping to find source values for key fields
-        for (const [csvKey, sysKey] of Object.entries(mapping)) {
-            if (sysKey === "DOI") doiVal = csvObj[csvKey];
-            if (sysKey === "Title") titleVal = csvObj[csvKey];
-        }
-
-        // Fallback: If not mapped explicitly, try to find in csvObj by name if mapping says "Title" -> "Title"
-        // (Handled above by iterating mapping)
-
-        if (doiVal && existingDois.has(normalize(doiVal))) {
-            duplicateCount++;
-            return;
-        }
-        if (!doiVal && titleVal && existingTitles.has(normalize(titleVal))) {
-            // Only check Title if DOI is missing (Standard SLR practice: DOI is definitive)
-            duplicateCount++;
-            return;
-        }
-
-        // 2. Map to System Object
-        const newRow = {};
-        newRow["Source"] = sourceName;
-        newRow["AI_Status"] = "Pending";
-
-        for (const [csvKey, sysKey] of Object.entries(mapping)) {
-            if (sysKey && sysKey !== "_CREATE_NEW_") {
-                newRow[sysKey] = csvObj[csvKey];
-            }
-        }
-
-        // 3. Generate Paper ID (if not present or we want to overwrite/ensure)
-        // If mapped to Paper_ID, keep it. If not, generate.
-        if (!newRow["Paper_ID"]) {
-            // PaperDomain needs a raw object with keys like 'Authors', 'Year', 'Title' to work best.
-            // We pass the newRow (mapped data) + csvObj (raw data) to give it best chance
-            const combinedForId = { ...csvObj, ...newRow };
-            newRow["Paper_ID"] = PaperDomain.generatePaperId(combinedForId);
-        }
-
-        // 4. Handle DOI Link
-        if (!newRow["DOI_Link"] && newRow["DOI"]) {
-             newRow["DOI_Link"] = "https://doi.org/" + newRow["DOI"];
-        }
-
-        recordsToAppend.push(newRow);
-      });
-
-      // 4. Write to Sheet
-      if (recordsToAppend.length > 0) {
-          SheetUtils.appendDataMapped(sheet, recordsToAppend, headerMap);
+    existingData.forEach(row => {
+      const doi = row["DOI"] ? String(row["DOI"]).trim() : "";
+      const title = row["Title"] ? String(row["Title"]).trim() : "";
+      if (doi) {
+        existingDois.add(normalize(doi));
       }
+      if (title) {
+        existingTitles.add(normalize(title));
+      }
+    });
 
-      // 5. Sort final columns (left to right)
-      const desiredOrder = ["Paper_ID", "AI_Status", "Year", "Title", "Authors", "Abstract", "DOI_Link"];
-      SheetUtils.reorderColumns(sheet, desiredOrder);
-
-      return {
-        totalRows: rawRecords.length,
-        duplicates: duplicateCount,
-        imported: recordsToAppend.length,
-        sourceName: sourceName
-      };
-
-    } catch (e) {
-      console.error(e);
-      throw new Error("Import failed: " + e.message);
-    }
-  }
-
-  // To maintain backward compatibility if needed, though we are replacing the flow.
-  // run() method is no longer used by the new UI but kept for safety if older menu items exist
-  // until we update Main.js.
-  function run() {
-      showImportDialog();
+    return { existingDois, existingTitles };
   }
 
   /**
-   * Reads data from 00_snowballeds and imports it into 01_abstract_screening.
+   * Ingests CSV data from the Ingestion Hub.
+   * @param {string} csvString
+   * @param {string} sourceName
+   * @param {string} importDate
+   * @param {Object} columnMapping
+   * @param {Array} secondaryColumns
+   * @returns {string} Success or error message.
    */
-  function runImportSnowballed() {
-    const ui = SpreadsheetApp.getUi();
-
-    // 1. Ask for Source Name
-    const response = ui.prompt("Import Snowballed(s)", "Enter the Source Name for these papers:", ui.ButtonSet.OK_CANCEL);
-    if (response.getSelectedButton() !== ui.Button.OK) {
-      return; // User canceled
-    }
-    const sourceName = response.getResponseText().trim() || "Snowballed";
-
+  function ingestCSVData(csvString, sourceName, importDate, columnMapping, secondaryColumns) {
     try {
-      // 2. Read from 00_snowballeds
-      const snowballedSheet = SheetUtils.getSheetByName("00_snowballeds");
-      const snowballedData = SheetUtils.getDataAsObjects(snowballedSheet);
+      if (typeof columnMapping === 'string') {
+        columnMapping = JSON.parse(columnMapping);
+      }
+      if (typeof secondaryColumns === 'string') {
+        secondaryColumns = JSON.parse(secondaryColumns);
+      }
+      
+      if (!csvString) throw new Error("CSV data is empty.");
+      
+      const parsedData = Utilities.parseCsv(csvString);
+      if (parsedData.length < 2) throw new Error("CSV has no records.");
 
-      if (!snowballedData || snowballedData.length === 0) {
-        ui.alert("No data found in 00_snowballeds sheet.");
-        return;
+      const csvHeaders = parsedData[0].map(h => h.trim());
+      const rows = parsedData.slice(1);
+
+      const sheet = SheetUtils.getSheetByName("00_Raw_Harvest");
+      if (!sheet) {
+        throw new Error("Target ingestion sheet (00_Raw_Harvest) not found. Please run environment initialization.");
       }
 
-      // 3. Load Existing Data for Duplicate Check
-      const targetSheet = SheetUtils.getSheetByName("01_abstract_screening");
-      const existingData = SheetUtils.getDataAsObjects(targetSheet);
+      // 1. Load existing keys for duplicate check
+      const { existingDois, existingTitles } = loadExistingKeys(sheet);
 
-      // Build Set for DOIs (normalized) and Titles (normalized)
-      const existingDois = new Set();
-      const existingTitles = new Set();
+      // Backwards compatibility fallback if mapping is not provided
+      if (!columnMapping) {
+        columnMapping = {};
+        const basic = ['DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link'];
+        basic.forEach(h => {
+          if (csvHeaders.includes(h)) {
+            columnMapping[h] = h;
+          }
+        });
+      }
+      if (!secondaryColumns) {
+        secondaryColumns = csvHeaders.filter(h => !Object.values(columnMapping).includes(h));
+      }
 
-      existingData.forEach(row => {
-        if (row["DOI"]) existingDois.add(normalize(row["DOI"]));
-        if (row["DOI_Link"] && row["DOI_Link"].includes("doi.org/")) {
-             const parts = row["DOI_Link"].split("doi.org/");
-             if (parts.length > 1) existingDois.add(normalize(parts[1]));
-        }
-        if (row["Title"]) existingTitles.add(normalize(row["Title"]));
-      });
+      const basicHeaders = ['Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link'];
 
-      // 4. Process Records
+      // Ensure basic headers and secondary columns are present
+      const headerMap = SheetUtils.getHeaderMap(sheet);
+      basicHeaders.forEach(h => SheetUtils.ensureColumn(sheet, h, headerMap));
+      secondaryColumns.forEach(sc => SheetUtils.ensureColumn(sheet, sc, headerMap));
+
+      const updatedHeaderMap = SheetUtils.getHeaderMap(sheet);
       const recordsToAppend = [];
       let duplicateCount = 0;
 
-      const headerMap = SheetUtils.getHeaderMap(targetSheet);
-      // Ensure basic columns exist
-      SheetUtils.ensureColumn(targetSheet, "Title", headerMap);
-      SheetUtils.ensureColumn(targetSheet, "Authors", headerMap);
-      SheetUtils.ensureColumn(targetSheet, "Year", headerMap);
-      SheetUtils.ensureColumn(targetSheet, "DOI", headerMap);
-      SheetUtils.ensureColumn(targetSheet, "Abstract", headerMap);
-      SheetUtils.ensureColumn(targetSheet, "Source", headerMap);
-      SheetUtils.ensureColumn(targetSheet, "Paper_ID", headerMap);
-      SheetUtils.ensureColumn(targetSheet, "AI_Status", headerMap);
-      SheetUtils.ensureColumn(targetSheet, "DOI_Link", headerMap);
+      // 3. Map rows and filter duplicates
+      rows.forEach(rowArr => {
+        const csvRowObj = {};
+        csvHeaders.forEach((h, idx) => {
+          csvRowObj[h] = rowArr[idx];
+        });
 
-      snowballedData.forEach(rowObj => {
-        const titleVal = rowObj["Title"] || "";
-        const doiVal = rowObj["DOI"] || "";
+        // Map mandatory fields using the columnMapping
+        const doiVal = columnMapping["DOI"] ? (csvRowObj[columnMapping["DOI"]] || "") : "";
+        const titleVal = columnMapping["Title"] ? (csvRowObj[columnMapping["Title"]] || "") : "";
+        const abstractVal = columnMapping["Abstract"] ? (csvRowObj[columnMapping["Abstract"]] || "") : "";
+        const authorsVal = columnMapping["Authors"] ? (csvRowObj[columnMapping["Authors"]] || "") : "";
+        const yearVal = columnMapping["Year"] ? (csvRowObj[columnMapping["Year"]] || "") : "";
+        const pdfLinkVal = columnMapping["PDF_Link"] ? (csvRowObj[columnMapping["PDF_Link"]] || "") : "";
 
-        // Check Duplicates
-        if (doiVal && existingDois.has(normalize(doiVal))) {
+        const normalizedDoi = doiVal ? normalize(doiVal) : "";
+        const normalizedTitle = titleVal ? normalize(titleVal) : "";
+
+        // Duplicate Check
+        if (normalizedDoi) {
+          if (existingDois.has(normalizedDoi)) {
             duplicateCount++;
             return;
-        }
-        if (!doiVal && titleVal && existingTitles.has(normalize(titleVal))) {
+          }
+        } else if (normalizedTitle) {
+          if (existingTitles.has(normalizedTitle)) {
             duplicateCount++;
             return;
+          }
         }
 
-        // Map to System Object
-        const newRow = {
-            "Title": titleVal,
-            "Authors": rowObj["Authors"] || "",
-            "Year": rowObj["Year"] || "",
-            "DOI": doiVal,
-            "Abstract": rowObj["Abstract"] || "",
-            "Source": sourceName,
-            "AI_Status": "Pending"
+        // Prepare new record
+        const record = {
+          "Paper_ID": "",
+          "Import_Source": sourceName || "CSV Ingest",
+          "Source": sourceName || "CSV Ingest",
+          "Import_Date": importDate || new Date().toISOString().split('T')[0],
+          "DOI": doiVal,
+          "Title": titleVal,
+          "Abstract": abstractVal,
+          "Authors": authorsVal,
+          "Year": yearVal,
+          "PDF_Link": pdfLinkVal
         };
 
+        // Copy selected secondary columns
+        secondaryColumns.forEach(sc => {
+          record[sc] = csvRowObj[sc] !== undefined ? csvRowObj[sc] : "";
+        });
+
         // Generate Paper ID
-        newRow["Paper_ID"] = PaperDomain.generatePaperId(newRow);
+        record["Paper_ID"] = PaperDomain.generatePaperId(record);
 
-        // Handle DOI Link
-        if (newRow["DOI"]) {
-             newRow["DOI_Link"] = "https://doi.org/" + newRow["DOI"];
-        } else {
-             newRow["DOI_Link"] = "";
-        }
-
-        recordsToAppend.push(newRow);
+        recordsToAppend.push(record);
       });
 
-      // 5. Write to Sheet
+      // 4. Write records
       if (recordsToAppend.length > 0) {
-          SheetUtils.appendDataMapped(targetSheet, recordsToAppend, headerMap);
+        SheetUtils.appendDataMapped(sheet, recordsToAppend, updatedHeaderMap);
       }
 
-      // 6. Sort final columns (left to right)
-      const desiredOrder = ["Paper_ID", "AI_Status", "Year", "Title", "Authors", "Abstract", "DOI_Link"];
-      SheetUtils.reorderColumns(targetSheet, desiredOrder);
+      // Reorder columns
+      const desiredOrder = ["Paper_ID", "Import_Date", "Import_Source", "Source", "DOI", "Title", "Abstract", "Authors", "Year", "PDF_Link"];
+      SheetUtils.reorderColumns(sheet, desiredOrder);
 
-      // 7. Alert Result
-      ui.alert(`Import Complete!\n\nSource: ${sourceName}\nTotal Processed: ${snowballedData.length}\nDuplicates Skipped: ${duplicateCount}\nSuccessfully Imported: ${recordsToAppend.length}`);
-
+      return `CSV Import Complete!\nTotal Processed: ${rows.length}\nDuplicates Skipped: ${duplicateCount}\nSuccessfully Imported: ${recordsToAppend.length}`;
     } catch (e) {
       console.error(e);
-      ui.alert("Import failed: " + e.message);
+      throw new Error("CSV Ingestion Error: " + e.message);
+    }
+  }
+
+  /**
+   * Ingests a single manually entered paper from the Ingestion Hub.
+   * @param {Object} paperData
+   * @returns {string} Success or error message.
+   */
+  function ingestManualPaperData(paperData) {
+    try {
+      const sheet = SheetUtils.getSheetByName("00_Raw_Harvest");
+      if (!sheet) {
+        throw new Error("Target ingestion sheet (00_Raw_Harvest) not found. Please run environment initialization.");
+      }
+
+      // 1. Load existing keys for duplicate check
+      const { existingDois, existingTitles } = loadExistingKeys(sheet);
+
+      const doiVal = paperData.doi ? String(paperData.doi).trim() : "";
+      const titleVal = paperData.title ? String(paperData.title).trim() : "";
+
+      const normalizedDoi = doiVal ? normalize(doiVal) : "";
+      const normalizedTitle = titleVal ? normalize(titleVal) : "";
+
+      // Duplicate Check
+      if (normalizedDoi) {
+        if (existingDois.has(normalizedDoi)) {
+          throw new Error("Duplicate entry: A paper with this DOI already exists in 00_Raw_Harvest.");
+        }
+      } else if (normalizedTitle) {
+        if (existingTitles.has(normalizedTitle)) {
+          throw new Error("Duplicate entry: A paper with this Title already exists in 00_Raw_Harvest.");
+        }
+      }
+
+      // 2. Ensure basic headers
+      const headerMap = SheetUtils.getHeaderMap(sheet);
+      const basicHeaders = ['Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 'PDF_Link'];
+      basicHeaders.forEach(h => SheetUtils.ensureColumn(sheet, h, headerMap));
+
+      const updatedHeaderMap = SheetUtils.getHeaderMap(sheet);
+
+      // 3. Build record
+      const record = {
+        "Title": titleVal,
+        "Authors": paperData.authors || "",
+        "Year": paperData.year || "",
+        "DOI": doiVal,
+        "Abstract": paperData.abstract || "",
+        "Source": paperData.source || "Manual Entry",
+        "Import_Source": paperData.source || "Manual Entry",
+        "Import_Date": paperData.importDate || new Date().toISOString().split('T')[0],
+        "PDF_Link": ""
+      };
+
+      record["Paper_ID"] = PaperDomain.generatePaperId(record);
+
+      // 4. Write
+      SheetUtils.appendDataMapped(sheet, [record], updatedHeaderMap);
+      
+      // Reorder columns
+      const desiredOrder = ["Paper_ID", "Import_Date", "Import_Source", "Source", "DOI", "Title", "Abstract", "Authors", "Year", "PDF_Link"];
+      SheetUtils.reorderColumns(sheet, desiredOrder);
+
+      return `Successfully ingested manual paper: "${record.Title}".`;
+    } catch (e) {
+      console.error(e);
+      throw new Error("Manual Ingestion Error: " + e.message);
     }
   }
 
   return {
-    run,
-    showImportDialog,
-    getCSVHeaders,
-    processImport,
-    runImportSnowballed
+    ingestCSVData: ingestCSVData,
+    ingestManualPaperData: ingestManualPaperData
   };
 
 })();

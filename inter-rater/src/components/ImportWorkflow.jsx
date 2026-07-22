@@ -3,7 +3,6 @@ import { StorageService } from '../StorageService';
 
 const ImportWorkflow = ({ onNavigate }) => {
   const [file, setFile] = useState(null);
-  const [reviewerName, setReviewerName] = useState('');
   const [error, setError] = useState('');
 
   const handleFileChange = (e) => {
@@ -17,13 +16,9 @@ const ImportWorkflow = ({ onNavigate }) => {
       setError('Please select a .slr (JSON) file.');
       return;
     }
-    if (!reviewerName.trim()) {
-      setError('Please enter your reviewer name.');
-      return;
-    }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parsedData = JSON.parse(event.target.result);
 
@@ -47,8 +42,8 @@ const ImportWorkflow = ({ onNavigate }) => {
         const metadata = parsedData.metadata || {};
 
         // Create the session
-        const session = StorageService.createSession(file.name, reviewerName.trim(), data, metadata);
-        onNavigate('prescreen', { sessionId: session.sessionId });
+        const session = await StorageService.createSession(file.name, data, metadata);
+        onNavigate('prescreen', { sessionId: session.id });
 
       } catch (err) {
         setError(`Error parsing JSON: ${err.message}`);
@@ -95,18 +90,6 @@ const ImportWorkflow = ({ onNavigate }) => {
             <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               File must be exported from SLR Magic (.slr) and contain papers with a "Paper_ID".
             </div>
-          </div>
-
-          <div className="mb-6">
-            <label htmlFor="reviewerName" className="block text-sm font-medium mb-2">Reviewer Name</label>
-            <input
-              type="text"
-              className="block w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              id="reviewerName"
-              placeholder="e.g., Jane Doe"
-              value={reviewerName}
-              onChange={(e) => setReviewerName(e.target.value)}
-            />
           </div>
 
           <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">

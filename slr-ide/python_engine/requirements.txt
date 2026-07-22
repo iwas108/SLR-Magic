@@ -1,0 +1,15 @@
+undetected-chromedriver>=3.5.5
+beautifulsoup4>=4.12.0
+setuptools>=69.0.0
+requests>=2.31.0
+pypdf>=4.0.0
+pymupdf>=1.23.0
+pytesseract>=0.3.10
+cryptography>=41.0.0
+jinja2>=3.1.2
+google-genai>=2.3.0
+bcrypt>=4.0.0
+python-dotenv>=1.0.0
+rapidfuzz>=3.6.0
+turbovec>=0.3.0
+sentence-transformers>=3.0.0

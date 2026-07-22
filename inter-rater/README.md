@@ -1,74 +1,60 @@
-# SLR Magic: Inter-Rater SPA ✨
+# SLR Magic: Inter-Rater SPA (`inter-rater/`) ✨
+### *Standalone Offline Blinded Human Reviewer & Calibration Workspace*
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Frontend: React](https://img.shields.io/badge/Frontend-React-61DAFB.svg)
-![Build: Vite](https://img.shields.io/badge/Build-Vite-646CFF.svg)
+[![Module: Inter-Rater SPA](https://img.shields.io/badge/Module-Inter--Rater%20SPA-0052CC.svg?style=for-the-badge&logo=react&logoColor=white)](.)
+[![Frontend: React 19](https://img.shields.io/badge/Frontend-React%2019-61DAFB.svg?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
+[![Build: Vite 8](https://img.shields.io/badge/Build-Vite%208-646CFF.svg?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
+[![Validation: Cohen's Kappa](https://img.shields.io/badge/Validation-Cohen's%20Kappa%20%CE%BA-purple.svg?style=for-the-badge&logo=analytics&logoColor=white)](../methodology.md)
 
-## Overview
+---
 
-This module contains the offline-capable Inter-Rater Single-Page Application (SPA) for the SLR Magic ecosystem. It allows researchers to conduct independent, **Blinded Reviews** without needing to interact directly with Google Sheets or seeing any prior AI decisions.
+## 👥 Overview
 
-The app uses `localStorage` to autosave progress and manage review sessions. Data integrity is maintained securely using a standard `.slr` (JSON) format synchronized with the Google Apps Script backend.
+The **Inter-Rater SPA** is a standalone, offline-capable React Single-Page Application (SPA) engineered for independent **Blinded Human Reviews** and inter-rater agreement calibration. It guarantees un-biased evaluation by isolating human raters from peer choices and AI pipeline decisions.
 
-## Table of Contents
+| Blinded Review Workspace | Cohen's Kappa Agreement Dashboard |
+| :---: | :---: |
+| ![Blinded Review](../docs/ss/05-inter-rater-blinded.png) | ![Inter-Rater Agreement](../docs/ss/06-inter-rater-agreement.png) |
+| *Figure 1: Blinded paper review interface.* | *Figure 2: Statistical inter-rater agreement matrix.* |
 
-- [Overview](#overview)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Running the Service](#running-the-service)
-- [Deployment (GitHub Pages)](#deployment-github-pages)
-- [Workflow Instructions](#workflow-instructions)
+---
 
-## Prerequisites
+## 🌟 Key Features
 
-- **Node.js & npm:** Install the latest stable version from [nodejs.org](https://nodejs.org/).
+- **Blinded Review Mode:** Evaluates paper abstracts and full-text PDFs without displaying AI screening decisions or peer choices.
+- **Inter-Rater Calibration Metrics:** Automatically computes **Cohen's Kappa ($\kappa$)**, percentage agreement, and Quality Assessment (QA) score discrepancies.
+- **Offline Session Persistence:** Automatically syncs review state to browser `localStorage`.
+- **Native `.slr` File Protocol:** Imports assigned pools from `slr-ide` and exports completed human review files.
 
-## Installation
+---
 
-1. Navigate to the `inter-rater` directory:
-   ```bash
-   cd inter-rater
-   ```
+## 🛠️ Technical Stack
 
-2. Install the necessary dependencies:
-   ```bash
-   npm install
-   ```
+| Layer | Technology | Description |
+| :--- | :--- | :--- |
+| **Framework** | React 19 + Vite 8 | Ultra-fast client-side rendering SPA |
+| **Styling** | Tailwind CSS 4 | Modern utility-first CSS styling |
+| **Icons** | Lucide React | High-contrast icon kit |
+| **Portability** | Standalone SPA | Zero Next.js server dependencies |
 
-## Running the Service
+---
 
-To run the application locally on your machine for development or immediate use:
+## ⚡ Quick Start Setup
 
 ```bash
+# 1. Install dependencies
+cd inter-rater
+npm install
+
+# 2. Run dev server
 npm run dev
 ```
+Open **`http://localhost:3001`** (or `http://localhost:5173`) in your browser.
 
-*The console will provide a local URL (e.g., `http://localhost:5173`) to view the app in your browser.*
+---
 
-## Deployment (GitHub Pages)
+## 📘 Documentation Index
 
-This application is configured to be hosted natively on GitHub Pages.
-
-1. Build the production application:
-   ```bash
-   npm run build
-   ```
-
-2. The compiled static files will be located in the `inter-rater/dist/` folder. Configure your repository's GitHub Pages settings to serve from the branch and path where the `dist/` folder is pushed.
-   *(Note: The `vite.config.js` is set up with `base: '/SLR-Magic/inter-rater/dist/'` to correctly resolve relative asset paths when hosted on GitHub Pages).*
-
-## Workflow Instructions
-
-### 1. Export Data
-- Open your SLR Magic Google Sheet.
-- Run the **Inter-Rater Export** from the SLR Magic menu to generate a `.slr` file containing the blinded review dataset.
-
-### 2. Independent Review
-- Open the hosted SPA (or your local dev server).
-- Click **Import New Review** and upload the `.slr` file.
-- Review each paper independently and provide your Include/Exclude decision, reasoning, and confidence score. The app autosaves your progress.
-- Click **Download Results** to generate the finalized `.slr` file.
-
-### 3. Sync Back
-- Return to your SLR Magic Google Sheet.
-- Use the **Inter-Rater Import** utility to upload the finalized `.slr` file, merging your human review data back into the main database.
+- 📐 **[Module Architecture (`architecture.md`)](./architecture.md)**
+- 📁 **[File Directory Index (`files.md`)](./files.md)**
+- 📜 **[Iteration Log (`improvements-log.md`)](./improvements-log.md)**

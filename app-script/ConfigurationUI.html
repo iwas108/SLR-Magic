@@ -1,508 +1,821 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <base target="_top">
-    <style>
-      body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        padding: 20px;
-        background-color: #f4f4f9;
-        color: #333;
-      }
-      h2 {
-        color: #2c3e50;
-        border-bottom: 2px solid #3498db;
-        padding-bottom: 10px;
-        margin-top: 0;
-      }
-      .tabs {
-        display: flex;
-        border-bottom: 1px solid #ccc;
-        margin-bottom: 20px;
-      }
-      .tab {
-        padding: 10px 20px;
-        cursor: pointer;
-        background-color: #e0e0e0;
-        margin-right: 5px;
-        border-radius: 5px 5px 0 0;
-        font-weight: bold;
-      }
-      .tab.active {
-        background-color: #fff;
-        border: 1px solid #ccc;
-        border-bottom: 1px solid #fff;
-        color: #3498db;
-      }
-      .tab-content {
-        display: none;
-        background-color: #fff;
-        padding: 20px;
-        border: 1px solid #ccc;
-        border-top: none;
-        border-radius: 0 5px 5px 5px;
-      }
-      .tab-content.active {
-        display: block;
-      }
-      .form-group {
-        margin-bottom: 15px;
-      }
-      label {
-        display: block;
-        font-weight: bold;
-        margin-bottom: 5px;
-      }
-      input[type="text"], input[type="number"], select, textarea {
-        width: 100%;
-        padding: 8px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-sizing: border-box;
-      }
-      textarea {
-        height: 100px;
-        font-family: monospace;
-      }
-      .btn-container {
-        margin-top: 20px;
-        text-align: right;
-      }
-      button {
-        padding: 10px 20px;
-        background-color: #3498db;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-      }
-      button:hover {
-        background-color: #2980b9;
-      }
-      .loading {
-        text-align: center;
-        margin-top: 20px;
-        font-style: italic;
-        color: #666;
-      }
-      .hint {
-        font-size: 0.85em;
-        color: #666;
-        margin-top: 2px;
-      }
-    </style>
-  </head>
-  <body>
-    <h2>SLR Magic Configuration</h2>
 
-    <div id="loading" class="loading">Loading configuration...</div>
+<head>
+  <base target="_top">
+  <!-- Import Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
 
-    <div id="main-content" style="display:none;">
-      <div class="tabs">
-        <div class="tab active" onclick="openTab('general')">General & Models</div>
-        <div class="tab" onclick="openTab('metadata')">Research Metadata</div>
-        <div class="tab" onclick="openTab('prompts')">Prompts</div>
-        <div class="tab" onclick="openTab('files')">Files & Folders</div>
-        <div class="tab" onclick="openTab('advanced')">Advanced</div>
-      </div>
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
 
-      <form id="configForm">
-        <!-- General & Models -->
-        <div id="general" class="tab-content active">
-          <div class="form-group">
-            <label for="LLM_API_PROVIDER">LLM API Provider</label>
-            <select id="LLM_API_PROVIDER" name="LLM_API_PROVIDER" onchange="toggleProviderSettings()">
-              <option value="Gemini">Gemini</option>
-              <option value="vLLM">vLLM (OpenAI Compatible)</option>
-              <option value="Ollama">Ollama (OpenAI Compatible)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label id="API_KEY_LABEL" for="API_KEY">API Key</label>
-            <input type="text" id="API_KEY" name="API_KEY" placeholder="Enter your API Key">
-            <div id="vllm_api_key_hint" class="hint" style="display:none;">For vLLM, this will be used as the Bearer Token (if your server requires authentication).</div>
-          </div>
-          <div class="form-group" id="gemini_service_tier_group">
-            <label for="GEMINI_SERVICE_TIER">Gemini Service Tier</label>
-            <select id="GEMINI_SERVICE_TIER" name="GEMINI_SERVICE_TIER">
-              <option value="standard">Standard</option>
-              <option value="flex">Flex (Cheaper, Best-Effort)</option>
-            </select>
-          </div>
-          <div class="form-group" id="vllm_url_group" style="display:none;">
-            <label for="VLLM_API_URL">vLLM API URL</label>
-            <input type="text" id="VLLM_API_URL" name="VLLM_API_URL" placeholder="e.g., https://api.runpod.ai/v2/YOUR_POD_ID/openai/v1/chat/completions">
-            <div class="hint">The full endpoint URL for your vLLM server. Must accept OpenAI-compatible chat completion requests.</div>
-          </div>
-          <div class="form-group" id="ollama_url_group" style="display:none;">
-            <label for="OLLAMA_API_URL">Ollama API URL</label>
-            <input type="text" id="OLLAMA_API_URL" name="OLLAMA_API_URL" placeholder="e.g., https://your-ngrok-url.app/v1/chat/completions">
-            <div class="hint">The full endpoint URL for your Ollama server. Apps Script cannot access localhost, so you must use a public proxy like ngrok or Cloudflare Tunnels exposing the OpenAI-compatible endpoint.</div>
-            <button type="button" onclick="fetchOllamaModels()" style="margin-top: 10px; padding: 5px 10px; font-size: 14px; background-color: #2ecc71;">Fetch Available Models</button>
-            <div id="ollama_models_container" style="margin-top: 10px; display: none;">
-              <strong>Available Models:</strong>
-              <div id="ollama_models_list" style="margin-top: 5px; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: #f9f9f9;"></div>
-            </div>
-            <div id="ollama_models_loading" style="margin-top: 10px; display: none; font-style: italic; color: #666;">Fetching models...</div>
-          </div>
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
 
-          <h3>Model Selection</h3>
-          <div class="form-group">
-            <label for="ABSTRACT_SCREENING_MODEL">Abstract Screening Model</label>
-            <input type="text" id="ABSTRACT_SCREENING_MODEL" name="ABSTRACT_SCREENING_MODEL">
-          </div>
-          <div class="form-group">
-            <label for="THE_GATEKEEPER_MODEL">The Gatekeeper Model (Full Text)</label>
-            <input type="text" id="THE_GATEKEEPER_MODEL" name="THE_GATEKEEPER_MODEL">
-          </div>
-          <div class="form-group">
-            <label for="THE_SCIENTIST_MODEL">The Scientist Model (Quality Check)</label>
-            <input type="text" id="THE_SCIENTIST_MODEL" name="THE_SCIENTIST_MODEL">
-          </div>
-          <div class="form-group">
-            <label for="THE_MINER_MODEL">The Miner Model (Extraction)</label>
-            <input type="text" id="THE_MINER_MODEL" name="THE_MINER_MODEL">
-          </div>
-          <div class="form-group">
-            <label for="THE_EXTENDED_MINER_MODEL">The Extended Miner Model</label>
-            <input type="text" id="THE_EXTENDED_MINER_MODEL" name="THE_EXTENDED_MINER_MODEL">
-          </div>
-        </div>
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
 
-        <!-- Research Metadata -->
-        <div id="metadata" class="tab-content">
-          <div class="form-group">
-            <label for="PROJECT_NAME">Project Name</label>
-            <input type="text" id="PROJECT_NAME" name="PROJECT_NAME">
-          </div>
-          <div class="form-group">
-            <label for="RESEARCH_QUESTIONS">Research Questions</label>
-            <textarea id="RESEARCH_QUESTIONS" name="RESEARCH_QUESTIONS" style="height: 100px;"></textarea>
-          </div>
-          <div class="form-group">
-            <label for="INCLUSION_CRITERIA">Inclusion Criteria</label>
-            <textarea id="INCLUSION_CRITERIA" name="INCLUSION_CRITERIA" style="height: 100px;"></textarea>
-          </div>
-          <div class="form-group">
-            <label for="EXCLUSION_CRITERIA">Exclusion Criteria</label>
-            <textarea id="EXCLUSION_CRITERIA" name="EXCLUSION_CRITERIA" style="height: 100px;"></textarea>
-          </div>
-        </div>
+<body class="bg-slate-50 text-slate-800 font-sans leading-normal tracking-normal p-4 min-h-screen">
 
-        <!-- Prompts -->
-        <div id="prompts" class="tab-content">
-          <div class="form-group">
-            <label for="ABSTRACT_SCREENING_PROMPT">Abstract Screening Prompt</label>
-            <textarea id="ABSTRACT_SCREENING_PROMPT" name="ABSTRACT_SCREENING_PROMPT" style="height: 200px;"></textarea>
-          </div>
-          <div class="form-group">
-            <label for="THE_GATEKEEPER_PROMPT">The Gatekeeper Prompt</label>
-            <textarea id="THE_GATEKEEPER_PROMPT" name="THE_GATEKEEPER_PROMPT" style="height: 200px;"></textarea>
-          </div>
-          <div class="form-group">
-            <label for="THE_SCIENTIST_PROMPT">The Scientist Prompt</label>
-            <textarea id="THE_SCIENTIST_PROMPT" name="THE_SCIENTIST_PROMPT" style="height: 200px;"></textarea>
-          </div>
-          <div class="form-group">
-            <label for="THE_MINER_PROMPT">The Miner Prompt</label>
-            <textarea id="THE_MINER_PROMPT" name="THE_MINER_PROMPT" style="height: 200px;"></textarea>
-          </div>
-          <div class="form-group">
-            <label for="THE_EXTENDED_MINER_PROMPT">The Extended Miner Prompt</label>
-            <textarea id="THE_EXTENDED_MINER_PROMPT" name="THE_EXTENDED_MINER_PROMPT" style="height: 200px;"></textarea>
-          </div>
-        </div>
+  <!-- Top Header Card -->
+  <div
+    class="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white p-6 rounded-2xl shadow-md mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight">SLR Magic Hub</h1>
+      <p class="text-indigo-200 text-sm mt-1">Unified Multi-Persona LLM Systematic Literature Review Ingest &
+        Configuration</p>
+    </div>
+    <span id="epoch-badge"
+      class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+      Epoch 1 Active
+    </span>
+  </div>
 
-        <!-- Files & Folders -->
-        <div id="files" class="tab-content">
-           <div class="form-group">
-            <label for="PDF_REPO">PDF Repository (Folder URL)</label>
-            <input type="text" id="PDF_REPO" name="PDF_REPO">
-          </div>
-          <div class="form-group">
-            <label for="PDF_METADATA">PDF Metadata (CSV URL)</label>
-            <input type="text" id="PDF_METADATA" name="PDF_METADATA">
-          </div>
-           <div class="form-group">
-            <label for="RAW_CSV_DATABASE">Raw CSV Database (Import URL)</label>
-            <input type="text" id="RAW_CSV_DATABASE" name="RAW_CSV_DATABASE">
-          </div>
-          <div class="form-group">
-            <label for="GOLD_MINE">Gold Mine (Sync Folder/File URL)</label>
-            <input type="text" id="GOLD_MINE" name="GOLD_MINE">
-          </div>
-          <div class="form-group">
-            <label for="SLR_PROTOCOL_DOCUMENT">SLR Protocol Document</label>
-            <input type="text" id="SLR_PROTOCOL_DOCUMENT" name="SLR_PROTOCOL_DOCUMENT">
-          </div>
-          <div class="form-group">
-            <label for="SLR_PAPER">SLR Paper</label>
-            <input type="text" id="SLR_PAPER" name="SLR_PAPER">
-          </div>
-        </div>
+  <!-- Loading / Saving Overlay -->
+  <div id="loading"
+    class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center transition-all duration-300">
+    <div class="bg-white p-6 rounded-2xl shadow-xl flex items-center space-x-4 border border-slate-100">
+      <svg class="animate-spin h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+        </path>
+      </svg>
+      <span class="font-medium text-slate-700" id="loadingText">Loading configuration...</span>
+    </div>
+  </div>
 
-        <!-- Advanced -->
-        <div id="advanced" class="tab-content">
-          <div class="form-group">
-            <label for="OLLAMA_KEEP_ALIVE">Ollama Keep Alive (e.g. 0 to unload, -1 to keep)</label>
-            <input type="text" id="OLLAMA_KEEP_ALIVE" name="OLLAMA_KEEP_ALIVE">
-          </div>
-          <div class="form-group">
-            <label for="OLLAMA_NUM_CTX">Ollama Num Context (e.g. 4096)</label>
-            <input type="number" id="OLLAMA_NUM_CTX" name="OLLAMA_NUM_CTX">
-          </div>
-          <div class="form-group">
-            <label for="TEMPERATURE">Temperature (0.0 - 1.0)</label>
-            <input type="number" id="TEMPERATURE" name="TEMPERATURE" step="0.1" min="0" max="1">
-          </div>
-          <div class="form-group">
-            <label for="MAX_TOKENS">Max Tokens</label>
-            <input type="number" id="MAX_TOKENS" name="MAX_TOKENS">
-          </div>
-          <div class="form-group">
-            <label for="ENABLE_GENERIC_THINKING">
-              <input type="checkbox" id="ENABLE_GENERIC_THINKING" name="ENABLE_GENERIC_THINKING" style="width: auto; margin-right: 5px;">
-              Enable Generic Thinking
-            </label>
-          </div>
-          <div class="form-group">
-            <label for="THINKING_LEVEL">Thinking Level</label>
-            <select id="THINKING_LEVEL" name="THINKING_LEVEL">
-              <option value="minimum">Minimum</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="THINKING_BUDGET">Thinking Budget (-1 for auto)</label>
-            <input type="number" id="THINKING_BUDGET" name="THINKING_BUDGET">
-          </div>
-           <div class="form-group">
-            <label for="BATCH_SIZE">Batch Size</label>
-            <input type="number" id="BATCH_SIZE" name="BATCH_SIZE">
-          </div>
-          <div class="form-group">
-            <label for="PARALLEL_REQUEST_SIZE">Parallel Request Size</label>
-            <input type="number" id="PARALLEL_REQUEST_SIZE" name="PARALLEL_REQUEST_SIZE">
-          </div>
-          <div class="form-group">
-            <label for="WEB_PROXY_URL">Web Proxy URL</label>
-            <input type="text" id="WEB_PROXY_URL" name="WEB_PROXY_URL">
-          </div>
-          <div class="form-group">
-            <label for="SEARCH_STRING">Search String (Scopus/WoS)</label>
-            <textarea id="SEARCH_STRING" name="SEARCH_STRING" style="height: 100px;"></textarea>
-          </div>
-           <div class="form-group">
-            <label for="MODEL_PRICING">Model Pricing (CSV Format)</label>
-            <textarea id="MODEL_PRICING" name="MODEL_PRICING" style="height: 80px;"></textarea>
-            <div class="hint">Format: ModelName,InputPrice,OutputPrice,PerCount</div>
-          </div>
-          <div class="form-group">
-            <label for="SHOW_OPENING_POPUP">Show Opening Popup</label>
-            <select id="SHOW_OPENING_POPUP" name="SHOW_OPENING_POPUP">
-              <option value="TRUE">TRUE</option>
-              <option value="FALSE">FALSE</option>
-            </select>
-          </div>
-        </div>
+  <!-- Main Container -->
+  <div id="main-content" class="hidden transition-opacity duration-300">
 
-        <div class="btn-container">
-          <button type="button" onclick="saveConfig()">Save Configuration</button>
-        </div>
-      </form>
+    <!-- Tabs Navigation -->
+    <div class="flex border-b border-slate-200 mb-6 gap-2 overflow-x-auto">
+      <button id="tab-manifesto" onclick="openTab('manifesto')"
+        class="px-5 py-3 border-b-2 font-semibold text-sm transition-all duration-150 cursor-pointer border-indigo-600 text-indigo-600 whitespace-nowrap">
+        Research Manifesto
+      </button>
+      <button id="tab-ingest" onclick="openTab('ingest')"
+        class="px-5 py-3 border-b-2 font-semibold text-sm transition-all duration-150 cursor-pointer border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 whitespace-nowrap">
+        Ingestion Hub
+      </button>
     </div>
 
-    <script>
-      function openTab(tabName) {
-        var i;
-        var x = document.getElementsByClassName("tab-content");
-        for (i = 0; i < x.length; i++) {
-          x[i].style.display = "none";
-          x[i].classList.remove("active");
-        }
-        document.getElementById(tabName).style.display = "block";
-        document.getElementById(tabName).classList.add("active");
+    <!-- Main Config Form -->
+    <form id="configForm" class="space-y-6">
 
-        var tabs = document.getElementsByClassName("tab");
-        for (i = 0; i < tabs.length; i++) {
-            tabs[i].classList.remove("active");
-        }
-        // Find the tab button that calls this and make it active
-        // Simplification: just match index or check onclick attr?
-        // We'll iterate and check.
-        for(i=0; i<tabs.length; i++) {
-            if(tabs[i].getAttribute("onclick").includes(tabName)) {
-                tabs[i].classList.add("active");
-            }
-        }
+      <!-- Tab: Research Manifesto -->
+      <div id="manifesto-content" class="tab-pane space-y-6">
+        <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-6">
+          <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253">
+              </path>
+            </svg>
+            Research Manifesto & Metadata
+          </h2>
+
+          <div class="space-y-6">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
+                for="PROJECT_NAME">Project Name</label>
+              <input type="text" id="PROJECT_NAME" name="PROJECT_NAME"
+                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
+                for="RESEARCH_MANIFESTO">Research Manifesto</label>
+              <textarea id="RESEARCH_MANIFESTO" name="RESEARCH_MANIFESTO" rows="3"
+                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
+                for="RESEARCH_OBJECTIVE">Research Objective</label>
+              <textarea id="RESEARCH_OBJECTIVE" name="RESEARCH_OBJECTIVE" rows="3"
+                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
+                for="RESEARCH_QUESTIONS">Research Questions</label>
+              <textarea id="RESEARCH_QUESTIONS" name="RESEARCH_QUESTIONS" rows="3"
+                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
+                for="QUALITY_ASSURANCE_DEFINITION">Quality Assurance Definition</label>
+              <textarea id="QUALITY_ASSURANCE_DEFINITION" name="QUALITY_ASSURANCE_DEFINITION" rows="3"
+                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
+                for="EXCLUSION_CRITERIA">Exclusion Criteria</label>
+              <textarea id="EXCLUSION_CRITERIA" name="EXCLUSION_CRITERIA" rows="3"
+                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pre-Calibration Pools Size Config -->
+        <div class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200">
+          <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center">
+            <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+              </path>
+            </svg>
+            Pre-Calibration Pools Size
+          </h2>
+          <p class="text-xs text-slate-500 mb-4">Set target sample sizes for the calibration pools. These settings are dynamically reflected in the pool assignment progress indicators.</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Pool A -->
+            <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+              <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_A_SIZE">Pool A Target Size</label>
+                <input type="number" id="POOL_A_SIZE" name="POOL_A_SIZE" min="1" max="1000" placeholder="50"
+                  class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
+              </div>
+              <p class="text-[10px] text-slate-500 leading-normal mt-2">
+                <strong>Stage 1 (Fast Filter) Validation:</strong> Target size for calibration pool to check title/abstract screening boundary conditions.
+              </p>
+            </div>
+
+            <!-- Pool B -->
+            <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+              <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_B_SIZE">Pool B Target Size</label>
+                <input type="number" id="POOL_B_SIZE" name="POOL_B_SIZE" min="1" max="1000" placeholder="30"
+                  class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
+              </div>
+              <p class="text-[10px] text-slate-500 leading-normal mt-2">
+                <strong>Stage 2.1 (Gatekeeper) Validation:</strong> Target size for calibration pool evaluating full-text relevance criteria.
+              </p>
+            </div>
+
+            <!-- Pool C -->
+            <div class="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100 flex flex-col justify-between">
+              <div class="flex justify-between items-center">
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider" for="POOL_C_SIZE">Pool C Target Size</label>
+                <input type="number" id="POOL_C_SIZE" name="POOL_C_SIZE" min="1" max="1000" placeholder="20"
+                  class="w-20 px-2 py-1 bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-center text-xs">
+              </div>
+              <p class="text-[10px] text-slate-500 leading-normal mt-2">
+                <strong>Stage 2.2/2.3 (Sci/Miner) Validation:</strong> Target size for calibration pool verifying structured extraction precision.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 4: Ingestion Hub -->
+      <div id="ingest-content" class="tab-pane hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <!-- CSV Bulk Ingestion -->
+          <div
+            class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col justify-between">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                Bulk CSV Ingest
+              </h2>
+
+              <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
+                      for="csvSource">Literature Source Name</label>
+                    <input type="text" id="csvSource" placeholder="e.g. Scopus, WoS"
+                      class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1"
+                      for="csvImportDate">Import Date</label>
+                    <input type="date" id="csvImportDate"
+                      class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-150">
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Upload CSV
+                    file</label>
+                  <div
+                    class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 border-dashed rounded-xl hover:border-indigo-400 transition-all cursor-pointer bg-slate-50">
+                    <div class="space-y-1 text-center">
+                      <svg class="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none"
+                        viewBox="0 0 48 48">
+                        <path
+                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                      <div class="flex text-sm text-slate-600 justify-center">
+                        <label for="file-upload"
+                          class="relative cursor-pointer rounded-md font-semibold text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                          <span>Upload a CSV file</span>
+                          <input id="file-upload" type="file" accept=".csv" class="sr-only">
+                        </label>
+                      </div>
+                      <p class="text-xs text-slate-400" id="file-chosen">No file selected</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Dynamic Mapping Container -->
+                <div id="mapping-container"
+                  class="hidden mt-4 border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-4 transition-all">
+                  <h3
+                    class="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center">
+                    <svg class="w-4 h-4 mr-1 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002 2h2a2 2 0 002-2">
+                      </path>
+                    </svg>
+                    Column Mapping & Ingest Settings
+                  </h3>
+                  <p class="text-[10px] text-slate-500 leading-normal">SLR Magic will map incoming column values into
+                    your primary database. Fuzzy-matching was applied automatically.</p>
+
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Title
+                        Column *</label>
+                      <select id="map-Title"
+                        class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"></select>
+                    </div>
+                    <div>
+                      <label
+                        class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Authors
+                        Column *</label>
+                      <select id="map-Authors"
+                        class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"></select>
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Year
+                        Column *</label>
+                      <select id="map-Year"
+                        class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"></select>
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">DOI
+                        Column *</label>
+                      <select id="map-DOI"
+                        class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"></select>
+                    </div>
+                    <div>
+                      <label
+                        class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Abstract
+                        Column *</label>
+                      <select id="map-Abstract"
+                        class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"></select>
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">PDF
+                        Link Column (Optional)</label>
+                      <select id="map-PDF_Link"
+                        class="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"></select>
+                    </div>
+                  </div>
+
+                  <div class="border-t border-slate-200 pt-3">
+                    <label
+                      class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Secondary
+                      Columns to Keep (Optional)</label>
+                    <p class="text-[9px] text-slate-400 mb-1.5">Unselected incoming columns will not be imported to keep
+                      database schema clean.</p>
+                    <div id="secondary-columns-list"
+                      class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-white border border-slate-200 rounded-lg">
+                      <!-- Dynamic checkboxes -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-100">
+              <button type="button" onclick="handleCSVUpload()"
+                class="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center">
+                Execute CSV Bulk Import
+              </button>
+            </div>
+          </div>
+
+          <!-- Manual Snowballing Ingestion -->
+          <div
+            class="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200">
+            <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4 flex items-center">
+              <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Manual Ingest (Snowballing)
+            </h2>
+
+            <div class="space-y-4">
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Source
+                    Name</label>
+                  <input type="text" id="manualSource" placeholder="e.g. Backward Snowball"
+                    class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Import
+                    Date</label>
+                  <input type="date" id="manualImportDate"
+                    class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Publish
+                    Year</label>
+                  <input type="number" id="manualYear" placeholder="2026"
+                    class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                </div>
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Paper
+                  Title</label>
+                <input type="text" id="manualTitle" placeholder="Enter paper title"
+                  class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              </div>
+              <div>
+                <label
+                  class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Authors</label>
+                <input type="text" id="manualAuthors" placeholder="Author A., Author B."
+                  class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              </div>
+              <div>
+                <label class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Digital
+                  Object Identifier (DOI)</label>
+                <input type="text" id="manualDoi" placeholder="e.g. 10.1016/j.compind.2026.104000"
+                  class="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              </div>
+              <div>
+                <label
+                  class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Abstract</label>
+                <textarea id="manualAbstract" placeholder="Paste literature abstract context..."
+                  class="w-full h-20 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"></textarea>
+              </div>
+
+              <button type="button" onclick="handleManualIngest()"
+                class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center">
+                Execute Manual Ingest
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Control Area (Hidden for Ingest tab) -->
+      <div id="form-controls" class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+        <button type="button" onclick="saveConfig()"
+          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer flex items-center">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+          </svg>
+          Save Configuration
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    let csvHeaders = [];
+    let csvContents = "";
+
+    // Secure Toast Notification System
+    function showToast(message, type = 'success') {
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'fixed bottom-5 right-5 z-[100] flex flex-col gap-2';
+        document.body.appendChild(container);
       }
 
-      function fetchOllamaModels() {
-        const ollamaUrl = document.getElementById("OLLAMA_API_URL").value;
-        const apiKey = document.getElementById("API_KEY").value;
+      const toast = document.createElement('div');
+      toast.className = 'px-4 py-3 rounded-xl shadow-lg border text-xs font-medium transition-all duration-300 transform translate-y-2 opacity-0 flex items-center space-x-2 min-w-[250px] max-w-sm';
 
-        if (!ollamaUrl) {
-          alert("Please enter the Ollama API URL first.");
+      const isSuccess = type === 'success';
+      toast.classList.add(
+        isSuccess ? 'bg-emerald-50' : 'bg-rose-50',
+        isSuccess ? 'text-emerald-800' : 'text-rose-800',
+        isSuccess ? 'border-emerald-200' : 'border-rose-200'
+      );
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', `w-4 h-4 shrink-0 ${isSuccess ? 'text-emerald-600' : 'text-rose-600'}`);
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('viewBox', '0 0 24 24');
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('d', isSuccess ? 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' : 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z');
+
+      svg.appendChild(path);
+      toast.appendChild(svg);
+
+      const span = document.createElement('span');
+      span.className = 'flex-1';
+      span.textContent = message;
+      toast.appendChild(span);
+
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // File upload helper listener & CSV header parser
+    document.getElementById('file-upload').addEventListener('change', function (e) {
+      const file = e.target.files[0];
+      if (file) {
+        document.getElementById('file-chosen').textContent = file.name;
+
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          csvContents = evt.target.result;
+          const firstLine = csvContents.split(/\r?\n/)[0];
+          csvHeaders = parseCSVLine(firstLine);
+          showMappingUI(csvHeaders);
+        };
+        reader.readAsText(file);
+      } else {
+        document.getElementById('file-chosen').textContent = 'No file selected';
+        document.getElementById('mapping-container').classList.add('hidden');
+      }
+    });
+
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result.map(h => h.replace(/^"|"$/g, '').trim());
+    }
+
+    function fuzzyMatchColumn(fieldName, headers) {
+      const name = fieldName.toLowerCase();
+      const searchTerms = {
+        title: ["title", "name", "article", "document"],
+        authors: ["author", "creator", "byline", "composer"],
+        year: ["year", "pub", "date", "created"],
+        doi: ["doi", "identifier"],
+        abstract: ["abstract", "summary", "description", "synopsis"],
+        pdf_link: ["pdf", "link", "url", "file"]
+      };
+
+      const terms = searchTerms[name] || [];
+      for (const h of headers) {
+        const hl = h.toLowerCase();
+        for (const term of terms) {
+          if (hl.includes(term)) {
+            return h;
+          }
+        }
+      }
+      return "";
+    }
+
+    function showMappingUI(headers) {
+      const mappingContainer = document.getElementById('mapping-container');
+      mappingContainer.classList.remove('hidden');
+
+      const fields = ['Title', 'Authors', 'Year', 'DOI', 'Abstract', 'PDF_Link'];
+
+      fields.forEach(field => {
+        const select = document.getElementById('map-' + field);
+        select.replaceChildren();
+
+        if (field === 'PDF_Link') {
+          const opt = document.createElement('option');
+          opt.value = "";
+          opt.textContent = "-- Skip PDF Link / Not in CSV --";
+          select.appendChild(opt);
+        } else {
+          const opt = document.createElement('option');
+          opt.value = "";
+          opt.textContent = "-- Select Column --";
+          select.appendChild(opt);
+        }
+
+        headers.forEach(h => {
+          const opt = document.createElement('option');
+          opt.value = h;
+          opt.textContent = h;
+          select.appendChild(opt);
+        });
+
+        const matched = fuzzyMatchColumn(field, headers);
+        if (matched) {
+          select.value = matched;
+        }
+
+        select.onchange = updateSecondaryColumnsList;
+      });
+
+      updateSecondaryColumnsList();
+    }
+
+    function updateSecondaryColumnsList() {
+      const fields = ['Title', 'Authors', 'Year', 'DOI', 'Abstract', 'PDF_Link'];
+      const mappedHeaders = new Set();
+      fields.forEach(field => {
+        const val = document.getElementById('map-' + field).value;
+        if (val) {
+          mappedHeaders.add(val);
+        }
+      });
+
+      const listContainer = document.getElementById('secondary-columns-list');
+      listContainer.replaceChildren();
+
+      const unmapped = csvHeaders.filter(h => !mappedHeaders.has(h));
+
+      if (unmapped.length === 0) {
+        const div = document.createElement('div');
+        div.className = "col-span-2 text-center text-xs text-slate-400 italic py-2";
+        div.textContent = "No secondary columns available.";
+        listContainer.appendChild(div);
+        return;
+      }
+
+      unmapped.forEach(h => {
+        const label = document.createElement('label');
+        label.className = "flex items-center space-x-2 text-xs text-slate-700 bg-slate-50 p-1.5 rounded border border-slate-100 hover:bg-slate-100 cursor-pointer";
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = h;
+        checkbox.className = "rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5";
+
+        const span = document.createElement('span');
+        span.textContent = h;
+        span.className = "truncate";
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        listContainer.appendChild(label);
+      });
+    }
+
+    function openTab(tabName) {
+      // Toggle tabs
+      const tabPanes = document.getElementsByClassName("tab-pane");
+      for (let i = 0; i < tabPanes.length; i++) {
+        tabPanes[i].classList.add("hidden");
+      }
+      document.getElementById(tabName + "-content").classList.remove("hidden");
+
+      // Toggle buttons active state
+      const tabIds = ["manifesto", "ingest"];
+      tabIds.forEach(id => {
+        const btn = document.getElementById("tab-" + id);
+        if (id === tabName) {
+          btn.classList.add("border-indigo-600", "text-indigo-600");
+          btn.classList.remove("border-transparent", "text-slate-500");
+        } else {
+          btn.classList.remove("border-indigo-600", "text-indigo-600");
+          btn.classList.add("border-transparent", "text-slate-500");
+        }
+      });
+
+      // Hide Save controls for Ingestion Tab
+      const controls = document.getElementById("form-controls");
+      if (tabName === "ingest") {
+        controls.classList.add("hidden");
+      } else {
+        controls.classList.remove("hidden");
+      }
+    }
+
+    function handleCSVUpload() {
+      const fileInput = document.getElementById("file-upload");
+      const sourceInput = document.getElementById("csvSource");
+      const dateInput = document.getElementById("csvImportDate");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        showToast("Please select a CSV file first.", "error");
+        return;
+      }
+
+      const sourceName = sourceInput.value.trim();
+      if (!sourceName) {
+        showToast("Please enter a Literature Source Name.", "error");
+        return;
+      }
+
+      const importDate = dateInput.value;
+      if (!importDate) {
+        showToast("Please select an Import Date.", "error");
+        return;
+      }
+
+      // Validate mandatory mappings
+      const mandatoryFields = ['Title', 'Authors', 'Year', 'DOI', 'Abstract'];
+      const columnMapping = {};
+      for (const field of mandatoryFields) {
+        const val = document.getElementById('map-' + field).value;
+        if (!val) {
+          showToast("Please map the mandatory field: " + field, "error");
           return;
         }
+        columnMapping[field] = val;
+      }
+      columnMapping['PDF_Link'] = document.getElementById('map-PDF_Link').value;
 
-        const btn = document.querySelector('button[onclick="fetchOllamaModels()"]');
-        const loadingDiv = document.getElementById("ollama_models_loading");
-        const containerDiv = document.getElementById("ollama_models_container");
-        const listDiv = document.getElementById("ollama_models_list");
+      // Gather secondary columns
+      const secondaryColumns = [];
+      const checkboxes = document.querySelectorAll('#secondary-columns-list input[type="checkbox"]:checked');
+      checkboxes.forEach(cb => {
+        secondaryColumns.push(cb.value);
+      });
 
-        btn.disabled = true;
-        loadingDiv.style.display = "block";
-        containerDiv.style.display = "none";
-        listDiv.innerHTML = "";
+      const overlay = document.getElementById("loading");
+      const loadingText = document.getElementById("loadingText");
+      loadingText.innerText = "Ingesting CSV file...";
+      overlay.classList.remove("hidden");
 
-        google.script.run.withSuccessHandler(function(response) {
-          btn.disabled = false;
-          loadingDiv.style.display = "none";
-          containerDiv.style.display = "block";
+      google.script.run.withSuccessHandler(function (response) {
+        overlay.classList.add("hidden");
+        showToast(response, "success");
+        fileInput.value = "";
+        document.getElementById("file-chosen").textContent = "No file selected";
+        document.getElementById('mapping-container').classList.add('hidden');
+      }).withFailureHandler(function (error) {
+        overlay.classList.add("hidden");
+        showToast("Error: " + error.message, "error");
+      }).ingestCSVData(csvContents, sourceName, importDate, JSON.stringify(columnMapping), JSON.stringify(secondaryColumns));
+    }
 
-          if (response && response.models && response.models.length > 0) {
-            response.models.forEach(model => {
-              const itemDiv = document.createElement("div");
-              itemDiv.style.display = "flex";
-              itemDiv.style.justifyContent = "space-between";
-              itemDiv.style.alignItems = "center";
-              itemDiv.style.marginBottom = "5px";
-              itemDiv.style.paddingBottom = "5px";
-              itemDiv.style.borderBottom = "1px solid #eee";
+    function handleManualIngest() {
+      const title = document.getElementById("manualTitle").value.trim();
+      const authors = document.getElementById("manualAuthors").value.trim();
+      const year = document.getElementById("manualYear").value.trim();
+      const doi = document.getElementById("manualDoi").value.trim();
+      const abstract = document.getElementById("manualAbstract").value.trim();
+      const source = document.getElementById("manualSource").value.trim();
+      const importDate = document.getElementById("manualImportDate").value.trim();
 
-              const nameSpan = document.createElement("span");
-              nameSpan.innerText = model.name;
+      if (!title) {
+        showToast("Paper title is required.", "error");
+        return;
+      }
+      if (!source) {
+        showToast("Source Name is required.", "error");
+        return;
+      }
+      if (!importDate) {
+        showToast("Import Date is required.", "error");
+        return;
+      }
 
-              const copyBtn = document.createElement("button");
-              copyBtn.type = "button";
-              copyBtn.innerText = "Copy";
-              copyBtn.style.padding = "2px 8px";
-              copyBtn.style.fontSize = "12px";
-              copyBtn.style.backgroundColor = "#95a5a6";
-              copyBtn.onclick = function() {
-                navigator.clipboard.writeText(model.name).then(function() {
-                  const originalText = copyBtn.innerText;
-                  copyBtn.innerText = "Copied!";
-                  copyBtn.style.backgroundColor = "#2ecc71";
-                  setTimeout(() => {
-                    copyBtn.innerText = originalText;
-                    copyBtn.style.backgroundColor = "#95a5a6";
-                  }, 1500);
-                }).catch(function(err) {
-                  console.error("Could not copy text: ", err);
-                });
-              };
+      const paperData = {
+        title: title,
+        authors: authors,
+        year: year,
+        doi: doi,
+        abstract: abstract,
+        source: source,
+        importDate: importDate
+      };
 
-              itemDiv.appendChild(nameSpan);
-              itemDiv.appendChild(copyBtn);
-              listDiv.appendChild(itemDiv);
-            });
+      const overlay = document.getElementById("loading");
+      const loadingText = document.getElementById("loadingText");
+      loadingText.innerText = "Ingesting paper...";
+      overlay.classList.remove("hidden");
+
+      google.script.run.withSuccessHandler(function (response) {
+        overlay.classList.add("hidden");
+        showToast(response, "success");
+        document.getElementById("manualTitle").value = "";
+        document.getElementById("manualAuthors").value = "";
+        document.getElementById("manualYear").value = "";
+        document.getElementById("manualDoi").value = "";
+        document.getElementById("manualAbstract").value = "";
+      }).withFailureHandler(function (error) {
+        overlay.classList.add("hidden");
+        showToast("Error: " + error.message, "error");
+      }).ingestManualPaperData(paperData);
+    }
+
+    function loadConfig() {
+      google.script.run.withSuccessHandler(onLoadSuccess).withFailureHandler(onFailure).getConfiguration();
+    }
+
+    function onLoadSuccess(config) {
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("main-content").classList.remove("hidden");
+
+      if (config._RAW_HARVEST_COUNT !== undefined) {
+        document.getElementById("epoch-badge").textContent = config._RAW_HARVEST_COUNT + " Papers in Raw Harvest";
+      }
+
+      for (const [key, value] of Object.entries(config)) {
+        const el = document.getElementById(key);
+        if (el) {
+          if (el.type === 'checkbox') {
+            el.checked = (value === 'TRUE');
           } else {
-            listDiv.innerText = "No models found or invalid response.";
-          }
-        }).withFailureHandler(function(error) {
-          btn.disabled = false;
-          loadingDiv.style.display = "none";
-          alert("Error fetching models: " + error.message);
-        }).fetchOllamaModelsProxy(ollamaUrl, apiKey);
-      }
-
-      function loadConfig() {
-        google.script.run.withSuccessHandler(onLoadSuccess).withFailureHandler(onFailure).getConfiguration();
-      }
-
-      function toggleProviderSettings() {
-        const provider = document.getElementById("LLM_API_PROVIDER").value;
-        const vllmUrlGroup = document.getElementById("vllm_url_group");
-        const ollamaUrlGroup = document.getElementById("ollama_url_group");
-        const apiKeyLabel = document.getElementById("API_KEY_LABEL");
-        const vllmApiKeyHint = document.getElementById("vllm_api_key_hint");
-        const geminiTierGroup = document.getElementById("gemini_service_tier_group");
-
-        // Reset visibility
-        vllmUrlGroup.style.display = "none";
-        ollamaUrlGroup.style.display = "none";
-        vllmApiKeyHint.style.display = "none";
-        geminiTierGroup.style.display = "none";
-
-        if (provider === "vLLM") {
-          vllmUrlGroup.style.display = "block";
-          apiKeyLabel.innerText = "vLLM API Key (Bearer Token)";
-          vllmApiKeyHint.innerText = "For vLLM, this will be used as the Bearer Token (if your server requires authentication).";
-          vllmApiKeyHint.style.display = "block";
-        } else if (provider === "Ollama") {
-          ollamaUrlGroup.style.display = "block";
-          apiKeyLabel.innerText = "Ollama API Key (Bearer Token)";
-          vllmApiKeyHint.innerText = "For Ollama, this is usually left blank unless your proxy requires a Bearer token.";
-          vllmApiKeyHint.style.display = "block";
-        } else {
-          // Gemini
-          apiKeyLabel.innerText = "Google Generative AI API Key";
-          geminiTierGroup.style.display = "block";
-        }
-      }
-
-      function onLoadSuccess(config) {
-        document.getElementById("loading").style.display = "none";
-        document.getElementById("main-content").style.display = "block";
-
-        for (const [key, value] of Object.entries(config)) {
-          const el = document.getElementById(key);
-          if (el) {
-            if (el.type === 'checkbox') {
-              el.checked = (value === 'TRUE');
-            } else {
-              el.value = value;
-            }
+            el.value = value;
           }
         }
-        toggleProviderSettings();
       }
+    }
 
-      function saveConfig() {
-        const form = document.getElementById("configForm");
-        const formData = new FormData(form);
-        const config = {};
+    function saveConfig() {
+      const form = document.getElementById("configForm");
+      const config = {};
 
-        // Manual iteration because FormData behavior might vary in Apps Script HTML context
-        // But we can just iterate elements
-        const elements = form.elements;
-        for (let i = 0; i < elements.length; i++) {
-            const el = elements[i];
-            if (el.name) {
-                if (el.type === 'checkbox') {
-                    config[el.name] = el.checked ? "TRUE" : "FALSE";
-                } else {
-                    config[el.name] = el.value;
-                }
-            }
+      const elements = form.elements;
+      for (let i = 0; i < elements.length; i++) {
+        const el = elements[i];
+        if (el.name) {
+          if (el.type === 'checkbox') {
+            config[el.name] = el.checked ? "TRUE" : "FALSE";
+          } else {
+            config[el.name] = el.value;
+          }
         }
-
-        document.getElementById("loading").innerText = "Saving...";
-        document.getElementById("loading").style.display = "block";
-        document.getElementById("main-content").style.display = "none";
-
-        google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onFailure).saveConfiguration(config);
       }
 
-      function onSaveSuccess() {
-        document.getElementById("loading").style.display = "none";
-        document.getElementById("main-content").style.display = "block";
-        alert("Configuration saved successfully!");
-      }
+      const overlay = document.getElementById("loading");
+      const loadingText = document.getElementById("loadingText");
+      loadingText.innerText = "Saving configuration...";
+      overlay.classList.remove("hidden");
+      document.getElementById("main-content").classList.add("opacity-50");
 
-      function onFailure(error) {
-        document.getElementById("loading").style.display = "none";
-        document.getElementById("main-content").style.display = "block";
-        alert("Error: " + error.message);
-      }
+      google.script.run.withSuccessHandler(onSaveSuccess).withFailureHandler(onFailure).saveConfiguration(config);
+    }
 
-      // Initial Load
-      window.onload = loadConfig;
-    </script>
-  </body>
+    function onSaveSuccess() {
+      const overlay = document.getElementById("loading");
+      overlay.classList.add("hidden");
+      document.getElementById("main-content").classList.remove("opacity-50");
+      showToast("Configuration saved successfully!", "success");
+    }
+
+    function onFailure(error) {
+      const overlay = document.getElementById("loading");
+      overlay.classList.add("hidden");
+      document.getElementById("main-content").classList.remove("opacity-50");
+      showToast("Error: " + error.message, "error");
+    }
+
+    window.onload = function () {
+      loadConfig();
+      const todayStr = new Date().toISOString().split('T')[0];
+      document.getElementById('csvImportDate').value = todayStr;
+      document.getElementById('manualImportDate').value = todayStr;
+    };
+  </script>
+</body>
+
 </html>

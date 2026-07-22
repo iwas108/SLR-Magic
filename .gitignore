@@ -1,7 +1,61 @@
-.clasp.json
-.venv
-__pycache__/
-*.db
+# Version control exclusions
+
+# Dependencies
 node_modules/
-**.db.**
-**.pdf
+/slr-ide/node_modules/
+/slr-ide/.next/
+
+# Virtual Environments
+.venv/
+venv/
+/slr-ide/venv/
+/slr-ide/python_engine/venv/
+__pycache__/
+*.pyc
+
+# Local PDF Storage
+pdf_library/
+/slr-ide/pdf_library/
+/slr-ide/db/compression_manifest.json
+*.pdf
+
+# Databases & Cache
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+.db.sqlite
+app.db
+slr.db
+/slr-ide/db/*.db
+/slr-ide/db/*.db-shm
+/slr-ide/db/*.db-wal
+/slr-ide/db/*.sqlite
+/slr-ide/db/*.bak
+
+# Environment Files & Configurations
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.clasp.json
+.rclone.conf
+rclone.conf
+
+# IDE settings
+.vscode/
+.idea/
+
+# Chrome Browser
+.chrome_profile
+.chrome_profile/**
+chrome_profile
+chrome_profile/**
+
+# Scratch & Temporary Patches
+scratch/
+**/scratch/
+*.patch
+*.diff

@@ -1,0 +1,282 @@
+import React, { useState, useEffect } from 'react';
+import { Play, Minus, X, Database, BrainCircuit, UserCheck, Server } from 'lucide-react';
+import GlobalLLMSettingsView from './GlobalLLMSettingsView';
+import PipelineProgressPanel from './dashboard/PipelineProgressPanel';
+import ManualScreeningView from './manual-screening/ManualScreeningView';
+import { RemoteWorkersView } from './remote-workers/RemoteWorkersView';
+import { useGlobalPipelineLock } from '@/hooks/useGlobalPipelineLock';
+
+interface PipelineExecutionViewProps {
+  projectsHook: {
+    activeProject: any;
+    projects: any[];
+    activeProjectId: string;
+    loadProjects: () => Promise<any>;
+  };
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  formatBytes: (bytes: number) => string;
+  pipelineHook: {
+    batchSteps: any;
+    setBatchSteps: React.Dispatch<React.SetStateAction<any>>;
+    operationModal: any;
+    runBatchExecution: () => void;
+    pipelineStats: any;
+    currentStep: any;
+    setCurrentStep: React.Dispatch<React.SetStateAction<any>>;
+    getTimeEstimates: () => { avgTime: string; timeLeft: string };
+    indexingState: any;
+    logEndRef: React.RefObject<HTMLDivElement | null>;
+    handleResumeOperation: () => void;
+    handleCancelOperation: () => void;
+    setOperationModal: React.Dispatch<React.SetStateAction<any>>;
+  };
+  manualScreeningHook: any;
+  preSelectedPaperIds?: string[];
+  setPreSelectedPaperIds?: React.Dispatch<React.SetStateAction<string[]>>;
+  activeSection?: 'acquisition' | 'llm' | 'manual' | 'workers';
+  onSectionChange?: (section: 'acquisition' | 'llm' | 'manual' | 'workers') => void;
+}
+
+export default function PipelineExecutionView({
+  projectsHook,
+  showToast,
+  formatBytes,
+  pipelineHook,
+  manualScreeningHook,
+  preSelectedPaperIds,
+  setPreSelectedPaperIds,
+  activeSection,
+  onSectionChange
+}: PipelineExecutionViewProps) {
+  const { activeProject, loadProjects } = projectsHook;
+  const {
+    batchSteps,
+    setBatchSteps,
+    operationModal,
+    runBatchExecution,
+    pipelineStats,
+    currentStep,
+    setCurrentStep,
+    getTimeEstimates,
+    indexingState,
+    logEndRef,
+    handleResumeOperation,
+    handleCancelOperation,
+    setOperationModal
+  } = pipelineHook;
+
+  const cloudProvider = activeProject?.cloud_provider || 'gdrive';
+  const cloudName = cloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
+
+  const { isLocked, forceUnlock } = useGlobalPipelineLock();
+  
+  // Disable triggering if locked by another pipeline
+  const isScraperLocked = isLocked && !operationModal?.isExecuting;
+
+  const [activeTab, setActiveTab] = useState<'acquisition' | 'llm' | 'manual' | 'workers'>(
+    activeSection || (preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'llm' : 'acquisition')
+  );
+
+  useEffect(() => {
+    if (activeSection) {
+      setActiveTab(activeSection);
+    }
+  }, [activeSection]);
+
+  useEffect(() => {
+    if (preSelectedPaperIds && preSelectedPaperIds.length > 0) {
+      setActiveTab('llm');
+      if (onSectionChange) onSectionChange('llm');
+    }
+  }, [preSelectedPaperIds, onSectionChange]);
+
+  let statsFound = 0;
+  let statsNotFound = 0;
+  let statsTotal = pipelineStats?.total || 0;
+  let statsCurrent = pipelineStats?.current || 0;
+
+  if (currentStep === 'scan') {
+    statsFound = pipelineStats.matched;
+    statsNotFound = Math.max(0, pipelineStats.current - pipelineStats.matched);
+  } else if (currentStep === 'duplicate_scan') {
+    statsFound = pipelineStats.matched;
+    statsNotFound = 0;
+  } else if (currentStep === 'scrape') {
+    statsFound = pipelineStats.downloaded;
+    statsNotFound = pipelineStats.failed;
+  } else if (currentStep === 'map_publisher') {
+    statsFound = pipelineStats.current - pipelineStats.failed;
+    statsNotFound = pipelineStats.failed;
+  } else if (currentStep === 'verify') {
+    statsFound = pipelineStats.current - pipelineStats.failed;
+    statsNotFound = pipelineStats.failed;
+  } else if (currentStep === 'sync') {
+    statsFound = pipelineStats.current;
+    statsNotFound = pipelineStats.failed;
+  }
+
+  return (
+    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-300 relative">
+      {/* Main Content Area */}
+      <div className="flex-1 min-h-0">
+        {activeTab === 'acquisition' && (
+          <div className="h-full flex flex-col bg-card border border-border/60 rounded-xl shadow-sm overflow-hidden">
+             <div className="p-4 border-b border-border/50 bg-secondary/30 flex justify-between items-center shrink-0">
+                <h3 className="font-semibold text-sm">Data Acquisition Pipeline</h3>
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-4 border border-border/80 bg-background rounded-lg px-3 py-1.5 shadow-sm">
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.duplicate_scan || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, duplicate_scan: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Execute and Review Anti-Duplicate Job
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.scan || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, scan: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Match Cache
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.verify || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, verify: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Verify PDF Integrity
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.scrape || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, scrape: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Scrape PDFs
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`}>
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.map_publisher || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, map_publisher: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Map Publisher
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors group relative flex ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-muted-foreground hover:text-foreground cursor-pointer'}`} title={`${cloudName} Cloud Synchronization`}>
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.sync || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, sync: e.target.checked }))}
+                        className={`rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      <span className={batchSteps?.sync ? (operationModal?.isExecuting || isScraperLocked ? "text-amber-500/50" : "text-amber-500") : ""}>Sync Cloud</span>
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 font-semibold transition-colors ${operationModal?.isExecuting || isScraperLocked ? 'text-muted-foreground/50 cursor-not-allowed opacity-50 select-none' : 'text-destructive hover:text-destructive/80 cursor-pointer border-l border-border/80 pl-4 ml-1'}`} title="Force re-processing of mapped and synced papers">
+                      <input
+                        type="checkbox"
+                        checked={batchSteps?.force_update || false}
+                        disabled={operationModal?.isExecuting || isScraperLocked}
+                        onChange={(e) => setBatchSteps?.((prev: any) => ({ ...prev, force_update: e.target.checked }))}
+                        className={`rounded border-border text-destructive focus:ring-destructive w-3.5 h-3.5 ${operationModal?.isExecuting || isScraperLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      Force Update (Overwrite)
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isScraperLocked && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-500 font-semibold text-[10px] animate-pulse">Another pipeline is running</span>
+                        <button onClick={forceUnlock} className="px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/20 rounded text-[9px] uppercase font-bold transition-all shadow-sm">
+                          Force Unlock
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      onClick={runBatchExecution}
+                      disabled={operationModal?.isExecuting || isScraperLocked}
+                      className={`px-3 py-1.5 font-bold rounded-lg shadow-md transition-all flex items-center gap-1.5 uppercase tracking-wide text-[10px] ${operationModal?.isExecuting || isScraperLocked ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed opacity-50 shadow-none' : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'}`}
+                    >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Execute Pipeline
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+                {operationModal?.isOpen ? (
+                  <PipelineProgressPanel
+                    operationModal={operationModal}
+                    setOperationModal={setOperationModal}
+                    currentStep={currentStep}
+                    setCurrentStep={setCurrentStep}
+                    pipelineStats={pipelineStats}
+                    indexingState={indexingState}
+                    logEndRef={logEndRef}
+                    formatBytes={formatBytes}
+                    getTimeEstimates={getTimeEstimates}
+                    handleResumeOperation={handleResumeOperation}
+                    handleCancelOperation={handleCancelOperation}
+                    cloudName={cloudName}
+                    isMinimizable={false}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-muted-foreground/50 text-xs flex-col gap-2">
+                    <Play className="w-8 h-8 opacity-20" />
+                    No acquisition pipeline running.
+                  </div>
+                )}
+             </div>
+          </div>
+        )}
+
+        {activeTab === 'llm' && (
+          <div className="h-full">
+            <GlobalLLMSettingsView 
+              activeProject={activeProject} 
+              showToast={showToast} 
+              loadProjects={loadProjects} 
+              preSelectedPaperIds={preSelectedPaperIds}
+            />
+          </div>
+        )}
+
+        {activeTab === 'manual' && (
+          <div className="h-full">
+            <ManualScreeningView
+              projectsHook={projectsHook}
+              manualScreeningHook={manualScreeningHook}
+              showToast={showToast}
+            />
+          </div>
+        )}
+
+        {activeTab === 'workers' && (
+          <div className="h-full bg-card border border-border/60 rounded-xl shadow-sm p-6 overflow-y-auto">
+            <RemoteWorkersView isPipelineRunning={operationModal?.isExecuting} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

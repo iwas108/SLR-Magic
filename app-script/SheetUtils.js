@@ -10,7 +10,10 @@ const SheetUtils = (function() {
    * @returns {GoogleAppsScript.Spreadsheet.Spreadsheet}
    */
   function getSpreadsheet() {
-    const sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    let sheetId = ConfigManager.get('SHEET_ID');
+    if (!sheetId) {
+      sheetId = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+    }
     if (sheetId) {
       return SpreadsheetApp.openById(sheetId);
     }
@@ -18,7 +21,7 @@ const SheetUtils = (function() {
     try {
         return SpreadsheetApp.getActiveSpreadsheet();
     } catch (e) {
-        throw new Error("Could not access spreadsheet. Please set 'SHEET_ID' in Script Properties.");
+        throw new Error("Could not access spreadsheet. Please set 'SHEET_ID' in Configuration or Script Properties.");
     }
   }
 
@@ -279,6 +282,88 @@ const SheetUtils = (function() {
     }
   }
 
+  function normalizeKey(key) {
+    if (!key) return "";
+    let k = key.toString().replace(/(\b\w+\d+)\.\d+/, '$1');
+    return k.toLowerCase().replace(/[^a-z0-9]/g, "");
+  }
+
+  /**
+   * Recursively flattens a JSON object to a map of column names to values/quotes.
+   */
+  function extractRowDataFromJson(obj, parentKey = "") {
+    const result = {};
+    if (obj === null || obj === undefined) return result;
+
+    if (typeof obj !== 'object') {
+      if (parentKey) {
+        result[parentKey + "_Value"] = obj;
+      }
+      return result;
+    }
+
+    if (Array.isArray(obj)) {
+      if (parentKey) {
+        result[parentKey + "_Value"] = JSON.stringify(obj);
+      }
+      return result;
+    }
+
+    // Check if this object is a value/evidence block
+    const hasValue = obj.hasOwnProperty('value');
+    const hasQuote = obj.hasOwnProperty('evidence') || obj.hasOwnProperty('quote') || obj.hasOwnProperty('evidence_quote');
+    if (hasValue && hasQuote) {
+      const val = obj.value;
+      const quote = obj.evidence || obj.quote || obj.evidence_quote || "";
+      if (parentKey) {
+        result[parentKey + "_Value"] = val;
+        result[parentKey + "_Quote"] = quote;
+      }
+      return result;
+    }
+
+    // Standard object
+    if (parentKey) {
+      result[parentKey + "_Value"] = JSON.stringify(obj);
+    }
+
+    // Recursively process child properties
+    for (const [key, val] of Object.entries(obj)) {
+      const cleanKey = key.trim();
+      const childPrefix = parentKey ? parentKey + "_" + cleanKey : cleanKey;
+      const childData = extractRowDataFromJson(val, childPrefix);
+      Object.assign(result, childData);
+
+      // Duplicate system keys to root level for compatibility with screening logic
+      const systemKeys = ["decision", "exclusion_code", "reasoning"];
+      systemKeys.forEach(sysKey => {
+        if (cleanKey.toLowerCase() === sysKey) {
+          if (val && typeof val === 'object' && val.hasOwnProperty('value')) {
+            result[sysKey + "_Value"] = val.value;
+            result[sysKey + "_Quote"] = val.evidence || val.quote || val.evidence_quote || "";
+          } else if (val && typeof val === 'object') {
+            result[sysKey + "_Value"] = JSON.stringify(val);
+          } else {
+            result[sysKey + "_Value"] = val;
+          }
+        }
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Universally maps a parsed LLM JSON response object to a row update object.
+   * Dynamically flattens all keys from the JSON.
+   * @param {Object} parsedJson
+   * @param {Array<string>} [sheetHeaders] Unused, kept for signature compatibility
+   * @returns {Object}
+   */
+  function mapJsonToRow(parsedJson, sheetHeaders) {
+    return extractRowDataFromJson(parsedJson);
+  }
+
   return {
     getSpreadsheet,
     getSheetByName,
@@ -290,7 +375,9 @@ const SheetUtils = (function() {
     ensureColumn,
     reorderColumns,
     toast,
-    alert
+    alert,
+    mapJsonToRow,
+    extractRowDataFromJson
   };
 
 })();
