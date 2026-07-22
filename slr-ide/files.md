@@ -201,7 +201,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/DeleteAllPapersConfirmModal.tsx`| Modal Component| Standalone security dialog verifying active project name before executing bulk wipe of all project papers. |
 | `components/features/modals/CsvReviewModal.tsx` | Modal Component | Standalone modal component for reviewing mapped CSV structures and duplicate exclusions prior to importing. |
 | `components/features/modals/PrismaConfigModal.tsx` | Modal Component | Standalone modal component for customizing the PRISMA diagram layout, colors, typography, box styles, and export scale. |
-| `src/components/features/modals/VisualizerModal.tsx` | Modal Component | Fullscreen modal wizard providing 17 Apache ECharts scientific visualizations (including Radar, Funnel, Boxplot, Sunburst, Graph, Gauge, and Calendar), category data limiting, dynamic multi-level depth mapping (Sankey & Sunburst), layout overflow label fixes, property styling, and SVG/high-DPI PNG exports. |
+| `src/components/features/modals/VisualizerModal.tsx` | Modal Component | Fullscreen modal wizard providing 17 Apache ECharts scientific visualizations, active table filter warning badges and alert banners, category data limiting, dynamic multi-level depth mapping (Sankey & Sunburst), layout overflow label fixes, property styling, and SVG/high-DPI PNG exports. |
 | `components/features/modals/VectorBuildModal.tsx` | Modal Component | Standalone progress and console log dialog for building and updating vector indices. |
 | `components/features/modals/FullscreenAssignModal.tsx` | Modal Component| Standalone fullscreen modal composing pool stats header, paper list, and selection assign details view. |
 | `components/features/modals/fullscreen-assign/PoolStatsHeader.tsx` | UI Component | Header statistics and tag breakdown popovers for Pools A, B, and C. |
@@ -302,7 +302,8 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `src/app/api/umbrellanizer/papers/route.ts` | REST Endpoint | Handles GET requests to retrieve Miner-passed papers with stage-aware resolved data |
 | `src/components/features/PostValidationView.tsx` | View Component | Switcher panel hosting the Umbrellanizer and Rolling Batch engines |
 | `src/components/features/post-validation/UmbrellanizerView.tsx` | View Component | Main taxonomy normalization view, rendering paper tables and triggering wizards |
-| `src/components/features/post-validation/QuickOverviewModal.tsx` | UI Component | Modal displaying deduplicated category distributions (Taxonomy Trends Quick Overview) with NOT_STATED support and JSON download |
+| `src/components/features/post-validation/QuickOverviewModal.tsx` | UI Component | Modal displaying deduplicated category distributions (Taxonomy Trends Quick Overview) with NOT_STATED support, JSON download, and Print PDF report button |
+| `src/components/features/post-validation/TaxonomyTrendsPrintDocument.tsx` | UI Component | Dedicated standalone A4 printable document template component for Taxonomy Trends PDF generation with high-contrast progress bars and page-break protection |
 | `src/components/features/post-validation/UmbrellanizerWizard.tsx` | UI Component | Stepper modal orchestrating prompt variables loading, token dedup lists, LLM runs and mapping results |
 | `src/components/features/post-validation/TokenOccurrenceTable.tsx` | UI Component | Multi-value list counting unique token occurrences and listing source papers |
 | `src/hooks/useUmbrellanizer.ts` | Custom Hook | Custom React hook state manager handling papers, results, polling jobs and taxonomy executions |

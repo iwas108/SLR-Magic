@@ -1268,6 +1268,8 @@ export default function FinalCohortPanel() {
         isOpen={isVisualizerOpen}
         onClose={() => setIsVisualizerOpen(false)}
         papers={filteredPapers}
+        totalUnfilteredCount={allPapers.length}
+        isFiltered={filteredPapers.length < allPapers.length}
         umbrellanizerMap={umbrellanizerMap}
       />
     </div>

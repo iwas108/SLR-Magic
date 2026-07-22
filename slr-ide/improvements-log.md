@@ -1,3 +1,11 @@
+## #272 - Cohort Visualizer Datasource Warning & Taxonomy Trends Print PDF (2026-07-22)
+- **Goal**: Add active filter warning badge and alert banners to SLR Cohort Visualizer Wizard when table view filters are active, and add Print PDF report button with auto-expanding accordions to Taxonomy Trends Quick Overview.
+- **Changes**:
+  - Modified [FinalCohortPanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx): Passed `totalUnfilteredCount={allPapers.length}` and `isFiltered={filteredPapers.length < allPapers.length}` props to `<VisualizerModal />`.
+  - Modified [VisualizerModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/VisualizerModal.tsx): Updated `VisualizerModalProps` interface, added amber warning badge in wizard header displaying filtered paper ratio (`Filtered: X / Y papers`), and added amber warning alert banners at top of Step 1 and Step 4 when filters are active.
+  - Modified [QuickOverviewModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/QuickOverviewModal.tsx): Added `Printer` icon button next to "Download JSON" in modal footer, added `handlePrintPdf` print handler, set print mode expansion (`isPrinting`) so all research question categories and normalization justifications expand during print output, applied strict `@media print` scoped target rules (`.taxonomy-trends-print-area`) so only the Taxonomy Trends report content prints, and applied print-friendly hidden classes (`print:hidden`).
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/files.md): Updated entries for `VisualizerModal.tsx` and `QuickOverviewModal.tsx`.
+
 ## #271 - Include NOT_STATED in Taxonomy Trends Quick Overview (2026-07-22)
 - **Goal**: Include `NOT_STATED` values in the Taxonomy Trends Quick Overview calculation, UI display, and JSON export.
 - **Changes**:

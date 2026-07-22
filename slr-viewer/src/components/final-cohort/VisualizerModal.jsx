@@ -3,7 +3,7 @@ import {
   X, Download, BarChart2, PieChart, TrendingUp, ScatterChart, 
   Grid, Layers, Sliders, RefreshCw, Sparkles, FileText, Check, 
   ArrowRight, ArrowLeft, ChevronDown, Settings2, Target, Filter, 
-  Gauge, Calendar, Share2 
+  Gauge, Calendar, Share2, AlertTriangle 
 } from 'lucide-react';
 import * as echarts from 'echarts';
 
@@ -184,6 +184,8 @@ export default function VisualizerModal({
   isOpen,
   onClose,
   papers = [],
+  totalUnfilteredCount,
+  isFiltered,
   umbrellanizerMap = {}
 }) {
   const chartRef = useRef(null);
@@ -247,26 +249,29 @@ export default function VisualizerModal({
   // Available data fields
   const availableFields = useMemo(() => {
     const fieldsSet = new Set([
+      'Paper_ID',
+      'Title',
+      'Authors',
       'Year',
-      'Publisher',
+      'DOI',
       'Import_Source',
       'Local_PDF_Status',
+      'Publisher',
+      'citation_count',
       'Overall_QA'
     ]);
 
-    papers.forEach(paper => {
-      const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-      const extStr = isManualDominant 
-        ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-        : (paper.ai_extracted_data || paper.manual_extracted_data || '');
-
-      if (extStr) {
+    papers.forEach(p => {
+      if (p.manual_extracted_data || p.ai_extracted_data || p.extracted_data) {
         try {
-          const parsed = typeof extStr === 'object' ? extStr : JSON.parse(extStr);
+          const str = p.manual_extracted_data || p.ai_extracted_data || p.extracted_data;
+          const parsed = typeof str === 'string' ? JSON.parse(str) : str;
           const extObj = parsed.extracted_data || parsed;
-          if (typeof extObj === 'object' && extObj !== null) {
-            Object.keys(extObj).forEach(k => fieldsSet.add(`ext:${k}`));
-          }
+          Object.keys(extObj).forEach(k => {
+            if (!k.startsWith('_') && k !== 'logic_trace' && k !== '_scientist_logic_trace') {
+              fieldsSet.add(`ext:${k}`);
+            }
+          });
         } catch (e) {}
       }
     });
@@ -1518,9 +1523,15 @@ export default function VisualizerModal({
               <h2 className="text-sm font-bold text-foreground tracking-tight flex items-center gap-2">
                 SLR Cohort Visualizer Wizard
               </h2>
-              <p className="text-[10px] text-muted-foreground font-medium">
-                Step-by-step scientific figure generation ({papers.length} papers in source table)
-              </p>
+              <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-2">
+                <span>Step-by-step scientific figure generation ({papers.length} papers in source table)</span>
+                {isFiltered && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] font-bold">
+                    <AlertTriangle className="w-3 h-3 text-amber-500" />
+                    Filtered: {papers.length} / {totalUnfilteredCount || papers.length} papers
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1560,6 +1571,18 @@ export default function VisualizerModal({
         {/* STEP 1: SELECT CHART TYPE */}
         {currentStep === 1 && (
           <div className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center max-w-5xl mx-auto w-full space-y-8">
+            {isFiltered && (
+              <div className="w-full max-w-xl p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-3 shadow-sm">
+                <AlertTriangle className="w-5 h-5 shrink-0 text-amber-500" />
+                <div>
+                  <span className="font-bold text-xs block">Cohort Table View Filter Active</span>
+                  <p className="text-[11px] opacity-90 leading-tight">
+                    The chart datasource is currently filtered ({papers.length} of {totalUnfilteredCount || papers.length} papers displayed). Generated figures will reflect only this filtered subset.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="text-center space-y-2">
               <h3 className="text-xl font-bold text-foreground tracking-tight">Step 1: Choose Chart Type</h3>
               <p className="text-xs text-muted-foreground max-w-md mx-auto">
@@ -2418,6 +2441,15 @@ export default function VisualizerModal({
             {/* Main Canvas View */}
             <div className="flex-1 bg-background flex flex-col p-6 overflow-hidden relative border-r border-border">
               
+              {isFiltered && (
+                <div className="mb-3 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2.5 shrink-0 shadow-sm">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                  <span className="font-semibold text-[11px]">
+                    Warning: Visualizing filtered cohort dataset ({papers.length} of {totalUnfilteredCount || papers.length} total papers). Clear filters in Cohort Table View to cover all data.
+                  </span>
+                </div>
+              )}
+
               {/* Top Bar Quick Controls */}
               <div className="h-12 border-b border-border bg-card/60 rounded-t-2xl px-4 flex items-center justify-between shrink-0 mb-4">
                 <div className="flex items-center gap-3">

@@ -1,5 +1,13 @@
 # SLR Viewer Improvements Log
 
+## #042 - Cohort Visualizer Datasource Warning & Taxonomy Trends Print PDF (2026-07-22)
+- **Goal**: Add active filter warning badge and alert banners to SLR Cohort Visualizer Wizard when table view filters are active, and add Print PDF report button with auto-expanding accordions to Taxonomy Trends Quick Overview.
+- **Changes**:
+  - Modified [FinalCohortPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/final-cohort/FinalCohortPanel.jsx): Passed `totalUnfilteredCount={allPapers.length}` and `isFiltered={filteredPapers.length < allPapers.length}` props to `<VisualizerModal />`.
+  - Modified [VisualizerModal.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/final-cohort/VisualizerModal.jsx): Updated component props, added amber warning badge in wizard header displaying filtered paper ratio (`Filtered: X / Y papers`), and added amber warning alert banners at top of Step 1 and Step 4 when filters are active.
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Added `Printer` icon button next to "Download Trends JSON" in Node 3.5 Taxonomy Trends section header, added `handlePrintTrendsPdf` print handler, set print mode expansion (`isPrintingTaxonomy`) so all categories and justifications expand during print output, applied strict `@media print` scoped target rules (`.taxonomy-trends-print-area`) so only the Taxonomy Trends section prints, and applied print-friendly hidden classes (`print:hidden`).
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/files.md): Updated entries for `VisualizerModal.jsx` and `ResearchWorkflowPanel.jsx`.
+
 ## #041 - Include NOT_STATED in Taxonomy Trends Quick Overview (2026-07-22)
 - **Goal**: Include `NOT_STATED` values in Node 3.5 Taxonomy Trends Quick Overview drawer calculation, UI display, and JSON export.
 - **Changes**:
