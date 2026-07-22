@@ -14,6 +14,7 @@ export function useProjectForm(initialData?: any) {
   const [poolC, setPoolC] = useState(initialData?.pool_c_size !== undefined ? String(initialData?.pool_c_size) : '20');
   const [rollingBatchSize, setRollingBatchSize] = useState(initialData?.rolling_batch_size !== undefined ? String(initialData?.rolling_batch_size) : '20');
   const [gdriveDest, setGdriveDest] = useState(initialData?.gdrive_dest_path || 'SLR_Magic/PDFs');
+  const [goldmineDest, setGoldmineDest] = useState(initialData?.goldmine_dest_path || '');
   const [cloudProvider, setCloudProvider] = useState(initialData?.cloud_provider || 'gdrive');
   const [remoteName, setRemoteName] = useState(initialData?.rclone_remote_name || '');
   const [poolTags, setPoolTags] = useState<{
@@ -50,6 +51,7 @@ export function useProjectForm(initialData?: any) {
         String(lastLoadedProjectRef.current.pool_c_size) !== String(initialData.pool_c_size) ||
         String(lastLoadedProjectRef.current.rolling_batch_size) !== String(initialData.rolling_batch_size) ||
         lastLoadedProjectRef.current.gdrive_dest_path !== initialData.gdrive_dest_path ||
+        lastLoadedProjectRef.current.goldmine_dest_path !== initialData.goldmine_dest_path ||
         lastLoadedProjectRef.current.cloud_provider !== initialData.cloud_provider ||
         lastLoadedProjectRef.current.rclone_remote_name !== initialData.rclone_remote_name ||
         String(lastLoadedProjectRef.current.project_budget_limit) !== String(initialData.project_budget_limit) ||
@@ -77,6 +79,7 @@ export function useProjectForm(initialData?: any) {
         setPoolC(initialData.pool_c_size !== undefined ? String(initialData.pool_c_size) : '20');
         setRollingBatchSize(initialData.rolling_batch_size !== undefined ? String(initialData.rolling_batch_size) : '20');
         setGdriveDest(initialData.gdrive_dest_path || 'SLR_Magic/PDFs');
+        setGoldmineDest(initialData.goldmine_dest_path || '');
         setCloudProvider(initialData.cloud_provider || 'gdrive');
         setRemoteName(initialData.rclone_remote_name || '');
         setProjectBudgetLimit(initialData.project_budget_limit !== undefined ? String(initialData.project_budget_limit) : '5.0');
@@ -296,6 +299,7 @@ export function useProjectForm(initialData?: any) {
     setPoolC('20');
     setRollingBatchSize('20');
     setGdriveDest('SLR_Magic/PDFs');
+    setGoldmineDest('');
     setCloudProvider('gdrive');
     setRemoteName('');
     setPoolTags({ pool_a: [], pool_b: [], pool_c: [] });
@@ -320,6 +324,7 @@ export function useProjectForm(initialData?: any) {
     setPoolC(proj.pool_c_size !== undefined ? String(proj.pool_c_size) : '20');
     setRollingBatchSize(proj.rolling_batch_size !== undefined ? String(proj.rolling_batch_size) : '20');
     setGdriveDest(proj.gdrive_dest_path || 'SLR_Magic/PDFs');
+    setGoldmineDest(proj.goldmine_dest_path || '');
     setCloudProvider(proj.cloud_provider || 'gdrive');
     setRemoteName(proj.rclone_remote_name || '');
     
@@ -411,6 +416,7 @@ export function useProjectForm(initialData?: any) {
     poolC, setPoolC,
     rollingBatchSize, setRollingBatchSize,
     gdriveDest, setGdriveDest,
+    goldmineDest, setGoldmineDest,
     cloudProvider, setCloudProvider,
     remoteName, setRemoteName,
     poolTags, setPoolTags,

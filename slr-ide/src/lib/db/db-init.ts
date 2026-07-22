@@ -145,6 +145,7 @@ export function initializeDatabase(db: Database.Database): void {
       project_budget_limit REAL DEFAULT 0.0,
       project_current_spend REAL DEFAULT 0.0,
       project_tax REAL DEFAULT 0.0,
+      goldmine_dest_path TEXT,
       llm_config TEXT DEFAULT '{}',
       created_at TEXT NOT NULL
     );
@@ -605,6 +606,13 @@ export function initializeDatabase(db: Database.Database): void {
   // Add rolling_batch_size column to projects if it doesn't exist (migration fallback)
   try {
     db.exec("ALTER TABLE projects ADD COLUMN rolling_batch_size INTEGER DEFAULT 20");
+  } catch (e) {
+    // Column already exists
+  }
+
+  // Add goldmine_dest_path column to projects if it doesn't exist (migration fallback)
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN goldmine_dest_path TEXT");
   } catch (e) {
     // Column already exists
   }

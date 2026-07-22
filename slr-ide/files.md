@@ -132,6 +132,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 ### Core Backend Services & Inter-Rater Libraries (`src/lib/services/` & `src/lib/inter-rater/`)
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
+| `lib/services/goldmine-state-tracker.ts` | Backend Service | Singleton NDJSON state tracker for Gold Mine exports managing execution phase, progress counters, live logs, state restore on reconnect, and process cancellation. |
 | `lib/services/process-manager.ts` | Backend Service | Singleton manager for active child process instances, arguments, PIDs, and clean tree termination (`taskkill` / `SIGKILL`). |
 | `lib/services/stream-manager.ts` | Backend Service | Encapsulates Server-Sent Events (SSE) stream lifecycles, HTTP keep-alive headers, and periodic heartbeat pings. |
 | `lib/services/batch-state-tracker.ts`| Backend Service | Thread-safe memory state manager for batch progress counters, with SQLite `configs` persistence checkpoints for batch resume. |
@@ -249,6 +250,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/export/inter-rater/route.ts`| REST Endpoint | Handles POST requests to generate standalone blinded review export packages (`.slr` schema) for use in the offline `inter-rater` SPA. |
 | `api/export/slr-viewer/route.ts` | REST Endpoint | Handles GET requests to generate pre-computed SLR Viewer snapshot dataset files (`.slr-viewer` format). |
 | `api/export/csv-tabular/route.ts` | REST Endpoint | Handles GET requests to export the Final Cohort table in FAIR-compliant CSV format with all quality scores, evidence, and extracted variables. |
+| `api/export/cloud-gold-mine/route.ts` | REST Endpoint | Handles GET (stream/status), POST (export execution with staging, QA filter, and rclone sync), and DELETE (cancel) for Cloud Gold Mine exports. |
+| `api/export/cloud-gold-mine/keys/route.ts` | REST Endpoint | Handles GET requests to fetch available Umbrellanizer extraction keys for the active project. |
+| `api/export/cloud-gold-mine/preview/route.ts` | REST Endpoint | Handles GET requests to generate real-time dynamic directory structure tree previews with sample paper PDF filenames. |
 
 | `api/import/route.ts` | REST Endpoint | Handles POST requests for CSV uploads, executing data parsing, duplicate DOI checks, and batch insertion into `papers`. |
 | `api/import/inter-rater/route.ts`| REST Endpoint | Handles POST requests to ingest completed `.slr` review packages from external raters, inserting records into `reviewer_decisions`. |

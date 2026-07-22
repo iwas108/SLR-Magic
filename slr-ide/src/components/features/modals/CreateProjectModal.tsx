@@ -34,6 +34,7 @@ export default function CreateProjectModal({
       pool_c_size: Number(form.poolC),
       rolling_batch_size: Number(form.rollingBatchSize),
       gdrive_dest_path: form.gdriveDest,
+      goldmine_dest_path: form.goldmineDest,
       cloud_provider: form.cloudProvider,
       rclone_remote_name: form.remoteName,
       pool_tags: form.poolTags

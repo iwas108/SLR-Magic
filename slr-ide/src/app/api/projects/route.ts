@@ -383,6 +383,7 @@ export async function POST(request: Request) {
       pool_b_size, 
       pool_c_size,
       gdrive_dest_path,
+      goldmine_dest_path,
       cloud_provider,
       rclone_remote_name,
       pool_tags,
@@ -416,6 +417,7 @@ export async function POST(request: Request) {
     const poolB = parseInt(pool_b_size || '30', 10) || 30;
     const poolC = parseInt(pool_c_size || '20', 10) || 20;
     const gdriveDest = (gdrive_dest_path || 'SLR_Magic/PDFs').trim();
+    const goldmineDest = goldmine_dest_path ? String(goldmine_dest_path).trim() : '';
     const cloudProvider = cloud_provider || 'gdrive';
     const remoteName = rclone_remote_name ? rclone_remote_name.trim() : '';
     const poolTags = pool_tags ? (typeof pool_tags === 'string' ? pool_tags : JSON.stringify(pool_tags)) : '{}';
@@ -432,8 +434,8 @@ export async function POST(request: Request) {
 
     db.prepare(`
       INSERT INTO projects (
-        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, project_tax, llm_config, rolling_batch_size, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, goldmine_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, project_tax, llm_config, rolling_batch_size, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       name.trim(),
@@ -447,6 +449,7 @@ export async function POST(request: Request) {
       poolB,
       poolC,
       gdriveDest,
+      goldmineDest,
       cloudProvider,
       remoteName,
       poolTags,
@@ -484,6 +487,7 @@ export async function PUT(request: Request) {
       pool_b_size, 
       pool_c_size,
       gdrive_dest_path,
+      goldmine_dest_path,
       cloud_provider,
       rclone_remote_name,
       pool_tags,
@@ -511,6 +515,7 @@ export async function PUT(request: Request) {
     const poolB = parseInt(pool_b_size || '30', 10) || 30;
     const poolC = parseInt(pool_c_size || '20', 10) || 20;
     const gdriveDest = (gdrive_dest_path || 'SLR_Magic/PDFs').trim();
+    const goldmineDest = goldmine_dest_path ? String(goldmine_dest_path).trim() : '';
     const cloudProvider = cloud_provider || 'gdrive';
     const remoteName = rclone_remote_name ? rclone_remote_name.trim() : '';
     const poolTags = pool_tags ? (typeof pool_tags === 'string' ? pool_tags : JSON.stringify(pool_tags)) : '{}';
@@ -537,6 +542,7 @@ export async function PUT(request: Request) {
           pool_b_size = ?,
           pool_c_size = ?,
           gdrive_dest_path = ?,
+          goldmine_dest_path = ?,
           cloud_provider = ?,
           rclone_remote_name = ?,
           pool_tags = ?,
@@ -562,6 +568,7 @@ export async function PUT(request: Request) {
       poolB,
       poolC,
       gdriveDest,
+      goldmineDest,
       cloudProvider,
       remoteName,
       poolTags,

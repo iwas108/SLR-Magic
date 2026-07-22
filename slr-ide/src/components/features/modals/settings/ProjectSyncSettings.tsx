@@ -9,6 +9,8 @@ interface ProjectSyncSettingsProps {
     setProjectFormRemoteName: (v: string) => void;
     projectFormGDriveDest: string;
     setProjectFormGDriveDest: (v: string) => void;
+    projectFormGoldmineDest: string;
+    setProjectFormGoldmineDest: (v: string) => void;
   };
   testingProjectConnection: boolean;
   projectConnectionTestResult: { success: boolean; message: string; details?: string } | null;
@@ -53,7 +55,7 @@ export default function ProjectSyncSettings({
       </div>
 
       <div>
-        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Cloud Destination Path</label>
+        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Cloud Destination Path (PDF Library)</label>
         <input
           type="text"
           value={form.projectFormGDriveDest}
@@ -62,6 +64,18 @@ export default function ProjectSyncSettings({
           placeholder="e.g. SLR_Magic/PDFs"
           required
         />
+      </div>
+
+      <div>
+        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Gold Mine Export Path (NotebookLM Destination)</label>
+        <input
+          type="text"
+          value={form.projectFormGoldmineDest}
+          onChange={(e) => form.setProjectFormGoldmineDest(e.target.value)}
+          className="w-full px-3 py-1.5 text-xs bg-secondary/35 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-semibold"
+          placeholder="e.g. SLR_Magic/Gold_Mine (optional - defaults to Cloud Destination/Gold_Mine_Exports)"
+        />
+        <p className="text-[10px] text-muted-foreground mt-1">Dedicated cloud folder for Gold Mine PDF exports. Uses the same rclone remote. Leave blank to use sub-folder under main cloud destination.</p>
       </div>
 
       {/* Connection Test and Setup Help */}

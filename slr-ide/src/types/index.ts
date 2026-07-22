@@ -63,6 +63,7 @@ export interface Project {
   pool_b_size?: number;
   pool_c_size?: number;
   gdrive_dest_path?: string;
+  goldmine_dest_path?: string;
   cloud_provider?: 'gdrive' | 'onedrive';
   rclone_remote_name?: string;
   pool_tags?: string | {

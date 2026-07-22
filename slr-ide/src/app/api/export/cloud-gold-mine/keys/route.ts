@@ -11,7 +11,13 @@ export async function GET(request: Request) {
 
   try {
     
-    const keys = db.prepare('SELECT extracted_data_key FROM umbrellanizer_results WHERE project_id = ?').all(projectId) as any[];
+    const keys = db.prepare(`
+      SELECT DISTINCT extracted_data_key 
+      FROM umbrellanizer_results 
+      WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) 
+        AND extracted_data_key IS NOT NULL 
+        AND extracted_data_key != ''
+    `).all(projectId) as any[];
 
     return NextResponse.json({ keys: keys.map(k => k.extracted_data_key) });
   } catch (error) {

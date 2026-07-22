@@ -69,3 +69,7 @@ pdf_library/raw/**
 pdf_library/cached/**
 pdf_library/repo/**
 pdf_library/downloads/**
+
+# Temporary staging directory
+tmp/
+tmp/**
