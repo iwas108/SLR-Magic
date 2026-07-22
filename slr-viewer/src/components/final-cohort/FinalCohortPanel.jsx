@@ -298,7 +298,7 @@ export default function FinalCohortPanel() {
           if (rawTokens.length === 0) {
             resolved[k] = '';
           } else {
-            const mapped = Array.from(new Set(rawTokens.map(t => resolveUmbrellanizerValue(t, k)))).filter(Boolean);
+            const mapped = rawTokens.map(t => resolveUmbrellanizerValue(t, k)).filter(Boolean);
             resolved[k] = mapped.length > 1 ? mapped : (mapped[0] || '');
           }
         });
@@ -647,7 +647,7 @@ export default function FinalCohortPanel() {
             <span key={idx} className="inline-flex items-center gap-0.5 text-[10px] text-foreground font-semibold">
               {item}
               {count > 1 && (
-                <span className="px-0.5 py-0.2 text-[8px] font-black bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full leading-none">
+                <span className="px-0.5 py-0.2 text-[8px] font-black bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20 rounded-full leading-none">
                   {count}
                 </span>
               )}

@@ -261,7 +261,7 @@ export async function GET(request: Request) {
               // Resolve Umbrellanized value
               let resolvedStr = '';
               if (Array.isArray(origVal)) {
-                const mapped = Array.from(new Set(origVal.map(item => resolveUmbrellanizerValue(item, k)))).filter(Boolean);
+                const mapped = origVal.map(item => resolveUmbrellanizerValue(item, k)).filter(Boolean);
                 resolvedStr = mapped.join('; ');
               } else if (origVal !== undefined && origVal !== null && origVal !== '') {
                 resolvedStr = resolveUmbrellanizerValue(origStr, k);

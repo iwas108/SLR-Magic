@@ -1,5 +1,11 @@
 # SLR Viewer Improvements Log
 
+## #043 - Cohort Table View Repeated Taxonomy Number Badges (2026-07-22)
+- **Goal**: Add small pill badge counters to extracted data cells in Cohort Table View when raw multi-value extraction terms map to repeated Umbrellanizer taxonomy categories in `slr-viewer`.
+- **Changes**:
+  - Modified [FinalCohortPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/final-cohort/FinalCohortPanel.jsx): Preserved non-deduplicated mapped tokens in `parseExtractedData` without `new Set(...)`, updated `renderExtractedVal` badge counter styling (`bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20 rounded-full font-black text-[8px]`), and kept comma-separated formatting in `valueToCopy`.
+  - Modified [csv-export.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/lib/csv-export.js): Preserved non-deduplicated mapped tokens in offline CSV export helper.
+
 ## #042 - Cohort Visualizer Datasource Warning & Taxonomy Trends Print PDF (2026-07-22)
 - **Goal**: Add active filter warning badge and alert banners to SLR Cohort Visualizer Wizard when table view filters are active, and add Print PDF report button with auto-expanding accordions to Taxonomy Trends Quick Overview.
 - **Changes**:
