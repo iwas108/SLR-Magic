@@ -152,13 +152,13 @@ export async function GET(request: Request) {
         if (passedStage1) {
           dbReportsSought++;
 
-          // [**9] Reports not retrieved (Stage 2 EXCLUDE + IGNORED)
-          if (res.effectiveStage === 2 && res.isExcluded && paper.Local_PDF_Status === 'IGNORED') {
+          // [**9] Reports not retrieved
+          if (res.effectiveStage === 1 && paper.Local_PDF_Status && !['CACHED', 'DOWNLOADED'].includes(paper.Local_PDF_Status.toUpperCase())) {
             dbReportsNotRetrieved++;
           }
 
-          // [**11] Reports excluded (Stage 2 not IGNORED, or Stage 3)
-          if (res.effectiveStage === 2 && res.isExcluded && paper.Local_PDF_Status !== 'IGNORED') {
+          // [**11] Reports excluded Stage 2 (Gatekeeper structural eligibility)
+          if (res.effectiveStage === 2 && res.isExcluded) {
             const code = res.ec || 'Unspecified';
             dbReportsExcludedStage2[code] = (dbReportsExcludedStage2[code] || 0) + 1;
           }
@@ -191,13 +191,13 @@ export async function GET(request: Request) {
           totalIncludedStudies++;
         }
 
-        // [**17] Reports not retrieved (Stage 2 EXCLUDE + IGNORED)
-        if (res.effectiveStage === 2 && res.isExcluded && paper.Local_PDF_Status === 'IGNORED') {
+        // [**17] Reports not retrieved
+        if (res.effectiveStage === 1 && paper.Local_PDF_Status && !['CACHED', 'DOWNLOADED'].includes(paper.Local_PDF_Status.toUpperCase())) {
           otherReportsNotRetrieved++;
         }
 
-        // [**19] Reports excluded
-        if (res.effectiveStage === 2 && res.isExcluded && paper.Local_PDF_Status !== 'IGNORED') {
+        // [**19] Reports excluded Stage 2
+        if (res.effectiveStage === 2 && res.isExcluded) {
           const code = res.ec || 'Unspecified';
           otherReportsExcludedStage2[code] = (otherReportsExcludedStage2[code] || 0) + 1;
         }

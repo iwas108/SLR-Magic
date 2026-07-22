@@ -9,6 +9,7 @@ export function useProjectForm(initialData?: any) {
   const [questions, setQuestions] = useState(initialData?.questions || '');
   const [qaDefinition, setQaDefinition] = useState(initialData?.qa_definition || '');
   const [exclusionCriteria, setExclusionCriteria] = useState(initialData?.exclusion_criteria || '');
+  const [scopusSearchString, setScopusSearchString] = useState(initialData?.scopus_search_string || '');
   const [poolA, setPoolA] = useState(initialData?.pool_a_size !== undefined ? String(initialData?.pool_a_size) : '50');
   const [poolB, setPoolB] = useState(initialData?.pool_b_size !== undefined ? String(initialData?.pool_b_size) : '30');
   const [poolC, setPoolC] = useState(initialData?.pool_c_size !== undefined ? String(initialData?.pool_c_size) : '20');
@@ -46,6 +47,7 @@ export function useProjectForm(initialData?: any) {
         lastLoadedProjectRef.current.questions !== initialData.questions ||
         lastLoadedProjectRef.current.qa_definition !== initialData.qa_definition ||
         lastLoadedProjectRef.current.exclusion_criteria !== initialData.exclusion_criteria ||
+        lastLoadedProjectRef.current.scopus_search_string !== initialData.scopus_search_string ||
         String(lastLoadedProjectRef.current.pool_a_size) !== String(initialData.pool_a_size) ||
         String(lastLoadedProjectRef.current.pool_b_size) !== String(initialData.pool_b_size) ||
         String(lastLoadedProjectRef.current.pool_c_size) !== String(initialData.pool_c_size) ||
@@ -74,6 +76,7 @@ export function useProjectForm(initialData?: any) {
         setQuestions(initialData.questions || '');
         setQaDefinition(initialData.qa_definition || '');
         setExclusionCriteria(initialData.exclusion_criteria || '');
+        setScopusSearchString(initialData.scopus_search_string || '');
         setPoolA(initialData.pool_a_size !== undefined ? String(initialData.pool_a_size) : '50');
         setPoolB(initialData.pool_b_size !== undefined ? String(initialData.pool_b_size) : '30');
         setPoolC(initialData.pool_c_size !== undefined ? String(initialData.pool_c_size) : '20');
@@ -294,6 +297,7 @@ export function useProjectForm(initialData?: any) {
     setQuestions('');
     setQaDefinition('');
     setExclusionCriteria('');
+    setScopusSearchString('');
     setPoolA('50');
     setPoolB('30');
     setPoolC('20');
@@ -319,6 +323,7 @@ export function useProjectForm(initialData?: any) {
     setQuestions(proj.questions || '');
     setQaDefinition(proj.qa_definition || '');
     setExclusionCriteria(proj.exclusion_criteria || '');
+    setScopusSearchString(proj.scopus_search_string || '');
     setPoolA(proj.pool_a_size !== undefined ? String(proj.pool_a_size) : '50');
     setPoolB(proj.pool_b_size !== undefined ? String(proj.pool_b_size) : '30');
     setPoolC(proj.pool_c_size !== undefined ? String(proj.pool_c_size) : '20');
@@ -411,6 +416,7 @@ export function useProjectForm(initialData?: any) {
     questions, setQuestions,
     qaDefinition, setQaDefinition,
     exclusionCriteria, setExclusionCriteria,
+    scopusSearchString, setScopusSearchString,
     poolA, setPoolA,
     poolB, setPoolB,
     poolC, setPoolC,

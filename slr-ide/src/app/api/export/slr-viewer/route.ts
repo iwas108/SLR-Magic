@@ -115,18 +115,24 @@ export async function GET(request: Request) {
     let dbDuplicatesRemoved = 0;
     let dbRecordsScreened = 0;
     let dbStage1Excluded = 0;
-    const dbStage1ExcludedByEC: Record<string, number> = {};
+    const dbStage1ExcludedByEC: Record<string, { total: number; aiCount: number; manualCount: number }> = {};
     let dbReportsSought = 0;
     let dbReportsNotRetrieved = 0;
-    const dbReportsExcludedStage2: Record<string, number> = {};
+    const dbReportsExcludedStage2: Record<string, { total: number; aiCount: number; manualCount: number }> = {};
     let dbStage3FatalFlaw = 0;
     let dbStage3Cumulative = 0;
+
+    // Manual screening override metrics tracking
+    let dbManualStage1Excluded = 0;
+    let dbManualStage2Excluded = 0;
+    let dbManualStage3Excluded = 0;
+    let dbManualTotalExcluded = 0;
 
     // Right column (Other Methods)
     let otherDuplicatesRemoved = 0;
     let otherReportsSought = 0;
     let otherReportsNotRetrieved = 0;
-    const otherReportsExcludedStage2: Record<string, number> = {};
+    const otherReportsExcludedStage2: Record<string, { total: number; aiCount: number; manualCount: number }> = {};
     let otherStage3FatalFlaw = 0;
     let otherStage3Cumulative = 0;
 
@@ -137,6 +143,18 @@ export async function GET(request: Request) {
     for (const paper of allPapers) {
       const isOther = isOtherSource(paper.Import_Source);
       const isDuplicate = paper.is_duplicate === 1;
+
+      const ms = Number(paper.manual_stage || 0);
+      const as = Number(paper.ai_stage || 0);
+
+      // Track manual screening exclusions (using stage dominance ms >= as)
+      const isManualOverride = ms > 0 && paper.manual_decision && paper.manual_decision.toUpperCase().startsWith('EXCLUDE');
+      if (isManualOverride && ms >= as) {
+        dbManualTotalExcluded++;
+        if (ms === 1) dbManualStage1Excluded++;
+        if (ms === 2) dbManualStage2Excluded++;
+        if (ms === 3) dbManualStage3Excluded++;
+      }
 
       if (!isOther) {
         // Left Column: Databases
@@ -159,20 +177,36 @@ export async function GET(request: Request) {
         if (res.effectiveStage === 1 && res.isExcluded) {
           dbStage1Excluded++;
           const code = res.ec || 'Unspecified';
-          dbStage1ExcludedByEC[code] = (dbStage1ExcludedByEC[code] || 0) + 1;
+          if (!dbStage1ExcludedByEC[code]) {
+            dbStage1ExcludedByEC[code] = { total: 0, aiCount: 0, manualCount: 0 };
+          }
+          dbStage1ExcludedByEC[code].total++;
+          if (ms === 1 && ms >= as && isManualOverride) {
+            dbStage1ExcludedByEC[code].manualCount++;
+          } else {
+            dbStage1ExcludedByEC[code].aiCount++;
+          }
         }
 
         const passedStage1 = res.effectiveStage > 1 || (res.effectiveStage === 1 && res.isIncluded);
         if (passedStage1) {
           dbReportsSought++;
 
-          if (res.effectiveStage === 2 && res.isExcluded && paper.Local_PDF_Status === 'IGNORED') {
+          if (res.effectiveStage === 1 && paper.Local_PDF_Status && !['CACHED', 'DOWNLOADED'].includes(paper.Local_PDF_Status.toUpperCase())) {
             dbReportsNotRetrieved++;
           }
 
-          if (res.effectiveStage === 2 && res.isExcluded && paper.Local_PDF_Status !== 'IGNORED') {
+          if (res.effectiveStage === 2 && res.isExcluded) {
             const code = res.ec || 'Unspecified';
-            dbReportsExcludedStage2[code] = (dbReportsExcludedStage2[code] || 0) + 1;
+            if (!dbReportsExcludedStage2[code]) {
+              dbReportsExcludedStage2[code] = { total: 0, aiCount: 0, manualCount: 0 };
+            }
+            dbReportsExcludedStage2[code].total++;
+            if (ms === 2 && ms >= as && isManualOverride) {
+              dbReportsExcludedStage2[code].manualCount++;
+            } else {
+              dbReportsExcludedStage2[code].aiCount++;
+            }
           }
 
           if (res.effectiveStage === 3 && res.isExcluded) {
@@ -199,13 +233,21 @@ export async function GET(request: Request) {
           totalIncludedStudies++;
         }
 
-        if (res.effectiveStage === 2 && res.isExcluded && paper.Local_PDF_Status === 'IGNORED') {
+        if (res.effectiveStage === 1 && paper.Local_PDF_Status && !['CACHED', 'DOWNLOADED'].includes(paper.Local_PDF_Status.toUpperCase())) {
           otherReportsNotRetrieved++;
         }
 
-        if (res.effectiveStage === 2 && res.isExcluded && paper.Local_PDF_Status !== 'IGNORED') {
+        if (res.effectiveStage === 2 && res.isExcluded) {
           const code = res.ec || 'Unspecified';
-          otherReportsExcludedStage2[code] = (otherReportsExcludedStage2[code] || 0) + 1;
+          if (!otherReportsExcludedStage2[code]) {
+            otherReportsExcludedStage2[code] = { total: 0, aiCount: 0, manualCount: 0 };
+          }
+          otherReportsExcludedStage2[code].total++;
+          if (ms === 2 && ms >= as && isManualOverride) {
+            otherReportsExcludedStage2[code].manualCount++;
+          } else {
+            otherReportsExcludedStage2[code].aiCount++;
+          }
         }
 
         if (res.effectiveStage === 3 && res.isExcluded) {
@@ -224,8 +266,14 @@ export async function GET(request: Request) {
       count
     }));
 
-    const formatECList = (map: Record<string, number>) => {
-      return Object.entries(map).map(([code, count]) => ({ code, count }));
+    const formatECList = (map: Record<string, { total: number; aiCount: number; manualCount: number }>) => {
+      return Object.entries(map).map(([code, item]) => ({
+        code,
+        count: item.total,
+        total: item.total,
+        aiCount: item.aiCount,
+        manualCount: item.manualCount
+      }));
     };
 
     const prismaData = {
@@ -244,6 +292,11 @@ export async function GET(request: Request) {
         { gate: 'Cumulative Gate', count: dbStage3Cumulative }
       ],
       dbStudiesIncluded: totalIncludedStudies,
+
+      dbManualStage1Excluded,
+      dbManualStage2Excluded,
+      dbManualStage3Excluded,
+      dbManualTotalExcluded,
 
       otherDuplicatesRemoved,
       otherReportsSought,
@@ -1183,11 +1236,14 @@ export async function GET(request: Request) {
         research_questions: project.questions || project.research_questions || '',
         exclusion_criteria: project.exclusion_criteria || '',
         quality_assurance_definition: project.qa_definition || project.quality_assurance_definition || '',
+        scopus_search_string: project.scopus_search_string || '',
+        search_string: project.scopus_search_string || '',
         manifesto: project.manifesto || project.research_manifesto || '',
         objective: project.objective || project.research_objective || '',
         questions: project.questions || project.research_questions || '',
         qa_definition: project.qa_definition || project.quality_assurance_definition || '',
         ec_rules: project.ec_rules || '[]',
+        pool_b_ec_rules: project.pool_b_ec_rules || '[]',
         pool_c_qa_rules: project.pool_c_qa_rules || '[]',
         pool_c_extraction_rules: project.pool_c_extraction_rules || '[]',
         prompt_templates: promptTemplates,

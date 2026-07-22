@@ -14,6 +14,8 @@ interface ProjectMetadataSettingsProps {
     setProjectFormQaDefinition: (v: string) => void;
     projectFormExclusionCriteria: string;
     setProjectFormExclusionCriteria: (v: string) => void;
+    projectFormScopusSearchString: string;
+    setProjectFormScopusSearchString: (v: string) => void;
   };
 }
 
@@ -29,6 +31,17 @@ export default function ProjectMetadataSettings({ form }: ProjectMetadataSetting
           className="w-full px-3 py-1.5 text-xs bg-secondary/35 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-semibold"
           placeholder="Enter project name..."
           required
+        />
+      </div>
+
+      <div>
+        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Scopus Search String</label>
+        <textarea
+          rows={4}
+          value={form.projectFormScopusSearchString}
+          onChange={(e) => form.setProjectFormScopusSearchString(e.target.value)}
+          className="w-full px-3 py-2 text-xs bg-secondary/35 border border-border rounded-lg text-foreground focus:outline-none focus:border-primary font-semibold font-mono min-h-[100px] leading-relaxed"
+          placeholder="TITLE-ABS-KEY ( ( &quot;systematic literature review&quot; OR &quot;slr&quot; ) AND ( &quot;artificial intelligence&quot; OR &quot;llm&quot; ) )"
         />
       </div>
 

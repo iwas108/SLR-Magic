@@ -1,5 +1,75 @@
 # SLR Viewer Improvements Log
 
+## #040 - Fix Gatekeeper Structural Exclusions (EC-4..EC-7) PRISMA Filtering Discrepancy (2026-07-22)
+- **Goal**: Fix discrepancy where Stage 2 Gatekeeper excluded papers (153 records with EC-4) were misclassified as `dbReportsNotRetrieved` due to `Local_PDF_Status === 'IGNORED'` filter, causing `slr-viewer` to show only 4 records.
+- **Changes**:
+  - Modified [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts) and [route.ts (insight prisma)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/insight/prisma/route.ts): Removed `Local_PDF_Status !== 'IGNORED'` filter from Stage 2 structural exclusion calculation. All papers evaluated and excluded by Stage 2 Gatekeeper (`effectiveStage === 2 && isExcluded`) are now correctly counted in `dbReportsExcludedStage2` regardless of PDF status.
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Updated `getGatekeeperECMetrics` to calculate live paper exclusion metrics directly from `allPapersList`, ensuring 100% data fidelity across all 153 EC-4 records.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 777ms) and `slr-ide` TypeScript with `npx tsc --noEmit` (0 errors).
+
+## #039 - Dual-Layer Manual Screening Exclusions Calculation & Type Safety (2026-07-22)
+- **Goal**: Resolve issue where manual excluded breakdown counters showed 0 when loading older `.slr-viewer` snapshot files.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Cast `paper.manual_stage` and `paper.ai_stage` to `Number(p)` and checked stage-awareness `ms >= as` when attributing manual exclusions per EC rule.
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Added client-side paper scanner fallback (`computePaperExclusionMetrics` and `computedStage1Manual`/`computedStage2Manual`). If an imported snapshot dataset does not carry pre-computed `manualCount` metrics, `slr-viewer` dynamically scans `cohort.papers`/`rawData.papers` to calculate live `LLM` vs `Manual` breakdown values for every EC rule.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 764ms) and `slr-ide` TypeScript with `npx tsc --noEmit` (0 errors).
+
+## #038 - Group 3 Combined LLM + Manual Breakdown Counters (2026-07-22)
+- **Goal**: Display combined `LLM + Manual` breakdown values for every exclusion rule in Stage 1 Fast Filter and Stage 2 Gatekeeper drawers, and show sub-totals in summary banners.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Formatted `dbStage1ExcludedByEC` and `dbReportsExcludedStage2` payload items to include `{ code, total, aiCount, manualCount }`.
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx):
+    - Added inline breakdown pill badges (`X LLM + Y Manual`) to all Stage 1 EC rule cards and Stage 2 Gatekeeper structural failure cards.
+    - Updated summary banner metrics to display combined totals with `(X LLM + Y Manual)` sub-text.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 743ms) and `slr-ide` TypeScript with `npx tsc --noEmit` (0 errors).
+
+## #037 - Group 3 Manual Screened Excluded Paper Integration (2026-07-22)
+- **Goal**: Account for manual screening excluded papers in Group 3 screening pipeline drawers (Stage 1, Stage 2 Gatekeeper, Stage 2.2 Scientist, and Stage 2.3 Miner).
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Tracked manual screening exclusions per stage (`dbManualStage1Excluded`, `dbManualStage2Excluded`, `dbManualStage3Excluded`, `dbManualTotalExcluded`) and exported them in the `prismaData` payload object.
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Updated summary banners for Nodes 3.1, 3.3, 3.4, and 3.5 to display dedicated **Manual Exclusions** metric cards alongside AI exclusions.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 783ms) and `slr-ide` TypeScript with `npx tsc --noEmit` (0 errors).
+
+## #036 - Fix Missing useViewerData Import in ResearchWorkflowPanel (2026-07-22)
+- **Goal**: Resolve runtime `Uncaught ReferenceError: useViewerData is not defined` error in `<ResearchWorkflowPanel>`.
+- **Changes**:
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Restored `import { useViewerData } from '../../context/ViewerContext';` import statement.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 813ms).
+
+## #035 - Group 3 Screening Pipeline Real-Time Execution Drawer & Taxonomy Trends (2026-07-22)
+- **Goal**: Implement detailed real-time execution drawer data for all Group 3 nodes (Stage 1 Fast Filter, Stage 2 Gatekeeper, Stage 2.2 Scientist, and Stage 2.3 Miner) with per-rule paper exclusion counters and exact replication of `slr-ide`'s Taxonomy Trends Quick Overview.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Added `pool_b_ec_rules` to exported `.slr-viewer` snapshot project metadata object.
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx):
+    - Configured methodology default fallback seed rules for Stage 1 EC (`DEFAULT_STAGE1_EC`), Gatekeeper EC (`DEFAULT_GATEKEEPER_EC`), Scientist QA (`DEFAULT_SCIENTIST_QA`), and Miner Extraction (`DEFAULT_MINER_EXTRACTION`).
+    - Built Node 3.1 drawer (3.1 Stage 1: Fast Filter) with summary banner and `ec_rules` list featuring per-rule exclusion count badges.
+    - Built Node 3.3 drawer (3.3 Stage 2.1: The Gatekeeper) with structural failure summary banner and `pool_b_ec_rules` list featuring per-rule structural failure badges.
+    - Built Node 3.4 drawer (3.4 Stage 2.2: The Scientist) with Dual-Gate Quality Appraisal summary (Fatal Flaws vs Cumulative Score) and `pool_c_qa_rules` list with Fatal Flaw vs Scored Criterion badges and Score 1.0, 0.5, 0.0 definitions.
+    - Built Node 3.5 drawer (3.5 Stage 2.3: The Miner) with deterministic extraction rules list and embedded **Taxonomy Trends Quick Overview** featuring research question mapping, category progress bars, paper counts, percentages, normalization justifications, and JSON export.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 1.20s) and `slr-ide` TypeScript with `npx tsc --noEmit` (0 errors).
+- **Goal**: Display the Scopus Search Query string in Group 1 -> 1.2 Literature Ingestion Hub details panel with monospace code block and one-click copy button.
+- **Changes**:
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Attached `scopusSearchString` to node 1.2 `dataDetails`, rendered monospace search string card with copy button, feedback toast state, and empty state fallback.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 801ms).
+
+## #033 - Group 1 Node Reordering & Pre-Deduplication Raw Papers Data Ingestion Fix (2026-07-22)
+- **Goal**: Reorder Group 1 nodes to exact sequence (`1.1 Project Metadata & Governance`, `1.2 Literature Ingestion Hub`, `1.3 Anti-Duplicate Processing Job`, `1.4 Calibration Pools Setup`) and fix Literature Ingestion Hub metric to pull raw identified paper count before duplicate removal.
+- **Changes**:
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx):
+    - Reordered Group 1 nodes: 1.1 Metadata, 1.2 Literature Ingestion Hub, 1.3 Anti-Duplicate Processing Job, 1.4 Calibration Pools Setup.
+    - Updated `rawIdentifiedCount` calculation to sum raw database paper counts before deduplication (`prisma.databaseSources` sum or `dbRecordsScreened + dbDuplicatesRemoved`).
+    - Updated drawer inspector node ID check to `node-1-2` for Database Sources Ingestion Breakdown.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 814ms).
+
+## #032 - Interactive Play/Pause Step Walkthrough & Relevant Workflow Architecture (2026-07-22)
+- **Goal**: Make title, header badge, and description relevant to systematic literature review execution architecture, and activate the Play/Pause button into an interactive step-by-step walkthrough stepper across all 18 pipeline nodes.
+- **Changes**:
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx):
+    - Updated header badge, title, and description text to accurately describe the interactive 5-group SLR pipeline execution workflow and session telemetry.
+    - Implemented sequential step-by-step node walkthrough state (`activeStepIndex`) advancing every 3.5 seconds when `isAnimating` is active.
+    - Added node pulse/bounce animations, glowing active step borders, and `ACTIVE STEP` badge indicators to visually highlight playback flow.
+- **Verification**: Verified `slr-viewer` build with `npm run build` (0 errors, 1.19s).
+
 ## #031 - Cohort Table View 100% CSV Tabular Export with Tooltips (2026-07-21)
 - **Goal**: Upgrade `slr-viewer` CSV generator function `exportFinalCohortCsv` to export 100% of Cohort Table View dynamic columns, scores, extracted research variables, and tooltip logic traces (`tt_*`).
 - **Changes**:

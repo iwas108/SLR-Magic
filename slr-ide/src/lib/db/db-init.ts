@@ -146,6 +146,7 @@ export function initializeDatabase(db: Database.Database): void {
       project_current_spend REAL DEFAULT 0.0,
       project_tax REAL DEFAULT 0.0,
       goldmine_dest_path TEXT,
+      scopus_search_string TEXT,
       llm_config TEXT DEFAULT '{}',
       created_at TEXT NOT NULL
     );
@@ -441,6 +442,13 @@ export function initializeDatabase(db: Database.Database): void {
       FOREIGN KEY(batch_id) REFERENCES rolling_batches(id) ON DELETE CASCADE
     );
   `);
+
+  // Add scopus_search_string column to projects if it doesn't exist (migration fallback)
+  try {
+    db.exec("ALTER TABLE projects ADD COLUMN scopus_search_string TEXT");
+  } catch (e) {
+    // Column already exists
+  }
 
   // Add Project_ID column to papers if it doesn't exist (migration fallback)
   try {
