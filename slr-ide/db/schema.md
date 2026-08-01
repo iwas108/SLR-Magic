@@ -24,7 +24,7 @@ Stores paper metadata, screening decisions, local matching details, and cloud li
 | `Authors` | TEXT | | Authors list |
 | `Year` | INTEGER | | Publication year |
 | `PDF_Link` | TEXT | | Public Google Drive link or download URL |
-| `Local_PDF_Status` | TEXT | NOT NULL DEFAULT 'IGNORED' | Status of local PDF: `IGNORED`, `MISSING`, `MATCHED`, `DOWNLOADED`, `SYNCED`, `IN_PROGRESS`, `FAILED`, `NEEDS_REVIEW` |
+| `Local_PDF_Status` | TEXT | NOT NULL DEFAULT 'IGNORED' | Status of local PDF: `IGNORED`, `MISSING`, `INACCESSIBLE`, `MATCHED`, `DOWNLOADED`, `SYNCED`, `IN_PROGRESS`, `FAILED`, `NEEDS_REVIEW` |
 | `Local_PDF_Path` | TEXT | | Local path to PDF file if available |
 | `Project_ID` | TEXT | | Reference link to the project |
 | `Parent_Paper_ID` | TEXT | | Optional reference link to parent paper for snowballing chaining |

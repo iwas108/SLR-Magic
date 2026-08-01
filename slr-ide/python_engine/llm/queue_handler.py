@@ -259,7 +259,7 @@ class LLMQueueHandler:
             incoming_stage = stage_map.get(self.task_type, 0)
 
             # Fetch current ai_stage
-            paper_db = execute_read_one("SELECT ai_stage FROM papers WHERE Paper_ID = ?", (paper_id,))
+            paper_db = execute_read_one("SELECT ai_stage FROM papers WHERE Paper_ID = ? AND Project_ID = ?", (paper_id, self.project_id))
             current_ai_stage = paper_db.get("ai_stage") if paper_db else 0
 
             if incoming_stage >= current_ai_stage:
@@ -291,10 +291,10 @@ class LLMQueueHandler:
                         ai_rationale = COALESCE(?, ai_rationale),
                         ai_quality_assessment = COALESCE(?, ai_quality_assessment),
                         ai_extracted_data = COALESCE(?, ai_extracted_data)
-                    WHERE Paper_ID = ?
+                    WHERE Paper_ID = ? AND Project_ID = ?
                     """,
                     (incoming_stage, ai_decision, ai_exclusion_code, rationale_text or None,
-                     qa_scores_json, extracted_data_json, paper_id)
+                     qa_scores_json, extracted_data_json, paper_id, self.project_id)
                 )
                 logger.info(f"AI screening decision for paper {paper_id} saved to papers table ai_* columns.")
 

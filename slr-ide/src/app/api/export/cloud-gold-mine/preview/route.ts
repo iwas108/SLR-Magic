@@ -96,7 +96,9 @@ export async function GET(request: Request) {
       ? project.goldmine_dest_path.trim()
       : `${(project.gdrive_dest_path || 'SLR_Magic/PDFs').trim()}/Gold_Mine_Exports`;
 
-    const remoteDest = `${project.rclone_remote_name || 'gdrive'}:${resolvedGoldminePath}`;
+    const safeGroupKey = groupByKey ? String(groupByKey).trim().replace(/[^a-z0-9_\-]/gi, '_') : '';
+    const sessionPrefix = safeGroupKey ? `${safeGroupKey}_<timestamp>` : `Flat_Exports_<timestamp>`;
+    const remoteDest = `${project.rclone_remote_name || 'gdrive'}:${resolvedGoldminePath}/${sessionPrefix}`;
 
     // 2. Get Umbrellanizer mappings if key provided
     let umbrellaMapping: Record<string, any> = {};
@@ -146,20 +148,30 @@ export async function GET(request: Request) {
         AND Local_PDF_Path IS NOT NULL
     `).all(projectId) as any[];
 
-    // 4. Pass 1: Collect paper categories and count totals per category
+    // 4. Pass 1: Filter by QA threshold & sort papers in descending order of QA score
     let skippedQa = 0;
+    const qualifiedPapers: Array<{ paper: any; qaScore: number }> = [];
+
+    for (const paper of papers) {
+      const qaScore = parseQaScore(paper);
+      if (qaFilterEnabled && qaScore < minQaThreshold) {
+        skippedQa++;
+        continue;
+      }
+      qualifiedPapers.push({ paper, qaScore });
+    }
+
+    qualifiedPapers.sort((a, b) => {
+      if (b.qaScore !== a.qaScore) {
+        return b.qaScore - a.qaScore;
+      }
+      return String(a.paper.Paper_ID || '').localeCompare(String(b.paper.Paper_ID || ''));
+    });
+
     const paperCategoryItems: Array<{ fileName: string; categories: string[] }> = [];
     const categoryTotals: Record<string, number> = {};
 
-    for (const paper of papers) {
-      if (qaFilterEnabled) {
-        const qaScore = parseQaScore(paper);
-        if (qaScore < minQaThreshold) {
-          skippedQa++;
-          continue;
-        }
-      }
-
+    for (const { paper } of qualifiedPapers) {
       let categories: string[] = [];
       if (groupByKey) {
         const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
@@ -204,8 +216,17 @@ export async function GET(request: Request) {
 
         categories = Array.from(new Set(categories.map((c) => String(c || '').trim()))).filter(Boolean);
 
+        const notStatedCat = safeGroupKey ? `${safeGroupKey}_NOT_STATED` : '_Ungrouped';
         if (categories.length === 0) {
-          categories = ['_Ungrouped'];
+          categories = [notStatedCat];
+        } else {
+          categories = categories.map((cat) => {
+            const norm = String(cat || '').trim();
+            if (norm.toUpperCase() === 'NOT_STATED' || norm.toUpperCase() === 'NOT STATED' || norm === '_Ungrouped') {
+              return notStatedCat;
+            }
+            return norm;
+          });
         }
       } else {
         categories = [''];

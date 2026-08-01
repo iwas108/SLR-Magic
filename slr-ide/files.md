@@ -123,6 +123,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `types/index.ts` | TypeScript Definitions| Defines strict TypeScript interfaces for core entities: `Paper`, `Project`, `Config`, `ReviewerDecision`, `LedgerCommit`, and `DuplicatePair`. |
 | `lib/db.ts` | Database Client | Exports the singleton `better-sqlite3` database instance, transaction wrappers, PRAGMA enforcements, and configuration helpers. |
 | `lib/db/db-init.ts` | Database Client/Init | Isolation layer handling schema DDL execution, database migrations, default lookup table seeding (startup self-healing PDF path migrations and database healing are disabled). |
+| `lib/db/migrate-project-ids.ts` | Database Migration | Self-healing migration helper normalizing legacy unassigned, NULL, empty string, or default-project paper rows to active project ID. |
 | `lib/llm-operations.ts` | Frontend Utility | Singleton queue process manager initiating background subprocess execution and SSE log streams. |
 | `lib/vault.ts` | Cryptography | Node.js cryptographic utilities for vault key encryption/decryption matching python formats. |
 | `lib/session.ts` | Session Management | In-memory server-side cache for storing master password inside active sessions. |
@@ -148,7 +149,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
 | `hooks/useAppSync.ts` | Custom Hook | Manages global `BroadcastChannel` synchronization subscriptions using the Mutable Ref Pattern (`useRef`) to prevent stale closures. |
-| `hooks/useIngestion.ts` | Custom Hook | Manages the multi-step CSV ingestion workflow, file parsing buffers, dynamic column mapping state, and import transactions. |
+| `hooks/useIngestion.ts` | Custom Hook | Manages the multi-step CSV ingestion workflow, file parsing buffers, CSV source database selection, dynamic column mapping state, and import transactions. |
 | `hooks/usePapers.ts` | Custom Hook | Encapsulates paper database queries, server-side pagination (LIMIT/OFFSET), column sorting, search filtering, and CRUD operations. |
 | `hooks/useProjectForm.ts` | Custom Hook | Handles form state, input validation, and submission logic for creating and updating literature review projects. |
 | `hooks/useProjects.ts` | Custom Hook | Manages project listing retrieval, active project switching, and cloud provider (Google Drive / OneDrive) configuration state. |
@@ -166,9 +167,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/InterRaterDashboard.tsx` | View Component | Comprehensive dashboard for adjudicating blinded inter-rater reviews, comparing QA scores, and evaluating data extractions. |
 | `components/features/DashboardView.tsx` | View Component | Executive project overview view displaying summary statistics, local PDF acquisition charts, and recent project activity logs. |
 | `components/features/DuplicateReviewModal.tsx`| View Component | Human-in-the-loop modal interface for side-by-side comparison, scoring analysis, and adjudication of candidate duplicate pairs. |
-| `components/features/GlobalLLMSettingsView.tsx`| View Component | Unified 4-tab LLM dashboard aggregating Vault Settings, Prompt templates + schema editors, Operations controls, and Audit trails. |
+| `components/features/GlobalLLMSettingsView.tsx` | View Component | Unified 4-tab LLM dashboard aggregating Vault Settings, Prompt templates + schema editors, Operations controls (with dedicated Default Stage Prompts & Schema Mapper control panel featuring dynamic schema key path dropdowns), and Audit trails. |
 | `components/features/GlobalModals.tsx` | View Component | Unified container component wrapping all application modals to prevent inline rendering clutter within the main page structure. |
-| `components/features/IngestionHubView.tsx` | View Component | Primary view interface for importing new literature databases, reviewing CSV structures, and launching column mapping workflows. |
+| `components/features/IngestionHubView.tsx` | View Component | Primary view interface for importing new literature databases, configuring CSV source database origins, reviewing CSV structures, and launching column mapping workflows. |
 | `components/features/IngestionPanel.tsx` | View Component | Interactive sub-panel handling file drag-and-drop, initial CSV parsing, and preview rendering during ingestion. |
 | `components/features/LLMConfigView.tsx` | View Component | View interface for configuring project-scoped LLM budget spend limits. |
 | `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records, featuring bulk override and pipeline stage operations. |
@@ -206,7 +207,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/FullscreenAssignModal.tsx` | Modal Component| Standalone fullscreen modal composing pool stats header, paper list, and selection assign details view. |
 | `components/features/modals/fullscreen-assign/PoolStatsHeader.tsx` | UI Component | Header statistics and tag breakdown popovers for Pools A, B, and C. |
 | `components/features/modals/fullscreen-assign/PaperSelectionList.tsx` | UI Component | Left-hand paper search, pool filtering, and page checklist container. |
-| `components/features/modals/fullscreen-assign/AssignDetailView.tsx` | UI Component | Right-hand metadata, assignment triggers, and single-paper crawler logs console. |
+| `components/features/modals/fullscreen-assign/AssignDetailView.tsx` | UI Component | Right-hand paper details panel featuring a multi-tab view (Metadata & Notes vs PDF Viewer), persistent pool assignment header, embedded iframe viewer, and single-paper acquisition console. |
 | `components/features/modals/FullscreenInterRaterModal.tsx` | Modal Component| Standalone fullscreen modal wrapping the Inter-Rater Dashboard for blinded review evaluation. |
 | `components/features/dashboard/MetricSummaryCards.tsx` | Widget Component| Displays executive metric calculations, total counts, duplicate statistics, and missing PDF percentages in glassmorphic cards. |
 | `components/features/dashboard/LocalPDFStatusChart.tsx`| Widget Component| Renders graphical status distribution bars and legends for `AVAILABLE`, `MISSING`, `FAILED`, and `EXCLUDED` local PDFs. |
@@ -250,9 +251,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/export/inter-rater/route.ts`| REST Endpoint | Handles POST requests to generate standalone blinded review export packages (`.slr` schema) for use in the offline `inter-rater` SPA. |
 | `api/export/slr-viewer/route.ts` | REST Endpoint | Handles GET requests to generate pre-computed SLR Viewer snapshot dataset files (`.slr-viewer` format). |
 | `api/export/csv-tabular/route.ts` | REST Endpoint | Handles GET requests to export the Final Cohort table in FAIR-compliant CSV format with all quality scores, evidence, and extracted variables. |
-| `api/export/cloud-gold-mine/route.ts` | REST Endpoint | Handles GET (stream/status), POST (export execution with staging, QA filter, and rclone sync), and DELETE (cancel) for Cloud Gold Mine exports. |
-| `api/export/cloud-gold-mine/keys/route.ts` | REST Endpoint | Handles GET requests to fetch available Umbrellanizer extraction keys for the active project. |
-| `api/export/cloud-gold-mine/preview/route.ts` | REST Endpoint | Handles GET requests to generate real-time dynamic directory structure tree previews with sample paper PDF filenames. |
+| `api/export/cloud-gold-mine/route.ts` | REST Endpoint | Handles GET (stream/status), POST (export execution with staging, QA score descending sorting, RQ-prefixed root export session folder, RQ-prefixed NOT_STATED subfolders, and rclone sync), and DELETE (cancel) for Cloud Gold Mine exports. |
+| `api/export/cloud-gold-mine/keys/route.ts` | REST Endpoint | Handles GET requests to dynamically fetch available export grouping keys from both umbrellanizer_results and paper extracted data JSON payloads. |
+| `api/export/cloud-gold-mine/preview/route.ts` | REST Endpoint | Handles GET requests to generate real-time dynamic directory structure tree previews with QA score descending sorting, RQ root folder session path preview, and RQ-prefixed NOT_STATED subfolder preview. |
 
 | `api/import/route.ts` | REST Endpoint | Handles POST requests for CSV uploads, executing data parsing, duplicate DOI checks, and batch insertion into `papers`. |
 | `api/import/inter-rater/route.ts`| REST Endpoint | Handles POST requests to ingest completed `.slr` review packages from external raters, inserting records into `reviewer_decisions`. |

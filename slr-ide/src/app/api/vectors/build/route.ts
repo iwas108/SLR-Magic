@@ -18,8 +18,7 @@ export async function POST(request: Request) {
 
     const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
     const pythonModule = 'python_engine.entrypoints.build_vectors';
-
-    const args = ['-u', '-m', pythonModule];
+    const args = ['-u', '-m', pythonModule, '--project', activeProjectId];
     if (rebuild) {
       args.push('--rebuild');
     }

@@ -356,7 +356,7 @@ export default function ResearchWorkflowPanel() {
           subtitle: 'Cache Matcher & Web Scraping',
           icon: Search,
           badge: 'pdf_scraper.py',
-          liveMetric: `${prisma.dbReportsSought || 0} Sought • ${prisma.dbReportsNotRetrieved || 0} Ignored/Missing`,
+          liveMetric: `${prisma.dbReportsSought || 0} Sought • ${prisma.dbReportsNotRetrieved || 0} Unretrieved`,
           status: 'RETRIEVED',
           dataDetails: {
             sought: prisma.dbReportsSought || 0,

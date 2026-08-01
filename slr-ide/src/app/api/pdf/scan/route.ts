@@ -1,13 +1,14 @@
 import { spawn } from 'child_process';
 import path from 'path';
-import { PROJECT_ROOT } from '@/lib/db';
+import { PROJECT_ROOT, getConfig } from '@/lib/db';
 
 export async function POST() {
   try {
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
     const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
     const pythonModule = 'python_engine.entrypoints.match_cache';
 
-    const child = spawn(pythonExe, ['-u', '-m', pythonModule], { cwd: PROJECT_ROOT });
+    const child = spawn(pythonExe, ['-u', '-m', pythonModule, '--project', activeProjectId], { cwd: PROJECT_ROOT });
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({

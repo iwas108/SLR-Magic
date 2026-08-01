@@ -189,6 +189,7 @@ export const StorageService = {
         metadata: {
           filename,
           reviewerName: '',
+          project_id: metadataBlock.project_id || metadataBlock.projectId || '',
           project_name: projectName,
           pool_type: poolType,
           status: 'in-progress',
@@ -467,6 +468,7 @@ export const StorageService = {
 
         const updatedMetadata = {
           ...session.metadata,
+          project_id: newMetadata.project_id || newMetadata.projectId || session.metadata?.project_id || '',
           project_name: projectName,
           pool_type: poolType,
           currentIndex,
@@ -548,10 +550,12 @@ export const StorageService = {
       });
 
       // Construct standard metadata block depending on poolType
+      const resolvedProjectId = session.metadata?.project_id || session.metadata?.projectId || '';
       if (session.poolType === 'CAL_Pool_A') {
         // SNAKE-CASE PROJECT METADATA
         const exportPayload = {
           metadata: {
+            project_id: resolvedProjectId,
             project_name: session.projectName || session.metadata?.project_name || session.metadata?.projectName || 'Unnamed Project',
             research_manifesto: session.metadata?.research_manifesto || session.metadata?.researchManifesto || '',
             research_objective: session.metadata?.research_objective || session.metadata?.researchObjective || '',
@@ -572,6 +576,8 @@ export const StorageService = {
       // LEGACY CAMEL-CASE EXPORT
       const exportPayload = {
         metadata: {
+          project_id: resolvedProjectId,
+          projectId: resolvedProjectId,
           projectName: session.projectName,
           researchManifesto: session.metadata?.researchManifesto || session.metadata?.research_manifesto || '',
           researchObjective: session.metadata?.researchObjective || session.metadata?.research_objective || '',

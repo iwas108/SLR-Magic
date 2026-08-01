@@ -282,7 +282,7 @@ export default function CloudGoldMinePanel({ projectId, showToast }: CloudGoldMi
 
             <div className="bg-background border border-border p-3.5 rounded-xl text-[10px] font-mono leading-relaxed opacity-90 text-foreground/90 max-h-72 overflow-y-auto space-y-1.5 scrollbar-thin">
               <div className="text-primary font-bold">
-                {previewData?.remoteDest || 'gdrive:SLR_Magic/Gold_Mine'}/gold_mine_&lt;timestamp&gt;/
+                {previewData?.remoteDest || 'gdrive:SLR_Magic/Gold_Mine_Exports/Flat_Exports_<timestamp>'}
               </div>
 
               {!previewData || previewData.categories.length === 0 ? (

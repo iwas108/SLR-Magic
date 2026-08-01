@@ -17,18 +17,42 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const paramProjectId = searchParams.get('projectId');
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    const targetProjectId = paramProjectId || activeProjectId;
+
+    let project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;
     if (!project) {
-      return NextResponse.json({ error: 'Active project not found' }, { status: 404 });
+      const numericProjectId = parseInt(targetProjectId, 10);
+      if (!isNaN(numericProjectId)) {
+        project = db.prepare('SELECT * FROM projects WHERE id = ?').get(numericProjectId) as any;
+      }
+    }
+    if (!project) {
+      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    }
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const resolvedProjectId = project.id;
+
+    // Check project ID matching if present in file metadata
+    const fileProjectId = body.metadata.project_id || body.metadata.projectId;
+    if (fileProjectId && String(fileProjectId) !== String(resolvedProjectId)) {
+      return NextResponse.json({ 
+        error: `Project ID mismatch: file was exported for project "${fileProjectId}", but target project is "${resolvedProjectId}"` 
+      }, { status: 400 });
     }
 
     // Get active batch
     const activeBatch = db.prepare(`
       SELECT * FROM rolling_batches 
-      WHERE project_id = ? AND status != 'complete'
+      WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND status != 'complete'
       LIMIT 1
-    `).get(activeProjectId) as any;
+    `).get(resolvedProjectId) as any;
 
     if (!activeBatch) {
       return NextResponse.json({ error: 'No active rolling batch found to import review into.' }, { status: 400 });
@@ -65,14 +89,14 @@ export async function POST(request: Request) {
     const reviewerCountRow = db.prepare(`
       SELECT COUNT(DISTINCT reviewer_name) as count 
       FROM rolling_batch_reviewer_decisions 
-      WHERE batch_id = ?
-    `).get(activeBatch.id) as { count: number };
+      WHERE batch_id = ? AND project_id = ?
+    `).get(activeBatch.id, resolvedProjectId) as { count: number };
 
     const checkReviewerExist = db.prepare(`
       SELECT 1 FROM rolling_batch_reviewer_decisions 
-      WHERE batch_id = ? AND reviewer_name = ?
+      WHERE batch_id = ? AND project_id = ? AND reviewer_name = ?
       LIMIT 1
-    `).get(activeBatch.id, reviewerName);
+    `).get(activeBatch.id, resolvedProjectId, reviewerName);
 
     const isReupload = !!checkReviewerExist;
 
@@ -87,8 +111,8 @@ export async function POST(request: Request) {
       // Clear previous inputs if re-upload
       db.prepare(`
         DELETE FROM rolling_batch_reviewer_decisions 
-        WHERE batch_id = ? AND reviewer_name = ?
-      `).run(activeBatch.id, reviewerName);
+        WHERE batch_id = ? AND project_id = ? AND reviewer_name = ?
+      `).run(activeBatch.id, resolvedProjectId, reviewerName);
 
       let importedCount = 0;
 
@@ -111,7 +135,7 @@ export async function POST(request: Request) {
           INSERT INTO rolling_batch_reviewer_decisions 
             (batch_id, batch_number, paper_id, project_id, reviewer_name, qa_scores, extracted_data, imported_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(activeBatch.id, activeBatch.batch_number, paperId, activeProjectId, reviewerName, qaScoresJson, extractedDataJson, timestamp);
+        `).run(activeBatch.id, activeBatch.batch_number, paperId, resolvedProjectId, reviewerName, qaScoresJson, extractedDataJson, timestamp);
 
         importedCount++;
       }
@@ -259,7 +283,7 @@ export async function POST(request: Request) {
               (commit_hash, batch_id, batch_number, project_id, paper_id, adjudicator, previous_state, resolved_qa_scores, resolved_extracted_data, commit_message, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
-            commitHash, activeBatch.id, activeBatch.batch_number, activeProjectId, paperId,
+            commitHash, activeBatch.id, activeBatch.batch_number, resolvedProjectId, paperId,
             `IMPORT: ${reviewerName}`, previousState, newQAScores, newExtractedData,
             `Auto-adjudication state on import from ${reviewerName}`, timestamp
           );

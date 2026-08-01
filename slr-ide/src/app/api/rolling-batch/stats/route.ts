@@ -296,8 +296,8 @@ export async function GET() {
     const placeholders = completedBatchIds.map(() => '?').join(',');
     const allCompletedPapers = db.prepare(`
       SELECT * FROM rolling_batch_papers 
-      WHERE batch_id IN (${placeholders})
-    `).all(...completedBatchIds) as any[];
+      WHERE batch_id IN (${placeholders}) AND Project_ID = ?
+    `).all(...completedBatchIds, activeProjectId) as any[];
 
     // Calculate current cohort statistics
     const cumulativeStats = calculateCohortStats(allCompletedPapers, qaRules, umbMap);
@@ -306,8 +306,8 @@ export async function GET() {
     const individualBatchStats = completedBatches.map(batch => {
       const batchPapers = db.prepare(`
         SELECT * FROM rolling_batch_papers 
-        WHERE batch_id = ?
-      `).all(batch.id) as any[];
+        WHERE batch_id = ? AND Project_ID = ?
+      `).all(batch.id, activeProjectId) as any[];
       
       const stats = calculateCohortStats(batchPapers, qaRules, umbMap);
       return {
@@ -332,8 +332,8 @@ export async function GET() {
         
         const previousPapers = db.prepare(`
           SELECT * FROM rolling_batch_papers 
-          WHERE batch_id IN (${prevPlaceholders})
-        `).all(...previousBatchIds) as any[];
+          WHERE batch_id IN (${prevPlaceholders}) AND Project_ID = ?
+        `).all(...previousBatchIds, activeProjectId) as any[];
 
         const previousStats = calculateCohortStats(previousPapers, qaRules, umbMap);
         const previousCohortPassed = previousStats.s3.passed && previousStats.s4.passed;

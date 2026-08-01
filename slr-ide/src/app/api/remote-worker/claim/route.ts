@@ -44,11 +44,11 @@ export async function GET(req: Request) {
         SET Local_PDF_Status = 'IN_PROGRESS', 
             remote_worker_id = ?, 
             scrape_claimed_at = ?
-        WHERE Paper_ID = ?
+        WHERE Paper_ID = ? AND Project_ID = ?
       `);
 
       for (const id of paperIds) {
-        updateStmt.run(worker_id, now, id);
+        updateStmt.run(worker_id, now, id, project_id);
       }
 
       return rows;

@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
+    const logId = searchParams.get('id');
     const paperId = searchParams.get('paperId');
     const search = searchParams.get('search') || '';
     const stage = searchParams.get('stage') || '';
@@ -13,6 +14,25 @@ export async function GET(request: NextRequest) {
 
     if (!projectId) {
       return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
+    }
+
+    if (logId) {
+      // Query single interaction log by ID with full payload fields
+      const row = db.prepare(`
+        SELECT l.*, p.Title as paper_title
+        FROM llm_audit_log l
+        LEFT JOIN papers p ON l.paper_id = p.Paper_ID
+        WHERE l.project_id = ? AND l.id = ?
+      `).get(projectId, logId);
+
+      if (!row) {
+        return NextResponse.json({ error: 'Log entry not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        log: row
+      });
     }
 
     if (paperId) {
@@ -31,7 +51,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Query audit logs with pagination and paper details joined
+    // Query audit logs with pagination and paper details joined (omitting heavy raw_prompt and raw_response text fields)
     let baseQuery = `
       FROM llm_audit_log l
       LEFT JOIN papers p ON l.paper_id = p.Paper_ID
@@ -51,7 +71,13 @@ export async function GET(request: NextRequest) {
     }
 
     const query = `
-      SELECT l.*, p.Title as paper_title
+      SELECT 
+        l.id, l.paper_id, l.project_id, l.job_id, l.interaction_id, l.previous_interaction_id,
+        l.model_id, l.task_type, l.input_tokens, l.output_tokens, l.thinking_tokens,
+        l.cached_tokens, l.total_tokens, l.cost_usd, l.flex_discount, l.speed_mode,
+        l.prompt_hash, l.response_schema_name, l.structured_output, l.status,
+        l.error_message, l.error_code, l.latency_ms, l.retry_count, l.api_version, l.created_at,
+        p.Title as paper_title
       ${baseQuery}
       ORDER BY l.created_at DESC
       LIMIT ? OFFSET ?

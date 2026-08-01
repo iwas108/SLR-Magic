@@ -31,16 +31,23 @@ class VectorIndexManager:
         # Create new 768-dimension index (matching nomic-embed-text-v1.5) with 4-bit quantization (quality)
         return IdMapIndex(dim=768, bit_width=4)
 
+    _pdf_index_mtime = 0
+    _paper_index_mtime = 0
+
     @classmethod
     def get_pdf_index(cls):
-        if cls._pdf_index is None:
+        current_mtime = os.path.getmtime(PDF_INDEX_PATH) if os.path.exists(PDF_INDEX_PATH) else 0
+        if cls._pdf_index is None or cls._pdf_index_mtime != current_mtime:
             cls._pdf_index = cls._load_or_create_index(PDF_INDEX_PATH)
+            cls._pdf_index_mtime = current_mtime
         return cls._pdf_index
 
     @classmethod
     def get_paper_index(cls):
-        if cls._paper_index is None:
+        current_mtime = os.path.getmtime(PAPER_INDEX_PATH) if os.path.exists(PAPER_INDEX_PATH) else 0
+        if cls._paper_index is None or cls._paper_index_mtime != current_mtime:
             cls._paper_index = cls._load_or_create_index(PAPER_INDEX_PATH)
+            cls._paper_index_mtime = current_mtime
         return cls._paper_index
 
     @classmethod
@@ -160,7 +167,16 @@ class VectorIndexManager:
                     pass
             # Filter allowed IDs to only those actually present in the turbovec index,
             # since turbovec throws an error if any allowlist ID is missing from the index.
-            ids = [uid for uid in ids if uid in paper_index]
+            try:
+                index_ids_set = set(paper_index)
+            except Exception:
+                index_ids_set = None
+
+            if index_ids_set is not None:
+                ids = [uid for uid in ids if uid in index_ids_set]
+            else:
+                ids = [uid for uid in ids if uid in paper_index]
+
             if not ids:
                 return []
             allowlist_ids = np.array(ids, dtype=np.uint64)

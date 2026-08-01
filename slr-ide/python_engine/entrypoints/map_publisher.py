@@ -100,10 +100,16 @@ def main():
     conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
-    # Fetch active project ID
-    cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
-    active_proj_row = cursor.fetchone()
-    active_proj_id = active_proj_row[0] if active_proj_row else 'default-project'
+    # Fetch active project ID from CLI flags or configs
+    active_proj_id = None
+    for i in range(1, len(sys.argv)):
+        if sys.argv[i] == '--project' and i + 1 < len(sys.argv):
+            active_proj_id = sys.argv[i+1]
+
+    if not active_proj_id:
+        cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
+        active_proj_row = cursor.fetchone()
+        active_proj_id = active_proj_row[0] if active_proj_row else 'default-project'
 
     # Fetch papers for the active project
     force_update = '--force-update' in sys.argv
@@ -203,8 +209,8 @@ def main():
             cursor.execute("""
                 UPDATE papers
                 SET Publisher = ?
-                WHERE Paper_ID = ?
-            """, (final_publisher, paper_id))
+                WHERE Paper_ID = ? AND Project_ID = ?
+            """, (final_publisher, paper_id, active_proj_id))
             conn.commit()
             success_count += 1
             print(json.dumps({"event": "paper_success", "paper_id": paper_id, "title": title}))

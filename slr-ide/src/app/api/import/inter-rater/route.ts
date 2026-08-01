@@ -33,10 +33,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Pool mismatch: target pool is ${dbPool.toUpperCase()}, but file pool type is "${filePoolType}"` }, { status: 400 });
     }
 
+    const paramProjectId = searchParams.get('projectId');
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    const targetProjectId = paramProjectId || activeProjectId;
+
+    let project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;
     if (!project) {
-      return NextResponse.json({ error: 'Active project not found' }, { status: 404 });
+      const numericProjectId = parseInt(targetProjectId, 10);
+      if (!isNaN(numericProjectId)) {
+        project = db.prepare('SELECT * FROM projects WHERE id = ?').get(numericProjectId) as any;
+      }
+    }
+    if (!project) {
+      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    }
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const resolvedProjectId = project.id;
+
+    // Check project ID matching if present in file metadata
+    const fileProjectId = body.metadata.project_id || body.metadata.projectId;
+    if (fileProjectId && String(fileProjectId) !== String(resolvedProjectId)) {
+      return NextResponse.json({
+        error: `Project ID mismatch: file was exported for project "${fileProjectId}", but target project is "${resolvedProjectId}"`
+      }, { status: 400 });
     }
 
     // Parse QA and Extraction rules for Pool C
@@ -134,25 +157,25 @@ export async function POST(request: Request) {
     // We run the routing logic and database updates inside an atomic transaction
     const result = db.transaction(() => {
       // Check if re-upload
-      const existingReviewer = checkReviewerExistStmt.get(activeProjectId, dbPool, reviewerName);
+      const existingReviewer = checkReviewerExistStmt.get(resolvedProjectId, dbPool, reviewerName);
       if (existingReviewer) {
         isReupload = true;
       } else {
         // Slot vacancy check (max 2)
-        const reviewerCountRow = countReviewersStmt.get(activeProjectId, dbPool) as { count: number };
+        const reviewerCountRow = countReviewersStmt.get(resolvedProjectId, dbPool) as { count: number };
         if (reviewerCountRow.count >= 2) {
           return { error: 'All available calibration slots (maximum 2 reviewers per pool) are fully occupied.', status: 409 };
         }
       }
 
       // Snapshot sync (delete-then-insert)
-      deleteReviewerDecisionsStmt.run(activeProjectId, dbPool, reviewerName);
+      deleteReviewerDecisionsStmt.run(resolvedProjectId, dbPool, reviewerName);
 
       for (const paper of body.papers) {
         const paperId = paper.Paper_ID;
         if (!paperId) continue;
 
-        const dbPaper = selectPaperStmt.get(paperId, activeProjectId, dbPool) as any;
+        const dbPaper = selectPaperStmt.get(paperId, resolvedProjectId, dbPool) as any;
         if (!dbPaper) {
           continue; // Skip papers that aren't in this project's target pool
         }
@@ -163,7 +186,7 @@ export async function POST(request: Request) {
           
           insertDecisionStmt.run(
             paperId,
-            activeProjectId,
+            resolvedProjectId,
             dbPool,
             reviewerName,
             null, // decision
@@ -180,7 +203,7 @@ export async function POST(request: Request) {
 
           insertDecisionStmt.run(
             paperId,
-            activeProjectId,
+            resolvedProjectId,
             dbPool,
             reviewerName,
             decision,
@@ -199,14 +222,14 @@ export async function POST(request: Request) {
       const allPoolPapers = db.prepare(`
         SELECT *
         FROM calibration_papers 
-        WHERE Project_ID = ? AND calibration_pool = ?
-      `).all(activeProjectId, dbPool) as any[];
+        WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT) AND calibration_pool = ?
+      `).all(resolvedProjectId, dbPool) as any[];
 
       for (const paper of allPoolPapers) {
         const paperId = paper.Paper_ID;
         
         // Query decisions from all reviewers for this paper
-        const decisions = getPaperDecisionsStmt.all(paperId, activeProjectId, dbPool) as any[];
+        const decisions = getPaperDecisionsStmt.all(paperId, resolvedProjectId, dbPool) as any[];
 
         let newDecision = paper.manual_decision;
         let newEC = paper.manual_exclusion_code || null;
@@ -311,19 +334,19 @@ export async function POST(request: Request) {
           newExtractedData !== paper.manual_extracted_data ||
           paper.manual_stage !== targetStage
         ) {
-          updatePaperDecisionStmt.run(newDecision, newEC, newRationale, newQAScores, newExtractedData, targetStage, paperId, activeProjectId);
+          updatePaperDecisionStmt.run(newDecision, newEC, newRationale, newQAScores, newExtractedData, targetStage, paperId, resolvedProjectId);
 
           // Equalize AI decisions based on Stage
           if (targetStage === 2) {
-            const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'gatekeeper' AND status = 'SUCCESS' LIMIT 1").get(paperId, activeProjectId);
+            const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND CAST(project_id AS TEXT) = CAST(? AS TEXT) AND task_type = 'gatekeeper' AND status = 'SUCCESS' LIMIT 1").get(paperId, resolvedProjectId);
             if (!hasLog) {
-              db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
+              db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)").run(paperId, resolvedProjectId);
             }
           } else if (targetStage === 3) {
-            const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'scientist' AND status = 'SUCCESS' LIMIT 1").get(paperId, activeProjectId);
+            const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND CAST(project_id AS TEXT) = CAST(? AS TEXT) AND task_type = 'scientist' AND status = 'SUCCESS' LIMIT 1").get(paperId, resolvedProjectId);
             const hasScores = paper.ai_quality_assessment && paper.ai_quality_assessment !== '{}';
             if (!hasLog && !hasScores) {
-              db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
+              db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)").run(paperId, resolvedProjectId);
             }
           }
 
@@ -343,7 +366,7 @@ export async function POST(request: Request) {
 
           insertLedgerStmt.run(
             commitHash,
-            activeProjectId,
+            resolvedProjectId,
             paperId,
             dbPool,
             `IMPORT: ${reviewerName}`,
@@ -360,7 +383,7 @@ export async function POST(request: Request) {
       }
 
       // Count final total reviewers
-      const totalReviewersCountRow = countReviewersStmt.get(activeProjectId, dbPool) as { count: number };
+      const totalReviewersCountRow = countReviewersStmt.get(resolvedProjectId, dbPool) as { count: number };
 
       return {
         success: true,
@@ -376,8 +399,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    // Invalidate semantic search cache for the active project
-    clearSemanticSearchCache(activeProjectId);
+    // Invalidate semantic search cache for the target project
+    clearSemanticSearchCache(String(resolvedProjectId));
 
     return NextResponse.json(result);
   } catch (error: any) {
@@ -399,20 +422,39 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Invalid pool specified' }, { status: 400 });
     }
 
+    const paramProjectId = searchParams.get('projectId');
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const targetProjectId = paramProjectId || activeProjectId;
+
+    let project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;
+    if (!project) {
+      const numericProjectId = parseInt(targetProjectId, 10);
+      if (!isNaN(numericProjectId)) {
+        project = db.prepare('SELECT * FROM projects WHERE id = ?').get(numericProjectId) as any;
+      }
+    }
+    if (!project) {
+      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    }
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const resolvedProjectId = project.id;
 
     db.transaction(() => {
       // 1. Delete decisions
       db.prepare(`
         DELETE FROM reviewer_decisions 
-        WHERE project_id = ? AND pool = ?
-      `).run(activeProjectId, dbPool);
+        WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ?
+      `).run(resolvedProjectId, dbPool);
 
       // 2. Delete audit ledger entries
       db.prepare(`
         DELETE FROM calibration_commit_ledger 
-        WHERE project_id = ? AND pool = ?
-      `).run(activeProjectId, dbPool);
+        WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ?
+      `).run(resolvedProjectId, dbPool);
 
       // 3. Reset papers master decisions for calibration pool
       db.prepare(`
@@ -423,13 +465,13 @@ export async function DELETE(request: Request) {
             manual_rationale = NULL,
             manual_quality_assessment = NULL,
             manual_extracted_data = NULL
-        WHERE Project_ID = ? AND calibration_pool = ?
-      `).run(activeProjectId, dbPool);
+        WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT) AND calibration_pool = ?
+      `).run(resolvedProjectId, dbPool);
     })();
 
 
-    // Invalidate semantic search cache for the active project
-    clearSemanticSearchCache(activeProjectId);
+    // Invalidate semantic search cache for the target project
+    clearSemanticSearchCache(String(resolvedProjectId));
 
     return NextResponse.json({ success: true, message: `Successfully reset all calibration data for ${dbPool.toUpperCase()}` });
   } catch (error: any) {

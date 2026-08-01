@@ -167,22 +167,25 @@ export function useCalibration({
     }
   });
 
-  // Debounce keyword search input
+  // Debounce search input for both keyword and semantic search modes
   useEffect(() => {
-    if (assignSearchMode !== 'keyword') return;
     const timer = setTimeout(() => {
-      setDebouncedKeywordSearch(assignSearch);
-    }, 250);
+      if (assignSearchMode === 'keyword') {
+        setDebouncedKeywordSearch(assignSearch);
+      } else {
+        setActiveSemanticQuery(assignSearch);
+      }
+    }, 400);
     return () => clearTimeout(timer);
   }, [assignSearch, assignSearchMode]);
 
-  // Reset active query and pagination when switching mode
+  // Reset pagination and sync active query when switching mode
   useEffect(() => {
     setAssignPage(1);
     if (assignSearchMode === 'keyword') {
       setDebouncedKeywordSearch(assignSearch);
     } else {
-      setActiveSemanticQuery('');
+      setActiveSemanticQuery(assignSearch);
     }
   }, [assignSearchMode]);
 
@@ -275,7 +278,7 @@ export function useCalibration({
           body: JSON.stringify({
             query: currentQuery,
             pool: assignPoolFilter,
-            k: 200,
+            k: 1000,
             mode: 'papers',
             excludeReviews: assignExcludeReviews,
             publisher: assignPublisherFilter
@@ -498,6 +501,13 @@ export function useCalibration({
           };
         });
 
+        setAssignPapers(prev => prev.map(p => p.Paper_ID === paperId ? {
+          ...p,
+          calibration_pool: pool,
+          calibration_tag: tag,
+          Local_PDF_Status: nextPdfStatus
+        } : p));
+
         await loadProjects();
         if (activeTab?.startsWith('pre-calibration')) {
           await loadCalPapers();
@@ -585,10 +595,15 @@ export function useCalibration({
     return () => clearTimeout(handler);
   }, [assignSearch]);
 
-  // Trigger vector status check
+  // Trigger vector status check and eager daemon warmup
   useEffect(() => {
     if (showAssignModal) {
       loadVectorStatus();
+      fetch('/api/vectors/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'warmup' })
+      }).catch(() => {});
     }
   }, [showAssignModal, loadVectorStatus]);
 

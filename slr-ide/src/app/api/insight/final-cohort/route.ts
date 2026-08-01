@@ -52,7 +52,7 @@ export async function GET(request: Request) {
         Local_PDF_Status, Import_Source, DOI, PDF_Link,
         Publisher, Original_Publisher, citation_count,
         ai_stage, manual_stage,
-        (SELECT structured_output FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'scientist' ORDER BY id DESC LIMIT 1) AS qa_audit_structured_output
+        (SELECT structured_output FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'scientist' ORDER BY id DESC LIMIT 1) AS qa_audit_structured_output
       FROM papers 
       WHERE ${whereClause}
       ORDER BY Paper_ID ASC

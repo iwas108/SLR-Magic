@@ -16,6 +16,9 @@ export async function POST(req: Request) {
 
     // Retrieve the project_id associated with this duplicate pair
     const pair = db.prepare('SELECT project_id FROM duplicate_pairs WHERE id = ?').get(pair_id) as { project_id: string } | undefined;
+    if (!pair) {
+      return NextResponse.json({ error: 'Duplicate pair not found.' }, { status: 404 });
+    }
 
     if (action === 'KEEP_BOTH') {
       db.prepare(`
@@ -45,8 +48,8 @@ export async function POST(req: Request) {
         db.prepare(`
           UPDATE papers
           SET is_duplicate = 1, merged_into_id = ?
-          WHERE Paper_ID = ?
-        `).run(keep_paper_id, exclude_paper_id);
+          WHERE Paper_ID = ? AND Project_ID = ?
+        `).run(keep_paper_id, exclude_paper_id, pair?.project_id);
 
         // 2. Update status of the duplicate pair
         db.prepare(`

@@ -16,11 +16,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Inter-rater export is only implemented for Pool A, Pool B, and Pool C' }, { status: 400 });
     }
 
+    const paramProjectId = searchParams.get('projectId');
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    const targetProjectId = paramProjectId || activeProjectId;
+
+    let project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;
     if (!project) {
-      return NextResponse.json({ error: 'Active project not found' }, { status: 404 });
+      const numericProjectId = parseInt(targetProjectId, 10);
+      if (!isNaN(numericProjectId)) {
+        project = db.prepare('SELECT * FROM projects WHERE id = ?').get(numericProjectId) as any;
+      }
     }
+    if (!project) {
+      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    }
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const resolvedProjectId = project.id;
 
     const dbPool = (pool === 'pool_b' || pool === 'CAL_Pool_B') 
       ? 'pool_b' 
@@ -32,7 +47,7 @@ export async function GET(request: Request) {
     const papers = db.prepare(`
       SELECT * FROM calibration_papers 
       WHERE Project_ID = ? AND calibration_pool = ?
-    `).all(activeProjectId, dbPool) as any[];
+    `).all(resolvedProjectId, dbPool) as any[];
 
     // Blind the papers (force empty human fields, remove AI status) and shuffle
     const shuffledPapers = [...papers];
@@ -122,6 +137,7 @@ export async function GET(request: Request) {
     });
 
     const metadata: any = {
+      project_id: resolvedProjectId,
       project_name: project.name || 'Unnamed Project',
       research_manifesto: project.manifesto || '',
       research_objective: project.objective || '',

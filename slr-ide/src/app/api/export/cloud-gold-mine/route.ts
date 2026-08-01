@@ -207,8 +207,20 @@ export async function POST(request: Request) {
       return goldMineStateTracker.createEventStream(request);
     }
 
-    // Prepare staging directory
-    const exportSessionId = `gold_mine_${Date.now()}`;
+    // Pre-calculate QA score & sort papers in descending order of QA score
+    const sortedPapersWithQa = filteredPapers.map((paper: any) => ({
+      paper,
+      qaScore: parseQaScore(paper)
+    })).sort((a: any, b: any) => {
+      if (b.qaScore !== a.qaScore) {
+        return b.qaScore - a.qaScore;
+      }
+      return String(a.paper.Paper_ID || '').localeCompare(String(b.paper.Paper_ID || ''));
+    });
+
+    // Prepare staging directory with RQ-aware export session ID
+    const safeGroupKey = groupByKey ? String(groupByKey).trim().replace(/[^a-z0-9_\-]/gi, '_') : '';
+    const exportSessionId = safeGroupKey ? `${safeGroupKey}_${Date.now()}` : `Flat_Exports_${Date.now()}`;
     const exportTempDir = path.join(process.cwd(), 'slr-ide', 'tmp', exportSessionId);
 
     if (!fs.existsSync(exportTempDir)) {
@@ -238,7 +250,7 @@ export async function POST(request: Request) {
     const paperCategoryItems: Array<{ paper: any; categories: string[] }> = [];
     const categoryTotals: Record<string, number> = {};
 
-    for (const p of filteredPapers) {
+    for (const { paper: p } of sortedPapersWithQa) {
       let categoryValues: string[] = [];
       if (groupByKey) {
         const isManualDominant = (p.manual_stage || 0) >= (p.ai_stage || 0);
@@ -283,8 +295,17 @@ export async function POST(request: Request) {
 
         categoryValues = Array.from(new Set(categoryValues.map((c) => String(c || '').trim()))).filter(Boolean);
 
+        const notStatedCat = safeGroupKey ? `${safeGroupKey}_NOT_STATED` : '_Ungrouped';
         if (categoryValues.length === 0) {
-          categoryValues = ['_Ungrouped'];
+          categoryValues = [notStatedCat];
+        } else {
+          categoryValues = categoryValues.map((cat) => {
+            const norm = String(cat || '').trim();
+            if (norm.toUpperCase() === 'NOT_STATED' || norm.toUpperCase() === 'NOT STATED' || norm === '_Ungrouped') {
+              return notStatedCat;
+            }
+            return norm;
+          });
         }
       } else {
         categoryValues = [''];

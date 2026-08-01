@@ -168,17 +168,17 @@ export async function GET(request: Request) {
       if (ecTrigger === 'Unspecified') {
         filterQuery += ` AND COALESCE((
           SELECT ec_trigger FROM (
-            SELECT ec_trigger, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = '${taskType}'
+            SELECT ec_trigger, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = '${taskType}'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = '${taskType}' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = '${taskType}' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ), '') IN ('', 'NONE')`;
       } else {
         filterQuery += ` AND (
           SELECT ec_trigger FROM (
-            SELECT ec_trigger, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = '${taskType}'
+            SELECT ec_trigger, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = '${taskType}'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = '${taskType}' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = '${taskType}' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE ?`;
         params.push(`%${ecTrigger}%`);
@@ -190,62 +190,62 @@ export async function GET(request: Request) {
       if (pipelineStatus === 'included') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'fast_filter'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'fast_filter'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) >= 1`;
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'fast_filter'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'fast_filter'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'EXCLUDE%'
         AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) = 1`;
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai') {
         filterQuery += ` AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) <= 1
           AND NOT EXISTS (
-            SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'fast_filter'
+            SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'fast_filter'
           )
           AND NOT EXISTS (
-            SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           )`;
       }
     } else if (pipelineStage === '2') {
       if (pipelineStatus === 'included') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'gatekeeper'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'gatekeeper'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) >= 2`;
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'gatekeeper'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'gatekeeper'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'EXCLUDE%'
         AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) = 2`;
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai' || pipelineStatus === 'pending_pdf') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'fast_filter'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'fast_filter'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND NOT EXISTS (
-          SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'gatekeeper'
+          SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'gatekeeper'
         )
         AND NOT EXISTS (
-          SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+          SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
         )`;
 
         if (pipelineStatus === 'unprocessed') {
@@ -260,34 +260,34 @@ export async function GET(request: Request) {
       if (pipelineStatus === 'included') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'scientist'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'scientist'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) >= 3`;
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'scientist'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'scientist'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'EXCLUDE%'
         AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) = 3`;
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'gatekeeper'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'gatekeeper'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND NOT EXISTS (
-          SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'scientist'
+          SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'scientist'
         )
         AND NOT EXISTS (
-          SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+          SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
         )`;
 
         if (pipelineStatus === 'unprocessed') {
@@ -300,34 +300,34 @@ export async function GET(request: Request) {
       if (pipelineStatus === 'included') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'miner'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'miner'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) >= 4`;
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'miner'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'miner'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'EXCLUDE%'
         AND MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) = 4`;
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'scientist'
+            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'scientist'
             UNION ALL
-            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+            SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND NOT EXISTS (
-          SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'miner'
+          SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'miner'
         )
         AND NOT EXISTS (
-          SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+          SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
         )`;
 
         if (pipelineStatus === 'unprocessed') {
@@ -361,7 +361,7 @@ export async function GET(request: Request) {
              MAX(IFNULL(papers.manual_stage, 0), IFNULL(papers.ai_stage, 0)) as Status,
              (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
              (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,
-             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID AND parent.Project_ID = papers.Project_ID) as Parent_Paper_Title,
              (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0 as reviewer_decisions_exist
       ${filterQuery} 
       ORDER BY ${safeSortBy} ${safeSortOrder} 

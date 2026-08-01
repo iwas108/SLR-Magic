@@ -42,7 +42,8 @@ export async function runSubprocessStep(
       resolve();
       return;
     }
-    const args = ['-u', '-m', pythonModule];
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const args = ['-u', '-m', pythonModule, '--project', activeProjectId];
     if (forceUpdate) {
       args.push('--force-update');
     }

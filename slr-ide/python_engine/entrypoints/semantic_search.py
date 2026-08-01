@@ -14,55 +14,48 @@ from python_engine.vector.index_manager import VectorIndexManager
 def main():
     parser = argparse.ArgumentParser(description="Perform semantic search on vector indices.")
     parser.add_argument("--query", type=str, required=True, help="Query search text.")
-    parser.add_argument("--k", type=int, default=20, help="Number of results to return.")
+    parser.add_argument("--project", type=str, required=True, help="Active Project ID (mandatory)")
+    parser.add_argument("--k", type=int, default=1000, help="Number of results to return.")
     parser.add_argument("--pool", type=str, default=None, help="Calibration pool filter ('none', 'pool_a', 'pool_b', 'pool_c').")
     parser.add_argument("--mode", type=str, default="papers", choices=["papers", "pdfs"], help="Search index mode.")
     parser.add_argument("--exclude-reviews", action="store_true", help="Exclude review and survey papers.")
     parser.add_argument("--publisher", type=str, default=None, help="Publisher filter.")
     args = parser.parse_args()
 
-    # Fetch active project ID from configs
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
-        row = cursor.fetchone()
-        active_project_id = row[0] if row else 'default-project'
-    except Exception as e:
-        print(json.dumps({"error": f"Failed to connect to database: {e}"}))
-        sys.exit(1)
+    active_project_id = args.project
+    conn = get_connection()
+    cursor = conn.cursor()
 
     allowlist_ids = None
 
     if args.mode == "papers":
-        # Resolve allowlist based on pool configuration, review filters, and publisher filters
-        if args.pool or args.exclude_reviews or args.publisher:
-            try:
-                query_parts = ["SELECT Paper_ID FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"]
-                params = [active_project_id]
-                
-                if args.pool:
-                    pool_lower = args.pool.lower()
-                    if pool_lower == 'none':
-                        query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)")
-                        params.append(active_project_id)
-                    elif pool_lower != 'all':
-                        query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)")
-                        params.extend([active_project_id, pool_lower])
-                        
-                if args.exclude_reviews:
-                    query_parts.append("AND Title NOT LIKE '%review%' AND (Abstract IS NULL OR Abstract NOT LIKE '%survey%')")
-
-                if args.publisher and args.publisher.lower() != 'all':
-                    query_parts.append("AND Publisher = ?")
-                    params.append(args.publisher)
+        # Always construct allowlist scoped by active_project_id
+        try:
+            query_parts = ["SELECT Paper_ID FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"]
+            params = [active_project_id]
+            
+            if args.pool:
+                pool_lower = args.pool.lower()
+                if pool_lower == 'none':
+                    query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)")
+                    params.append(active_project_id)
+                elif pool_lower != 'all':
+                    query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)")
+                    params.extend([active_project_id, pool_lower])
                     
-                sql_query = " ".join(query_parts)
-                cursor.execute(sql_query, tuple(params))
-                allowlist_ids = [r[0] for r in cursor.fetchall()]
-            except Exception as e:
-                print(json.dumps({"error": f"Failed to fetch allowlist: {e}"}))
-                sys.exit(1)
+            if args.exclude_reviews:
+                query_parts.append("AND Title NOT LIKE '%review%' AND (Abstract IS NULL OR Abstract NOT LIKE '%survey%')")
+
+            if args.publisher and args.publisher.lower() != 'all':
+                query_parts.append("AND Publisher = ?")
+                params.append(args.publisher)
+                
+            sql_query = " ".join(query_parts)
+            cursor.execute(sql_query, tuple(params))
+            allowlist_ids = [r[0] for r in cursor.fetchall()]
+        except Exception as e:
+            print(json.dumps({"error": f"Failed to fetch allowlist: {e}"}))
+            sys.exit(1)
 
         # Run paper vector search (automatically handles nomic search_query: prefix)
         try:
@@ -84,8 +77,8 @@ def main():
         
         try:
             cursor.execute(
-                f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders})",
-                tuple(paper_ids)
+                f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND Project_ID = ?",
+                tuple(paper_ids) + (active_project_id,)
             )
             columns = [col[0] for col in cursor.description]
             metadata_map = {}

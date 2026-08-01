@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import db, { getConfig } from '@/lib/db';
 import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 export async function GET(
@@ -8,15 +8,16 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
     const paper = db.prepare(`
       SELECT *, 
              (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
              (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,
-             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title,
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID AND parent.Project_ID = papers.Project_ID) as Parent_Paper_Title,
              (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0 as reviewer_decisions_exist
       FROM papers 
-      WHERE Paper_ID = ?
-    `).get(id);
+      WHERE Paper_ID = ? AND Project_ID = ?
+    `).get(id, activeProjectId);
     if (!paper) {
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }
@@ -42,8 +43,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Title is mandatory' }, { status: 400 });
     }
 
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    
     // Fetch current paper record to preserve fields not supplied in body
-    const currentPaper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ?').get(id) as any;
+    const currentPaper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND Project_ID = ?').get(id, activeProjectId) as any;
     if (!currentPaper) {
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }
@@ -121,7 +124,7 @@ export async function PUT(
           manual_stage = ?,
           manual_quality_assessment = ?,
           manual_extracted_data = ?
-      WHERE Paper_ID = ?
+      WHERE Paper_ID = ? AND Project_ID = ?
     `).run(
       Title.trim(),
       Authors !== undefined ? String(Authors).trim() : currentPaper.Authors,
@@ -141,7 +144,8 @@ export async function PUT(
       manualStageVal,
       manualQaVal,
       manualExtVal,
-      id
+      id,
+      activeProjectId
     );
 
     // If manual screening fields were explicitly provided, write an audit log entry
@@ -168,7 +172,7 @@ export async function PUT(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id,
-        currentPaper.Project_ID,
+        activeProjectId,
         auditStageStr,
         activeDecision,
         ecTriggerVal,
@@ -179,9 +183,7 @@ export async function PUT(
       );
     }
 
-    if (currentPaper?.Project_ID) {
-      clearSemanticSearchCache(currentPaper.Project_ID);
-    }
+    clearSemanticSearchCache(activeProjectId);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
@@ -195,14 +197,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
     
-    const paper = db.prepare('SELECT Project_ID FROM papers WHERE Paper_ID = ?').get(id) as { Project_ID: string } | undefined;
-    
-    db.prepare('DELETE FROM papers WHERE Paper_ID = ?').run(id);
+    db.prepare('DELETE FROM papers WHERE Paper_ID = ? AND Project_ID = ?').run(id, activeProjectId);
 
-    if (paper?.Project_ID) {
-      clearSemanticSearchCache(paper.Project_ID);
-    }
+    clearSemanticSearchCache(activeProjectId);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

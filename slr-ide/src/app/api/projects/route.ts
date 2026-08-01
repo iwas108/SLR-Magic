@@ -128,12 +128,12 @@ export async function GET() {
         WHERE p.Project_ID = ? AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) AND MAX(p.manual_stage, p.ai_stage) <= 1
           AND NOT EXISTS (
             SELECT 1 FROM llm_audit_log l 
-            WHERE l.paper_id = p.Paper_ID AND l.status = 'SUCCESS' AND json_valid(l.structured_output) = 1
+            WHERE l.paper_id = p.Paper_ID AND l.project_id = p.Project_ID AND l.status = 'SUCCESS' AND json_valid(l.structured_output) = 1
               AND l.task_type = 'fast_filter'
           )
           AND NOT EXISTS (
             SELECT 1 FROM manual_audit_log m
-            WHERE m.paper_id = p.Paper_ID AND m.manual_stage = 'fast_filter'
+            WHERE m.paper_id = p.Paper_ID AND m.project_id = p.Project_ID AND m.manual_stage = 'fast_filter'
           )
       `).get(proj.id) as { count: number };
 
@@ -166,13 +166,13 @@ export async function GET() {
           SUM(CASE WHEN p.Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as unprocessed,
           SUM(CASE WHEN p.Local_PDF_Status NOT IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as pending_pdf
         FROM stage1_includes s1
-        JOIN papers p ON p.Paper_ID = s1.paper_id
+        JOIN papers p ON p.Paper_ID = s1.paper_id AND p.Project_ID = ?
         WHERE (p.is_duplicate IS NULL OR p.is_duplicate = 0)
           AND NOT EXISTS (
             SELECT 1 FROM ranked_decisions r
             WHERE r.paper_id = s1.paper_id AND r.rn = 1 AND r.task_type = 'gatekeeper'
           )
-      `).get(proj.id, proj.id) as { unprocessed: number | null; pending_pdf: number | null };
+      `).get(proj.id, proj.id, proj.id) as { unprocessed: number | null; pending_pdf: number | null };
 
       const stage3Unprocessed = db.prepare(`
         WITH combined_logs AS (
@@ -201,13 +201,13 @@ export async function GET() {
         )
         SELECT COUNT(p.Paper_ID) as count
         FROM stage2_includes s2
-        JOIN papers p ON p.Paper_ID = s2.paper_id
+        JOIN papers p ON p.Paper_ID = s2.paper_id AND p.Project_ID = ?
         WHERE (p.is_duplicate IS NULL OR p.is_duplicate = 0)
           AND NOT EXISTS (
             SELECT 1 FROM ranked_decisions r
             WHERE r.paper_id = s2.paper_id AND r.rn = 1 AND r.task_type = 'scientist'
           )
-      `).get(proj.id, proj.id) as { count: number };
+      `).get(proj.id, proj.id, proj.id) as { count: number };
 
       const stage4Unprocessed = db.prepare(`
         WITH combined_logs AS (
@@ -236,13 +236,13 @@ export async function GET() {
         )
         SELECT COUNT(p.Paper_ID) as count
         FROM stage3_includes s3
-        JOIN papers p ON p.Paper_ID = s3.paper_id
+        JOIN papers p ON p.Paper_ID = s3.paper_id AND p.Project_ID = ?
         WHERE (p.is_duplicate IS NULL OR p.is_duplicate = 0)
           AND NOT EXISTS (
             SELECT 1 FROM ranked_decisions r
             WHERE r.paper_id = s3.paper_id AND r.rn = 1 AND r.task_type = 'miner'
           )
-      `).get(proj.id, proj.id) as { count: number };
+      `).get(proj.id, proj.id, proj.id) as { count: number };
 
       const ecBreakdown: Record<string, Record<string, number>> = {
         '1': {},
@@ -275,10 +275,10 @@ export async function GET() {
             manual_stage = 4
             OR ai_stage = 4
             OR EXISTS (
-              SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+              SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
             )
             OR EXISTS (
-              SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND manual_stage = 'miner'
+              SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'miner'
             )
           )
       `).all(proj.id) as { Paper_ID: string; manual_stage: number; ai_stage: number; manual_extracted_data: string | null; ai_extracted_data: string | null; }[];

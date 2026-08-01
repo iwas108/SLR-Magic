@@ -35,7 +35,7 @@ export default function ProjectManager({
   return (
     <div className="space-y-6">
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
         <div className="bg-card border border-border p-4 rounded-xl flex items-center justify-between shadow-sm relative overflow-hidden group">
           <div className="space-y-1 z-10">
             <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Active Project</span>
@@ -50,20 +50,6 @@ export default function ProjectManager({
             <h4 className="font-bold text-lg text-foreground font-mono">{stats.total}</h4>
           </div>
           <Database className="w-10 h-10 text-primary/10 absolute right-3 top-3 group-hover:scale-110 group-hover:text-primary/20 transition-all z-0" />
-        </div>
-
-        <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">
-          <div className="flex items-center justify-between z-10 mb-1">
-            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Screening Rate</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500/70" />
-          </div>
-          <div className="z-10 flex items-baseline gap-2">
-            <h4 className="font-bold text-lg text-foreground font-mono">{stats.screened}</h4>
-            <span className="text-[10px] text-muted-foreground">/ {stats.total} ({screenedPct}%)</span>
-          </div>
-          <div className="w-full bg-secondary rounded-full h-1.5 mt-2 overflow-hidden z-10">
-            <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${screenedPct}%` }} />
-          </div>
         </div>
 
         <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative overflow-hidden group">

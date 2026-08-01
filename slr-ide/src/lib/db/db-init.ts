@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { migrateProjectIds } from './migrate-project-ids';
 
 const PROJECT_ROOT = process.cwd().endsWith('slr-ide') 
   ? process.cwd() 
@@ -946,7 +947,7 @@ export function initializeDatabase(db: Database.Database): void {
         const absoluteRepoPath = path.join(PROJECT_ROOT, expectedRepoPath);
 
         if (fs.existsSync(absoluteRepoPath)) {
-          db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRepoPath, paperId);
+          db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ? AND Project_ID = ?').run(expectedRepoPath, paperId, projectId);
         } else {
           // If repo path is missing but raw file exists, copy raw file to repo path and update path
           const rawFilePath = path.join(rawPdfDir, `${paperId}.pdf`);
@@ -955,7 +956,7 @@ export function initializeDatabase(db: Database.Database): void {
               const repoDir = path.dirname(absoluteRepoPath);
               if (!fs.existsSync(repoDir)) fs.mkdirSync(repoDir, { recursive: true });
               fs.copyFileSync(rawFilePath, absoluteRepoPath);
-              db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRepoPath, paperId);
+              db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ? AND Project_ID = ?').run(expectedRepoPath, paperId, projectId);
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
               console.error(`Failed to self-heal copy raw to repo for ${paperId}: ${msg}`);
@@ -969,14 +970,14 @@ export function initializeDatabase(db: Database.Database): void {
                 fs.copyFileSync(absolutePath, absoluteRepoPath);
                 // Also copy to raw/ for eternal library
                 fs.copyFileSync(absolutePath, rawFilePath);
-                db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRepoPath, paperId);
+                db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ? AND Project_ID = ?').run(expectedRepoPath, paperId, projectId);
               } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
                 console.error(`Failed to self-heal copy legacy to repo for ${paperId}: ${msg}`);
               }
             } else {
               // PDF is completely missing on disk
-              db.prepare(`UPDATE papers SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL, PDF_Link = NULL WHERE Paper_ID = ?`).run(paperId);
+              db.prepare(`UPDATE papers SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL, PDF_Link = NULL WHERE Paper_ID = ? AND Project_ID = ?`).run(paperId, projectId);
             }
           }
         }
@@ -985,18 +986,18 @@ export function initializeDatabase(db: Database.Database): void {
         const absoluteRawPath = path.join(PROJECT_ROOT, expectedRawPath);
 
         if (fs.existsSync(absoluteRawPath)) {
-          db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRawPath, paperId);
+          db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ? AND Project_ID = ?').run(expectedRawPath, paperId, projectId);
         } else {
           if (fs.existsSync(absolutePath)) {
             try {
               fs.copyFileSync(absolutePath, absoluteRawPath);
-              db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ?').run(expectedRawPath, paperId);
+              db.prepare('UPDATE papers SET Local_PDF_Path = ? WHERE Paper_ID = ? AND Project_ID = ?').run(expectedRawPath, paperId, projectId);
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
               console.error(`Failed to copy legacy path to raw/ for ${paperId}: ${msg}`);
             }
           } else {
-            db.prepare(`UPDATE papers SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL, PDF_Link = NULL WHERE Paper_ID = ?`).run(paperId);
+            db.prepare(`UPDATE papers SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL, PDF_Link = NULL WHERE Paper_ID = ? AND Project_ID = ?`).run(paperId, projectId);
           }
         }
       }
@@ -1362,6 +1363,30 @@ export function initializeDatabase(db: Database.Database): void {
     console.error("Failed to execute corrective migration to remove Human_* columns:", e);
   }
   */
+
+  // Self-healing migration: reset unscreened papers in active project with manual_stage = 1 and manual_decision = 'PENDING' back to manual_stage = 0
+  try {
+    const activeProjRow = db.prepare("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'").get() as { value: string } | undefined;
+    const activeProjId = activeProjRow?.value || 'default-project';
+    const info = db.prepare(`
+      UPDATE papers 
+      SET manual_stage = 0, manual_decision = NULL 
+      WHERE Project_ID = ? 
+        AND manual_stage = 1 
+        AND (manual_decision = 'PENDING' OR manual_decision IS NULL OR manual_decision = '') 
+        AND NOT EXISTS (
+          SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID
+        )
+    `).run(activeProjId);
+    if (info.changes > 0) {
+      console.log(`[Self-Healing Migration] Cleaned ${info.changes} unscreened papers in active project '${activeProjId}' from manual_stage 1 to 0.`);
+    }
+  } catch (e) {
+    console.error("Failed to run unscreened papers stage cleanup migration:", e);
+  }
+
+  // Run self-healing Project ID normalization migration
+  migrateProjectIds(db);
 }
 
 

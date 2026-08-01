@@ -256,21 +256,28 @@ def run_matcher():
         })
     conn_idx.close()
 
-    # Fetch active project ID and folder name
-    cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
-    active_proj_row = cursor.fetchone()
-    active_proj_id = active_proj_row[0] if active_proj_row else 'default-project'
-
-    cursor.execute("SELECT folder_name FROM projects WHERE id = ?", (active_proj_id,))
-    proj_row = cursor.fetchone()
-    folder_name = proj_row[0] if proj_row else 'default_project'
-
-    # Fetch papers from main DB for the active project (optionally filtering by specific Paper_ID)
+    # Fetch active project ID and paper_id argument from CLI flags
+    active_proj_id = None
     paper_id_arg = None
     if len(sys.argv) > 1:
         for i in range(1, len(sys.argv)):
-            if sys.argv[i] == '--paper' and i + 1 < len(sys.argv):
+            if sys.argv[i] == '--project' and i + 1 < len(sys.argv):
+                active_proj_id = sys.argv[i+1]
+            elif sys.argv[i] == '--paper' and i + 1 < len(sys.argv):
                 paper_id_arg = sys.argv[i+1]
+
+    if not active_proj_id:
+        cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
+        active_proj_row = cursor.fetchone()
+        active_proj_id = active_proj_row[0] if active_proj_row else None
+
+    if not active_proj_id:
+        print_event({"event": "error", "message": "Missing required --project parameter."})
+        sys.exit(1)
+
+    cursor.execute("SELECT folder_name FROM projects WHERE id = ?", (active_proj_id,))
+    proj_row = cursor.fetchone()
+    folder_name = proj_row[0] if proj_row else active_proj_id
 
     if paper_id_arg:
         cursor.execute("""
@@ -359,8 +366,8 @@ def run_matcher():
                     cursor.execute("""
                         UPDATE papers
                         SET Local_PDF_Status = ?, Local_PDF_Path = ?
-                        WHERE Paper_ID = ?
-                    """, (file_found_status, file_found_path, paper_id))
+                        WHERE Paper_ID = ? AND Project_ID = ?
+                    """, (file_found_status, file_found_path, paper_id, active_proj_id))
                     conn.commit()
                     print(json.dumps({
                         "event": "log",
@@ -391,8 +398,8 @@ def run_matcher():
                 cursor.execute("""
                     UPDATE papers
                     SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL
-                    WHERE Paper_ID = ?
-                """, (paper_id,))
+                    WHERE Paper_ID = ? AND Project_ID = ?
+                """, (paper_id, active_proj_id))
                 conn.commit()
                 local_pdf_status = 'MISSING'
                 local_pdf_path = None
@@ -412,8 +419,8 @@ def run_matcher():
                 cursor.execute("""
                     UPDATE papers
                     SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ?
-                    WHERE Paper_ID = ?
-                """, (f"pdf_library/raw/{paper_id}.pdf", paper_id))
+                    WHERE Paper_ID = ? AND Project_ID = ?
+                """, (f"pdf_library/raw/{paper_id}.pdf", paper_id, active_proj_id))
                 conn.commit()
                 matched_count += 1
                 print(json.dumps({

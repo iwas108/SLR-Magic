@@ -22,11 +22,11 @@ export async function GET(request: Request) {
         SELECT l.paper_id, l.pool, l.resolved_decision as adjudicated_decision, l.resolved_qa_scores, l.resolved_extracted_data
         FROM calibration_commit_ledger l
         JOIN (
-          SELECT paper_id, MAX(timestamp) as max_ts
+          SELECT paper_id, project_id, MAX(timestamp) as max_ts
           FROM calibration_commit_ledger
           WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
-          GROUP BY paper_id
-        ) latest ON l.paper_id = latest.paper_id AND l.timestamp = latest.max_ts
+          GROUP BY paper_id, project_id
+        ) latest ON l.paper_id = latest.paper_id AND CAST(latest.project_id AS TEXT) = CAST(l.project_id AS TEXT) AND l.timestamp = latest.max_ts
         WHERE CAST(l.project_id AS TEXT) = CAST(? AS TEXT)
       `).all(activeProjectId, activeProjectId) as { paper_id: string; pool: string; adjudicated_decision: string; resolved_qa_scores: string; resolved_extracted_data: string }[];
 

@@ -1,4 +1,5 @@
 import Dexie from 'dexie';
+import { normalizeViewerSnapshot } from './utils/schemaMigration';
 
 export class SLRViewerDB extends Dexie {
   constructor() {
@@ -24,7 +25,11 @@ export const StorageService = {
 
   async getSession(id) {
     try {
-      return await db.sessions.get(Number(id));
+      const session = await db.sessions.get(Number(id));
+      if (session && session.rawData) {
+        session.rawData = normalizeViewerSnapshot(session.rawData);
+      }
+      return session;
     } catch (e) {
       console.error(`Error fetching session ${id}:`, e);
       return null;

@@ -30,10 +30,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Worker not found' }, { status: 404 });
     }
 
+    const paperRow = db.prepare(`SELECT Project_ID FROM papers WHERE Paper_ID = ? AND remote_worker_id = ?`).get(paper_id, worker_id) as { Project_ID: string } | undefined
+      || (db.prepare(`SELECT Project_ID FROM papers WHERE Paper_ID = ?`).get(paper_id) as { Project_ID: string } | undefined);
+    const targetProjectId = paperRow?.Project_ID;
+
+    if (!targetProjectId) {
+      return NextResponse.json({ error: 'Target paper or project not found' }, { status: 404 });
+    }
+
     if (status === 'DOWNLOADED') {
       const file = formData.get('file') as File;
       if (!file) {
-        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ?`).run(paper_id);
+        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND Project_ID = ?`).run(paper_id, targetProjectId);
         globalEventManager.broadcast({ type: 'SYNC_PAPERS' });
         return NextResponse.json({ error: 'Missing file payload for DOWNLOADED status' }, { status: 400 });
       }
@@ -43,14 +51,14 @@ export async function POST(req: Request) {
       // Basic validation (Node-side)
       if (buffer.length < 5 * 1024) {
         // Size too small
-        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ?`).run(paper_id);
+        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND Project_ID = ?`).run(paper_id, targetProjectId);
         globalEventManager.broadcast({ type: 'SYNC_PAPERS' });
         return NextResponse.json({ error: 'File too small (likely paywall html)' }, { status: 400 });
       }
 
       const header = buffer.subarray(0, 1024).toString('ascii');
       if (!header.includes('%PDF-')) {
-        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ?`).run(paper_id);
+        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND Project_ID = ?`).run(paper_id, targetProjectId);
         globalEventManager.broadcast({ type: 'SYNC_PAPERS' });
         return NextResponse.json({ error: 'Invalid PDF header' }, { status: 400 });
       }
@@ -72,14 +80,14 @@ export async function POST(req: Request) {
             Local_PDF_Path = ?, 
             remote_worker_id = NULL, 
             scrape_claimed_at = NULL 
-        WHERE Paper_ID = ?
-      `).run(dbPath, paper_id);
+        WHERE Paper_ID = ? AND Project_ID = ?
+      `).run(dbPath, paper_id, targetProjectId);
 
       streamManager.broadcast({ event: 'progress', log: `[Remote Worker] Downloaded paper ${paper_id}. Initiating PDF Integrity Verification...` });
 
       // Run Python PDF Integrity Verification gate on this paper
       const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
-      const verifyProcess = spawn(pythonExe, ['-m', 'python_engine.entrypoints.verify_pdfs', '--paper', paper_id], {
+      const verifyProcess = spawn(pythonExe, ['-m', 'python_engine.entrypoints.verify_pdfs', '--project', targetProjectId, '--paper', paper_id], {
         cwd: PROJECT_ROOT,
       });
 
@@ -117,8 +125,8 @@ export async function POST(req: Request) {
         SET Local_PDF_Status = 'FAILED', 
             remote_worker_id = NULL, 
             scrape_claimed_at = NULL 
-        WHERE Paper_ID = ?
-      `).run(paper_id);
+        WHERE Paper_ID = ? AND Project_ID = ?
+      `).run(paper_id, targetProjectId);
       if (error_reason) {
         console.warn(`Worker ${worker_id} failed to scrape ${paper_id}: ${error_reason}`);
         streamManager.broadcast({ event: 'progress', log: `[Remote Worker] Failed ${paper_id}: ${error_reason}` });
@@ -128,7 +136,6 @@ export async function POST(req: Request) {
     }
 
     // Refresh telemetry and progress metrics in batchStateTracker
-    const paperRow = db.prepare(`SELECT Project_ID FROM papers WHERE Paper_ID = ?`).get(paper_id) as { Project_ID: string } | undefined;
     if (paperRow) {
       batchStateTracker.updateScrapingProgress(paperRow.Project_ID);
     }

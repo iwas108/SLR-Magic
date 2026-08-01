@@ -33,6 +33,10 @@ export default function IngestionHubView({
     csvData,
     csvSource,
     setCsvSource,
+    csvSourceSelect,
+    setCsvSourceSelect,
+    csvCustomSource,
+    setCsvCustomSource,
     csvImportDate,
     setCsvImportDate,
     columnMapping,
@@ -175,6 +179,41 @@ export default function IngestionHubView({
                         <Trash2 className="w-3.5 h-3.5" />
                         Change File
                       </button>
+                    </div>
+
+                    {/* CSV Source Selection */}
+                    <div className="space-y-2 bg-secondary/15 border border-border/40 p-4 rounded-xl">
+                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Globe className="w-3.5 h-3.5 text-primary" />
+                        CSV Source Database *
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <select
+                          value={csvSourceSelect}
+                          onChange={(e) => setCsvSourceSelect(e.target.value)}
+                          className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-primary"
+                        >
+                          <option value="IEEE Xplore">IEEE Xplore</option>
+                          <option value="Scopus">Scopus</option>
+                          <option value="Web of Science">Web of Science</option>
+                          <option value="PubMed">PubMed</option>
+                          <option value="ACM Digital Library">ACM Digital Library</option>
+                          <option value="Google Scholar">Google Scholar</option>
+                          <option value="ScienceDirect">ScienceDirect</option>
+                          <option value="SpringerLink">SpringerLink</option>
+                          <option value="Other">Other...</option>
+                        </select>
+
+                        {csvSourceSelect === 'Other' && (
+                          <input
+                            type="text"
+                            placeholder="Enter custom CSV source name..."
+                            value={csvCustomSource}
+                            onChange={(e) => setCsvCustomSource(e.target.value)}
+                            className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-primary"
+                          />
+                        )}
+                      </div>
                     </div>
 
                     {/* Column Mapping Configuration */}

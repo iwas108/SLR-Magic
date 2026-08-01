@@ -21,7 +21,10 @@ def print_event(event):
 def main():
     parser = argparse.ArgumentParser(description="Build or rebuild turbovec semantic indices.")
     parser.add_argument("--rebuild", action="store_true", help="Delete existing indices and rebuild from scratch.")
+    parser.add_argument("--project", required=True, help="Active Project ID (mandatory)")
     args = parser.parse_args()
+
+    active_project_id = args.project
 
     if args.rebuild:
         print_event({"event": "log", "message": "Rebuild flag detected. Clearing existing indices and ID maps..."})
@@ -42,20 +45,70 @@ def main():
             except Exception as e:
                 print_event({"event": "log", "message": f"Warning: Failed to clear id_map table: {e}"})
 
-    # Fetch active project ID from configs
+    # Get IDMap connection
+    conn_id = IDMap.get_connection()
+    cursor_id = conn_id.cursor()
+
+    # 1. Build Paper Corpus Vectors
+    print_event({"event": "log", "message": f"Phase 1: Indexing Paper Corpus for project {active_project_id}..."})
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
-        row = cursor.fetchone()
-        active_project_id = row[0] if row else 'default-project'
+        cursor.execute(
+            "SELECT Paper_ID, Title, Abstract FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)", 
+            (active_project_id,)
+        )
+        paper_records = cursor.fetchall()
         conn.close()
     except Exception as e:
-        print_event({"error": f"Failed to connect to main database: {e}"})
+        print_event({"error": f"Failed to fetch papers: {e}"})
         sys.exit(1)
 
-    # 1. Build PDF Cache Vectors
-    print_event({"event": "log", "message": "Phase 1: Indexing PDF Cache..."})
+    # Get already embedded Paper IDs
+    cursor_id.execute("SELECT string_id FROM id_map WHERE source = 'paper'")
+    already_indexed_papers = {r[0] for r in cursor_id.fetchall()}
+
+    papers_to_embed = []
+    for paper_id, title, abstract in paper_records:
+        if paper_id not in already_indexed_papers:
+            papers_to_embed.append((paper_id, title, abstract))
+
+    total_papers = len(papers_to_embed)
+    paper_vectors_indexed = 0
+    if total_papers > 0:
+        print_event({"event": "log", "message": f"Embedding {total_papers} new papers in batches..."})
+        batch_size = 64
+        paper_index = VectorIndexManager.get_paper_index()
+        for idx in range(0, total_papers, batch_size):
+            batch = papers_to_embed[idx : idx + batch_size]
+            paper_ids = [item[0] for item in batch]
+            combined_texts = [f"{item[1]} {item[2]}" if item[2] else item[1] for item in batch]
+            
+            # Embed batch
+            embeddings = TextEmbedder.embed_batch(combined_texts, is_query=False)
+            
+            # Add to index
+            ids = []
+            for paper_id in paper_ids:
+                uint64_id = IDMap.get_or_create_uint64(paper_id, 'paper')
+                ids.append(uint64_id)
+            
+            paper_index.add_with_ids(embeddings, np.array(ids, dtype=np.uint64))
+            
+            paper_vectors_indexed += len(batch)
+            paper_index.write(PAPER_INDEX_PATH)
+            print_event({
+                "event": "embedding",
+                "current": paper_vectors_indexed,
+                "total": total_papers,
+                "source": "paper_corpus"
+            })
+        paper_index.write(PAPER_INDEX_PATH)
+    else:
+        print_event({"event": "log", "message": "Paper Corpus is already up to date."})
+
+    # 2. Build PDF Cache Vectors
+    print_event({"event": "log", "message": "Phase 2: Indexing PDF Cache..."})
     try:
         conn_idx = get_cache_index_connection()
         cursor_idx = conn_idx.cursor()
@@ -67,8 +120,6 @@ def main():
         pdf_records = []
 
     # Get already embedded PDF filenames
-    conn_id = IDMap.get_connection()
-    cursor_id = conn_id.cursor()
     cursor_id.execute("SELECT string_id FROM id_map WHERE source = 'pdf_cache'")
     already_indexed_pdfs = {r[0] for r in cursor_id.fetchall()}
 
@@ -109,63 +160,6 @@ def main():
         pdf_index.write(PDF_INDEX_PATH)
     else:
         print_event({"event": "log", "message": "PDF Cache is already up to date."})
-
-    # 2. Build Paper Corpus Vectors
-    print_event({"event": "log", "message": "Phase 2: Indexing Paper Corpus..."})
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT Paper_ID, Title, Abstract FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)", 
-            (active_project_id,)
-        )
-        paper_records = cursor.fetchall()
-        conn.close()
-    except Exception as e:
-        print_event({"error": f"Failed to fetch papers: {e}"})
-        sys.exit(1)
-
-    # Get already embedded Paper IDs
-    cursor_id.execute("SELECT string_id FROM id_map WHERE source = 'paper'")
-    already_indexed_papers = {r[0] for r in cursor_id.fetchall()}
-
-    papers_to_embed = []
-    for paper_id, title, abstract in paper_records:
-        if paper_id not in already_indexed_papers:
-            papers_to_embed.append((paper_id, title, abstract))
-
-    total_papers = len(papers_to_embed)
-    paper_vectors_indexed = 0
-    if total_papers > 0:
-        print_event({"event": "log", "message": f"Embedding {total_papers} new papers in batches..."})
-        batch_size = 32
-        paper_index = VectorIndexManager.get_paper_index()
-        for idx in range(0, total_papers, batch_size):
-            batch = papers_to_embed[idx : idx + batch_size]
-            paper_ids = [item[0] for item in batch]
-            combined_texts = [f"{item[1]} {item[2]}" if item[2] else item[1] for item in batch]
-            
-            # Embed batch
-            embeddings = TextEmbedder.embed_batch(combined_texts, is_query=False)
-            
-            # Add to index
-            ids = []
-            for paper_id in paper_ids:
-                uint64_id = IDMap.get_or_create_uint64(paper_id, 'paper')
-                ids.append(uint64_id)
-            
-            paper_index.add_with_ids(embeddings, np.array(ids, dtype=np.uint64))
-            
-            paper_vectors_indexed += len(batch)
-            print_event({
-                "event": "embedding",
-                "current": paper_vectors_indexed,
-                "total": total_papers,
-                "source": "paper_corpus"
-            })
-        paper_index.write(PAPER_INDEX_PATH)
-    else:
-        print_event({"event": "log", "message": "Paper Corpus is already up to date."})
 
     # Output stats
     cursor_id.execute("SELECT COUNT(*) FROM id_map WHERE source = 'pdf_cache'")

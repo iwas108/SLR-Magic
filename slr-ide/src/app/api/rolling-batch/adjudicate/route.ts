@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     // Verify batch exists and is active
-    const batch = db.prepare('SELECT * FROM rolling_batches WHERE id = ?').get(batch_id) as any;
+    const batch = db.prepare('SELECT * FROM rolling_batches WHERE id = ? AND project_id = ?').get(batch_id, activeProjectId) as any;
     if (!batch) {
       return NextResponse.json({ error: 'Rolling batch not found' }, { status: 404 });
     }
@@ -54,8 +54,8 @@ export async function POST(request: Request) {
       // 1. Read current state from rolling_batch_papers
       const dbPaper = db.prepare(`
         SELECT * FROM rolling_batch_papers 
-        WHERE Paper_ID = ? AND batch_id = ?
-      `).get(paper_id, batch_id) as any;
+        WHERE Paper_ID = ? AND batch_id = ? AND Project_ID = ?
+      `).get(paper_id, batch_id, activeProjectId) as any;
 
       if (!dbPaper) {
         throw new Error(`Paper ${paper_id} not found in this rolling batch.`);
@@ -79,8 +79,8 @@ export async function POST(request: Request) {
             manual_quality_assessment = ?,
             manual_extracted_data = ?,
             manual_stage = 3
-        WHERE Paper_ID = ? AND batch_id = ?
-      `).run(decision, exclusionCode || null, rationale || '', final_qa_scores_str, final_extracted_data_str, paper_id, batch_id);
+        WHERE Paper_ID = ? AND batch_id = ? AND Project_ID = ?
+      `).run(decision, exclusionCode || null, rationale || '', final_qa_scores_str, final_extracted_data_str, paper_id, batch_id, activeProjectId);
 
       // 3. Generate commit hash
       const commitHash = createHash('sha256')
@@ -101,16 +101,16 @@ export async function POST(request: Request) {
       // 5. Check if all papers in this batch are resolved
       const unresolvedCount = db.prepare(`
         SELECT COUNT(*) as count FROM rolling_batch_papers 
-        WHERE batch_id = ? AND (manual_decision = 'PENDING_ADJUDICATION' OR manual_decision IS NULL)
-      `).get(batch_id) as { count: number };
+        WHERE batch_id = ? AND Project_ID = ? AND (manual_decision = 'PENDING_ADJUDICATION' OR manual_decision IS NULL)
+      `).get(batch_id, activeProjectId) as { count: number };
 
       let batchFinalized = false;
       if (unresolvedCount.count === 0) {
         db.prepare(`
           UPDATE rolling_batches 
           SET status = 'complete', finalized_at = ? 
-          WHERE id = ?
-        `).run(timestamp, batch_id);
+          WHERE id = ? AND project_id = ?
+        `).run(timestamp, batch_id, activeProjectId);
         batchFinalized = true;
       }
 

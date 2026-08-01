@@ -1,3 +1,190 @@
+## #296 - Strict Multi-Project Separation & Isolation Agent Directives (2026-07-30)
+- **Goal**: Institutionalize mandatory multi-project separation rules in `AGENTS.md` and `slr-ide/AGENTS.md` to prevent any future coding agent or automated workflow from writing un-scoped database queries or skipping project ID isolation.
+- **Changes**:
+  - Modified [AGENTS.md (root directive)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/AGENTS.md): Added Section 3.8 mandating Project ID isolation for all SQL operations, subquery JOIN alignments, protected `'default-project'` ID status, atomic deletion cascades, vector search allowlists, and remote worker result callbacks.
+  - Modified [AGENTS.md (slr-ide directive)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/AGENTS.md): Added Section 3.6 replicating the mandatory Multi-Project Isolation policy.
+- **Verification**: Verified Markdown formatting and agent directives structure.
+
+## #295 - Removed Prompt Library from Project Settings Modal (2026-07-30)
+- **Goal**: Remove redundant Prompt Library tab and component from Project Settings modal since prompt management is fully integrated into the LLM Pipeline view (`GlobalLLMSettingsView.tsx`).
+- **Changes**:
+  - Modified [ProjectSettingsModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/ProjectSettingsModal.tsx): Removed `'prompts'` tab, `PromptLibraryView` import, default stage prompt state, schema mapping controls, and unneeded fetch calls.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #294 - LLM Audit Ledger Full Payload Storage & Lazy-Loading Optimization (2026-07-30)
+- **Goal**: Preserve full LLM API prompt and raw response payloads in SQLite `llm_audit_log` for maximum FAIR scientific auditability while optimizing UI list rendering via payload lazy loading.
+- **Changes**:
+  - Modified [route.ts (llm audit API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/llm/audit/route.ts): Added single log fetch by `id` query parameter; updated paginated list query to select metadata and structured output fields while omitting heavy `raw_prompt` and `raw_response` text blocks.
+  - Modified [LLMAuditLogView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/LLMAuditLogView.tsx): Added on-demand lazy loading of full log payload on row expansion with visual loading state indicator.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #293 - Paper Ingestion Default Unscreened Status & Migration Fix (2026-07-30)
+- **Goal**: Ensure newly imported CSV papers and manually ingested papers default to status `0` (Unscreened) instead of `1` (Fast Filter), and clean up unscreened papers in active project.
+- **Changes**:
+  - Modified [useIngestion.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useIngestion.ts): Removed default `Status = 'PENDING'` during CSV parsing and manual ingestion.
+  - Modified [route.ts (papers API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts): Updated `POST /api/papers` to set `manual_stage = 0` and `manual_decision = NULL` for empty or `'PENDING'` paper status.
+  - Modified [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts): Added self-healing database migration scoped to active project that cleans up unscreened papers with `manual_stage = 1` back to `manual_stage = 0`.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #292 - Rolling Batch Adjudication, Stats & Status Project ID Scoping (2026-07-30)
+- **Goal**: Scope all `rolling_batch_papers`, `rolling_batch_reviewer_decisions`, and `rolling_batches` queries in `rolling-batch/adjudicate/route.ts`, `rolling-batch/stats/route.ts`, and `rolling-batch/status/route.ts` by active project ID.
+- **Changes**:
+  - Modified [route.ts (rolling batch adjudicate API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/adjudicate/route.ts): Added `Project_ID = activeProjectId` / `project_id = activeProjectId` to paper state read, update, unresolved check, and batch completion status update.
+  - Modified [route.ts (rolling batch stats API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/stats/route.ts): Added `AND Project_ID = ?` passing `activeProjectId` to cumulative, individual, and audit verification `rolling_batch_papers` queries.
+  - Modified [route.ts (rolling batch status API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/status/route.ts): Added `AND Project_ID = ?` / `AND project_id = ?` passing `activeProjectId` to `rolling_batch_papers` and `rolling_batch_reviewer_decisions` queries.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #291 - SLR Viewer Exporter Rolling Batch Project ID Scoping (2026-07-30)
+- **Goal**: Scope all `rolling_batch_papers` queries in `export/slr-viewer/route.ts` by `Project_ID`.
+- **Changes**:
+  - Modified [route.ts (slr-viewer export API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Added `AND Project_ID = ?` passing `resolvedProjectId` to cumulative, individual, and audit verification `rolling_batch_papers` queries.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #290 - Remote Worker Result Scoping & Fallback Elimination (2026-07-30)
+- **Goal**: Mandate `targetProjectId` resolution and enforce `AND Project_ID = targetProjectId` on all `UPDATE papers` queries in `remote-worker/result/route.ts`.
+- **Changes**:
+  - Modified [route.ts (remote worker result API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/remote-worker/result/route.ts): Added worker ID filtering to target project lookup, eliminated un-scoped fallback `UPDATE` statements, and appended `AND Project_ID = targetProjectId` across all database updates.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #289 - Calibration Commit Ledger JOIN Project ID Scoping (2026-07-30)
+- **Goal**: Scope subqueries and JOIN ON conditions in `calibration_commit_ledger` queries in `adjudicate/stats/route.ts` and `export/slr-viewer/route.ts` by project ID.
+- **Changes**:
+  - Modified [route.ts (adjudicate stats API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts): Selected `project_id` in `latest` subquery and added `AND CAST(latest.project_id AS TEXT) = CAST(l.project_id AS TEXT)` to `JOIN ON`.
+  - Modified [route.ts (slr-viewer export API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Selected `project_id` in `latest` subquery and added `AND CAST(latest.project_id AS TEXT) = CAST(l.project_id AS TEXT)` to `JOIN ON`.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #288 - Rolling Batch Isolation & Deletion Cascade Completion (2026-07-30)
+- **Goal**: Complete rolling batch table deletion cascades in `projects/[id]/route.ts` and scope rolling batch export/import queries by project ID.
+- **Changes**:
+  - Modified [route.ts (project by ID API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/projects/%5Bid%5D/route.ts): Added cascading `DELETE` statements for `rolling_batch_papers`, `rolling_batch_reviewer_decisions`, and `rolling_batch_commit_ledger`.
+  - Modified [route.ts (rolling batch export API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/export/route.ts): Added `AND Project_ID = ?` passing `resolvedProjectId` to `rolling_batch_papers` query.
+  - Modified [route.ts (rolling batch import API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Added `AND project_id = ?` passing `resolvedProjectId` to `rolling_batch_reviewer_decisions` queries.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #287 - Projects Dashboard Scoping & Cascading Deletion / Purge Cleanup (2026-07-30)
+- **Goal**: Scope subqueries and JOINs in `projects/route.ts` dashboard counters, add complete table deletion cascades in `projects/[id]/route.ts`, and clear audit logs on paper purge in `papers/purge/route.ts`.
+- **Changes**:
+  - Modified [route.ts (projects list API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/projects/route.ts): Added `l.project_id = p.Project_ID` and `m.project_id = p.Project_ID` to subqueries and `AND p.Project_ID = ?` to paper JOINs across stages 2, 3, and 4.
+  - Modified [route.ts (project by ID API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/projects/%5Bid%5D/route.ts): Added cascading `DELETE` statements for `calibration_papers`, `manual_audit_log`, `llm_audit_log`, `duplicate_pairs`, `rolling_batches`, and `umbrellanizer_results`.
+  - Modified [route.ts (papers purge API)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/purge/route.ts): Added associated audit log deletions (`manual_audit_log` and `llm_audit_log`) when purging papers.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #286 - Python Cache Matcher & Publisher Mapper Project ID Scoping (2026-07-30)
+- **Goal**: Scope all PDF status/path self-healing updates in `match_cache.py` and publisher metadata updates in `map_publisher.py` by active `Project_ID`.
+- **Changes**:
+  - Modified [match_cache.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/match_cache.py): Scoped 4 `UPDATE papers` statements with `WHERE Paper_ID = ? AND Project_ID = ?` passing `active_proj_id`.
+  - Modified [map_publisher.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/map_publisher.py): Scoped `UPDATE papers SET Publisher = ?` statement with `WHERE Paper_ID = ? AND Project_ID = ?` passing `active_proj_id`.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #285 - Calibration Subquery Strict Isolation & Duplicate Resolution Guard (2026-07-30)
+- **Goal**: Fix residual lax calibration subquery in `papers/route.ts` and add non-null duplicate pair check in `duplicates/resolve/route.ts`.
+- **Changes**:
+  - Modified [route.ts (papers)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts): Replaced `(cp.Project_ID = papers.Project_ID OR cp.Project_ID = '${activeProjectId}')` with strict `cp.Project_ID = papers.Project_ID` in `calibrationPoolSubquery`.
+  - Modified [route.ts (duplicates resolve)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/duplicates/resolve/route.ts): Added guard returning 404 `Duplicate pair not found.` if `pair` is null.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #284 - Vector Search Engine & Service-Layer Project ID Scoping (2026-07-30)
+- **Goal**: Scope vector search engines (`vector_worker.py`, `semantic_search.py`), semantic search cache (`semantic-search-cache.ts`), cloud sync (`rclone-sync.ts`), and self-healing DB migrations (`db-init.ts`) to active `Project_ID` to prevent cross-project vector search leaks.
+- **Changes**:
+  - Modified [vector_worker.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/vector_worker.py): Always construct `allowlist_ids` scoped by `active_project_id` for paper search; construct `pdf_filenames` allowlist for PDF vector search; add `AND Project_ID = ?` to metadata SELECT queries.
+  - Modified [semantic_search.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/semantic_search.py): Always construct `allowlist_ids` scoped by `active_project_id`.
+  - Modified [semantic-search-cache.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/services/semantic-search-cache.ts): Removed lax `OR Project_ID` clause, scoped parent title subquery by `parent.Project_ID = papers.Project_ID`, and added `AND Project_ID = ?` to papers metadata SELECT query.
+  - Modified [rclone-sync.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/services/pipeline/rclone-sync.ts): Scoped `UPDATE papers` queries by `AND Project_ID = activeProjectId`.
+  - Modified [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts): Scoped self-healing legacy PDF path `UPDATE papers` statements by `AND Project_ID = projectId`.
+- **Verification**: Verified TypeScript build (`npx tsc --noEmit`) with 0 errors.
+
+## #283 - Correlated Subquery & Audit Log Project ID Isolation (2026-07-30)
+- **Goal**: Scope all correlated subqueries referencing `manual_audit_log` and `llm_audit_log` across Next.js API routes and Python LLM scripts to enforce strict project isolation and prevent cross-project decision/exclusion code leakage.
+- **Changes**:
+  - Modified [main.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/main.py): Scoped `NOT EXISTS (SELECT 1 FROM manual_audit_log ...)` subqueries by `manual_audit_log.project_id = papers.Project_ID`.
+  - Modified [route.ts (llm count)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/llm/count/route.ts): Scoped `manual_audit_log` subquery by `manual_audit_log.project_id = papers.Project_ID`.
+  - Modified [route.ts (manual-screening)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/manual-screening/route.ts) & [route.ts (papers)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts): Scoped all 30+ `manual_audit_log` and `llm_audit_log` decision/exclusion trigger subqueries by `project_id = papers.Project_ID` / `project_id = ${tableName}.Project_ID`.
+  - Modified [route.ts (final-cohort)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/insight/final-cohort/route.ts), [route.ts (slr-viewer export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts), & [route.ts (projects)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/projects/route.ts): Scoped `llm_audit_log` structured output subqueries by `project_id`.
+  - Modified [route.ts (rolling-batch adjudicate)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/adjudicate/route.ts): Scoped batch lookup query by `project_id = activeProjectId`.
+- **Verification**: Verified TypeScript compilation (`npx tsc --noEmit`) with 0 errors.
+
+## #282 - Comprehensive Project ID Scoping Audit & Fixes (2026-07-30)
+- **Goal**: Perform deep audit and fix all non-adherence instances where SQL queries operate on `papers` or related tables without strict `Project_ID` scoping across LLM queue handler, API routes, and Python engine scrapers/tools.
+- **Changes**:
+  - Modified [queue_handler.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/queue_handler.py): Scoped `paper_db` stage fetch and `UPDATE papers SET ai_*` decision queries by `Project_ID = self.project_id`.
+  - Modified [route.ts (papers)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts): Scoped `Parent_Paper_Title` subquery by `parent.Project_ID = papers.Project_ID` and scoped auto-increment `idCounter` to active project paper IDs.
+  - Modified [route.ts (manual-screening)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/manual-screening/route.ts): Scoped `Parent_Paper_Title` subquery by `parent.Project_ID = papers.Project_ID`.
+  - Modified [route.ts (pdf single)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/pdf/single/route.ts): Scoped `dbStatusRow` and `finalPaper` SELECT and UPDATE queries by `AND Project_ID = activeProjectId`.
+  - Modified [route.ts (remote-worker result)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/remote-worker/result/route.ts): Fetched target `Project_ID` first and scoped all `UPDATE papers SET Local_PDF_Status = 'FAILED'` queries by `Project_ID`.
+  - Modified Python Entrypoints ([find_traps.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/find_traps.py), [semantic_search.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/semantic_search.py), [scrape_pdfs.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/scrape_pdfs.py), [verify_pdfs.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/verify_pdfs.py)): Scoped metadata enrichment queries and status UPDATE queries by `Project_ID`.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
+## #281 - Restored Default Project Paper Isolation & Fixed DB Migration (2026-07-28)
+- **Goal**: Fix migration logic in `migrate-project-ids.ts` that mistakenly treated valid `'default-project'` records as unassigned placeholders, and restore papers/calibration papers to `default-project`.
+- **Changes**:
+  - Modified [migrate-project-ids.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/migrate-project-ids.ts): Removed `OR Project_ID = 'default-project'` from `UPDATE` queries so `'default-project'` is preserved as a legitimate project identifier.
+  - Database Restoration: Restored 4,169 papers and 100 calibration papers (imported prior to July 27) back to `Project_ID = 'default-project'`, while maintaining 962 papers and 20 calibration papers in `Project_ID = 'proj-1785151253485'`.
+- **Verification**: Verified TypeScript compilation (`npx tsc --noEmit`) with 0 errors and confirmed exact database counts for both projects.
+
+## #280 - Strict Project ID Adherence & Self-Healing Migration (2026-07-27)
+- **Goal**: Resolve Project ID non-adherence across `slr-ide`, eliminating lax SQL fallback clauses (`Project_ID = 'default-project' OR Project_ID IS NULL`), enforcing strict `Project_ID = activeProjectId` filtering on REST API routes and Python CLI entrypoints, and executing a self-healing database migration.
+- **Changes**:
+  - Created [migrate-project-ids.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/migrate-project-ids.ts): Implemented self-healing database migration that normalizes all legacy `papers` and `calibration_papers` rows with `Project_ID` set to `NULL`, `''`, or `'default-project'` to the active project ID. Registered in [db-init.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/db/db-init.ts).
+  - Modified [route.ts (papers)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts): Replaced lax `filterQuery` SQL clause `(Project_ID = ? OR Project_ID = 'default-project' OR Project_ID IS NULL OR Project_ID = '')` with strict `Project_ID = ?`. Scoped citation update statements and batch PUT update query by `Project_ID`.
+  - Modified [route.ts (papers/[id])](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/%5Bid%5D/route.ts): Scoped `GET`, `PUT`, and `DELETE` queries by `Paper_ID = ? AND Project_ID = ?`.
+  - Modified [route.ts (duplicates)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/duplicates/route.ts) & [route.ts (duplicates/resolve)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/duplicates/resolve/route.ts): Scoped paper lookup and atomic resolution updates by `Project_ID`.
+  - Modified [route.ts (calibration/assign)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/calibration/assign/route.ts): Removed lax `Project_ID` fallback OR clauses, enforcing strict `Project_ID = ?` checks.
+  - Modified [route.ts (pdf/delete)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/pdf/delete/route.ts) & [route.ts (remote-worker/claim)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/remote-worker/claim/route.ts): Scoped PDF resets and remote paper claims by `Project_ID`.
+  - Modified Python Entrypoints ([build_vectors.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/build_vectors.py), [semantic_search.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/semantic_search.py), [vector_worker.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/vector_worker.py), [match_cache.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/match_cache.py), [scrape_pdfs.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/scrape_pdfs.py), [verify_pdfs.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/verify_pdfs.py), [compress_pdfs.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/compress_pdfs.py), [map_publisher.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/map_publisher.py)): Added mandatory `--project` argument parsing and replaced lax SQL fallbacks with strict `Project_ID = ?` queries.
+  - Modified API Process Callers ([download](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/pdf/download/route.ts), [scan](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/pdf/scan/route.ts), [single](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/pdf/single/route.ts), [remote-worker/result](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/remote-worker/result/route.ts), [vectors/build](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/vectors/build/route.ts), [vectors/search](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/vectors/search/route.ts), [vectors/traps](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/vectors/traps/route.ts), [subprocess-runner.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/services/pipeline/subprocess-runner.ts)): Passed `--project activeProjectId` explicitly when spawning Python subprocesses.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
+## #279 - Standardized .slr File Project ID Scoping & Import Verification (2026-07-27)
+- **Goal**: Fix bug in `slr-ide` where exporting and importing `.slr` files did not adhere strictly to `projectId` scoping, causing cross-project data leakage or defaulting to active project config.
+- **Changes**:
+  - Modified [route.ts (inter-rater export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/inter-rater/route.ts): Extracted `projectId` query parameter with fallback to active project, resolved project by numeric/string ID (`resolvedProjectId`), scoped queries by `resolvedProjectId`, and embedded `project_id: resolvedProjectId` in `.slr` metadata.
+  - Modified [route.ts (rolling-batch export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/export/route.ts): Updated GET signature to accept request, resolved `projectId` with fallback, scoped `rolling_batches` query by `resolvedProjectId`, and embedded `project_id` in `.slr` metadata.
+  - Modified [route.ts (fair-data export)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/fair-data/route.ts): Resolved `projectId` with fallback to active project ID, used `resolvedProjectId` consistently across all database queries, and embedded `project_id` in `.slr` metadata.
+  - Modified [route.ts (inter-rater import)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/import/inter-rater/route.ts): Added `projectId` query parameter resolution, validated `body.metadata.project_id` against `resolvedProjectId` (returning 400 error on mismatch), and scoped all transaction queries and cache invalidations by `resolvedProjectId`.
+  - Modified [route.ts (rolling-batch import)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Resolved target project ID, added `project_id` metadata mismatch check (returning 400 error on mismatch), and scoped batch queries and inserts by `resolvedProjectId`.
+  - Modified [InterRaterDashboard.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/InterRaterDashboard.tsx): Appended `&projectId=${activeProjectId}` to export, import, reset, stats, and ledger API calls.
+  - Modified [useRollingBatch.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useRollingBatch.ts): Appended `?projectId=${projectId}` to status, stats, initialize, export, and import API calls.
+- **Verification**: Verified TypeScript compilation (`npx tsc --noEmit`) with 0 errors.
+
+## #278 - Turbovec Semantic Search Optimization & Master Project_ID Synchronization (2026-07-27)
+- **Goal**: Resolve turbovec semantic search slowness, fix 25-paper search result paging cap, implement real-time incremental vector index persistence, auto-reload stale in-memory indices on disk modifications, and unify project ID filtering across all SQLite queries.
+- **Changes**:
+  - Executed Master Database Migration: Normalized all 5,131 papers in `db/slr.db` to active `Project_ID` (`proj-1785151253485`), resolving legacy `'default-project'` string mismatches that caused search allowlists to exclude papers.
+  - Modified [vector_worker.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/vector_worker.py), [semantic_search.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/semantic_search.py), [find_traps.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/find_traps.py), and [route.ts (papers)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/papers/route.ts): Updated default `k` parameter from `20`/`25` to `1000`, added `(Project_ID = ? OR Project_ID = 'default-project' OR Project_ID IS NULL OR Project_ID = '')` fallback SQL filter across all paper queries.
+  - Modified [index_manager.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/vector/index_manager.py): Implemented file `mtime` modification tracking in `VectorIndexManager.get_paper_index()` and `get_pdf_index()`. If vector index files on disk are updated or rebuilt, in-memory index objects auto-reload seamlessly on the fly.
+  - Modified [build_vectors.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/build_vectors.py): Swapped phase order to index Paper Corpus first, added incremental `paper_index.write(PAPER_INDEX_PATH)` after each batch so vector index updates land on disk immediately as embedding runs.
+  - Modified [embedder.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/vector/embedder.py): Added `torch.set_num_threads(os.cpu_count() or 4)` in `TextEmbedder.get_model()` for multi-threaded PyTorch CPU matrix multiplication acceleration.
+  - Modified [useCalibration.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useCalibration.ts): Fixed search input debouncing effect so active semantic queries auto-sync with `assignSearch` inputs.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors and Python vector search returning 1,000 matches cleanly for `pool: 'unassigned'`.
+
+## #277 - Paper Details Workspace Multi-Tab View Refactor (2026-07-27)
+- **Goal**: Refactor the Paper Details Workspace (`AssignDetailView.tsx`) within the "Assign Papers to Calibration Pools" modal (`FullscreenAssignModal.tsx`) to create a multi-tab view for seamless switching between paper metadata and full-text PDF viewer.
+- **Changes**:
+  - Modified [AssignDetailView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/fullscreen-assign/AssignDetailView.tsx): Refactored panel into a 2-tab layout (`Metadata & Notes` and `PDF Viewer`), preserving persistent top header summary with quick pool assignment actions (Pool A, Pool B, Pool C, Unassign). Added dynamic PDF status badges on the tab header (`Pool A`, `PDF Ready`, `Missing PDF`), automatic tab switching on acquisition start or paper selection, full-height iframe PDF viewing, and single PDF acquisition console integration.
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/files.md): Updated directory description for `AssignDetailView.tsx`.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
+## #276 - Bulk CSV Ingest CSV Source Selection (2026-07-27)
+- **Goal**: Add a CSV Source selection input control to the Bulk CSV Ingest panel in `slr-ide` allowing users to select or type the literature database source (e.g., IEEE Xplore, Scopus, Web of Science, PubMed, etc.) and save it into the `Source` column of the `papers` database table.
+- **Changes**:
+  - Modified [useIngestion.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useIngestion.ts): Added `csvSourceSelect` and `csvCustomSource` state management, computed `effectiveSource`, updated `handleImport` payload to populate `Source` and `Import_Source` fields, and exported set state handlers.
+  - Modified [IngestionHubView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/IngestionHubView.tsx): Rendered CSV Source dropdown selector with standard academic database options (`IEEE Xplore`, `Scopus`, `Web of Science`, `PubMed`, `ACM Digital Library`, `Google Scholar`, `ScienceDirect`, `SpringerLink`, `Other...`) and custom text input field when `Other` is selected.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
+## #275 - Dynamic Grouping Variable List in Cloud Gold Mine (2026-07-23)
+- **Goal**: Dynamically populate all available extracted taxonomy keys (such as `rq2_a_autonomy_level`) in the Cloud Gold Mine grouping variable dropdown menu.
+- **Changes**:
+  - Modified [route.ts (keys)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/cloud-gold-mine/keys/route.ts): Updated key discovery logic to query both `umbrellanizer_results` (`extracted_data_key`) AND all `manual_extracted_data` / `ai_extracted_data` JSON payloads in the `papers` table for the active project. Filtered out internal metadata keys (`_` prefixes, `logic_trace`, `qa_scores`, etc.) and returned a clean, sorted list of unique keys.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
+## #274 - Cloud Gold Mine QA Sorting & RQ-Aware Folder Naming (2026-07-23)
+- **Goal**: Implement QA-score descending order for >50 paper chunking, RQ-prefixed root export session folders, and RQ-prefixed `NOT_STATED` subfolders in Cloud Gold Mine (`slr-ide`).
+- **Changes**:
+  - Modified [route.ts (cloud-gold-mine)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/cloud-gold-mine/route.ts): Added pre-calculation of composite QA scores and sorted qualifying papers in descending order before chunking into 50-source folders (`_Part1`, `_Part2`, etc.). Renamed root staging session directory from `gold_mine_[timestamp]` to `${RQKey}_${timestamp}` (or `Flat_Exports_${timestamp}`), and updated unstated taxonomy values to resolve to `${RQKey}_NOT_STATED` (e.g. `RQ1_Architecture_NOT_STATED_Part1`).
+  - Modified [route.ts (cloud-gold-mine preview)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/cloud-gold-mine/preview/route.ts): Updated live preview calculations to mirror QA score descending sorting, RQ root folder session path preview, and `NOT_STATED` RQ-prefixed subfolder naming.
+  - Modified [CloudGoldMinePanel.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/insight-export/CloudGoldMinePanel.tsx): Updated directory tree preview header rendering.
+- **Verification**: Verified with `npx tsc --noEmit` returning 0 errors.
+
 ## #273 - Cohort Table View Repeated Taxonomy Number Badges (2026-07-22)
 - **Goal**: Add small pill badge counters to extracted data cells in Cohort Table View when raw multi-value extraction terms map to repeated Umbrellanizer taxonomy categories.
 - **Changes**:
@@ -923,4 +1110,7 @@
 | #207 | 2026-07-19 | Bug Fix | Fixed the Force Update (Overwrite) flag check/uncheck bug in the Data Acquisition Pipeline. Propagated the `force_update` flag in the fetch POST body, registered `forceUpdate` in the global batch state tracker, and included it in stream restore messages to prevent the checkbox from being cleared during run initialization. | Force Update Pipeline Flag Propagation Fix |
 | #208 | 2026-07-19 | Bug Fix | Fixed a PDF compression bug where Ghostscript truncated files in-place to 2.49 KB when the database path already pointed to the project repo folder. Prioritized reading source PDFs from the raw uncompressed folder, implemented temporary file compression with validated renames, and added an automated self-healing integrity check to detect and re-process existing corrupted PDFs. | Ghostscript In-Place Truncation & Self-Healing Fix |
 | #209 | 2026-07-22 | Feature | Added `scopus_search_string` field to project SQLite schema and auto-migration script. Added a dedicated full-width `textarea` input under Project Settings -> Metadata (`ProjectMetadataSettings.tsx`, `useProjectForm.ts`, `ProjectSettingsModal.tsx`). Included `scopus_search_string` in the exported `.slr-viewer` dataset payload (`/api/export/slr-viewer/route.ts`). | Add Scopus Search String to Project Metadata & Export |
+| #210 | 2026-07-27 | Bug Fix / Performance | Fixed Turbovec semantic search initial cold-start lag by eager pre-warming vector daemon on modal initialization, optimized allowlist filtering using Python set operations for sub-100ms vector searches, fixed semantic search pagination cap by setting default k=1000 across python CLI entrypoints (`semantic_search.py`, `find_traps.py`, `vector_worker.py`) and invalidating legacy <100 item cache records, and enriched vector search metadata queries to persistently sync Quick Actions pool assignment button states. | Turbovec Daemon Eager Pre-Warming, Semantic Search k=1000 Pagination & Quick Actions Pool Sync |
+| #212 | 2026-07-31 | Feature | Enhanced JSON Output Schema Key Path Mappers across all 4 pipeline stages (`fast_filter`, `gatekeeper`, `scientist`, `miner`) in `GlobalLLMSettingsView.tsx` with dynamic property key path dropdowns. Implemented `extractSchemaKeyPaths` to parse top-level and nested JSON schema property keys from the selected prompt template's `response_schema`, populated key selection `<select>` dropdowns, and provided a `Custom Key Path...` fallback option that unlocks direct text input. | Dynamic Prompt Schema Key Path Dropdowns |
+| #213 | 2026-07-31 | Feature / Refactor | Removed unused Screening Rate card from Dashboard (`MetricSummaryCards.tsx`) and `ProjectManager.tsx`, re-balancing the top summary grid from 4 to 3 columns. Introduced `INACCESSIBLE` status to `Local_PDF_Status` dropdown and UI badge components. Refined PRISMA diagram calculation (`/api/insight/prisma` and `/api/export/slr-viewer`) to strictly count papers with `INACCESSIBLE` status as Reports Not Retrieved. Bumped `.slr-viewer` export payload `schema_version` to `1.1.0`. | Dashboard Screening Rate Cleanup, INACCESSIBLE PDF Status, & .slr-viewer Schema v1.1.0 Export |
 

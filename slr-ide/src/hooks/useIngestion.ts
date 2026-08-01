@@ -4,6 +4,8 @@ import { broadcastSync } from '@/lib/sync-utils';
 export function useIngestion(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void, papers: any[] = [], loadPapers?: () => void) {
   // Ingestion states
   const [csvSource, setCsvSource] = useState('');
+  const [csvSourceSelect, setCsvSourceSelect] = useState('IEEE Xplore');
+  const [csvCustomSource, setCsvCustomSource] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvImportDate, setCsvImportDate] = useState('');
   
@@ -207,7 +209,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
       if (!p.Paper_ID) p.Paper_ID = `TEMP_P_${idx + 1}`;
       if (!p.Import_Date) p.Import_Date = new Date().toISOString().split('T')[0];
       if (!p.Import_Source) p.Import_Source = csvFile?.name || 'CSV Ingestion';
-      if (!p.Status) p.Status = 'PENDING';
+      if (!p.Status) p.Status = '';
       
       return p;
     });
@@ -270,18 +272,22 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
   const handleImport = async (onSuccess?: () => void) => {
     setImporting(true);
     try {
+      const effectiveSource = csvSourceSelect === 'Other'
+        ? (csvCustomSource.trim() || 'Other')
+        : (csvSourceSelect || csvSource || 'CSV Import');
+
       const papersToSend = syncCitations
         ? previewPapers.map(p => ({
             ...p,
-            Import_Source: csvSource || 'CSV Import',
+            Import_Source: effectiveSource,
             Import_Date: csvImportDate || new Date().toISOString().split('T')[0],
-            Source: csvSource || 'CSV Import'
+            Source: effectiveSource
           }))
         : previewPapers.filter(p => !p.isDuplicate).map(p => ({
             ...p,
-            Import_Source: csvSource || 'CSV Import',
+            Import_Source: effectiveSource,
             Import_Date: csvImportDate || new Date().toISOString().split('T')[0],
-            Source: csvSource || 'CSV Import'
+            Source: effectiveSource
           }));
 
       const res = await fetch('/api/papers', {
@@ -378,7 +384,7 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
         Import_Date: manualImportDate || new Date().toISOString().split('T')[0],
         Import_Source: manualSource || 'Manual Ingestion',
         Source: manualSource || 'Manual Ingestion',
-        Status: 'PENDING',
+        Status: '',
         Local_PDF_Status: 'MISSING',
         Parent_Paper_ID: manualParentPaperId || '',
         Original_Publisher: '',
@@ -423,6 +429,8 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
 
   return {
     csvSource, setCsvSource,
+    csvSourceSelect, setCsvSourceSelect,
+    csvCustomSource, setCsvCustomSource,
     csvFile, setCsvFile,
     csvImportDate, setCsvImportDate,
     manualSource, setManualSource,

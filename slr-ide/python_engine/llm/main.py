@@ -183,7 +183,7 @@ def main():
               'extraction': 'miner'
           }
           db_stage_name = stage_map.get(task_type, task_type)
-          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.manual_stage = ?)"
+          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.project_id = papers.Project_ID AND manual_audit_log.manual_stage = ?)"
           params.append(db_stage_name)
       query += " ORDER BY Paper_ID ASC"
       all_papers = execute_read(query, tuple(params))
@@ -214,7 +214,7 @@ def main():
               'extraction': 'miner'
           }
           db_stage_name = stage_map.get(task_type, task_type)
-          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.manual_stage = ?)"
+          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.project_id = papers.Project_ID AND manual_audit_log.manual_stage = ?)"
           params.append(db_stage_name)
       query += " ORDER BY Paper_ID ASC"
       

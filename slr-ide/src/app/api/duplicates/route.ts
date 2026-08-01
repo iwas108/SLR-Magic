@@ -15,11 +15,11 @@ export async function GET(req: Request) {
 
     // For each pair, fetch both papers
     const resolvedPairs = [];
-    const getPaperStmt = db.prepare(`SELECT * FROM papers WHERE Paper_ID = ?`);
+    const getPaperStmt = db.prepare(`SELECT * FROM papers WHERE Paper_ID = ? AND Project_ID = ?`);
     
     for (const pair of pairs) {
-      const paper1 = getPaperStmt.get(pair.paper1_id);
-      const paper2 = getPaperStmt.get(pair.paper2_id);
+      const paper1 = getPaperStmt.get(pair.paper1_id, activeProjectId);
+      const paper2 = getPaperStmt.get(pair.paper2_id, activeProjectId);
       if (paper1 && paper2) {
         resolvedPairs.push({
           ...pair,

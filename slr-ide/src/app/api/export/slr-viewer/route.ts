@@ -192,7 +192,7 @@ export async function GET(request: Request) {
         if (passedStage1) {
           dbReportsSought++;
 
-          if (res.effectiveStage === 1 && paper.Local_PDF_Status && !['CACHED', 'DOWNLOADED'].includes(paper.Local_PDF_Status.toUpperCase())) {
+          if (res.effectiveStage === 1 && paper.Local_PDF_Status?.toUpperCase() === 'INACCESSIBLE') {
             dbReportsNotRetrieved++;
           }
 
@@ -233,7 +233,7 @@ export async function GET(request: Request) {
           totalIncludedStudies++;
         }
 
-        if (res.effectiveStage === 1 && paper.Local_PDF_Status && !['CACHED', 'DOWNLOADED'].includes(paper.Local_PDF_Status.toUpperCase())) {
+        if (res.effectiveStage === 1 && paper.Local_PDF_Status?.toUpperCase() === 'INACCESSIBLE') {
           otherReportsNotRetrieved++;
         }
 
@@ -318,11 +318,11 @@ export async function GET(request: Request) {
         SELECT l.paper_id, l.pool, l.resolved_decision as adjudicated_decision, l.resolved_qa_scores, l.resolved_extracted_data
         FROM calibration_commit_ledger l
         JOIN (
-          SELECT paper_id, MAX(timestamp) as max_ts
+          SELECT paper_id, project_id, MAX(timestamp) as max_ts
           FROM calibration_commit_ledger
           WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
-          GROUP BY paper_id
-        ) latest ON l.paper_id = latest.paper_id AND l.timestamp = latest.max_ts
+          GROUP BY paper_id, project_id
+        ) latest ON l.paper_id = latest.paper_id AND CAST(latest.project_id AS TEXT) = CAST(l.project_id AS TEXT) AND l.timestamp = latest.max_ts
         WHERE CAST(l.project_id AS TEXT) = CAST(? AS TEXT)
       `).all(resolvedProjectId, resolvedProjectId) as any[];
 
@@ -902,16 +902,16 @@ export async function GET(request: Request) {
         const placeholders = completedBatchIds.map(() => '?').join(',');
         const allCompletedPapers = db.prepare(`
           SELECT * FROM rolling_batch_papers 
-          WHERE batch_id IN (${placeholders})
-        `).all(...completedBatchIds) as any[];
+          WHERE batch_id IN (${placeholders}) AND Project_ID = ?
+        `).all(...completedBatchIds, resolvedProjectId) as any[];
 
         rollingBatchQC.cumulative_stats = calculateCohortStats(allCompletedPapers, qaRules, umbMap);
 
         rollingBatchQC.individual_batch_stats = completedBatches.map(batch => {
           const batchPapers = db.prepare(`
             SELECT * FROM rolling_batch_papers 
-            WHERE batch_id = ?
-          `).all(batch.id) as any[];
+            WHERE batch_id = ? AND Project_ID = ?
+          `).all(batch.id, resolvedProjectId) as any[];
 
           return {
             batchNumber: batch.batch_number,
@@ -931,8 +931,8 @@ export async function GET(request: Request) {
 
             const previousPapers = db.prepare(`
               SELECT * FROM rolling_batch_papers 
-              WHERE batch_id IN (${prevPlaceholders})
-            `).all(...previousBatchIds) as any[];
+              WHERE batch_id IN (${prevPlaceholders}) AND Project_ID = ?
+            `).all(...previousBatchIds, resolvedProjectId) as any[];
 
             const previousStats = calculateCohortStats(previousPapers, qaRules, umbMap);
             if (previousStats.s3.passed && previousStats.s4.passed) {
@@ -953,7 +953,7 @@ export async function GET(request: Request) {
         .prepare(
           `SELECT p.*,
                   (SELECT structured_output FROM llm_audit_log 
-                   WHERE paper_id = p.Paper_ID AND task_type = 'scientist'
+                   WHERE paper_id = p.Paper_ID AND project_id = p.Project_ID AND task_type = 'scientist'
                    ORDER BY id DESC LIMIT 1) as scientist_structured_output
            FROM papers p
            WHERE p.Project_ID = ?
@@ -977,7 +977,7 @@ export async function GET(request: Request) {
           .prepare(
             `SELECT p.*,
                     (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND task_type = 'scientist'
+                     WHERE paper_id = p.Paper_ID AND project_id = p.Project_ID AND task_type = 'scientist'
                      ORDER BY id DESC LIMIT 1) as scientist_structured_output
              FROM papers p
              WHERE p.Project_ID = ?
@@ -1002,7 +1002,7 @@ export async function GET(request: Request) {
           .prepare(
             `SELECT p.*,
                     (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND task_type = 'scientist'
+                     WHERE paper_id = p.Paper_ID AND project_id = p.Project_ID AND task_type = 'scientist'
                      ORDER BY id DESC LIMIT 1) as scientist_structured_output
              FROM papers p
              WHERE p.Project_ID = ?
@@ -1224,7 +1224,7 @@ export async function GET(request: Request) {
     }
 
     const exportPayload = {
-      schema_version: '1.0.0',
+      schema_version: '1.1.0',
       type: 'slr-viewer-export',
       export_date: new Date().toISOString(),
       project: {

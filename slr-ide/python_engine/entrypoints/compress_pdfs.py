@@ -58,9 +58,15 @@ def main():
             enabled = configs.get('PDF_COMPRESSION_ENABLED', 'false').lower() == 'true'
             level = configs.get('PDF_COMPRESSION_LEVEL', '/ebook')
             custom_gs_path = configs.get('GHOSTSCRIPT_PATH', '')
-            active_proj_id = configs.get('ACTIVE_PROJECT_ID', 'default-project')
             embed_all_fonts = configs.get('PDF_COMPRESSION_EMBED_ALL_FONTS', 'true').lower() == 'true'
             subset_fonts = configs.get('PDF_COMPRESSION_SUBSET_FONTS', 'true').lower() == 'true'
+            
+            for i in range(1, len(sys.argv)):
+                if sys.argv[i] == '--project' and i + 1 < len(sys.argv):
+                    active_proj_id = sys.argv[i+1]
+                    
+            if not active_proj_id or active_proj_id == 'default-project':
+                active_proj_id = configs.get('ACTIVE_PROJECT_ID', active_proj_id)
             
             cursor.execute("SELECT folder_name FROM projects WHERE id = ?", (active_proj_id,))
             proj_row = cursor.fetchone()

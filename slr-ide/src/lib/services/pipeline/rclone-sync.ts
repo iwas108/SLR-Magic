@@ -151,8 +151,8 @@ export async function generateCloudLinks(
         db.prepare(`
           UPDATE papers
           SET Local_PDF_Status = 'MISSING', PDF_Link = NULL
-          WHERE Paper_ID = ?
-        `).run(paperId);
+          WHERE Paper_ID = ? AND Project_ID = ?
+        `).run(paperId, activeProjectId);
 
         const failMsg = { 
           event: 'link_fail', 
@@ -182,8 +182,8 @@ export async function generateCloudLinks(
           db.prepare(`
             UPDATE papers
             SET PDF_Link = ?, Local_PDF_Status = 'SYNCED', Local_PDF_Path = ?
-            WHERE Paper_ID = ?
-          `).run(linkResult, relPath, paperId);
+            WHERE Paper_ID = ? AND Project_ID = ?
+          `).run(linkResult, relPath, paperId, activeProjectId);
 
           linkedCount++;
           const successMsg = { 

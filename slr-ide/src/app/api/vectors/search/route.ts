@@ -7,6 +7,7 @@ import { vectorDaemonManager } from '@/lib/services/vector-daemon-manager';
 
 async function runFallbackSearch(
   query: string,
+  projectId: string,
   k: number | undefined,
   normalizedPool: string | undefined,
   mode: string | undefined,
@@ -17,7 +18,7 @@ async function runFallbackSearch(
   const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
   const pythonModule = 'python_engine.entrypoints.semantic_search';
 
-  const args = ['-u', '-m', pythonModule, '--query', query];
+  const args = ['-u', '-m', pythonModule, '--query', query, '--project', projectId];
   if (k) args.push('--k', String(k));
   if (normalizedPool) args.push('--pool', normalizedPool);
   if (mode) args.push('--mode', mode);
@@ -58,7 +59,15 @@ async function runFallbackSearch(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { query, k, pool, mode, excludeReviews, publisher } = body;
+    const { action, query, k, pool, mode, excludeReviews, publisher } = body;
+
+    // Handle pre-warm action to start Python vector worker daemon in the background
+    if (action === 'warmup') {
+      vectorDaemonManager.ensureStarted().catch((err) => {
+        console.warn('[API Vectors Search]: Background pre-warm failed:', err);
+      });
+      return NextResponse.json({ success: true, status: 'warming_up' });
+    }
 
     if (!query || !query.trim()) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 });
@@ -71,10 +80,11 @@ export async function POST(request: Request) {
       cachePoolKey += `_pub_${publisher}`;
     }
 
-    // 1. Perform Cache Lookup
+    // 1. Perform Cache Lookup (only return if cache contains sufficient candidates for requested k)
     if (mode === 'papers') {
       const cachedResults = getCachedSemanticSearch(activeProjectId, query, cachePoolKey);
-      if (cachedResults !== null) {
+      const targetK = typeof k === 'number' && k > 0 ? k : 1000;
+      if (cachedResults !== null && (cachedResults.length >= Math.min(targetK, 100) || cachedResults.length === 0)) {
         return NextResponse.json({ results: cachedResults });
       }
     }
@@ -84,6 +94,7 @@ export async function POST(request: Request) {
       // Try using the persistent background daemon
       parsed = await vectorDaemonManager.request('search', {
         query,
+        project_id: activeProjectId,
         k,
         pool: normalizedPool,
         mode,
@@ -96,6 +107,7 @@ export async function POST(request: Request) {
       // Fallback: spawn single-use semantic_search.py child process
       parsed = await runFallbackSearch(
         query,
+        activeProjectId,
         k,
         normalizedPool,
         mode,

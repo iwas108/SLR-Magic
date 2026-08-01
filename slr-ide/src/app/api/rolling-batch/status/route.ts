@@ -18,16 +18,16 @@ export async function GET() {
     if (activeBatch) {
       papers = db.prepare(`
         SELECT * FROM rolling_batch_papers 
-        WHERE batch_id = ?
-      `).all(activeBatch.id) as any[];
+        WHERE batch_id = ? AND Project_ID = ?
+      `).all(activeBatch.id, activeProjectId) as any[];
 
       // Count reviewer decision submissions
       reviewers = db.prepare(`
         SELECT reviewer_name, COUNT(DISTINCT paper_id) as papers_reviewed 
         FROM rolling_batch_reviewer_decisions 
-        WHERE batch_id = ?
+        WHERE batch_id = ? AND project_id = ?
         GROUP BY reviewer_name
-      `).all(activeBatch.id) as any[];
+      `).all(activeBatch.id, activeProjectId) as any[];
     }
 
     // Get the list of all batches to see history

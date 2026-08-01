@@ -4,6 +4,13 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#021] Project ID Metadata Preservation & Roundtrip Export - 2026-07-27
+
+- **Goal**: Preserve `project_id` in Dexie session storage and include it in outgoing `.slr` export payloads so project ID scoping is not lost when independent raters perform offline reviews.
+- **Changes**:
+  - Modified [StorageService.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/src/StorageService.js): Updated `createSession` to save `project_id` from incoming `.slr` metadata into session metadata, preserved `project_id` during `updateSessionData`, and injected `project_id` into the metadata block of `exportSession` payloads for both `CAL_Pool_A` and legacy camelCase exports.
+- **Verification**: Verified cross-compatibility with `slr-ide` import validation.
+
 ## [#020] Class-Based Dark Mode Enforcer (@variant dark) - 2026-07-22
 
 - **Tailwind v4 Dark Variant Selector**:

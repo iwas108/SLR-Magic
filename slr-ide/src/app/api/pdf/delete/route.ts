@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import db, { PROJECT_ROOT } from '@/lib/db';
+import db, { PROJECT_ROOT, getConfig } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
 
@@ -29,18 +29,19 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'paperId (query) or paperIds (body) is required' }, { status: 400 });
     }
 
-    const selectPaperStmt = db.prepare('SELECT Local_PDF_Path, Project_ID FROM papers WHERE Paper_ID = ?');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const selectPaperStmt = db.prepare('SELECT Local_PDF_Path, Project_ID FROM papers WHERE Paper_ID = ? AND Project_ID = ?');
     const selectProjectFolderStmt = db.prepare('SELECT folder_name FROM projects WHERE id = ?');
     const updatePaperStmt = db.prepare(`
       UPDATE papers 
       SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL, PDF_Link = NULL 
-      WHERE Paper_ID = ?
+      WHERE Paper_ID = ? AND Project_ID = ?
     `);
 
     // Run database updates and file deletes in a transaction
     const transaction = db.transaction(() => {
       for (const id of paperIds) {
-        const paper = selectPaperStmt.get(id) as { Local_PDF_Path: string | null; Project_ID: string } | undefined;
+        const paper = selectPaperStmt.get(id, activeProjectId) as { Local_PDF_Path: string | null; Project_ID: string } | undefined;
         if (!paper) continue;
 
         const project = selectProjectFolderStmt.get(paper.Project_ID) as { folder_name: string } | undefined;
@@ -75,7 +76,7 @@ export async function DELETE(request: Request) {
           }
         }
 
-        updatePaperStmt.run(id);
+        updatePaperStmt.run(id, activeProjectId);
       }
     });
 

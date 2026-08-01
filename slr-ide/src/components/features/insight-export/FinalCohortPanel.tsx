@@ -883,6 +883,8 @@ export default function FinalCohortPanel({
         return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">{s}</span>;
       case 'NEEDS_REVIEW':
         return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">REVIEW</span>;
+      case 'INACCESSIBLE':
+        return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">INACCESSIBLE</span>;
       case 'MISSING':
         return <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">{s}</span>;
       case 'FAILED':
@@ -1049,6 +1051,7 @@ export default function FinalCohortPanel({
                     <option value="">Any PDF Status</option>
                     <option value="IGNORED">IGNORED</option>
                     <option value="MISSING">MISSING</option>
+                    <option value="INACCESSIBLE">INACCESSIBLE</option>
                     <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
                     <option value="MATCHED">MATCHED</option>
                     <option value="DOWNLOADED">DOWNLOADED</option>

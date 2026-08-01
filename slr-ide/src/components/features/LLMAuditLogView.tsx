@@ -142,6 +142,7 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [fetchingLogId, setFetchingLogId] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -180,8 +181,28 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
     loadAuditLogs();
   }, [activeProject?.id, page, stageFilter, searchQuery]);
 
-  const toggleRow = (id: number) => {
-    setExpandedRow(expandedRow === id ? null : id);
+  const toggleRow = async (id: number) => {
+    if (expandedRow === id) {
+      setExpandedRow(null);
+      return;
+    }
+
+    setExpandedRow(id);
+    const targetLog = logs.find(l => l.id === id);
+    if (targetLog && targetLog.raw_prompt === undefined) {
+      setFetchingLogId(id);
+      try {
+        const res = await fetch(`/api/llm/audit?projectId=${activeProject.id}&id=${id}`);
+        const data = await res.json();
+        if (data.success && data.log) {
+          setLogs(prev => prev.map(l => l.id === id ? { ...l, ...data.log } : l));
+        }
+      } catch (err) {
+        console.error('Failed to fetch full log payload:', err);
+      } finally {
+        setFetchingLogId(null);
+      }
+    }
   };
 
   const handleOpenPaper = async (paperId: string) => {
@@ -351,12 +372,19 @@ export default function LLMAuditLogView({ activeProject, showToast }: LLMAuditLo
                                 <span className="text-foreground">{log.cached_tokens ? log.cached_tokens.toLocaleString() : '0'}</span>
                               </div>
                             </div>
-                            <div className="space-y-1">
-                              <span className="font-bold text-muted-foreground block">Hydrated Prompt:</span>
-                              <pre className="p-2.5 bg-secondary/40 dark:bg-black/45 border border-border/50 rounded-lg max-h-48 overflow-y-auto whitespace-pre-wrap text-[9px] text-foreground select-all font-mono">
-                                {log.raw_prompt}
-                              </pre>
-                            </div>
+                            {fetchingLogId === log.id ? (
+                               <div className="flex items-center gap-2 text-[10px] text-muted-foreground p-3 border border-border/40 rounded-lg bg-secondary/20">
+                                 <Loader className="w-3.5 h-3.5 animate-spin text-primary" />
+                                 <span>Loading full prompt payload...</span>
+                               </div>
+                             ) : (
+                               <div className="space-y-1">
+                                 <span className="font-bold text-muted-foreground block">Hydrated Prompt:</span>
+                                 <pre className="p-2.5 bg-secondary/40 dark:bg-black/45 border border-border/50 rounded-lg max-h-48 overflow-y-auto whitespace-pre-wrap text-[9px] text-foreground select-all font-mono">
+                                   {log.raw_prompt || '(Empty prompt payload)'}
+                                 </pre>
+                               </div>
+                             )}
                             {log.status === 'SUCCESS' ? (
                               <div className="space-y-1">
                                 <span className="font-bold text-muted-foreground block">Structured JSON Response:</span>

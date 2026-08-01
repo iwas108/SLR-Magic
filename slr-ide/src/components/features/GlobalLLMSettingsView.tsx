@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Lock, KeyRound, Key, RefreshCw, Loader, AlertTriangle, ShieldCheck, 
-  BookOpen, Terminal, Database, Play, Pause, XCircle, ChevronRight, Save, Eye, EyeOff, Trash2, Plus, Info, X, Sparkles
+  BookOpen, Terminal, Database, Play, Pause, XCircle, ChevronRight, ChevronDown, Save, Eye, EyeOff, Trash2, Plus, Info, X, Sparkles, SlidersHorizontal
 } from 'lucide-react';
 import { useSseStream } from '@/hooks/useSseStream';
 import LLMAuditLogView from './LLMAuditLogView';
@@ -49,6 +49,33 @@ interface GlobalLLMSettingsViewProps {
   showToast?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   loadProjects?: () => void;
   preSelectedPaperIds?: string[];
+}
+
+function extractSchemaKeyPaths(schemaStr: string | null | undefined): string[] {
+  if (!schemaStr || !schemaStr.trim()) return [];
+  try {
+    const parsed = JSON.parse(schemaStr);
+    const paths: string[] = [];
+
+    const traverse = (obj: any, prefix = '') => {
+      if (!obj || typeof obj !== 'object') return;
+      const properties = obj.properties || (obj.type === 'OBJECT' && obj.properties ? obj.properties : null);
+      if (properties && typeof properties === 'object') {
+        for (const [key, value] of Object.entries(properties)) {
+          const currentPath = prefix ? `${prefix}.${key}` : key;
+          paths.push(currentPath);
+          if (value && typeof value === 'object') {
+            traverse(value, currentPath);
+          }
+        }
+      }
+    };
+
+    traverse(parsed);
+    return Array.from(new Set(paths));
+  } catch {
+    return [];
+  }
 }
 
 export default function GlobalLLMSettingsView({ 
@@ -115,7 +142,124 @@ export default function GlobalLLMSettingsView({
       return targetCount;
     }
   })();
+  // --- DEFAULT STAGE PROMPTS & SCHEMA MAPPER STATE ---
+  const [defaultPromptsState, setDefaultPromptsState] = useState<Record<string, string>>({});
+  const [schemaMappingsState, setSchemaMappingsState] = useState<Record<string, Record<string, string>>>({});
+  const [customKeyModesState, setCustomKeyModesState] = useState<Record<string, boolean>>({});
+  const [savingStageConfig, setSavingStageConfig] = useState(false);
+  const [isExpandedStageMapper, setIsExpandedStageMapper] = useState(true);
+
+  // Toggle custom text input mode for a key path field
+  const toggleCustomKeyMode = (stage: string, keyName: string, isCustom: boolean) => {
+    setCustomKeyModesState(prev => ({
+      ...prev,
+      [`${stage}:${keyName}`]: isCustom
+    }));
+  };
+
+  // Sync stage defaults from activeProject.llm_config
+  useEffect(() => {
+    try {
+      const cfg = activeProject?.llm_config ? JSON.parse(activeProject.llm_config) : {};
+      setDefaultPromptsState(cfg.default_prompts || {});
+      setSchemaMappingsState(cfg.schema_mappings || {});
+    } catch {
+      setDefaultPromptsState({});
+      setSchemaMappingsState({});
+    }
+  }, [activeProject?.id, activeProject?.llm_config]);
+
+  // Handler to update a single stage default prompt assignment
+  const handleStagePromptChange = (stage: string, promptId: string) => {
+    setDefaultPromptsState(prev => ({
+      ...prev,
+      [stage]: promptId
+    }));
+  };
+
+  // Handler to update a schema key path for a specific stage
+  const handleSchemaKeyChange = (stage: string, keyName: string, pathValue: string) => {
+    setSchemaMappingsState(prev => ({
+      ...prev,
+      [stage]: {
+        ...(prev[stage] || {}),
+        [keyName]: pathValue
+      }
+    }));
+  };
+
+  // Auto-fill standard defaults for a specific stage
+  const handleLoadDefaultSchemaKeys = (stage: string) => {
+    const standardKeys: Record<string, Record<string, string>> = {
+      fast_filter: { decision: 'decision', exclusion_trigger: 'exclusion_trigger', rationale: 'rationale' },
+      gatekeeper: { decision: 'decision', exclusion_trigger: 'exclusion_trigger', rationale: 'rationale' },
+      scientist: { quality_assessment: 'quality_assessment', decision: 'decision', rationale: 'rationale' },
+      miner: { extracted_data: 'extracted_data', rationale: 'rationale' }
+    };
+
+    setSchemaMappingsState(prev => ({
+      ...prev,
+      [stage]: standardKeys[stage] || { decision: 'decision', rationale: 'rationale' }
+    }));
+
+    // Reset custom input mode for this stage's keys
+    setCustomKeyModesState(prev => {
+      const next = { ...prev };
+      Object.keys(standardKeys[stage] || {}).forEach(k => {
+        delete next[`${stage}:${k}`];
+      });
+      return next;
+    });
+  };
+
+  // Save stage configuration (default_prompts & schema_mappings) to active project
+  const handleSaveStageConfig = async () => {
+    if (!activeProject?.id) {
+      showToast?.('No active project selected to save settings.', 'error');
+      return;
+    }
+
+    setSavingStageConfig(true);
+    try {
+      let currentLlmConfig: any = {};
+      try {
+        currentLlmConfig = activeProject.llm_config ? JSON.parse(activeProject.llm_config) : {};
+      } catch {
+        currentLlmConfig = {};
+      }
+
+      const updatedLlmConfig = {
+        ...currentLlmConfig,
+        default_prompts: defaultPromptsState,
+        schema_mappings: schemaMappingsState
+      };
+
+      const res = await fetch('/api/projects', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...activeProject,
+          llm_config: updatedLlmConfig
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to update project LLM configuration');
+      }
+
+      showToast?.('Stage prompt defaults & schema mappings saved successfully!', 'success');
+      loadProjects?.();
+      broadcastSync('SYNC_PROJECTS');
+    } catch (err: any) {
+      showToast?.(err.message || 'Failed to save stage configuration', 'error');
+    } finally {
+      setSavingStageConfig(false);
+    }
+  };
+
   const activeTemplateId = (() => {
+    if (defaultPromptsState[taskType]) return defaultPromptsState[taskType];
     try {
       const cfg = activeProject?.llm_config ? JSON.parse(activeProject.llm_config) : {};
       return cfg.default_prompts?.[taskType] || '';
@@ -123,6 +267,85 @@ export default function GlobalLLMSettingsView({
       return '';
     }
   })();
+
+  const renderSchemaKeySelector = (
+    keyName: string, 
+    label: string, 
+    defaultFallback: string, 
+    colSpanClass: string = ""
+  ) => {
+    const currentPromptId = defaultPromptsState[taskType] || activeTemplateId;
+    const currentPrompt = prompts.find(p => p.id === currentPromptId);
+    const extractedKeys = extractSchemaKeyPaths(currentPrompt?.response_schema);
+    const currentSavedVal = schemaMappingsState[taskType]?.[keyName] !== undefined 
+      ? schemaMappingsState[taskType][keyName] 
+      : defaultFallback;
+
+    const modeKey = `${taskType}:${keyName}`;
+    const isCustomActive = customKeyModesState[modeKey] || (
+      extractedKeys.length > 0 && 
+      currentSavedVal !== defaultFallback && 
+      !extractedKeys.includes(currentSavedVal)
+    );
+
+    return (
+      <div className={`space-y-1 ${colSpanClass}`}>
+        <div className="flex items-center justify-between">
+          <label className="text-[9px] font-bold text-muted-foreground uppercase">{label}</label>
+          {extractedKeys.length > 0 && (
+            <span className="text-[8px] font-mono text-primary font-bold">
+              {extractedKeys.length} schema {extractedKeys.length === 1 ? 'key' : 'keys'} found
+            </span>
+          )}
+        </div>
+
+        {extractedKeys.length > 0 ? (
+          <div className="space-y-1">
+            <select
+              value={isCustomActive ? '__custom__' : currentSavedVal}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '__custom__') {
+                  toggleCustomKeyMode(taskType, keyName, true);
+                } else {
+                  toggleCustomKeyMode(taskType, keyName, false);
+                  handleSchemaKeyChange(taskType, keyName, val);
+                }
+              }}
+              className="w-full bg-secondary/50 border border-border/80 rounded-lg px-2.5 py-1 text-xs font-mono text-foreground outline-none font-bold"
+            >
+              {!extractedKeys.includes(defaultFallback) && (
+                <option value={defaultFallback}>Default: {defaultFallback}</option>
+              )}
+              {extractedKeys.map(k => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+              <option value="__custom__">Custom Key Path...</option>
+            </select>
+
+            {isCustomActive && (
+              <input
+                type="text"
+                value={currentSavedVal}
+                onChange={(e) => handleSchemaKeyChange(taskType, keyName, e.target.value)}
+                placeholder={`Enter custom key path for ${keyName}...`}
+                className="w-full bg-secondary/40 border border-primary/50 focus:border-primary rounded-lg px-2.5 py-1 text-xs font-mono text-foreground outline-none mt-1 animate-in fade-in duration-150"
+              />
+            )}
+          </div>
+        ) : (
+          <input
+            type="text"
+            value={currentSavedVal}
+            onChange={(e) => handleSchemaKeyChange(taskType, keyName, e.target.value)}
+            placeholder={`e.g. ${defaultFallback}`}
+            className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1 text-xs font-mono text-foreground outline-none"
+          />
+        )}
+      </div>
+    );
+  };
+
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
   const [confirmStep, setConfirmStep] = useState<1 | 2>(1);
 
@@ -1609,41 +1832,142 @@ export default function GlobalLLMSettingsView({
                     </div>
                   </div>
 
-                  {/* Row 2: Default Prompt Template Info */}
-                  <div className="bg-secondary/10 border border-border/40 rounded-lg p-3 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Active Default Prompt</span>
-                      {activeTemplateId ? (() => {
-                        const activePrompt = prompts.find(p => p.id === activeTemplateId);
-                        return activePrompt ? (
-                          <span className="font-semibold text-xs text-foreground">
-                            {activePrompt.name} <span className="text-muted-foreground font-mono text-[10px]">({activePrompt.id})</span>
-                          </span>
-                        ) : (
-                          <span className="font-semibold text-xs text-amber-500">
-                            Configured template ({activeTemplateId}) not found
-                          </span>
-                        );
-                      })() : (
-                        <span className="font-semibold text-xs text-amber-500">
-                          No default prompt configured for this stage
+                  {/* Row 2: Default Stage Prompts & Schema Mapper Control Panel */}
+                  <div className="bg-secondary/15 border border-border/60 rounded-xl overflow-hidden transition-all">
+                    {/* Panel Header */}
+                    <div 
+                      onClick={() => setIsExpandedStageMapper(!isExpandedStageMapper)}
+                      className="px-3.5 py-2.5 bg-secondary/30 hover:bg-secondary/40 cursor-pointer flex items-center justify-between border-b border-border/40 select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        <SlidersHorizontal className="w-4 h-4 text-primary" />
+                        <span className="font-bold text-xs text-foreground">
+                          Default Stage Prompts &amp; Schema Mapper
                         </span>
-                      )}
+                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono font-bold uppercase">
+                          Stage: {taskType.replace('_', ' ')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {activeTemplateId ? (() => {
+                          const activePrompt = prompts.find(p => p.id === activeTemplateId);
+                          return (
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              Active: <strong className="text-foreground font-sans">{activePrompt ? activePrompt.name : activeTemplateId}</strong>
+                            </span>
+                          );
+                        })() : (
+                          <span className="text-[10px] text-amber-400 font-bold">No Prompt Selected</span>
+                        )}
+                        {isExpandedStageMapper ? (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </div>
                     </div>
-                    {activeTemplateId && prompts.find(p => p.id === activeTemplateId) && (() => {
-                      const activePrompt = prompts.find(p => p.id === activeTemplateId);
-                      const parsedConfig = (() => {
-                        try {
-                          return activePrompt?.llm_config ? JSON.parse(activePrompt.llm_config) : {};
-                        } catch { return {}; }
-                      })();
-                      return (
-                        <div className="text-right">
-                          <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block mb-1">Configured Model</span>
-                          <span className="font-mono text-xs font-bold text-primary">{parsedConfig.model_id || 'gemini-2.5-flash'}</span>
+
+                    {/* Panel Body */}
+                    {isExpandedStageMapper && (
+                      <div className="p-3.5 space-y-4 text-xs animate-in fade-in duration-150">
+                        {/* Section A: Template Selector & Quick Edit */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                              Default Prompt Template for {taskType.replace('_', ' ')}
+                            </label>
+                            {activeTemplateId && prompts.find(p => p.id === activeTemplateId) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const selectedPrompt = prompts.find(p => p.id === activeTemplateId);
+                                  if (selectedPrompt) {
+                                    startEditingPrompt(selectedPrompt);
+                                    setActiveTab('prompts');
+                                  }
+                                }}
+                                className="text-[10px] text-primary hover:underline font-bold flex items-center gap-1"
+                              >
+                                <BookOpen className="w-3 h-3" />
+                                <span>Quick Edit Template in Library</span>
+                              </button>
+                            )}
+                          </div>
+                          <select
+                            value={defaultPromptsState[taskType] || activeTemplateId || ''}
+                            onChange={(e) => handleStagePromptChange(taskType, e.target.value)}
+                            className="w-full bg-secondary/50 border border-border/80 rounded-lg px-3 py-1.5 text-xs text-foreground outline-none font-bold"
+                          >
+                            <option value="">-- Select Default Prompt Template --</option>
+                            {prompts.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} {p.project_id === null ? '(Global)' : '(Project)'}
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                      );
-                    })()}
+
+                        {/* Section B: Stage Output Schema Key Mappers */}
+                        <div className="space-y-2 border-t border-border/40 pt-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                                JSON Output Schema Key Path Mappers ({taskType.replace('_', ' ')})
+                              </span>
+                              <span className="text-[9px] text-muted-foreground">
+                                Maps custom JSON response keys from Gemini model outputs to project screening variables (supports dot-notation).
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleLoadDefaultSchemaKeys(taskType)}
+                              className="text-[10px] text-primary hover:underline font-bold px-2 py-0.5 rounded bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all"
+                            >
+                              Load Stage Standard Defaults
+                            </button>
+                          </div>
+
+                          {/* Stage specific input fields */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                            {['fast_filter', 'gatekeeper'].includes(taskType) && (
+                              <>
+                                {renderSchemaKeySelector('decision', 'Decision Key Path', 'decision')}
+                                {renderSchemaKeySelector('exclusion_trigger', 'Exclusion Trigger Key Path', 'exclusion_trigger')}
+                                {renderSchemaKeySelector('rationale', 'Rationale Key Path', 'rationale')}
+                              </>
+                            )}
+
+                            {taskType === 'scientist' && (
+                              <>
+                                {renderSchemaKeySelector('quality_assessment', 'Quality Assessment Key Path', 'quality_assessment')}
+                                {renderSchemaKeySelector('decision', 'Decision Key Path (Optional)', 'decision')}
+                                {renderSchemaKeySelector('rationale', 'Rationale Key Path', 'rationale')}
+                              </>
+                            )}
+
+                            {taskType === 'miner' && (
+                              <>
+                                {renderSchemaKeySelector('extracted_data', 'Extracted Data Key Path', 'extracted_data', 'md:col-span-2')}
+                                {renderSchemaKeySelector('rationale', 'Rationale Key Path', 'rationale')}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Section C: Footer Save Action */}
+                        <div className="flex justify-end pt-2 border-t border-border/40">
+                          <button
+                            type="button"
+                            disabled={savingStageConfig}
+                            onClick={handleSaveStageConfig}
+                            className="px-3.5 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 text-xs"
+                          >
+                            {savingStageConfig ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            <span>Save Stage Configuration to Project</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Row 2: Paper Selection Mode Selector & Target Paper Status */}

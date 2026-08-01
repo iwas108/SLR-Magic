@@ -14,7 +14,7 @@ from python_engine.vector.index_manager import VectorIndexManager
 def main():
     parser = argparse.ArgumentParser(description="Find semantic near-miss traps for calibration pools.")
     parser.add_argument("--seed", type=str, required=True, help="Seed Paper_ID (known include).")
-    parser.add_argument("--k", type=int, default=25, help="Number of traps to find.")
+    parser.add_argument("--k", type=int, default=1000, help="Number of traps to find.")
     args = parser.parse_args()
 
     # Fetch active project ID from configs
@@ -77,8 +77,8 @@ def main():
     placeholders = ",".join(["?"] * len(paper_ids))
     try:
         cursor.execute(
-            f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders})",
-            tuple(paper_ids)
+            f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND Project_ID = ?",
+            tuple(paper_ids) + (active_project_id,)
         )
         columns = [col[0] for col in cursor.description]
         metadata_map = {}

@@ -147,6 +147,15 @@
   - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Unwrapped `const rawData = activeSession?.rawData || activeSession || {}` to extract `project`, `scientific_rigor`, `final_cohort`, and `accounting` sections. Added `activeSession?.projectName` fallbacks.
 - **Verification**: Verified with `npm run build` compiling production assets cleanly in 825ms.
 
+## #024 - Central Schema Versioning & Backward Compatibility Normalization Layer (2026-07-31)
+- **Goal**: Implement a central schema migration and backward compatibility normalization layer (`schemaMigration.js`) in `slr-viewer` to safely handle legacy v1.0.0 snapshots and modern v1.1.0+ exported files without breaking published datasets.
+- **Changes**:
+  - Created [schemaMigration.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/utils/schemaMigration.js): Created `normalizeViewerSnapshot` utility to inspect `schema_version`, backfill safe structural defaults, and preserve historical PRISMA metrics for legacy v1.0.0 snapshot files.
+  - Modified [ImportWorkflow.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/ImportWorkflow.jsx): Passed imported JSON payloads through `normalizeViewerSnapshot` during drag & drop ingestion.
+  - Modified [StorageService.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/StorageService.js): Passed stored IndexedDB session `rawData` through `normalizeViewerSnapshot` when retrieved by ID.
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/files.md): Documented `schemaMigration.js` utility.
+- **Verification**: Verified with `npm run build` compiling production assets cleanly in `slr-viewer/`.
+
 ## #023 - Total Refactor of Research Workflow into Dynamic 5-Group Data-Driven SVG Flowchart (2026-07-21)
 - **Goal**: Refactor Research Workflow into a dynamic 5-group SVG flowchart template populated with live project metrics and data from `activeSession`, featuring click-to-inspect drawers for full text metadata.
 - **Changes**:

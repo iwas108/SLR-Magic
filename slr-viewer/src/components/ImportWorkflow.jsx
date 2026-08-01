@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, FileCheck, AlertTriangle, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import StorageService from '../StorageService';
+import { normalizeViewerSnapshot } from '../utils/schemaMigration';
 
 export default function ImportWorkflow({ onImportSuccess, onCancel }) {
   const [dragActive, setDragActive] = useState(false);
@@ -54,16 +55,10 @@ export default function ImportWorkflow({ onImportSuccess, onCancel }) {
         const text = e.target.result;
         const parsed = JSON.parse(text);
 
-        // Schema validation checks
-        if (parsed.type !== 'slr-viewer-export') {
-          throw new Error('Invalid schema: Missing `"type": "slr-viewer-export"` attribute.');
-        }
+        // Run central schema validation & normalization
+        const normalized = normalizeViewerSnapshot(parsed);
 
-        if (!parsed.project || !parsed.scientific_rigor || !parsed.final_cohort || !parsed.accounting) {
-          throw new Error('Invalid schema: File is missing mandatory snapshot sections (scientific_rigor, final_cohort, or accounting).');
-        }
-
-        const session = await StorageService.createSession(selectedFile.name, parsed);
+        const session = await StorageService.createSession(selectedFile.name, normalized);
         setLoading(false);
         onImportSuccess(session.id);
       } catch (err) {

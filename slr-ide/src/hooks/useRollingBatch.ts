@@ -23,7 +23,7 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
   const loadStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const statusRes = await fetch(`/api/rolling-batch/status`);
+      const statusRes = await fetch(`/api/rolling-batch/status?projectId=${projectId}`);
       if (statusRes.ok) {
         const data = await statusRes.json();
         setCurrentBatch(data.activeBatch);
@@ -37,13 +37,13 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [projectId, showToast]);
 
   // Load cumulative statistics
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
     try {
-      const statsRes = await fetch(`/api/rolling-batch/stats`);
+      const statsRes = await fetch(`/api/rolling-batch/stats?projectId=${projectId}`);
       if (statsRes.ok) {
         const data = await statsRes.json();
         setCumulativeStats(data.cumulativeStats);
@@ -55,13 +55,13 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
     } finally {
       setStatsLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   // Initialize new batch
   const initializeBatch = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/rolling-batch/initialize', {
+      const res = await fetch(`/api/rolling-batch/initialize?projectId=${projectId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -86,7 +86,7 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
       showToast('No active batch found to download', 'error');
       return;
     }
-    window.open('/api/rolling-batch/export', '_blank');
+    window.open(`/api/rolling-batch/export?projectId=${projectId}`, '_blank');
     showToast(`Downloading blinded batch review file...`, 'info');
   };
 
@@ -98,7 +98,7 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
     }
     try {
       const text = await file.text();
-      const res = await fetch('/api/rolling-batch/import', {
+      const res = await fetch(`/api/rolling-batch/import?projectId=${projectId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: text

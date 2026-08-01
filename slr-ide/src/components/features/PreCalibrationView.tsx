@@ -275,10 +275,12 @@ export default function PreCalibrationView({
                   <option value="">All PDF Statuses</option>
                   <option value="IGNORED">IGNORED</option>
                   <option value="MISSING">MISSING</option>
+                  <option value="INACCESSIBLE">INACCESSIBLE</option>
                   <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
                   <option value="MATCHED">MATCHED</option>
                   <option value="DOWNLOADED">DOWNLOADED</option>
                   <option value="SYNCED">SYNCED</option>
+                  <option value="FAILED">FAILED</option>
                 </select>
 
                 <select
@@ -405,6 +407,7 @@ export default function PreCalibrationView({
                                   p.Local_PDF_Status === 'SYNCED' ? 'bg-emerald-500' :
                                   p.Local_PDF_Status === 'DOWNLOADED' || p.Local_PDF_Status === 'MATCHED' ? 'bg-amber-500 animate-pulse' :
                                   p.Local_PDF_Status === 'NEEDS_REVIEW' ? 'bg-purple-500' :
+                                  p.Local_PDF_Status === 'INACCESSIBLE' ? 'bg-rose-500' :
                                   p.Local_PDF_Status === 'FAILED' ? 'bg-destructive' :
                                   p.Local_PDF_Status === 'IGNORED' ? 'bg-muted-foreground/50' :
                                   'bg-transparent border border-muted-foreground'

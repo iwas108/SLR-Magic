@@ -27,17 +27,22 @@ export function getCachedSemanticSearch(
 
     const cachedList = JSON.parse(row.results) as CachedResult[];
     if (cachedList.length === 0) return [];
+    // If cached set has fewer than 100 items, treat as legacy capped cache and force fresh vector search
+    if (cachedList.length < 100) return null;
 
     // Extract paper IDs
     const paperIds = cachedList.map(item => item.Paper_ID);
     const placeholders = paperIds.map(() => '?').join(',');
 
-    // Fetch current metadata from papers table, including parent paper details
+    // Fetch current metadata from papers table, including parent paper details and calibration pool/tag
     const papers = db.prepare(`
-      SELECT *, (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID) as Parent_Paper_Title
+      SELECT *, 
+             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
+             (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID AND parent.Project_ID = papers.Project_ID) as Parent_Paper_Title
       FROM papers
-      WHERE Paper_ID IN (${placeholders})
-    `).all(...paperIds) as any[];
+      WHERE Paper_ID IN (${placeholders}) AND Project_ID = ?
+    `).all(...paperIds, projectId) as any[];
 
     const paperMap = new Map<string, any>(papers.map(p => [p.Paper_ID, p]));
 

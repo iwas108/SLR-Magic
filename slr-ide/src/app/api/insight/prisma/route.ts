@@ -153,7 +153,7 @@ export async function GET(request: Request) {
           dbReportsSought++;
 
           // [**9] Reports not retrieved
-          if (res.effectiveStage === 1 && paper.Local_PDF_Status && !['CACHED', 'DOWNLOADED'].includes(paper.Local_PDF_Status.toUpperCase())) {
+          if (res.effectiveStage === 1 && paper.Local_PDF_Status?.toUpperCase() === 'INACCESSIBLE') {
             dbReportsNotRetrieved++;
           }
 
@@ -192,7 +192,7 @@ export async function GET(request: Request) {
         }
 
         // [**17] Reports not retrieved
-        if (res.effectiveStage === 1 && paper.Local_PDF_Status && !['CACHED', 'DOWNLOADED'].includes(paper.Local_PDF_Status.toUpperCase())) {
+        if (res.effectiveStage === 1 && paper.Local_PDF_Status?.toUpperCase() === 'INACCESSIBLE') {
           otherReportsNotRetrieved++;
         }
 

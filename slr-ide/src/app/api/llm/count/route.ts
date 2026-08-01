@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
       query += ` AND NOT EXISTS (
         SELECT 1 FROM manual_audit_log 
         WHERE manual_audit_log.paper_id = papers.Paper_ID 
+          AND manual_audit_log.project_id = papers.Project_ID
           AND manual_audit_log.manual_stage = ?
       )`;
       params.push(taskType);

@@ -133,15 +133,29 @@ def main():
     conn.execute("PRAGMA journal_mode=WAL")
     cursor = conn.cursor()
 
-    # Get active project
-    cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
-    active_proj_row = cursor.fetchone()
-    active_proj_id = active_proj_row[0] if active_proj_row else 'default-project'
+    # Get active project and paper_id argument from CLI flags
+    active_proj_id = None
+    paper_id_arg = None
+    if len(sys.argv) > 1:
+        for i in range(1, len(sys.argv)):
+            if sys.argv[i] == '--project' and i + 1 < len(sys.argv):
+                active_proj_id = sys.argv[i+1]
+            elif sys.argv[i] == '--paper' and i + 1 < len(sys.argv):
+                paper_id_arg = sys.argv[i+1]
+
+    if not active_proj_id:
+        cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
+        active_proj_row = cursor.fetchone()
+        active_proj_id = active_proj_row[0] if active_proj_row else None
+
+    if not active_proj_id:
+        print_event({"event": "error", "message": "Missing required --project parameter."})
+        sys.exit(1)
 
     # Get active project folder_name
     cursor.execute("SELECT folder_name FROM projects WHERE id = ?", (active_proj_id,))
     proj_row = cursor.fetchone()
-    folder_name = proj_row[0] if proj_row else 'default_project'
+    folder_name = proj_row[0] if proj_row else active_proj_id
 
     # Get thresholds and settings
     cursor.execute("SELECT value FROM configs WHERE key = 'FUZZY_MATCH_THRESHOLD'")
@@ -230,8 +244,8 @@ def main():
             cursor.execute("""
                 UPDATE papers
                 SET Local_PDF_Status = 'NEEDS_REVIEW'
-                WHERE Paper_ID = ?
-            """, (paper_id,))
+                WHERE Paper_ID = ? AND Project_ID = ?
+            """, (paper_id, active_proj_id))
             conn.commit()
             print(json.dumps({
                 "event": "paper_fail",
@@ -268,8 +282,8 @@ def main():
             cursor.execute("""
                 UPDATE papers
                 SET Local_PDF_Status = ?, Local_PDF_Path = ?
-                WHERE Paper_ID = ?
-            """, (target_status, target_path.replace('\\', '/'), paper_id))
+                WHERE Paper_ID = ? AND Project_ID = ?
+            """, (target_status, target_path.replace('\\', '/'), paper_id, active_proj_id))
             conn.commit()
 
             print(json.dumps({

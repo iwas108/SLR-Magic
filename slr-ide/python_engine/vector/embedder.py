@@ -19,6 +19,9 @@ class TextEmbedder:
         """Lazy load the sentence-transformers model."""
         if cls._model is None:
             try:
+                import torch
+                import os
+                torch.set_num_threads(os.cpu_count() or 4)
                 from sentence_transformers import SentenceTransformer
             except ImportError:
                 print("Error: sentence-transformers is not installed in the python environment.", file=sys.stderr)

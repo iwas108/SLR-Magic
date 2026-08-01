@@ -128,8 +128,8 @@ export default function InterRaterDashboard({
     setLoading(true);
     try {
       const [statsRes, ledgerRes] = await Promise.all([
-        fetch(`/api/adjudicate/stats?pool=${activePoolTab}`),
-        fetch(`/api/adjudicate/ledger?pool=${activePoolTab}`)
+        fetch(`/api/adjudicate/stats?pool=${activePoolTab}&projectId=${activeProjectId}`),
+        fetch(`/api/adjudicate/ledger?pool=${activePoolTab}&projectId=${activeProjectId}`)
       ]);
 
       if (statsRes.ok) {
@@ -193,7 +193,7 @@ export default function InterRaterDashboard({
   };
 
   const handleExportBlinded = () => {
-    window.open(`/api/export/inter-rater?pool=${activePoolTab}`, '_blank');
+    window.open(`/api/export/inter-rater?pool=${activePoolTab}&projectId=${activeProjectId}`, '_blank');
     showToast(`Exporting ${activePoolTab.replace('_', ' ').toUpperCase()} blinded review template (.slr)...`, 'info');
   };
 
@@ -205,7 +205,7 @@ export default function InterRaterDashboard({
     setImportError(null);
     try {
       const text = await file.text();
-      const res = await fetch(`/api/import/inter-rater?pool=${activePoolTab}`, {
+      const res = await fetch(`/api/import/inter-rater?pool=${activePoolTab}&projectId=${activeProjectId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: text
@@ -241,7 +241,7 @@ export default function InterRaterDashboard({
 
     setIsResetting(true);
     try {
-      const res = await fetch(`/api/import/inter-rater?pool=${activePoolTab}`, {
+      const res = await fetch(`/api/import/inter-rater?pool=${activePoolTab}&projectId=${activeProjectId}`, {
         method: 'DELETE',
       });
       const data = await res.json();

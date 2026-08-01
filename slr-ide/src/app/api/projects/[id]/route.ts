@@ -55,6 +55,15 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       // Clear all related tables to be absolutely sure the database is fully clear of this project data
       db.prepare('DELETE FROM reviewer_decisions WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM calibration_commit_ledger WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM calibration_papers WHERE Project_ID = ?').run(projectId);
+      db.prepare('DELETE FROM manual_audit_log WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM llm_audit_log WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM duplicate_pairs WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM rolling_batches WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM rolling_batch_papers WHERE Project_ID = ?').run(projectId);
+      db.prepare('DELETE FROM rolling_batch_reviewer_decisions WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM rolling_batch_commit_ledger WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM umbrellanizer_results WHERE project_id = ?').run(projectId);
       
       // Delete papers
       db.prepare('DELETE FROM papers WHERE Project_ID = ?').run(projectId);

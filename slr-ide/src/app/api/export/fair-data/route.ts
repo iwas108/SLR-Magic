@@ -1,51 +1,67 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import db, { getConfig } from '@/lib/db';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const projectId = searchParams.get('projectId');
-
-  if (!projectId) {
-    return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
-  }
+  const paramProjectId = searchParams.get('projectId');
+  const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+  const targetProjectId = paramProjectId || activeProjectId;
 
   try {
-    const exportData: any = {};
+    let project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;
+    if (!project) {
+      const numericProjectId = parseInt(targetProjectId, 10);
+      if (!isNaN(numericProjectId)) {
+        project = db.prepare('SELECT * FROM projects WHERE id = ?').get(numericProjectId) as any;
+      }
+    }
+    if (!project) {
+      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    }
 
-    // 1. Project details (without api keys if any exist in the schema, though typically not stored here)
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    const resolvedProjectId = project.id;
+    const exportData: any = {
+      metadata: {
+        project_id: resolvedProjectId,
+        project_name: project.name || 'Unnamed Project',
+        export_date: new Date().toISOString()
+      }
+    };
+
+    // 1. Project details
     exportData.project = project;
 
     // 2. Papers
-    exportData.papers = db.prepare('SELECT * FROM papers WHERE Project_ID = ?').all(projectId);
+    exportData.papers = db.prepare('SELECT * FROM papers WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
     // 3. LLM Audit Log
-    exportData.llm_audit_log = db.prepare('SELECT * FROM llm_audit_log WHERE project_id = ?').all(projectId);
+    exportData.llm_audit_log = db.prepare('SELECT * FROM llm_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
     // 4. Manual Audit Log
-    exportData.manual_audit_log = db.prepare('SELECT * FROM manual_audit_log WHERE project_id = ?').all(projectId);
+    exportData.manual_audit_log = db.prepare('SELECT * FROM manual_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
     // 5. Umbrellanizer Results
-    exportData.umbrellanizer_results = db.prepare('SELECT * FROM umbrellanizer_results WHERE project_id = ?').all(projectId);
+    exportData.umbrellanizer_results = db.prepare('SELECT * FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
     // 6. Reviewer Decisions
-    exportData.reviewer_decisions = db.prepare('SELECT * FROM reviewer_decisions WHERE project_id = ?').all(projectId);
+    exportData.reviewer_decisions = db.prepare('SELECT * FROM reviewer_decisions WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
     // 7. Calibration Commit Ledger
-    exportData.calibration_commit_ledger = db.prepare('SELECT * FROM calibration_commit_ledger WHERE project_id = ?').all(projectId);
+    exportData.calibration_commit_ledger = db.prepare('SELECT * FROM calibration_commit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
     // 8. Calibration Papers
-    exportData.calibration_papers = db.prepare('SELECT * FROM calibration_papers WHERE Project_ID = ?').all(projectId);
+    exportData.calibration_papers = db.prepare('SELECT * FROM calibration_papers WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
     const jsonString = JSON.stringify(exportData, null, 2);
     
     // Create response with headers for file download
     const response = new NextResponse(jsonString);
     response.headers.set('Content-Type', 'application/json');
-    response.headers.set('Content-Disposition', `attachment; filename="fair_export_${projectId}_${Date.now()}.slr"`);
+    response.headers.set('Content-Disposition', `attachment; filename="fair_export_${resolvedProjectId}_${Date.now()}.slr"`);
     
     return response;
   } catch (error) {

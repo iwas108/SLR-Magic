@@ -117,6 +117,15 @@ px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, 
 *   **Stage 3 (Scientist)**: Passes if `Critical Miss Rate === 0%` (allowing minor ordinal deviations of `0.5` points).
 *   **Stage 4 (Miner)**: Passes if `Schema Integrity Rate === 100%` (0 missing keys, 100% correct type match). Exact matches are treated as pre-normalization text yield metrics and do not trigger pipeline fail states.
 
+### 3.8 Strict Multi-Project Separation & Isolation Policy
+*   **Absolute Multi-Project Isolation**: Every SQL query (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `JOIN`, or subquery) operating on project-tied database tables (`papers`, `reviewer_decisions`, `calibration_commit_ledger`, `calibration_papers`, `manual_audit_log`, `llm_audit_log`, `duplicate_pairs`, `rolling_batches`, `rolling_batch_papers`, `rolling_batch_reviewer_decisions`, `rolling_batch_commit_ledger`, `umbrellanizer_results`) **MUST** explicitly include and enforce `Project_ID = ?` (or `project_id = ?` / `CAST(project_id AS TEXT) = CAST(? AS TEXT)`).
+*   **Zero Un-scoped Queries**: Coding agents **MUST NEVER** execute database reads, updates, deletes, or subqueries on paper records, audit logs, calibration tables, or rolling batch tables without filtering by `Project_ID` / `project_id`.
+*   **Subquery & JOIN Alignment**: When writing correlated subqueries or `JOIN` conditions involving `llm_audit_log`, `manual_audit_log`, `calibration_commit_ledger`, or `rolling_batch_papers`, coding agents **MUST** explicitly link project IDs in the `JOIN ON` clause (e.g., `AND l.project_id = p.Project_ID` or `AND CAST(latest.project_id AS TEXT) = CAST(l.project_id AS TEXT)`).
+*   **Protected Project ID (`'default-project'`)**: `'default-project'` is a valid, protected active project identifier in the database. Coding agents **MUST NOT** treat `'default-project'` as a legacy, missing, unassigned, or NULL project ID.
+*   **Cascading Project Deletion**: When deleting a project, all associated records in all 11 project-tied tables **MUST** be deleted inside an atomic SQLite transaction filtered strictly by `Project_ID` / `project_id`.
+*   **Vector Search & Scraper Allowlisting**: FAISS vector search engines (`vector_worker.py`, `semantic_search.py`), PDF integrity verification tools (`verify_pdfs.py`), and scraper scripts (`scrape_pdfs.py`, `match_cache.py`) **MUST** restrict candidate allowlists and file updates strictly to the active `project_id`.
+*   **Remote Worker Result Scoping**: Callbacks handling PDF download or scrape results (`remote-worker/result/route.ts`) **MUST** resolve the target paper's `Project_ID` and include `AND Project_ID = targetProjectId` on all database updates to prevent cross-project state corruption.
+
 ---
 
 

@@ -358,6 +358,7 @@ export default function ManualScreeningList({
                         <option value="">Any PDF Status</option>
                         <option value="IGNORED">IGNORED</option>
                         <option value="MISSING">MISSING</option>
+                        <option value="INACCESSIBLE">INACCESSIBLE</option>
                         <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
                         <option value="MATCHED">MATCHED</option>
                         <option value="DOWNLOADED">DOWNLOADED</option>

@@ -25,7 +25,7 @@ from python_engine.vector.id_map import IDMap
 def run_search(params):
     # Replicate semantic_search.py logic
     query = params.get("query")
-    k = params.get("k", 20)
+    k = params.get("k", 1000)
     pool = params.get("pool")
     mode = params.get("mode", "papers")
     exclude_reviews = params.get("exclude_reviews", False)
@@ -44,35 +44,34 @@ def run_search(params):
     allowlist_ids = None
     
     if mode == "papers":
-        # Resolve allowlist based on pool configuration, review filters, and publisher filters
-        if pool or exclude_reviews or publisher:
-            try:
-                query_parts = ["SELECT Paper_ID FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"]
-                sql_params = [active_project_id]
-                
-                if pool:
-                    pool_lower = pool.lower()
-                    if pool_lower == 'none':
-                        query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)")
-                        sql_params.append(active_project_id)
-                    elif pool_lower != 'all':
-                        query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)")
-                        sql_params.extend([active_project_id, pool_lower])
-                        
-                if exclude_reviews:
-                    query_parts.append("AND Title NOT LIKE '%review%' AND (Abstract IS NULL OR Abstract NOT LIKE '%survey%')")
+        # Always construct allowlist scoped by active_project_id
+        try:
+            query_parts = ["SELECT Paper_ID FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"]
+            sql_params = [active_project_id]
+            
+            if pool:
+                pool_lower = pool.lower()
+                if pool_lower == 'none':
+                    query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)")
+                    sql_params.append(active_project_id)
+                elif pool_lower != 'all':
+                    query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)")
+                    sql_params.extend([active_project_id, pool_lower])
                     
-                if publisher and publisher.lower() != 'all':
-                    query_parts.append("AND Publisher = ?")
-                    sql_params.append(publisher)
-                    
-                sql_query = " ".join(query_parts)
-                cursor.execute(sql_query, tuple(sql_params))
-                allowlist_ids = [r[0] for r in cursor.fetchall()]
-            except Exception as e:
-                conn.close()
-                return {"error": f"Failed to fetch allowlist: {e}"}
+            if exclude_reviews:
+                query_parts.append("AND Title NOT LIKE '%review%' AND (Abstract IS NULL OR Abstract NOT LIKE '%survey%')")
                 
+            if publisher and publisher.lower() != 'all':
+                query_parts.append("AND Publisher = ?")
+                sql_params.append(publisher)
+                
+            sql_query = " ".join(query_parts)
+            cursor.execute(sql_query, tuple(sql_params))
+            allowlist_ids = [r[0] for r in cursor.fetchall()]
+        except Exception as e:
+            conn.close()
+            return {"error": f"Failed to fetch allowlist: {e}"}
+            
         # Run paper vector search
         try:
             search_results = VectorIndexManager.search_papers_by_text(
@@ -86,14 +85,17 @@ def run_search(params):
             conn.close()
             return {"results": []}
             
-        # Enrich results with paper metadata from slr.db
+        # Enrich results with paper metadata and calibration pool/tag from slr.db
         paper_ids = [res['paper_id'] for res in search_results]
         placeholders = ",".join(["?"] * len(paper_ids))
         
         try:
             cursor.execute(
-                f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders})",
-                tuple(paper_ids)
+                f"""SELECT *,
+                           (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
+                           (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag
+                    FROM papers WHERE Paper_ID IN ({placeholders}) AND Project_ID = ?""",
+                tuple(paper_ids) + (active_project_id,)
             )
             columns = [col[0] for col in cursor.description]
             metadata_map = {}
@@ -118,7 +120,15 @@ def run_search(params):
         
     elif mode == "pdfs":
         try:
-            search_results = VectorIndexManager.search_pdf_by_text(query, k=k)
+            # Query filenames of PDFs belonging to papers in active_project_id
+            cursor.execute(
+                "SELECT Paper_ID FROM papers WHERE Project_ID = ? AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND (is_duplicate IS NULL OR is_duplicate = 0)",
+                (active_project_id,)
+            )
+            proj_paper_ids = [r[0] for r in cursor.fetchall()]
+            pdf_filenames = [f"{pid}.pdf" for pid in proj_paper_ids]
+            
+            search_results = VectorIndexManager.search_pdf_by_text(query, k=k, allowlist_filenames=pdf_filenames)
             conn.close()
             return {"results": search_results}
         except Exception as e:
@@ -132,7 +142,7 @@ def run_search(params):
 def run_traps(params):
     # Replicate find_traps.py logic
     seed = params.get("seed")
-    k = params.get("k", 25)
+    k = params.get("k", 1000)
     active_project_id = params.get("project_id", "default-project")
     
     if not seed:
@@ -193,8 +203,8 @@ def run_traps(params):
     placeholders = ",".join(["?"] * len(paper_ids))
     try:
         cursor.execute(
-            f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders})",
-            tuple(paper_ids)
+            f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND Project_ID = ?",
+            tuple(paper_ids) + (active_project_id,)
         )
         columns = [col[0] for col in cursor.description]
         metadata_map = {}

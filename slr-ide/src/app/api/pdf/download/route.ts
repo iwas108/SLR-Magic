@@ -1,12 +1,13 @@
 import { spawn } from 'child_process';
 import path from 'path';
-import { PROJECT_ROOT } from '@/lib/db';
+import { PROJECT_ROOT, getConfig } from '@/lib/db';
 
 export async function POST() {
   try {
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
     const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
 
-    const child = spawn(pythonExe, ['-m', 'python_engine.entrypoints.scrape_pdfs'], {
+    const child = spawn(pythonExe, ['-m', 'python_engine.entrypoints.scrape_pdfs', '--project', activeProjectId], {
       cwd: PROJECT_ROOT
     });
 
