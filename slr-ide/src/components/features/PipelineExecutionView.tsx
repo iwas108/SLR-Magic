@@ -267,6 +267,7 @@ export default function PipelineExecutionView({
               projectsHook={projectsHook}
               manualScreeningHook={manualScreeningHook}
               showToast={showToast}
+              isMainPipelineRunning={pipelineHook.operationModal?.isExecuting}
             />
           </div>
         )}

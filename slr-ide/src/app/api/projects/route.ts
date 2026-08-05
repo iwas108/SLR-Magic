@@ -163,8 +163,9 @@ export async function GET() {
           WHERE rn = 1 AND task_type = 'fast_filter' AND decision LIKE 'INCLUDE%'
         )
         SELECT 
-          SUM(CASE WHEN p.Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as unprocessed,
-          SUM(CASE WHEN p.Local_PDF_Status NOT IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as pending_pdf
+          SUM(CASE WHEN UPPER(p.Local_PDF_Status) IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as unprocessed,
+          SUM(CASE WHEN UPPER(p.Local_PDF_Status) = 'INACCESSIBLE' THEN 1 ELSE 0 END) as inaccessible_pdf,
+          SUM(CASE WHEN UPPER(p.Local_PDF_Status) NOT IN ('MATCHED', 'DOWNLOADED', 'SYNCED', 'INACCESSIBLE') THEN 1 ELSE 0 END) as pending_pdf
         FROM stage1_includes s1
         JOIN papers p ON p.Paper_ID = s1.paper_id AND p.Project_ID = ?
         WHERE (p.is_duplicate IS NULL OR p.is_duplicate = 0)
@@ -172,7 +173,7 @@ export async function GET() {
             SELECT 1 FROM ranked_decisions r
             WHERE r.paper_id = s1.paper_id AND r.rn = 1 AND r.task_type = 'gatekeeper'
           )
-      `).get(proj.id, proj.id, proj.id) as { unprocessed: number | null; pending_pdf: number | null };
+      `).get(proj.id, proj.id, proj.id) as { unprocessed: number | null; inaccessible_pdf: number | null; pending_pdf: number | null };
 
       const stage3Unprocessed = db.prepare(`
         WITH combined_logs AS (
@@ -326,9 +327,9 @@ export async function GET() {
         }
       }
 
-      const stageStats: Record<string, { included: number; excluded: number; unprocessed: number; total: number; ecBreakdown: Record<string, number>; inc_has_pdf?: number; inc_no_doi?: number; inc_pdf_failed?: number; pending_pdf?: number; notStatedMetrics?: Record<string, number>; }> = {
+      const stageStats: Record<string, { included: number; excluded: number; unprocessed: number; total: number; ecBreakdown: Record<string, number>; inc_has_pdf?: number; inc_no_doi?: number; inc_pdf_failed?: number; pending_pdf?: number; inaccessible_pdf?: number; notStatedMetrics?: Record<string, number>; }> = {
         '1': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: ecBreakdown['1'], inc_has_pdf: 0, inc_no_doi: 0, inc_pdf_failed: 0 },
-        '2': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: ecBreakdown['2'], inc_has_pdf: 0, inc_no_doi: 0, inc_pdf_failed: 0, pending_pdf: 0 },
+        '2': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: ecBreakdown['2'], inc_has_pdf: 0, inc_no_doi: 0, inc_pdf_failed: 0, pending_pdf: 0, inaccessible_pdf: 0 },
         '3': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: ecBreakdown['3'] },
         '4': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: ecBreakdown['4'], notStatedMetrics: notStatedCounts }
       };
@@ -346,13 +347,14 @@ export async function GET() {
 
       stageStats['1'].unprocessed = stage1Unprocessed.count;
       stageStats['2'].unprocessed = stage2Unprocessed.unprocessed || 0;
+      stageStats['2'].inaccessible_pdf = stage2Unprocessed.inaccessible_pdf || 0;
       stageStats['2'].pending_pdf = stage2Unprocessed.pending_pdf || 0;
       stageStats['3'].unprocessed = stage3Unprocessed.count;
       stageStats['4'].unprocessed = stage4Unprocessed.count;
 
       // Calculate totals based on actual processed + unprocessed
       stageStats['1'].total = stageStats['1'].included + stageStats['1'].excluded + stageStats['1'].unprocessed;
-      stageStats['2'].total = stageStats['2'].included + stageStats['2'].excluded + stageStats['2'].unprocessed + (stageStats['2'].pending_pdf || 0);
+      stageStats['2'].total = stageStats['2'].included + stageStats['2'].excluded + stageStats['2'].unprocessed + (stageStats['2'].pending_pdf || 0) + (stageStats['2'].inaccessible_pdf || 0);
       stageStats['3'].total = stageStats['3'].included + stageStats['3'].excluded + stageStats['3'].unprocessed;
       stageStats['4'].total = stageStats['4'].included + stageStats['4'].excluded + stageStats['4'].unprocessed;
       

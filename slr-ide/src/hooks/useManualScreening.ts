@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Paper } from '@/types';
 import { broadcastSync } from '@/lib/sync-utils';
+import { useNdjsonStream } from './useNdjsonStream';
 
 export function useManualScreening(
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void,
@@ -82,6 +83,94 @@ export function useManualScreening(
   
   const [screeningSaving, setScreeningSaving] = useState(false);
   const [screeningError, setScreeningError] = useState<string | null>(null);
+
+  // Single PDF Acquisition Stream State
+  const [manualPdfLogs, setManualPdfLogs] = useState<any[]>([]);
+  const [manualPdfIsRunning, setManualPdfIsRunning] = useState(false);
+  const [manualPdfStatusText, setManualPdfStatusText] = useState('');
+  const [manualPdfProgress, setManualPdfProgress] = useState(0);
+  const [manualPdfWaitingLogin, setManualPdfWaitingLogin] = useState(false);
+
+  const { connect: connectNdjson, cancelStream: cancelSinglePaperPipeline, abortControllerRef: singlePipelineAbortControllerRef } = useNdjsonStream({
+    onEvent: (parsed) => {
+      if (parsed.event === 'log') {
+        setManualPdfLogs(prev => [...prev, parsed.message]);
+      } else if (parsed.event === 'step_start') {
+        setManualPdfStatusText(parsed.message);
+        if (parsed.step === 'scan') {
+          setManualPdfProgress(15);
+        } else if (parsed.step === 'scrape') {
+          setManualPdfProgress(45);
+        }
+      } else if (parsed.event === 'step_complete') {
+        setManualPdfStatusText(parsed.message);
+      } else if (parsed.event === 'waiting_login') {
+        setManualPdfWaitingLogin(true);
+        setManualPdfStatusText(parsed.message);
+      } else if (parsed.event === 'resume') {
+        setManualPdfWaitingLogin(false);
+      } else if (parsed.event === 'paper_success') {
+        setManualPdfProgress(90);
+        showToast('Paper PDF acquired successfully!', 'success');
+      } else if (parsed.event === 'paper_fail') {
+        setManualPdfProgress(100);
+        showToast(`Scrape failed: ${parsed.error}`, 'error');
+      } else if (parsed.event === 'complete') {
+        setManualPdfProgress(100);
+        setManualPdfStatusText(parsed.message);
+        showToast(parsed.message, 'success');
+      } else if (parsed.event === 'error') {
+        setManualPdfProgress(100);
+        setManualPdfStatusText(parsed.message);
+        showToast(parsed.message, 'error');
+      }
+    },
+    onComplete: async () => {
+      if (screeningSelectedPaper) {
+        const paperId = screeningSelectedPaper.Paper_ID;
+        const paperRes = await fetch(`/api/papers/${paperId}`);
+        if (paperRes.ok) {
+          const updatedPaper = await paperRes.json();
+          setScreeningSelectedPaper(updatedPaper);
+          setScreeningPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
+        }
+        loadScreeningStats();
+      }
+      setManualPdfIsRunning(false);
+    },
+    onError: (err) => {
+      showToast(`Pipeline execution failed: ${err.message}`, 'error');
+      setManualPdfIsRunning(false);
+    }
+  });
+
+  const runSinglePaperPipeline = useCallback(async (paperId: string) => {
+    if (manualPdfIsRunning) {
+      showToast('A PDF acquisition process is already active.', 'warning');
+      return;
+    }
+
+    setManualPdfIsRunning(true);
+    setManualPdfLogs([]);
+    setManualPdfProgress(0);
+    setManualPdfStatusText('Starting single paper acquisition...');
+    setManualPdfWaitingLogin(false);
+
+    try {
+      await connectNdjson('/api/pdf/single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperId })
+      });
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        showToast('Pipeline cancelled by user.', 'info');
+      } else {
+        showToast(`Pipeline execution failed: ${err.message}`, 'error');
+      }
+      setManualPdfIsRunning(false);
+    }
+  }, [manualPdfIsRunning, showToast, connectNdjson]);
 
   // Setup form states when paper selection changes
   const lastLoadedPaperRef = useRef<Paper | null>(null);
@@ -551,6 +640,14 @@ export function useManualScreening(
     loadScreeningPapers,
     triggerSemanticSearch,
     saveManualDecision,
-    clearManualDecision
+    clearManualDecision,
+    manualPdfLogs,
+    manualPdfIsRunning,
+    manualPdfStatusText,
+    manualPdfProgress,
+    manualPdfWaitingLogin,
+    runSinglePaperPipeline,
+    cancelSinglePaperPipeline,
+    singlePipelineAbortControllerRef
   };
 }

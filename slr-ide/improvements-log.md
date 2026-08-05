@@ -1,3 +1,45 @@
+## #302 - Separated INACCESSIBLE PDF Status from Pending PDF in Stage 2 Gatekeeper Metrics (2026-08-04)
+- **Goal**: Exclude papers with `INACCESSIBLE` `Local_PDF_Status` from `Pending PDF` state in "Stage 2: Gatekeeper Metrics" on Project Dashboard, introducing a distinct purple category (`Inaccessible: N (X%)`) and stacked progress bar segment.
+- **Changes**:
+  - Modified [route.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/projects/route.ts): Updated `stage2Unprocessed` query to separate `inaccessible_pdf` count (`UPPER(p.Local_PDF_Status) = 'INACCESSIBLE'`) from `pending_pdf`, added `inaccessible_pdf` property to `stageStats['2']`, and included it in the total denominator.
+  - Modified [MetricSummaryCards.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/dashboard/MetricSummaryCards.tsx): Updated `renderStageBar` to accept `inaccessible_pdf`, display purple metric badge (`text-purple-400`), and render purple progress bar segment (`bg-purple-500`).
+- **Verification**: Verified clean TypeScript compilation (`npx tsc --noEmit`) with zero errors.
+
+## #301 - Replicated Single PDF Acquisition UI/UX in Manual Screening (2026-08-03)
+- **Goal**: Replicate the exact single paper PDF acquisition UI/UX from "Assign Papers to Calibration Pools" in "Manual Screening Pipeline Workspace" with real-time NDJSON stream logging, progress tracking, resume login, cancel actions, and main pipeline run checks.
+- **Changes**:
+  - Modified [useManualScreening.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useManualScreening.ts): Added single PDF streaming state variables and integrated `useNdjsonStream` hook. Auto-rehydrates updated paper record upon completion.
+  - Modified [ManualScreeningDetailView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningDetailView.tsx): Styled PDF offline container, added "Get PDF via Cache Matching & Scraping" button, Cancel/Resume controls, main pipeline execution warning banner, and scrollable terminal console logging widget.
+  - Modified [ManualScreeningView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningView.tsx): Forwarded single PDF acquisition stream props and `isMainPipelineRunning` status.
+  - Modified [PipelineExecutionView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PipelineExecutionView.tsx): Passed `isMainPipelineRunning` status from batch operations to `ManualScreeningView`.
+- **Verification**: Verified clean TypeScript compilation (`npx tsc --noEmit`) with zero errors.
+
+## #300 - Manual Screening PDF Viewer Auto-Switch & UI Sync (2026-08-03)
+- **Goal**: Automatically update the UI and switch the detail view tab to the embedded PDF viewer (`pdf`) immediately after PDF matching or crawler acquisition finishes.
+- **Changes**:
+  - Modified [ManualScreeningDetailView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningDetailView.tsx): Added `setActiveDetailTab('pdf')` inside `handleAcquirePdf` right after `broadcastSync('SYNC_PAPERS')` to seamlessly present the acquired PDF binary view to the reviewer.
+- **Verification**: Verified clean TypeScript compilation (`npx tsc --noEmit`) with zero errors.
+
+## #299 - Manual Screening PDF Acquisition Endpoint Alignment (2026-08-03)
+- **Goal**: Make the "Acquire / Download PDF" button in "Manual Screening Pipeline Workspace" attempt local cache matching before web scraping, matching the behavior in "Assign Papers to Calibration Pools".
+- **Changes**:
+  - Modified [ManualScreeningDetailView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningDetailView.tsx): Updated `handleAcquirePdf` to call `/api/pdf/single` instead of `/api/pdf/download`, enabling local cache matcher first before running the scraper, and reading the NDJSON response stream to completion before broadcasting sync events.
+- **Verification**: Verified clean TypeScript compilation (`npx tsc --noEmit`) with zero errors.
+
+## #298 - Scrape PDFs Python Engine Syntax Error Fix (2026-08-03)
+- **Goal**: Fix `SyntaxError: invalid syntax` on line 239 of `scrape_pdfs.py` when initiating PDF downloading in "Manual Screening Pipeline Workspace".
+- **Changes**:
+  - Modified [scrape_pdfs.py](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/entrypoints/scrape_pdfs.py): Corrected indentation of `except Exception as e:` block on line 239 to match its corresponding `try:` block on line 215.
+- **Verification**: Verified compilation with `python -m py_compile` with zero syntax errors.
+
+## #297 - Fast Filter Exclusion Criteria Dropdown & Project Settings Enforcement (2026-08-03)
+- **Goal**: Implement dedicated Exclusion Criteria dropdown for Stage 1: Fast Filter EXCLUDE decisions based on Project Settings -> Exclusion Criteria Rules (Pool A), strictly block saving EXCLUDE when Pool A rules are empty, and provide warning banner with one-click navigation to Project Settings.
+- **Changes**:
+  - Modified [ManualScreeningDetailView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/manual-screening/ManualScreeningDetailView.tsx): Formatted dropdown options as `[code] - [description]`. Added warning banner when Pool A `ec_rules` is empty with button dispatching custom `open-project-settings` event. Updated validation to strictly enforce selecting an exclusion code and prevent saving when rules are missing.
+  - Modified [ProjectSettingsModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/modals/ProjectSettingsModal.tsx): Added `initialTab` prop support and `useEffect` state synchronization.
+  - Modified [DashboardView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/DashboardView.tsx) & [page.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/page.tsx): Added global `open-project-settings` event listener to launch Project Settings modal directly focused on the Calibration & Rules tab.
+- **Verification**: Verified clean TypeScript compilation (`npx tsc --noEmit`) with zero errors.
+
 ## #296 - Strict Multi-Project Separation & Isolation Agent Directives (2026-07-30)
 - **Goal**: Institutionalize mandatory multi-project separation rules in `AGENTS.md` and `slr-ide/AGENTS.md` to prevent any future coding agent or automated workflow from writing un-scoped database queries or skipping project ID isolation.
 - **Changes**:
@@ -1113,4 +1155,6 @@
 | #210 | 2026-07-27 | Bug Fix / Performance | Fixed Turbovec semantic search initial cold-start lag by eager pre-warming vector daemon on modal initialization, optimized allowlist filtering using Python set operations for sub-100ms vector searches, fixed semantic search pagination cap by setting default k=1000 across python CLI entrypoints (`semantic_search.py`, `find_traps.py`, `vector_worker.py`) and invalidating legacy <100 item cache records, and enriched vector search metadata queries to persistently sync Quick Actions pool assignment button states. | Turbovec Daemon Eager Pre-Warming, Semantic Search k=1000 Pagination & Quick Actions Pool Sync |
 | #212 | 2026-07-31 | Feature | Enhanced JSON Output Schema Key Path Mappers across all 4 pipeline stages (`fast_filter`, `gatekeeper`, `scientist`, `miner`) in `GlobalLLMSettingsView.tsx` with dynamic property key path dropdowns. Implemented `extractSchemaKeyPaths` to parse top-level and nested JSON schema property keys from the selected prompt template's `response_schema`, populated key selection `<select>` dropdowns, and provided a `Custom Key Path...` fallback option that unlocks direct text input. | Dynamic Prompt Schema Key Path Dropdowns |
 | #213 | 2026-07-31 | Feature / Refactor | Removed unused Screening Rate card from Dashboard (`MetricSummaryCards.tsx`) and `ProjectManager.tsx`, re-balancing the top summary grid from 4 to 3 columns. Introduced `INACCESSIBLE` status to `Local_PDF_Status` dropdown and UI badge components. Refined PRISMA diagram calculation (`/api/insight/prisma` and `/api/export/slr-viewer`) to strictly count papers with `INACCESSIBLE` status as Reports Not Retrieved. Bumped `.slr-viewer` export payload `schema_version` to `1.1.0`. | Dashboard Screening Rate Cleanup, INACCESSIBLE PDF Status, & .slr-viewer Schema v1.1.0 Export |
+| #214 | 2026-08-03 | Feature / UI | Added Fast Filter Exclusion Criteria dropdown based on Project Settings Pool A Exclusion Criteria Rules (`ec_rules`), formatted options as `[code] - [description]`, blocked saving `EXCLUDE` decisions when Pool A rules are unconfigured, and provided warning banner with one-click navigation to Project Settings (`open-project-settings` custom event). | Fast Filter Exclusion Criteria Dropdown & Enforcement |
+| #215 | 2026-08-03 | Feature / UI | Replicated single paper PDF acquisition UI/UX from Calibration in Manual Screening Pipeline Workspace with real-time NDJSON stream console logging, progress tracking, cancel/resume operations, and active batch pipeline locks. | Replicate Single PDF Acquisition UI/UX |
 

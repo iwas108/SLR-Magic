@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Check, X, FileText, ArrowRightLeft, ShieldAlert, 
   HelpCircle, CheckCircle2, ChevronRight, AlertCircle, Trash,
-  Eye, Download, ExternalLink, LayoutDashboard, Loader2
+  Eye, Download, ExternalLink, LayoutDashboard, Loader2, Settings,
+  AlertTriangle, RefreshCw, Play, Terminal
 } from 'lucide-react';
 import { Paper, Project } from '@/types';
 import PdfPreview from '../modals/paper-details/PdfPreview';
@@ -31,6 +32,17 @@ interface ManualScreeningDetailViewProps {
   screeningError: string | null;
   onSave: (paperId: string) => void;
   onClear: (paperId: string) => void;
+
+  // Single PDF acquisition stream props
+  manualPdfLogs: any[];
+  manualPdfIsRunning: boolean;
+  manualPdfStatusText: string;
+  manualPdfProgress: number;
+  manualPdfWaitingLogin: boolean;
+  runSinglePaperPipeline: (paperId: string) => Promise<void>;
+  cancelSinglePaperPipeline: () => void;
+  singlePipelineAbortControllerRef: React.MutableRefObject<AbortController | null>;
+  isMainPipelineRunning?: boolean;
 }
 
 export default function ManualScreeningDetailView({
@@ -53,30 +65,28 @@ export default function ManualScreeningDetailView({
   screeningSaving,
   screeningError,
   onSave,
-  onClear
+  onClear,
+  manualPdfLogs,
+  manualPdfIsRunning,
+  manualPdfStatusText,
+  manualPdfProgress,
+  manualPdfWaitingLogin,
+  runSinglePaperPipeline,
+  cancelSinglePaperPipeline,
+  singlePipelineAbortControllerRef,
+  isMainPipelineRunning
 }: ManualScreeningDetailViewProps) {
   const activeProj = projects.find(p => String(p.id) === String(activeProjectId));
   const [activeDetailTab, setActiveDetailTab] = useState<'metadata' | 'pdf'>('metadata');
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
-  const handleAcquirePdf = async () => {
-    if (!selectedPaper?.Paper_ID) return;
-    setDownloadingPdf(true);
-    try {
-      const res = await fetch('/api/pdf/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paperId: selectedPaper.Paper_ID })
-      });
-      if (res.ok) {
-        broadcastSync('SYNC_PAPERS');
-      }
-    } catch (err) {
-      console.error('Failed to initiate single paper PDF acquisition:', err);
-    } finally {
-      setDownloadingPdf(false);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-scroll single PDF console logs
+  useEffect(() => {
+    if (manualPdfIsRunning && logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  };
+  }, [manualPdfLogs, manualPdfIsRunning]);
 
   // Load criteria configs from project schema
   const getEcRules = () => {
@@ -292,8 +302,12 @@ export default function ManualScreeningDetailView({
     if (manualStage !== 'scientist' && manualStage !== 'miner') {
       if (!manualDecision) {
         errors.push('Human Decision Override is required.');
-      } else if (manualDecision === 'EXCLUDE' && ecRules.length > 0 && !manualEcTrigger) {
-        errors.push('Exclusion Criterion Triggered is required.');
+      } else if (manualDecision === 'EXCLUDE') {
+        if (ecRules.length === 0) {
+          errors.push(`Cannot submit EXCLUDE decision: No Exclusion Criteria Rules (${manualStage === 'fast_filter' ? 'Pool A' : 'Pool B'}) configured in Project Settings.`);
+        } else if (!manualEcTrigger) {
+          errors.push('Exclusion Criterion Triggered is required.');
+        }
       }
     }
 
@@ -397,60 +411,135 @@ export default function ManualScreeningDetailView({
           {selectedPaper.Local_PDF_Path ? (
             <PdfPreview localPdfPath={selectedPaper.Local_PDF_Path} />
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 max-w-xl mx-auto space-y-4 my-auto">
-              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-full text-amber-500">
-                <AlertCircle className="w-8 h-8" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-base text-foreground">Local PDF Document Offline</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  No local PDF binary file was found on disk for paper <code className="font-mono text-[10px] font-bold">{selectedPaper.Paper_ID}</code>.
-                  Full-text screening inspection requires local PDF acquisition.
+            <div className="p-6 select-none flex flex-col h-full justify-center">
+              <div className={`flex flex-col items-center justify-center text-center py-6 ${manualPdfIsRunning ? 'border-b border-border/40 pb-6 shrink-0' : 'flex-1'}`}>
+                <AlertTriangle className="w-14 h-14 text-amber-500 mb-4 animate-pulse" />
+                <h4 className="font-bold text-base mb-1.5 text-foreground">Local PDF Not Found</h4>
+                <p className="text-xs text-muted-foreground max-w-md leading-relaxed mb-6">
+                  Pool B and Pool C require full-text literature screening. Trigger smart cache matching and crawler scraping specifically for this paper reference.
                 </p>
-              </div>
+                
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={() => runSinglePaperPipeline(selectedPaper.Paper_ID)}
+                    disabled={manualPdfIsRunning || isMainPipelineRunning}
+                    className={`px-5 py-2.5 font-bold rounded-xl shadow-md transition-all flex items-center gap-2 uppercase tracking-wide text-xs cursor-pointer ${
+                      (manualPdfIsRunning || isMainPipelineRunning)
+                        ? 'bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-50 shadow-none' 
+                        : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg hover:scale-105'
+                    }`}
+                  >
+                    {manualPdfIsRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                    {manualPdfIsRunning ? 'Acquiring PDF...' : 'Get PDF via Cache Matching & Scraping'}
+                  </button>
 
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                <button
-                  onClick={handleAcquirePdf}
-                  disabled={downloadingPdf}
-                  className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-bold rounded-xl shadow flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {downloadingPdf ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Acquiring PDF...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4" />
-                      <span>Acquire / Download PDF</span>
-                    </>
+                  {manualPdfIsRunning && (
+                    <button
+                      onClick={async () => {
+                        singlePipelineAbortControllerRef.current?.abort();
+                        await fetch('/api/pdf/batch/cancel', { method: 'POST' });
+                      }}
+                      className="px-4 py-2.5 border border-border text-xs font-bold uppercase rounded-xl hover:bg-secondary text-foreground transition-colors shrink-0 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
                   )}
-                </button>
 
-                {selectedPaper.DOI && (
-                  <a
-                    href={`https://doi.org/${encodeURIComponent(selectedPaper.DOI)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl flex items-center gap-2 transition-colors"
-                  >
-                    <span>Publisher DOI</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
-                {selectedPaper.PDF_Link && (
-                  <a
-                    href={selectedPaper.PDF_Link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl flex items-center gap-2 transition-colors"
-                  >
-                    <span>Direct Web Link</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  {manualPdfIsRunning && manualPdfWaitingLogin && (
+                    <button
+                      onClick={async () => {
+                        await fetch('/api/pdf/batch/resume', { method: 'POST' });
+                      }}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase rounded-xl text-xs tracking-wide shadow-md flex items-center gap-2 animate-pulse transition-all hover:scale-105 shrink-0 cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      Resume Download
+                    </button>
+                  )}
+
+                  {!manualPdfIsRunning && selectedPaper.DOI && (
+                    <a
+                      href={`https://doi.org/${encodeURIComponent(selectedPaper.DOI)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <span>Publisher DOI</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+
+                  {!manualPdfIsRunning && selectedPaper.PDF_Link && (
+                    <a
+                      href={selectedPaper.PDF_Link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <span>Direct Web Link</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+
+                {isMainPipelineRunning && (
+                  <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-left max-w-md flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-xs text-amber-500 block mb-1">Single Acquisition Disabled</span>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed font-medium">
+                        The main PDF batch pipeline is currently running. Single PDF download is disabled to prevent database conflicts and browser thread locks. Please wait for the main pipeline to complete or cancel it first.
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
+
+              {/* Real-time single-run console log widget */}
+              {manualPdfIsRunning && (
+                <div className="mt-4 h-72 border border-border/80 rounded-xl bg-black text-emerald-400 font-mono text-[10px] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 shadow-inner select-text">
+                  {/* console header */}
+                  <div className="p-2.5 border-b border-border/40 bg-zinc-900/60 flex items-center justify-between shrink-0 select-none">
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                      <Terminal className="w-3.5 h-3.5 text-emerald-500" />
+                      Single PDF Pipeline: {manualPdfStatusText}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-emerald-400">{manualPdfProgress}%</span>
+                      {manualPdfWaitingLogin && (
+                        <button
+                          onClick={async () => {
+                            await fetch('/api/pdf/batch/resume', { method: 'POST' });
+                          }}
+                          className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-black font-bold uppercase rounded text-[8px] cursor-pointer"
+                        >
+                          Resume Login
+                        </button>
+                      )}
+                      <button
+                        onClick={async () => {
+                          singlePipelineAbortControllerRef.current?.abort();
+                          await fetch('/api/pdf/batch/cancel', { method: 'POST' });
+                        }}
+                        className="px-2 py-0.5 bg-destructive hover:bg-destructive/80 text-white font-bold uppercase rounded text-[8px] cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                  {/* logs body */}
+                  <div className="flex-1 p-3 overflow-y-auto space-y-1.5">
+                    {manualPdfLogs.length === 0 ? (
+                      <span className="text-zinc-600 block italic">Spawning subprocess connection...</span>
+                    ) : (
+                      manualPdfLogs.map((log: string, index: number) => (
+                        <div key={index} className="leading-normal whitespace-pre-wrap">{log}</div>
+                      ))
+                    )}
+                    <div ref={logEndRef} />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -619,22 +708,46 @@ export default function ManualScreeningDetailView({
                   </div>
 
                   {/* Exclusions checklist dropdown */}
-                  {manualDecision === 'EXCLUDE' && ecRules.length > 0 && (
-                    <div>
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Exclusion Criterion Triggered</label>
-                      <select
-                        value={manualEcTrigger}
-                        onChange={(e) => setManualEcTrigger(e.target.value)}
-                        className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-primary"
-                      >
-                        <option value="">Select criteria...</option>
-                        {ecRules.map((rule: any) => (
-                          <option key={rule.code} value={rule.code}>
-                            {rule.code} - {rule.description}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  {manualDecision === 'EXCLUDE' && (
+                    ecRules.length > 0 ? (
+                      <div>
+                        <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Exclusion Criterion Triggered</label>
+                        <select
+                          value={manualEcTrigger}
+                          onChange={(e) => setManualEcTrigger(e.target.value)}
+                          className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-primary font-mono"
+                        >
+                          <option value="">Select criteria...</option>
+                          {ecRules.map((rule: any) => (
+                            <option key={rule.code} value={rule.code}>
+                              {rule.code} - {rule.description}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs space-y-2">
+                        <div className="flex items-center gap-1.5 text-amber-500 font-bold">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>No Exclusion Criteria Rules Configured</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          Project Settings does not have any Exclusion Criteria Rules ({manualStage === 'fast_filter' ? 'Pool A' : 'Pool B'}) defined. You must configure rules before submitting an EXCLUDE decision.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('open-project-settings', {
+                              detail: { initialTab: 'calibration', project: activeProj }
+                            }));
+                          }}
+                          className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-md text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                          Configure Rules in Project Settings
+                        </button>
+                      </div>
+                    )
                   )}
                 </>
               ) : manualStage === 'miner' ? (

@@ -236,16 +236,16 @@ def main():
                     
                 print(json.dumps({"event": "paper_success", "paper_id": paper_id, "title": title}))
                 sys.stdout.flush()
-                except Exception as e:
-                    fail_count += 1
-                    cursor.execute("""
-                        UPDATE papers
-                        SET Local_PDF_Status = 'FAILED'
-                        WHERE Paper_ID = ? AND Project_ID = ?
-                    """, (paper_id, active_proj_id))
-                    conn.commit()
-                    print(json.dumps({"event": "paper_fail", "paper_id": paper_id, "title": title, "error": f"Failed to save file: {str(e)}"}))
-                    sys.stdout.flush()
+            except Exception as e:
+                fail_count += 1
+                cursor.execute("""
+                    UPDATE papers
+                    SET Local_PDF_Status = 'FAILED'
+                    WHERE Paper_ID = ? AND Project_ID = ?
+                """, (paper_id, active_proj_id))
+                conn.commit()
+                print(json.dumps({"event": "paper_fail", "paper_id": paper_id, "title": title, "error": f"Failed to save file: {str(e)}"}))
+                sys.stdout.flush()
         else:
             fail_count += 1
             cursor.execute("""

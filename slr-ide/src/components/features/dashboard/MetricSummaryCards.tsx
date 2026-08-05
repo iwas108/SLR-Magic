@@ -30,17 +30,20 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
     inc_no_doi?: number;
     inc_pdf_failed?: number;
     pending_pdf?: number;
+    inaccessible_pdf?: number;
   }, showPdfBreakdown: boolean = true) => {
     const stageTotal = stageData.total || 0;
     if (stageTotal === 0) return <div className="text-[10px] text-muted-foreground mt-2">No papers in this stage</div>;
     
     const actualUnprocessed = stageData.unprocessed;
     const pendingPdf = stageData.pending_pdf || 0;
+    const inaccessiblePdf = stageData.inaccessible_pdf || 0;
 
     const incPct = Math.round((stageData.included / stageTotal) * 100);
     const excPct = Math.round((stageData.excluded / stageTotal) * 100);
     const pendingPdfPct = Math.round((pendingPdf / stageTotal) * 100);
-    const unpPct = Math.max(0, 100 - incPct - excPct - pendingPdfPct);
+    const inaccessiblePdfPct = Math.round((inaccessiblePdf / stageTotal) * 100);
+    const unpPct = Math.max(0, 100 - incPct - excPct - pendingPdfPct - inaccessiblePdfPct);
 
     let incBreakdownList = null;
     if (showPdfBreakdown && stageData.included > 0 && stageData.inc_has_pdf !== undefined) {
@@ -113,6 +116,9 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
           {pendingPdf > 0 && (
             <span className="text-amber-500">Pending PDF: {pendingPdf} ({pendingPdfPct}%)</span>
           )}
+          {inaccessiblePdf > 0 && (
+            <span className="text-purple-400">Inaccessible: {inaccessiblePdf} ({inaccessiblePdfPct}%)</span>
+          )}
         </div>
         <div className="w-full h-2 rounded-full overflow-hidden flex bg-secondary">
           <div className="bg-emerald-500 h-full" style={{ width: `${incPct}%` }} />
@@ -120,6 +126,9 @@ export default function MetricSummaryCards({ activeProject }: MetricSummaryCards
           <div className="bg-slate-400 h-full" style={{ width: `${unpPct}%` }} />
           {pendingPdf > 0 && (
             <div className="bg-amber-500 h-full" style={{ width: `${pendingPdfPct}%` }} />
+          )}
+          {inaccessiblePdf > 0 && (
+            <div className="bg-purple-500 h-full" style={{ width: `${inaccessiblePdfPct}%` }} />
           )}
         </div>
         {incBreakdownList}

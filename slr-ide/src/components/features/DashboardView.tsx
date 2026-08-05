@@ -24,6 +24,7 @@ interface DashboardViewProps {
   setDeleteProjectConfirmationText: React.Dispatch<React.SetStateAction<string>>;
   
   editingProject: any;
+  projectSettingsInitialTab?: 'metadata' | 'calibration' | 'sync' | 'llm';
   setActiveTab: (tab: string) => void;
   projectsHook: {
     projects: any[];
@@ -53,6 +54,7 @@ export default function DashboardView({
   deleteProjectConfirmationText,
   setDeleteProjectConfirmationText,
   editingProject,
+  projectSettingsInitialTab,
   setActiveTab,
   projectsHook
 }: DashboardViewProps) {
@@ -303,6 +305,7 @@ export default function DashboardView({
             testingProjectConnection={testingProjectConnection}
             projectConnectionTestResult={projectConnectionTestResult}
             handleTestProjectConnection={handleTestProjectConnection}
+            initialTab={projectSettingsInitialTab}
           />
         )}
 

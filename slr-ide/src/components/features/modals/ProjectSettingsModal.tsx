@@ -19,6 +19,7 @@ interface ProjectSettingsModalProps {
   testingProjectConnection: boolean;
   projectConnectionTestResult: { success: boolean; message: string; details?: string } | null;
   handleTestProjectConnection: (provider: string, remoteName: string) => void;
+  initialTab?: 'metadata' | 'calibration' | 'sync' | 'llm';
 }
 
 export default function ProjectSettingsModal({
@@ -32,9 +33,16 @@ export default function ProjectSettingsModal({
   savingProject,
   testingProjectConnection,
   projectConnectionTestResult,
-  handleTestProjectConnection
+  handleTestProjectConnection,
+  initialTab = 'metadata'
 }: ProjectSettingsModalProps) {
-  const [projectSettingsTab, setProjectSettingsTab] = useState<'metadata' | 'calibration' | 'sync' | 'llm'>('metadata');
+  const [projectSettingsTab, setProjectSettingsTab] = useState<'metadata' | 'calibration' | 'sync' | 'llm'>(initialTab);
+
+  React.useEffect(() => {
+    if (isOpen && initialTab) {
+      setProjectSettingsTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   const form = useProjectForm(project);
 

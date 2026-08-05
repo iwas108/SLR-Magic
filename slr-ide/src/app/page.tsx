@@ -213,11 +213,29 @@ export default function DashboardPage() {
     applyTheme(newTheme);
   }, [applyTheme]);
 
+  const [projectSettingsInitialTab, setProjectSettingsInitialTab] = useState<'metadata' | 'calibration' | 'sync' | 'llm'>('metadata');
+
   // Project Settings Modal Open Controller
-  const openProjectSettings = useCallback((proj: any) => {
+  const openProjectSettings = useCallback((proj: any, tab: 'metadata' | 'calibration' | 'sync' | 'llm' = 'metadata') => {
     setEditingProject(proj);
+    setProjectSettingsInitialTab(tab);
     setShowEditProjectModal(true);
   }, []);
+
+  // Listen for open-project-settings global event
+  useEffect(() => {
+    const handleOpenSettings = (e: any) => {
+      const targetProj = e.detail?.project || activeProject;
+      const targetTab = e.detail?.tab || e.detail?.initialTab || 'calibration';
+      if (targetProj) {
+        openProjectSettings(targetProj, targetTab);
+      }
+    };
+    window.addEventListener('open-project-settings', handleOpenSettings as EventListener);
+    return () => {
+      window.removeEventListener('open-project-settings', handleOpenSettings as EventListener);
+    };
+  }, [activeProject, openProjectSettings]);
 
   // Multi-Tab Synchronization: Automatically update the active form data if modified in another tab
   useEffect(() => {
@@ -350,6 +368,7 @@ export default function DashboardPage() {
               deleteProjectConfirmationText={deleteProjectConfirmationText}
               setDeleteProjectConfirmationText={setDeleteProjectConfirmationText}
               editingProject={editingProject}
+              projectSettingsInitialTab={projectSettingsInitialTab}
               setActiveTab={setActiveTab}
               projectsHook={{
                 ...projectsHook,

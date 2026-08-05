@@ -12,12 +12,14 @@ interface ManualScreeningViewProps {
   };
   manualScreeningHook: any;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+  isMainPipelineRunning?: boolean;
 }
 
 export default function ManualScreeningView({
   projectsHook,
   manualScreeningHook,
-  showToast
+  showToast,
+  isMainPipelineRunning
 }: ManualScreeningViewProps) {
   const { projects, activeProjectId } = projectsHook;
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -79,7 +81,15 @@ export default function ManualScreeningView({
     screeningError,
     triggerSemanticSearch,
     saveManualDecision,
-    clearManualDecision
+    clearManualDecision,
+    manualPdfLogs,
+    manualPdfIsRunning,
+    manualPdfStatusText,
+    manualPdfProgress,
+    manualPdfWaitingLogin,
+    runSinglePaperPipeline,
+    cancelSinglePaperPipeline,
+    singlePipelineAbortControllerRef
   } = manualScreeningHook;
 
   const handleFullscreenToggle = () => {
@@ -152,6 +162,15 @@ export default function ManualScreeningView({
           screeningError={screeningError}
           onSave={saveManualDecision}
           onClear={clearManualDecision}
+          manualPdfLogs={manualPdfLogs}
+          manualPdfIsRunning={manualPdfIsRunning}
+          manualPdfStatusText={manualPdfStatusText}
+          manualPdfProgress={manualPdfProgress}
+          manualPdfWaitingLogin={manualPdfWaitingLogin}
+          runSinglePaperPipeline={runSinglePaperPipeline}
+          cancelSinglePaperPipeline={cancelSinglePaperPipeline}
+          singlePipelineAbortControllerRef={singlePipelineAbortControllerRef}
+          isMainPipelineRunning={isMainPipelineRunning}
         />
       )}
     </div>
