@@ -4,6 +4,16 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#022] JSON Autofill Validator Paper Metadata & Copy Actions - 2026-08-07
+
+- **Copiable Paper ID Field**:
+  - Added a copiable Paper ID badge in `AutofillModal.jsx` displaying the active study identifier with click-to-copy functionality and temporary visual checkmark feedback ("Copied!").
+- **Copy Paper Details (Title, Abstract & DOI)**:
+  - Added a "Copy Title, Abstract & DOI" action button generating a structured text block (`Title:\nDOI:\nAbstract:`) formatted for direct pasting into LLM prompts. Missing fields default gracefully to `N/A`.
+- **ReviewScreen Integration**:
+  - Passed active `paper` metadata context from `ReviewScreen.jsx` to `AutofillModal.jsx`.
+- **Verification**: Verified Vite build completed cleanly.
+
 ## [#021] Project ID Metadata Preservation & Roundtrip Export - 2026-07-27
 
 - **Goal**: Preserve `project_id` in Dexie session storage and include it in outgoing `.slr` export payloads so project ID scoping is not lost when independent raters perform offline reviews.

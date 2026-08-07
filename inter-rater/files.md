@@ -43,7 +43,7 @@ This document serves as a comprehensive index of every file within the `inter-ra
 | `ReviewScreen.jsx` | View Component | Viewport-locked split-screen editor integrating navigation headers, PDF embeds, abstract readers, keyboard event keybinds, and the evaluation form drawer. |
 | `BlindedReviewForm.jsx` | Presentation Component | Encapsulated input form mapping decisions, exclusion criteria tags, quality scores, and data extractions to the active paper appraisal. |
 | `PdfViewer.jsx` | View Component | Sandbox viewport rendering PDF documents locally from Blob URLs with double fail-soft fallbacks. |
-| `features/modals/AutofillModal.jsx` | Modal Component | Standalone secret modal triggered via `Ctrl+J` providing direct JSON validation and mapping inputs to auto-fill the active review form. |
+| `features/modals/AutofillModal.jsx` | Modal Component | Standalone modal triggered via `Ctrl+J` providing JSON validation, paper metadata context (copiable Paper ID & prompt details block for Title, Abstract, DOI), and auto-fill field mapping for the active review form. |
 
 ---
 

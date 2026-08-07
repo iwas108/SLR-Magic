@@ -244,8 +244,10 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
   return updates;
 };
 
-const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal }) => {
+const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal, paper }) => {
   const [jsonText, setJsonText] = useState('');
+  const [copiedId, setCopiedId] = useState(false);
+  const [copiedDetails, setCopiedDetails] = useState(false);
   const [validation, setValidation] = useState({
     isValid: false,
     error: null,
@@ -256,6 +258,38 @@ const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal 
   if (!isOpen) return null;
 
   const poolName = session?.poolType || 'Unknown Pool';
+
+  const title = paper?.standard_metadata?.Title || paper?.Title || 'N/A';
+  const doi = paper?.standard_metadata?.DOI || paper?.DOI || 'N/A';
+  const abstract = paper?.standard_metadata?.Abstract || paper?.Abstract || 'N/A';
+  const paperId = paper?.Paper_ID || paper?.id || 'N/A';
+
+  const handleCopyPaperId = async () => {
+    if (!paperId || paperId === 'N/A') return;
+    try {
+      await navigator.clipboard.writeText(String(paperId));
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy Paper ID:', err);
+    }
+  };
+
+  const handleCopyDetails = async () => {
+    const textToCopy = [
+      `Title: ${title}`,
+      `DOI: ${doi}`,
+      `Abstract: ${abstract}`
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedDetails(true);
+      setTimeout(() => setCopiedDetails(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy paper details:', err);
+    }
+  };
 
   const handleTextChange = (e) => {
     const val = e.target.value;
@@ -373,6 +407,57 @@ const AutofillModal = ({ isOpen, onClose, onAutofill, session, currentAppraisal 
           <p className="text-xs text-muted-foreground leading-relaxed font-medium">
             Paste the JSON logic trace output for this study. The system will automatically validate the syntax and map the values to auto-populate the active review form.
           </p>
+
+          {/* Paper Metadata Context Bar */}
+          <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">
+                Paper ID:
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyPaperId}
+                title="Click to copy Paper ID"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white dark:bg-gray-800 border border-slate-300 dark:border-slate-600 rounded-lg text-xs font-mono font-bold text-slate-800 dark:text-slate-200 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all cursor-pointer shadow-xs active:scale-95 group"
+              >
+                <span>{paperId}</span>
+                {copiedId ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[10px] font-sans font-semibold">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied!
+                  </span>
+                ) : (
+                  <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCopyDetails}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800/60 rounded-xl text-xs font-semibold text-blue-700 dark:text-blue-300 transition-all cursor-pointer active:scale-95 shadow-xs"
+            >
+              {copiedDetails ? (
+                <>
+                  <svg className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-emerald-700 dark:text-emerald-300 font-bold">Paper Details Copied!</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span>Copy Title, Abstract & DOI</span>
+                </>
+              )}
+            </button>
+          </div>
 
           <textarea
             value={jsonText}

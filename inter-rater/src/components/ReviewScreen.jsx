@@ -1133,6 +1133,7 @@ const ReviewScreen = ({ sessionId, onNavigate, theme, onThemeChange }) => {
           onAutofill={handleAutofillAppraisal}
           session={session}
           currentAppraisal={activePaper?.appraisal}
+          paper={activePaper}
         />
       )}
     </div>
