@@ -111,6 +111,7 @@ This document tracks all new features, bug fixes, refactoring operations, and do
 | #106 | 2026-08-07 | Feature | inter-rater | Added copiable Paper ID badge and "Copy Title, Abstract & DOI" action button to JSON Autofill Validator modal (`AutofillModal.jsx`) in `inter-rater`, with structured prompt formatting (`Title:\nDOI:\nAbstract:`) and visual checkmark feedback. | JSON Autofill Validator Copy Button & Paper ID |
 | #107 | 2026-08-07 | Bug Fix | inter-rater | Added `logic_trace`, `Human_QA_Scores`, and `Human_Extracted_Data` to `APPRAISAL_FIELDS` in `BlindedReviewForm.jsx` to prevent internal metadata keys from generating unwanted dynamic UI input cards on the review form after JSON autofill. | Fix Dynamic Logic Trace Input Card Bug |
 | #110 | 2026-08-07 | Feature / Normalization | inter-rater & slr-ide | Enhanced inter-rater POOL_C data extraction flow to preserve native string arrays (`value: ["MQTT", "HTTP", "TCP/UDP"]`) in exported `.slr` review sessions, while automatically unrolling arrays into clean comma-joined strings for human review text fields (`BlindedReviewForm.jsx`). | Inter-Rater Array Format Preservation |
+| #111 | 2026-08-07 | Feature / UI | inter-rater | Updated `BlindedReviewForm.jsx` to render Quality Assessment Scoring and Data Extraction parameters unconditionally regardless of paper decision (`Include` or `Exclude`), adding an active audit badge on Excluded papers so reviewers can inspect, edit, or record QA and extraction data. | Inter-Rater QA & Extraction Form Visibility on Exclusion |
 
 
 

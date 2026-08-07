@@ -4,6 +4,14 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#026] Form Field Visibility for Excluded Papers - 2026-08-07
+
+- **Unconditional QA & Data Extraction Form Rendering (`BlindedReviewForm.jsx`)**:
+  - Removed `{decision === 'Include' && (...)}` conditional block around Quality Assessment Scoring and Data Extraction parameters in `BlindedReviewForm.jsx`.
+  - Added an informative status badge when a paper is `Exclude` (`"Paper is Excluded. Quality Assessment & Data Extraction fields remain fully active for review, editing, and audit trail preservation."`).
+  - Enables reviewers and adjudicators to inspect, input, or audit QA scores and extracted parameters on Excluded papers.
+- **Verification**: Verified `npm run build` completed successfully.
+
 ## [#025] Array Format Preservation & Flexible UI Value Unrolling - 2026-08-07
 
 - **Native Array Format Preservation (`AutofillModal.jsx`)**:

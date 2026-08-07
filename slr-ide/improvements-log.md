@@ -1,3 +1,9 @@
+## #310 - Inter-Rater QA & Extraction Form Visibility on Excluded Papers (2026-08-07)
+- **Goal**: Enable Quality Assessment Scoring and Data Extraction parameter form fields to remain fully active and visible when a paper's decision is set to `Exclude`.
+- **Changes**:
+  - Modified [BlindedReviewForm.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/src/components/BlindedReviewForm.jsx): Removed `{decision === 'Include' && (...)}` section conditional wrapper, rendering QA & extraction rules unconditionally and displaying an informative notification badge when `Exclude` is selected.
+- **Verification**: Verified clean Vite build (`npm run build`) in `inter-rater`.
+
 ## #309 - Inter-Rater Pool C Array Format Support & Export Losslessness (2026-08-07)
 - **Goal**: Ensure exported inter-rater POOL_C files preserve native string arrays (`value: ["MQTT", "HTTP", "TCP/UDP"]`) for multi-value keys while rendering smoothly in human review form inputs.
 - **Changes**:
