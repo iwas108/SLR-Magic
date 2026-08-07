@@ -122,11 +122,13 @@ export default function GlobalLLMSettingsView({
   const [logs, setLogs] = useState<any[]>([]);
   const [metrics, setMetrics] = useState({ total: 0, processed: 0, cost: 0.0, tokens: 0, included: 0, excluded: 0, exclusion_reasons: {} as Record<string, number>, not_stated_metrics: {} as Record<string, number>, avgExecutionTimeMs: 0 });
   const [connecting, setConnecting] = useState(false);
-  const [taskType, setTaskType] = useState<'fast_filter' | 'gatekeeper' | 'scientist' | 'miner'>('fast_filter');
+  const [taskType, setTaskType] = useState<'fast_filter' | 'gatekeeper' | 'scientist' | 'miner' | 'umbrellanizer'>('fast_filter');
+  const [extractedKeysState, setExtractedKeysState] = useState<string[]>([]);
+  const [selectedUmbrellaKey, setSelectedUmbrellaKey] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('0');
   const [decisionFilter, setDecisionFilter] = useState<string>('ALL');
   const [excludeManual, setExcludeManual] = useState<boolean>(true);
-  const [paperSelectionMode, setPaperSelectionMode] = useState<'all' | 'all_project' | 'limit' | 'range' | 'selected'>(
+  const [paperSelectionMode, setPaperSelectionMode] = useState<'all' | 'all_project' | 'limit' | 'range' | 'selected' | 'snowballing'>(
     preSelectedPaperIds && preSelectedPaperIds.length > 0 ? 'selected' : 'all'
   );
   const [batchLimit, setBatchLimit] = useState<number>(10);
@@ -193,7 +195,7 @@ export default function GlobalLLMSettingsView({
     const standardKeys: Record<string, Record<string, string>> = {
       fast_filter: { decision: 'decision', exclusion_trigger: 'exclusion_trigger', rationale: 'rationale' },
       gatekeeper: { decision: 'decision', exclusion_trigger: 'exclusion_trigger', rationale: 'rationale' },
-      scientist: { quality_assessment: 'quality_assessment', decision: 'decision', rationale: 'rationale' },
+      scientist: { quality_assessment: 'qa_scores', decision: 'final_evaluation.decision', exclusion_trigger: 'final_evaluation.exclusion_code', rationale: 'final_evaluation.reasoning' },
       miner: { extracted_data: 'extracted_data', rationale: 'rationale' }
     };
 
@@ -349,26 +351,49 @@ export default function GlobalLLMSettingsView({
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
   const [confirmStep, setConfirmStep] = useState<1 | 2>(1);
 
+  // Load extracted keys for umbrellanizer stage
+  useEffect(() => {
+    if (!activeProject?.id) return;
+    fetch(`/api/export/cloud-gold-mine/keys?project_id=${activeProject.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.keys)) {
+          setExtractedKeysState(data.keys);
+          if (data.keys.length > 0 && !selectedUmbrellaKey) {
+            setSelectedUmbrellaKey(data.keys[0]);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to load keys for umbrellanizer', err));
+  }, [activeProject?.id]);
+
   // Sync statusFilter whenever taskType changes
   useEffect(() => {
     const defaults: Record<string, string> = {
       fast_filter: '0',
       gatekeeper: '1',
       scientist: '2',
-      miner: '3'
+      miner: '3',
+      umbrellanizer: '4'
     };
     setStatusFilter(defaults[taskType] || '0');
     setDecisionFilter(taskType === 'fast_filter' ? 'ALL' : 'INCLUDE');
-  }, [taskType]);
+    if (taskType === 'fast_filter' && paperSelectionMode === 'snowballing') {
+      setPaperSelectionMode('all');
+    }
+  }, [taskType, paperSelectionMode]);
 
   useEffect(() => {
-    if (!activeProject?.id || !statusFilter) return;
+    if (!activeProject?.id) return;
 
     const fetchCount = async () => {
       try {
-        const effectiveStatus = paperSelectionMode === 'all_project' ? 'ALL' : statusFilter;
-        let url = `/api/llm/count?projectId=${activeProject.id}&statusFilter=${effectiveStatus}&decisionFilter=${decisionFilter}&excludeManual=${excludeManual}&taskType=${taskType}`;
+        let url = `/api/llm/count?projectId=${activeProject.id}&statusFilter=${statusFilter}&decisionFilter=${decisionFilter}&excludeManual=${excludeManual}&taskType=${taskType}&paperSelectionMode=${paperSelectionMode}`;
         
+        if (taskType === 'umbrellanizer') {
+          url += `&extractedKey=${encodeURIComponent(selectedUmbrellaKey)}`;
+        }
+
         if (paperSelectionMode === 'selected' && preSelectedPaperIds) {
           if (preSelectedPaperIds.length === 0) {
             setTargetCount(0);
@@ -388,7 +413,7 @@ export default function GlobalLLMSettingsView({
     };
     
     fetchCount();
-  }, [activeProject?.id, statusFilter, decisionFilter, paperSelectionMode, preSelectedPaperIds, excludeManual, taskType]);
+  }, [activeProject?.id, statusFilter, decisionFilter, paperSelectionMode, preSelectedPaperIds, excludeManual, taskType, selectedUmbrellaKey]);
 
   const getPromptValidation = () => {
     if (!activeTemplateId) {
@@ -806,9 +831,10 @@ export default function GlobalLLMSettingsView({
       };
 
       if (action === 'start') {
-        payload.statusFilter = paperSelectionMode === 'all_project' ? 'ALL' : statusFilter;
+        payload.statusFilter = statusFilter;
         payload.decisionFilter = decisionFilter;
         payload.excludeManual = excludeManual;
+        payload.paperSelectionMode = paperSelectionMode;
 
         if (paperSelectionMode === 'limit') {
           payload.limit = batchLimit;
@@ -817,6 +843,39 @@ export default function GlobalLLMSettingsView({
           payload.offset = indexOffset;
         } else if (paperSelectionMode === 'selected' && preSelectedPaperIds) {
           payload.paperIds = preSelectedPaperIds;
+        }
+
+        if (taskType === 'umbrellanizer') {
+          payload.key = selectedUmbrellaKey;
+          
+          let targetRq = selectedUmbrellaKey;
+          if (activeProject?.questions) {
+            const lines = activeProject.questions.split('\n').map((l: string) => l.trim()).filter(Boolean);
+            const match = selectedUmbrellaKey.match(/^rq(\d+)(?:_?([a-z]))?/i);
+            if (match) {
+              const num = match[1] + (match[2] || '');
+              const targetPrefix = `rq${num}`.toLowerCase();
+              const targetPrefix2 = `rq ${num}`.toLowerCase();
+              const found = lines.find((line: string) => {
+                const cleanLine = line.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+                return cleanLine.startsWith(targetPrefix) || cleanLine.startsWith(targetPrefix2);
+              });
+              if (found) targetRq = ` (${found})`;
+            }
+          }
+          payload.targetResearchQuestion = `${selectedUmbrellaKey}${targetRq.startsWith(' (') ? targetRq : ''}`;
+
+          let targetDesc = '';
+          if (activeProject?.llm_config) {
+            try {
+              const pCfg = JSON.parse(activeProject.llm_config);
+              const rqDescs = pCfg.research_question_descriptions || {};
+              const match = selectedUmbrellaKey.match(/^rq\s*\d+[a-z]?/i);
+              const codeKey = match ? match[0].toUpperCase().replace(/\s+/g, '') : '';
+              targetDesc = rqDescs[codeKey] || rqDescs[selectedUmbrellaKey] || '';
+            } catch (e) {}
+          }
+          payload.targetResearchQuestionDescription = targetDesc;
         }
 
         if (activeTemplateId) {
@@ -864,7 +923,7 @@ export default function GlobalLLMSettingsView({
   }
 
   return (
-    <div className="flex flex-col h-[520px] text-xs">
+    <div className="flex flex-col flex-1 h-full min-h-[600px] text-xs space-y-4">
       {/* Premium Glassmorphic Tab switcher */}
       <div className="flex border-b border-border bg-secondary/15 p-1 rounded-t-xl shrink-0 gap-1">
         <button
@@ -1263,21 +1322,34 @@ export default function GlobalLLMSettingsView({
                           <span className="text-[10px] text-primary group-open:hidden">Expand Help</span>
                           <span className="text-[10px] text-primary hidden group-open:inline">Collapse Help</span>
                         </summary>
-                        <div className="space-y-2 mt-2.5 pt-2.5 border-t border-border/30 text-[10px] text-muted-foreground">
+                        <div className="space-y-3 mt-2.5 pt-2.5 border-t border-border/30 text-[10px] text-muted-foreground">
                           <p className="leading-relaxed">
                             Placeholders are replaced dynamically during pipeline execution in python by mapping columns from the active SQLite project and paper rows. Python automatically generates both the original casing and lowercase aliases (e.g. <code>{"{{ Title }}"}</code> or <code>{"{{ title }}"}</code>).
                           </p>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-mono">
-                            <div><strong className="text-foreground">{"{{ Paper_ID }}"}</strong> (or <code>{"{{ id }}"}</code>): Unique record identifier.</div>
-                            <div><strong className="text-foreground">{"{{ Title }}"}</strong> (or <code>{"{{ title }}"}</code>): Paper Title.</div>
-                            <div><strong className="text-foreground">{"{{ Abstract }}"}</strong> (or <code>{"{{ abstract }}"}</code>): Paper Abstract.</div>
-                            <div><strong className="text-foreground">{"{{ Authors }}"}</strong> (or <code>{"{{ authors }}"}</code>): Author names list.</div>
-                            <div><strong className="text-foreground">{"{{ Year }}"}</strong> (or <code>{"{{ year }}"}</code>): Publication Year.</div>
-                            <div><strong className="text-foreground">{"{{ DOI }}"}</strong> (or <code>{"{{ doi }}"}</code>): Digital Object Identifier.</div>
-                            <div><strong className="text-foreground">{"{{ Source }}"}</strong> (or <code>{"{{ source }}"}</code>): Ingestion Source Database (Scopus, PubMed, etc.).</div>
-                            <div><strong className="text-foreground">{"{{ PDF_Link }}"}</strong> (or <code>{"{{ pdf_link }}"}</code>): Download URL of the PDF.</div>
-                            <div><strong className="text-foreground">{"{{ Publisher }}"}</strong> (or <code>{"{{ publisher }}"}</code>): Publisher name.</div>
-                            <div><strong className="text-foreground">{"{{ citation_count }}"}</strong>: Scopus/CSV citation count.</div>
+                          
+                          <div className="space-y-1">
+                            <span className="font-bold text-foreground uppercase tracking-wider block text-[9px]">Standard Screening &amp; Extraction Variables (Fast Filter, Gatekeeper, Scientist, Miner):</span>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 font-mono">
+                              <div><strong className="text-foreground">{"{{ Paper_ID }}"}</strong> (or <code>{"{{ id }}"}</code>): Unique record identifier.</div>
+                              <div><strong className="text-foreground">{"{{ Title }}"}</strong> (or <code>{"{{ title }}"}</code>): Paper Title.</div>
+                              <div><strong className="text-foreground">{"{{ Abstract }}"}</strong> (or <code>{"{{ abstract }}"}</code>): Paper Abstract.</div>
+                              <div><strong className="text-foreground">{"{{ Authors }}"}</strong> (or <code>{"{{ authors }}"}</code>): Author names list.</div>
+                              <div><strong className="text-foreground">{"{{ Year }}"}</strong> (or <code>{"{{ year }}"}</code>): Publication Year.</div>
+                              <div><strong className="text-foreground">{"{{ DOI }}"}</strong> (or <code>{"{{ doi }}"}</code>): Digital Object Identifier.</div>
+                              <div><strong className="text-foreground">{"{{ Source }}"}</strong> (or <code>{"{{ source }}"}</code>): Ingestion Source Database (Scopus, PubMed, etc.).</div>
+                              <div><strong className="text-foreground">{"{{ PDF_Link }}"}</strong> (or <code>{"{{ pdf_link }}"}</code>): Download URL of the PDF.</div>
+                              <div><strong className="text-foreground">{"{{ Publisher }}"}</strong> (or <code>{"{{ publisher }}"}</code>): Publisher name.</div>
+                              <div><strong className="text-foreground">{"{{ citation_count }}"}</strong>: Scopus/CSV citation count.</div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 pt-1.5 border-t border-border/20">
+                            <span className="font-bold text-primary uppercase tracking-wider block text-[9px]">Umbrellanizer Taxonomy Stage Variables:</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5 font-mono">
+                              <div><strong className="text-primary">{"{{ umbrellanizer_target_research_question }}"}</strong>: Mapped Research Question code &amp; title (e.g. <code>RQ1</code> or <code>RQ1: What models...</code>).</div>
+                              <div><strong className="text-primary">{"{{ umbrellanizer_target_research_question_description }}"}</strong>: Detailed description mapped for the question in Project Settings.</div>
+                              <div className="col-span-2"><strong className="text-primary">{"{{ umbrellanizer_raw_tokens_array }}"}</strong>: JSON array of deduplicated unique raw tokens extracted from Miner outputs.</div>
+                            </div>
                           </div>
                         </div>
                       </details>
@@ -1568,14 +1640,16 @@ export default function GlobalLLMSettingsView({
                     fast_filter: 'gemini-3.5-flash',
                     gatekeeper: 'gemini-3.1-pro-preview',
                     scientist: 'gemini-3.1-pro-preview',
-                    miner: 'gemini-3.1-pro-preview'
+                    miner: 'gemini-3.1-pro-preview',
+                    umbrellanizer: 'gemini-2.5-flash'
                   }[taskType];
                   const activeExecutionMode = templateConfig.execution_mode || 'FLEX';
                   const stageInfo = {
                     fast_filter: { name: 'Fast Filter', desc: 'Metadata Screening', model: activeModel },
                     gatekeeper: { name: 'Gatekeeper', desc: 'PDF Screening', model: activeModel },
                     scientist: { name: 'Scientist', desc: 'Quality Assessment QA', model: activeModel },
-                    miner: { name: 'Miner', desc: 'Structured Data Extraction', model: activeModel }
+                    miner: { name: 'Miner', desc: 'Structured Data Extraction', model: activeModel },
+                    umbrellanizer: { name: 'Umbrellanizer', desc: 'Taxonomy Category Mapping', model: activeModel }
                   }[taskType];
                   return (
                     <div className="border border-border/60 rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1650,26 +1724,70 @@ export default function GlobalLLMSettingsView({
                                 </div>
                               </div>
                             </div>
-                            {/* Target paper range */}
+                            {/* Target range / tokens */}
                             <div className="p-3 bg-secondary/10 border border-border/40 rounded-lg space-y-1 relative">
                               <div className="absolute right-3 top-3">
                                 {targetCount !== null && (
                                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary">
-                                    {pipelineCount} {pipelineCount === 1 ? 'Paper' : 'Papers'}
+                                    {targetCount} {taskType === 'umbrellanizer' ? (targetCount === 1 ? 'Unique Token' : 'Unique Tokens') : (pipelineCount === 1 ? 'Paper' : 'Papers')}
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[9px] font-bold text-muted-foreground uppercase">2. Target Paper Count &amp; Mode</span>
-                              <div className="font-bold text-foreground text-xs">
-                                {paperSelectionMode === 'all' && 'All Pending Papers in Project'}
-                                {paperSelectionMode === 'all_project' && 'All Papers in Project (Ignore Status)'}
-                                {paperSelectionMode === 'limit' && `Limit Batch Size: Run first ${batchLimit} pending papers`}
-                                {paperSelectionMode === 'range' && `Index Range: Run ${batchLimit} papers starting from index offset ${indexOffset}`}
-                                {paperSelectionMode === 'selected' && `Manual Select: Run on ${preSelectedPaperIds?.length || 0} papers`}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground">
-                                Papers will be executed sequentially matching database chronological rowid ordering.
-                              </div>
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase">
+                                {taskType === 'umbrellanizer' ? '2. Target Extraction Variable & RQ Mapping' : '2. Target Paper Count & Mode'}
+                              </span>
+                              {taskType === 'umbrellanizer' ? (
+                                <div className="space-y-1 pt-0.5">
+                                  <div className="font-bold text-foreground text-xs font-mono">
+                                    Key: <span className="text-primary">{selectedUmbrellaKey || 'None'}</span>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground">
+                                    Mapped RQ (<code>{"{{ umbrellanizer_target_research_question }}"}</code>): <strong className="text-foreground font-sans">
+                                      {(() => {
+                                        if (!selectedUmbrellaKey || !activeProject?.questions) return selectedUmbrellaKey;
+                                        const lines = activeProject.questions.split('\n').map((l: string) => l.trim()).filter(Boolean);
+                                        const match = selectedUmbrellaKey.match(/^rq(\d+)(?:_?([a-z]))?/i);
+                                        if (!match) return selectedUmbrellaKey;
+                                        const num = match[1] + (match[2] || '');
+                                        const targetPrefix = `rq${num}`.toLowerCase();
+                                        const targetPrefix2 = `rq ${num}`.toLowerCase();
+                                        const found = lines.find((line: string) => {
+                                          const cleanLine = line.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+                                          return cleanLine.startsWith(targetPrefix) || cleanLine.startsWith(targetPrefix2);
+                                        });
+                                        return found ? `${selectedUmbrellaKey} (${found})` : selectedUmbrellaKey;
+                                      })()}
+                                    </strong>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground">
+                                    Mapped Description (<code>{"{{ umbrellanizer_target_research_question_description }}"}</code>): <span className="text-foreground italic">
+                                      {(() => {
+                                        if (!selectedUmbrellaKey || !activeProject?.llm_config) return 'None configured.';
+                                        try {
+                                          const pCfg = JSON.parse(activeProject.llm_config);
+                                          const rqDescs = pCfg.research_question_descriptions || {};
+                                          const match = selectedUmbrellaKey.match(/^rq\s*\d+[a-z]?/i);
+                                          const codeKey = match ? match[0].toUpperCase().replace(/\s+/g, '') : '';
+                                          return rqDescs[codeKey] || rqDescs[selectedUmbrellaKey] || 'None configured.';
+                                        } catch { return 'None configured.'; }
+                                      })()}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="font-bold text-foreground text-xs">
+                                    {paperSelectionMode === 'all' && `All Matching Papers (Status: ${statusFilter === 'ALL' ? 'Any' : statusFilter}, Decision: ${decisionFilter})`}
+                                    {paperSelectionMode === 'limit' && `Limit Batch Size: Run first ${batchLimit} matching papers (Status: ${statusFilter === 'ALL' ? 'Any' : statusFilter}, Decision: ${decisionFilter})`}
+                                    {paperSelectionMode === 'range' && `Index Range: Run ${batchLimit} papers starting from offset ${indexOffset} (Status: ${statusFilter === 'ALL' ? 'Any' : statusFilter}, Decision: ${decisionFilter})`}
+                                    {paperSelectionMode === 'selected' && `Manual Select: Run on ${preSelectedPaperIds?.length || 0} papers`}
+                                    {paperSelectionMode === 'snowballing' && `Manually Ingested & Snowballing Papers (Status: ${statusFilter === 'ALL' ? 'Any' : statusFilter}, Decision: ${decisionFilter})`}
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground">
+                                    Papers will be executed sequentially matching database chronological rowid ordering.
+                                  </div>
+                                </>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1808,12 +1926,13 @@ export default function GlobalLLMSettingsView({
                   {/* Row 1: Stage Taxonomy Selector */}
                   <div className="space-y-2">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">1. Select Pipeline Stage</span>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-5 gap-2">
                       {[
                         { id: 'fast_filter', name: 'Fast Filter', desc: 'Metadata (Flash)' },
                         { id: 'gatekeeper', name: 'Gatekeeper', desc: 'PDF Screen (Pro)' },
                         { id: 'scientist', name: 'Scientist', desc: 'QA Check (Pro)' },
                         { id: 'miner', name: 'Miner', desc: 'Extraction (Pro)' },
+                        { id: 'umbrellanizer', name: 'Umbrellanizer', desc: 'Taxonomy (Flash/Pro)' },
                       ].map((stage) => (
                         <button
                           key={stage.id}
@@ -1831,6 +1950,37 @@ export default function GlobalLLMSettingsView({
                       ))}
                     </div>
                   </div>
+
+                  {/* Target Extraction Key Selector for Umbrellanizer */}
+                  {taskType === 'umbrellanizer' && (
+                    <div className="p-3 bg-secondary/15 border border-primary/30 rounded-xl space-y-2 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                          Target Extraction Variable Key
+                        </label>
+                        {targetCount !== null && (
+                          <span className="text-[10px] font-mono font-bold text-primary px-2 py-0.5 rounded bg-primary/10">
+                            {targetCount} Unique Raw {targetCount === 1 ? 'Token' : 'Tokens'}
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        value={selectedUmbrellaKey}
+                        onChange={(e) => setSelectedUmbrellaKey(e.target.value)}
+                        className="w-full bg-secondary/50 border border-border/80 rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-foreground outline-none focus:border-primary"
+                      >
+                        {extractedKeysState.length === 0 && (
+                          <option value="">-- No Extracted Keys Found --</option>
+                        )}
+                        {extractedKeysState.map(k => (
+                          <option key={k} value={k}>{k}</option>
+                        ))}
+                      </select>
+                      <p className="text-[9px] text-muted-foreground leading-relaxed">
+                        Select the extracted JSON key to categorize into umbrella taxonomy categories. Unique tokens are harvested from Miner outputs.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Row 2: Default Stage Prompts & Schema Mapper Control Panel */}
                   <div className="bg-secondary/15 border border-border/60 rounded-xl overflow-hidden transition-all">
@@ -1939,9 +2089,10 @@ export default function GlobalLLMSettingsView({
 
                             {taskType === 'scientist' && (
                               <>
-                                {renderSchemaKeySelector('quality_assessment', 'Quality Assessment Key Path', 'quality_assessment')}
-                                {renderSchemaKeySelector('decision', 'Decision Key Path (Optional)', 'decision')}
-                                {renderSchemaKeySelector('rationale', 'Rationale Key Path', 'rationale')}
+                                {renderSchemaKeySelector('quality_assessment', 'QA Scores Key Path', 'qa_scores')}
+                                {renderSchemaKeySelector('decision', 'Decision Key Path', 'final_evaluation.decision')}
+                                {renderSchemaKeySelector('exclusion_trigger', 'Exclusion Code Key Path', 'final_evaluation.exclusion_code')}
+                                {renderSchemaKeySelector('rationale', 'Rationale Key Path', 'final_evaluation.reasoning')}
                               </>
                             )}
 
@@ -1971,7 +2122,8 @@ export default function GlobalLLMSettingsView({
                   </div>
 
                   {/* Row 2: Paper Selection Mode Selector & Target Paper Status */}
-                  <div className={`grid gap-4 ${['fast_filter', 'gatekeeper'].includes(taskType) ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  {/* Row 2: Paper Selection Mode Selector & Target Paper Status & Screening Decision */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5 relative">
                       <div className="absolute right-0 top-0">
                         {targetCount !== null && (
@@ -1987,8 +2139,10 @@ export default function GlobalLLMSettingsView({
                         disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
                         className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
                       >
-                        <option value="all">All Pending Papers</option>
-                        <option value="all_project">All Project Papers (Ignore Status)</option>
+                        <option value="all">All Papers Matching Filters</option>
+                        {taskType !== 'fast_filter' && (
+                          <option value="snowballing">Manually Ingested &amp; Snowballing Papers</option>
+                        )}
                         <option value="limit">Limit Batch Size</option>
                         <option value="range">Index Range (Offset + Limit)</option>
                         {preSelectedPaperIds && preSelectedPaperIds.length > 0 && (
@@ -1998,7 +2152,7 @@ export default function GlobalLLMSettingsView({
                     </div>
 
                     <div className="space-y-1.5">
-                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">2b. Target Paper Status</span>
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">2b. Target Paper Status (Gate)</span>
                       <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
@@ -2010,25 +2164,24 @@ export default function GlobalLLMSettingsView({
                         <option value="2">Status 2: Passed Gatekeeper</option>
                         <option value="3">Status 3: Passed Scientist</option>
                         <option value="4">Status 4: Passed Miner</option>
+                        <option value="ALL">Any Status / All Stages</option>
                       </select>
                     </div>
 
-                    {['fast_filter', 'gatekeeper'].includes(taskType) && (
-                      <div className="space-y-1.5 animate-in slide-in-from-right-2 duration-200">
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">2c. Target Screening Decision</span>
-                        <select
-                          value={decisionFilter}
-                          onChange={(e) => setDecisionFilter(e.target.value)}
-                          disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
-                          className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
-                        >
-                          <option value="ALL">Any Decision</option>
-                          <option value="PENDING">Pending</option>
-                          <option value="INCLUDE">Included</option>
-                          <option value="EXCLUDE">Excluded</option>
-                        </select>
-                      </div>
-                    )}
+                    <div className="space-y-1.5 animate-in slide-in-from-right-2 duration-200">
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider block">2c. Target Screening Decision (State)</span>
+                      <select
+                        value={decisionFilter}
+                        onChange={(e) => setDecisionFilter(e.target.value)}
+                        disabled={['RUNNING', 'STARTING'].includes(jobStatus)}
+                        className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1.5 text-xs text-foreground outline-none font-bold"
+                      >
+                        <option value="ALL">Any Decision</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="INCLUDE">Included</option>
+                        <option value="EXCLUDE">Excluded</option>
+                      </select>
+                    </div>
 
                     <div className="flex items-center space-x-2.5 pt-1 md:col-span-3">
                       <input
@@ -2168,25 +2321,25 @@ export default function GlobalLLMSettingsView({
                 {/* Performance metrics dashboard widgets */}
                 <div className="space-y-3">
                   <div className="grid grid-cols-4 gap-3">
-                    <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
-                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Processed</span>
-                      <span className="text-sm font-bold text-foreground font-mono">{metrics.processed} / {metrics.total}</span>
+                    <div className="p-3.5 bg-secondary/15 border border-border/50 rounded-xl text-center shadow-sm backdrop-blur-sm flex flex-col justify-center">
+                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase tracking-wider">Processed Papers</span>
+                      <span className="text-base font-extrabold text-foreground font-mono">{metrics.processed} <span className="text-xs text-muted-foreground font-normal">/ {metrics.total}</span></span>
                     </div>
-                    <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
-                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Total Cost</span>
-                      <span className="text-sm font-bold text-emerald-400 font-mono">${metrics.cost.toFixed(4)}</span>
+                    <div className="p-3.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl text-center shadow-sm backdrop-blur-sm flex flex-col justify-center">
+                      <span className="text-[10px] text-emerald-500/90 block font-bold mb-1 uppercase tracking-wider">Total Cost</span>
+                      <span className="text-base font-extrabold text-emerald-400 font-mono">${metrics.cost.toFixed(4)}</span>
                     </div>
-                    <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
-                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Tokens</span>
-                      <span className="text-sm font-bold text-foreground font-mono">{metrics.tokens.toLocaleString()}</span>
+                    <div className="p-3.5 bg-secondary/15 border border-border/50 rounded-xl text-center shadow-sm backdrop-blur-sm flex flex-col justify-center">
+                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase tracking-wider">Total Tokens</span>
+                      <span className="text-base font-extrabold text-foreground font-mono">{metrics.tokens.toLocaleString()}</span>
                     </div>
-                    <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center">
-                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase">Job status</span>
-                      <span className={`inline-flex items-center mt-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold ${
-                        jobStatus === 'COMPLETED' ? 'bg-green-500/10 text-green-400' :
-                        jobStatus === 'RUNNING' || jobStatus === 'STARTING' ? 'bg-primary/10 text-primary animate-pulse' :
-                        ['PAUSED_BUDGET', 'PAUSED_USER'].includes(jobStatus) ? 'bg-yellow-500/10 text-yellow-400' :
-                        jobStatus === 'FAILED' ? 'bg-red-500/10 text-red-400' : 'bg-secondary/40 text-muted-foreground'
+                    <div className="p-3.5 bg-secondary/15 border border-border/50 rounded-xl text-center shadow-sm backdrop-blur-sm flex flex-col justify-center items-center">
+                      <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase tracking-wider">Job Status</span>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wide uppercase ${
+                        jobStatus === 'COMPLETED' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' :
+                        jobStatus === 'RUNNING' || jobStatus === 'STARTING' ? 'bg-primary/15 text-primary border border-primary/30 animate-pulse' :
+                        ['PAUSED_BUDGET', 'PAUSED_USER'].includes(jobStatus) ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' :
+                        jobStatus === 'FAILED' ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30' : 'bg-secondary/50 text-muted-foreground border border-border/40'
                       }`}>
                         {jobStatus}
                       </span>
@@ -2196,14 +2349,14 @@ export default function GlobalLLMSettingsView({
                   {/* ETA & Avg Time Row */}
                   {(jobStatus === 'RUNNING' || ['PAUSED_BUDGET', 'PAUSED_USER'].includes(jobStatus) || jobStatus === 'COMPLETED') && metrics.processed > 0 && (
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase">Avg Time / Paper</span>
+                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl flex items-center justify-between shadow-sm">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Avg Time / Paper</span>
                         <span className="text-sm font-bold text-foreground font-mono">
                           {(metrics.avgExecutionTimeMs / 1000).toFixed(1)}s
                         </span>
                       </div>
-                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase">Est. Time Remaining</span>
+                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl flex items-center justify-between shadow-sm">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Est. Time Remaining</span>
                         <span className="text-sm font-bold text-foreground font-mono">
                           {(() => {
                             const remaining = metrics.total - metrics.processed;
@@ -2223,23 +2376,50 @@ export default function GlobalLLMSettingsView({
 
                   {['fast_filter', 'gatekeeper', 'scientist'].includes(taskType) && (
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
-                        <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-emerald-500">Included Papers</span>
-                        <span className="text-sm font-bold text-foreground font-mono">{metrics.included}</span>
+                      <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex flex-col justify-between shadow-sm backdrop-blur-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[11px] text-emerald-400 font-extrabold uppercase tracking-wider">Included Papers</span>
+                          <span className="text-xs font-mono font-bold text-emerald-400">
+                            {metrics.processed > 0 ? ((metrics.included / metrics.processed) * 100).toFixed(1) : '0.0'}%
+                          </span>
+                        </div>
+                        <span className="text-2xl font-black text-foreground font-mono my-1">{metrics.included}</span>
+                        <div className="w-full bg-emerald-950/40 h-1.5 rounded-full overflow-hidden border border-emerald-500/20">
+                          <div 
+                            className="bg-emerald-400 h-full transition-all duration-300 rounded-full"
+                            style={{ width: `${metrics.processed > 0 ? Math.min(100, (metrics.included / metrics.processed) * 100) : 0}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
-                        <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-rose-500">Excluded Papers</span>
-                        <span className="text-sm font-bold text-foreground font-mono">{metrics.excluded}</span>
+
+                      <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex flex-col justify-between shadow-sm backdrop-blur-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[11px] text-rose-400 font-extrabold uppercase tracking-wider">Excluded Papers</span>
+                          <span className="text-xs font-mono font-bold text-rose-400">
+                            {metrics.processed > 0 ? ((metrics.excluded / metrics.processed) * 100).toFixed(1) : '0.0'}%
+                          </span>
+                        </div>
+                        <span className="text-2xl font-black text-foreground font-mono my-1">{metrics.excluded}</span>
+                        <div className="w-full bg-rose-950/40 h-1.5 rounded-full overflow-hidden border border-rose-500/20 mb-1">
+                          <div 
+                            className="bg-rose-500 h-full transition-all duration-300 rounded-full"
+                            style={{ width: `${metrics.processed > 0 ? Math.min(100, (metrics.excluded / metrics.processed) * 100) : 0}%` }}
+                          />
+                        </div>
+
                         {metrics.excluded > 0 && Object.keys(metrics.exclusion_reasons || {}).length > 0 && (
-                          <div className="text-[10px] text-left mt-2 space-y-1.5 border-t border-border/40 pt-2">
-                            {Object.entries(metrics.exclusion_reasons).map(([reason, count]) => (
-                              <div key={reason} className="flex justify-between items-center bg-secondary/30 px-2.5 py-1.5 rounded">
-                                <span className="truncate max-w-[120px] font-medium" title={reason}>{reason}</span>
-                                <span className="font-mono font-bold">
-                                  {count as number} <span className="text-muted-foreground opacity-70">({((count as number) / metrics.excluded * 100).toFixed(1)}%)</span>
-                                </span>
-                              </div>
-                            ))}
+                          <div className="text-[10px] text-left mt-2 space-y-1.5 border-t border-rose-500/20 pt-2.5 max-h-[140px] overflow-y-auto pr-1">
+                            {Object.entries(metrics.exclusion_reasons).map(([reason, count]) => {
+                              const pct = ((count as number) / metrics.excluded * 100).toFixed(1);
+                              return (
+                                <div key={reason} className="flex justify-between items-center bg-rose-500/15 border border-rose-500/20 px-2.5 py-1.5 rounded-lg">
+                                  <span className="truncate max-w-[140px] font-medium text-rose-200" title={reason}>{reason}</span>
+                                  <span className="font-mono font-extrabold text-rose-300">
+                                    {count as number} <span className="text-rose-400/70 font-normal">({pct}%)</span>
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -2249,20 +2429,22 @@ export default function GlobalLLMSettingsView({
                   {taskType === 'miner' && (
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
-                          <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-emerald-500">Processed Papers</span>
-                          <span className="text-sm font-bold text-foreground font-mono">{metrics.processed}</span>
+                        <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center flex flex-col justify-center shadow-sm">
+                          <span className="text-[10px] text-emerald-400 block font-extrabold mb-1 uppercase tracking-wider">Processed Papers</span>
+                          <span className="text-xl font-black text-foreground font-mono">{metrics.processed}</span>
                         </div>
-                        <div className="p-3 bg-secondary/10 border border-border/40 rounded-xl text-center flex flex-col justify-center">
-                          <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase text-slate-400">Unprocessed Papers</span>
-                          <span className="text-sm font-bold text-foreground font-mono">{Math.max(0, metrics.total - metrics.processed)}</span>
+                        <div className="p-3.5 bg-secondary/15 border border-border/50 rounded-xl text-center flex flex-col justify-center shadow-sm">
+                          <span className="text-[10px] text-muted-foreground block font-bold mb-1 uppercase tracking-wider">Unprocessed Papers</span>
+                          <span className="text-xl font-black text-foreground font-mono">{Math.max(0, metrics.total - metrics.processed)}</span>
                         </div>
                       </div>
                       
                       {metrics.processed > 0 && Object.keys(metrics.not_stated_metrics || {}).length > 0 && (
-                        <div className="bg-secondary/10 border border-border/40 rounded-xl p-3">
-                          <div className="font-bold text-[9px] uppercase tracking-wider mb-2 text-foreground/80">Missing / Not Stated Variables</div>
-                          <div className="grid grid-cols-1 gap-1.5 max-h-[150px] overflow-y-auto pr-1">
+                        <div className="bg-secondary/15 border border-border/50 rounded-xl p-3.5 shadow-sm backdrop-blur-sm">
+                          <div className="font-extrabold text-[10px] uppercase tracking-wider mb-2.5 text-amber-400 flex items-center gap-1.5">
+                            <span>Missing / Not Stated Variables</span>
+                          </div>
+                          <div className="grid grid-cols-1 gap-1.5 max-h-[160px] overflow-y-auto pr-1">
                             {(() => {
                               const formatVariableKey = (key: string): string => {
                                 try {
@@ -2282,9 +2464,9 @@ export default function GlobalLLMSettingsView({
                                 .map(([key, count]) => {
                                   const pct = Math.round((count / metrics.processed) * 100);
                                   return (
-                                    <div key={key} className="flex justify-between items-center bg-secondary/30 px-2 py-1 rounded text-[10px]">
-                                      <span className="truncate max-w-[150px] font-medium" title={key}>{formatVariableKey(key)}</span>
-                                      <span className="font-mono text-rose-500 font-bold">{count} ({pct}%)</span>
+                                    <div key={key} className="flex justify-between items-center bg-secondary/30 border border-border/30 px-3 py-1.5 rounded-lg text-[10px]">
+                                      <span className="truncate max-w-[170px] font-medium text-foreground/90" title={key}>{formatVariableKey(key)}</span>
+                                      <span className="font-mono text-rose-400 font-extrabold">{count} ({pct}%)</span>
                                     </div>
                                   );
                                 });
@@ -2297,34 +2479,52 @@ export default function GlobalLLMSettingsView({
                 </div>
 
                 {/* Subprocess Console Screen */}
-                <div className="bg-[#0c0c0c] border border-border/40 rounded-xl overflow-hidden flex flex-col h-64">
-                  <div className="bg-secondary/20 px-3 py-1.5 border-b border-border/40 flex items-center gap-2">
-                    <Terminal className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-[9px] font-mono text-muted-foreground uppercase font-bold tracking-wider">Execution Log Stream</span>
+                <div className="bg-[#09090b] border border-border/50 rounded-xl overflow-hidden flex flex-col h-80 min-h-[320px] max-h-[500px] shadow-md">
+                  <div className="bg-secondary/25 px-3.5 py-2 border-b border-border/40 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-[10px] font-mono text-foreground uppercase font-bold tracking-wider">Execution Log Stream</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {logs.length > 0 && (
+                        <span className="text-[9px] font-mono text-muted-foreground/70">{logs.length} log lines</span>
+                      )}
+                      {logs.length > 0 && (
+                        <button 
+                          onClick={() => setLogs([])}
+                          className="text-[9px] font-mono text-muted-foreground hover:text-foreground transition-colors font-bold uppercase"
+                        >
+                          Clear Log
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div ref={logContainerRef} className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1.5 leading-relaxed">
+                  <div ref={logContainerRef} className="flex-1 overflow-y-auto p-3.5 font-mono text-[10px] space-y-1.5 leading-relaxed scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-zinc-900/50">
                     {logs.length === 0 ? (
-                      <div className="text-muted-foreground/40 italic">Waiting for execution to start...</div>
+                      <div className="text-muted-foreground/40 italic py-8 text-center flex flex-col items-center justify-center gap-1.5">
+                        <Terminal className="w-5 h-5 opacity-20" />
+                        <span>Waiting for stage execution log stream...</span>
+                      </div>
                     ) : (
                       logs.map((log, i) => (
-                        <div key={i} className={`flex gap-2`}>
-                          <span className="text-muted-foreground/40 shrink-0">[{new Date().toLocaleTimeString()}]</span>
+                        <div key={i} className="flex gap-2.5 items-start hover:bg-secondary/10 px-1 py-0.5 rounded transition-colors">
+                          <span className="text-muted-foreground/40 shrink-0 select-none">[{new Date().toLocaleTimeString()}]</span>
                           <span className={`font-bold shrink-0 w-[100px] ${
-                            log.status === 'ERROR' || log.status === 'FAILED' ? 'text-red-500' :
-                            log.status === 'WARNING' || ['PAUSED_BUDGET', 'PAUSED_USER'].includes(log.status) ? 'text-amber-500' :
-                            log.status === 'COMPLETED' ? 'text-emerald-500' :
+                            log.status === 'ERROR' || log.status === 'FAILED' ? 'text-rose-400' :
+                            log.status === 'WARNING' || ['PAUSED_BUDGET', 'PAUSED_USER'].includes(log.status) ? 'text-amber-400' :
+                            log.status === 'COMPLETED' ? 'text-emerald-400' :
                             log.status === 'RUNNING' ? 'text-blue-400' :
                             'text-zinc-500'
                           }`}>
                             {log.status}
                           </span>
-                          <span className={`break-words ${
-                            log.status === 'ERROR' || log.status === 'FAILED' ? 'text-red-400 font-bold' : 
-                            log.status === 'WARNING' || ['PAUSED_BUDGET', 'PAUSED_USER'].includes(log.status) ? 'text-amber-500' : 
+                          <span className={`break-words flex-1 ${
+                            log.status === 'ERROR' || log.status === 'FAILED' ? 'text-rose-300 font-bold' : 
+                            log.status === 'WARNING' || ['PAUSED_BUDGET', 'PAUSED_USER'].includes(log.status) ? 'text-amber-300' : 
                             'text-zinc-300'
                           }`}>
                             {log.message}
-                            {log.current_paper && <span className="text-primary/70 ml-1">({log.current_paper})</span>}
+                            {log.current_paper && <span className="text-primary/80 font-semibold ml-1">({log.current_paper})</span>}
                           </span>
                         </div>
                       ))

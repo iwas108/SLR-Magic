@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const results = db.prepare(`
-      SELECT * FROM umbrellanizer_results WHERE project_id = ?
+      SELECT * FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
     `).all(projectId);
 
     return NextResponse.json({ success: true, results });
@@ -66,23 +66,27 @@ export async function POST(req: NextRequest) {
     const { PROJECT_ROOT } = await import('@/lib/db');
 
     const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
-    const umbrellanizerScript = path.join(PROJECT_ROOT, 'python_engine', 'llm', 'umbrellanizer.py');
+    const mainScript = path.join(PROJECT_ROOT, 'python_engine', 'llm', 'main.py');
+    const targetResearchQuestion = body.targetResearchQuestion || body.targetVariableName || key;
+    const targetResearchQuestionDescription = body.targetResearchQuestionDescription || '';
 
     if (!fs.existsSync(pythonExe)) {
       return NextResponse.json({ error: `Python virtual env not found at ${pythonExe}` }, { status: 500 });
     }
-    if (!fs.existsSync(umbrellanizerScript)) {
-      return NextResponse.json({ error: `Umbrellanizer script not found at ${umbrellanizerScript}` }, { status: 500 });
+    if (!fs.existsSync(mainScript)) {
+      return NextResponse.json({ error: `Main LLM script not found at ${mainScript}` }, { status: 500 });
     }
 
     const args = [
-      umbrellanizerScript,
+      mainScript,
       '--project-id', projectId,
       '--job-id', jobId,
+      '--task-type', 'umbrellanizer',
       '--key', key,
       '--template-id', templateId,
       '--raw-tokens', JSON.stringify(rawTokens),
-      '--target-variable-name', targetVariableName
+      '--target-research-question', targetResearchQuestion,
+      '--target-research-question-description', targetResearchQuestionDescription
     ];
 
     // Insert PENDING record

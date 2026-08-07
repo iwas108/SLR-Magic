@@ -45,6 +45,8 @@ export function normalizeViewerSnapshot(rawPayload) {
       ...project,
       name: project.name || 'Untitled Project',
       description: project.description || '',
+      scopus_search_string: project.scopus_search_string || project.search_string || '',
+      manual_search_string: project.manual_search_string || '',
     },
     scientific_rigor: {
       ...scientificRigor,

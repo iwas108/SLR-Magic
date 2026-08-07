@@ -63,6 +63,8 @@ export default function ProjectSettingsModal({
     setProjectFormExclusionCriteria: form.setExclusionCriteria,
     projectFormScopusSearchString: form.scopusSearchString,
     setProjectFormScopusSearchString: form.setScopusSearchString,
+    projectFormManualSearchString: form.manualSearchString,
+    setProjectFormManualSearchString: form.setManualSearchString,
     projectFormPoolA: form.poolA,
     setProjectFormPoolA: form.setPoolA,
     projectFormPoolB: form.poolB,
@@ -122,12 +124,26 @@ export default function ProjectSettingsModal({
     projectFormPoolCExtractionRules: form.poolCExtractionRules,
     handleAddPoolCExtractionRule: form.handleAddPoolCExtractionRule,
     handleUpdatePoolCExtractionRule: (idx: number, field: string, val: string) => form.handleUpdatePoolCExtractionRule(idx, field as any, val),
-    handleRemovePoolCExtractionRule: form.handleRemovePoolCExtractionRule
+    handleRemovePoolCExtractionRule: form.handleRemovePoolCExtractionRule,
+    projectFormResearchQuestionDescriptions: form.researchQuestionDescriptions,
+    setProjectFormResearchQuestionDescriptions: form.setResearchQuestionDescriptions
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!project) return;
+
+    let existingLlmConfig: any = {};
+    try {
+      existingLlmConfig = project.llm_config ? JSON.parse(project.llm_config) : {};
+    } catch (err) {
+      existingLlmConfig = {};
+    }
+
+    const updatedLlmConfig = {
+      ...existingLlmConfig,
+      research_question_descriptions: form.researchQuestionDescriptions
+    };
 
     const success = await onSaveProject(project.id, {
       name: form.name,
@@ -137,6 +153,7 @@ export default function ProjectSettingsModal({
       qa_definition: form.qaDefinition,
       exclusion_criteria: form.exclusionCriteria,
       scopus_search_string: form.scopusSearchString,
+      manual_search_string: form.manualSearchString,
       pool_a_size: Number(form.poolA),
       pool_b_size: Number(form.poolB),
       pool_c_size: Number(form.poolC),
@@ -154,7 +171,7 @@ export default function ProjectSettingsModal({
       pool_c_extraction_rules: form.poolCExtractionRules,
       project_budget_limit: Number(form.projectBudgetLimit),
       project_tax: Number(form.projectTax),
-      llm_config: project.llm_config || '{}'
+      llm_config: JSON.stringify(updatedLlmConfig)
     });
     if (success) {
       showToast('Project configuration saved successfully', 'success');

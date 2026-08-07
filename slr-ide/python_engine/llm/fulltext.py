@@ -100,9 +100,17 @@ def screen_fulltext(
                 "conclusion", "justification", "summary"
             )
 
+            # Validate decision format (must start with INCLUDE or EXCLUDE, not an exclusion code like NONE)
+            if decision and not isinstance(decision, str):
+                decision = str(decision)
+            if decision and not (decision.upper().startswith("INCLUDE") or decision.upper().startswith("EXCLUDE")):
+                decision = None
+
             # Fallback — Level 1: top-level flat keys
             if not decision:
                 decision = parsed_output.get("decision")
+                if decision and not (isinstance(decision, str) and (decision.upper().startswith("INCLUDE") or decision.upper().startswith("EXCLUDE"))):
+                    decision = None
             if not exc_trigger:
                 for k in _EC_ALIASES:
                     exc_trigger = parsed_output.get(k)

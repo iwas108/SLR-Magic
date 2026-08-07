@@ -1237,6 +1237,7 @@ export async function GET(request: Request) {
         exclusion_criteria: project.exclusion_criteria || '',
         quality_assurance_definition: project.qa_definition || project.quality_assurance_definition || '',
         scopus_search_string: project.scopus_search_string || '',
+        manual_search_string: project.manual_search_string || '',
         search_string: project.scopus_search_string || '',
         manifesto: project.manifesto || project.research_manifesto || '',
         objective: project.objective || project.research_objective || '',

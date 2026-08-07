@@ -10,6 +10,7 @@ export function useProjectForm(initialData?: any) {
   const [qaDefinition, setQaDefinition] = useState(initialData?.qa_definition || '');
   const [exclusionCriteria, setExclusionCriteria] = useState(initialData?.exclusion_criteria || '');
   const [scopusSearchString, setScopusSearchString] = useState(initialData?.scopus_search_string || '');
+  const [manualSearchString, setManualSearchString] = useState(initialData?.manual_search_string || '');
   const [poolA, setPoolA] = useState(initialData?.pool_a_size !== undefined ? String(initialData?.pool_a_size) : '50');
   const [poolB, setPoolB] = useState(initialData?.pool_b_size !== undefined ? String(initialData?.pool_b_size) : '30');
   const [poolC, setPoolC] = useState(initialData?.pool_c_size !== undefined ? String(initialData?.pool_c_size) : '20');
@@ -33,6 +34,7 @@ export function useProjectForm(initialData?: any) {
   const [poolCExtractionRules, setPoolCExtractionRules] = useState<{ json_key: string; question: string }[]>([]);
   const [projectBudgetLimit, setProjectBudgetLimit] = useState(initialData?.project_budget_limit !== undefined ? String(initialData?.project_budget_limit) : '5.0');
   const [projectTax, setProjectTax] = useState(initialData?.project_tax !== undefined ? String(initialData?.project_tax) : '0.0');
+  const [researchQuestionDescriptions, setResearchQuestionDescriptions] = useState<Record<string, string>>({});
 
   const lastLoadedProjectRef = useRef<any | null>(null);
 
@@ -48,6 +50,7 @@ export function useProjectForm(initialData?: any) {
         lastLoadedProjectRef.current.qa_definition !== initialData.qa_definition ||
         lastLoadedProjectRef.current.exclusion_criteria !== initialData.exclusion_criteria ||
         lastLoadedProjectRef.current.scopus_search_string !== initialData.scopus_search_string ||
+        lastLoadedProjectRef.current.manual_search_string !== initialData.manual_search_string ||
         String(lastLoadedProjectRef.current.pool_a_size) !== String(initialData.pool_a_size) ||
         String(lastLoadedProjectRef.current.pool_b_size) !== String(initialData.pool_b_size) ||
         String(lastLoadedProjectRef.current.pool_c_size) !== String(initialData.pool_c_size) ||
@@ -77,6 +80,7 @@ export function useProjectForm(initialData?: any) {
         setQaDefinition(initialData.qa_definition || '');
         setExclusionCriteria(initialData.exclusion_criteria || '');
         setScopusSearchString(initialData.scopus_search_string || '');
+        setManualSearchString(initialData.manual_search_string || '');
         setPoolA(initialData.pool_a_size !== undefined ? String(initialData.pool_a_size) : '50');
         setPoolB(initialData.pool_b_size !== undefined ? String(initialData.pool_b_size) : '30');
         setPoolC(initialData.pool_c_size !== undefined ? String(initialData.pool_c_size) : '20');
@@ -87,6 +91,16 @@ export function useProjectForm(initialData?: any) {
         setRemoteName(initialData.rclone_remote_name || '');
         setProjectBudgetLimit(initialData.project_budget_limit !== undefined ? String(initialData.project_budget_limit) : '5.0');
         setProjectTax(initialData.project_tax !== undefined ? String(initialData.project_tax) : '0.0');
+
+        let parsedLlmConfig: any = {};
+        if (initialData.llm_config) {
+          try {
+            parsedLlmConfig = typeof initialData.llm_config === 'string' ? JSON.parse(initialData.llm_config) : initialData.llm_config;
+          } catch (e) {
+            console.error("Error parsing llm_config", e);
+          }
+        }
+        setResearchQuestionDescriptions(parsedLlmConfig.research_question_descriptions || {});
 
         let parsedTags = { pool_a: [] as any[], pool_b: [] as any[], pool_c: [] as any[] };
         if (initialData.pool_tags) {
@@ -324,6 +338,7 @@ export function useProjectForm(initialData?: any) {
     setQaDefinition(proj.qa_definition || '');
     setExclusionCriteria(proj.exclusion_criteria || '');
     setScopusSearchString(proj.scopus_search_string || '');
+    setManualSearchString(proj.manual_search_string || '');
     setPoolA(proj.pool_a_size !== undefined ? String(proj.pool_a_size) : '50');
     setPoolB(proj.pool_b_size !== undefined ? String(proj.pool_b_size) : '30');
     setPoolC(proj.pool_c_size !== undefined ? String(proj.pool_c_size) : '20');
@@ -417,6 +432,7 @@ export function useProjectForm(initialData?: any) {
     qaDefinition, setQaDefinition,
     exclusionCriteria, setExclusionCriteria,
     scopusSearchString, setScopusSearchString,
+    manualSearchString, setManualSearchString,
     poolA, setPoolA,
     poolB, setPoolB,
     poolC, setPoolC,
@@ -434,6 +450,7 @@ export function useProjectForm(initialData?: any) {
     poolCExtractionRules, setPoolCExtractionRules,
     projectBudgetLimit, setProjectBudgetLimit,
     projectTax, setProjectTax,
+    researchQuestionDescriptions, setResearchQuestionDescriptions,
     resetForm,
     handleAddPoolTag, handleUpdatePoolTag, handleRemovePoolTag,
     handleAddEcRule, handleUpdateEcRule, handleRemoveEcRule,

@@ -14,18 +14,37 @@ function parseQaScore(paper: any): number {
   if (!qaStr) return 0;
 
   try {
-    const parsed = JSON.parse(qaStr);
+    const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
     if (typeof parsed === 'object' && parsed !== null) {
       const qaObj = parsed.qa_scores || parsed;
       let score = 0;
 
       Object.entries(qaObj).forEach(([k, v]) => {
         if (k.startsWith('_') || k === 'logic_trace' || k === '_scientist_logic_trace' || k === 'qa_scores') return;
-        const val = (v && typeof v === 'object' && 'value' in v) ? (v as any).value : v;
-        const numVal = parseFloat(String(val));
+        
+        let rawVal: any = v;
+        if (v !== null && v !== undefined && typeof v === 'object') {
+          const vObj = v as any;
+          if ('score' in vObj && vObj.score !== undefined && vObj.score !== null) {
+            rawVal = vObj.score;
+          } else if ('value' in vObj && vObj.value !== undefined && vObj.value !== null) {
+            rawVal = vObj.value;
+          } else {
+            const entries = Object.entries(vObj);
+            const nonTextMatch = entries.find(([key, val]) => {
+              const kLower = key.toLowerCase();
+              const isMeta = ['exact_quote', 'quote', 'evidence', 'text', 'snippet', 'reasoning', 'justification', 'analysis', 'rationale', 'explanation', 'logic_trace'].includes(kLower);
+              return !isMeta && (typeof val === 'number' || typeof val === 'boolean' || (typeof val === 'string' && val.length < 50));
+            });
+            rawVal = nonTextMatch ? nonTextMatch[1] : '';
+          }
+        }
+
+        const valStr = (rawVal !== undefined && rawVal !== null) ? String(rawVal) : '';
+        const numVal = parseFloat(valStr);
         if (!isNaN(numVal)) {
           score += numVal;
-        } else if (val === true || ['YES', 'PASS', 'TRUE'].includes(String(val).toUpperCase().trim())) {
+        } else if (rawVal === true || ['YES', 'PASS', 'TRUE'].includes(valStr.toUpperCase().trim())) {
           score += 1;
         }
       });

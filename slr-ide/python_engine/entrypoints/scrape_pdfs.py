@@ -203,6 +203,7 @@ def main():
             # Validate the PDF using the Integrity Verification gate
             status, validation_msg = verify_paper_pdf(
                 downloaded,
+                paper_id,
                 min_size_kb=min_size_kb,
                 ocr_enabled=ocr_enabled,
                 tesseract_path=tesseract_path,

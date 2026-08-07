@@ -3,7 +3,7 @@ import db from '@/lib/db';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const projectId = searchParams.get('projectId');
+  const projectId = searchParams.get('projectId') || searchParams.get('project_id');
 
   if (!projectId) {
     return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });

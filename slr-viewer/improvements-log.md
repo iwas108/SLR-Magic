@@ -1,5 +1,25 @@
 # SLR Viewer Improvements Log
 
+## #046 - Improved QA Parsing Logic & Robustness in Final Cohort Table (2026-08-07)
+- **Goal**: Resolve `[object Object]` rendering issue in `QAx_y` columns in SLR Viewer Final Cohort table when loading snapshot files with new JSON schema formats (`{ score: "1.0", exact_quote: "..." }`).
+- **Changes**:
+  - Modified [FinalCohortPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/final-cohort/FinalCohortPanel.jsx): Enhanced `parseQaAssessment` to extract `score` or `value` object properties, extract evidence quotes for tooltips, and guarantee backward/forward schema compatibility.
+- **Verification**: Verified build stability with `npm run build` (0 errors).
+
+## #045 - Added Raw vs Umbrellanized Value Toggle in Taxonomy Trends Quick Overview (2026-08-07)
+- **Goal**: Add a checkbox toggle to allow users to switch between raw extracted string values and umbrellanized (LLM normalized) categories in Node 3.5 Taxonomy Trends Quick Overview, updating UI distributions, JSON download payload, and PDF print report.
+- **Changes**:
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Added `showRawTaxonomy` state (`boolean`, default `false`), header checkbox toggle `Show raw extracted values (unmapped)`, updated `stats` calculation to process raw string tokens directly without `umbrellanizerMappings` when enabled, updated `handleDownloadTrendsJson` to include `"mode": "raw" | "umbrellanized"` metadata, and passed `showRaw` to `TaxonomyTrendsPrintDocument`.
+  - Modified [TaxonomyTrendsPrintDocument.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/TaxonomyTrendsPrintDocument.jsx): Added `showRaw` prop and rendered a report header badge (`Mode: Raw Extracted Values` vs `Mode: Umbrellanized Taxonomy`).
+- **Verification**: Verified build stability with `npm run build` (0 errors, 8.31s).
+
+## #044 - Manual / Google Scholar Search String Documentation & Workflow Panel (2026-08-05)
+- **Goal**: Support `manual_search_string` (Google Scholar query string) documentation in `.slr-viewer` snapshot imports and display it in Node 1.2 ("Literature Ingestion Hub") of the Research Execution Workflow panel.
+- **Changes**:
+  - Modified [schemaMigration.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/utils/schemaMigration.js): Added `manual_search_string` normalization default to `project` schema object.
+  - Modified [ResearchWorkflowPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/research-workflow/ResearchWorkflowPanel.jsx): Added `manualSearchString` to Node 1.2 `dataDetails`, rendered stacked query card for "Manual / Google Scholar Search Query String" alongside Scopus query string, and added independent copy-to-clipboard button state (`copiedManualSearchQuery`).
+  - Modified [files.md](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/files.md): Updated file descriptions for `schemaMigration.js` and `ResearchWorkflowPanel.jsx`.
+
 ## #043 - Cohort Table View Repeated Taxonomy Number Badges (2026-07-22)
 - **Goal**: Add small pill badge counters to extracted data cells in Cohort Table View when raw multi-value extraction terms map to repeated Umbrellanizer taxonomy categories in `slr-viewer`.
 - **Changes**:

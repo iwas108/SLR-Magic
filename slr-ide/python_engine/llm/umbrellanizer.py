@@ -40,27 +40,7 @@ def fail_job(job_id, project_id, error_message, key):
     }), flush=True)
     sys.exit(1)
 
-def main():
-    parser = argparse.ArgumentParser(description="SLR Magic Umbrellanizer Task Executor")
-    parser.add_argument('--project-id', required=True)
-    parser.add_argument('--job-id', required=True)
-    parser.add_argument('--key', required=True, help="extracted_data key to process")
-    parser.add_argument('--template-id', required=True)
-    parser.add_argument('--raw-tokens', required=True, help="JSON encoded array of unique raw tokens")
-    parser.add_argument('--target-variable-name', required=True)
-    args = parser.parse_args()
-
-    project_id = args.project_id
-    job_id = args.job_id
-    key = args.key
-    template_id = args.template_id
-    target_var = args.target_variable_name
-    
-    try:
-        raw_tokens_list = json.loads(args.raw_tokens)
-    except Exception as e:
-        fail_job(job_id, project_id, f"Failed to parse raw-tokens argument: {e}", key)
-
+def run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens_list, target_var, target_desc=""):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         fail_job(job_id, project_id, "Gemini API Key is missing. Unlock the vault first.", key)
@@ -103,11 +83,27 @@ def main():
     except Exception as init_err:
         fail_job(job_id, project_id, f"Failed to initialize GeminiClient: {init_err}", key)
 
-    # 4. Hydrate prompt templates with our placeholders
-    # Placeholders required:
-    # {{ target_variable_name }}
-    # {{ raw_tokens_array }}
-    user_prompt = user_template.replace("{{ target_variable_name }}", target_var).replace("{{ raw_tokens_array }}", json.dumps(raw_tokens_list))
+    # 4. Hydrate prompt templates using Jinja2 with new & legacy placeholders
+    json_raw_tokens = json.dumps(raw_tokens_list)
+    context_dict = {
+        "umbrellanizer_target_research_question": target_var,
+        "umbrellanizer_target_research_question_description": target_desc or "",
+        "umbrellanizer_raw_tokens_array": json_raw_tokens,
+        "target_variable_name": target_var,
+        "raw_tokens_array": json_raw_tokens
+    }
+
+    try:
+        from jinja2 import Template
+        user_prompt = Template(user_template).render(**context_dict)
+    except Exception as j2_err:
+        logger.warning(f"Jinja2 render fallback to literal replace: {j2_err}")
+        user_prompt = (user_template
+                       .replace("{{ umbrellanizer_target_research_question }}", target_var)
+                       .replace("{{ umbrellanizer_target_research_question_description }}", target_desc or "")
+                       .replace("{{ umbrellanizer_raw_tokens_array }}", json_raw_tokens)
+                       .replace("{{ target_variable_name }}", target_var)
+                       .replace("{{ raw_tokens_array }}", json_raw_tokens))
 
     print(json.dumps({
         "status": "RUNNING",
@@ -118,7 +114,7 @@ def main():
 
     # Pre-flight budget check
     project = execute_read_one("SELECT * FROM projects WHERE id = ?", (project_id,))
-    project_tax = float(project.get("project_tax") or 0.0)
+    project_tax = float(project.get("project_tax") or 0.0) if project else 0.0
     est = estimate_cost(model_id, user_prompt, None, speed_mode=speed_mode, discount=discount, tax_rate=project_tax)
     est_cost = est["estimated_cost"]
 
@@ -127,7 +123,7 @@ def main():
     if not ok:
         fail_job(job_id, project_id, f"Budget limit check failed: {budget_msg}", key)
 
-    # Call Gemini Interactions or Gemma path
+    # Call Gemini Interactions API
     response = client.create_interaction(
         model_id=model_id,
         user_prompt=user_prompt,
@@ -158,8 +154,7 @@ def main():
     if not taxonomy_mapping or not isinstance(taxonomy_mapping, list):
         fail_job(job_id, project_id, f"Taxonomy mapping list missing in output: {parsed_res}", key)
 
-    # Build the required flat mapping JSON blob
-    # { "raw_token": { "umbrella_category": string, "justification": string } }
+    # Build flat mapping dictionary: { "raw_token": { "umbrella_category": string, "justification": string } }
     mapping_dict = {}
     for entry in taxonomy_mapping:
         tok = entry.get("raw_token")
@@ -185,7 +180,7 @@ def main():
     raw_cost = ((billable_input / 1_000_000.0) * input_price) + ((output_tokens / 1_000_000.0) * output_price)
     actual_cost = raw_cost * (1.0 + project_tax)
 
-    # Save results & update spend
+    # Save results & update spend (enforce CAST(project_id AS TEXT) multi-project isolation)
     execute_write(
         """
         INSERT OR REPLACE INTO umbrellanizer_results 
@@ -193,7 +188,7 @@ def main():
          input_tokens, output_tokens, thinking_tokens, cost_usd, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SUCCESS', datetime('now'), datetime('now'))
         """,
-        (project_id, key, template_id, model_id, json.dumps(raw_tokens_list), json.dumps(mapping_dict),
+        (project_id, key, template_id, model_id, json_raw_tokens, json.dumps(mapping_dict),
          input_tokens, output_tokens, thinking_tokens, actual_cost)
     )
 
@@ -207,5 +202,67 @@ def main():
         "umbrella_mapping": mapping_dict
     }), flush=True)
 
+def main():
+    parser = argparse.ArgumentParser(description="SLR Magic Umbrellanizer Task Executor")
+    parser.add_argument('--project-id', required=True)
+    parser.add_argument('--job-id', required=True)
+    parser.add_argument('--key', required=True, help="extracted_data key to process")
+    parser.add_argument('--template-id', required=True)
+    parser.add_argument('--raw-tokens', default='', help="JSON encoded array of unique raw tokens")
+    parser.add_argument('--target-variable-name', default='', help="Legacy argument for target research question")
+    parser.add_argument('--target-research-question', default='', help="Target research question variable name")
+    parser.add_argument('--target-research-question-description', default='', help="Detailed description of target research question")
+    args = parser.parse_args()
+
+    project_id = args.project_id
+    job_id = args.job_id
+    key = args.key
+    template_id = args.template_id
+    target_var = args.target_research_question or args.target_variable_name or key
+    target_desc = args.target_research_question_description or ""
+
+    raw_tokens_list = []
+    if args.raw_tokens:
+        try:
+            raw_tokens_list = json.loads(args.raw_tokens)
+        except Exception as e:
+            fail_job(job_id, project_id, f"Failed to parse raw-tokens argument: {e}", key)
+
+    if not raw_tokens_list:
+        # Dynamically extract unique raw tokens from Miner-passed papers for key
+        papers = execute_read(
+            """
+            SELECT ai_extracted_data, manual_extracted_data 
+            FROM papers 
+            WHERE Project_ID = ? AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4
+            """,
+            (project_id,)
+        )
+        tokens_set = set()
+        for p in papers:
+            ext = p.get("manual_extracted_data") or p.get("ai_extracted_data")
+            if not ext:
+                continue
+            try:
+                parsed = json.loads(ext) if isinstance(ext, str) else ext
+                if isinstance(parsed, dict) and key in parsed:
+                    val_obj = parsed[key]
+                    val = val_obj.get("value") if isinstance(val_obj, dict) else val_obj
+                    if isinstance(val, list):
+                        for item in val:
+                            t = str(item).strip()
+                            if t and t.upper() != 'NOT_STATED':
+                                tokens_set.add(t)
+                    elif isinstance(val, str):
+                        t = val.strip()
+                        if t and t.upper() != 'NOT_STATED':
+                            tokens_set.add(t)
+            except Exception:
+                pass
+        raw_tokens_list = sorted(list(tokens_set))
+
+    run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens_list, target_var, target_desc)
+
 if __name__ == '__main__':
     main()
+

@@ -18,6 +18,7 @@ def extract_structured_data(
     max_output_tokens: int = 2000,
     top_p: float = None,
     top_k: int = None,
+    schema_mapping: dict = None,
     thinking_level: str = "none"
 ) -> dict:
     """Executes a generic structured data extraction query, supporting optional PDF uploads."""
@@ -59,8 +60,19 @@ def extract_structured_data(
         try:
             from llm.client import safe_json_loads
             # Parse to ensure it is valid JSON
-            safe_json_loads(output_text)
+            parsed = safe_json_loads(output_text)
             result["structured_output"] = output_text
+            
+            if schema_mapping:
+                from llm.fulltext import resolve_path
+                if schema_mapping.get("extracted_data"):
+                    ext_val = resolve_path(parsed, schema_mapping.get("extracted_data"))
+                    if ext_val is not None:
+                        result["extracted_data"] = json.dumps(ext_val) if isinstance(ext_val, (dict, list)) else str(ext_val)
+                if schema_mapping.get("rationale"):
+                    rat_val = resolve_path(parsed, schema_mapping.get("rationale"))
+                    if rat_val is not None:
+                        result["rationale"] = json.dumps(rat_val) if isinstance(rat_val, (dict, list)) else str(rat_val)
         except Exception as e:
             logger.warning(f"Structured extraction response is not valid JSON: {e}. Output: {output_text}")
             result["success"] = False

@@ -12,7 +12,11 @@ import { pipelineLock } from '@/lib/services/pipeline-lock';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { projectId, jobId, action, limit, offset, paperIds, templateId, statusFilter, decisionFilter, excludeManual } = body;
+    const { 
+      projectId, jobId, action, limit, offset, paperIds, templateId, 
+      statusFilter, decisionFilter, excludeManual, paperSelectionMode,
+      key, rawTokens, targetVariableName, targetResearchQuestion, targetResearchQuestionDescription
+    } = body;
     let taskTypeInput = body.taskType;
 
     if (!jobId) {
@@ -26,7 +30,8 @@ export async function POST(req: NextRequest) {
       'fulltext': 'gatekeeper',
       'scientist': 'scientist',
       'miner': 'miner',
-      'extraction': 'miner'
+      'extraction': 'miner',
+      'umbrellanizer': 'umbrellanizer'
     };
     const taskType = stageMap[taskTypeInput] || taskTypeInput || 'fast_filter';
 
@@ -152,6 +157,22 @@ export async function POST(req: NextRequest) {
     }
     if (excludeManual) {
       args.push('--exclude-manual');
+    }
+    if (paperSelectionMode) {
+      args.push('--paper-selection-mode', String(paperSelectionMode));
+    }
+    if (key) {
+      args.push('--key', String(key));
+    }
+    if (rawTokens) {
+      args.push('--raw-tokens', typeof rawTokens === 'string' ? rawTokens : JSON.stringify(rawTokens));
+    }
+    const resolvedTargetRq = targetResearchQuestion || targetVariableName || key;
+    if (resolvedTargetRq) {
+      args.push('--target-research-question', String(resolvedTargetRq));
+    }
+    if (targetResearchQuestionDescription) {
+      args.push('--target-research-question-description', String(targetResearchQuestionDescription));
     }
 
     // Resolve model and mode details from template to write initial job record

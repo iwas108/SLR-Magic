@@ -59,6 +59,8 @@ export interface Project {
   questions?: string;
   qa_definition?: string;
   exclusion_criteria?: string;
+  scopus_search_string?: string;
+  manual_search_string?: string;
   pool_a_size?: number;
   pool_b_size?: number;
   pool_c_size?: number;

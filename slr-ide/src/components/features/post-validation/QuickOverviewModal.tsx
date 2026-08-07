@@ -31,6 +31,7 @@ export default function QuickOverviewModal({
   const [expandedKey, setExpandedKey] = useState<string | null>(extractedKeys[0] || null);
   const [activeJustificationKey, setActiveJustificationKey] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
 
   // Fetch project questions for dynamic labels
   useEffect(() => {
@@ -49,6 +50,7 @@ export default function QuickOverviewModal({
     const downloadData = {
       project_id: projectId,
       total_papers: papers.length,
+      mode: showRaw ? 'raw' : 'umbrellanized',
       trends: Object.fromEntries(
         extractedKeys.map(key => [
           key,
@@ -65,7 +67,7 @@ export default function QuickOverviewModal({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `project_${projectId}_umbrellanizer_trends.json`;
+    link.download = `project_${projectId}_umbrellanizer_trends_${showRaw ? 'raw' : 'umbrellanized'}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -121,16 +123,21 @@ export default function QuickOverviewModal({
         const processVal = (val: any) => {
           const v = String(val).trim();
           if (!v) return;
-          // Resolve mapping
-          const mapped = keyMap[v];
-          const resolvedVal = mapped ? mapped.umbrella_category : v;
-          resolvedSet.add(resolvedVal);
-          
-          if (mapped && mapped.justification) {
-            if (!justifications[resolvedVal]) {
-              justifications[resolvedVal] = new Set<string>();
+
+          if (showRaw) {
+            resolvedSet.add(v);
+          } else {
+            // Resolve mapping
+            const mapped = keyMap[v];
+            const resolvedVal = mapped ? mapped.umbrella_category : v;
+            resolvedSet.add(resolvedVal);
+            
+            if (mapped && mapped.justification) {
+              if (!justifications[resolvedVal]) {
+                justifications[resolvedVal] = new Set<string>();
+              }
+              justifications[resolvedVal].add(mapped.justification);
             }
-            justifications[resolvedVal].add(mapped.justification);
           }
         };
 
@@ -160,7 +167,7 @@ export default function QuickOverviewModal({
     });
 
     return results;
-  }, [papers, extractedKeys, mappingsByKey]);
+  }, [papers, extractedKeys, mappingsByKey, showRaw]);
 
   return (
     <>
@@ -170,6 +177,7 @@ export default function QuickOverviewModal({
         extractedKeys={extractedKeys}
         stats={stats}
         getMappedResearchQuestion={getMappedResearchQuestion}
+        showRaw={showRaw}
       />
 
       {/* Screen Modal Dialog (Hidden during window.print()) */}
@@ -187,9 +195,20 @@ export default function QuickOverviewModal({
                 </p>
               </div>
             </div>
-            <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground rounded-lg">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-foreground select-none bg-background/60 hover:bg-background border border-border px-2.5 py-1 rounded-lg transition-colors">
+                <input
+                  type="checkbox"
+                  checked={showRaw}
+                  onChange={(e) => setShowRaw(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                />
+                <span>Show raw extracted values (unmapped)</span>
+              </label>
+              <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground rounded-lg">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Content */}

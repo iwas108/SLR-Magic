@@ -44,11 +44,11 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 
 ---
 
-## 4. Scratch & Utilities (`slr-ide/scratch/`)
+## 4. Scripts & Migration Utilities (`scripts/`)
 
-> [!NOTE]
-> All temporary scratch scripts, test runners, and one-off patch migration utilities have been cleaned up and removed prior to public repository release.
-
+| File Path | Architectural Layer | Function & Purpose |
+| :--- | :--- | :--- |
+| `scripts/migrate_rq3a_edge_hardware.py` | Database Migration | Migrates `extracted_data.rq3a_edge_hardware.value` inside `ai_extracted_data` from comma-separated strings or `'NOT_STATED'` to clean string arrays (`['NOT_STATED']` for `'NOT_STATED'`). |
 
 ---
 
@@ -193,7 +193,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/paper-details/ScreeningSummaryPanel.tsx` | Presentation Component | Reusable read-only panel displaying AI/Manual stage, decision, rationale, QA, and extraction variables. |
 | `components/features/modals/CreateProjectModal.tsx` | Modal Component| Standalone modal form encapsulating states and inputs for creating new systematic literature review projects. |
 | `components/features/modals/ProjectSettingsModal.tsx`| Modal Component| Standalone tabbed modal for editing project metadata settings, cloud credentials, LLM configuration, and prompts. |
-| `components/features/modals/settings/ProjectMetadataSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering metadata fields. |
+| `components/features/modals/settings/ProjectMetadataSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering metadata fields including Scopus and Manual / Google Scholar search query strings. |
 | `components/features/modals/settings/ProjectCalibrationSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering calibration pools, tags, and rules. |
 | `components/features/modals/settings/ProjectSyncSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering Cloud Sync provider and connection test parameters. |
 | `components/features/modals/AdjudicationWorkspaceModal.tsx` | Modal Component| Standalone conflict resolution split-pane workspace with integrated PDF viewer, rich metadata, and fallback downloader. |

@@ -220,27 +220,53 @@ export default function FinalCohortPanel() {
 
         Object.entries(qaObj).forEach(([k, v]) => {
           if (k.startsWith('_') || k === 'logic_trace' || k === '_scientist_logic_trace' || k === 'qa_scores') return;
-          const val = (v && typeof v === 'object' && 'value' in v) ? v.value : v;
-          items[k] = String(val);
 
-          let traceVal = appraisalReasoning[k + '_analysis'] || appraisalReasoning[k] || '';
+          let rawVal = v;
+          let valStr = '';
           let evidenceVal = '';
 
-          if (v && typeof v === 'object') {
-            if (v.evidence) {
-              evidenceVal = String(v.evidence);
-            } else if (v.logic_trace?.evidence) {
-              evidenceVal = String(v.logic_trace.evidence);
+          if (v !== null && v !== undefined) {
+            if (typeof v === 'object') {
+              if ('score' in v && v.score !== undefined && v.score !== null) {
+                rawVal = v.score;
+              } else if ('value' in v && v.value !== undefined && v.value !== null) {
+                rawVal = v.value;
+              } else {
+                const entries = Object.entries(v);
+                const nonTextMatch = entries.find(([key, val]) => {
+                  const kLower = key.toLowerCase();
+                  const isMeta = ['exact_quote', 'quote', 'evidence', 'text', 'snippet', 'reasoning', 'justification', 'analysis', 'rationale', 'explanation', 'logic_trace'].includes(kLower);
+                  return !isMeta && (typeof val === 'number' || typeof val === 'boolean' || (typeof val === 'string' && val.length < 50));
+                });
+                rawVal = nonTextMatch ? nonTextMatch[1] : '';
+              }
+
+              if (typeof rawVal === 'object' && rawVal !== null) {
+                if ('score' in rawVal) rawVal = rawVal.score;
+                else if ('value' in rawVal) rawVal = rawVal.value;
+                else rawVal = '';
+              }
+
+              if (v.exact_quote) evidenceVal = String(v.exact_quote);
+              else if (v.quote) evidenceVal = String(v.quote);
+              else if (v.evidence) evidenceVal = String(v.evidence);
+              else if (v.text) evidenceVal = String(v.text);
+              else if (v.logic_trace?.evidence) evidenceVal = String(v.logic_trace.evidence);
             }
           }
+
+          valStr = (rawVal !== undefined && rawVal !== null) ? String(rawVal) : '';
+          items[k] = valStr;
+
+          const traceVal = appraisalReasoning[k + '_analysis'] || appraisalReasoning[k] || '';
           traces[k] = { extraction_mapping: String(traceVal || ''), evidence: evidenceVal };
 
-          const numVal = parseFloat(String(val));
+          const numVal = parseFloat(valStr);
           if (!isNaN(numVal)) {
             score += numVal;
           } else if (
-            val === true ||
-            ['YES', 'PASS', 'TRUE'].includes(String(val).toUpperCase().trim())
+            rawVal === true ||
+            ['YES', 'PASS', 'TRUE'].includes(valStr.toUpperCase().trim())
           ) {
             score += 1;
           }

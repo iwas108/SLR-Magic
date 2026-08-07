@@ -46,7 +46,7 @@ def main():
     parser = argparse.ArgumentParser(description="SLR Magic Gemini Interactions API Orchestrator")
     parser.add_argument('--project-id', required=True, help="Active Project ID")
     parser.add_argument('--job-id', required=True, help="Unique LLM execution Job ID")
-    parser.add_argument('--task-type', default='fast_filter', choices=['fast_filter', 'gatekeeper', 'scientist', 'miner', 'screening', 'fulltext', 'extraction'], help="Type of LLM task")
+    parser.add_argument('--task-type', default='fast_filter', choices=['fast_filter', 'gatekeeper', 'scientist', 'miner', 'umbrellanizer', 'screening', 'fulltext', 'extraction'], help="Type of LLM task")
     parser.add_argument('--action', default='screen', choices=['screen', 'refresh-pricing'], help="Action to execute")
     parser.add_argument('--limit', type=int, default=0, help="Max number of papers to screen")
     parser.add_argument('--offset', type=int, default=0, help="Offset of papers to skip")
@@ -55,6 +55,12 @@ def main():
     parser.add_argument('--status-filter', default='0', help="Target paper pipeline Status filter code ('0', '1', '2', etc.)")
     parser.add_argument('--decision-filter', default='ALL', help="Target paper AI decision filter ('ALL', 'PENDING', 'INCLUDE', 'EXCLUDE')")
     parser.add_argument('--exclude-manual', action='store_true', help="Exclude manually screened papers")
+    parser.add_argument('--paper-selection-mode', default='all', help="Paper selection mode ('all', 'snowballing', 'limit', 'range', 'selected')")
+    parser.add_argument('--key', default='', help="Extracted data key for umbrellanizer task")
+    parser.add_argument('--raw-tokens', default='', help="JSON encoded raw tokens for umbrellanizer task")
+    parser.add_argument('--target-variable-name', default='', help="Legacy target variable name for umbrellanizer task")
+    parser.add_argument('--target-research-question', default='', help="Target research question for umbrellanizer task")
+    parser.add_argument('--target-research-question-description', default='', help="Target research question description for umbrellanizer task")
     args = parser.parse_args()
 
     job_id = args.job_id
@@ -66,7 +72,8 @@ def main():
         'fulltext': 'gatekeeper',
         'scientist': 'scientist',
         'miner': 'miner',
-        'extraction': 'miner'
+        'extraction': 'miner',
+        'umbrellanizer': 'umbrellanizer'
     }
     task_type = stage_map.get(args.task_type, args.task_type or 'fast_filter')
     action = args.action
@@ -116,6 +123,73 @@ def main():
     if not template_row:
         fail_job(job_id, project_id, f"Prompt template '{selected_template_id}' not found in database.", task_type=task_type)
 
+    # Special handling for umbrellanizer task type
+    if task_type == 'umbrellanizer':
+        from llm.umbrellanizer import run_umbrellanizer_execution
+        key = args.key or 'default_key'
+        target_rq = args.target_research_question or args.target_variable_name or key
+        target_desc = args.target_research_question_description or ""
+
+        # Resolve RQ description from project llm_config if not explicitly provided
+        if not target_desc and project:
+            try:
+                p_config = json.loads(project.get("llm_config") or "{}")
+                rq_descs = p_config.get("research_question_descriptions", {})
+                target_desc = rq_descs.get(target_rq) or rq_descs.get(key) or ""
+            except Exception:
+                pass
+
+        raw_tokens_list = []
+        if args.raw_tokens:
+            try:
+                raw_tokens_list = json.loads(args.raw_tokens)
+            except Exception:
+                pass
+
+        if not raw_tokens_list:
+            # Dynamically extract unique raw tokens from Miner-passed papers for key
+            papers_data = execute_read(
+                """
+                SELECT ai_extracted_data, manual_extracted_data 
+                FROM papers 
+                WHERE Project_ID = ? AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4
+                """,
+                (project_id,)
+            )
+            tokens_set = set()
+            for p in papers_data:
+                ext = p.get("manual_extracted_data") or p.get("ai_extracted_data")
+                if not ext:
+                    continue
+                try:
+                    parsed = json.loads(ext) if isinstance(ext, str) else ext
+                    if isinstance(parsed, dict) and key in parsed:
+                        val_obj = parsed[key]
+                        val = val_obj.get("value") if isinstance(val_obj, dict) else val_obj
+                        if isinstance(val, list):
+                            for item in val:
+                                t = str(item).strip()
+                                if t and t.upper() != 'NOT_STATED':
+                                    tokens_set.add(t)
+                        elif isinstance(val, str):
+                            t = val.strip()
+                            if t and t.upper() != 'NOT_STATED':
+                                tokens_set.add(t)
+                except Exception:
+                    pass
+            raw_tokens_list = sorted(list(tokens_set))
+
+        run_umbrellanizer_execution(
+            project_id=project_id,
+            job_id=job_id,
+            key=key,
+            template_id=selected_template_id,
+            raw_tokens_list=raw_tokens_list,
+            target_var=target_rq,
+            target_desc=target_desc
+        )
+        sys.exit(0)
+
     system_instruction = template_row.get("system_instruction") or ""
     user_template = template_row.get("user_template") or ""
 
@@ -159,6 +233,7 @@ def main():
 
     # 5. Fetch papers pending screening with range/selection constraints matching status_filter
     requires_pdf = task_type in ('gatekeeper', 'scientist', 'miner', 'fulltext', 'extraction')
+    selection_mode = getattr(args, 'paper_selection_mode', 'all')
     if args.paper_ids:
       # User specified concrete Paper IDs. Fetch all pending papers and filter in memory to avoid parameter limit exceptions.
       if status_filter == 'ALL':
@@ -168,10 +243,12 @@ def main():
           query = "SELECT * FROM papers WHERE Project_ID = ? AND MAX(manual_stage, ai_stage) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
           params = [project_id, int(status_filter)]
       if decision_filter != 'ALL':
-          query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' ELSE IFNULL((CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END), 'PENDING') END) = ?"
+          query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'INCLUDE%' THEN 'INCLUDE' ELSE 'PENDING' END) = ?"
           params.append(decision_filter)
       if requires_pdf:
           query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
+      if selection_mode == 'snowballing':
+          query += " AND (Source IN ('Manual Search', 'Backward Snowball', 'Forward Snowball', 'Manual Ingestion') OR Import_Source IN ('Manual Search', 'Backward Snowball', 'Forward Snowball', 'Manual Ingestion') OR (Parent_Paper_ID IS NOT NULL AND Parent_Paper_ID != ''))"
       if exclude_manual:
           stage_map = {
               'fast_filter': 'fast_filter',
@@ -199,10 +276,12 @@ def main():
           query = "SELECT * FROM papers WHERE Project_ID = ? AND MAX(manual_stage, ai_stage) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
           params = [project_id, int(status_filter)]
       if decision_filter != 'ALL':
-          query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' ELSE IFNULL((CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END), 'PENDING') END) = ?"
+          query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'INCLUDE%' THEN 'INCLUDE' ELSE 'PENDING' END) = ?"
           params.append(decision_filter)
       if requires_pdf:
           query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
+      if selection_mode == 'snowballing':
+          query += " AND (Source IN ('Manual Search', 'Backward Snowball', 'Forward Snowball', 'Manual Ingestion') OR Import_Source IN ('Manual Search', 'Backward Snowball', 'Forward Snowball', 'Manual Ingestion') OR (Parent_Paper_ID IS NOT NULL AND Parent_Paper_ID != ''))"
       if exclude_manual:
           stage_map = {
               'fast_filter': 'fast_filter',

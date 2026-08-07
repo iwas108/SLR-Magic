@@ -13,13 +13,15 @@ export interface TaxonomyTrendsPrintDocumentProps {
   extractedKeys: string[];
   stats: Record<string, CategoryStat[]>;
   getMappedResearchQuestion: (key: string) => string;
+  showRaw?: boolean;
 }
 
 export const TaxonomyTrendsPrintDocument: React.FC<TaxonomyTrendsPrintDocumentProps> = ({
   papersCount,
   extractedKeys,
   stats,
-  getMappedResearchQuestion
+  getMappedResearchQuestion,
+  showRaw = false
 }) => {
   const [mounted, setMounted] = useState(false);
 
@@ -95,6 +97,10 @@ export const TaxonomyTrendsPrintDocument: React.FC<TaxonomyTrendsPrintDocumentPr
             </p>
           </div>
           <div className="text-right text-[10px] text-slate-600 font-mono space-y-0.5">
+            <div className="inline-block bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-200 print-exact-color mb-1">
+              Mode: {showRaw ? 'Raw Extracted Values' : 'Umbrellanized Taxonomy'}
+            </div>
+            <br />
             <div className="inline-block bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-200 print-exact-color">
               Generated: {dateStr}
             </div>

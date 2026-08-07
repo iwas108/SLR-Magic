@@ -163,9 +163,11 @@ export default function ResearchWorkflowPanel() {
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(true);
   const [copiedSearchQuery, setCopiedSearchQuery] = useState(false);
+  const [copiedManualSearchQuery, setCopiedManualSearchQuery] = useState(false);
   const [expandedTaxonomyKey, setExpandedTaxonomyKey] = useState(null);
   const [activeJustificationKey, setActiveJustificationKey] = useState(null);
   const [isPrintingTaxonomy, setIsPrintingTaxonomy] = useState(false);
+  const [showRawTaxonomy, setShowRawTaxonomy] = useState(false);
 
   // Extract real live data from activeSession (unwrapping nested rawData if present)
   const rawData = activeSession?.rawData || activeSession || {};
@@ -232,7 +234,8 @@ export default function ResearchWorkflowPanel() {
             sources: prisma.databaseSources || [],
             totalIdentified: rawIdentifiedCount || 0,
             totalScreened: prisma.dbRecordsScreened || cohort.total_count || 0,
-            scopusSearchString: project.scopus_search_string || project.search_string || ''
+            scopusSearchString: project.scopus_search_string || project.search_string || '',
+            manualSearchString: project.manual_search_string || ''
           }
         },
         {
@@ -980,6 +983,48 @@ export default function ResearchWorkflowPanel() {
                     </div>
                   </div>
 
+                  {/* Manual / Google Scholar Search String Card */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Search className="w-3.5 h-3.5 text-emerald-500" />
+                        Manual / Google Scholar Search Query String
+                      </h4>
+                      {activeSelectedNode.dataDetails.manualSearchString && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeSelectedNode.dataDetails.manualSearchString);
+                            setCopiedManualSearchQuery(true);
+                            setTimeout(() => setCopiedManualSearchQuery(false), 2000);
+                          }}
+                          className="px-2 py-1 rounded bg-secondary hover:bg-secondary/80 text-foreground text-[11px] font-semibold border border-border flex items-center gap-1 transition-colors"
+                          title="Copy manual search query to clipboard"
+                        >
+                          {copiedManualSearchQuery ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-500" />
+                              <span className="text-emerald-500">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3 text-muted-foreground" />
+                              <span>Copy Query</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    <div className="p-3 bg-secondary/30 rounded-xl border border-border text-xs text-foreground">
+                      {activeSelectedNode.dataDetails.manualSearchString ? (
+                        <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-emerald-600 dark:text-emerald-400 bg-background/60 p-2.5 rounded-lg border border-border/50 max-h-48 overflow-y-auto">
+                          {activeSelectedNode.dataDetails.manualSearchString}
+                        </pre>
+                      ) : (
+                        <span className="italic text-muted-foreground font-sans">No manual or Google Scholar search query string specified in project metadata.</span>
+                      )}
+                    </div>
+                  </div>
+
                   <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                     Database Sources Ingestion Breakdown
                   </h4>
@@ -1685,15 +1730,20 @@ export default function ResearchWorkflowPanel() {
                     const processVal = (val) => {
                       const v = String(val).trim();
                       if (!v) return;
-                      const mapped = keyMap[v];
-                      const resolvedVal = mapped ? (mapped.umbrella_category || mapped.umbrellaCategory || v) : v;
-                      resolvedSet.add(resolvedVal);
 
-                      if (mapped && mapped.justification) {
-                        if (!justifications[resolvedVal]) {
-                          justifications[resolvedVal] = new Set();
+                      if (showRawTaxonomy) {
+                        resolvedSet.add(v);
+                      } else {
+                        const mapped = keyMap[v];
+                        const resolvedVal = mapped ? (mapped.umbrella_category || mapped.umbrellaCategory || v) : v;
+                        resolvedSet.add(resolvedVal);
+
+                        if (mapped && mapped.justification) {
+                          if (!justifications[resolvedVal]) {
+                            justifications[resolvedVal] = new Set();
+                          }
+                          justifications[resolvedVal].add(mapped.justification);
                         }
-                        justifications[resolvedVal].add(mapped.justification);
                       }
                     };
 
@@ -1722,6 +1772,7 @@ export default function ResearchWorkflowPanel() {
                   const downloadData = {
                     project_id: project.id || activeSession?.projectId,
                     total_papers: totalPapers,
+                    mode: showRawTaxonomy ? 'raw' : 'umbrellanized',
                     trends: Object.fromEntries(
                       extractedKeys.map(key => [
                         key,
@@ -1738,7 +1789,7 @@ export default function ResearchWorkflowPanel() {
                   const url = URL.createObjectURL(blob);
                   const link = document.createElement('a');
                   link.href = url;
-                  link.download = `project_${project.id || 'export'}_umbrellanizer_trends.json`;
+                  link.download = `project_${project.id || 'export'}_umbrellanizer_trends_${showRawTaxonomy ? 'raw' : 'umbrellanized'}.json`;
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
@@ -1757,6 +1808,7 @@ export default function ResearchWorkflowPanel() {
                       extractedKeys={extractedKeys}
                       stats={stats}
                       getMappedResearchQuestion={getMappedResearchQuestion}
+                      showRaw={showRawTaxonomy}
                     />
 
                     <div className="space-y-6">
@@ -1817,6 +1869,15 @@ export default function ResearchWorkflowPanel() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 print:hidden">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-foreground select-none bg-secondary/40 hover:bg-secondary/70 border border-border px-2.5 py-1 rounded-lg transition-colors mr-1">
+                            <input
+                              type="checkbox"
+                              checked={showRawTaxonomy}
+                              onChange={(e) => setShowRawTaxonomy(e.target.checked)}
+                              className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5 cursor-pointer"
+                            />
+                            <span>Show raw extracted values (unmapped)</span>
+                          </label>
                           <button
                             onClick={handleDownloadTrendsJson}
                             className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"

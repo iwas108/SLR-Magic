@@ -121,6 +121,19 @@ export function useUmbrellanizer(
     setActiveJobId(jobId);
 
     try {
+      let targetDesc = '';
+      try {
+        const pRes = await fetch(`/api/projects/${projectId}`);
+        const pData = await pRes.json();
+        if (pData.success && pData.project?.llm_config) {
+          const pCfg = typeof pData.project.llm_config === 'string' ? JSON.parse(pData.project.llm_config) : pData.project.llm_config;
+          const rqDescs = pCfg.research_question_descriptions || {};
+          const match = key.match(/^rq\s*\d+[a-z]?/i);
+          const codeKey = match ? match[0].toUpperCase().replace(/\s+/g, '') : '';
+          targetDesc = rqDescs[codeKey] || rqDescs[key] || '';
+        }
+      } catch (e) {}
+
       const res = await fetch('/api/umbrellanizer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,6 +143,8 @@ export function useUmbrellanizer(
           templateId,
           rawTokens,
           targetVariableName,
+          targetResearchQuestion: targetVariableName,
+          targetResearchQuestionDescription: targetDesc,
           jobId
         })
       });

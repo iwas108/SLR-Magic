@@ -33,6 +33,7 @@ export default function UmbrellanizerWizard({
   const [promptsList, setPromptsList] = useState<any[]>([]);
   const [selectedPromptId, setSelectedPromptId] = useState('');
   const [targetVariableName, setTargetVariableName] = useState('');
+  const [targetVariableDescription, setTargetVariableDescription] = useState('');
 
   // Fetch prompts list inside the project scope
   useEffect(() => {
@@ -86,11 +87,27 @@ export default function UmbrellanizerWizard({
         if (data.success && data.project) {
           const rqSuffix = getMappedResearchQuestion(data.project.questions || '', selectedKey);
           setTargetVariableName(`${selectedKey}${rqSuffix}`);
+
+          let desc = '';
+          if (data.project.llm_config) {
+            try {
+              const pCfg = typeof data.project.llm_config === 'string' ? JSON.parse(data.project.llm_config) : data.project.llm_config;
+              const rqDescs = pCfg.research_question_descriptions || {};
+              const match = selectedKey.match(/^rq\s*\d+[a-z]?/i);
+              const codeKey = match ? match[0].toUpperCase().replace(/\s+/g, '') : '';
+              desc = rqDescs[codeKey] || rqDescs[selectedKey] || '';
+            } catch (e) {}
+          }
+          setTargetVariableDescription(desc);
         } else {
           setTargetVariableName(selectedKey);
+          setTargetVariableDescription('');
         }
       })
-      .catch(() => setTargetVariableName(selectedKey));
+      .catch(() => {
+        setTargetVariableName(selectedKey);
+        setTargetVariableDescription('');
+      });
   }, [selectedKey, projectId]);
 
   const uniqueTokens = getUniqueTokens(selectedKey);
@@ -257,10 +274,20 @@ export default function UmbrellanizerWizard({
               </div>
 
               <div className="bg-card border border-border rounded-lg p-3 space-y-2 text-[10px]">
-                <span className="font-bold uppercase tracking-wider text-muted-foreground block">Anchor Placeholder Embeds:</span>
-                <div className="space-y-1 text-foreground font-mono leading-relaxed">
-                  <div><strong>Variable Name:</strong> <span className="text-primary font-bold">{targetVariableName}</span></div>
-                  <div><strong>Unique Tokens List:</strong> <span className="text-primary font-bold">{JSON.stringify(rawTokensList)}</span></div>
+                <span className="font-bold uppercase tracking-wider text-muted-foreground block">Anchor Placeholder Embeds (Jinja2 Context Variables):</span>
+                <div className="space-y-1.5 text-foreground font-mono leading-relaxed">
+                  <div>
+                    <strong className="text-primary font-bold">{"{{ umbrellanizer_target_research_question }}"}:</strong>{' '}
+                    <span className="text-foreground">{targetVariableName || selectedKey}</span>
+                  </div>
+                  <div>
+                    <strong className="text-primary font-bold">{"{{ umbrellanizer_target_research_question_description }}"}:</strong>{' '}
+                    <span className="text-foreground italic">{targetVariableDescription || 'None mapped in Project Settings.'}</span>
+                  </div>
+                  <div>
+                    <strong className="text-primary font-bold">{"{{ umbrellanizer_raw_tokens_array }}"}:</strong>{' '}
+                    <span className="text-foreground">{JSON.stringify(rawTokensList)}</span>
+                  </div>
                 </div>
               </div>
 

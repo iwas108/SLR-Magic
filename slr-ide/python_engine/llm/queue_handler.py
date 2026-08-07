@@ -183,7 +183,7 @@ class LLMQueueHandler:
                 response = extract_structured_data(
                     self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, pdf_path, self.speed_mode, previous_interaction_id,
                     temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
-                    thinking_level=self.thinking_level
+                    schema_mapping=self.schema_mapping, thinking_level=self.thinking_level
                 )
             else:
                 raise ValueError(f"Unsupported task execution type: {self.task_type}")
@@ -269,6 +269,54 @@ class LLMQueueHandler:
                     ai_decision = "EXCLUDE"
                     ai_exclusion_code = ec_trigger if (ec_trigger and ec_trigger != "NONE") else None
 
+                def normalize_extracted_data_payload(ext_payload):
+                    """
+                    Future-proofing helper:
+                    Normalizes any extraction key's 'value' field if it is a comma-separated string
+                    or 'NOT_STATED' into a clean list of trimmed strings.
+                    """
+                    if not ext_payload:
+                        return ext_payload
+                    
+                    if isinstance(ext_payload, str):
+                        try:
+                            import json
+                            parsed = json.loads(ext_payload)
+                            normalized = normalize_extracted_data_payload(parsed)
+                            return json.dumps(normalized, ensure_ascii=False)
+                        except Exception:
+                            return ext_payload
+
+                    if isinstance(ext_payload, dict):
+                        target_dict = ext_payload.get("extracted_data") if "extracted_data" in ext_payload and isinstance(ext_payload["extracted_data"], dict) else ext_payload
+                        for k, v in list(target_dict.items()):
+                            if k.startswith("_") or k in ("logic_trace", "qa_scores"):
+                                continue
+                            if isinstance(v, dict) and "value" in v:
+                                val = v["value"]
+                                if isinstance(val, str):
+                                    s_val = val.strip()
+                                    if s_val.upper() == 'NOT_STATED':
+                                        v["value"] = ["NOT_STATED"]
+                                    elif ',' in s_val:
+                                        items = [item.strip() for item in s_val.split(',') if item.strip()]
+                                        v["value"] = items if items else ["NOT_STATED"]
+                                elif isinstance(val, list):
+                                    normalized_items = []
+                                    for item in val:
+                                        if isinstance(item, str):
+                                            s_item = item.strip()
+                                            if s_item.upper() == 'NOT_STATED':
+                                                normalized_items.append("NOT_STATED")
+                                            elif s_item:
+                                                normalized_items.append(s_item)
+                                        else:
+                                            normalized_items.append(str(item))
+                                    v["value"] = normalized_items if normalized_items else ["NOT_STATED"]
+                        return ext_payload
+
+                    return ext_payload
+
                 def to_json_str(val):
                     if not val:
                         return None
@@ -278,9 +326,19 @@ class LLMQueueHandler:
                     return json.dumps(val)
 
                 qa_scores_json = to_json_str(response.get("qa_scores"))
-                extracted_data_json = to_json_str(response.get("extracted_data"))
-                if self.task_type in ('miner', 'extraction') and not extracted_data_json:
-                    extracted_data_json = struct_out
+                raw_ext_data = response.get("extracted_data")
+                if self.task_type in ('miner', 'extraction') and not raw_ext_data and struct_out:
+                    try:
+                        import json
+                        parsed_so = json.loads(struct_out)
+                        raw_ext_data = parsed_so.get("extracted_data") or parsed_so
+                    except Exception:
+                        raw_ext_data = None
+
+                if raw_ext_data:
+                    raw_ext_data = normalize_extracted_data_payload(raw_ext_data)
+
+                extracted_data_json = to_json_str(raw_ext_data)
 
                 execute_write(
                     """
@@ -299,12 +357,20 @@ class LLMQueueHandler:
                 logger.info(f"AI screening decision for paper {paper_id} saved to papers table ai_* columns.")
 
                 if self.task_type in ('miner', 'extraction'):
-                    ext_data = response.get("extracted_data")
+                    from llm.fulltext import resolve_path
+                    ext_data = None
+                    if self.schema_mapping and self.schema_mapping.get("extracted_data"):
+                        ext_data = resolve_path(response.get("structured_output") or {}, self.schema_mapping.get("extracted_data"))
+                    if not ext_data:
+                        ext_data = response.get("extracted_data")
                     if not ext_data and struct_out:
                         try:
                             import json
                             parsed_struct = json.loads(struct_out)
-                            ext_data = parsed_struct.get("extracted_data") or parsed_struct
+                            if self.schema_mapping and self.schema_mapping.get("extracted_data"):
+                                ext_data = resolve_path(parsed_struct, self.schema_mapping.get("extracted_data"))
+                            if not ext_data:
+                                ext_data = parsed_struct.get("extracted_data") or parsed_struct
                         except:
                             pass
                     
@@ -400,27 +466,91 @@ class LLMQueueHandler:
         
         # Calculate initial included/excluded stats from audit log for resumed jobs
         try:
-            stats_rows = execute_read(
+            from llm.fulltext import resolve_path
+            from llm.client import safe_json_loads
+            
+            logs = execute_read(
                 """
-                SELECT json_extract(structured_output, '$.decision') as decision,
-                       json_extract(structured_output, '$.exclusion_trigger') as ec_trigger,
-                       COUNT(*) as count
+                SELECT structured_output
                 FROM llm_audit_log
                 WHERE job_id = ? AND status = 'SUCCESS'
-                GROUP BY decision, ec_trigger
                 """,
                 (self.job_id,)
             )
-            for row in stats_rows:
-                decision = (row["decision"] or "").upper()
-                count = row["count"]
-                if decision == "INCLUDE":
-                    self.included_papers += count
-                else:
-                    self.excluded_papers += count
-                    ec = row["ec_trigger"]
-                    if ec:
-                        self.exclusion_reasons[ec] = self.exclusion_reasons.get(ec, 0) + count
+            for row in logs:
+                struct_str = row.get("structured_output")
+                if not struct_str:
+                    continue
+                try:
+                    parsed = safe_json_loads(struct_str)
+                    if not isinstance(parsed, dict):
+                        continue
+
+                    if self.task_type in ('miner', 'extraction'):
+                        ext_val = None
+                        if self.schema_mapping and self.schema_mapping.get("extracted_data"):
+                            ext_val = resolve_path(parsed, self.schema_mapping.get("extracted_data"))
+                        if not ext_val:
+                            ext_val = parsed.get("extracted_data") or parsed
+                        if isinstance(ext_val, dict):
+                            def is_not_stated(val):
+                                if isinstance(val, str):
+                                    return val.strip().upper() == 'NOT_STATED'
+                                if isinstance(val, list):
+                                    return any(isinstance(item, str) and item.strip().upper() == 'NOT_STATED' for item in val)
+                                return False
+                            for key, field_obj in ext_val.items():
+                                val = field_obj.get("value") if isinstance(field_obj, dict) else field_obj
+                                if is_not_stated(val):
+                                    self.not_stated_metrics[key] = self.not_stated_metrics.get(key, 0) + 1
+                    else:
+                        decision = None
+                        exc_trigger = None
+                        if self.schema_mapping:
+                            decision = resolve_path(parsed, self.schema_mapping.get("decision"))
+                            exc_trigger = resolve_path(parsed, self.schema_mapping.get("exclusion_trigger"))
+
+                        if decision and not isinstance(decision, str):
+                            decision = str(decision)
+                        if decision and not (decision.upper().startswith("INCLUDE") or decision.upper().startswith("EXCLUDE")):
+                            decision = None
+
+                        _EC_ALIASES = ("exclusion_trigger", "exclusion_code", "primary_exclusion_criterion", "ec_trigger", "ec_code", "exclusion_criterion")
+                        if not decision:
+                            decision = parsed.get("decision")
+                            if decision and not (isinstance(decision, str) and (decision.upper().startswith("INCLUDE") or decision.upper().startswith("EXCLUDE"))):
+                                decision = None
+                        if not exc_trigger:
+                            for k in _EC_ALIASES:
+                                exc_trigger = parsed.get(k)
+                                if exc_trigger:
+                                    break
+
+                        if not decision or not exc_trigger:
+                            _SUBOBJ_KEYS = ["final_evaluation", "evaluation", "result", "output", "verdict"]
+                            candidates = [parsed.get(k) for k in _SUBOBJ_KEYS if isinstance(parsed.get(k), dict)] + [v for k, v in parsed.items() if isinstance(v, dict) and k not in _SUBOBJ_KEYS]
+                            for sub in candidates:
+                                if not decision:
+                                    sub_dec = sub.get("decision")
+                                    if sub_dec and isinstance(sub_dec, str) and (sub_dec.upper().startswith("INCLUDE") or sub_dec.upper().startswith("EXCLUDE")):
+                                        decision = sub_dec
+                                if not exc_trigger:
+                                    for k in _EC_ALIASES:
+                                        exc_trigger = sub.get(k)
+                                        if exc_trigger:
+                                            break
+                                if decision and exc_trigger:
+                                    break
+
+                        decision_str = (decision or "EXCLUDE").upper()
+                        if decision_str.startswith("INCLUDE"):
+                            self.included_papers += 1
+                        else:
+                            self.excluded_papers += 1
+                            if exc_trigger:
+                                self.exclusion_reasons[exc_trigger] = self.exclusion_reasons.get(exc_trigger, 0) + 1
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Failed to load initial stats from audit log: {e}")
         
