@@ -455,6 +455,8 @@ export default function DashboardPage() {
               setPipelineStatusFilter={papersHook.setPipelineStatusFilter}
               ecTriggerFilter={papersHook.ecTriggerFilter}
               setEcTriggerFilter={papersHook.setEcTriggerFilter}
+              poolFilter={papersHook.poolFilter}
+              setPoolFilter={papersHook.setPoolFilter}
               setShowImport={(show) => {
                 if (show) setActiveTab('paper-database-ingestion');
               }}

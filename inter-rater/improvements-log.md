@@ -4,6 +4,32 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#025] Array Format Preservation & Flexible UI Value Unrolling - 2026-08-07
+
+- **Native Array Format Preservation (`AutofillModal.jsx`)**:
+  - Enhanced `extractDataAndEvidence` to preserve native string arrays (`value: ["MQTT", "HTTP", "TCP/UDP"]`) in `Human_Extracted_Data` when autofilled from LLM Miner JSON outputs.
+- **Robust UI Form Display (`BlindedReviewForm.jsx`)**:
+  - Updated text input rendering logic to unroll array values into clean comma-separated strings (`Array.isArray(item.value) ? item.value.join(', ') : item.value`) for display, while preserving underlying array structures during export.
+- **Verification**: Verified `npm run build` completed successfully.
+
+## [#024] POOL_C Scientist & Miner Schema Normalizer - 2026-08-07
+
+- **Universal Schema Normalizer (`AutofillModal.jsx`)**:
+  - Upgraded `parseJSONToAppraisal` with universal value/score and evidence extraction helpers (`extractScoreAndEvidence`, `extractDataAndEvidence`).
+  - Added support for new POOL_C Scientist schema (`{ score: "1.0", exact_quote: "..." }`) and The Miner schema (`extracted_data` with array/string values, `locate_` keys in `logic_trace.extraction_mapping`).
+  - Integrated `logic_trace.appraisal_reasoning` (e.g. `qa1_aims_analysis`) and `logic_trace.extraction_mapping` (e.g. `locate_rq1a_constraint_def`) with RQ-prefix matching as fallback for missing quotes.
+  - Added array value normalization (`["MQTT", "HTTP"]` -> `"MQTT, HTTP"`) for human reviewer text fields.
+- **Blinded Review Form Calculation Resilience (`BlindedReviewForm.jsx`)**:
+  - Updated `qaCalculations` to extract score values from `item.score`, `item.value`, `item.val`, or primitive numbers, preventing NaN sums or false fatal flaws when loading new POOL_C payloads.
+- **Verification**: Verified `npm run build` completed successfully.
+
+## [#023] Fix Dynamic Form Card Rendering for logic_trace Metadata - 2026-08-07
+
+- **APPRAISAL_FIELDS Array Update**:
+  - Added `logic_trace`, `Human_QA_Scores`, and `Human_Extracted_Data` to `APPRAISAL_FIELDS` in `BlindedReviewForm.jsx`.
+  - Fixes issue where non-Pool C dynamic form renderer previously picked up saved `logic_trace` metadata keys and generated an unwanted interactive "Logic Trace *" input card on the review form.
+- **Verification**: Verified Vite build completed cleanly.
+
 ## [#022] JSON Autofill Validator Paper Metadata & Copy Actions - 2026-08-07
 
 - **Copiable Paper ID Field**:

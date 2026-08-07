@@ -1,3 +1,25 @@
+## #309 - Inter-Rater Pool C Array Format Support & Export Losslessness (2026-08-07)
+- **Goal**: Ensure exported inter-rater POOL_C files preserve native string arrays (`value: ["MQTT", "HTTP", "TCP/UDP"]`) for multi-value keys while rendering smoothly in human review form inputs.
+- **Changes**:
+  - Modified [AutofillModal.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/src/components/features/modals/AutofillModal.jsx): Updated `extractDataAndEvidence` to preserve native array types in `Human_Extracted_Data`.
+  - Modified [BlindedReviewForm.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/src/components/BlindedReviewForm.jsx): Added array unrolling helper for text input `value` prop (`Array.isArray(item.value) ? item.value.join(', ') : item.value`).
+- **Verification**: Verified clean Vite build (`npm run build`) in `inter-rater`.
+
+## #308 - Universal POOL_C Schema Normalization in Adjudication Engine (2026-08-07)
+- **Goal**: Upgrade adjudication calculation engine (`adjudication-calculations.ts`) and Google Apps Script (`InterRaterController.js`) to parse `{ score: "1.0", exact_quote: "..." }` object properties alongside legacy `{ value: 1.0, evidence: "..." }` and primitive score formats.
+- **Changes**:
+  - Modified [adjudication-calculations.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/inter-rater/adjudication-calculations.ts): Updated `calculatePoolCDecision` and `getScoreIndex` with `extractNumericVal` to inspect `score`, `value`, `val`, `numeric_score`, or primitive numbers, preventing 0-score false fatal flaws and NaN Cohen's Kappa indices.
+  - Modified [InterRaterController.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/app-script/InterRaterController.js): Updated `val` and `quote` object extraction to support `r.score` / `r.val` and `r.exact_quote` / `r.quote` / `r.text`.
+- **Verification**: Verified clean TypeScript compilation (`npx tsc --noEmit`) with 0 errors.
+
+## #307 - Added Pool Assignment Filter & Table Row Badges in Paper Database Raw (2026-08-07)
+- **Goal**: Add a Pool Assignment filter (`All Pools`, `Pool A`, `Pool B`, `Pool C`, `Unassigned`) to the Paper Database Raw view and display visual pool badges on paper table rows.
+- **Changes**:
+  - Modified [usePapers.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/usePapers.ts): Added `poolFilter` state (`useState('')`), passed `calibrationPool` search param to `/api/papers` GET request, updated dependency arrays, and returned `poolFilter` / `setPoolFilter`.
+  - Modified [PaperDatabaseView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/PaperDatabaseView.tsx): Added `poolFilter` and `setPoolFilter` props to `PaperDatabaseViewProps`, added Pool Assignment dropdown inside Advanced Filters popover, updated filter count indicator, included `calibrationPool: poolFilter` in `handleToggleSelectAll`, and rendered styled Pool badges (`Pool A`, `Pool B`, `Pool C`) in table rows next to the Stage column.
+  - Modified [page.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/page.tsx): Passed `poolFilter` and `setPoolFilter` from `papersHook` to `PaperDatabaseView`.
+- **Verification**: Verified clean TypeScript compilation (`npx tsc --noEmit`) with 0 errors.
+
 ## #306 - Improved QA Parsing Logic & Robustness in Final Cohort Table (2026-08-07)
 - **Goal**: Resolve `[object Object]` rendering issue in `QAx_y` columns across Final Cohort tables and exports when encountering new JSON schema formats storing QA entries as objects (`{ score: "1.0", exact_quote: "..." }`).
 - **Changes**:
@@ -1192,6 +1214,7 @@
 | #219 | 2026-08-05 | Bug Fix | Fixed issue where "All Project Papers (Ignore Status)" returned 0 papers when targeting unscreened papers. Updated `GlobalLLMSettingsView.tsx` (`fetchCount` and `handleAction`) to set `effectiveDecision = 'ALL'` when `paperSelectionMode === 'all_project'`, overriding default stage decision filters (`INCLUDE`) to query all project papers regardless of decision or status. | Fix All Project Papers (Ignore Status) Decision Filter Override |
 | #220 | 2026-08-05 | Bug Fix | Fixed SQL decision matching bug where decision variants (such as `INCLUDE (S2)`) were falsely rejected by exact string matching in `/api/llm/count/route.ts` and `python_engine/llm/main.py`. Updated decision CASE expressions to evaluate `LIKE 'INCLUDE%'` as `INCLUDE`, restoring correct matching counts for papers that passed prior screening stages (e.g. 19 papers passing Gatekeeper for Scientist stage execution). | Fix SQL Decision Matching for INCLUDE% Variants |
 | #221 | 2026-08-05 | Root Cause Fix | Resolved root cause of Scientist telemetry misclassification where `schema_mappings.scientist.decision` was assigned to `final_evaluation.exclusion_code` (`NONE`). Added missing `exclusion_trigger` key mapper (`Exclusion Code Key Path`) for Scientist in `GlobalLLMSettingsView.tsx` with standard fallbacks (`final_evaluation.decision`, `final_evaluation.exclusion_code`, `final_evaluation.reasoning`, `qa_scores`). Added decision string validity guard (`decision.upper().startswith("INCLUDE") or decision.upper().startswith("EXCLUDE")`) in `fulltext.py`, `queue_handler.py`, and `/api/llm/jobs/active/route.ts` to prevent exclusion codes like `NONE` from being parsed as decisions. Repaired project `llm_config` in SQLite database. | Scientist Telemetry Key Misalignment & Decision Validation Guard |
+| #222 | 2026-08-07 | Bug Fix / Reliability | Fixed Database Auto-Backup execution in `slr-ide` (`backup-service.ts`). Added `hasChanged` database change detection check (`total_changes()` and `PRAGMA data_version`) to `'interval'` trigger mode so periodic auto-backups fire every `BACKUP_INTERVAL_MINS` only when new database writes have occurred (matching UI description). Added explicit `child.on('error')` handling in `runRcloneBackup()` to prevent `spawn` process errors from permanently locking `isBackupRunning = true`. Updated database configuration in `slr.db` to `BACKUP_TRIGGER = 'interval'`, `BACKUP_INTERVAL_MINS = '10'`, and `BACKUP_AUTO_ENABLED = 'true'`. Verified TypeScript build stability cleanly (`npx tsc --noEmit`). | Fix Database Auto-Backup Interval Change Check & Spawn Error Deadlock |
 
 
 

@@ -32,7 +32,7 @@ export function startBackupScheduler() {
   // Initialize in-memory state on first start
   if (global.lastBackupTime === undefined) {
     const persisted = getConfig('LAST_BACKUP_TIMESTAMP', '');
-    global.lastBackupTime = persisted ? parseInt(persisted, 10) : Date.now();
+    global.lastBackupTime = persisted ? parseInt(persisted, 10) : 0;
   }
 
   if (global.lastCheckedChanges === undefined) {
@@ -67,34 +67,32 @@ export function startBackupScheduler() {
       const triggerType = getConfig('BACKUP_TRIGGER', 'interval');
       const now = Date.now();
 
+      const currentChanges = getTotalChanges();
+      let currentDataVersion = 0;
+      try {
+        const row = db.prepare('PRAGMA data_version').get() as { data_version: number } | undefined;
+        currentDataVersion = row ? row.data_version : 0;
+      } catch (e) {}
+
+      const hasChanged = 
+        currentChanges > (global.lastCheckedChanges || 0) || 
+        currentDataVersion !== (global.lastCheckedDataVersion || 0);
+
       if (triggerType === 'interval') {
         const intervalMins = Math.max(1, parseInt(getConfig('BACKUP_INTERVAL_MINS', '60'), 10));
         const intervalMs = intervalMins * 60 * 1000;
 
-        if (now - (global.lastBackupTime || 0) >= intervalMs) {
-          console.log(`[Backup Service] Triggered by interval (${intervalMins} mins). Last backup: ${new Date(global.lastBackupTime || 0).toLocaleTimeString()}`);
+        if (hasChanged && now - (global.lastBackupTime || 0) >= intervalMs) {
+          console.log(`[Backup Service] Triggered by interval (${intervalMins} mins) with detected DB changes. Last backup: ${global.lastBackupTime ? new Date(global.lastBackupTime).toLocaleTimeString() : 'Never'}`);
           await runRcloneBackup(destination);
         }
       } else if (triggerType === 'change') {
-        const currentChanges = getTotalChanges();
-        let currentDataVersion = 0;
-        try {
-          const row = db.prepare('PRAGMA data_version').get() as { data_version: number } | undefined;
-          currentDataVersion = row ? row.data_version : 0;
-        } catch (e) {}
-
-        const hasChanged = 
-          currentChanges > (global.lastCheckedChanges || 0) || 
-          currentDataVersion !== (global.lastCheckedDataVersion || 0);
-
         if (hasChanged) {
           // Database changed! Check minimum spacing constraint
           const minSpacingMins = Math.max(1, parseInt(getConfig('BACKUP_CHANGE_MIN_SPACING_MINS', '1'), 10));
           const minSpacingMs = minSpacingMins * 60 * 1000;
           if (now - (global.lastBackupTime || 0) >= minSpacingMs) {
-            console.log(`[Backup Service] Triggered by database changes. Last backup: ${new Date(global.lastBackupTime || 0).toLocaleTimeString()}`);
-            global.lastCheckedChanges = currentChanges;
-            global.lastCheckedDataVersion = currentDataVersion;
+            console.log(`[Backup Service] Triggered by database changes. Last backup: ${global.lastBackupTime ? new Date(global.lastBackupTime).toLocaleTimeString() : 'Never'}`);
             await runRcloneBackup(destination);
           }
         }
@@ -188,6 +186,11 @@ export async function runRcloneBackup(destination: string): Promise<boolean> {
           
           child.stderr?.on('data', (data) => {
             console.warn(`[Backup Rclone stderr]: ${data.toString().trim()}`);
+          });
+
+          child.on('error', (err) => {
+            console.error(`[Backup Service] Failed to spawn rclone process for ${targetDest}:`, err);
+            resolve(1);
           });
 
           child.on('close', resolve);

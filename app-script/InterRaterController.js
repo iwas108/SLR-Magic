@@ -1,4 +1,4 @@
-﻿/**
+/**
  * InterRaterController.js
  * Handles the logic for Blinded Inter-Rater Review (Exporting, Importing, Scoring)
  * rewritten for Calibration Pools (CAL_Pool_A, CAL_Pool_B, CAL_Pool_C) and QC_Audit_Batch.
@@ -441,8 +441,8 @@ const InterRaterController = (function() {
     else if (paper.responses && paper.responses[key] !== undefined) {
       const r = paper.responses[key];
       if (typeof r === 'object' && r !== null) {
-        val = r.value !== undefined ? r.value : "";
-        quote = r.evidence || r.quote || "";
+        val = r.value !== undefined ? r.value : (r.score !== undefined ? r.score : (r.val !== undefined ? r.val : ""));
+        quote = r.exact_quote || r.quote || r.evidence || r.text || "";
       } else {
         val = r;
       }
@@ -450,8 +450,8 @@ const InterRaterController = (function() {
     else if (paper.qa_scores && paper.qa_scores[key] !== undefined) {
       const r = paper.qa_scores[key];
       if (typeof r === 'object' && r !== null) {
-        val = r.value !== undefined ? r.value : "";
-        quote = r.evidence || r.quote || "";
+        val = r.value !== undefined ? r.value : (r.score !== undefined ? r.score : (r.val !== undefined ? r.val : ""));
+        quote = r.exact_quote || r.quote || r.evidence || r.text || "";
       } else {
         val = r;
       }
@@ -459,8 +459,8 @@ const InterRaterController = (function() {
     else if (paper.extracted_data && paper.extracted_data[key] !== undefined) {
       const r = paper.extracted_data[key];
       if (typeof r === 'object' && r !== null) {
-        val = r.value !== undefined ? r.value : "";
-        quote = r.evidence || r.quote || "";
+        val = r.value !== undefined ? r.value : (r.score !== undefined ? r.score : (r.val !== undefined ? r.val : ""));
+        quote = r.exact_quote || r.quote || r.evidence || r.text || "";
       } else {
         val = r;
       }

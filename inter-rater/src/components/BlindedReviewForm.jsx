@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 
 const APPRAISAL_FIELDS = [
   'Reviewer_Decision', 'Reviewer_Reasoning', 'Reviewer_Confidence', 'Reviewer_EC_Code',
-  'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', 'Reviewer_Name'
+  'Human_Decision', 'Human_EC_Trigger', 'Human_Rationale', 'Reviewer_Name',
+  'Human_QA_Scores', 'Human_Extracted_Data', 'logic_trace', 'logicTrace',
+  '_logic_trace', '_scientist_logic_trace', 'qa_scores', 'qaScores',
+  'extracted_data', 'extractedData'
 ];
 
 // Helper to parse QA definitions into blocks
@@ -140,13 +143,16 @@ const BlindedReviewForm = ({
       totalQuestions = qaRules.length;
       qaRules.forEach(rule => {
         const item = qaScores[rule.code];
-        if (item && item.value !== null && item.value !== undefined && item.value !== '') {
-          const val = Number(item.value);
-          sum += val;
-          completedCount++;
-          if (val === 0.0 && fatalCodes.includes(rule.code)) {
-            fatalFlaw = true;
-            fatalRulesTriggered.push(rule.code);
+        const rawVal = item ? (item.value ?? item.score ?? item.val ?? (typeof item === 'object' ? null : item)) : null;
+        if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
+          const val = Number(rawVal);
+          if (!isNaN(val)) {
+            sum += val;
+            completedCount++;
+            if (val === 0.0 && fatalCodes.includes(rule.code)) {
+              fatalFlaw = true;
+              fatalRulesTriggered.push(rule.code);
+            }
           }
         }
       });
@@ -156,15 +162,18 @@ const BlindedReviewForm = ({
       totalQuestions = qaKeys.length;
       qaKeys.forEach(key => {
         const item = currentRow[key];
-        if (item && item.value !== null && item.value !== undefined && item.value !== '') {
-          const val = Number(item.value);
-          sum += val;
-          completedCount++;
-          const normalizedKey = key.toUpperCase().replace('_', '-'); // e.g. "QA_1" -> "QA-1"
-          const isFatal = fatalCodes.some(code => normalizedKey === code || normalizedKey === code.replace('-', '') || normalizedKey.startsWith(code));
-          if (val === 0.0 && isFatal) {
-            fatalFlaw = true;
-            fatalRulesTriggered.push(key.toUpperCase().replace('_', ' '));
+        const rawVal = item ? (item.value ?? item.score ?? item.val ?? (typeof item === 'object' ? null : item)) : null;
+        if (rawVal !== null && rawVal !== undefined && rawVal !== '') {
+          const val = Number(rawVal);
+          if (!isNaN(val)) {
+            sum += val;
+            completedCount++;
+            const normalizedKey = key.toUpperCase().replace('_', '-'); // e.g. "QA_1" -> "QA-1"
+            const isFatal = fatalCodes.some(code => normalizedKey === code || normalizedKey === code.replace('-', '') || normalizedKey.startsWith(code));
+            if (val === 0.0 && isFatal) {
+              fatalFlaw = true;
+              fatalRulesTriggered.push(key.toUpperCase().replace('_', ' '));
+            }
           }
         }
       });
@@ -564,7 +573,7 @@ const BlindedReviewForm = ({
                             id={`val-${rule.json_key}`}
                             placeholder="Enter extracted parameter..."
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-xs transition-all text-gray-800 dark:text-gray-200"
-                            value={item.value || ''}
+                            value={Array.isArray(item.value) ? item.value.join(', ') : (item.value || '')}
                             onChange={(e) => handleNestedDynamicChange('Human_Extracted_Data', rule.json_key, 'value', e.target.value)}
                             required
                           />

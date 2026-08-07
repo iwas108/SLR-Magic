@@ -10,6 +10,84 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
   const updates = {};
 
   const isPoolC = session?.poolType === 'CAL_Pool_C' || session?.poolType === 'pool_c' || session?.poolType === 'QC_Batch';
+  const logicTraceObj = data.logic_trace || data.logicTrace || {};
+  const appraisalReasoning = logicTraceObj.appraisal_reasoning || logicTraceObj.appraisalReasoning || {};
+
+  // Universal helper to resolve numeric score & evidence quote across object & primitive formats
+  const extractScoreAndEvidence = (scoreData, fallbackEvidence = '') => {
+    if (scoreData === undefined || scoreData === null) return { value: null, evidence: '' };
+
+    let numVal = null;
+    let evidenceVal = '';
+
+    if (typeof scoreData === 'object' && !Array.isArray(scoreData)) {
+      if (scoreData.score !== undefined && scoreData.score !== null) {
+        numVal = Number(scoreData.score);
+      } else if (scoreData.value !== undefined && scoreData.value !== null) {
+        numVal = Number(scoreData.value);
+      } else if (scoreData.val !== undefined && scoreData.val !== null) {
+        numVal = Number(scoreData.val);
+      } else if (scoreData.numeric_score !== undefined && scoreData.numeric_score !== null) {
+        numVal = Number(scoreData.numeric_score);
+      } else {
+        const entries = Object.entries(scoreData);
+        const nonMeta = entries.find(([k, v]) => {
+          const kLower = k.toLowerCase();
+          const isMeta = ['exact_quote', 'quote', 'evidence', 'text', 'snippet', 'reasoning', 'justification', 'analysis', 'rationale', 'explanation', 'logic_trace'].includes(kLower);
+          return !isMeta && (typeof v === 'number' || typeof v === 'boolean' || (typeof v === 'string' && v.length < 50));
+        });
+        if (nonMeta) numVal = Number(nonMeta[1]);
+      }
+
+      if (scoreData.exact_quote) evidenceVal = String(scoreData.exact_quote);
+      else if (scoreData.quote) evidenceVal = String(scoreData.quote);
+      else if (scoreData.evidence) evidenceVal = String(scoreData.evidence);
+      else if (scoreData.text) evidenceVal = String(scoreData.text);
+      else if (scoreData.inner_gate_reasoning) evidenceVal = String(scoreData.inner_gate_reasoning);
+      else if (scoreData.innerGateReasoning) evidenceVal = String(scoreData.innerGateReasoning);
+      else if (fallbackEvidence) evidenceVal = String(fallbackEvidence);
+    } else {
+      numVal = Number(scoreData);
+      if (fallbackEvidence) evidenceVal = String(fallbackEvidence);
+    }
+
+    if (isNaN(numVal)) numVal = null;
+
+    return { value: numVal, evidence: evidenceVal };
+  };
+
+  // Universal helper to resolve extracted data value & evidence quote across object & primitive formats
+  const extractDataAndEvidence = (extItem, fallbackEvidence = '') => {
+    if (extItem === undefined || extItem === null) return { value: '', evidence: '' };
+
+    let rawVal = '';
+    let evidenceVal = '';
+
+    if (typeof extItem === 'object' && !Array.isArray(extItem)) {
+      rawVal = extItem.value ?? extItem.val ?? extItem.data ?? extItem.extracted_value ?? '';
+
+      if (extItem.exact_quote) evidenceVal = String(extItem.exact_quote);
+      else if (extItem.quote) evidenceVal = String(extItem.quote);
+      else if (extItem.evidence) evidenceVal = String(extItem.evidence);
+      else if (extItem.text) evidenceVal = String(extItem.text);
+      else if (fallbackEvidence) evidenceVal = String(fallbackEvidence);
+    } else if (Array.isArray(extItem)) {
+      rawVal = extItem;
+      if (fallbackEvidence) evidenceVal = String(fallbackEvidence);
+    } else {
+      rawVal = String(extItem);
+      if (fallbackEvidence) evidenceVal = String(fallbackEvidence);
+    }
+
+    let val = rawVal;
+    if (Array.isArray(rawVal)) {
+      val = rawVal.map(item => String(item).trim()).filter(Boolean);
+    } else if (rawVal !== undefined && rawVal !== null) {
+      val = String(rawVal);
+    }
+
+    return { value: val, evidence: evidenceVal };
+  };
 
   // 1. Parse decision, exclusion code, reasoning
   let decision = null;
@@ -54,7 +132,7 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
   }
 
   // 2. Parse QA Scores
-  const qaScoresSource = data.qa_scores || data.qaScores || data.logic_trace || data;
+  const qaScoresSource = data.qa_scores || data.qaScores || logicTraceObj || data;
   if (qaScoresSource && typeof qaScoresSource === 'object') {
     if (isPoolC) {
       const qaRules = session?.metadata?.qa_rules || session?.metadata?.qaRules || [];
@@ -71,9 +149,10 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
           rule.code.replace('-', '_').toLowerCase(),
         ];
 
+        let num = '';
         const match = rule.code.match(/qa[-_]?(\d+)/i);
         if (match) {
-          const num = match[1];
+          num = match[1];
           Object.keys(qaScoresSource).forEach(sourceKey => {
             const nSourceKey = sourceKey.toLowerCase();
             if (
@@ -93,17 +172,20 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
         if (foundKey) {
           hasQAScores = true;
           const scoreData = qaScoresSource[foundKey];
-          if (scoreData && typeof scoreData === 'object') {
-            updatedQAScores[rule.code] = {
-              value: scoreData.value !== undefined && scoreData.value !== null ? Number(scoreData.value) : null,
-              evidence: scoreData.evidence || scoreData.inner_gate_reasoning || scoreData.innerGateReasoning || ''
-            };
-          } else if (scoreData !== undefined && scoreData !== null) {
-            updatedQAScores[rule.code] = {
-              value: Number(scoreData),
-              evidence: ''
-            };
-          }
+          
+          // Look up fallback reasoning in logic_trace.appraisal_reasoning
+          const fallbackReasoning = 
+            (foundKey && appraisalReasoning[foundKey + '_analysis']) ||
+            (foundKey && appraisalReasoning[foundKey]) ||
+            (num && appraisalReasoning[`qa${num}_analysis`]) ||
+            (num && appraisalReasoning[`qa${num}`]) ||
+            '';
+
+          const resolved = extractScoreAndEvidence(scoreData, fallbackReasoning);
+          updatedQAScores[rule.code] = {
+            value: resolved.value,
+            evidence: resolved.evidence
+          };
         }
       });
 
@@ -118,8 +200,9 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
         if (key.toLowerCase().startsWith('qa')) {
           const match = key.match(/qa[-_]?(\d+)/i);
           const possibleKeys = [key, key.toLowerCase()];
+          let num = '';
           if (match) {
-            const num = match[1];
+            num = match[1];
             Object.keys(qaScoresSource).forEach(sourceKey => {
               const nSourceKey = sourceKey.toLowerCase();
               if (
@@ -136,17 +219,15 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
           const foundKey = possibleKeys.find(k => qaScoresSource[k] !== undefined);
           if (foundKey) {
             const scoreData = qaScoresSource[foundKey];
-            if (scoreData && typeof scoreData === 'object') {
-              updates[key] = {
-                value: scoreData.value !== undefined && scoreData.value !== null ? String(scoreData.value) : '',
-                evidence: scoreData.evidence || ''
-              };
-            } else if (scoreData !== undefined && scoreData !== null) {
-              updates[key] = {
-                value: String(scoreData),
-                evidence: ''
-              };
-            }
+            const fallbackReasoning = 
+              (foundKey && appraisalReasoning[foundKey + '_analysis']) ||
+              (num && appraisalReasoning[`qa${num}_analysis`]) ||
+              '';
+            const resolved = extractScoreAndEvidence(scoreData, fallbackReasoning);
+            updates[key] = {
+              value: resolved.value !== null ? String(resolved.value) : '',
+              evidence: resolved.evidence
+            };
           }
         }
       });
@@ -154,7 +235,7 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
   }
 
   // 3. Parse Extracted Data
-  const extDataSource = data.extracted_data || data.extractedData || data.logic_trace || data;
+  const extDataSource = data.extracted_data || data.extractedData || logicTraceObj || data;
   if (extDataSource && typeof extDataSource === 'object') {
     if (isPoolC) {
       const extRules = session?.metadata?.extraction_rules || session?.metadata?.extractionRules || [];
@@ -169,36 +250,48 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
           rule.json_key.replace(/_/g, '-'),
         ];
 
-        const extMapping = data.logic_trace?.extraction_mapping || data.logicTrace?.extractionMapping;
+        let rqPrefix = '';
+        const rqMatch = rule.json_key.match(/^(rq\d+[a-z]?)/i);
+        if (rqMatch) {
+          rqPrefix = rqMatch[1].toLowerCase();
+          Object.keys(extDataSource).forEach(sourceKey => {
+            const nSourceKey = sourceKey.toLowerCase();
+            if (nSourceKey.startsWith(`${rqPrefix}_`) || nSourceKey === rqPrefix) {
+              possibleKeys.push(sourceKey);
+            }
+          });
+        }
+
+        let traceEvidence = '';
+        const extMapping = logicTraceObj.extraction_mapping || logicTraceObj.extractionMapping;
         if (extMapping) {
           const expectedTraceKey = `locate_${rule.json_key}`;
           const possibleTraceKeys = [expectedTraceKey, expectedTraceKey.toLowerCase(), expectedTraceKey.replace(/_/g, '')];
+          if (rqPrefix) {
+            Object.keys(extMapping).forEach(tKey => {
+              const nTKey = tKey.toLowerCase();
+              if (nTKey.startsWith(`locate_${rqPrefix}_`) || nTKey === `locate_${rqPrefix}`) {
+                possibleTraceKeys.push(tKey);
+              }
+            });
+          }
           const foundTraceKey = possibleTraceKeys.find(k => extMapping[k] !== undefined);
           if (foundTraceKey) {
-            hasExtData = true;
-            const traceText = extMapping[foundTraceKey];
-            updatedExtData[rule.json_key] = {
-              value: updatedExtData[rule.json_key]?.value || '',
-              evidence: traceText || ''
-            };
+            traceEvidence = extMapping[foundTraceKey] || '';
           }
         }
 
         const foundKey = possibleKeys.find(k => extDataSource[k] !== undefined);
-        if (foundKey) {
+        if (foundKey || traceEvidence) {
           hasExtData = true;
-          const extItem = extDataSource[foundKey];
-          if (extItem && typeof extItem === 'object') {
-            updatedExtData[rule.json_key] = {
-              value: extItem.value !== undefined && extItem.value !== null ? String(extItem.value) : (updatedExtData[rule.json_key]?.value || ''),
-              evidence: extItem.evidence || (updatedExtData[rule.json_key]?.evidence || '')
-            };
-          } else if (extItem !== undefined && extItem !== null) {
-            updatedExtData[rule.json_key] = {
-              value: String(extItem),
-              evidence: updatedExtData[rule.json_key]?.evidence || ''
-            };
-          }
+          const extItem = foundKey ? extDataSource[foundKey] : null;
+          const fallbackEv = traceEvidence || updatedExtData[rule.json_key]?.evidence || '';
+          const resolved = extractDataAndEvidence(extItem, fallbackEv);
+          
+          updatedExtData[rule.json_key] = {
+            value: resolved.value || updatedExtData[rule.json_key]?.value || '',
+            evidence: resolved.evidence || updatedExtData[rule.json_key]?.evidence || ''
+          };
         }
       });
 
@@ -219,17 +312,11 @@ export const parseJSONToAppraisal = (jsonText, session, currentAppraisal = {}) =
         const foundKey = possibleKeys.find(k => extDataSource[k] !== undefined);
         if (foundKey) {
           const extItem = extDataSource[foundKey];
-          if (extItem && typeof extItem === 'object') {
-            updates[key] = {
-              value: extItem.value !== undefined && extItem.value !== null ? String(extItem.value) : '',
-              evidence: extItem.evidence || ''
-            };
-          } else if (extItem !== undefined && extItem !== null) {
-            updates[key] = {
-              value: String(extItem),
-              evidence: ''
-            };
-          }
+          const resolved = extractDataAndEvidence(extItem);
+          updates[key] = {
+            value: resolved.value,
+            evidence: resolved.evidence
+          };
         }
       });
     }

@@ -150,7 +150,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | :--- | :--- | :--- |
 | `hooks/useAppSync.ts` | Custom Hook | Manages global `BroadcastChannel` synchronization subscriptions using the Mutable Ref Pattern (`useRef`) to prevent stale closures. |
 | `hooks/useIngestion.ts` | Custom Hook | Manages the multi-step CSV ingestion workflow, file parsing buffers, CSV source database selection, dynamic column mapping state, and import transactions. |
-| `hooks/usePapers.ts` | Custom Hook | Encapsulates paper database queries, server-side pagination (LIMIT/OFFSET), column sorting, search filtering, and CRUD operations. |
+| `hooks/usePapers.ts` | Custom Hook | Encapsulates paper database queries, calibration pool filtering, server-side pagination (LIMIT/OFFSET), column sorting, search filtering, and CRUD operations. |
 | `hooks/useProjectForm.ts` | Custom Hook | Handles form state, input validation, and submission logic for creating and updating literature review projects. |
 | `hooks/useProjects.ts` | Custom Hook | Manages project listing retrieval, active project switching, and cloud provider (Google Drive / OneDrive) configuration state. |
 | `hooks/usePipeline.ts` | Custom Hook | Manages sequential PDF acquisition/OCR batch pipeline state, Server-Sent Events logging, and cancel controllers. |
@@ -172,7 +172,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/IngestionHubView.tsx` | View Component | Primary view interface for importing new literature databases, configuring CSV source database origins, reviewing CSV structures, and launching column mapping workflows. |
 | `components/features/IngestionPanel.tsx` | View Component | Interactive sub-panel handling file drag-and-drop, initial CSV parsing, and preview rendering during ingestion. |
 | `components/features/LLMConfigView.tsx` | View Component | View interface for configuring project-scoped LLM budget spend limits. |
-| `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering, searching, and managing imported literature review paper records, featuring bulk override and pipeline stage operations. |
+| `components/features/PaperDatabaseView.tsx` | View Component | Central database view for exploring, filtering (including calibration pool assignment), searching, and managing imported literature review paper records, featuring pool badges, bulk override, and pipeline stage operations. |
 | `components/features/PipelineExecutionView.tsx`| View Component | Interface for launching, monitoring, and controlling automated PDF acquisition, OCR indexing, and cloud sync batch pipelines. |
 | `components/features/PreCalibrationView.tsx` | View Component | View interface for managing pre-calibration workflows, tagging specific screening cohorts, cohort tag filtering, and analyzing screening consistency. |
 | `components/features/InsightExportView.tsx` | View Component | View interface hosting granular accounting reports, scientific rigor comparisons, final dataset cohort lists, and FAIR-compliant cloud exporting options. |

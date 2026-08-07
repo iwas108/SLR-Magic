@@ -16,6 +16,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   const [pipelineStageFilter, setPipelineStageFilter] = useState('');
   const [pipelineStatusFilter, setPipelineStatusFilter] = useState('');
   const [ecTriggerFilter, setEcTriggerFilter] = useState('');
+  const [poolFilter, setPoolFilter] = useState('');
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -66,6 +67,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
       if (pipelineStageFilter) params.append('pipelineStage', pipelineStageFilter);
       if (pipelineStatusFilter) params.append('pipelineStatus', pipelineStatusFilter);
       if (ecTriggerFilter) params.append('ecTrigger', ecTriggerFilter);
+      if (poolFilter) params.append('calibrationPool', poolFilter);
       
       params.append('sortBy', sortBy);
       params.append('sortOrder', sortOrder);
@@ -87,7 +89,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } finally {
       setLoadingPapers(false);
     }
-  }, [page, limit, sortBy, sortOrder, searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter, showToast, loadDuplicatesCount]);
+  }, [page, limit, sortBy, sortOrder, searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter, poolFilter, showToast, loadDuplicatesCount]);
 
   // Load papers on mount and when filters change
   useEffect(() => {
@@ -97,12 +99,12 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   // Clear selectedPaperIds when filters or search change
   useEffect(() => {
     setSelectedPaperIds([]);
-  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter]);
+  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter, poolFilter]);
 
   // Reset page to 1 when filters or search terms change
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter]);
+  }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter, poolFilter]);
 
   const handleSort = (field: string) => {
     if (sortBy === field) {
@@ -293,6 +295,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     pipelineStageFilter, setPipelineStageFilter,
     pipelineStatusFilter, setPipelineStatusFilter,
     ecTriggerFilter, setEcTriggerFilter,
+    poolFilter, setPoolFilter,
     page, setPage,
     limit, setLimit,
     totalPapers,

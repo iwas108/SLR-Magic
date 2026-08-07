@@ -11,13 +11,24 @@ interface QaRule {
 /**
  * Helper function to calculate Pool C dynamic decisions based on QA scores and project rules.
  */
-export function calculatePoolCDecision(qaScores: Record<string, { value: unknown }>, qaRules: QaRule[]) {
+export function calculatePoolCDecision(qaScores: Record<string, any>, qaRules: QaRule[]) {
   let hasFatalFlaw = false;
   let totalScore = 0;
+
+  const extractNumericVal = (item: any): number => {
+    if (item === undefined || item === null) return 0;
+    if (typeof item === 'object') {
+      const raw = item.score ?? item.value ?? item.val ?? item.numeric_score ?? 0;
+      const parsed = parseFloat(String(raw));
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    const parsed = parseFloat(String(item));
+    return isNaN(parsed) ? 0 : parsed;
+  };
   
   const ruleKeys = Object.keys(qaScores);
   for (const code of ruleKeys) {
-    const scoreVal = parseFloat(String(qaScores[code]?.value || 0));
+    const scoreVal = extractNumericVal(qaScores[code]);
     totalScore += scoreVal;
     
     // Check if this rule is flagged as a fatal flaw
@@ -36,7 +47,7 @@ export function calculatePoolCDecision(qaScores: Record<string, { value: unknown
   if (decision === 'Exclude') {
     if (hasFatalFlaw) {
       const failedCodes = ruleKeys.filter(code => {
-        const scoreVal = parseFloat(String(qaScores[code]?.value || 0));
+        const scoreVal = extractNumericVal(qaScores[code]);
         const ruleDef = qaRules.find(r => r.code.toLowerCase() === code.toLowerCase());
         const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].includes(code.toLowerCase());
         return isFatal && scoreVal === 0;
@@ -60,7 +71,12 @@ export function calculatePoolCDecision(qaScores: Record<string, { value: unknown
  * Get index for 3x3 Confusion Matrix for QA scores: [0.0, 0.5, 1.0]
  */
 export function getScoreIndex(val: unknown): number {
-  const num = parseFloat(String(val));
+  let numVal: any = val;
+  if (val !== null && val !== undefined && typeof val === 'object') {
+    const obj = val as any;
+    numVal = obj.score ?? obj.value ?? obj.val ?? obj.numeric_score ?? 0;
+  }
+  const num = parseFloat(String(numVal));
   if (num === 0.5) return 1;
   if (num === 1.0) return 2;
   return 0;

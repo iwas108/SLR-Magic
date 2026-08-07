@@ -28,6 +28,8 @@ interface PaperDatabaseViewProps {
   setPipelineStatusFilter: (v: string) => void;
   ecTriggerFilter: string;
   setEcTriggerFilter: (v: string) => void;
+  poolFilter?: string;
+  setPoolFilter?: (v: string) => void;
   setShowImport: (show: boolean) => void;
   setDeleteAllConfirm: React.Dispatch<React.SetStateAction<boolean>>;
   cloudName: string;
@@ -78,6 +80,8 @@ export default function PaperDatabaseView({
   setPipelineStatusFilter,
   ecTriggerFilter,
   setEcTriggerFilter,
+  poolFilter = '',
+  setPoolFilter,
   setShowImport,
   setDeleteAllConfirm,
   cloudName,
@@ -133,6 +137,7 @@ export default function PaperDatabaseView({
     setPipelineStageFilter('');
     setPipelineStatusFilter('');
     setEcTriggerFilter('');
+    if (setPoolFilter) setPoolFilter('');
   };
 
   const clearPipelineFilters = () => {
@@ -230,6 +235,7 @@ export default function PaperDatabaseView({
         if (pipelineStageFilter) query.append('pipelineStage', pipelineStageFilter);
         if (pipelineStatusFilter) query.append('pipelineStatus', pipelineStatusFilter);
         if (ecTriggerFilter) query.append('ecTrigger', ecTriggerFilter);
+        if (poolFilter) query.append('calibrationPool', poolFilter);
         const res = await fetch(`/api/papers?${query}`);
         if (res.ok) {
           const data = await res.json();
@@ -401,16 +407,16 @@ export default function PaperDatabaseView({
               <button
                 onClick={() => { setShowFilters(!showFilters); setShowPipelineFilters(false); }}
                 className={`px-3 py-2 border rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                  showFilters || pdfFilter || sourceFilter || doiStatusFilter || pdfLinkFilter
+                  showFilters || pdfFilter || sourceFilter || doiStatusFilter || pdfLinkFilter || poolFilter
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-secondary text-foreground border-border hover:bg-secondary/80'
                 }`}
               >
                 <Filter className="w-3.5 h-3.5" />
                 Filters
-                {(pdfFilter || sourceFilter || doiStatusFilter || pdfLinkFilter) && (
+                {(pdfFilter || sourceFilter || doiStatusFilter || pdfLinkFilter || poolFilter) && (
                   <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/20 text-[10px]">
-                    {[pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter].filter(Boolean).length}
+                    {[pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, poolFilter].filter(Boolean).length}
                   </span>
                 )}
               </button>
@@ -422,6 +428,21 @@ export default function PaperDatabaseView({
                     <button onClick={clearAllFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear All</button>
                   </div>
                   
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Pool Assignment</label>
+                    <select
+                      className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                      value={poolFilter}
+                      onChange={(e) => setPoolFilter && setPoolFilter(e.target.value)}
+                    >
+                      <option value="">All Pools</option>
+                      <option value="pool_a">Pool A</option>
+                      <option value="pool_b">Pool B</option>
+                      <option value="pool_c">Pool C</option>
+                      <option value="none">Unassigned (No Pool)</option>
+                    </select>
+                  </div>
+
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase">PDF Status</label>
                     <select className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" value={pdfFilter} onChange={(e) => setPdfFilter(e.target.value)}>
@@ -678,29 +699,41 @@ export default function PaperDatabaseView({
                           </div>
                         </td>
                         <td className="p-3 truncate">
-                          {(() => {
-                            const badgeStyle = {
-                              '0': 'bg-slate-500/10 border-slate-500/20 text-slate-400',
-                              '1': 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-                              '2': 'bg-purple-500/10 border-purple-500/20 text-purple-400',
-                              '3': 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-                              '4': 'bg-pink-500/10 border-pink-500/20 text-pink-400',
-                            }[String(p.Status)] || 'bg-secondary border-border text-muted-foreground';
+                          <div className="flex flex-col gap-1 items-start">
+                            {(() => {
+                              const badgeStyle = {
+                                '0': 'bg-slate-500/10 border-slate-500/20 text-slate-400',
+                                '1': 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                                '2': 'bg-purple-500/10 border-purple-500/20 text-purple-400',
+                                '3': 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+                                '4': 'bg-pink-500/10 border-pink-500/20 text-pink-400',
+                              }[String(p.Status)] || 'bg-secondary border-border text-muted-foreground';
 
-                            const label = {
-                              '0': '0: Initial',
-                              '1': '1: Fast Filter',
-                              '2': '2: Gatekeeper',
-                              '3': '3: Scientist',
-                              '4': '4: Miner',
-                            }[String(p.Status)] || String(p.Status);
+                              const label = {
+                                '0': '0: Initial',
+                                '1': '1: Fast Filter',
+                                '2': '2: Gatekeeper',
+                                '3': '3: Scientist',
+                                '4': '4: Miner',
+                              }[String(p.Status)] || String(p.Status);
 
-                            return (
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${badgeStyle}`}>
-                                {label}
+                              return (
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${badgeStyle}`}>
+                                  {label}
+                                </span>
+                              );
+                            })()}
+                            {p.calibration_pool && (
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider border truncate inline-block ${
+                                p.calibration_pool === 'pool_a' ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-400' :
+                                p.calibration_pool === 'pool_b' ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400' :
+                                p.calibration_pool === 'pool_c' ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' :
+                                'bg-secondary border-border text-muted-foreground'
+                              }`}>
+                                {p.calibration_pool === 'pool_a' ? 'Pool A' : p.calibration_pool === 'pool_b' ? 'Pool B' : p.calibration_pool === 'pool_c' ? 'Pool C' : p.calibration_pool}
                               </span>
-                            );
-                          })()}
+                            )}
+                          </div>
                         </td>
 
                         <td className="p-3 text-center">
