@@ -356,7 +356,7 @@ export async function GET(request: Request) {
     const reviewerRows = db.prepare(`
       SELECT DISTINCT reviewer_name 
       FROM reviewer_decisions 
-      WHERE project_id = ? AND pool = ?
+      WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ?
       ORDER BY reviewer_name ASC
     `).all(activeProjectId, dbPool) as { reviewer_name: string }[];
 
@@ -411,8 +411,8 @@ export async function GET(request: Request) {
                MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r1_extracted_data,
                MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r2_extracted_data
         FROM reviewer_decisions rd
-        JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND rd.project_id = p.Project_ID
-        WHERE rd.project_id = ? AND rd.pool = 'pool_c'
+        JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND CAST(rd.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
+        WHERE CAST(rd.project_id AS TEXT) = CAST(? AS TEXT) AND rd.pool = 'pool_c'
         GROUP BY rd.paper_id
         HAVING COUNT(DISTINCT rd.reviewer_name) = 2
       `).all(r1, r2, r1, r2, activeProjectId) as any[];
@@ -557,8 +557,8 @@ export async function GET(request: Request) {
                MAX(CASE WHEN rd.reviewer_name = ? THEN rd.ec_trigger END) as r1_ec,
                MAX(CASE WHEN rd.reviewer_name = ? THEN rd.ec_trigger END) as r2_ec
         FROM reviewer_decisions rd
-        JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND rd.project_id = p.Project_ID
-        WHERE rd.project_id = ? AND rd.pool = ?
+        JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND CAST(rd.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
+        WHERE CAST(rd.project_id AS TEXT) = CAST(? AS TEXT) AND rd.pool = ?
         GROUP BY rd.paper_id
         HAVING COUNT(DISTINCT rd.reviewer_name) = 2
       `).all(r1, r2, r1, r2, r1, r2, activeProjectId, dbPool) as any[];

@@ -549,51 +549,31 @@ export const StorageService = {
         return flatPaper;
       });
 
-      // Construct standard metadata block depending on poolType
+      // Construct standard metadata block matching SLR Magic snake_case schema
       const resolvedProjectId = session.metadata?.project_id || session.metadata?.projectId || '';
-      if (session.poolType === 'CAL_Pool_A') {
-        // SNAKE-CASE PROJECT METADATA
-        const exportPayload = {
-          metadata: {
-            project_id: resolvedProjectId,
-            project_name: session.projectName || session.metadata?.project_name || session.metadata?.projectName || 'Unnamed Project',
-            research_manifesto: session.metadata?.research_manifesto || session.metadata?.researchManifesto || '',
-            research_objective: session.metadata?.research_objective || session.metadata?.researchObjective || '',
-            research_questions: session.metadata?.research_questions || session.metadata?.researchQuestions || '',
-            quality_assurance_definition: session.metadata?.quality_assurance_definition || session.metadata?.qualityAssuranceDefinition || '',
-            exclusion_criteria: session.metadata?.exclusion_criteria || session.metadata?.exclusionCriteria || '',
-            pool_type: 'CAL_Pool_A',
-            export_date: new Date().toISOString(),
-            ec_rules: session.metadata?.ec_rules || session.metadata?.ecRules || [],
-            reasoning_template: session.metadata?.reasoning_template || session.metadata?.reasoningTemplate || [],
-            ...(reviewerName ? { reviewer_name: reviewerName } : {})
-          },
-          papers: exportedPapers
-        };
-        return exportPayload;
-      }
+      const poolType = session.poolType || session.metadata?.pool_type || session.metadata?.poolType || 'CAL_Pool_A';
 
-      // LEGACY CAMEL-CASE EXPORT
-      const exportPayload = {
-        metadata: {
-          project_id: resolvedProjectId,
-          projectId: resolvedProjectId,
-          projectName: session.projectName,
-          researchManifesto: session.metadata?.researchManifesto || session.metadata?.research_manifesto || '',
-          researchObjective: session.metadata?.researchObjective || session.metadata?.research_objective || '',
-          researchQuestions: session.metadata?.researchQuestions || session.metadata?.research_questions || '',
-          qualityAssuranceDefinition: session.metadata?.qualityAssuranceDefinition || session.metadata?.quality_assurance_definition || '',
-          exclusionCriteria: session.metadata?.exclusionCriteria || session.metadata?.exclusion_criteria || '',
-          poolType: session.poolType,
-          exportDate: new Date().toISOString(),
-          ecRules: session.metadata?.ecRules || session.metadata?.ec_rules || [],
-          reasoningTemplate: session.metadata?.reasoningTemplate || session.metadata?.reasoning_template || [],
-          ...(reviewerName ? { reviewer_name: reviewerName } : {})
-        },
-        papers: exportedPapers
+      const metadata = {
+        project_id: resolvedProjectId,
+        project_name: session.projectName || session.metadata?.project_name || session.metadata?.projectName || 'Unnamed Project',
+        research_manifesto: session.metadata?.research_manifesto || session.metadata?.researchManifesto || '',
+        research_objective: session.metadata?.research_objective || session.metadata?.researchObjective || '',
+        research_questions: session.metadata?.research_questions || session.metadata?.researchQuestions || '',
+        quality_assurance_definition: session.metadata?.quality_assurance_definition || session.metadata?.qualityAssuranceDefinition || '',
+        exclusion_criteria: session.metadata?.exclusion_criteria || session.metadata?.exclusionCriteria || '',
+        pool_type: poolType,
+        export_date: new Date().toISOString(),
+        ec_rules: session.metadata?.ec_rules || session.metadata?.ecRules || [],
+        reasoning_template: session.metadata?.reasoning_template || session.metadata?.reasoningTemplate || [],
+        ...(session.metadata?.qa_rules || session.metadata?.qaRules ? { qa_rules: session.metadata?.qa_rules || session.metadata?.qaRules } : {}),
+        ...(session.metadata?.extraction_rules || session.metadata?.extractionRules ? { extraction_rules: session.metadata?.extraction_rules || session.metadata?.extractionRules } : {}),
+        ...(reviewerName ? { reviewer_name: reviewerName } : {})
       };
 
-      return exportPayload;
+      return {
+        metadata,
+        papers: exportedPapers
+      };
     } catch (error) {
       console.error(`Failed to export session ${sessionId}:`, error);
       throw error;

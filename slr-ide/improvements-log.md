@@ -1,3 +1,11 @@
+## #311 - Strict SQL Multi-Project CAST Enforcements & Resilient Pool Matching (2026-08-08)
+- **Goal**: Fix root cause of inter-rater import failures where importing two `.slr` files kept returning "Waiting for Second Reviewer" due to SQL project ID type mismatches (`1` vs `'1'`) and strict calibration pool filter mismatches.
+- **Changes**:
+  - Modified [route.ts (import/inter-rater)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/import/inter-rater/route.ts): Enforced `CAST(project_id AS TEXT) = CAST(? AS TEXT)` across all SQL queries (`checkReviewerExistStmt`, `countReviewersStmt`, `selectPaperStmt`, `deleteReviewerDecisionsStmt`, `updatePaperDecisionStmt`, `getPaperDecisionsStmt`), added dual pool-tag matching (`pool_c` and `CAL_Pool_C`), and added auto-cloning fallback from `papers` to `calibration_papers`.
+  - Modified [route.ts (adjudicate/stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts): Enforced `CAST(project_id AS TEXT) = CAST(? AS TEXT)` on `reviewerRows` and `pairedDecisions` SQL queries.
+  - Modified [StorageService.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/inter-rater/src/StorageService.js): Standardized export metadata across all pools (`CAL_Pool_A`, `CAL_Pool_B`, `CAL_Pool_C`) to follow standard SLR Magic snake_case schema and eliminated duplicate `projectId` & `project_id` keys.
+- **Verification**: Verified `npx tsc --noEmit` exited with code 0 in `slr-ide` and `npm run build` exited with code 0 in `inter-rater`.
+
 ## #310 - Inter-Rater QA & Extraction Form Visibility on Excluded Papers (2026-08-07)
 - **Goal**: Enable Quality Assessment Scoring and Data Extraction parameter form fields to remain fully active and visible when a paper's decision is set to `Exclude`.
 - **Changes**:

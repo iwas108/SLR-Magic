@@ -100,24 +100,24 @@ export async function POST(request: Request) {
     const checkReviewerExistStmt = db.prepare(`
       SELECT DISTINCT reviewer_name 
       FROM reviewer_decisions 
-      WHERE project_id = ? AND pool = ? AND reviewer_name = ?
+      WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ? AND reviewer_name = ?
     `);
 
     const countReviewersStmt = db.prepare(`
       SELECT COUNT(DISTINCT reviewer_name) as count 
       FROM reviewer_decisions 
-      WHERE project_id = ? AND pool = ?
+      WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ?
     `);
 
     const selectPaperStmt = db.prepare(`
       SELECT Paper_ID, manual_decision, manual_exclusion_code, manual_rationale, manual_quality_assessment, manual_extracted_data
       FROM calibration_papers 
-      WHERE Paper_ID = ? AND Project_ID = ? AND calibration_pool = ?
+      WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT) AND (calibration_pool = ? OR calibration_pool = ?)
     `);
 
     const deleteReviewerDecisionsStmt = db.prepare(`
       DELETE FROM reviewer_decisions 
-      WHERE project_id = ? AND pool = ? AND reviewer_name = ?
+      WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ? AND reviewer_name = ?
     `);
 
     const insertDecisionStmt = db.prepare(`
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
           manual_quality_assessment = ?,
           manual_extracted_data = ?,
           manual_stage = ?
-      WHERE Paper_ID = ? AND Project_ID = ?
+      WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)
     `);
 
     const insertLedgerStmt = db.prepare(`
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
     const getPaperDecisionsStmt = db.prepare(`
       SELECT reviewer_name, decision, ec_trigger, rationale, qa_scores, extracted_data 
       FROM reviewer_decisions 
-      WHERE paper_id = ? AND project_id = ? AND pool = ?
+      WHERE paper_id = ? AND CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ?
       ORDER BY reviewer_name ASC
     `);
 
@@ -171,11 +171,43 @@ export async function POST(request: Request) {
       // Snapshot sync (delete-then-insert)
       deleteReviewerDecisionsStmt.run(resolvedProjectId, dbPool, reviewerName);
 
+      const calPoolAlt = dbPool === 'pool_c' ? 'CAL_Pool_C' : dbPool === 'pool_b' ? 'CAL_Pool_B' : 'CAL_Pool_A';
+
       for (const paper of body.papers) {
         const paperId = paper.Paper_ID;
         if (!paperId) continue;
 
-        const dbPaper = selectPaperStmt.get(paperId, resolvedProjectId, dbPool) as any;
+        let dbPaper = selectPaperStmt.get(paperId, resolvedProjectId, dbPool, calPoolAlt) as any;
+        if (!dbPaper) {
+          // Check if paper exists in main papers table for this project
+          const mainPaper = db.prepare("SELECT Paper_ID FROM papers WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)").get(paperId, resolvedProjectId) as any;
+          if (mainPaper) {
+            // Auto-clone to calibration_papers with target pool
+            db.prepare(`
+              INSERT OR IGNORE INTO calibration_papers (
+                Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year,
+                PDF_Link, Local_PDF_Status, Local_PDF_Path, Project_ID, Parent_Paper_ID,
+                Original_Publisher, Publisher, citation_count, is_duplicate, merged_into_id,
+                remote_worker_id, scrape_claimed_at, notes, calibration_pool,
+                ai_stage, ai_decision, ai_exclusion_code, ai_rationale, ai_quality_assessment, ai_extracted_data,
+                manual_stage, manual_decision, manual_exclusion_code, manual_rationale, manual_quality_assessment, manual_extracted_data
+              )
+              SELECT 
+                Paper_ID, Import_Date, Import_Source, Source, DOI, Title, Abstract, Authors, Year,
+                PDF_Link, Local_PDF_Status, Local_PDF_Path, COALESCE(Project_ID, ?), Parent_Paper_ID,
+                Original_Publisher, Publisher, citation_count, is_duplicate, merged_into_id,
+                remote_worker_id, scrape_claimed_at, notes, ?,
+                ai_stage, ai_decision, ai_exclusion_code, ai_rationale, ai_quality_assessment, ai_extracted_data,
+                manual_stage, manual_decision, manual_exclusion_code, manual_rationale, manual_quality_assessment, manual_extracted_data
+              FROM papers WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)
+            `).run(resolvedProjectId, dbPool, paperId, resolvedProjectId);
+
+            db.prepare("UPDATE calibration_papers SET calibration_pool = ? WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)").run(dbPool, paperId, resolvedProjectId);
+
+            dbPaper = selectPaperStmt.get(paperId, resolvedProjectId, dbPool, calPoolAlt) as any;
+          }
+        }
+
         if (!dbPaper) {
           continue; // Skip papers that aren't in this project's target pool
         }

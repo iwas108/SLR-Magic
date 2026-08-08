@@ -4,6 +4,13 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#027] Standardized Snake-Case Metadata & Elimination of Duplicate Keys - 2026-08-08
+
+- **Standardized Export Metadata Schema (`StorageService.js`)**:
+  - Unified session export metadata across all pools (`CAL_Pool_A`, `CAL_Pool_B`, `CAL_Pool_C`) to follow standard SLR Magic snake_case schema (`project_id`, `project_name`, `research_manifesto`, `research_objective`, `research_questions`, `quality_assurance_definition`, `exclusion_criteria`, `pool_type`, `export_date`, `ec_rules`, `reasoning_template`, `qa_rules`, `extraction_rules`, `reviewer_name`).
+  - Eliminated duplicate `projectId` and `project_id` key outputs in exported `.slr` metadata files.
+- **Verification**: Verified `npm run build` completed successfully.
+
 ## [#026] Form Field Visibility for Excluded Papers - 2026-08-07
 
 - **Unconditional QA & Data Extraction Form Rendering (`BlindedReviewForm.jsx`)**:
