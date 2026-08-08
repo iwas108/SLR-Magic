@@ -22,16 +22,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger("UmbrellanizerExecutor")
 
-def fail_job(job_id, project_id, error_message, key):
-    # Update result table to FAILED status
+def fail_job(job_id, project_id, error_message, key, input_tokens=0, output_tokens=0, thinking_tokens=0, cost_usd=0.0, prompt_id="unknown", model_id="unknown"):
+    # Update result table to FAILED status with actual token/cost tracking if available
     execute_write(
         """
         INSERT OR REPLACE INTO umbrellanizer_results 
-        (project_id, extracted_data_key, prompt_id, model_id, raw_tokens_input, umbrella_mapping, status, error_message, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'ERROR', ?, datetime('now'), datetime('now'))
+        (project_id, extracted_data_key, prompt_id, model_id, raw_tokens_input, umbrella_mapping, 
+         input_tokens, output_tokens, thinking_tokens, cost_usd, status, error_message, created_at, updated_at)
+        VALUES (?, ?, ?, ?, '[]', '{}', ?, ?, ?, ?, 'ERROR', ?, datetime('now'), datetime('now'))
         """,
-        (project_id, key, "unknown", "unknown", "[]", "{}", error_message)
+        (project_id, key, prompt_id, model_id, input_tokens, output_tokens, thinking_tokens, cost_usd, error_message)
     )
+    if cost_usd > 0.0:
+        update_project_spend(project_id, cost_usd)
+        
     print(json.dumps({
         "status": "FAILED",
         "job_id": job_id,
@@ -144,19 +148,39 @@ def run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens
         thinking_level=thinking_level
     )
 
+    resp_input_tokens = response.get("input_tokens", 0) or 0 if response else 0
+    resp_output_tokens = response.get("output_tokens", 0) or 0 if response else 0
+    resp_thinking_tokens = response.get("thinking_tokens", 0) or 0 if response else 0
+    resp_cached_tokens = response.get("cached_tokens", 0) or 0 if response else 0
+
+    fail_cost = 0.0
+    if resp_input_tokens > 0 or resp_output_tokens > 0:
+        pricing = get_model_pricing(model_id)
+        in_p = pricing["input_token_price"]
+        out_p = pricing["output_token_price"]
+        billable_in = max(0, resp_input_tokens - resp_cached_tokens)
+        raw_c = ((billable_in / 1_000_000.0) * in_p) + ((resp_output_tokens / 1_000_000.0) * out_p)
+        fail_cost = raw_c * (1.0 + project_tax)
+
     if not response or not response.get("success"):
-        fail_job(job_id, project_id, response.get("error_message", "Unknown LLM error"), key)
+        fail_job(job_id, project_id, response.get("error_message", "Unknown LLM error") if response else "No response", key,
+                 input_tokens=resp_input_tokens, output_tokens=resp_output_tokens, thinking_tokens=resp_thinking_tokens,
+                 cost_usd=fail_cost, prompt_id=template_id, model_id=model_id)
 
     output_text = response.get("output_text", "").strip()
     try:
         parsed_res = safe_json_loads(output_text)
     except Exception as parse_err:
-        fail_job(job_id, project_id, f"Failed to parse LLM JSON response: {parse_err}. Raw text: {output_text}", key)
+        fail_job(job_id, project_id, f"Failed to parse LLM JSON response: {parse_err}. Raw text: {output_text}", key,
+                 input_tokens=resp_input_tokens, output_tokens=resp_output_tokens, thinking_tokens=resp_thinking_tokens,
+                 cost_usd=fail_cost, prompt_id=template_id, model_id=model_id)
 
     # Expected response structure: { taxonomy_mapping: [{ raw_token, umbrella_category, justification }] }
     taxonomy_mapping = parsed_res.get("taxonomy_mapping")
     if not taxonomy_mapping or not isinstance(taxonomy_mapping, list):
-        fail_job(job_id, project_id, f"Taxonomy mapping list missing in output: {parsed_res}", key)
+        fail_job(job_id, project_id, f"Taxonomy mapping list missing in output: {parsed_res}", key,
+                 input_tokens=resp_input_tokens, output_tokens=resp_output_tokens, thinking_tokens=resp_thinking_tokens,
+                 cost_usd=fail_cost, prompt_id=template_id, model_id=model_id)
 
     # Build flat mapping dictionary: { "raw_token": { "umbrella_category": string, "justification": string } }
     mapping_dict = {}

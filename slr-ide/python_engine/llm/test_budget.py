@@ -53,18 +53,19 @@ class TestBudgetEstimator(unittest.TestCase):
     @patch('llm.budget.execute_read_one')
     def test_check_budget_limit(self, mock_read_one):
         # Case 1: Limit is 0.0 (unlimited)
-        mock_read_one.return_value = {"project_budget_limit": 0.0, "project_current_spend": 5.0}
+        mock_read_one.return_value = {"project_budget_limit": 0.0, "current_spend": 5.0}
         ok, msg = check_budget_limit("proj-1", 10.0)
         self.assertTrue(ok)
         self.assertEqual(msg, "Within budget")
         
         # Case 2: Limit is 10.0, spend is 5.0, est is 3.0 -> OK
-        mock_read_one.return_value = {"project_budget_limit": 10.0, "project_current_spend": 5.0}
+        mock_read_one.return_value = {"project_budget_limit": 10.0, "current_spend": 5.0}
         ok, msg = check_budget_limit("proj-1", 3.0)
         self.assertTrue(ok)
         self.assertEqual(msg, "Within budget")
         
         # Case 3: Limit is 10.0, spend is 5.0, est is 6.0 -> Exceeded
+        mock_read_one.return_value = {"project_budget_limit": 10.0, "current_spend": 5.0}
         ok, msg = check_budget_limit("proj-1", 6.0)
         self.assertFalse(ok)
         self.assertIn("Cost limit exceeded", msg)

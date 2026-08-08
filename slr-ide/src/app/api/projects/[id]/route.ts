@@ -29,6 +29,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     project.stats = stats ? { ...stats } : { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0, duplicates: 0 };
 
+    // Calculate live spend from llm_audit_log and umbrellanizer_results
+    const liveSpendRow = db.prepare(`
+      SELECT COALESCE(SUM(cost_usd), 0.0) as live_spend
+      FROM (
+        SELECT cost_usd FROM llm_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+        UNION ALL
+        SELECT cost_usd FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+      )
+    `).get(projectId, projectId) as { live_spend: number } | undefined;
+
+    project.project_current_spend = liveSpendRow ? Number(liveSpendRow.live_spend || 0) : 0;
+
     return NextResponse.json({ success: true, project });
   } catch (error: any) {
     console.error('Failed to get project:', error);

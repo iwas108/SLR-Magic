@@ -449,31 +449,60 @@ class LLMQueueHandler:
         except Exception as e:
             logger.error(f"Failed to process paper {paper_id}: {e}")
 
-            
+            # Compute cost for any tokens consumed during failed/retried attempts
+            err_input_tokens = 0
+            err_output_tokens = 0
+            err_thinking_tokens = 0
+            err_cached_tokens = 0
+            err_cost = 0.0
+            resp_obj = response if ('response' in locals() and isinstance(response, dict)) else None
+
+            if resp_obj:
+                err_input_tokens = resp_obj.get("input_tokens") or 0
+                err_output_tokens = resp_obj.get("output_tokens") or 0
+                err_thinking_tokens = resp_obj.get("thinking_tokens") or 0
+                err_cached_tokens = resp_obj.get("cached_tokens") or 0
+
+                if err_input_tokens > 0 or err_output_tokens > 0:
+                    try:
+                        from llm.budget import get_model_pricing
+                        pricing = get_model_pricing(self.model_id)
+                        in_price = pricing["input_token_price"] * (1.0 - self.discount)
+                        out_price = pricing["output_token_price"] * (1.0 - self.discount)
+                        billable_in = max(0, err_input_tokens - err_cached_tokens)
+                        raw_c = ((billable_in / 1_000_000.0) * in_price) + ((err_output_tokens / 1_000_000.0) * out_price)
+                        err_cost = raw_c * (1.0 + self.tax_rate)
+
+                        with self.lock:
+                            self.total_cost += err_cost
+                            update_project_spend(self.project_id, err_cost)
+                    except Exception as cost_err:
+                        logger.warning(f"Failed to compute failure cost for paper {paper_id}: {cost_err}")
+
             # Log failure to LLM Audit Log
             log_interaction(
                 paper_id=paper_id,
                 project_id=self.project_id,
                 job_id=self.job_id,
-                interaction_id=None,
+                interaction_id=resp_obj.get("interaction_id") if resp_obj else None,
                 previous_interaction_id=previous_interaction_id,
                 model_id=self.model_id,
                 task_type=self.task_type,
-                input_tokens=0,
-                output_tokens=0,
-                thinking_tokens=0,
-                cached_tokens=0,
-                cost_usd=0.0,
+                input_tokens=err_input_tokens,
+                output_tokens=err_output_tokens,
+                thinking_tokens=err_thinking_tokens,
+                cached_tokens=err_cached_tokens,
+                cost_usd=err_cost,
                 flex_discount=self.discount,
                 speed_mode=self.speed_mode,
                 raw_prompt=user_prompt,
-                raw_response="",
+                raw_response=resp_obj.get("raw_response", "") if resp_obj else "",
                 response_schema_name=prompt_schema.get("name", "custom_schema"),
                 structured_output="",
                 status="ERROR",
                 error_message=str(e),
-                latency_ms=0,
-                retry_count=3
+                latency_ms=resp_obj.get("latency_ms", 0) if resp_obj else 0,
+                retry_count=resp_obj.get("retry_count", 3) if resp_obj else 3
             )
             
             self.broadcast_telemetry("RUNNING", f"FAILED: {title} ({e})")

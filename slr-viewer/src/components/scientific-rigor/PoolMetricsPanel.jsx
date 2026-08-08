@@ -1,13 +1,18 @@
 import React from 'react';
 
 export default function PoolMetricsPanel({ poolMetrics, projectConfig }) {
-  const targetA = poolMetrics?.pool_a_size || poolMetrics?.pool_a?.target || projectConfig?.pool_a_size || 50;
-  const targetB = poolMetrics?.pool_b_size || poolMetrics?.pool_b?.target || projectConfig?.pool_b_size || 30;
-  const targetC = poolMetrics?.pool_c_size || poolMetrics?.pool_c?.target || projectConfig?.pool_c_size || 20;
+  // Priority: poolMetrics.pool_X.target (written by export route from project DB record)
+  //         > poolMetrics.pool_X_size (flat alias also written by export route)
+  //         > projectConfig.pool_X_size (passed from rawData.project)
+  //         > DB schema defaults 50/30/20
+  const targetA = poolMetrics?.pool_a?.target ?? poolMetrics?.pool_a_size ?? projectConfig?.pool_a_size ?? 50;
+  const targetB = poolMetrics?.pool_b?.target ?? poolMetrics?.pool_b_size ?? projectConfig?.pool_b_size ?? 30;
+  const targetC = poolMetrics?.pool_c?.target ?? poolMetrics?.pool_c_size ?? projectConfig?.pool_c_size ?? 20;
 
-  const countA = poolMetrics?.pool_a_count || projectConfig?.pool_a_count || poolMetrics?.pool_a?.filled || 0;
-  const countB = poolMetrics?.pool_b_count || projectConfig?.pool_b_count || poolMetrics?.pool_b?.filled || 0;
-  const countC = poolMetrics?.pool_c_count || projectConfig?.pool_c_count || poolMetrics?.pool_c?.filled || 0;
+  // Priority: pool_X.filled (written by export route) > pool_X_count (flat alias) > projectConfig fallback
+  const countA = poolMetrics?.pool_a?.filled ?? poolMetrics?.pool_a_count ?? projectConfig?.pool_a_count ?? 0;
+  const countB = poolMetrics?.pool_b?.filled ?? poolMetrics?.pool_b_count ?? projectConfig?.pool_b_count ?? 0;
+  const countC = poolMetrics?.pool_c?.filled ?? poolMetrics?.pool_c_count ?? projectConfig?.pool_c_count ?? 0;
 
   const pctA = Math.min(100, Math.round((countA / targetA) * 100));
   const pctB = Math.min(100, Math.round((countB / targetB) * 100));

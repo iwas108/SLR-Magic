@@ -210,15 +210,28 @@ def estimate_cost(model_id, prompt_text, pdf_path=None, speed_mode='FLEX', max_o
 
 def check_budget_limit(project_id, estimated_cost):
     """Checks if the project has enough remaining budget for the estimated cost."""
-    project = execute_read_one(
-        "SELECT project_budget_limit, project_current_spend FROM projects WHERE id = ?",
-        (project_id,)
+    row = execute_read_one(
+        """
+        SELECT 
+            p.project_budget_limit,
+            COALESCE((
+                SELECT SUM(cost_usd)
+                FROM (
+                    SELECT cost_usd FROM llm_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+                    UNION ALL
+                    SELECT cost_usd FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+                )
+            ), p.project_current_spend, 0.0) as current_spend
+        FROM projects p 
+        WHERE p.id = ? OR CAST(p.id AS TEXT) = CAST(? AS TEXT)
+        """,
+        (project_id, project_id, project_id, project_id)
     )
-    if not project:
+    if not row:
         return True, "Project not found"
         
-    limit = project.get('project_budget_limit') or 0.0
-    current = project.get('project_current_spend') or 0.0
+    limit = row.get('project_budget_limit') or 0.0
+    current = row.get('current_spend') or 0.0
     
     if limit > 0.0:
         if (current + estimated_cost) > limit:
@@ -231,6 +244,6 @@ def check_budget_limit(project_id, estimated_cost):
 def update_project_spend(project_id, actual_cost):
     """Atomically adds actual_cost to the project's current spend."""
     execute_write(
-        "UPDATE projects SET project_current_spend = project_current_spend + ? WHERE id = ?",
-        (actual_cost, project_id)
+        "UPDATE projects SET project_current_spend = project_current_spend + ? WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)",
+        (actual_cost, project_id, project_id)
     )

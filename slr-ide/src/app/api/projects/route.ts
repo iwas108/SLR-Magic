@@ -352,14 +352,21 @@ export async function GET() {
       stageStats['3'].unprocessed = stage3Unprocessed.count;
       stageStats['4'].unprocessed = stage4Unprocessed.count;
 
-      // Calculate totals based on actual processed + unprocessed
-      stageStats['1'].total = stageStats['1'].included + stageStats['1'].excluded + stageStats['1'].unprocessed;
-      stageStats['2'].total = stageStats['2'].included + stageStats['2'].excluded + stageStats['2'].unprocessed + (stageStats['2'].pending_pdf || 0) + (stageStats['2'].inaccessible_pdf || 0);
-      stageStats['3'].total = stageStats['3'].included + stageStats['3'].excluded + stageStats['3'].unprocessed;
-      stageStats['4'].total = stageStats['4'].included + stageStats['4'].excluded + stageStats['4'].unprocessed;
-      
+      // Calculate live spend from llm_audit_log and umbrellanizer_results
+      const liveSpendRow = db.prepare(`
+        SELECT COALESCE(SUM(cost_usd), 0.0) as live_spend
+        FROM (
+          SELECT cost_usd FROM llm_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+          UNION ALL
+          SELECT cost_usd FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+        )
+      `).get(proj.id, proj.id) as { live_spend: number } | undefined;
+
+      const currentSpend = liveSpendRow ? Number(liveSpendRow.live_spend || 0) : 0;
+
       return {
         ...proj,
+        project_current_spend: currentSpend,
         stats: stats ? { ...stats, tagStats, stageStats } : { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0, tagStats, stageStats }
       };
     });

@@ -1,5 +1,15 @@
 # SLR Viewer Improvements Log
 
+## #048 - Fix Pre-Calibration Pool Target Size Resolution Priority (2026-08-08)
+- **Goal**: Fix Pre-Calibration Filling Status in Scientific Rigor panel displaying hardcoded 50/30/20 pool targets for projects with different configured pool sizes (e.g., 20/10/10).
+- **Root Cause**: `PoolMetricsPanel.jsx` resolved pool target sizes using `||` chaining that tried `pool_a_size` (flat alias) before `pool_a.target` (structured field from export). Because both fields are 0 when unfilled, the `||` chain collapsed to the hardcoded default (50). Also, the `||` operator treated explicit `0` as falsy and silently replaced it with the default.
+- **Changes**:
+  - Modified [`PoolMetricsPanel.jsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/scientific-rigor/PoolMetricsPanel.jsx):
+    - Switched all target size lookups to nullish coalescing (`??`) to treat explicit `0` as valid.
+    - Reordered resolution priority: `poolMetrics.pool_X.target` (structured export field) → `poolMetrics.pool_X_size` (flat alias) → `projectConfig.pool_X_size` → default.
+    - Same `??` pattern applied to `countA/B/C` (filled count) resolution.
+- **Verification**: Clean `npm run build` (0 errors, version bumped to `1.0.6`) in `slr-viewer`.
+
 ## #047 - Auto Incremental Versioning & Compilation Date-Time Injection (2026-08-08)
 - **Goal**: Implement auto-incremental versioning and live compilation date-time tracking in `slr-viewer`.
 - **Changes**:

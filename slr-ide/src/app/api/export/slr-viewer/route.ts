@@ -642,16 +642,22 @@ export async function GET(request: Request) {
     }
 
     // 4. Pre-Calibration Pool Filling Status
+    // Read pool target sizes from the project record — do NOT hardcode defaults here;
+    // the DB column defaults (50/30/20) already apply at INSERT time.
+    const projPoolASize = project.pool_a_size ?? 50;
+    const projPoolBSize = project.pool_b_size ?? 30;
+    const projPoolCSize = project.pool_c_size ?? 20;
+
     let poolMetrics: any = {
-      pool_a: { target: project.pool_a_size || 50, filled: 0, completed: 0 },
-      pool_b: { target: project.pool_b_size || 30, filled: 0, completed: 0 },
-      pool_c: { target: project.pool_c_size || 20, filled: 0, completed: 0 },
+      pool_a: { target: projPoolASize, filled: 0, completed: 0 },
+      pool_b: { target: projPoolBSize, filled: 0, completed: 0 },
+      pool_c: { target: projPoolCSize, filled: 0, completed: 0 },
       pool_a_count: 0,
       pool_b_count: 0,
       pool_c_count: 0,
-      pool_a_size: project.pool_a_size || 50,
-      pool_b_size: project.pool_b_size || 30,
-      pool_c_size: project.pool_c_size || 20
+      pool_a_size: projPoolASize,
+      pool_b_size: projPoolBSize,
+      pool_c_size: projPoolCSize
     };
 
     try {
@@ -675,27 +681,19 @@ export async function GET(request: Request) {
     }
 
     // 5. Rolling Batch QC Status
-    const minerKeys = [
-      'rq1_operational_domains',
-      'rq2_a_autonomy_level',
-      'rq2_b_control_paradigm',
-      'rq3_computational_topologies',
-      'rq4_network_protocols',
-      'rq5_semantic_frameworks',
-      'rq6_deployed_forecasting_engines',
-      'rq7_accuracy_metrics',
-      'rq8_a_edge_hardware',
-      'rq8_b_execution_footprint',
-      'rq9_deployment_barriers'
-    ];
-
-    const arrayKeys = [
-      'rq4_network_protocols',
-      'rq6_deployed_forecasting_engines',
-      'rq7_accuracy_metrics',
-      'rq8_b_execution_footprint',
-      'rq9_deployment_barriers'
-    ];
+    // Derive extraction schema keys dynamically from pool_c_extraction_rules so that
+    // validation is not coupled to any specific project's RQ field names.
+    let extractionRules: any[] = [];
+    if (project.pool_c_extraction_rules) {
+      try {
+        const parsed = typeof project.pool_c_extraction_rules === 'string'
+          ? JSON.parse(project.pool_c_extraction_rules)
+          : project.pool_c_extraction_rules;
+        if (Array.isArray(parsed)) extractionRules = parsed;
+      } catch (e) {
+        console.error('Failed to parse pool_c_extraction_rules:', e);
+      }
+    }
 
     const computeCI = (p_hat: number, n: number) => {
       if (n <= 0) return { SE: 0, CI_lower: 0 };
@@ -704,7 +702,7 @@ export async function GET(request: Request) {
       return { SE, CI_lower };
     };
 
-    const calculateCohortStats = (papers: any[], qaRules: any[], umbMap: Record<string, Record<string, any>>) => {
+    const calculateCohortStats = (papers: any[], qaRules: any[], umbMap: Record<string, Record<string, any>>, extractionRulesParam: any[] = []) => {
       let totalQAPairs = 0;
       let qaAgreementCount = 0;
       let qaCriticalMissCount = 0;
@@ -800,16 +798,27 @@ export async function GET(request: Request) {
         try { parsedAiMiner = JSON.parse(paper.ai_extracted_data || '{}'); } catch (e) { isStructurallyValid = false; }
         try { parsedGoldMiner = JSON.parse(paper.manual_extracted_data || '{}'); } catch (e) {}
 
+        // Use dynamic extraction rules from project config; fall back to scanning actual AI extraction keys
+        const targetRules: any[] = extractionRulesParam.length > 0
+          ? extractionRulesParam
+          : [];
+
         if (isStructurallyValid && parsedAiMiner) {
           const aiExt = parsedAiMiner.extracted_data || parsedAiMiner;
-          for (const key of minerKeys) {
+
+          // When no rules are configured, derive key list from the AI extracted data itself
+          const keysToCheck = targetRules.length > 0
+            ? targetRules.map((r: any) => r.json_key || r.key || r.code)
+            : Object.keys(aiExt);
+
+          for (const key of keysToCheck) {
             const cleanKey = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
             const matchKey = Object.keys(aiExt).find(k => {
               const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
               return kl === cleanKey || kl.startsWith(cleanKey);
             });
             const field = matchKey ? aiExt[matchKey] : undefined;
-            if (!field) {
+            if (field === undefined || field === null) {
               isStructurallyValid = false;
               schemaDiscrepancies.push({
                 paper_id: paper.Paper_ID,
@@ -829,7 +838,11 @@ export async function GET(request: Request) {
           const aiExt = parsedAiMiner.extracted_data || parsedAiMiner;
           const goldExt = parsedGoldMiner.extracted_data || parsedGoldMiner;
 
-          for (const key of minerKeys) {
+          const keysForSemantic = targetRules.length > 0
+            ? targetRules.map((r: any) => r.json_key || r.key || r.code)
+            : Object.keys(aiExt);
+
+          for (const key of keysForSemantic) {
             const cleanKey = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
             const aiMatchKey = Object.keys(aiExt).find(k => {
               const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -961,7 +974,7 @@ export async function GET(request: Request) {
           WHERE batch_id IN (${placeholders}) AND Project_ID = ?
         `).all(...completedBatchIds, resolvedProjectId) as any[];
 
-        rollingBatchQC.cumulative_stats = calculateCohortStats(allCompletedPapers, qaRules, umbMap);
+        rollingBatchQC.cumulative_stats = calculateCohortStats(allCompletedPapers, qaRules, umbMap, extractionRules);
 
         rollingBatchQC.individual_batch_stats = completedBatches.map(batch => {
           const batchPapers = db.prepare(`
@@ -973,7 +986,7 @@ export async function GET(request: Request) {
             batchNumber: batch.batch_number,
             batchId: batch.id,
             finalizedAt: batch.finalized_at || batch.created_at,
-            stats: calculateCohortStats(batchPapers, qaRules, umbMap)
+            stats: calculateCohortStats(batchPapers, qaRules, umbMap, extractionRules)
           };
         });
 
