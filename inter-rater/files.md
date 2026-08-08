@@ -13,7 +13,8 @@ This document serves as a comprehensive index of every file within the `inter-ra
 | `improvements-log.md` | Documentation | Chronological log of incremental features, bug fixes, refactoring iterations, and optimizations with sequential IDs. |
 | `package.json` | Dependency / Scripts | Defines NPM package dependencies, Tailwind v4 + `@tailwindcss/vite`, project metadata, and execution scripts (e.g., `dev`, `build`, `lint`). |
 | `package-lock.json` | Dependency | Lockfile ensuring reproducible dependency tree installation across environments. |
-| `vite.config.js` | Build Configuration | Vite bundler configuration including `@tailwindcss/vite` plugin, dev server port mappings, and React plugin integrations. |
+| `scripts/bump-version.js` | Build Automation | Node.js script executing prior to build (`prebuild`) to auto-increment the patch version in `package.json`. |
+| `vite.config.js` | Build Configuration | Vite bundler configuration including `@tailwindcss/vite` plugin, dev server port mappings, global `__APP_VERSION__` + `__BUILD_TIME__` defines, and React plugin integrations. |
 | `eslint.config.js` | Linting Configuration | ESLint configuration file defining strict code quality rules and linting standards. |
 | `index.html` | Entrypoint | Main HTML document housing the Vite SPA bundle mount point `<div id="root">`. |
 | `README.md` | Documentation | General developer onboarding guide and quickstart instructions for the `inter-rater` SPA workspace. |

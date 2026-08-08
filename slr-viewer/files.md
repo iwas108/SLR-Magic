@@ -13,7 +13,8 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `improvements-log.md` | Documentation | Chronological log tracking iterations, feature creation, and bug fixes for `slr-viewer`. |
 | `files.md` | Documentation | Directory index of every file in `slr-viewer` adhering to mandatory agent directory requirements. |
 | `package.json` | Configuration | Defines dependencies (`dexie`, `echarts`, `papaparse`, `react`, `tailwindcss`) and build scripts. |
-| `vite.config.js` | Build Config | Vite 8 configuration setting base path `/SLR-Magic/slr-viewer/dist/` for GitHub Pages deployment and dev port `3002`. |
+| `scripts/bump-version.js` | Build Automation | Node.js script executing prior to build (`prebuild`) to auto-increment the patch version in `package.json`. |
+| `vite.config.js` | Build Config | Vite 8 configuration setting base path `/SLR-Magic/slr-viewer/dist/`, dev port `3002`, and global `__APP_VERSION__` + `__BUILD_TIME__` defines. |
 | `index.html` | Entrypoint | HTML5 mount point for the React SPA. |
 
 ---
@@ -38,11 +39,11 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `src/components/scientific-rigor/PoolMetricsPanel.jsx` | UI Component | Renders progress bars for Pre-Calibration Pools A, B, and C. |
 | `src/components/scientific-rigor/StageComparisonPanel.jsx` | UI Component | Renders Gold Standard vs AI stage comparison metric cards and pass/fail badges. |
 | `src/components/scientific-rigor/RollingBatchPanel.jsx` | UI Component | Renders sequential quality control (QC) audit stopping criteria status. |
-| `src/components/final-cohort/FinalCohortPanel.jsx` | View Component | Renders final cohort papers table with search, sorting, pagination, CSV export, and visualizer trigger. |
-| `src/components/final-cohort/ClickableCell.jsx` | UI Component | Condensed clickable cell helper with copy & trace tooltips. |
-| `src/components/final-cohort/VisualizerModal.jsx` | Modal Component | ECharts 4-step visualization wizard modal rendering 17 scientific chart types, active table filter warning badges and alert banners, data limiting, multi-level Sankey flows, styling controls, vector SVG and high-DPI PNG exports with dual string/object data handling matching SLR-IDE. |
-| `src/components/final-cohort/FairExportModal.jsx` | Modal Component | FAIR-compliant CSV export modal. |
-| `src/components/accounting/AccountingPanel.jsx` | View Component | Renders cumulative spend summary, per-stage cost cards grid, and top expensive API calls table. |
-| `src/components/insight-export/FairDataExportPanel.jsx` | View Component | Renders side-by-side export cards allowing users to re-export `.slr-viewer` snapshot files or FAIR `.csv` dataset files. |
-| `src/components/research-workflow/ResearchWorkflowPanel.jsx` | View Component | Dynamic 5-group interactive flowchart populated with live metrics from activeSession, featuring step-by-step node walkthrough playback and click-to-inspect drawers for Group 1 (Scopus and Manual / Google Scholar search query string cards with copy buttons) and Group 3 screening pipeline (Stage 1 Fast Filter EC counters, Stage 2 Gatekeeper structural failure counters, Stage 2.2 Scientist Dual-Gate QA rules, and Stage 2.3 Miner Taxonomy Trends Quick Overview with JSON download and Print PDF report export). |
-| `src/utils/schemaMigration.js` | Schema Utility | Central schema versioning & backward compatibility normalization layer handling v1.0.0 and v1.1.0+ snapshot files. |
+| `src/components/final-cohort/FinalCohortPanel.jsx` | View Component | Dynamic table filtering and sorting final cohort papers with cell tooltips. |
+| `src/components/final-cohort/ClickableCell.jsx` | UI Component | Renders cell value popover showing logic trace, original quotes, and PDF link. |
+| `src/components/final-cohort/VisualizerModal.jsx` | Charting Modal | ECharts visualization modal supporting 17 chart types and multi-level Sankey flows. |
+| `src/components/accounting/AccountingPanel.jsx` | View Component | Aggregates LLM token usage, cost breakdowns per stage, and top expensive API calls. |
+| `src/components/insight-export/FairDataExportPanel.jsx` | View Component | Renders FAIR data export options and download triggers for CSV/JSON snapshots. |
+| `src/components/research-workflow/ResearchWorkflowPanel.jsx` | View Component | Dynamic 5-group interactive SVG flowchart rendering SLR Magic's 5-phase research workflow execution. |
+| `src/components/research-workflow/TaxonomyTrendsPrintDocument.jsx` | Printable Report | Dedicated print report view for Taxonomy Trends Quick Overview with print styling. |
+| `src/utils/schemaMigration.js` | Schema Utility | Central snapshot schema migration layer normalizing legacy v1.0.0 and modern v1.1.0+ snapshot structures. |

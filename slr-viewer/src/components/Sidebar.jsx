@@ -139,8 +139,21 @@ export default function Sidebar({ theme, setTheme, onOpenImportModal }) {
         </nav>
       </div>
 
-      {/* Footer Theme Switcher */}
+      {/* Footer Theme Switcher & Build Info */}
       <div className={`border-t border-border bg-secondary/20 transition-all duration-300 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        {!isCollapsed && (
+          <div 
+            title={`Compiled on: ${typeof __BUILD_TIME__ !== 'undefined' ? new Date(__BUILD_TIME__).toLocaleString() : 'N/A'}`}
+            className="mb-3 px-2.5 py-1 rounded-lg bg-secondary/80 border border-border text-[10px] font-mono font-medium text-muted-foreground flex items-center justify-between cursor-help hover:border-primary/50 transition-colors"
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0'}</span>
+            </div>
+            <span className="text-[9px] opacity-75">{typeof __BUILD_TIME__ !== 'undefined' ? new Date(__BUILD_TIME__).toLocaleString() : ''}</span>
+          </div>
+        )}
+
         <div className={`flex items-center bg-secondary rounded-lg border border-border p-1 ${isCollapsed ? 'flex-col gap-1' : 'justify-between'}`}>
           {[
             { id: 'light', icon: Sun, label: 'Light' },

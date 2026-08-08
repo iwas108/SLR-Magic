@@ -1,5 +1,14 @@
 # SLR Viewer Improvements Log
 
+## #047 - Auto Incremental Versioning & Compilation Date-Time Injection (2026-08-08)
+- **Goal**: Implement auto-incremental versioning and live compilation date-time tracking in `slr-viewer`.
+- **Changes**:
+  - Created [bump-version.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/scripts/bump-version.js): Added Node.js prebuild script to bump patch version in `package.json` before production builds.
+  - Modified [package.json](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/package.json): Added `"prebuild": "node scripts/bump-version.js"` script.
+  - Modified [vite.config.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/vite.config.js): Defined global `__APP_VERSION__` and `__BUILD_TIME__` build variables.
+  - Modified [Sidebar.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/Sidebar.jsx): Added a sleek version pill badge and compilation timestamp in the Sidebar footer.
+- **Verification**: Verified `npm run build` executed prebuild and built assets cleanly.
+
 ## #046 - Improved QA Parsing Logic & Robustness in Final Cohort Table (2026-08-07)
 - **Goal**: Resolve `[object Object]` rendering issue in `QAx_y` columns in SLR Viewer Final Cohort table when loading snapshot files with new JSON schema formats (`{ score: "1.0", exact_quote: "..." }`).
 - **Changes**:

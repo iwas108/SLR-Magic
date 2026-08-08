@@ -4,6 +4,16 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#028] Auto Incremental Versioning & Compilation Date-Time Injection - 2026-08-08
+
+- **Auto-Incremental Prebuild Automation (`scripts/bump-version.js`)**:
+  - Added Node.js prebuild script (`node scripts/bump-version.js`) to automatically bump the patch version in `package.json` before production builds.
+- **Global Build Metadata Injection (`vite.config.js`)**:
+  - Configured Vite `define` plugin to inject `__APP_VERSION__` and `__BUILD_TIME__` (ISO 8601 compilation timestamp) into the application build environment.
+- **Sleek Navbar Version Badge (`App.jsx`)**:
+  - Rendered a sleek, pulse-animated version pill badge (`vX.Y.Z`) next to the branding title in the navbar, displaying the exact compilation date and time on hover/tooltip.
+- **Verification**: Verified `npm run build` executed `prebuild`, incremented patch version, and built assets cleanly.
+
 ## [#027] Standardized Snake-Case Metadata & Elimination of Duplicate Keys - 2026-08-08
 
 - **Standardized Export Metadata Schema (`StorageService.js`)**:

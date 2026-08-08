@@ -72,12 +72,22 @@ function App() {
       {currentView !== 'review' && (
         <nav className="bg-card border-b border-border mb-8 py-4 shadow-sm transition-colors duration-200 shrink-0">
           <div className="container mx-auto px-4 flex justify-between items-center">
-            <span 
-              className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent cursor-pointer" 
-              onClick={() => handleNavigate('dashboard')}
-            >
-              SLR Magic Inter-Rater
-            </span>
+            <div className="flex items-center gap-3">
+              <span 
+                className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent cursor-pointer" 
+                onClick={() => handleNavigate('dashboard')}
+              >
+                SLR Magic Inter-Rater
+              </span>
+              <div 
+                title={`Compiled on: ${typeof __BUILD_TIME__ !== 'undefined' ? new Date(__BUILD_TIME__).toLocaleString() : 'N/A'}`}
+                className="px-2 py-0.5 rounded-full bg-secondary border border-border text-[11px] font-mono font-medium text-muted-foreground flex items-center gap-1.5 cursor-help hover:border-primary/50 transition-colors"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'}</span>
+                <span className="text-[10px] opacity-75 hidden sm:inline">• {typeof __BUILD_TIME__ !== 'undefined' ? new Date(__BUILD_TIME__).toLocaleString() : ''}</span>
+              </div>
+            </div>
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground font-medium">Theme:</span>

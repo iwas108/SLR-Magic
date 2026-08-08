@@ -1,3 +1,12 @@
+## #312 - Auto Incremental Versioning & Compilation Date-Time Injection (2026-08-08)
+- **Goal**: Implement auto-incremental versioning and live compilation date-time tracking across `slr-ide`.
+- **Changes**:
+  - Created [bump-version.js](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/bump-version.js): Node.js script that bumps patch version in `package.json` before production builds.
+  - Modified [package.json](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/package.json): Added `"prebuild": "node scripts/bump-version.js"` script.
+  - Created [next.config.mjs](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/next.config.mjs): Exported Next.js configuration injecting `NEXT_PUBLIC_APP_VERSION` and `NEXT_PUBLIC_BUILD_TIME` environment variables.
+  - Modified [Sidebar.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/Sidebar.tsx): Added version pill badge and compilation timestamp in the Sidebar footer.
+- **Verification**: Verified `npx tsc --noEmit` exited with 0 errors.
+
 ## #311 - Strict SQL Multi-Project CAST Enforcements & Resilient Pool Matching (2026-08-08)
 - **Goal**: Fix root cause of inter-rater import failures where importing two `.slr` files kept returning "Waiting for Second Reviewer" due to SQL project ID type mismatches (`1` vs `'1'`) and strict calibration pool filter mismatches.
 - **Changes**:

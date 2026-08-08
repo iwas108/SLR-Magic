@@ -260,6 +260,20 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOp
           )}
         </button>
 
+        {/* Build Version & Compilation Info */}
+        {!isCollapsed && (
+          <div 
+            title={`Compiled on: ${process.env.NEXT_PUBLIC_BUILD_TIME ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME).toLocaleString() : 'N/A'}`}
+            className="px-2.5 py-1 rounded-lg bg-secondary/80 border border-border text-[10px] font-mono font-medium text-muted-foreground flex items-center justify-between cursor-help hover:border-primary/50 transition-colors"
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>v{process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0'}</span>
+            </div>
+            <span className="text-[9px] opacity-75">{process.env.NEXT_PUBLIC_BUILD_TIME ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME).toLocaleString() : ''}</span>
+          </div>
+        )}
+
         {/* Theme Selectors */}
         <div className={`flex items-center bg-secondary rounded-lg border border-border p-1 ${isCollapsed ? 'flex-col gap-1' : 'justify-between'}`}>
           {[

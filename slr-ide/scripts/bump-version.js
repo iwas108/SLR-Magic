@@ -1,0 +1,22 @@
+const fs = require('fs');
+const path = require('path');
+
+const pkgPath = path.resolve(__dirname, '../package.json');
+
+try {
+  const pkgData = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  const currentVersion = pkgData.version || '0.1.0';
+  const parts = currentVersion.split('.').map(Number);
+  
+  if (parts.length === 3 && parts.every(n => !isNaN(n))) {
+    parts[2] += 1;
+    pkgData.version = parts.join('.');
+  } else {
+    pkgData.version = '0.1.1';
+  }
+
+  fs.writeFileSync(pkgPath, JSON.stringify(pkgData, null, 2) + '\n', 'utf8');
+  console.log(`[slr-ide] Version bumped from ${currentVersion} to ${pkgData.version}`);
+} catch (err) {
+  console.error('[slr-ide] Failed to bump version:', err);
+}

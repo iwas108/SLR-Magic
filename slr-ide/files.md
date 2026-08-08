@@ -11,8 +11,10 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `AGENTS.md` | Governance / Directives | Contains workspace-scoped rules, developer instructions, and behavioral guardrails specifically for coding agents operating in `slr-ide`. |
 | `architecture.md` | Documentation | Module-scoped blueprint detailing the local Next.js + SQLite desktop application design, data flows, and IPC patterns. |
 | `improvements-log.md` | Documentation | Chronological log of incremental features, bug fixes, refactoring iterations (including decision-exclusion code split), and optimizations with sequential IDs (e.g., `#001`). |
-| `package.json` | Dependency / Scripts | Defines NPM package dependencies, project metadata, and execution scripts (e.g., `dev`, `build`, `lint`). |
+| `package.json` | Dependency / Scripts | Defines NPM package dependencies, project metadata, and execution scripts (e.g., `dev`, `prebuild`, `build`, `lint`). |
 | `package-lock.json` | Dependency | Lockfile ensuring reproducible dependency tree installation across environments. |
+| `next.config.mjs` | Build Configuration | Next.js configuration injecting `NEXT_PUBLIC_APP_VERSION` and `NEXT_PUBLIC_BUILD_TIME` environment variables. |
+| `scripts/bump-version.js` | Build Automation | Node.js script executing prior to build (`prebuild`) to auto-increment the patch version in `package.json`. |
 | `tsconfig.json` | Build Configuration | TypeScript compiler configuration defining strict type-checking rules, module resolution, and path aliases (`@/*`). |
 | `tsconfig.tsbuildinfo` | Build Configuration | Incremental TypeScript compiler cache file to speed up subsequent type-checking builds. |
 | `next-env.d.ts` | Type Declarations | Automatically generated TypeScript definitions for Next.js environment compatibility. |
