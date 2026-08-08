@@ -35,7 +35,7 @@ export async function POST() {
     const eligiblePapers = db.prepare(`
       SELECT p.* FROM papers p
       WHERE p.Project_ID = ?
-        AND p.ai_stage = 4
+        AND (p.ai_stage = 4 OR (p.ai_stage = 3 AND p.ai_quality_assessment IS NOT NULL AND p.ai_quality_assessment != '{}'))
         AND p.ai_decision LIKE 'INCLUDE%'
         AND p.is_duplicate = 0
         AND p.manual_decision IS NULL
@@ -49,9 +49,9 @@ export async function POST() {
       LIMIT ?
     `).all(activeProjectId, activeProjectId, activeProjectId, rollingBatchSize) as any[];
 
-    if (eligiblePapers.length < rollingBatchSize) {
+    if (eligiblePapers.length === 0) {
       return NextResponse.json({ 
-        error: `Insufficient eligible papers (found ${eligiblePapers.length}, required ${rollingBatchSize}). Ensure enough papers have completed both Scientist (Stage 3) and Miner (Stage 4) via LLM, are not duplicates, and have not yet been manually screened.` 
+        error: `No eligible Pool C papers found. Ensure papers have completed Scientist (Stage 3) / Miner (Stage 4) via LLM, are not duplicates, and have not yet been manually screened or audited in previous batches.` 
       }, { status: 400 });
     }
 

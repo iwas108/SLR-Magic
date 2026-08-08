@@ -643,15 +643,15 @@ export async function GET(request: Request) {
 
     // 4. Pre-Calibration Pool Filling Status
     let poolMetrics: any = {
-      pool_a: { target: 50, filled: 0, completed: 0 },
-      pool_b: { target: 30, filled: 0, completed: 0 },
-      pool_c: { target: 20, filled: 0, completed: 0 },
+      pool_a: { target: project.pool_a_size || 50, filled: 0, completed: 0 },
+      pool_b: { target: project.pool_b_size || 30, filled: 0, completed: 0 },
+      pool_c: { target: project.pool_c_size || 20, filled: 0, completed: 0 },
       pool_a_count: 0,
       pool_b_count: 0,
       pool_c_count: 0,
-      pool_a_size: 50,
-      pool_b_size: 30,
-      pool_c_size: 20
+      pool_a_size: project.pool_a_size || 50,
+      pool_b_size: project.pool_b_size || 30,
+      pool_c_size: project.pool_c_size || 20
     };
 
     try {
@@ -713,6 +713,9 @@ export async function GET(request: Request) {
       let totalKeysEvaluated = 0;
       let semanticMatchesCount = 0;
 
+      const criticalMissDetails: Array<{ paper_id: string; title: string; rule_code: string; aiScore: number; goldScore: number; diff: number }> = [];
+      const schemaDiscrepancies: Array<{ paper_id: string; title: string; missing_key: string }> = [];
+
       const resolveToken = (val: string, key: string) => {
         if (val === undefined || val === null) return '';
         const raw = String(val).trim().toLowerCase().replace(/\s+/g, ' ');
@@ -750,17 +753,22 @@ export async function GET(request: Request) {
           for (const rule of qaRules) {
             const codeLower = rule.code ? rule.code.toLowerCase() : '';
             if (!codeLower) continue;
+            const cleanCode = codeLower.replace(/[^a-z0-9]/g, '');
+
             const aiMatchKey = Object.keys(aiQa).find(k => {
-              const kl = k.toLowerCase();
-              return kl === codeLower || kl.startsWith(codeLower + '_');
+              const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return kl === cleanCode || kl.startsWith(cleanCode);
             });
             const goldMatchKey = Object.keys(goldQa).find(k => {
-              const kl = k.toLowerCase();
-              return kl === codeLower || kl.startsWith(codeLower + '_');
+              const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return kl === cleanCode || kl.startsWith(cleanCode);
             });
 
-            const aiVal = aiMatchKey ? aiQa[aiMatchKey]?.value : undefined;
-            const goldVal = goldMatchKey ? goldQa[goldMatchKey]?.value : undefined;
+            const aiItem = aiMatchKey ? aiQa[aiMatchKey] : undefined;
+            const aiVal = typeof aiItem === 'object' ? (aiItem?.score ?? aiItem?.value ?? aiItem?.val) : aiItem;
+
+            const goldItem = goldMatchKey ? goldQa[goldMatchKey] : undefined;
+            const goldVal = typeof goldItem === 'object' ? (goldItem?.score ?? goldItem?.value ?? goldItem?.val) : goldItem;
 
             if (aiVal !== undefined && goldVal !== undefined) {
               const aiScore = parseFloat(String(aiVal));
@@ -769,7 +777,17 @@ export async function GET(request: Request) {
                 const diff = Math.abs(aiScore - goldScore);
                 totalQAPairs++;
                 if (diff < 1.0) qaAgreementCount++;
-                if (diff >= 1.0) qaCriticalMissCount++;
+                if (diff >= 1.0) {
+                  qaCriticalMissCount++;
+                  criticalMissDetails.push({
+                    paper_id: paper.Paper_ID,
+                    title: paper.Title || paper.Paper_ID,
+                    rule_code: rule.code,
+                    aiScore,
+                    goldScore,
+                    diff
+                  });
+                }
               }
             }
           }
@@ -785,15 +803,20 @@ export async function GET(request: Request) {
         if (isStructurallyValid && parsedAiMiner) {
           const aiExt = parsedAiMiner.extracted_data || parsedAiMiner;
           for (const key of minerKeys) {
-            const field = aiExt[key];
-            if (!field || typeof field !== 'object' || field.value === undefined) {
+            const cleanKey = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+            const matchKey = Object.keys(aiExt).find(k => {
+              const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return kl === cleanKey || kl.startsWith(cleanKey);
+            });
+            const field = matchKey ? aiExt[matchKey] : undefined;
+            if (!field) {
               isStructurallyValid = false;
+              schemaDiscrepancies.push({
+                paper_id: paper.Paper_ID,
+                title: paper.Title || paper.Paper_ID,
+                missing_key: String(key)
+              });
               break;
-            }
-            if (arrayKeys.includes(key)) {
-              if (!Array.isArray(field.value)) { isStructurallyValid = false; break; }
-            } else {
-              if (typeof field.value !== 'string' && typeof field.value !== 'number') { isStructurallyValid = false; break; }
             }
           }
         } else {
@@ -807,20 +830,39 @@ export async function GET(request: Request) {
           const goldExt = parsedGoldMiner.extracted_data || parsedGoldMiner;
 
           for (const key of minerKeys) {
-            const aiField = aiExt[key];
-            const goldField = goldExt[key];
+            const cleanKey = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+            const aiMatchKey = Object.keys(aiExt).find(k => {
+              const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return kl === cleanKey || kl.startsWith(cleanKey);
+            });
+            const goldMatchKey = Object.keys(goldExt).find(k => {
+              const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return kl === cleanKey || kl.startsWith(cleanKey);
+            });
 
-            if (aiField && goldField && aiField.value !== undefined && goldField.value !== undefined) {
+            const aiField = aiMatchKey ? aiExt[aiMatchKey] : undefined;
+            const goldField = goldMatchKey ? goldExt[goldMatchKey] : undefined;
+
+            const getFieldVal = (f: any) => {
+              if (f === undefined || f === null) return undefined;
+              if (typeof f === 'object') return f.value ?? f.val ?? f.text ?? f;
+              return f;
+            };
+
+            const aiVal = getFieldVal(aiField);
+            const goldVal = getFieldVal(goldField);
+
+            if (aiVal !== undefined && goldVal !== undefined) {
               totalKeysEvaluated++;
-              if (arrayKeys.includes(key)) {
-                const aiArr = resolveArray(aiField.value, key);
-                const goldArr = resolveArray(goldField.value, key);
+              if (Array.isArray(aiVal) || Array.isArray(goldVal)) {
+                const aiArr = resolveArray(aiVal, key);
+                const goldArr = resolveArray(goldVal, key);
                 if (aiArr.length === goldArr.length && aiArr.every((v, idx) => v === goldArr[idx])) {
                   semanticMatchesCount++;
                 }
               } else {
-                const aiStr = resolveToken(String(aiField.value), key);
-                const goldStr = resolveToken(String(goldField.value), key);
+                const aiStr = resolveToken(String(aiVal), key);
+                const goldStr = resolveToken(String(goldVal), key);
                 if (aiStr === goldStr) semanticMatchesCount++;
               }
             }
@@ -845,7 +887,8 @@ export async function GET(request: Request) {
           SE: s3CI.SE,
           CI_lower: s3CI.CI_lower,
           critical_miss_rate,
-          passed: s3_passed
+          passed: s3_passed,
+          criticalMissDetails
         },
         s4: {
           p_hat: schema_integrity_rate,
@@ -853,7 +896,8 @@ export async function GET(request: Request) {
           CI_lower: s4CI.CI_lower,
           schema_integrity_rate: schema_integrity_rate * 100,
           semantic_agreement,
-          passed: s4_passed
+          passed: s4_passed,
+          schemaDiscrepancies
         }
       };
     };

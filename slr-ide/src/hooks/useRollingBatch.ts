@@ -73,7 +73,7 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(`Successfully initialized Rolling Batch #${data.batch.batchNumber}!`, 'success');
+        showToast(`Successfully initialized Rolling Batch #${data.batch.batchNumber} with ${data.batch.papersCount} paper(s)!`, 'success');
         broadcastSync('SYNC_PAPERS');
         await loadStatus();
         await loadStats();

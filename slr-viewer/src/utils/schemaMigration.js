@@ -5,6 +5,31 @@
 
 export const CURRENT_SCHEMA_VERSION = '1.1.0';
 
+function inferPromptType(tpl) {
+  if (tpl && tpl.prompt_type && typeof tpl.prompt_type === 'string' && tpl.prompt_type.trim()) {
+    return tpl.prompt_type.trim();
+  }
+  const name = (tpl?.name || tpl?.id || '').toLowerCase();
+  const schemaStr = (typeof tpl?.response_schema === 'string' ? tpl.response_schema : JSON.stringify(tpl?.response_schema || {})).toLowerCase();
+
+  if (schemaStr.includes('taxonomy_mapping') || name.includes('umbrellanizer')) {
+    return 'umbrellanizer';
+  }
+  if (schemaStr.includes('qa_scores') || name.includes('scientist')) {
+    return 'scientist';
+  }
+  if (schemaStr.includes('extracted_data') || name.includes('miner')) {
+    return 'miner';
+  }
+  if (name.includes('gatekeeper') || schemaStr.includes('gate_4') || schemaStr.includes('eligibility')) {
+    return 'gatekeeper';
+  }
+  if (name.includes('fast_filter') || name.includes('screening') || name.includes('filter')) {
+    return 'fast_filter';
+  }
+  return 'fast_filter';
+}
+
 export function normalizeViewerSnapshot(rawPayload) {
   if (!rawPayload || typeof rawPayload !== 'object') {
     throw new Error('Invalid snapshot payload: Expected JSON object.');
@@ -36,6 +61,15 @@ export function normalizeViewerSnapshot(rawPayload) {
     _isLegacy: isLegacyV1,
   };
 
+  // 5. Prompt templates normalization & prompt_type inferral
+  const rawTemplates = rawPayload.prompt_templates || project.prompt_templates || [];
+  const normalizedPromptTemplates = Array.isArray(rawTemplates)
+    ? rawTemplates.map(tpl => ({
+        ...tpl,
+        prompt_type: inferPromptType(tpl),
+      }))
+    : [];
+
   return {
     ...rawPayload,
     schema_version: schemaVersion,
@@ -47,7 +81,9 @@ export function normalizeViewerSnapshot(rawPayload) {
       description: project.description || '',
       scopus_search_string: project.scopus_search_string || project.search_string || '',
       manual_search_string: project.manual_search_string || '',
+      prompt_templates: normalizedPromptTemplates,
     },
+    prompt_templates: normalizedPromptTemplates,
     scientific_rigor: {
       ...scientificRigor,
       prisma: normalizedPrisma,

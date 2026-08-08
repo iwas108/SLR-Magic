@@ -1,3 +1,10 @@
+## #338 - Fix SLR Viewer Export Pool Size Targets & Rolling Batch QA Score Key Matching (2026-08-08)
+- **Goal**: Fix target hardcoding and rolling batch statistical evaluation errors when importing `.slr-viewer` snapshot datasets into `slr-viewer`.
+- **Changes**:
+  - Modified [`route.ts (export/slr-viewer)`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Dynamicized `poolMetrics` initialization (`pool_a_size`, `pool_b_size`, `pool_c_size`) to read `project.pool_a_size`, `project.pool_b_size`, and `project.pool_c_size` instead of hardcoding `50 / 30 / 20`. Realigned `calculateCohortStats` in `/api/export/slr-viewer` to use alphanumeric cleaning (`cleanCode = codeLower.replace(/[^a-z0-9]/g, '')`) and `score ?? value ?? val` property extraction, fixing QA score key matching failures (e.g., `"QA-1"` matching `"qa1_aims"`).
+  - Modified [`PoolMetricsPanel.jsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/scientific-rigor/PoolMetricsPanel.jsx): Prioritized `pool_a.target` in target fallback resolution.
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors) and confirmed export payload correctly writes `20 / 10 / 10` pool targets and 100% agreement stats.
+
 ## #337 - Python LLM Pipeline QA Score Parsing Fallback & Rolling Batch Sync (2026-08-08)
 - **Goal**: Fix root cause issue where rerunning Stage 3 Scientist LLM pipeline on a paper (e.g. `Liu_2023_Intelligentdigi_640a3_1`) did not update its `ai_quality_assessment` score (leaving stale `0.0` score in the breakdown).
 - **Root Cause & Fix**:

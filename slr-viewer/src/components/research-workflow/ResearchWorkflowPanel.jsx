@@ -1141,9 +1141,25 @@ export default function ResearchWorkflowPanel() {
                           {templates.map((tpl, idx) => (
                             <div key={tpl.id || idx} className="p-4 bg-secondary/20 rounded-xl border border-border space-y-3">
                               <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-mono font-extrabold text-xs text-primary">#{idx + 1}</span>
                                   <span className="font-bold text-foreground text-xs">{tpl.name || tpl.id}</span>
+                                  {(() => {
+                                    const typeKey = tpl.prompt_type || 'fast_filter';
+                                    const badgeMap = {
+                                      fast_filter: { label: 'Stage 1: Fast Filter', cls: 'bg-amber-500/10 text-amber-500 border-amber-500/20' },
+                                      gatekeeper: { label: 'Stage 2: Gatekeeper', cls: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
+                                      scientist: { label: 'Stage 3: Scientist', cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
+                                      miner: { label: 'Stage 4: Miner', cls: 'bg-purple-500/10 text-purple-500 border-purple-500/20' },
+                                      umbrellanizer: { label: 'Stage 5: Umbrellanizer', cls: 'bg-pink-500/10 text-pink-500 border-pink-500/20' },
+                                    };
+                                    const badge = badgeMap[typeKey] || { label: typeKey, cls: 'bg-secondary text-muted-foreground border-border' };
+                                    return (
+                                      <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${badge.cls}`}>
+                                        {badge.label}
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                                 {tpl.is_active !== 0 && (
                                   <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
