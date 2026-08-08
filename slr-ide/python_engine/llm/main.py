@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from llm.database import execute_read, execute_write, execute_read_one
 from llm.client import GeminiClient
 from llm.queue_handler import LLMQueueHandler
-from llm.schema_registry import validate_json_schema
+from llm.schema_registry import validate_json_schema, validate_stage_schema
 from llm.budget import sync_all_models_from_api
 
 # Configure logging
@@ -224,44 +224,25 @@ def main():
     speed_mode = raw_mode
     if speed_mode not in ['FLEX', 'STANDARD']:
         speed_mode = 'FLEX'
-
     # 4. Resolve JSON Schema from prompt template
     schema_str = template_row.get("response_schema")
     is_valid, err_msg, prompt_schema = validate_json_schema(schema_str)
     if not is_valid:
         fail_job(job_id, project_id, f"JSON Schema validation failed for prompt template '{selected_template_id}': {err_msg}", task_type=task_type)
 
+    stage_valid, stage_err = validate_stage_schema(task_type, prompt_schema)
+    if not stage_valid:
+        fail_job(job_id, project_id, f"Baseline stage schema validation failed for task '{task_type}': {stage_err}", task_type=task_type)
+
     # 5. Fetch papers pending screening with range/selection constraints matching status_filter
     requires_pdf = task_type in ('gatekeeper', 'scientist', 'miner', 'fulltext', 'extraction')
     selection_mode = getattr(args, 'paper_selection_mode', 'all')
     if args.paper_ids:
-      # User specified concrete Paper IDs. Fetch all pending papers and filter in memory to avoid parameter limit exceptions.
-      if status_filter == 'ALL':
-          query = "SELECT * FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
-          params = [project_id]
-      else:
-          query = "SELECT * FROM papers WHERE Project_ID = ? AND MAX(manual_stage, ai_stage) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
-          params = [project_id, int(status_filter)]
-      if decision_filter != 'ALL':
-          query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'INCLUDE%' THEN 'INCLUDE' ELSE 'PENDING' END) = ?"
-          params.append(decision_filter)
+      # User specified concrete Paper IDs. Fetch paper records directly to allow force rerun on any stage.
+      query = "SELECT * FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
+      params = [project_id]
       if requires_pdf:
           query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
-      if selection_mode == 'snowballing':
-          query += " AND (Source IN ('Manual Search', 'Backward Snowball', 'Forward Snowball', 'Manual Ingestion') OR Import_Source IN ('Manual Search', 'Backward Snowball', 'Forward Snowball', 'Manual Ingestion') OR (Parent_Paper_ID IS NOT NULL AND Parent_Paper_ID != ''))"
-      if exclude_manual:
-          stage_map = {
-              'fast_filter': 'fast_filter',
-              'screening': 'fast_filter',
-              'gatekeeper': 'gatekeeper',
-              'fulltext': 'gatekeeper',
-              'scientist': 'scientist',
-              'miner': 'miner',
-              'extraction': 'miner'
-          }
-          db_stage_name = stage_map.get(task_type, task_type)
-          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.project_id = papers.Project_ID AND manual_audit_log.manual_stage = ?)"
-          params.append(db_stage_name)
       query += " ORDER BY Paper_ID ASC"
       all_papers = execute_read(query, tuple(params))
       parsed_ids = [p_id.strip() for p_id in args.paper_ids.split(",") if p_id.strip()]

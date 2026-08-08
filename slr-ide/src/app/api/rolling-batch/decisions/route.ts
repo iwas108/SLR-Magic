@@ -41,9 +41,15 @@ export async function GET(request: Request) {
       ORDER BY timestamp DESC
     `).all(batchId, activeProjectId) as any[];
 
+    // Fetch project details
+    const project = db.prepare(`
+      SELECT * FROM projects WHERE id = ?
+    `).get(activeProjectId) as any;
+
     return NextResponse.json({
       success: true,
       batch,
+      project,
       papers,
       decisions,
       ledger

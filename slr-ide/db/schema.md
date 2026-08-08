@@ -124,8 +124,11 @@ Stores user and system prompt seeds for automated screening, extraction, and eva
 | `project_id` | TEXT | | Reference to `projects(id)` (null if global template) |
 | `name` | TEXT | NOT NULL | Display name of the prompt template |
 | `description` | TEXT | | Description of prompt intent |
+| `prompt_type` | TEXT | | Pipeline stage classification (`fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`) |
 | `system_instruction` | TEXT | | Core system prompt guidelines and JSON output schema definition |
 | `user_template` | TEXT | NOT NULL | User prompt containing mustache-like interpolation tags |
+| `response_schema` | TEXT | | Standardized baseline JSON schema constraining Gemini output format |
+| `llm_config` | TEXT | DEFAULT '{}' | Model parameters configuration (`model_id`, `temperature`, `max_tokens`, `top_p`, `top_k`, `execution_mode`, `thinking_level`) |
 | `is_active` | INTEGER | DEFAULT 1 | Active status flag (1 = active, 0 = archived) |
 | `created_at` | TEXT | NOT NULL | Timestamp of creation |
 | `updated_at` | TEXT | NOT NULL | Timestamp of last edit |

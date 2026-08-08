@@ -125,17 +125,57 @@ export default function RollingBatchAdjudicationModal({
           setAdjudicationWorkspaceTab('qa');
         }
 
+        // Helper to extract QA score object with clean key matching
+        const getQaScoreObj = (qaObj: any, ruleCode: string) => {
+          if (!qaObj || typeof qaObj !== 'object') return { value: null, evidence: '' };
+          const cleanCode = ruleCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchKey = Object.keys(qaObj).find(k => {
+            const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return kl === cleanCode || kl.startsWith(cleanCode);
+          });
+          const item = matchKey ? qaObj[matchKey] : undefined;
+          if (item === undefined || item === null) return { value: null, evidence: '' };
+          if (typeof item === 'object') {
+            const val = item.value ?? item.score ?? item.val ?? null;
+            const num = val !== null ? parseFloat(String(val)) : null;
+            const ev = item.evidence ?? item.exact_quote ?? item.quote ?? '';
+            return { value: !isNaN(num!) ? num : val, evidence: String(ev) };
+          }
+          const num = parseFloat(String(item));
+          return { value: !isNaN(num) ? num : item, evidence: '' };
+        };
+
+        const getExtDataObj = (extObj: any, jsonKey: string) => {
+          if (!extObj || typeof extObj !== 'object') return { value: '', evidence: '' };
+          const cleanKey = jsonKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchKey = Object.keys(extObj).find(k => {
+            const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return kl === cleanKey || kl.startsWith(cleanKey);
+          });
+          const item = matchKey ? extObj[matchKey] : undefined;
+          if (item === undefined || item === null) return { value: '', evidence: '' };
+          if (typeof item === 'object') {
+            let val = item.value ?? item.val ?? item.text ?? '';
+            if (Array.isArray(val)) val = val.join(', ');
+            const ev = item.evidence ?? item.quote ?? '';
+            return { value: String(val), evidence: String(ev) };
+          }
+          return { value: String(item), evidence: '' };
+        };
+
         // Initialize review comparison scores
         const r1_qa = JSON.parse(discrepancy.r1_qa_scores || '{}');
         const r2_qa = JSON.parse(discrepancy.r2_qa_scores || '{}');
         const qaInit: any = {};
         qaRules.forEach(rule => {
-          const v1 = r1_qa[rule.code]?.value;
-          const v2 = r2_qa[rule.code]?.value;
-          const ev1 = r1_qa[rule.code]?.evidence || '';
-          const ev2 = r2_qa[rule.code]?.evidence || '';
+          const obj1 = getQaScoreObj(r1_qa, rule.code);
+          const obj2 = getQaScoreObj(r2_qa, rule.code);
+          const v1 = obj1.value;
+          const v2 = obj2.value;
+          const ev1 = obj1.evidence;
+          const ev2 = obj2.evidence;
           qaInit[rule.code] = {
-            value: v1 === v2 ? v1 : v1 !== undefined ? v1 : null,
+            value: v1 === v2 ? v1 : v1 !== undefined && v1 !== null ? v1 : v2,
             evidence: v1 === v2 ? ev1 : ev1 || ev2
           };
         });
@@ -145,10 +185,12 @@ export default function RollingBatchAdjudicationModal({
         const r2_ext = JSON.parse(discrepancy.r2_extracted_data || '{}');
         const extInit: any = {};
         extractionRules.forEach(rule => {
-          const v1 = r1_ext[rule.json_key]?.value || '';
-          const v2 = r2_ext[rule.json_key]?.value || '';
-          const ev1 = r1_ext[rule.json_key]?.evidence || '';
-          const ev2 = r2_ext[rule.json_key]?.evidence || '';
+          const obj1 = getExtDataObj(r1_ext, rule.json_key);
+          const obj2 = getExtDataObj(r2_ext, rule.json_key);
+          const v1 = obj1.value;
+          const v2 = obj2.value;
+          const ev1 = obj1.evidence;
+          const ev2 = obj2.evidence;
           extInit[rule.json_key] = {
             value: v1 === v2 ? v1 : v1 || v2,
             evidence: v1 === v2 ? ev1 : ev1 || ev2
@@ -246,18 +288,23 @@ export default function RollingBatchAdjudicationModal({
       return;
     }
 
-    const incomplete = qaRules.some(rule => adjudicateQaScores[rule.code]?.value === null || adjudicateQaScores[rule.code]?.value === undefined);
-    if (incomplete) {
-      showToast('A resolved score must be selected for all QA criteria.', 'warning');
-      return;
-    }
+    // Ensure all QA scores have a default numerical value (0) if unreviewed, preventing blocked commits
+    const resolvedQaScores = { ...adjudicateQaScores };
+    qaRules.forEach(rule => {
+      if (resolvedQaScores[rule.code]?.value === null || resolvedQaScores[rule.code]?.value === undefined) {
+        resolvedQaScores[rule.code] = {
+          value: 0,
+          evidence: resolvedQaScores[rule.code]?.evidence || 'Unreviewed criterion auto-defaulted to 0'
+        };
+      }
+    });
 
     setSubmittingAdjudication(true);
     try {
       const bodyData = {
         paper_id: discrepancy.paper_id,
         batch_id: batchId,
-        final_qa_scores: adjudicateQaScores,
+        final_qa_scores: resolvedQaScores,
         final_extracted_data: adjudicateExtractedData,
         commit_message: commitMessage
       };

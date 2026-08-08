@@ -85,12 +85,23 @@ export async function GET(request: Request) {
                 const goldQa = JSON.parse(entry.resolved_qa_scores || '{}');
 
                 for (const rule of qaRules) {
-                  // Resolve case-insensitive prefix matching (e.g. qa1_aims matching QA1)
                   const codeLower = rule.code.toLowerCase();
-                  const matchKey = Object.keys(aiQa).find(k => k.toLowerCase().startsWith(codeLower));
+                  const cleanCode = codeLower.replace(/[^a-z0-9]/g, '');
                   
-                  const aiVal = matchKey ? aiQa[matchKey]?.value : undefined;
-                  const goldVal = goldQa[rule.code]?.value !== undefined ? goldQa[rule.code]?.value : goldQa[rule.code.toLowerCase()]?.value;
+                  const matchKey = Object.keys(aiQa).find(k => {
+                    const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return kl === cleanCode || kl.startsWith(cleanCode);
+                  });
+                  
+                  const aiItem = matchKey ? aiQa[matchKey] : undefined;
+                  const aiVal = typeof aiItem === 'object' ? (aiItem?.score ?? aiItem?.value ?? aiItem?.val ?? 0) : (aiItem ?? 0);
+                  
+                  const goldMatchKey = Object.keys(goldQa).find(k => {
+                    const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return kl === cleanCode || kl.startsWith(cleanCode);
+                  });
+                  const goldItem = goldMatchKey ? goldQa[goldMatchKey] : undefined;
+                  const goldVal = typeof goldItem === 'object' ? (goldItem?.score ?? goldItem?.value ?? goldItem?.val ?? 0) : (goldItem ?? 0);
                   
                   const idx1 = getScoreIndex(goldVal);
                   const idx2 = getScoreIndex(aiVal);
@@ -98,8 +109,8 @@ export async function GET(request: Request) {
                   totalRatings++;
 
                   // Ordinal tier deviations (0.0, 0.5, 1.0)
-                  const goldNum = parseFloat(String(goldVal || 0));
-                  const aiNum = parseFloat(String(aiVal || 0));
+                  const goldNum = parseFloat(String(goldVal));
+                  const aiNum = parseFloat(String(aiVal));
                   const diff = Math.abs(goldNum - aiNum);
                   
                   totalRatingComparisons++;
@@ -432,6 +443,40 @@ export async function GET(request: Request) {
       let missingKeysCount = 0;
       let typeMatchesCount = 0;
 
+      // Helper to fetch QA score item flexibly (e.g. 'QA-1' vs 'QA1')
+      const getQaItem = (qaObj: any, ruleCode: string) => {
+        if (!qaObj) return undefined;
+        if (qaObj[ruleCode] !== undefined) return qaObj[ruleCode];
+        const codeLower = ruleCode.toLowerCase();
+        const codeClean = codeLower.replace(/[^a-z0-9]/g, '');
+        const matchKey = Object.keys(qaObj).find(k => {
+          const kClean = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return kClean === codeClean || kClean.startsWith(codeClean);
+        });
+        return matchKey ? qaObj[matchKey] : undefined;
+      };
+
+      // Helper to fetch extracted value string flexibly
+      const getExtractedItem = (extObj: any, jsonKey: string) => {
+        if (!extObj) return undefined;
+        if (extObj[jsonKey] !== undefined) return extObj[jsonKey];
+        const keyLower = jsonKey.toLowerCase();
+        const keyClean = keyLower.replace(/[^a-z0-9]/g, '');
+        const matchKey = Object.keys(extObj).find(k => {
+          const kLower = k.toLowerCase();
+          return kLower === keyLower || kLower.replace(/[^a-z0-9]/g, '') === keyClean;
+        });
+        return matchKey ? extObj[matchKey] : undefined;
+      };
+
+      const getExtractedVal = (item: any): string => {
+        if (item === undefined || item === null) return '';
+        if (typeof item === 'object') {
+          return String(item.value ?? item.val ?? item.text ?? '').trim();
+        }
+        return String(item).trim();
+      };
+
       for (const row of pairedDecisions) {
         const r1_qa = JSON.parse(row.r1_qa_scores || '{}');
         const r2_qa = JSON.parse(row.r2_qa_scores || '{}');
@@ -440,8 +485,10 @@ export async function GET(request: Request) {
 
         // Compile Kappa Ratings
         for (const rule of qaRules) {
-          const idx1 = getScoreIndex(r1_qa[rule.code]?.value);
-          const idx2 = getScoreIndex(r2_qa[rule.code]?.value);
+          const item1 = getQaItem(r1_qa, rule.code);
+          const item2 = getQaItem(r2_qa, rule.code);
+          const idx1 = getScoreIndex(item1);
+          const idx2 = getScoreIndex(item2);
           O[idx1][idx2]++;
           totalRatings++;
         }
@@ -457,35 +504,42 @@ export async function GET(request: Request) {
 
         // Calculate Schema Exactness
         for (const rule of extractionRules) {
-          if (r1_ext[rule.json_key] === undefined) {
+          const item1 = getExtractedItem(r1_ext, rule.json_key);
+          const item2 = getExtractedItem(r2_ext, rule.json_key);
+
+          if (item1 === undefined) {
             missingKeysCount++;
           } else {
-            if (typeof r1_ext[rule.json_key]?.value === 'string') {
-              typeMatchesCount++;
-            }
+            const val1 = getExtractedVal(item1);
+            if (typeof val1 === 'string') typeMatchesCount++;
           }
 
-          if (r2_ext[rule.json_key] === undefined) {
+          if (item2 === undefined) {
             missingKeysCount++;
           } else {
-            if (typeof r2_ext[rule.json_key]?.value === 'string') {
-              typeMatchesCount++;
-            }
+            const val2 = getExtractedVal(item2);
+            if (typeof val2 === 'string') typeMatchesCount++;
           }
         }
 
         // Conflict check
         let hasConflict = false;
         for (const rule of qaRules) {
-          if (r1_qa[rule.code]?.value !== r2_qa[rule.code]?.value) {
+          const item1 = getQaItem(r1_qa, rule.code);
+          const item2 = getQaItem(r2_qa, rule.code);
+          const v1 = typeof item1 === 'object' ? (item1?.value ?? item1?.score) : item1;
+          const v2 = typeof item2 === 'object' ? (item2?.value ?? item2?.score) : item2;
+          if (v1 !== v2) {
             hasConflict = true;
             break;
           }
         }
         if (!hasConflict) {
           for (const rule of extractionRules) {
-            const v1 = (r1_ext[rule.json_key]?.value || '').trim().replace(/\s+/g, ' ');
-            const v2 = (r2_ext[rule.json_key]?.value || '').trim().replace(/\s+/g, ' ');
+            const item1 = getExtractedItem(r1_ext, rule.json_key);
+            const item2 = getExtractedItem(r2_ext, rule.json_key);
+            const v1 = getExtractedVal(item1).replace(/\s+/g, ' ');
+            const v2 = getExtractedVal(item2).replace(/\s+/g, ' ');
             if (v1 !== v2) {
               hasConflict = true;
               break;
@@ -493,24 +547,33 @@ export async function GET(request: Request) {
           }
         }
 
-        if (hasConflict) {
-          discrepancies.push({
-            paper_id: row.paper_id,
-            title: row.title,
-            abstract: row.abstract,
-            local_pdf_path: row.local_pdf_path,
-            authors: row.authors,
-            year: row.year,
-            doi: row.doi,
-            source: row.source,
-            pdf_link: row.pdf_link,
-            publisher: row.publisher,
-            r1_qa_scores: row.r1_qa_scores,
-            r2_qa_scores: row.r2_qa_scores,
-            r1_extracted_data: row.r1_extracted_data,
-            r2_extracted_data: row.r2_extracted_data
-          });
-        }
+      const resolvedPaperIds = new Set(
+        db.prepare(`
+          SELECT DISTINCT paper_id 
+          FROM calibration_commit_ledger 
+          WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ? AND (adjudicator NOT LIKE 'IMPORT:%' OR commit_message LIKE '%Adjudicat%' OR commit_message LIKE '%Resolve%')
+        `).all(activeProjectId, dbPool).map((r: any) => r.paper_id)
+      );
+
+      if (hasConflict) {
+        discrepancies.push({
+          paper_id: row.paper_id,
+          title: row.title,
+          abstract: row.abstract,
+          local_pdf_path: row.local_pdf_path,
+          authors: row.authors,
+          year: row.year,
+          doi: row.doi,
+          source: row.source,
+          pdf_link: row.pdf_link,
+          publisher: row.publisher,
+          r1_qa_scores: row.r1_qa_scores,
+          r2_qa_scores: row.r2_qa_scores,
+          r1_extracted_data: row.r1_extracted_data,
+          r2_extracted_data: row.r2_extracted_data,
+          is_resolved: resolvedPaperIds.has(row.paper_id)
+        });
+      }
       }
 
       // Linear Weighted Kappa Calculation
@@ -571,6 +634,14 @@ export async function GET(request: Request) {
       const discrepancies: any[] = [];
       const total_intersection = pairedDecisions.length;
 
+      const resolvedPaperIds = new Set(
+        db.prepare(`
+          SELECT DISTINCT paper_id 
+          FROM calibration_commit_ledger 
+          WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ? AND (adjudicator NOT LIKE 'IMPORT:%' OR commit_message LIKE '%Adjudicat%' OR commit_message LIKE '%Resolve%')
+        `).all(activeProjectId, dbPool).map((r: any) => r.paper_id)
+      );
+
       for (const row of pairedDecisions) {
         const dec1 = (row.r1_decision || '').trim().toLowerCase();
         const dec2 = (row.r2_decision || '').trim().toLowerCase();
@@ -607,7 +678,8 @@ export async function GET(request: Request) {
             r1_rationale: row.r1_rationale,
             r2_rationale: row.r2_rationale,
             r1_ec: row.r1_ec,
-            r2_ec: row.r2_ec
+            r2_ec: row.r2_ec,
+            is_resolved: resolvedPaperIds.has(row.paper_id)
           });
         }
       }

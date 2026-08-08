@@ -1,3 +1,179 @@
+## #337 - Python LLM Pipeline QA Score Parsing Fallback & Rolling Batch Sync (2026-08-08)
+- **Goal**: Fix root cause issue where rerunning Stage 3 Scientist LLM pipeline on a paper (e.g. `Liu_2023_Intelligentdigi_640a3_1`) did not update its `ai_quality_assessment` score (leaving stale `0.0` score in the breakdown).
+- **Root Cause & Fix**:
+  - In [`python_engine/llm/queue_handler.py`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/python_engine/llm/queue_handler.py): `qa_scores_json` was extracted via `to_json_str(response.get("qa_scores"))`. When `qa_scores` was nested inside `structured_output` JSON string instead of top-level `response` dict, `qa_scores_json` evaluated to `None`, causing `COALESCE(None, ai_quality_assessment)` to silently skip updating the `papers` table.
+  - Added fallback in `queue_handler.py` to parse `qa_scores` directly from `struct_out` when `response.get("qa_scores")` is `None`.
+  - Added explicit update to `rolling_batch_papers` table upon LLM completion so active/historical rolling batch paper records are kept in sync with LLM pipeline runs.
+  - Synced existing latest Scientist QA scores for `Liu_2023_Intelligentdigi_640a3_1` (`QA-7` = `0.5`, Critical Miss Rate = `0.0%`).
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors) and confirmed Critical Miss Rate for Batch #1 drops to 0.0%.
+
+## #336 - Batch Failure Reason Diagnostics & Breakdown Modal (2026-08-08)
+- **Goal**: Provide transparent failure reason diagnostics explaining why rolling batches fail quality control gating thresholds.
+- **Changes**:
+  - Modified [`route.ts (rolling-batch/stats)`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/stats/route.ts): Extended `calculateCohortStats` to track paper-level failure items: `criticalMissDetails` (1.0+ point QA score deviations between AI & Gold) and `schemaDiscrepancies` (missing extraction keys).
+  - Created [`BatchFailureBreakdownModal.tsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/BatchFailureBreakdownModal.tsx): Interactive breakdown modal rendering Audit Gating Rule comparisons (Stage 3 Critical Miss Rate, Stage 3 CI Lower, Stage 4 Schema Integrity, Stage 4 CI Lower) and a paper-by-paper failure table listing Paper ID, criterion, AI score vs Gold score, and deviation.
+  - Modified [`RollingBatchView.tsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchView.tsx): Converted `Failed` / `Passed` status badges in the **Historical Batch Performance** table into interactive buttons with hover tooltips (`Click for failure breakdown`) and mounted `<BatchFailureBreakdownModal />`.
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors).
+
+## #335 - Fix SQL NOT NULL Constraint Failure on Rolling Batch Paper Import (2026-08-08)
+- **Goal**: Fix root cause error `Reviewer 1 Import Failed: 0 papers matched the active rolling batch in the uploaded .slr file.` during batch import.
+- **Root Cause & Fix**:
+  - `rolling_batch_papers` table schema defines `Import_Date` and `Import_Source` as `NOT NULL` without default values.
+  - In [`route.ts (rolling-batch/import)`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts), both `INSERT OR IGNORE INTO rolling_batch_papers` queries omitted `Import_Date` and `Import_Source` from the column list, causing SQLite to throw `SQLITE_CONSTRAINT_NOTNULL` errors and silently ignore every paper insertion.
+  - Added `Import_Date`, `Import_Source`, and `Local_PDF_Status` to the column lists and SQL parameters in both INSERT queries in `route.ts`.
+- **Verification**: Tested insert query in SQLite node runtime (confirmed `changes: 1`). Verified clean `npx tsc --noEmit` build (0 errors).
+
+## #334 - Deep Analysis & Edge-Case Bug Hunting: Standby Import Workflow (2026-08-08)
+- **Goal**: Perform comprehensive audit and fix potential bugs, missing implementation details, and edge cases in the standby batch import workflow.
+- **Bugs Identified & Fixed**:
+  1. **Project Paper Validation Truncation**: Replaced standard `/api/papers` query (which capped results at default page size 50) with `/api/papers?onlyIds=true` to retrieve all paper IDs in the project database without limit, preventing false `Missing in DB` warnings on large projects.
+  2. **Reviewer Decision Overwrite Mismatch**: Added reviewer name collision detection in [`ImportBatchStandbyModal.tsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/ImportBatchStandbyModal.tsx). If File 1 and File 2 share identical `reviewer_name` metadata, they are automatically distinguished (e.g. `(File 1)` / `(File 2)`), preventing File 2 from executing SQL `DELETE FROM rolling_batch_reviewer_decisions` and overwriting File 1 decisions.
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors).
+
+## #333 - Dual-Path Standby Initialization: 'Import Batch' Workflow (2026-08-08)
+- **Goal**: Provide a dual-path workflow on the Audit Pipeline Standby card, allowing users to either auto-generate the paper batch or upload pre-reviewed Reviewer 1 & 2 `.slr` files directly to start the batch.
+- **Changes**:
+  - Created [`ImportBatchStandbyModal.tsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/ImportBatchStandbyModal.tsx): Dual-reviewer file upload modal featuring real-time client-side `.slr` parsing, project database paper existence verification, cross-reviewer alignment reconciliation, and a visual reconciliation preview table before committing.
+  - Modified [`RollingBatchView.tsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchView.tsx): Added the **"Import Batch"** button alongside **"Initialize Next Audit Batch"** in the Audit Pipeline Standby card and mounted `<ImportBatchStandbyModal />`.
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors).
+
+## #332 - Adjudication Commit Persistence & Validation Fix (2026-08-08)
+- **Goal**: Fix issue where clicking "Commit Resolution" did not persist adjudication decisions to the database.
+- **Changes**:
+  - Modified [route.ts (rolling-batch/adjudicate)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/adjudicate/route.ts): Enhanced database queries for project, batch, and `rolling_batch_papers` SELECT/UPDATE to use `CAST(Project_ID AS TEXT) = CAST(? AS TEXT)` matching, preventing type coercion mismatches (string vs numeric project IDs) from silently affecting database updates.
+  - Modified [RollingBatchAdjudicationModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchAdjudicationModal.tsx): Fixed the commit validation gate. Unreviewed QA criteria now automatically default to `0` with explicit evidence rather than triggering a toast guard that silently blocked the commit request.
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors).
+
+## #331 - Purge-Reimport Full Paper Retention & Adjudication Visibility Fix (2026-08-08)
+- **Goal**: Fix issue where purging and re-uploading .slr files only processed 3 out of 5 papers. Papers without reviewer QA data were left with `manual_decision = NULL`, excluded from the adjudication workspace, and auto-excluded on batch finalization.
+- **Changes**:
+  - Modified [route.ts (rolling-batch/import)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Added `decisions.length === 0` branch in re-evaluation loop to explicitly mark papers with no reviewer decisions as `PENDING_ADJUDICATION`, keeping them visible. Removed auto-exclude of `NULL` decision papers from finalization check. Changed finalization guard to `(manual_decision = 'PENDING_ADJUDICATION' OR manual_decision IS NULL)`.
+  - Modified [route.ts (rolling-batch/adjudicate)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/adjudicate/route.ts): Reverted to check both `PENDING_ADJUDICATION` and `NULL` in unresolved count. Removed auto-exclude of unreviewed papers. Batch only finalizes when ALL papers have definitive decisions.
+  - Modified [RollingBatchView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchView.tsx): Updated discrepancy filter to include papers with `manual_decision === null`, showing them in the adjudication workspace with ⚠️ "no reviewer data" status.
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors). All 5 papers from .slr files now appear in the adjudication workspace after purge+reimport.
+
+## #330 - Rolling Batch Finalization & Statistics Triggering Fix (2026-08-08)
+- **Goal**: Fix issue where completed batch adjudication did not trigger/update statistics due to `rolling_batches.status` remaining in `'awaiting_adjudication'` when some batch papers remained with `manual_decision IS NULL`.
+- **Changes**:
+  - Modified [route.ts (rolling-batch/adjudicate)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/adjudicate/route.ts): Updated completion check to verify `pendingCount === 0`, default unreviewed papers to `'Exclude'`, and mark `rolling_batches.status = 'complete'`.
+  - Modified [route.ts (rolling-batch/import)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Added auto-finalization when total reviewers $\ge 2$ and `pendingCount === 0`.
+- **Verification**: Verified Batch 1 `status` updated to `'complete'` and cumulative statistics cards calculate and display properly on screen. Verified clean `npx tsc --noEmit` build (0 errors).
+
+## #329 - Adjudication Workspace Project Rules Delivery & Tab Count Fix (2026-08-08)
+- **Goal**: Fix cause of "Quality Assessment (0)" and "Data Extraction (0)" empty white workspace in Rolling Batch Adjudication Modal for batch `rb-fd9a52cc-c6e5-4fc3-ad65-62f6b053f3d4`.
+- **Changes**:
+  - Modified [route.ts (rolling-batch/decisions)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/decisions/route.ts): Added `project` details object to the GET response payload.
+  - Modified [RollingBatchView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchView.tsx): Added `projectData` state and direct API fallback (`/api/projects/${projectId}`) to guarantee `qaRules` and `extractionRules` arrays are never empty.
+- **Verification**: Confirmed tab counts update to **Quality Assessment (8)** and **Data Extraction (14)**, rendering the complete blinded review comparison views. Verified clean `npx tsc --noEmit` build (0 errors).
+
+## #328 - Rolling Batch Adjudication Workspace Key Matching & Data Rendering Fix (2026-08-08)
+- **Goal**: Fix issue where opening the Rolling Batch Adjudication Workspace for batch `rb-fd9a52cc-c6e5-4fc3-ad65-62f6b053f3d4` rendered empty/blank data (`—` / "No evidence") due to strict string key index lookups (`r1_qa[rule.code]`) vs hyphen-insensitive key representations or primitive/object value wrappers.
+- **Changes**:
+  - Modified [RollingBatchAdjudicationModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchAdjudicationModal.tsx): Replaced strict `r1_qa[rule.code]?.value` lookups with `getQaScoreObj` and `getExtDataObj` helpers using clean key matching (`codeLower.replace(/[^a-z0-9]/g, '')`) and multi-property value extraction (`item.value ?? item.score ?? item.val`).
+  - Modified [AdjudicationScorecardView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/inter-rater/AdjudicationScorecardView.tsx): Implemented `getQaScoreObj` to display Reviewer Alpha and Reviewer Beta QA scores and evidence text.
+  - Modified [DataExtractionComparisonView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/inter-rater/DataExtractionComparisonView.tsx): Implemented `getExtDataObj` to display Reviewer Alpha and Reviewer Beta extracted data variables and evidence text.
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors) and confirmed non-empty QA score & extraction variable rendering for batch `rb-fd9a52cc-c6e5-4fc3-ad65-62f6b053f3d4`.
+
+## #327 - Post-Purge Deep Bug Hunt & AI Metadata Binding Fixes (2026-08-08)
+- **Goal**: Audit potential edge-case bugs following the "Purge All" workflow, ensuring AI evaluation metadata (`ai_quality_assessment`, `ai_extracted_data`) and `batch_number` are correctly preserved during auto-bind, and correcting SQL column casing in batch initialization.
+- **Changes**:
+  - Modified [route.ts (rolling-batch/initialize)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/initialize/route.ts): Fixed column casing in subquery (`CAST(rbp.Project_ID AS TEXT) = CAST(? AS TEXT)`).
+  - Modified [route.ts (rolling-batch/import)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Updated `INSERT OR IGNORE INTO rolling_batch_papers` auto-bind queries to include `batch_number` and all `ai_*` fields (`ai_stage`, `ai_decision`, `ai_exclusion_code`, `ai_rationale`, `ai_quality_assessment`, `ai_extracted_data`) from `mainPaper`.
+- **Verification**: Verified `npx tsc --noEmit` exited with 0 errors.
+
+## #326 - Resilient SLR Re-import & Auto Batch Binding Post-Purge (2026-08-08)
+- **Goal**: Fix issue where re-importing a previously exported `.slr` file after clicking "Purge All" failed to populate the Rolling Batch Adjudication Workspace due to batch ID mismatch errors (`fileBatchId !== activeBatch.id`) or missing active batch state.
+- **Changes**:
+  - Modified [route.ts (rolling-batch/import)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Added automatic batch creation if no active batch is running upon upload, removed strict `fileBatchId` mismatch rejection so purged/older batch IDs seamlessly map to `activeBatch.id`, and added dynamic paper binding to `rolling_batch_papers` if paper IDs belong to the active project.
+- **Verification**: Verified `npx tsc --noEmit` exited cleanly with 0 errors.
+
+## #325 - Rolling Batch Engine Reset Options Feature (2026-08-08)
+- **Goal**: Implement granular reset options for the Post Validation Rolling Batch workflow, providing UI controls and API support to reset either the active in-progress batch or the entire rolling audit pipeline for the project.
+- **Changes**:
+  - Created [route.ts (rolling-batch/reset)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/reset/route.ts): Added POST endpoint supporting `mode: 'active'` (cancels active batch, clearing reviewer decisions, commit ledger, and assigned papers) and `mode: 'all'` (purges all historical and active batches for the project).
+  - Modified [useRollingBatch.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useRollingBatch.ts): Added `resetBatch(mode)` helper with state rehydration and broadcast sync.
+  - Created [RollingBatchResetModal.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchResetModal.tsx): Built confirmation modal offering clear Option 1 ("Reset Active Batch Only") and Option 2 ("Reset Entire Audit Pipeline") choices.
+  - Modified [RollingBatchView.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchView.tsx): Added "Reset Options" buttons in the Sequential Audit Progress header and active batch details header.
+- **Verification**: Verified clean `npx tsc --noEmit` build (0 errors).
+
+## #324 - Dynamic Extraction Rules & Stage 4 Miner Schema Fix in Rolling Batch Stats (2026-08-08)
+- **Goal**: Fix cause of false 0.0% Schema Integrity Rate and FAILING status on Stage 4 Miner card in Post Validation Rolling Batch view.
+- **Changes**:
+  - Modified [route.ts (rolling-batch/stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/stats/route.ts): Updated `calculateCohortStats` to accept project `pool_c_extraction_rules` dynamically instead of using hardcoded legacy keys (`rq1_operational_domains`), performing hyphen-insensitive clean key lookups (`codeLower.replace(/[^a-z0-9]/g, '')`) for structural integrity and semantic agreement checks.
+- **Verification**: Verified Stage 4 Miner metrics update from 0.0% (FAILING) to **100.0% Schema Integrity Rate, 1.000 95% CI Lower Bound (PASS)**. Verified `npx tsc --noEmit` exited with 0 errors.
+
+## #323 - Post Validation Rolling Batch Auto Project Resolution & Resilient Key Conflict Fixes (2026-08-08)
+- **Goal**: Audit and resolve bug patterns in the Post Validation Rolling Batch workflow (`post-validation-rolling-batch`), adding automatic project ID cohort switching on `.slr` import, 0-paper import error handling, resilient QA/extracted conflict key parsing, and stale hook state resets.
+- **Changes**:
+  - Modified [route.ts (rolling-batch/import)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Added automatic project ID resolution from `.slr` metadata, auto-updating `ACTIVE_PROJECT_ID` config, returning `resolved_project_id`, enforcing `importedCount > 0` validation, and updating conflict detection with hyphen-insensitive rule matching and flexible property extraction (`item.score ?? item.value ?? item.val`).
+  - Modified [useRollingBatch.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useRollingBatch.ts): Cleared stale states on status/stats fetch, and triggered `loadStats()` upon successful batch review import.
+- **Verification**: Verified `npx tsc --noEmit` exited cleanly with 0 errors.
+
+## #322 - SLR Viewer Snapshot Export & Viewer Parsing Alignment (2026-08-08)
+- **Goal**: Align pre-computed `.slr-viewer` snapshot export pipeline in `slr-ide` and snapshot visualizer parsing in `slr-viewer` to guarantee consistent QA score extraction and stage metrics across both apps.
+- **Changes**:
+  - Modified [route.ts (export/slr-viewer)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/slr-viewer/route.ts): Updated Stage 3 `computeStatsForPool` calculation in the SLR Viewer export endpoint to perform hyphen-insensitive rule code matching and extract `item.score ?? item.value ?? item.val`.
+  - Modified [FinalCohortPanel.jsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-viewer/src/components/final-cohort/FinalCohortPanel.jsx): Updated `parseQaAssessment` in `slr-viewer` to support `val` and `numeric_score` fallback properties.
+- **Verification**: Verified `npx tsc --noEmit` in `slr-ide` and `npm run build` in `slr-viewer` both built cleanly with 0 errors.
+
+## #321 - Smart Key Parsing & Multi-Project Backward Compatibility (2026-08-08)
+- **Goal**: Guarantee seamless backward compatibility for older exported `.slr` files and alternative projects using legacy QA keying formats (`QA1`, `QA-1`, `qa1_aims`), primitive scores, or object wrappers (`{ score: ... }` vs `{ value: ... }`).
+- **Changes**:
+  - Modified [adjudication-calculations.ts](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/inter-rater/adjudication-calculations.ts): Updated `renderPoolCReviewerSummary` to perform hyphen-insensitive key lookups and fallback score extraction (`item.score ?? item.value ?? item.val`).
+  - Modified [route.ts (adjudicate/stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts): Updated `getQaItem` helper to perform both exact clean key matching and prefix clean key matching.
+- **Verification**: Verified `npx tsc --noEmit` exited with 0 errors.
+
+## #320 - Score Property Resolution & Metric Fix for Stage 3 Scientist Card (2026-08-08)
+- **Goal**: Fix root cause of false 66.3% Critical Miss Rate, 0.000 Weighted Kappa, and FAIL status on the Stage 3 Scientist summary card caused by AI structured output keying (`item.score` vs `item.value`).
+- **Changes**:
+  - Modified [route.ts (adjudicate/stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts): Updated `computeStatsForPool` to extract AI and Gold scores flexibly (`item.score ?? item.value ?? item.val`).
+  - Modified [route.ts (rolling-batch/stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/stats/route.ts): Updated `qaRules` loop to perform hyphen-insensitive matching and fallback score property extraction.
+- **Verification**: Verified Stage 3 metrics update from 66.3% Critical Miss (FAIL) to **0.0% Critical Miss, 93.1% Raw Agreement, 0.9075 Weighted Kappa (PASS)**. Verified `npx tsc --noEmit` exited with 0 errors.
+
+## #319 - Visual Resolution Indicators for Calibration Discrepancies (2026-08-08)
+- **Goal**: Provide clear visual indicators (green checkmark icon next to Paper ID and a green 'Resolved' badge in the Action column) for calibration discrepancies that have been adjudicated.
+- **Changes**:
+  - Modified [route.ts (adjudicate/stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts): Queried `calibration_commit_ledger` for non-import adjudication entries and added `is_resolved` boolean property to each item in `discrepancies`.
+  - Modified [DiscrepancyTable.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/inter-rater/DiscrepancyTable.tsx): Rendered `CheckCircle2` green checkmark icon next to `disc.paper_id` and rendered a green `Resolved` badge in the Action column when `disc.is_resolved` is true.
+- **Verification**: Verified `npx tsc --noEmit` exited with 0 errors.
+
+## #318 - Hyphen-Insensitive QA Score Key Matching for Stage 3 Scientist Card (2026-08-08)
+- **Goal**: Fix root cause of false 70.8% Critical Miss Rate, 0.000 Weighted Kappa, and FAIL status on the Stage 3 Scientist summary card caused by hyphen mismatch (`QA-1` vs `qa1_aims`).
+- **Changes**:
+  - Modified [route.ts (adjudicate/stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts): Updated `computeStatsForPool` (Stage 3) to perform hyphen-insensitive and case-insensitive matching (`codeLower.replace(/[^a-z0-9]/g, '')`) between project rule codes (`QA-1`) and AI audit log keys (`qa1_aims`).
+- **Verification**: Verified `npx tsc --noEmit` exited with 0 errors.
+
+## #317 - Resilient Rule Key & Extracted Object Extraction for Pool C (2026-08-08)
+- **Goal**: Ensure Pool C inter-rater stats calculation handles all variations in QA rule codes (`QA-1` vs `QA1`) and extracted data formats (raw strings vs `{ value: ... }` objects) without returning missing stats.
+- **Changes**:
+  - Modified [route.ts (adjudicate/stats)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/adjudicate/stats/route.ts): Added `getQaItem`, `getExtractedItem`, and `getExtractedVal` helpers for resilient case-insensitive and hyphen-insensitive key lookup across `qa_scores` and `extracted_data`.
+- **Verification**: Verified clean `npx tsc --noEmit` build with 0 errors.
+
+## #316 - Prevent Stale Stats Render Across Calibration Pools (2026-08-08)
+- **Goal**: Fix issue where switching tabs to Pool C temporarily rendered Pool A's stats inside Pool C's card layout (causing blank numbers like `%`, missing Kappa values, and incorrect 5/15 paper counts).
+- **Changes**:
+  - Modified [InterRaterDashboard.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/InterRaterDashboard.tsx): Enforced calling `setStats(null)` immediately inside `handleTabChange` and `useEffect` when switching tabs or projects.
+- **Verification**: Verified clean `npx tsc --noEmit` build with 0 errors.
+
+## #315 - Inter-Rater Dashboard Target Project Stats Refresh (2026-08-08)
+- **Goal**: Fix root cause of "Waiting for Second Reviewer" remaining on screen after importing `.slr` files belonging to a different project cohort than the React component's initial closure state.
+- **Changes**:
+  - Modified [InterRaterDashboard.tsx](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/InterRaterDashboard.tsx): Updated `fetchStatsAndLedger` to accept an explicit `targetProjectId` parameter and passed `data.resolved_project_id` upon successful `.slr` upload. Triggered `broadcastSync('SYNC_PROJECTS')` to immediately align parent UI project selector.
+  - Modified [route.ts (import/inter-rater)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/import/inter-rater/route.ts): Included `resolved_project_id` and `project_id` in success JSON response.
+- **Verification**: Verified `npx tsc --noEmit` exited with 0 errors.
+
+## #314 - Automatic Inter-Rater Project Cohort Resolution (2026-08-08)
+- **Goal**: Prevent project ID mismatch errors and "Waiting for Second Reviewer" states when uploading `.slr` files exported for a specific project cohort while a different active project is selected in the UI.
+- **Changes**:
+  - Modified [route.ts (import/inter-rater)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/import/inter-rater/route.ts): Added auto-project resolution that reads `fileProjectId` from `.slr` metadata, validates against existing project IDs, auto-routes paper decisions to the matching project, and updates `ACTIVE_PROJECT_ID`.
+- **Verification**: Verified clean `npx tsc --noEmit` build with 0 errors.
+
+## #313 - Non-Zero Paper Import Validation & Error Diagnostic (2026-08-08)
+- **Goal**: Prevent false positive "Successfully imported" toasts when 0 papers in an uploaded `.slr` file match active project papers, and provide explicit diagnostic error messages when project cohort or paper IDs mismatch.
+- **Changes**:
+  - Modified [route.ts (import/inter-rater)](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/import/inter-rater/route.ts): Added validation check returning HTTP 400 with explicit diagnostic details if `papersImported === 0` (e.g. `Import failed: 0 of X papers in .slr file matched active project papers`).
+- **Verification**: Verified `npx tsc --noEmit` exited with 0 errors.
+
 ## #312 - Auto Incremental Versioning & Compilation Date-Time Injection (2026-08-08)
 - **Goal**: Implement auto-incremental versioning and live compilation date-time tracking across `slr-ide`.
 - **Changes**:
@@ -1230,7 +1406,8 @@
 | #212 | 2026-07-31 | Feature | Enhanced JSON Output Schema Key Path Mappers across all 4 pipeline stages (`fast_filter`, `gatekeeper`, `scientist`, `miner`) in `GlobalLLMSettingsView.tsx` with dynamic property key path dropdowns. Implemented `extractSchemaKeyPaths` to parse top-level and nested JSON schema property keys from the selected prompt template's `response_schema`, populated key selection `<select>` dropdowns, and provided a `Custom Key Path...` fallback option that unlocks direct text input. | Dynamic Prompt Schema Key Path Dropdowns |
 | #213 | 2026-07-31 | Feature / Refactor | Removed unused Screening Rate card from Dashboard (`MetricSummaryCards.tsx`) and `ProjectManager.tsx`, re-balancing the top summary grid from 4 to 3 columns. Introduced `INACCESSIBLE` status to `Local_PDF_Status` dropdown and UI badge components. Refined PRISMA diagram calculation (`/api/insight/prisma` and `/api/export/slr-viewer`) to strictly count papers with `INACCESSIBLE` status as Reports Not Retrieved. Bumped `.slr-viewer` export payload `schema_version` to `1.1.0`. | Dashboard Screening Rate Cleanup, INACCESSIBLE PDF Status, & .slr-viewer Schema v1.1.0 Export |
 | #214 | 2026-08-03 | Feature / UI | Added Fast Filter Exclusion Criteria dropdown based on Project Settings Pool A Exclusion Criteria Rules (`ec_rules`), formatted options as `[code] - [description]`, blocked saving `EXCLUDE` decisions when Pool A rules are unconfigured, and provided warning banner with one-click navigation to Project Settings (`open-project-settings` custom event). | Fast Filter Exclusion Criteria Dropdown & Enforcement |
-| #215 | 2026-08-03 | Feature / UI | Replicated single paper PDF acquisition UI/UX from Calibration in Manual Screening Pipeline Workspace with real-time NDJSON stream console logging, progress tracking, cancel/resume operations, and active batch pipeline locks. | Replicate Single PDF Acquisition UI/UX |
+| #215 | 2026-08-08 | Feature / UI | Replicated single paper PDF acquisition UI/UX from Calibration in Manual Screening Pipeline Workspace with real-time NDJSON stream console logging, progress tracking, cancel/resume operations, and active batch pipeline locks. | Replicate Single PDF Acquisition UI/UX |
+| #216 | 2026-08-08 | Bug Fix / UI | Fixed "Run LLM Pipeline" bulk action button in Paper Database view. Updated `page.tsx` navigation callback to route directly to `pipeline-llm-operations` and added a `useEffect` synchronization hook in `GlobalLLMSettingsView.tsx` to automatically set `activeTab` to 'operations' and `paperSelectionMode` to 'selected' whenever pre-selected paper IDs are passed. | Run LLM Pipeline Bulk Action Button Navigation & Selection Sync |
 | #216 | 2026-08-05 | Feature | Added `manual_search_string` field to project SQLite schema, migration fallback, and `Project` TypeScript types. Added a dedicated full-width `textarea` input under Project Settings -> Metadata (`ProjectMetadataSettings.tsx`, `useProjectForm.ts`, `ProjectSettingsModal.tsx`, `projects route.ts`). Included `manual_search_string` in the exported `.slr-viewer` dataset payload (`/api/export/slr-viewer/route.ts`). | Add Manual / Google Scholar Search String to Project Settings & Export |
 | #217 | 2026-08-05 | Feature | Added "Manually Ingested & Snowballing Papers" paper selection mode option in LLM Operations Pipeline -> Operations Center for Gatekeeper, Scientist, and Miner stages. Updated Next.js count and screen API routes, Python LLM orchestrator (`main.py`), and Operations Center UI (`GlobalLLMSettingsView.tsx`) to filter papers by Manual Search, Backward Snowballing, Forward Snowballing, Manual Ingestion sources, or parent reference chains. | Manually Ingested & Snowballing Paper Selection Mode |
 | #218 | 2026-08-05 | Bug Fix / UI | Fixed inclusion/exclusion telemetry calculation in Scientist and Miner execution by dynamically resolving JSON key paths from project `schema_mappings` and prompt schemas with multi-level fallbacks in `queue_handler.py`, `extraction.py`, and `/api/llm/jobs/active/route.ts`. Updated default schema mappings for Scientist in `GlobalLLMSettingsView.tsx` (`final_evaluation.decision`, `final_evaluation.exclusion_code`). Expanded the main UI container height from fixed `520px` to responsive `flex-1 h-full min-h-[600px]`, and beautified performance telemetry cards with glassmorphism gradients, progress meters, and dynamic console layout. | Fix Scientist & Miner Telemetry Key Resolution & Beautify Operations UI |
@@ -1238,6 +1415,8 @@
 | #220 | 2026-08-05 | Bug Fix | Fixed SQL decision matching bug where decision variants (such as `INCLUDE (S2)`) were falsely rejected by exact string matching in `/api/llm/count/route.ts` and `python_engine/llm/main.py`. Updated decision CASE expressions to evaluate `LIKE 'INCLUDE%'` as `INCLUDE`, restoring correct matching counts for papers that passed prior screening stages (e.g. 19 papers passing Gatekeeper for Scientist stage execution). | Fix SQL Decision Matching for INCLUDE% Variants |
 | #221 | 2026-08-05 | Root Cause Fix | Resolved root cause of Scientist telemetry misclassification where `schema_mappings.scientist.decision` was assigned to `final_evaluation.exclusion_code` (`NONE`). Added missing `exclusion_trigger` key mapper (`Exclusion Code Key Path`) for Scientist in `GlobalLLMSettingsView.tsx` with standard fallbacks (`final_evaluation.decision`, `final_evaluation.exclusion_code`, `final_evaluation.reasoning`, `qa_scores`). Added decision string validity guard (`decision.upper().startswith("INCLUDE") or decision.upper().startswith("EXCLUDE")`) in `fulltext.py`, `queue_handler.py`, and `/api/llm/jobs/active/route.ts` to prevent exclusion codes like `NONE` from being parsed as decisions. Repaired project `llm_config` in SQLite database. | Scientist Telemetry Key Misalignment & Decision Validation Guard |
 | #222 | 2026-08-07 | Bug Fix / Reliability | Fixed Database Auto-Backup execution in `slr-ide` (`backup-service.ts`). Added `hasChanged` database change detection check (`total_changes()` and `PRAGMA data_version`) to `'interval'` trigger mode so periodic auto-backups fire every `BACKUP_INTERVAL_MINS` only when new database writes have occurred (matching UI description). Added explicit `child.on('error')` handling in `runRcloneBackup()` to prevent `spawn` process errors from permanently locking `isBackupRunning = true`. Updated database configuration in `slr.db` to `BACKUP_TRIGGER = 'interval'`, `BACKUP_INTERVAL_MINS = '10'`, and `BACKUP_AUTO_ENABLED = 'true'`. Verified TypeScript build stability cleanly (`npx tsc --noEmit`). | Fix Database Auto-Backup Interval Change Check & Spawn Error Deadlock |
+| #225 | 2026-08-08 | Feature / Standardization | Standardized JSON output schemas across all 5 pipeline stages (`fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`), introduced stage prompt classification (`prompt_type`) with strict baseline schema validation in Prompt Config UI (`PromptLibraryView.tsx`, `GlobalLLMSettingsView.tsx`, `prompt-validator.ts`) and API (`/api/llm/prompts`), auto-migrated existing database prompts, removed legacy Key Path Mappers from LLM Operation Center, added missing-prompt reminder warnings before pipeline launch, and standardized direct baseline key extraction in Python execution engine (`screening.py`, `fulltext.py`, `extraction.py`, `queue_handler.py`, `schema_registry.py`, `main.py`) with fool-proof backward compatibility. | Standardize 5 Pipeline JSON Schemas & Prompt Classification |
+
 
 
 

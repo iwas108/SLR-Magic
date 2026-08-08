@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from llm.database import execute_read, execute_write, execute_read_one
 from llm.client import GeminiClient
-from llm.schema_registry import validate_json_schema
+from llm.schema_registry import validate_json_schema, validate_stage_schema
 from llm.budget import estimate_cost, update_project_spend, get_model_pricing
 from llm.client import safe_json_loads
 
@@ -57,6 +57,10 @@ def run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens
     is_valid, err_msg, response_schema = validate_json_schema(response_schema_str)
     if not is_valid:
         fail_job(job_id, project_id, f"Schema validation failed: {err_msg}", key)
+
+    stage_valid, stage_err = validate_stage_schema("umbrellanizer", response_schema)
+    if not stage_valid:
+        fail_job(job_id, project_id, f"Umbrellanizer stage schema validation failed: {stage_err}", key)
 
     # 2. Setup llm config from template
     llm_config_str = template_row.get("llm_config") or "{}"

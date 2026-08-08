@@ -124,12 +124,13 @@ export default function InterRaterDashboard({
     }
   }, [activeProject]);
 
-  const fetchStatsAndLedger = async () => {
+  const fetchStatsAndLedger = async (targetProjectId?: string) => {
     setLoading(true);
+    const pId = targetProjectId || activeProjectId;
     try {
       const [statsRes, ledgerRes] = await Promise.all([
-        fetch(`/api/adjudicate/stats?pool=${activePoolTab}&projectId=${activeProjectId}`),
-        fetch(`/api/adjudicate/ledger?pool=${activePoolTab}&projectId=${activeProjectId}`)
+        fetch(`/api/adjudicate/stats?pool=${activePoolTab}&projectId=${pId}`),
+        fetch(`/api/adjudicate/ledger?pool=${activePoolTab}&projectId=${pId}`)
       ]);
 
       if (statsRes.ok) {
@@ -149,6 +150,7 @@ export default function InterRaterDashboard({
   };
 
   useEffect(() => {
+    setStats(null);
     fetchStatsAndLedger();
   }, [activeProjectId, activePoolTab]);
 
@@ -188,6 +190,7 @@ export default function InterRaterDashboard({
   }, []);
 
   const handleTabChange = (tab: 'pool_a' | 'pool_b' | 'pool_c') => {
+    setStats(null);
     setActivePoolTab(tab);
     setCalActivePool(tab);
   };

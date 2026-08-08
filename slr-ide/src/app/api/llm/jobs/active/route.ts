@@ -18,35 +18,9 @@ export async function GET(req: Request) {
       ORDER BY created_at DESC
     `).all(projectId);
 
-    // Helper to resolve nested key path (e.g. 'final_evaluation.decision')
-    const resolvePath = (data: any, pathStr?: string): any => {
-      if (!pathStr || !data || typeof data !== 'object') return undefined;
-      const parts = pathStr.split('.');
-      let curr = data;
-      for (const part of parts) {
-        if (curr && typeof curr === 'object' && part in curr) {
-          curr = curr[part];
-        } else {
-          return undefined;
-        }
-      }
-      return curr;
-    };
-
-    // Load project llm_config for custom schema mappings
-    let projectSchemaMappings: Record<string, Record<string, string>> = {};
-    try {
-      const proj = db.prepare('SELECT llm_config FROM projects WHERE id = ?').get(projectId) as any;
-      if (proj && proj.llm_config) {
-        const cfg = JSON.parse(proj.llm_config);
-        projectSchemaMappings = cfg.schema_mappings || {};
-      }
-    } catch {}
-
     // Attach inclusion/exclusion metrics from audit log
     for (const job of activeJobs as any[]) {
       try {
-        const stageMapping = projectSchemaMappings[job.task_type] || {};
 
         if (job.task_type === 'miner') {
           const logs = db.prepare(`
@@ -69,7 +43,7 @@ export async function GET(req: Request) {
           for (const row of logs) {
             try {
               const parsed = JSON.parse(row.structured_output);
-              const extDataObj = resolvePath(parsed, stageMapping.extracted_data) || parsed.extracted_data || parsed;
+              const extDataObj = parsed.extracted_data || parsed;
               if (extDataObj && typeof extDataObj === 'object') {
                 for (const [key, fieldObj] of Object.entries(extDataObj)) {
                   if (fieldObj && typeof fieldObj === 'object') {
@@ -112,8 +86,15 @@ export async function GET(req: Request) {
           for (const row of logs) {
             try {
               const parsed = JSON.parse(row.structured_output);
-              let decision = resolvePath(parsed, stageMapping.decision);
-              let ec_trigger = resolvePath(parsed, stageMapping.exclusion_trigger);
+              let decision: string | undefined = undefined;
+              let ec_trigger: string | undefined = undefined;
+              const finalEval = parsed?.final_evaluation;
+              if (finalEval && typeof finalEval === 'object') {
+                if (finalEval.decision && typeof finalEval.decision === 'string' && (finalEval.decision.toUpperCase().startsWith('INCLUDE') || finalEval.decision.toUpperCase().startsWith('EXCLUDE'))) {
+                  decision = finalEval.decision;
+                }
+                ec_trigger = finalEval.exclusion_code || finalEval.exclusion_trigger;
+              }
 
               if (decision && typeof decision !== 'string') {
                 decision = String(decision);

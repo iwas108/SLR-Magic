@@ -36,7 +36,7 @@ function computeCI(p_hat: number, n: number) {
 }
 
 // Function to calculate cohort statistics
-function calculateCohortStats(papers: any[], qaRules: QaRule[], umbMap: Record<string, Record<string, any>>) {
+function calculateCohortStats(papers: any[], qaRules: QaRule[], extractionRules: any[], umbMap: Record<string, Record<string, any>>) {
   // Stage 3 Scientist variables
   let totalQAPairs = 0;
   let qaAgreementCount = 0;
@@ -79,19 +79,10 @@ function calculateCohortStats(papers: any[], qaRules: QaRule[], umbMap: Record<s
     return [];
   };
 
+  const criticalMissDetails: Array<{ paper_id: string; title: string; rule_code: string; aiScore: number; goldScore: number; diff: number }> = [];
+  const schemaDiscrepancies: Array<{ paper_id: string; title: string; missing_key: string }> = [];
+
   for (const paper of papers) {
-    // --- STAGE 3 (Scientist) Evaluation ---
-    // Agreement is measured by ORDINAL QA SCORE PROXIMITY, not by Include/Exclude label match.
-    // The AI QA scores are stored under extended lowercase keys (e.g. "qa1_aims", "qa2_context")
-    // while human Gold Standard QA scores use uppercase short codes (e.g. "QA1", "QA2").
-    // Both are resolved to the same qaRule.code via case-insensitive prefix matching below.
-    //
-    // Per-pair classification (ref: methodology.md §2.3.1):
-    //   |ai_score - gold_score| < 1.0  → Agreement  (counted in qaAgreementCount)
-    //   |ai_score - gold_score| >= 1.0 → Critical Miss (counted in qaCriticalMissCount)
-    //
-    // A 0.5-point deviation (e.g. AI=1.0 vs Human=0.5) is AGREEMENT, not a miss.
-    // Only a full 1.0-point jump (e.g. AI=1.0 vs Human=0.0) is a Critical Miss.
     try {
       const aiQaBody = JSON.parse(paper.ai_quality_assessment || '{}');
       const aiQa = aiQaBody.qa_scores || aiQaBody || {};
@@ -100,17 +91,22 @@ function calculateCohortStats(papers: any[], qaRules: QaRule[], umbMap: Record<s
 
       for (const rule of qaRules) {
         const codeLower = rule.code.toLowerCase();
+        const cleanCode = codeLower.replace(/[^a-z0-9]/g, '');
+        
         const aiMatchKey = Object.keys(aiQa).find(k => {
-          const kl = k.toLowerCase();
-          return kl === codeLower || kl.startsWith(codeLower + '_');
+          const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return kl === cleanCode || kl.startsWith(cleanCode);
         });
         const goldMatchKey = Object.keys(goldQa).find(k => {
-          const kl = k.toLowerCase();
-          return kl === codeLower || kl.startsWith(codeLower + '_');
+          const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return kl === cleanCode || kl.startsWith(cleanCode);
         });
 
-        const aiVal = aiMatchKey ? aiQa[aiMatchKey]?.value : undefined;
-        const goldVal = goldMatchKey ? goldQa[goldMatchKey]?.value : undefined;
+        const aiItem = aiMatchKey ? aiQa[aiMatchKey] : undefined;
+        const aiVal = typeof aiItem === 'object' ? (aiItem?.score ?? aiItem?.value ?? aiItem?.val) : aiItem;
+
+        const goldItem = goldMatchKey ? goldQa[goldMatchKey] : undefined;
+        const goldVal = typeof goldItem === 'object' ? (goldItem?.score ?? goldItem?.value ?? goldItem?.val) : goldItem;
 
         if (aiVal !== undefined && goldVal !== undefined) {
           const aiScore = parseFloat(String(aiVal));
@@ -119,12 +115,18 @@ function calculateCohortStats(papers: any[], qaRules: QaRule[], umbMap: Record<s
             const diff = Math.abs(aiScore - goldScore);
             totalQAPairs++;
             if (diff < 1.0) {
-              // Ordinal deviation < 1.0 (including 0.5-point gaps) counts as AGREEMENT
               qaAgreementCount++;
             }
             if (diff >= 1.0) {
-              // Full 1.0-point jump (e.g. 1.0 vs 0.0) is the only Critical Miss threshold
               qaCriticalMissCount++;
+              criticalMissDetails.push({
+                paper_id: paper.Paper_ID,
+                title: paper.Title || paper.Paper_ID,
+                rule_code: rule.code,
+                aiScore,
+                goldScore,
+                diff
+              });
             }
           }
         }
@@ -148,29 +150,29 @@ function calculateCohortStats(papers: any[], qaRules: QaRule[], umbMap: Record<s
       parsedGoldMiner = JSON.parse(paper.manual_extracted_data || '{}');
     } catch (e) {}
 
+    const targetRules = extractionRules.length > 0 
+      ? extractionRules 
+      : minerKeys.map(k => ({ json_key: k }));
+
     // Check structural schema integrity
     if (isStructurallyValid && parsedAiMiner) {
       const aiExt = parsedAiMiner.extracted_data || parsedAiMiner;
-      for (const key of minerKeys) {
-        const field = aiExt[key];
-        if (!field || typeof field !== 'object') {
+      for (const rule of targetRules) {
+        const key = rule.json_key || rule.key || rule.code;
+        const cleanKey = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+        const matchKey = Object.keys(aiExt).find(k => {
+          const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return kl === cleanKey || kl.startsWith(cleanKey);
+        });
+        const field = matchKey ? aiExt[matchKey] : undefined;
+        if (!field) {
           isStructurallyValid = false;
+          schemaDiscrepancies.push({
+            paper_id: paper.Paper_ID,
+            title: paper.Title || paper.Paper_ID,
+            missing_key: String(key)
+          });
           break;
-        }
-        if (field.value === undefined) {
-          isStructurallyValid = false;
-          break;
-        }
-        if (arrayKeys.includes(key)) {
-          if (!Array.isArray(field.value)) {
-            isStructurallyValid = false;
-            break;
-          }
-        } else {
-          if (typeof field.value !== 'string' && typeof field.value !== 'number') {
-            isStructurallyValid = false;
-            break;
-          }
         }
       }
     } else {
@@ -186,21 +188,42 @@ function calculateCohortStats(papers: any[], qaRules: QaRule[], umbMap: Record<s
       const aiExt = parsedAiMiner.extracted_data || parsedAiMiner;
       const goldExt = parsedGoldMiner.extracted_data || parsedGoldMiner;
 
-      for (const key of minerKeys) {
-        const aiField = aiExt[key];
-        const goldField = goldExt[key];
+      for (const rule of targetRules) {
+        const key = rule.json_key || rule.key || rule.code;
+        const cleanKey = String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
 
-        if (aiField && goldField && aiField.value !== undefined && goldField.value !== undefined) {
+        const aiMatchKey = Object.keys(aiExt).find(k => {
+          const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return kl === cleanKey || kl.startsWith(cleanKey);
+        });
+        const goldMatchKey = Object.keys(goldExt).find(k => {
+          const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return kl === cleanKey || kl.startsWith(cleanKey);
+        });
+
+        const aiField = aiMatchKey ? aiExt[aiMatchKey] : undefined;
+        const goldField = goldMatchKey ? goldExt[goldMatchKey] : undefined;
+
+        const getFieldVal = (f: any) => {
+          if (f === undefined || f === null) return undefined;
+          if (typeof f === 'object') return f.value ?? f.val ?? f.text ?? f;
+          return f;
+        };
+
+        const aiVal = getFieldVal(aiField);
+        const goldVal = getFieldVal(goldField);
+
+        if (aiVal !== undefined && goldVal !== undefined) {
           totalKeysEvaluated++;
-          if (arrayKeys.includes(key)) {
-            const aiArr = resolveArray(aiField.value, key);
-            const goldArr = resolveArray(goldField.value, key);
+          if (Array.isArray(aiVal) || Array.isArray(goldVal)) {
+            const aiArr = resolveArray(aiVal, key);
+            const goldArr = resolveArray(goldVal, key);
             if (aiArr.length === goldArr.length && aiArr.every((v, idx) => v === goldArr[idx])) {
               semanticMatchesCount++;
             }
           } else {
-            const aiStr = resolveToken(String(aiField.value), key);
-            const goldStr = resolveToken(String(goldField.value), key);
+            const aiStr = resolveToken(String(aiVal), key);
+            const goldStr = resolveToken(String(goldVal), key);
             if (aiStr === goldStr) {
               semanticMatchesCount++;
             }
@@ -233,7 +256,8 @@ function calculateCohortStats(papers: any[], qaRules: QaRule[], umbMap: Record<s
       SE: s3CI.SE,
       CI_lower: s3CI.CI_lower,
       critical_miss_rate,
-      passed: s3_passed
+      passed: s3_passed,
+      criticalMissDetails
     },
     s4: {
       p_hat: schema_integrity_rate, // governed by Schema Integrity Rate
@@ -241,7 +265,8 @@ function calculateCohortStats(papers: any[], qaRules: QaRule[], umbMap: Record<s
       CI_lower: s4CI.CI_lower,
       schema_integrity_rate: schema_integrity_rate * 100,
       semantic_agreement,
-      passed: s4_passed
+      passed: s4_passed,
+      schemaDiscrepancies
     }
   };
 }
@@ -260,6 +285,15 @@ export async function GET() {
         qaRules = typeof project.pool_c_qa_rules === 'string' 
           ? JSON.parse(project.pool_c_qa_rules) 
           : project.pool_c_qa_rules;
+      } catch (e) {}
+    }
+
+    let extractionRules: any[] = [];
+    if (project.pool_c_extraction_rules) {
+      try {
+        extractionRules = typeof project.pool_c_extraction_rules === 'string' 
+          ? JSON.parse(project.pool_c_extraction_rules) 
+          : project.pool_c_extraction_rules;
       } catch (e) {}
     }
 
@@ -300,7 +334,7 @@ export async function GET() {
     `).all(...completedBatchIds, activeProjectId) as any[];
 
     // Calculate current cohort statistics
-    const cumulativeStats = calculateCohortStats(allCompletedPapers, qaRules, umbMap);
+    const cumulativeStats = calculateCohortStats(allCompletedPapers, qaRules, extractionRules, umbMap);
 
     // Calculate individual stats for each completed batch
     const individualBatchStats = completedBatches.map(batch => {
@@ -309,7 +343,7 @@ export async function GET() {
         WHERE batch_id = ? AND Project_ID = ?
       `).all(batch.id, activeProjectId) as any[];
       
-      const stats = calculateCohortStats(batchPapers, qaRules, umbMap);
+      const stats = calculateCohortStats(batchPapers, qaRules, extractionRules, umbMap);
       return {
         batchNumber: batch.batch_number,
         batchId: batch.id,
@@ -335,7 +369,7 @@ export async function GET() {
           WHERE batch_id IN (${prevPlaceholders}) AND Project_ID = ?
         `).all(...previousBatchIds, activeProjectId) as any[];
 
-        const previousStats = calculateCohortStats(previousPapers, qaRules, umbMap);
+        const previousStats = calculateCohortStats(previousPapers, qaRules, extractionRules, umbMap);
         const previousCohortPassed = previousStats.s3.passed && previousStats.s4.passed;
 
         if (previousCohortPassed) {

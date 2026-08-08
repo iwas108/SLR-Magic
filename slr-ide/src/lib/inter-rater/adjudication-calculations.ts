@@ -253,11 +253,19 @@ export function renderPoolCReviewerSummary(qaScoresStr: string, qaRules: QaRule[
     let hasFatal = false;
     let score = 0;
     const keys = Object.keys(qaScores);
+    
     for (const k of keys) {
-      const val = parseFloat(qaScores[k]?.value || 0);
-      score += val;
-      const ruleDef = qaRules.find(r => r.code.toLowerCase() === k.toLowerCase());
-      const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].includes(k.toLowerCase());
+      const item = qaScores[k];
+      const val = parseFloat(String(typeof item === 'object' ? (item?.score ?? item?.value ?? item?.val ?? 0) : (item ?? 0)));
+      score += isNaN(val) ? 0 : val;
+      
+      const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const ruleDef = qaRules.find(r => {
+        const cleanCode = r.code.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanCode === cleanK || cleanK.startsWith(cleanCode);
+      });
+      const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].some(f => cleanK.startsWith(f));
+      
       if (isFatal && val === 0) {
         hasFatal = true;
       }

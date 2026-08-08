@@ -52,7 +52,7 @@ graph TD
     - `calibration_papers`: holds sandbox paper copies for inter-rater double-blind calibration, sharing the exact same columns as the `papers` table but adding pool scoping properties (`calibration_pool`, `calibration_tag`).
     - `projects`: handles multi-project scope separation (manifesto, objective, questions, quality definition, exclusion criteria, calibration pool distributions, custom destination path, project-level cloud provider, project-level Rclone remote name, custom pool tagging configurations `pool_tags` stored as JSON, and `llm_config` containing model parameter mappings: provider, model_id, temperature, max_tokens, top_p, top_k).
     - `configs`: stores global system configuration settings (rclone remote, executable binary paths, proxies).
-    - `prompt_templates`: stores global and project-specific prompt definitions with columns `id`, `project_id` (NULL for global templates), `name`, `description`, `system_instruction`, `user_template`, and `is_active` status.
+    - `prompt_templates`: stores global and project-specific prompt definitions with columns `id`, `project_id` (NULL for global templates), `name`, `description`, `prompt_type` (pipeline stage classification: `fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`), `system_instruction`, `user_template`, `response_schema` (standardized stage JSON schema), `llm_config`, and `is_active` status.
     - `llm_pricing`: stores global model token pricing definitions (`input_token_price`, `output_token_price`, `thinking_token_price`, `batch_discount`) for cost estimation and budget tracking.
     - `reviewer_decisions`: stores individual reviewer decisions for double-blind calibration reviews.
     - `calibration_commit_ledger`: tracks immutable audit trails for manual resolution history.
@@ -95,7 +95,7 @@ graph TD
 *   **LLM Process Management**: Background semantic screening processes run via Python worker scripts. They are tracked and managed through `/api/llm/jobs/active`, allowing Next.js to provide seamless process recovery upon page reloads.
 *   **Real-time Operations Center**: The `LLMOperationsCenter` connects to the Next.js API via Server-Sent Events (SSE). It utilizes robust `AbortController` lifecycles and mutable `useRef` closures to correctly handle React strict-mode re-mounts, hot module reloads, and prevent memory leaks.
 *   **Live Metrics & Budgets**: Features a live auto-scrolling terminal output and tracks dynamic token usage and budget limits through `/api/llm/pricing` configurations.
-*   **Prompt Library Control**: CRUD operations on `prompt_templates` allow editing of system instructions, user templates, and associated JSON Schemas with client-side syntax validators.
+*   **Prompt Library Control**: CRUD operations on `prompt_templates` allow editing of system instructions, user templates, stage classifications (`prompt_type`), and associated standardized 5 stage baseline JSON Schemas (`validatePromptSchema`) with real-time client-side and server-side syntax validators.
 *   **Secure API Key Vault**: Global API keys are encrypted at rest using AES-256-GCM + PBKDF2 master password derivation in SQLite `api_key_vault`. Node server-side memory caches keys on unlock, and injects them only to environment blocks at spawn time.
 *   **Immutable Audit Trail**: Every LLM execution writes an immutable record detailing the Gemini server-side `interaction_id`, cached tokens, and raw prompt/response structures in `llm_audit_log` table.
 

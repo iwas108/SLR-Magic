@@ -370,18 +370,30 @@ export async function GET(request: Request) {
 
                 for (const rule of qaRules) {
                   const codeLower = rule.code.toLowerCase();
-                  const matchKey = Object.keys(aiQa).find(k => k.toLowerCase().startsWith(codeLower));
+                  const cleanCode = codeLower.replace(/[^a-z0-9]/g, '');
                   
-                  const aiVal = matchKey ? aiQa[matchKey]?.value : undefined;
-                  const goldVal = goldQa[rule.code]?.value !== undefined ? goldQa[rule.code]?.value : goldQa[rule.code.toLowerCase()]?.value;
-
+                  const matchKey = Object.keys(aiQa).find(k => {
+                    const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return kl === cleanCode || kl.startsWith(cleanCode);
+                  });
+                  
+                  const aiItem = matchKey ? aiQa[matchKey] : undefined;
+                  const aiVal = typeof aiItem === 'object' ? (aiItem?.score ?? aiItem?.value ?? aiItem?.val ?? 0) : (aiItem ?? 0);
+                  
+                  const goldMatchKey = Object.keys(goldQa).find(k => {
+                    const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return kl === cleanCode || kl.startsWith(cleanCode);
+                  });
+                  const goldItem = goldMatchKey ? goldQa[goldMatchKey] : undefined;
+                  const goldVal = typeof goldItem === 'object' ? (goldItem?.score ?? goldItem?.value ?? goldItem?.val ?? 0) : (goldItem ?? 0);
+                  
                   const idx1 = getScoreIndex(goldVal);
                   const idx2 = getScoreIndex(aiVal);
                   O[idx1][idx2]++;
                   totalRatings++;
 
-                  const goldNum = parseFloat(String(goldVal || 0));
-                  const aiNum = parseFloat(String(aiVal || 0));
+                  const goldNum = parseFloat(String(goldVal));
+                  const aiNum = parseFloat(String(aiVal));
                   const diff = Math.abs(goldNum - aiNum);
                   
                   totalRatingComparisons++;

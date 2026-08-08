@@ -43,7 +43,7 @@ export async function POST() {
           SELECT cp.Paper_ID FROM calibration_papers cp WHERE cp.Project_ID = ?
         )
         AND p.Paper_ID NOT IN (
-          SELECT rbp.Paper_ID FROM rolling_batch_papers rbp WHERE rbp.project_id = ?
+          SELECT rbp.Paper_ID FROM rolling_batch_papers rbp WHERE CAST(rbp.Project_ID AS TEXT) = CAST(? AS TEXT)
         )
       ORDER BY RANDOM()
       LIMIT ?

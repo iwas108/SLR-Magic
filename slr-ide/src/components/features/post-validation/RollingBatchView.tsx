@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Download, Upload, AlertCircle, RefreshCw, CheckCircle, HelpCircle, Layers, ArrowRight } from 'lucide-react';
+import { Play, Download, Upload, AlertCircle, RefreshCw, CheckCircle, HelpCircle, Layers, ArrowRight, RotateCcw } from 'lucide-react';
 import { useRollingBatch } from '@/hooks/useRollingBatch';
 import BatchImportSlot from './BatchImportSlot';
 import BatchStatisticsCards from './BatchStatisticsCards';
 import RollingBatchAdjudicationModal from './RollingBatchAdjudicationModal';
+import RollingBatchResetModal from './RollingBatchResetModal';
+import { ImportBatchStandbyModal } from './ImportBatchStandbyModal';
+import { BatchFailureBreakdownModal } from './BatchFailureBreakdownModal';
 import DiscrepancyTable from '@/components/features/inter-rater/DiscrepancyTable';
 import AuditLedger from '@/components/features/inter-rater/AuditLedger';
 import { renderPoolCReviewerSummary } from '@/lib/inter-rater/adjudication-calculations';
@@ -20,6 +23,9 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
   const [selectedDiscrepancy, setSelectedDiscrepancy] = useState<any>(null);
   const [isUploadingSlot1, setIsUploadingSlot1] = useState(false);
   const [isUploadingSlot2, setIsUploadingSlot2] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [showStandbyImportModal, setShowStandbyImportModal] = useState(false);
+  const [selectedFailureBatch, setSelectedFailureBatch] = useState<{ batchNumber: number | null; finalizedAt?: string | null; stats: any | null } | null>(null);
 
   // Fetch detailed decisions and ledger for the active batch
   const fetchBatchDecisions = async () => {
@@ -87,7 +93,7 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
     if (!batchData || !batchData.papers) return [];
     
     return batchData.papers
-      .filter((p: any) => p.manual_decision === 'PENDING_ADJUDICATION')
+      .filter((p: any) => p.manual_decision === 'PENDING_ADJUDICATION' || p.manual_decision === null || p.manual_decision === undefined)
       .map((paper: any) => {
         const paperDecs = (batchData.decisions || [])
           .filter((d: any) => d.paper_id === paper.Paper_ID)
@@ -119,57 +125,10 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
       });
   }, [batchData]);
 
-  // Project rules (parsed from active project config)
-  const project = rb.currentBatch ? batchData?.batch?.project : null;
-  const activeProject = project || {};
-  
-  let qaRules: any[] = [];
-  let extractionRules: any[] = [];
-  
-  // Re-read from batch data or project config directly
-  if (batchData?.batch) {
-    // If we loaded the details, project data is in there
-  }
-
-  // Load project settings directly to be safe
-  const [projRules, setProjRules] = useState<any>(null);
-  useEffect(() => {
-    fetch(`/api/projects/${projectId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) setProjRules(data.project);
-      })
-      .catch(err => console.error(err));
-  }, [projectId]);
-
-  if (projRules) {
-    if (projRules.pool_c_qa_rules) {
-      try {
-        qaRules = typeof projRules.pool_c_qa_rules === 'string' 
-          ? JSON.parse(projRules.pool_c_qa_rules) 
-          : projRules.pool_c_qa_rules;
-      } catch (e) {}
-    }
-    if (projRules.pool_c_extraction_rules) {
-      try {
-        extractionRules = typeof projRules.pool_c_extraction_rules === 'string' 
-          ? JSON.parse(projRules.pool_c_extraction_rules) 
-          : projRules.pool_c_extraction_rules;
-      } catch (e) {}
-    }
-  }
-
-  const reviewersList = rb.reviewers.map(r => r.reviewer_name);
-
-  const statsObj = {
-    isCalibrated: rb.reviewers.length >= 2,
-    discrepancies,
-    reviewers: reviewersList
-  };
-
-  const handleUploadSlot = async (slotNum: number, file: File): Promise<boolean> => {
-    if (slotNum === 1) setIsUploadingSlot1(true);
-    else setIsUploadingSlot2(true);
+  // Helper to handle reviewer slot upload
+  const handleUploadSlot = async (slotNumber: number, file: File): Promise<boolean> => {
+    if (slotNumber === 1) setIsUploadingSlot1(true);
+    if (slotNumber === 2) setIsUploadingSlot2(true);
 
     try {
       const ok = await rb.importReviewerSlr(file);
@@ -177,12 +136,45 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
         await fetchBatchDecisions();
       }
       return ok;
-    } catch (err) {
-      return false;
     } finally {
-      if (slotNum === 1) setIsUploadingSlot1(false);
-      else setIsUploadingSlot2(false);
+      if (slotNumber === 1) setIsUploadingSlot1(false);
+      if (slotNumber === 2) setIsUploadingSlot2(false);
     }
+  };
+
+  // Load project settings directly to be safe
+  const [projectData, setProjectData] = useState<any>(null);
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.project) setProjectData(data.project);
+      })
+      .catch(err => console.error('Failed to load project rules:', err));
+  }, [projectId]);
+
+  // Derive project extraction and QA rules
+  const projRules = batchData?.project || projectData || {};
+  let qaRules: any[] = [];
+  let extractionRules: any[] = [];
+  try {
+    qaRules = typeof projRules.pool_c_qa_rules === 'string'
+      ? JSON.parse(projRules.pool_c_qa_rules)
+      : projRules.pool_c_qa_rules || [];
+  } catch {}
+
+  try {
+    extractionRules = typeof projRules.pool_c_extraction_rules === 'string'
+      ? JSON.parse(projRules.pool_c_extraction_rules)
+      : projRules.pool_c_extraction_rules || [];
+  } catch {}
+
+  // List unique reviewer names present in active batch
+  const reviewersList = (batchData?.decisions || []).map((d: any) => d.reviewer_name);
+  const statsObj = {
+    isCalibrated: rb.reviewers.length >= 2,
+    discrepancies,
+    reviewers: reviewersList
   };
 
   const maskReviewerName = (rawName: string): string => {
@@ -225,7 +217,18 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
       
       {/* Cumulative Stats Row */}
       <div className="space-y-2 select-none">
-        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Sequential Audit Progress</h4>
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Sequential Audit Progress</h4>
+          {!reportingOnly && (
+            <button
+              onClick={() => setShowResetModal(true)}
+              className="px-3 py-1.5 border border-border hover:border-destructive/40 hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-[11px] font-bold rounded-xl transition-all flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset Options
+            </button>
+          )}
+        </div>
         <BatchStatisticsCards 
           stats={rb.cumulativeStats} 
           auditPassed={rb.auditPassed} 
@@ -252,13 +255,22 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
                   Sequential audit complete! Validation goals satisfied.
                 </div>
               ) : (
-                <button
-                  onClick={rb.initializeBatch}
-                  className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  Initialize Next Audit Batch
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={rb.initializeBatch}
+                    className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center gap-1.5"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    Initialize Next Audit Batch
+                  </button>
+                  <button
+                    onClick={() => setShowStandbyImportModal(true)}
+                    className="px-6 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-1.5"
+                  >
+                    <Upload className="w-4 h-4 text-primary" />
+                    Import Batch
+                  </button>
+                </div>
               )}
             </div>
           )
@@ -279,13 +291,23 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
                   <p className="text-[10px] text-muted-foreground mt-1 font-mono">ID: {rb.currentBatch.id}</p>
                 </div>
                 
-                <button
-                  onClick={rb.downloadBatchSlr}
-                  className="px-4 py-2 border border-border hover:bg-muted text-foreground text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 self-stretch sm:self-auto justify-center"
-                >
-                  <Download className="w-4 h-4" />
-                  Download Blinded Template (.slr)
-                </button>
+                <div className="flex items-center gap-2 self-stretch sm:self-auto">
+                  <button
+                    onClick={rb.downloadBatchSlr}
+                    className="px-4 py-2 border border-border hover:bg-muted text-foreground text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 flex-1 sm:flex-initial justify-center"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download Blinded Template (.slr)
+                  </button>
+                  <button
+                    onClick={() => setShowResetModal(true)}
+                    className="px-3 py-2 border border-border hover:border-destructive/40 hover:bg-destructive/10 text-muted-foreground hover:text-destructive text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 justify-center"
+                    title="Reset Rolling Batch Engine"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reset
+                  </button>
+                </div>
               </div>
 
               {/* Reviewer uploads slots grid */}
@@ -476,13 +498,22 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
                           ) : '—'}
                         </td>
                         <td className="py-2.5 px-3 text-right">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            isPassed 
-                              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
-                              : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                          }`}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFailureBatch({
+                              batchNumber: batch.batch_number,
+                              finalizedAt: batch.finalized_at || batch.created_at,
+                              stats: batchStats
+                            })}
+                            title="Click for quality control & failure breakdown"
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all hover:scale-105 active:scale-95 ${
+                              isPassed 
+                                ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20' 
+                                : 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'
+                            }`}
+                          >
                             {isPassed ? 'Passed' : 'Failed'}
-                          </span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -492,6 +523,38 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
           </div>
         </div>
       )}
+
+      {/* Reset Modal Overlay */}
+      <RollingBatchResetModal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        onResetActive={async () => { await rb.resetBatch('active'); }}
+        onResetAll={async () => { await rb.resetBatch('all'); }}
+        currentBatchNumber={rb.currentBatch?.batch_number || null}
+        completedBatchesCount={rb.history.filter(b => b.status === 'complete').length}
+      />
+
+      {/* Standby Import Modal Overlay */}
+      <ImportBatchStandbyModal
+        isOpen={showStandbyImportModal}
+        onClose={() => setShowStandbyImportModal(false)}
+        onSuccess={async () => {
+          await fetchBatchDecisions();
+          await rb.loadStatus();
+          await rb.loadStats();
+        }}
+        showToast={showToast}
+        projectId={projectId}
+      />
+
+      {/* Batch Failure Breakdown Modal Overlay */}
+      <BatchFailureBreakdownModal
+        isOpen={!!selectedFailureBatch}
+        onClose={() => setSelectedFailureBatch(null)}
+        batchNumber={selectedFailureBatch?.batchNumber ?? null}
+        finalizedAt={selectedFailureBatch?.finalizedAt}
+        stats={selectedFailureBatch?.stats ?? null}
+      />
     </div>
   );
 }

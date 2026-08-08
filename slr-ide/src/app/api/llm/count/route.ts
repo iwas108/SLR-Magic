@@ -70,24 +70,28 @@ export async function GET(req: NextRequest) {
     let query = "SELECT count(*) as count FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)";
     let params: any[] = [projectId];
 
-    if (statusFilter !== 'ALL') {
-      query += " AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) = ?";
-      params.push(Number(statusFilter));
-    }
+    const isManualSelection = paperSelectionMode === 'selected' && Boolean(paperIds);
 
-    if (decisionFilter && decisionFilter !== 'ALL') {
-      query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'INCLUDE%' THEN 'INCLUDE' ELSE 'PENDING' END) = ?";
-      params.push(decisionFilter);
-    }
+    if (!isManualSelection) {
+      if (statusFilter !== 'ALL') {
+        query += " AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) = ?";
+        params.push(Number(statusFilter));
+      }
 
-    if (excludeManual && taskType) {
-      query += ` AND NOT EXISTS (
-        SELECT 1 FROM manual_audit_log 
-        WHERE manual_audit_log.paper_id = papers.Paper_ID 
-          AND manual_audit_log.project_id = papers.Project_ID
-          AND manual_audit_log.manual_stage = ?
-      )`;
-      params.push(taskType);
+      if (decisionFilter && decisionFilter !== 'ALL') {
+        query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'INCLUDE%' THEN 'INCLUDE' ELSE 'PENDING' END) = ?";
+        params.push(decisionFilter);
+      }
+
+      if (excludeManual && taskType) {
+        query += ` AND NOT EXISTS (
+          SELECT 1 FROM manual_audit_log 
+          WHERE manual_audit_log.paper_id = papers.Paper_ID 
+            AND manual_audit_log.project_id = papers.Project_ID
+            AND manual_audit_log.manual_stage = ?
+        )`;
+        params.push(taskType);
+      }
     }
 
     const requiresPdf = ['gatekeeper', 'scientist', 'miner'].includes(taskType || '');
@@ -99,19 +103,47 @@ export async function GET(req: NextRequest) {
       query += " AND (Source IN ('Manual Search', 'Backward Snowball', 'Forward Snowball', 'Manual Ingestion') OR Import_Source IN ('Manual Search', 'Backward Snowball', 'Forward Snowball', 'Manual Ingestion') OR (Parent_Paper_ID IS NOT NULL AND Parent_Paper_ID != ''))";
     }
 
+    let recommendedTaskType: string | null = null;
+    let maxStage: number | null = null;
+
     if (paperIds) {
       const ids = paperIds.split(',').filter(Boolean);
       if (ids.length > 0) {
         const placeholders = ids.map(() => '?').join(',');
         query += ` AND Paper_ID IN (${placeholders})`;
         params.push(...ids);
+
+        try {
+          const stageRow = db.prepare(`
+            SELECT MAX(MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0))) as maxStage 
+            FROM papers 
+            WHERE Project_ID = ? AND Paper_ID IN (${placeholders})
+          `).get(projectId, ...ids) as { maxStage: number } | undefined;
+
+          if (stageRow !== undefined && stageRow.maxStage !== null) {
+            maxStage = Number(stageRow.maxStage);
+            const stageMap: Record<number, string> = {
+              0: 'fast_filter',
+              1: 'gatekeeper',
+              2: 'scientist',
+              3: 'miner',
+              4: 'umbrellanizer'
+            };
+            recommendedTaskType = stageMap[maxStage] || 'fast_filter';
+          }
+        } catch (e) {
+          console.error('Failed to compute recommended task type for paperIds:', e);
+        }
       } else {
         return NextResponse.json({ count: 0 });
       }
     }
 
     const result = db.prepare(query).get(...params) as { count: number };
-    return NextResponse.json({ count: result.count });
+    return NextResponse.json({ 
+      count: result.count,
+      ...(recommendedTaskType ? { recommendedTaskType, maxStage } : {})
+    });
   } catch (error: any) {
     console.error('Failed to count papers:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

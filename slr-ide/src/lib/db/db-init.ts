@@ -655,6 +655,36 @@ export function initializeDatabase(db: Database.Database): void {
     // Column already exists
   }
 
+  // Add prompt_type column to prompt_templates if it doesn't exist
+  try {
+    db.exec("ALTER TABLE prompt_templates ADD COLUMN prompt_type TEXT");
+  } catch (e) {
+    // Column already exists
+  }
+
+  // Self-healing migration: infer prompt_type for existing prompts if NULL
+  try {
+    const existingPrompts = db.prepare("SELECT id, name, response_schema FROM prompt_templates WHERE prompt_type IS NULL OR prompt_type = ''").all() as { id: string; name: string; response_schema: string | null }[];
+    const updateStmt = db.prepare("UPDATE prompt_templates SET prompt_type = ? WHERE id = ?");
+    for (const p of existingPrompts) {
+      let inferredType = 'fast_filter';
+      const name = (p.name || '').toLowerCase();
+      const schema = (p.response_schema || '').toLowerCase();
+      if (schema.includes('taxonomy_mapping') || name.includes('umbrellanizer')) {
+        inferredType = 'umbrellanizer';
+      } else if (schema.includes('qa_scores') || name.includes('scientist')) {
+        inferredType = 'scientist';
+      } else if (schema.includes('extracted_data') || name.includes('miner') || name.includes('extraction')) {
+        inferredType = 'miner';
+      } else if (schema.includes('gate_4') || name.includes('gatekeeper')) {
+        inferredType = 'gatekeeper';
+      }
+      updateStmt.run(inferredType, p.id);
+    }
+  } catch (e) {
+    console.error("Failed to run prompt_type auto-inferral migration:", e);
+  }
+
   // Add task_type column to llm_jobs if it doesn't exist
   try {
     db.exec("ALTER TABLE llm_jobs ADD COLUMN task_type TEXT");

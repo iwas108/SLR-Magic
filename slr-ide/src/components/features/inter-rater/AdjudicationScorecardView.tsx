@@ -25,6 +25,28 @@ export default function AdjudicationScorecardView({
           const r2_qa = JSON.parse(selectedDiscrepancy.r2_qa_scores || '{}');
           const ruleCode = rule.code;
 
+          const getQaScoreObj = (qaObj: any, code: string) => {
+            if (!qaObj || typeof qaObj !== 'object') return { value: null, evidence: '' };
+            const cleanCode = code.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const matchKey = Object.keys(qaObj).find(k => {
+              const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+              return kl === cleanCode || kl.startsWith(cleanCode);
+            });
+            const item = matchKey ? qaObj[matchKey] : undefined;
+            if (item === undefined || item === null) return { value: null, evidence: '' };
+            if (typeof item === 'object') {
+              const val = item.value ?? item.score ?? item.val ?? null;
+              const num = val !== null ? parseFloat(String(val)) : null;
+              const ev = item.evidence ?? item.exact_quote ?? item.quote ?? '';
+              return { value: !isNaN(num!) ? num : val, evidence: String(ev) };
+            }
+            const num = parseFloat(String(item));
+            return { value: !isNaN(num) ? num : item, evidence: '' };
+          };
+
+          const obj1 = getQaScoreObj(r1_qa, ruleCode);
+          const obj2 = getQaScoreObj(r2_qa, ruleCode);
+
           return (
             <div key={ruleCode} className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-sm">
               <div className="flex justify-between items-start">
@@ -40,11 +62,9 @@ export default function AdjudicationScorecardView({
                   <button
                     type="button"
                     onClick={() => {
-                      const val = r1_qa[ruleCode]?.value;
-                      const ev = r1_qa[ruleCode]?.evidence || '';
                       setAdjudicateQaScores(prev => ({
                         ...prev,
-                        [ruleCode]: { value: val !== undefined ? val : null, evidence: ev }
+                        [ruleCode]: { value: obj1.value !== null ? obj1.value : null, evidence: obj1.evidence }
                       }));
                     }}
                     className="px-2 py-0.5 bg-secondary hover:bg-secondary/85 border border-border text-[9px] font-bold rounded"
@@ -54,11 +74,9 @@ export default function AdjudicationScorecardView({
                   <button
                     type="button"
                     onClick={() => {
-                      const val = r2_qa[ruleCode]?.value;
-                      const ev = r2_qa[ruleCode]?.evidence || '';
                       setAdjudicateQaScores(prev => ({
                         ...prev,
-                        [ruleCode]: { value: val !== undefined ? val : null, evidence: ev }
+                        [ruleCode]: { value: obj2.value !== null ? obj2.value : null, evidence: obj2.evidence }
                       }));
                     }}
                     className="px-2 py-0.5 bg-secondary hover:bg-secondary/85 border border-border text-[9px] font-bold rounded"
@@ -71,13 +89,13 @@ export default function AdjudicationScorecardView({
               <div className="grid grid-cols-2 gap-2 text-[10px] bg-secondary/35 p-2 rounded-lg text-muted-foreground">
                 <div>
                   <span className="font-bold text-blue-500">Alpha: </span>
-                  <span className="font-bold">{r1_qa[ruleCode]?.value !== undefined ? r1_qa[ruleCode]?.value : '—'}</span>
-                  <p className="italic mt-0.5 truncate" title={r1_qa[ruleCode]?.evidence}>"{r1_qa[ruleCode]?.evidence || 'No evidence'}"</p>
+                  <span className="font-bold">{obj1.value !== null ? obj1.value : '—'}</span>
+                  <p className="italic mt-0.5 truncate" title={obj1.evidence}>"{obj1.evidence || 'No evidence'}"</p>
                 </div>
                 <div>
                   <span className="font-bold text-emerald-500">Beta: </span>
-                  <span className="font-bold">{r2_qa[ruleCode]?.value !== undefined ? r2_qa[ruleCode]?.value : '—'}</span>
-                  <p className="italic mt-0.5 truncate" title={r2_qa[ruleCode]?.evidence}>"{r2_qa[ruleCode]?.evidence || 'No evidence'}"</p>
+                  <span className="font-bold">{obj2.value !== null ? obj2.value : '—'}</span>
+                  <p className="italic mt-0.5 truncate" title={obj2.evidence}>"{obj2.evidence || 'No evidence'}"</p>
                 </div>
               </div>
 

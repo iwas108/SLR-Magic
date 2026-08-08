@@ -63,16 +63,11 @@ def extract_structured_data(
             parsed = safe_json_loads(output_text)
             result["structured_output"] = output_text
             
-            if schema_mapping:
-                from llm.fulltext import resolve_path
-                if schema_mapping.get("extracted_data"):
-                    ext_val = resolve_path(parsed, schema_mapping.get("extracted_data"))
-                    if ext_val is not None:
-                        result["extracted_data"] = json.dumps(ext_val) if isinstance(ext_val, (dict, list)) else str(ext_val)
-                if schema_mapping.get("rationale"):
-                    rat_val = resolve_path(parsed, schema_mapping.get("rationale"))
-                    if rat_val is not None:
-                        result["rationale"] = json.dumps(rat_val) if isinstance(rat_val, (dict, list)) else str(rat_val)
+            ext_val = parsed.get("extracted_data") if isinstance(parsed, dict) and "extracted_data" in parsed else parsed
+            result["extracted_data"] = json.dumps(ext_val) if isinstance(ext_val, (dict, list)) else str(ext_val)
+            
+            if isinstance(parsed, dict) and "rationale" in parsed:
+                result["rationale"] = str(parsed["rationale"])
         except Exception as e:
             logger.warning(f"Structured extraction response is not valid JSON: {e}. Output: {output_text}")
             result["success"] = False

@@ -169,21 +169,21 @@ class LLMQueueHandler:
                 response = screen_title_abstract(
                     self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id,
                     temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
-                    schema_mapping=self.schema_mapping, request_delay=self.request_delay, thinking_level=self.thinking_level
+                    request_delay=self.request_delay, thinking_level=self.thinking_level
                 )
             elif self.task_type in ('gatekeeper', 'scientist', 'fulltext'):
                 from llm.fulltext import screen_fulltext
                 response = screen_fulltext(
                     self.client, self.model_id, pdf_path, self.system_instruction, user_prompt, prompt_schema, self.speed_mode, previous_interaction_id,
                     temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
-                    schema_mapping=self.schema_mapping, request_delay=self.request_delay, thinking_level=self.thinking_level
+                    request_delay=self.request_delay, thinking_level=self.thinking_level
                 )
             elif self.task_type in ('miner', 'extraction'):
                 from llm.extraction import extract_structured_data
                 response = extract_structured_data(
                     self.client, self.model_id, self.system_instruction, user_prompt, prompt_schema, pdf_path, self.speed_mode, previous_interaction_id,
                     temperature=self.temperature, max_output_tokens=self.max_output_tokens, top_p=self.top_p, top_k=self.top_k,
-                    schema_mapping=self.schema_mapping, thinking_level=self.thinking_level
+                    thinking_level=self.thinking_level
                 )
             else:
                 raise ValueError(f"Unsupported task execution type: {self.task_type}")
@@ -326,6 +326,15 @@ class LLMQueueHandler:
                     return json.dumps(val)
 
                 qa_scores_json = to_json_str(response.get("qa_scores"))
+                if not qa_scores_json and struct_out:
+                    try:
+                        import json
+                        parsed_so = json.loads(struct_out)
+                        if isinstance(parsed_so, dict) and "qa_scores" in parsed_so:
+                            qa_scores_json = to_json_str(parsed_so["qa_scores"])
+                    except Exception:
+                        pass
+
                 raw_ext_data = response.get("extracted_data")
                 if self.task_type in ('miner', 'extraction') and not raw_ext_data and struct_out:
                     try:
@@ -354,7 +363,22 @@ class LLMQueueHandler:
                     (incoming_stage, ai_decision, ai_exclusion_code, rationale_text or None,
                      qa_scores_json, extracted_data_json, paper_id, self.project_id)
                 )
-                logger.info(f"AI screening decision for paper {paper_id} saved to papers table ai_* columns.")
+
+                execute_write(
+                    """
+                    UPDATE rolling_batch_papers
+                    SET ai_stage = ?,
+                        ai_decision = ?,
+                        ai_exclusion_code = ?,
+                        ai_rationale = COALESCE(?, ai_rationale),
+                        ai_quality_assessment = COALESCE(?, ai_quality_assessment),
+                        ai_extracted_data = COALESCE(?, ai_extracted_data)
+                    WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)
+                    """,
+                    (incoming_stage, ai_decision, ai_exclusion_code, rationale_text or None,
+                     qa_scores_json, extracted_data_json, paper_id, self.project_id)
+                )
+                logger.info(f"AI screening decision for paper {paper_id} saved to papers and rolling_batch_papers tables.")
 
                 if self.task_type in ('miner', 'extraction'):
                     from llm.fulltext import resolve_path
@@ -506,9 +530,12 @@ class LLMQueueHandler:
                     else:
                         decision = None
                         exc_trigger = None
-                        if self.schema_mapping:
-                            decision = resolve_path(parsed, self.schema_mapping.get("decision"))
-                            exc_trigger = resolve_path(parsed, self.schema_mapping.get("exclusion_trigger"))
+
+                        # Priority 1: Standardized baseline structure (final_evaluation)
+                        final_eval = parsed.get("final_evaluation") if isinstance(parsed, dict) else None
+                        if isinstance(final_eval, dict):
+                            decision = final_eval.get("decision")
+                            exc_trigger = final_eval.get("exclusion_code") or final_eval.get("exclusion_trigger")
 
                         if decision and not isinstance(decision, str):
                             decision = str(decision)

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import db from '@/lib/db';
+import { validatePromptSchema } from '@/lib/services/prompt-validator';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ export async function GET(req: Request) {
         project_id, 
         name, 
         description, 
+        prompt_type,
         system_instruction AS system_prompt, 
         user_template AS user_prompt_template, 
         response_schema,
@@ -51,10 +53,19 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { id, project_id, name, description, system_prompt, user_prompt_template, response_schema, llm_config, is_active } = body;
+    const { id, project_id, name, description, prompt_type, system_prompt, user_prompt_template, response_schema, llm_config, is_active } = body;
 
     if (!name || !system_prompt) {
       return NextResponse.json({ error: 'Name and System Prompt are required' }, { status: 400 });
+    }
+
+    if (!prompt_type) {
+      return NextResponse.json({ error: 'Prompt Type / Pipeline Stage classification is required' }, { status: 400 });
+    }
+
+    const valResult = validatePromptSchema(prompt_type, response_schema);
+    if (!valResult.isValid) {
+      return NextResponse.json({ error: valResult.error }, { status: 400 });
     }
 
     const now = new Date().toISOString();
@@ -63,18 +74,18 @@ export async function POST(req: Request) {
       // Update
       const stmt = db.prepare(`
         UPDATE prompt_templates 
-        SET name = ?, description = ?, system_instruction = ?, user_template = ?, response_schema = ?, llm_config = ?, is_active = ?, updated_at = ?
+        SET name = ?, description = ?, prompt_type = ?, system_instruction = ?, user_template = ?, response_schema = ?, llm_config = ?, is_active = ?, updated_at = ?
         WHERE id = ?
       `);
-      stmt.run(name, description, system_prompt, user_prompt_template, response_schema || null, llm_config || '{}', is_active ? 1 : 0, now, id);
+      stmt.run(name, description, prompt_type || null, system_prompt, user_prompt_template, response_schema || null, llm_config || '{}', is_active ? 1 : 0, now, id);
     } else {
       // Insert
       const newId = crypto.randomUUID();
       const stmt = db.prepare(`
-        INSERT INTO prompt_templates (id, project_id, name, description, system_instruction, user_template, response_schema, llm_config, is_active, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO prompt_templates (id, project_id, name, description, prompt_type, system_instruction, user_template, response_schema, llm_config, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(newId, project_id || null, name, description, system_prompt, user_prompt_template, response_schema || null, llm_config || '{}', is_active ? 1 : 0, now, now);
+      stmt.run(newId, project_id || null, name, description, prompt_type || null, system_prompt, user_prompt_template, response_schema || null, llm_config || '{}', is_active ? 1 : 0, now, now);
     }
 
     return NextResponse.json({ success: true });

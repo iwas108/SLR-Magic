@@ -21,13 +21,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing commit_message' }, { status: 400 });
     }
 
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    const project = db.prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(activeProjectId, activeProjectId) as any;
     if (!project) {
       return NextResponse.json({ error: 'Active project not found' }, { status: 404 });
     }
 
-    // Verify batch exists and is active
-    const batch = db.prepare('SELECT * FROM rolling_batches WHERE id = ? AND project_id = ?').get(batch_id, activeProjectId) as any;
+    // Verify batch exists
+    const batch = db.prepare('SELECT * FROM rolling_batches WHERE id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').get(batch_id, activeProjectId, activeProjectId) as any;
     if (!batch) {
       return NextResponse.json({ error: 'Rolling batch not found' }, { status: 404 });
     }
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       // 1. Read current state from rolling_batch_papers
       const dbPaper = db.prepare(`
         SELECT * FROM rolling_batch_papers 
-        WHERE Paper_ID = ? AND batch_id = ? AND Project_ID = ?
+        WHERE Paper_ID = ? AND batch_id = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)
       `).get(paper_id, batch_id, activeProjectId) as any;
 
       if (!dbPaper) {
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
             manual_quality_assessment = ?,
             manual_extracted_data = ?,
             manual_stage = 3
-        WHERE Paper_ID = ? AND batch_id = ? AND Project_ID = ?
+        WHERE Paper_ID = ? AND batch_id = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)
       `).run(decision, exclusionCode || null, rationale || '', final_qa_scores_str, final_extracted_data_str, paper_id, batch_id, activeProjectId);
 
       // 3. Generate commit hash
@@ -99,13 +99,13 @@ export async function POST(request: Request) {
       );
 
       // 5. Check if all papers in this batch are resolved
-      const unresolvedCount = db.prepare(`
+      const unresolvedCountRow = db.prepare(`
         SELECT COUNT(*) as count FROM rolling_batch_papers 
         WHERE batch_id = ? AND Project_ID = ? AND (manual_decision = 'PENDING_ADJUDICATION' OR manual_decision IS NULL)
       `).get(batch_id, activeProjectId) as { count: number };
 
       let batchFinalized = false;
-      if (unresolvedCount.count === 0) {
+      if (unresolvedCountRow.count === 0) {
         db.prepare(`
           UPDATE rolling_batches 
           SET status = 'complete', finalized_at = ? 

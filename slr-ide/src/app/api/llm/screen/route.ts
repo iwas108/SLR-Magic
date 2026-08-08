@@ -9,6 +9,8 @@ import { decryptKey } from '@/lib/vault';
 import { operationsManager } from '@/lib/llm-operations';
 import { pipelineLock } from '@/lib/services/pipeline-lock';
 
+import { validatePromptSchema } from '@/lib/services/prompt-validator';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -127,6 +129,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ 
         error: `No default prompt template configured for stage '${taskType || 'fast_filter'}' in Project Settings.` 
       }, { status: 400 });
+    }
+
+    const tplRecord = db.prepare('SELECT response_schema, prompt_type FROM prompt_templates WHERE id = ?').get(resolvedTemplateId) as any;
+    if (!tplRecord) {
+      return NextResponse.json({ error: `Prompt template '${resolvedTemplateId}' not found in database.` }, { status: 400 });
+    }
+
+    const valResult = validatePromptSchema(taskType || tplRecord.prompt_type, tplRecord.response_schema);
+    if (!valResult.isValid) {
+      return NextResponse.json({ error: `Selected prompt template baseline schema validation failed: ${valResult.error}` }, { status: 400 });
     }
 
     // Construct command line arguments

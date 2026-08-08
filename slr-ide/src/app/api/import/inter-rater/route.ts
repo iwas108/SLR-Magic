@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import db, { getConfig } from '@/lib/db';
+import db, { getConfig, setConfig } from '@/lib/db';
 import { createHash } from 'crypto';
 import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
 import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
@@ -35,15 +35,18 @@ export async function POST(request: Request) {
 
     const paramProjectId = searchParams.get('projectId');
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
-    const targetProjectId = paramProjectId || activeProjectId;
+    const fileProjectId = body.metadata?.project_id || body.metadata?.projectId;
 
-    let project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;
-    if (!project) {
-      const numericProjectId = parseInt(targetProjectId, 10);
-      if (!isNaN(numericProjectId)) {
-        project = db.prepare('SELECT * FROM projects WHERE id = ?').get(numericProjectId) as any;
+    let targetProjectId = paramProjectId || activeProjectId;
+    if (fileProjectId) {
+      const matchProj = db.prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(fileProjectId, fileProjectId) as any;
+      if (matchProj) {
+        targetProjectId = String(matchProj.id);
+        setConfig('ACTIVE_PROJECT_ID', targetProjectId);
       }
     }
+
+    let project = db.prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(targetProjectId, targetProjectId) as any;
     if (!project) {
       project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
     }
@@ -53,14 +56,6 @@ export async function POST(request: Request) {
     }
 
     const resolvedProjectId = project.id;
-
-    // Check project ID matching if present in file metadata
-    const fileProjectId = body.metadata.project_id || body.metadata.projectId;
-    if (fileProjectId && String(fileProjectId) !== String(resolvedProjectId)) {
-      return NextResponse.json({
-        error: `Project ID mismatch: file was exported for project "${fileProjectId}", but target project is "${resolvedProjectId}"`
-      }, { status: 400 });
-    }
 
     // Parse QA and Extraction rules for Pool C
     let qaRules: any[] = [];
@@ -414,6 +409,13 @@ export async function POST(request: Request) {
         }
       }
 
+      if (papersImported === 0) {
+        return {
+          error: `Import failed: 0 of ${body.papers.length} papers in the .slr file matched active project papers (Project: ${resolvedProjectId}). Please verify the file belongs to this project cohort.`,
+          status: 400
+        };
+      }
+
       // Count final total reviewers
       const totalReviewersCountRow = countReviewersStmt.get(resolvedProjectId, dbPool) as { count: number };
 
@@ -423,7 +425,9 @@ export async function POST(request: Request) {
         is_reupload: isReupload,
         papers_imported: papersImported,
         papers_in_conflict: papersInConflict,
-        total_reviewers: totalReviewersCountRow.count
+        total_reviewers: totalReviewersCountRow.count,
+        project_id: resolvedProjectId,
+        resolved_project_id: resolvedProjectId
       };
     })();
 

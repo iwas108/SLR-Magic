@@ -231,6 +231,10 @@ export default function FinalCohortPanel() {
                 rawVal = v.score;
               } else if ('value' in v && v.value !== undefined && v.value !== null) {
                 rawVal = v.value;
+              } else if ('val' in v && v.val !== undefined && v.val !== null) {
+                rawVal = v.val;
+              } else if ('numeric_score' in v && v.numeric_score !== undefined && v.numeric_score !== null) {
+                rawVal = v.numeric_score;
               } else {
                 const entries = Object.entries(v);
                 const nonTextMatch = entries.find(([key, val]) => {

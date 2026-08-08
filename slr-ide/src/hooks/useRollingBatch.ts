@@ -22,6 +22,10 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
   // Load active status
   const loadStatus = useCallback(async () => {
     setLoading(true);
+    setCurrentBatch(null);
+    setPapers([]);
+    setReviewers([]);
+    setHistory([]);
     try {
       const statusRes = await fetch(`/api/rolling-batch/status?projectId=${projectId}`);
       if (statusRes.ok) {
@@ -42,6 +46,8 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
   // Load cumulative statistics
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
+    setCumulativeStats(null);
+    setIndividualBatchStats([]);
     try {
       const statsRes = await fetch(`/api/rolling-batch/stats?projectId=${projectId}`);
       if (statsRes.ok) {
@@ -70,6 +76,7 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
         showToast(`Successfully initialized Rolling Batch #${data.batch.batchNumber}!`, 'success');
         broadcastSync('SYNC_PAPERS');
         await loadStatus();
+        await loadStats();
       } else {
         showToast(data.error || 'Failed to initialize batch', 'error');
       }
@@ -112,6 +119,7 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
         );
         broadcastSync('SYNC_PAPERS');
         await loadStatus();
+        await loadStats();
         return true;
       } else {
         showToast(data.error || 'Failed to import reviewer decisions', 'error');
@@ -120,6 +128,34 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
     } catch (err: any) {
       showToast(err.message || 'Error processing reviewer file', 'error');
       return false;
+    }
+  };
+
+  // Reset rolling batch (mode: 'active' | 'all')
+  const resetBatch = async (mode: 'active' | 'all'): Promise<boolean> => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/rolling-batch/reset?projectId=${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Rolling batch reset successfully', 'success');
+        broadcastSync('SYNC_PAPERS');
+        await loadStatus();
+        await loadStats();
+        return true;
+      } else {
+        showToast(data.error || 'Failed to reset rolling batch', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to reset rolling batch', 'error');
+      return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -165,6 +201,7 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
     loadStats,
     initializeBatch,
     downloadBatchSlr,
-    importReviewerSlr
+    importReviewerSlr,
+    resetBatch
   };
 }

@@ -197,14 +197,14 @@ export default function DashboardPage() {
   // Clear selection on project or active view tab change
   useEffect(() => {
     setSelectedPaperIds(new Set());
-    if (activeTab !== 'full-execution') {
+    if (!activeTab.startsWith('pipeline-') && activeTab !== 'full-execution') {
       setPreSelectedPaperIds([]);
     }
   }, [activeProjectId, activeTab]);
 
   const handleRunLLMOnSelected = useCallback((paperIds: string[]) => {
     setPreSelectedPaperIds(paperIds);
-    setActiveTab('full-execution');
+    setActiveTab('pipeline-llm-operations');
   }, []);
 
   const handleThemeChange = useCallback((newTheme: string) => {

@@ -59,15 +59,16 @@ def screen_title_abstract(
         from llm.client import safe_json_loads
         parsed_output = safe_json_loads(output_text)
         
-        # Resolve using custom mapping
         decision = None
         exc_trigger = None
         rationale = None
 
-        if schema_mapping:
-            decision = resolve_path(parsed_output, schema_mapping.get("decision"))
-            exc_trigger = resolve_path(parsed_output, schema_mapping.get("exclusion_trigger"))
-            rationale = resolve_path(parsed_output, schema_mapping.get("rationale"))
+        # Priority 1: Standardized baseline structure (final_evaluation)
+        final_eval = parsed_output.get("final_evaluation") if isinstance(parsed_output, dict) else None
+        if isinstance(final_eval, dict):
+          decision = final_eval.get("decision")
+          exc_trigger = final_eval.get("exclusion_code") or final_eval.get("exclusion_trigger")
+          rationale = final_eval.get("reasoning") or final_eval.get("rationale")
 
         # Extended alias keys that Gemini models often emit instead of the schema-mandated names
         _EC_ALIASES = (
@@ -79,7 +80,7 @@ def screen_title_abstract(
             "conclusion", "justification", "summary"
         )
 
-        # Fallback — Level 1: top-level flat keys
+        # Priority 2: Level 1 top-level flat keys fallback
         if not decision:
             decision = parsed_output.get("decision")
         if not exc_trigger:
@@ -93,10 +94,9 @@ def screen_title_abstract(
                 if rationale:
                     break
 
-        # Fallback — Level 2: well-known sub-object keys, then any top-level dict value
+        # Priority 3: Level 2 well-known sub-object keys fallback
         if not decision or not rationale or not exc_trigger:
             _SUBOBJ_KEYS = ["final_evaluation", "evaluation", "result", "output", "verdict"]
-            # Walk known sub-object keys first, then fall back to any dict value at the top level
             candidates = [
                 parsed_output.get(k) for k in _SUBOBJ_KEYS if isinstance(parsed_output.get(k), dict)
             ] + [

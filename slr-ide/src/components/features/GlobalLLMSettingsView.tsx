@@ -9,6 +9,12 @@ import { useSseStream } from '@/hooks/useSseStream';
 import LLMAuditLogView from './LLMAuditLogView';
 import { subscribeSyncChannel, broadcastSync } from '@/lib/sync-utils';
 import { useGlobalPipelineLock } from '@/hooks/useGlobalPipelineLock';
+import { 
+  PromptType, 
+  PROMPT_TYPE_OPTIONS, 
+  DEFAULT_STAGE_SCHEMAS, 
+  validatePromptSchema 
+} from '@/lib/services/prompt-validator';
 
 interface ModelPricing {
   model_id: string;
@@ -25,6 +31,7 @@ interface Prompt {
   project_id: string | null;
   name: string;
   description: string | null;
+  prompt_type?: PromptType | string | null;
   system_prompt: string;
   user_prompt_template: string | null;
   response_schema: string | null;
@@ -134,6 +141,18 @@ export default function GlobalLLMSettingsView({
   const [batchLimit, setBatchLimit] = useState<number>(10);
   const [indexOffset, setIndexOffset] = useState<number>(0);
   const [targetCount, setTargetCount] = useState<number | null>(null);
+  const [recommendedTaskType, setRecommendedTaskType] = useState<string | null>(null);
+  const [recommendedMaxStage, setRecommendedMaxStage] = useState<number | null>(null);
+  const [hasAutoSwitchedStage, setHasAutoSwitchedStage] = useState<boolean>(false);
+
+  // Sync activeTab and paperSelectionMode when preSelectedPaperIds is updated
+  useEffect(() => {
+    if (preSelectedPaperIds && preSelectedPaperIds.length > 0) {
+      setActiveTab('operations');
+      setPaperSelectionMode('selected');
+      setHasAutoSwitchedStage(false);
+    }
+  }, [preSelectedPaperIds]);
   const pipelineCount = (() => {
     if (targetCount === null) return 0;
     if (paperSelectionMode === 'limit') {
@@ -144,30 +163,18 @@ export default function GlobalLLMSettingsView({
       return targetCount;
     }
   })();
-  // --- DEFAULT STAGE PROMPTS & SCHEMA MAPPER STATE ---
+  // --- DEFAULT STAGE PROMPTS STATE ---
   const [defaultPromptsState, setDefaultPromptsState] = useState<Record<string, string>>({});
-  const [schemaMappingsState, setSchemaMappingsState] = useState<Record<string, Record<string, string>>>({});
-  const [customKeyModesState, setCustomKeyModesState] = useState<Record<string, boolean>>({});
   const [savingStageConfig, setSavingStageConfig] = useState(false);
   const [isExpandedStageMapper, setIsExpandedStageMapper] = useState(true);
-
-  // Toggle custom text input mode for a key path field
-  const toggleCustomKeyMode = (stage: string, keyName: string, isCustom: boolean) => {
-    setCustomKeyModesState(prev => ({
-      ...prev,
-      [`${stage}:${keyName}`]: isCustom
-    }));
-  };
 
   // Sync stage defaults from activeProject.llm_config
   useEffect(() => {
     try {
       const cfg = activeProject?.llm_config ? JSON.parse(activeProject.llm_config) : {};
       setDefaultPromptsState(cfg.default_prompts || {});
-      setSchemaMappingsState(cfg.schema_mappings || {});
     } catch {
       setDefaultPromptsState({});
-      setSchemaMappingsState({});
     }
   }, [activeProject?.id, activeProject?.llm_config]);
 
@@ -179,42 +186,7 @@ export default function GlobalLLMSettingsView({
     }));
   };
 
-  // Handler to update a schema key path for a specific stage
-  const handleSchemaKeyChange = (stage: string, keyName: string, pathValue: string) => {
-    setSchemaMappingsState(prev => ({
-      ...prev,
-      [stage]: {
-        ...(prev[stage] || {}),
-        [keyName]: pathValue
-      }
-    }));
-  };
-
-  // Auto-fill standard defaults for a specific stage
-  const handleLoadDefaultSchemaKeys = (stage: string) => {
-    const standardKeys: Record<string, Record<string, string>> = {
-      fast_filter: { decision: 'decision', exclusion_trigger: 'exclusion_trigger', rationale: 'rationale' },
-      gatekeeper: { decision: 'decision', exclusion_trigger: 'exclusion_trigger', rationale: 'rationale' },
-      scientist: { quality_assessment: 'qa_scores', decision: 'final_evaluation.decision', exclusion_trigger: 'final_evaluation.exclusion_code', rationale: 'final_evaluation.reasoning' },
-      miner: { extracted_data: 'extracted_data', rationale: 'rationale' }
-    };
-
-    setSchemaMappingsState(prev => ({
-      ...prev,
-      [stage]: standardKeys[stage] || { decision: 'decision', rationale: 'rationale' }
-    }));
-
-    // Reset custom input mode for this stage's keys
-    setCustomKeyModesState(prev => {
-      const next = { ...prev };
-      Object.keys(standardKeys[stage] || {}).forEach(k => {
-        delete next[`${stage}:${k}`];
-      });
-      return next;
-    });
-  };
-
-  // Save stage configuration (default_prompts & schema_mappings) to active project
+  // Save stage default prompt configuration to active project
   const handleSaveStageConfig = async () => {
     if (!activeProject?.id) {
       showToast?.('No active project selected to save settings.', 'error');
@@ -232,8 +204,7 @@ export default function GlobalLLMSettingsView({
 
       const updatedLlmConfig = {
         ...currentLlmConfig,
-        default_prompts: defaultPromptsState,
-        schema_mappings: schemaMappingsState
+        default_prompts: defaultPromptsState
       };
 
       const res = await fetch('/api/projects', {
@@ -250,7 +221,7 @@ export default function GlobalLLMSettingsView({
         throw new Error(errData.error || 'Failed to update project LLM configuration');
       }
 
-      showToast?.('Stage prompt defaults & schema mappings saved successfully!', 'success');
+      showToast?.('Stage prompt defaults saved successfully!', 'success');
       loadProjects?.();
       broadcastSync('SYNC_PROJECTS');
     } catch (err: any) {
@@ -269,84 +240,6 @@ export default function GlobalLLMSettingsView({
       return '';
     }
   })();
-
-  const renderSchemaKeySelector = (
-    keyName: string, 
-    label: string, 
-    defaultFallback: string, 
-    colSpanClass: string = ""
-  ) => {
-    const currentPromptId = defaultPromptsState[taskType] || activeTemplateId;
-    const currentPrompt = prompts.find(p => p.id === currentPromptId);
-    const extractedKeys = extractSchemaKeyPaths(currentPrompt?.response_schema);
-    const currentSavedVal = schemaMappingsState[taskType]?.[keyName] !== undefined 
-      ? schemaMappingsState[taskType][keyName] 
-      : defaultFallback;
-
-    const modeKey = `${taskType}:${keyName}`;
-    const isCustomActive = customKeyModesState[modeKey] || (
-      extractedKeys.length > 0 && 
-      currentSavedVal !== defaultFallback && 
-      !extractedKeys.includes(currentSavedVal)
-    );
-
-    return (
-      <div className={`space-y-1 ${colSpanClass}`}>
-        <div className="flex items-center justify-between">
-          <label className="text-[9px] font-bold text-muted-foreground uppercase">{label}</label>
-          {extractedKeys.length > 0 && (
-            <span className="text-[8px] font-mono text-primary font-bold">
-              {extractedKeys.length} schema {extractedKeys.length === 1 ? 'key' : 'keys'} found
-            </span>
-          )}
-        </div>
-
-        {extractedKeys.length > 0 ? (
-          <div className="space-y-1">
-            <select
-              value={isCustomActive ? '__custom__' : currentSavedVal}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '__custom__') {
-                  toggleCustomKeyMode(taskType, keyName, true);
-                } else {
-                  toggleCustomKeyMode(taskType, keyName, false);
-                  handleSchemaKeyChange(taskType, keyName, val);
-                }
-              }}
-              className="w-full bg-secondary/50 border border-border/80 rounded-lg px-2.5 py-1 text-xs font-mono text-foreground outline-none font-bold"
-            >
-              {!extractedKeys.includes(defaultFallback) && (
-                <option value={defaultFallback}>Default: {defaultFallback}</option>
-              )}
-              {extractedKeys.map(k => (
-                <option key={k} value={k}>{k}</option>
-              ))}
-              <option value="__custom__">Custom Key Path...</option>
-            </select>
-
-            {isCustomActive && (
-              <input
-                type="text"
-                value={currentSavedVal}
-                onChange={(e) => handleSchemaKeyChange(taskType, keyName, e.target.value)}
-                placeholder={`Enter custom key path for ${keyName}...`}
-                className="w-full bg-secondary/40 border border-primary/50 focus:border-primary rounded-lg px-2.5 py-1 text-xs font-mono text-foreground outline-none mt-1 animate-in fade-in duration-150"
-              />
-            )}
-          </div>
-        ) : (
-          <input
-            type="text"
-            value={currentSavedVal}
-            onChange={(e) => handleSchemaKeyChange(taskType, keyName, e.target.value)}
-            placeholder={`e.g. ${defaultFallback}`}
-            className="w-full bg-secondary/40 border border-border/80 rounded-lg px-2.5 py-1 text-xs font-mono text-foreground outline-none"
-          />
-        )}
-      </div>
-    );
-  };
 
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
   const [confirmStep, setConfirmStep] = useState<1 | 2>(1);
@@ -406,6 +299,13 @@ export default function GlobalLLMSettingsView({
         if (res.ok) {
           const data = await res.json();
           setTargetCount(data.count);
+          if (data.recommendedTaskType) {
+            setRecommendedTaskType(data.recommendedTaskType);
+            setRecommendedMaxStage(data.maxStage ?? null);
+          } else {
+            setRecommendedTaskType(null);
+            setRecommendedMaxStage(null);
+          }
         }
       } catch (err) {
         console.error('Failed to fetch target count', err);
@@ -672,20 +572,20 @@ export default function GlobalLLMSettingsView({
   };
 
   // --- TAB 2: PROMPTS LIBRARY CRUDS ---
-  const validateSchemaField = (value: string) => {
+  const tryParse = (str: string) => {
+    try { return JSON.parse(str); } catch { return null; }
+  };
+
+  const validateSchemaField = (value: string, typeOverride?: string) => {
     if (!value.trim()) {
       setSchemaError(null);
       return;
     }
-    try {
-      const parsed = JSON.parse(value);
-      if (!parsed.type) {
-        setSchemaError("JSON Schema must specify a 'type' property (usually 'OBJECT')");
-        return;
-      }
+    const valResult = validatePromptSchema(typeOverride || editingPrompt?.prompt_type, value);
+    if (!valResult.isValid) {
+      setSchemaError(valResult.error);
+    } else {
       setSchemaError(null);
-    } catch (e: any) {
-      setSchemaError(`JSON syntax error: ${e.message}`);
     }
   };
 
@@ -694,8 +594,16 @@ export default function GlobalLLMSettingsView({
       showToast?.('Name and System prompt are required', 'warning');
       return;
     }
-    if (schemaError) {
-      showToast?.('Please resolve JSON Schema validation errors first', 'error');
+
+    if (!editingPrompt?.prompt_type) {
+      showToast?.('Please select a Prompt Type / Pipeline Stage', 'warning');
+      return;
+    }
+
+    const valResult = validatePromptSchema(editingPrompt.prompt_type, editingPrompt.response_schema);
+    if (!valResult.isValid) {
+      setSchemaError(valResult.error);
+      showToast?.(valResult.error || 'Please resolve JSON Schema validation errors first', 'error');
       return;
     }
 
@@ -1171,7 +1079,16 @@ export default function GlobalLLMSettingsView({
                 <div className="flex justify-between items-center">
                   <span className="text-[11px] text-muted-foreground">Select a prompt template to edit system rules and structured outputs.</span>
                   <button
-                    onClick={() => startEditingPrompt({ name: '', system_prompt: '', user_prompt_template: '', response_schema: '' })}
+                    onClick={() => {
+                      const initialType = 'fast_filter';
+                      startEditingPrompt({
+                        name: '',
+                        prompt_type: initialType,
+                        system_prompt: '',
+                        user_prompt_template: '',
+                        response_schema: JSON.stringify(DEFAULT_STAGE_SCHEMAS[initialType], null, 2)
+                      });
+                    }}
                     className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -1188,7 +1105,14 @@ export default function GlobalLLMSettingsView({
                     >
                       <div>
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-foreground group-hover:text-primary transition-colors">{p.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground group-hover:text-primary transition-colors">{p.name}</span>
+                            {p.prompt_type && (
+                              <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold uppercase border border-primary/20">
+                                {p.prompt_type.replace('_', ' ')}
+                              </span>
+                            )}
+                          </div>
                           {p.project_id === null && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-bold uppercase">Global</span>
                           )}
@@ -1261,7 +1185,7 @@ export default function GlobalLLMSettingsView({
                   {/* Tab 1: General Info & System Rules */}
                   {editorTab === 'info' && (
                     <div className="space-y-3.5 animate-in fade-in duration-150">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-1">
                           <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Template Name</label>
                           <input
@@ -1269,9 +1193,37 @@ export default function GlobalLLMSettingsView({
                             value={editingPrompt.name || ''}
                             onChange={(e) => setEditingPrompt(prev => ({ ...prev, name: e.target.value }))}
                             placeholder="e.g. Title Screening V2"
-                            className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs"
+                            className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-semibold"
                           />
-                          <span className="text-[9px] text-muted-foreground/60 block px-1">Give this template a descriptive name (e.g. Title Screening V2).</span>
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Descriptive name for library.</span>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Prompt Type / Stage</label>
+                          <select
+                            value={editingPrompt.prompt_type || ''}
+                            onChange={(e) => {
+                              const newType = e.target.value as PromptType;
+                              const defaultSchema = DEFAULT_STAGE_SCHEMAS[newType];
+                              const defaultSchemaStr = defaultSchema ? JSON.stringify(defaultSchema, null, 2) : '';
+                              const currentSchema = editingPrompt.response_schema || '';
+                              const shouldUpdateSchema = !currentSchema.trim() || Object.values(DEFAULT_STAGE_SCHEMAS).some(
+                                s => JSON.stringify(s) === JSON.stringify(tryParse(currentSchema))
+                              );
+                              setEditingPrompt(prev => ({
+                                ...prev,
+                                prompt_type: newType,
+                                response_schema: shouldUpdateSchema ? defaultSchemaStr : currentSchema
+                              }));
+                              validateSchemaField(shouldUpdateSchema ? defaultSchemaStr : currentSchema, newType);
+                            }}
+                            className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs font-bold"
+                          >
+                            <option value="" disabled>-- Select Prompt Type --</option>
+                            {PROMPT_TYPE_OPTIONS.map(opt => (
+                              <option key={opt.id} value={opt.id}>{opt.label} ({opt.stageName})</option>
+                            ))}
+                          </select>
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Pipeline stage classification.</span>
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Description</label>
@@ -1282,7 +1234,7 @@ export default function GlobalLLMSettingsView({
                             placeholder="Brief summary of template use case..."
                             className="w-full bg-secondary/40 border border-border/80 rounded-xl px-3 py-1.5 outline-none text-foreground text-xs"
                           />
-                          <span className="text-[9px] text-muted-foreground/60 block px-1">Optional summary of what this prompt is designed to accomplish.</span>
+                          <span className="text-[9px] text-muted-foreground/60 block px-1">Optional summary.</span>
                         </div>
                       </div>
 
@@ -2019,9 +1971,9 @@ export default function GlobalLLMSettingsView({
 
                     {/* Panel Body */}
                     {isExpandedStageMapper && (
-                      <div className="p-3.5 space-y-4 text-xs animate-in fade-in duration-150">
+                      <div className="p-3.5 space-y-3.5 text-xs animate-in fade-in duration-150">
                         {/* Section A: Template Selector & Quick Edit */}
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                               Default Prompt Template for {taskType.replace('_', ' ')}
@@ -2048,64 +2000,25 @@ export default function GlobalLLMSettingsView({
                             onChange={(e) => handleStagePromptChange(taskType, e.target.value)}
                             className="w-full bg-secondary/50 border border-border/80 rounded-lg px-3 py-1.5 text-xs text-foreground outline-none font-bold"
                           >
-                            <option value="">-- Select Default Prompt Template --</option>
-                            {prompts.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} {p.project_id === null ? '(Global)' : '(Project)'}
-                              </option>
-                            ))}
+                            <option value="">-- Select Stage Prompt Template --</option>
+                            {prompts
+                              .filter(p => !p.prompt_type || p.prompt_type === taskType)
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} {p.project_id === null ? '(Global)' : '(Project)'}
+                                </option>
+                              ))}
                           </select>
-                        </div>
 
-                        {/* Section B: Stage Output Schema Key Mappers */}
-                        <div className="space-y-2 border-t border-border/40 pt-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                                JSON Output Schema Key Path Mappers ({taskType.replace('_', ' ')})
-                              </span>
-                              <span className="text-[9px] text-muted-foreground">
-                                Maps custom JSON response keys from Gemini model outputs to project screening variables (supports dot-notation).
-                              </span>
+                          {!activeTemplateId && (
+                            <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400 text-xs font-semibold">
+                              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                              <span>Reminder: No prompt template is selected for stage &apos;{taskType}&apos;. Please select or create a stage prompt template to launch the pipeline.</span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleLoadDefaultSchemaKeys(taskType)}
-                              className="text-[10px] text-primary hover:underline font-bold px-2 py-0.5 rounded bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-all"
-                            >
-                              Load Stage Standard Defaults
-                            </button>
-                          </div>
-
-                          {/* Stage specific input fields */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                            {['fast_filter', 'gatekeeper'].includes(taskType) && (
-                              <>
-                                {renderSchemaKeySelector('decision', 'Decision Key Path', 'decision')}
-                                {renderSchemaKeySelector('exclusion_trigger', 'Exclusion Trigger Key Path', 'exclusion_trigger')}
-                                {renderSchemaKeySelector('rationale', 'Rationale Key Path', 'rationale')}
-                              </>
-                            )}
-
-                            {taskType === 'scientist' && (
-                              <>
-                                {renderSchemaKeySelector('quality_assessment', 'QA Scores Key Path', 'qa_scores')}
-                                {renderSchemaKeySelector('decision', 'Decision Key Path', 'final_evaluation.decision')}
-                                {renderSchemaKeySelector('exclusion_trigger', 'Exclusion Code Key Path', 'final_evaluation.exclusion_code')}
-                                {renderSchemaKeySelector('rationale', 'Rationale Key Path', 'final_evaluation.reasoning')}
-                              </>
-                            )}
-
-                            {taskType === 'miner' && (
-                              <>
-                                {renderSchemaKeySelector('extracted_data', 'Extracted Data Key Path', 'extracted_data', 'md:col-span-2')}
-                                {renderSchemaKeySelector('rationale', 'Rationale Key Path', 'rationale')}
-                              </>
-                            )}
-                          </div>
+                          )}
                         </div>
 
-                        {/* Section C: Footer Save Action */}
+                        {/* Section B: Save Action */}
                         <div className="flex justify-end pt-2 border-t border-border/40">
                           <button
                             type="button"
@@ -2114,7 +2027,7 @@ export default function GlobalLLMSettingsView({
                             className="px-3.5 py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-lg flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:scale-100 text-xs"
                           >
                             {savingStageConfig ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                            <span>Save Stage Configuration to Project</span>
+                            <span>Save Stage Default Prompt to Project</span>
                           </button>
                         </div>
                       </div>
@@ -2246,7 +2159,7 @@ export default function GlobalLLMSettingsView({
                     <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-xs text-muted-foreground flex items-center justify-between animate-in slide-in-from-top-2 duration-200">
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-3.5 h-3.5 text-primary" />
-                        <span>Selected <strong>{preSelectedPaperIds.length} papers</strong> ({targetCount} eligible to run) from checkmarks.</span>
+                        <span>Selected <strong>{preSelectedPaperIds.length} papers</strong> ({targetCount} eligible to run) from checkmarks. Stage filters bypassed for direct execution.</span>
                       </div>
                       <button
                         onClick={() => setPaperSelectionMode('all')}
@@ -2259,9 +2172,23 @@ export default function GlobalLLMSettingsView({
                   )}
 
                   {targetCount === 0 && (
-                    <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-400 animate-in slide-in-from-top-2 duration-200">
-                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>No papers match the current filter settings. Adjust the Stage or Decision filter.</span>
+                    <div className="flex items-center justify-between gap-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-600 dark:text-amber-400 animate-in slide-in-from-top-2 duration-200">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>
+                          {paperSelectionMode === 'selected' && recommendedTaskType
+                            ? `Selected papers are at Stage ${recommendedMaxStage ?? 0}. No papers match the current '${taskType}' stage.`
+                            : 'No papers match the current filter settings. Adjust the Stage or Decision filter.'}
+                        </span>
+                      </div>
+                      {paperSelectionMode === 'selected' && recommendedTaskType && recommendedTaskType !== taskType && (
+                        <button
+                          onClick={() => setTaskType(recommendedTaskType as any)}
+                          className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10px] transition-colors flex-shrink-0 shadow-sm"
+                        >
+                          Switch to {recommendedTaskType === 'fast_filter' ? 'Fast Filter (Stage 1)' : recommendedTaskType === 'gatekeeper' ? 'Gatekeeper (Stage 2)' : recommendedTaskType === 'scientist' ? 'Scientist (Stage 3)' : 'Miner (Stage 4)'}
+                        </button>
+                      )}
                     </div>
                   )}
 

@@ -135,6 +135,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 ### Core Backend Services & Inter-Rater Libraries (`src/lib/services/` & `src/lib/inter-rater/`)
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
+| `lib/services/prompt-validator.ts` | Backend Service | Service encapsulating stage baseline JSON schema validation (`fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`) and default schema template generators. |
 | `lib/services/goldmine-state-tracker.ts` | Backend Service | Singleton NDJSON state tracker for Gold Mine exports managing execution phase, progress counters, live logs, state restore on reconnect, and process cancellation. |
 | `lib/services/process-manager.ts` | Backend Service | Singleton manager for active child process instances, arguments, PIDs, and clean tree termination (`taskkill` / `SIGKILL`). |
 | `lib/services/stream-manager.ts` | Backend Service | Encapsulates Server-Sent Events (SSE) stream lifecycles, HTTP keep-alive headers, and periodic heartbeat pings. |

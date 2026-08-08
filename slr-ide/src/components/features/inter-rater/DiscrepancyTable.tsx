@@ -53,7 +53,16 @@ export default function DiscrepancyTable({
                   onClick={() => openAdjudicationWorkspace(disc)}
                   className="hover:bg-muted/30 transition-colors cursor-pointer"
                 >
-                  <td className="px-4 py-3 font-mono font-bold text-foreground whitespace-nowrap">{disc.paper_id}</td>
+                  <td className="px-4 py-3 font-mono font-bold text-foreground whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      {disc.paper_id}
+                      {disc.is_resolved && (
+                        <span title="Discrepancy Resolved">
+                          <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 max-w-sm truncate text-foreground" title={disc.title}>{disc.title}</td>
                   <td className="px-4 py-3">
                     {activePoolTab === 'pool_c' ? (
@@ -84,9 +93,16 @@ export default function DiscrepancyTable({
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <button className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-colors text-[10px]">
-                      Adjudicate
-                    </button>
+                    {disc.is_resolved ? (
+                      <span className="px-2.5 py-1 bg-green-500/15 text-green-700 dark:text-green-400 font-bold rounded-lg text-[10px] inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                        Resolved
+                      </span>
+                    ) : (
+                      <button className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-colors text-[10px]">
+                        Adjudicate
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

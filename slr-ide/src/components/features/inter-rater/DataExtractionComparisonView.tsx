@@ -22,6 +22,27 @@ export default function DataExtractionComparisonView({
         const r2_ext = JSON.parse(selectedDiscrepancy.r2_extracted_data || '{}');
         const key = rule.json_key;
 
+        const getExtDataObj = (extObj: any, jsonKey: string) => {
+          if (!extObj || typeof extObj !== 'object') return { value: '', evidence: '' };
+          const cleanKey = jsonKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const matchKey = Object.keys(extObj).find(k => {
+            const kl = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return kl === cleanKey || kl.startsWith(cleanKey);
+          });
+          const item = matchKey ? extObj[matchKey] : undefined;
+          if (item === undefined || item === null) return { value: '', evidence: '' };
+          if (typeof item === 'object') {
+            let val = item.value ?? item.val ?? item.text ?? '';
+            if (Array.isArray(val)) val = val.join(', ');
+            const ev = item.evidence ?? item.quote ?? '';
+            return { value: String(val), evidence: String(ev) };
+          }
+          return { value: String(item), evidence: '' };
+        };
+
+        const obj1 = getExtDataObj(r1_ext, key);
+        const obj2 = getExtDataObj(r2_ext, key);
+
         return (
           <div key={key} className="bg-card border border-border rounded-xl p-4 space-y-3 shadow-sm">
             <div className="flex justify-between items-start">
@@ -35,7 +56,7 @@ export default function DataExtractionComparisonView({
                   onClick={() => {
                     setAdjudicateExtractedData(prev => ({
                       ...prev,
-                      [key]: { value: r1_ext[key]?.value || '', evidence: r1_ext[key]?.evidence || '' }
+                      [key]: { value: obj1.value || '', evidence: obj1.evidence || '' }
                     }));
                   }}
                   className="px-2 py-0.5 bg-secondary hover:bg-secondary/85 border border-border text-[9px] font-bold rounded"
@@ -47,7 +68,7 @@ export default function DataExtractionComparisonView({
                   onClick={() => {
                     setAdjudicateExtractedData(prev => ({
                       ...prev,
-                      [key]: { value: r2_ext[key]?.value || '', evidence: r2_ext[key]?.evidence || '' }
+                      [key]: { value: obj2.value || '', evidence: obj2.evidence || '' }
                     }));
                   }}
                   className="px-2 py-0.5 bg-secondary hover:bg-secondary/85 border border-border text-[9px] font-bold rounded"
@@ -60,13 +81,13 @@ export default function DataExtractionComparisonView({
             <div className="grid grid-cols-2 gap-2 text-[10px] bg-secondary/35 p-2 rounded-lg text-muted-foreground">
               <div>
                 <span className="font-bold text-blue-500">Alpha: </span>
-                <span className="font-bold text-foreground block truncate" title={r1_ext[key]?.value}>{r1_ext[key]?.value || '—'}</span>
-                <p className="italic mt-0.5 truncate" title={r1_ext[key]?.evidence}>"{r1_ext[key]?.evidence || 'No evidence'}"</p>
+                <span className="font-bold text-foreground block truncate" title={obj1.value}>{obj1.value || '—'}</span>
+                <p className="italic mt-0.5 truncate" title={obj1.evidence}>"{obj1.evidence || 'No evidence'}"</p>
               </div>
               <div>
                 <span className="font-bold text-emerald-500">Beta: </span>
-                <span className="font-bold text-foreground block truncate" title={r2_ext[key]?.value}>{r2_ext[key]?.value || '—'}</span>
-                <p className="italic mt-0.5 truncate" title={r2_ext[key]?.evidence}>"{r2_ext[key]?.evidence || 'No evidence'}"</p>
+                <span className="font-bold text-foreground block truncate" title={obj2.value}>{obj2.value || '—'}</span>
+                <p className="italic mt-0.5 truncate" title={obj2.evidence}>"{obj2.evidence || 'No evidence'}"</p>
               </div>
             </div>
 
