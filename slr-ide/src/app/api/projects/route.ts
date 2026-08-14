@@ -4,7 +4,7 @@ import db, { getConfig } from '@/lib/db';
 export async function GET() {
   try {
     const projects = db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as any[];
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     
     const projectsWithStats = projects.map(proj => {
       const stats = db.prepare(`
@@ -77,10 +77,10 @@ export async function GET() {
           SUM(CASE WHEN d.decision LIKE 'INCLUDE%' AND (p.DOI IS NULL OR p.DOI = '') THEN 1 ELSE 0 END) as inc_no_doi,
           SUM(CASE WHEN d.decision LIKE 'INCLUDE%' AND p.Local_PDF_Status = 'FAILED' THEN 1 ELSE 0 END) as inc_pdf_failed
         FROM ranked_decisions d
-        JOIN papers p ON p.Paper_ID = d.paper_id
+        JOIN papers p ON p.Paper_ID = d.paper_id AND CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)
         WHERE d.rn = 1 AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) AND d.task_type IN ('fast_filter', 'gatekeeper', 'scientist', 'miner')
         GROUP BY d.task_type
-      `).all(proj.id, proj.id) as { stage: string; included: number; excluded: number; inc_has_pdf: number; inc_no_doi: number; inc_pdf_failed: number; }[];
+      `).all(proj.id, proj.id, proj.id) as { stage: string; included: number; excluded: number; inc_has_pdf: number; inc_no_doi: number; inc_pdf_failed: number; }[];
 
       const stageECStatsRows = db.prepare(`
         WITH combined_logs AS (
@@ -115,12 +115,12 @@ export async function GET() {
           COALESCE(d.ec_trigger, 'Unspecified') as ec_trigger,
           COUNT(p.Paper_ID) as count
         FROM ranked_decisions d
-        JOIN papers p ON p.Paper_ID = d.paper_id
+        JOIN papers p ON p.Paper_ID = d.paper_id AND CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)
         WHERE d.rn = 1 AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) 
           AND d.task_type IN ('fast_filter', 'gatekeeper', 'scientist', 'miner')
           AND d.decision LIKE 'EXCLUDE%'
         GROUP BY d.task_type, d.ec_trigger
-      `).all(proj.id, proj.id) as { stage: string; ec_trigger: string | null; count: number }[];
+      `).all(proj.id, proj.id, proj.id) as { stage: string; ec_trigger: string | null; count: number }[];
 
       const stage1Unprocessed = db.prepare(`
         SELECT COUNT(p.Paper_ID) as count
@@ -346,11 +346,18 @@ export async function GET() {
       }
 
       stageStats['1'].unprocessed = stage1Unprocessed.count;
+      stageStats['1'].total = stageStats['1'].included + stageStats['1'].excluded + stageStats['1'].unprocessed;
+
       stageStats['2'].unprocessed = stage2Unprocessed.unprocessed || 0;
       stageStats['2'].inaccessible_pdf = stage2Unprocessed.inaccessible_pdf || 0;
       stageStats['2'].pending_pdf = stage2Unprocessed.pending_pdf || 0;
+      stageStats['2'].total = stageStats['2'].included + stageStats['2'].excluded + stageStats['2'].unprocessed + stageStats['2'].pending_pdf + stageStats['2'].inaccessible_pdf;
+
       stageStats['3'].unprocessed = stage3Unprocessed.count;
+      stageStats['3'].total = stageStats['3'].included + stageStats['3'].excluded + stageStats['3'].unprocessed;
+
       stageStats['4'].unprocessed = stage4Unprocessed.count;
+      stageStats['4'].total = stageStats['4'].included + stageStats['4'].excluded + stageStats['4'].unprocessed;
 
       // Calculate live spend from llm_audit_log and umbrellanizer_results
       const liveSpendRow = db.prepare(`

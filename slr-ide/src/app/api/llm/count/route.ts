@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       const rows = db.prepare(`
         SELECT ai_extracted_data, manual_extracted_data 
         FROM papers 
-        WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT) AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4
+        WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT) AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
       `).all(projectId) as any[];
 
       const tokensSet = new Set<string>();

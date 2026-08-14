@@ -70,7 +70,7 @@ def main():
     if not project_id:
         cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
         active_proj_row = cursor.fetchone()
-        project_id = active_proj_row[0] if active_proj_row else 'default-project'
+        project_id = active_proj_row[0] if active_proj_row else ''
 
     print(json.dumps({"event": "log", "message": f"Starting duplicate scan for project: {project_id}"}))
     sys.stdout.flush()

@@ -3,7 +3,9 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, Check, ExternalLink, Eye, Link2, X, Copy, BarChart2 } from 'lucide-react';
 import { useAppSync } from '@/hooks/useAppSync';
+import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
 import VisualizerModal from '../modals/VisualizerModal';
+import LlmContextBuilderModal from '../modals/LlmContextBuilderModal';
 
 // Condensed clickable cell helper with copy & trace tooltips (expand-on-click removed)
 const ClickableCell = ({ 
@@ -251,6 +253,8 @@ interface FinalCohortPanelProps {
   setActiveFiltersCount: (val: number) => void;
   isVisualizerOpen?: boolean;
   setIsVisualizerOpen?: (val: boolean) => void;
+  isLlmContextBuilderOpen?: boolean;
+  setIsLlmContextBuilderOpen?: (val: boolean) => void;
 }
 
 export default function FinalCohortPanel({
@@ -262,7 +266,9 @@ export default function FinalCohortPanel({
   setShowFilters,
   setActiveFiltersCount,
   isVisualizerOpen: externalIsVisualizerOpen,
-  setIsVisualizerOpen: externalSetIsVisualizerOpen
+  setIsVisualizerOpen: externalSetIsVisualizerOpen,
+  isLlmContextBuilderOpen: externalIsLlmContextBuilderOpen,
+  setIsLlmContextBuilderOpen: externalSetIsLlmContextBuilderOpen
 }: FinalCohortPanelProps) {
   const [allPapers, setAllPapers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -287,6 +293,10 @@ export default function FinalCohortPanel({
   const [internalIsVisualizerOpen, setInternalIsVisualizerOpen] = useState(false);
   const isVisualizerOpen = externalIsVisualizerOpen !== undefined ? externalIsVisualizerOpen : internalIsVisualizerOpen;
   const setIsVisualizerOpen = externalSetIsVisualizerOpen || setInternalIsVisualizerOpen;
+
+  const [internalIsLlmContextBuilderOpen, setInternalIsLlmContextBuilderOpen] = useState(false);
+  const isLlmContextBuilderOpen = externalIsLlmContextBuilderOpen !== undefined ? externalIsLlmContextBuilderOpen : internalIsLlmContextBuilderOpen;
+  const setIsLlmContextBuilderOpen = externalSetIsLlmContextBuilderOpen || setInternalIsLlmContextBuilderOpen;
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
 
   // Column Width Resizing State
@@ -369,12 +379,22 @@ export default function FinalCohortPanel({
     return String(mappedVal).trim();
   }, [umbrellanizerMap]);
 
+  // Helper to resolve non-empty JSON strings (skipping empty '{}' or '[]')
+  const getExtractedDataStr = useCallback((paper: any): string => {
+    const isNonEmpty = (str: any) => typeof str === 'string' && str.trim() !== '' && str.trim() !== '{}' && str.trim() !== '[]' && str.trim() !== 'null';
+    const hasManual = isNonEmpty(paper.manual_extracted_data);
+    const hasAi = isNonEmpty(paper.ai_extracted_data);
+    if (hasManual && hasAi) {
+      return (paper.manual_stage || 0) >= (paper.ai_stage || 0) ? paper.manual_extracted_data : paper.ai_extracted_data;
+    }
+    if (hasManual) return paper.manual_extracted_data;
+    if (hasAi) return paper.ai_extracted_data;
+    return '';
+  }, []);
+
   // Helper to resolve Umbrellanizer taxonomy mapping justification using the raw database string
   const getUmbrellanizerJustification = useCallback((resolvedVal: any, key: string, paper: any) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const extStr = isManualDominant 
-      ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+    const extStr = getExtractedDataStr(paper);
     if (!extStr) return '';
 
     try {
@@ -560,10 +580,7 @@ export default function FinalCohortPanel({
 
   // Parse Extracted Data helpers with stage dominance
   const parseExtractedData = useCallback((paper: any) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const extStr = isManualDominant 
-      ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+    const extStr = getExtractedDataStr(paper);
 
     if (!extStr) return {};
     try {
@@ -612,10 +629,7 @@ export default function FinalCohortPanel({
 
   // Helper to fetch original raw extracted data before umbrellanizer category mapping
   const getOriginalExtractedVal = useCallback((paper: any, key: string) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const extStr = isManualDominant 
-      ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+    const extStr = getExtractedDataStr(paper);
 
     if (!extStr) return null;
     try {
@@ -632,18 +646,15 @@ export default function FinalCohortPanel({
     return null;
   }, []);
 
-  // Parse Extracted Data logic traces & quotes dynamically from DB fields
+  // Parse Extracted Data logic traces & quotes dynamically from DB fields using Centralized Trace Normalizer Utility
   const parseExtractedTraces = useCallback((paper: any) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const extStr = isManualDominant 
-      ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+    const extStr = getExtractedDataStr(paper);
 
     if (!extStr) return { mapping: {}, evidence: {} };
     try {
       const parsed = JSON.parse(extStr);
       const extObj = parsed.extracted_data || parsed;
-      const logicTrace = parsed.logic_trace || extObj.logic_trace || {};
+      const logicTrace = parsed.logic_trace || extObj.logic_trace || paper.logic_trace || {};
       const locateMapping = logicTrace.extraction_mapping || logicTrace || {};
       
       const mapping: Record<string, string> = {};
@@ -651,21 +662,16 @@ export default function FinalCohortPanel({
       
       Object.keys(extObj).forEach(key => {
         if (key.startsWith('_') || key === 'logic_trace' || key === '_scientist_logic_trace') return;
-        mapping[key] = locateMapping[`locate_${key}`] || locateMapping[key] || '';
+        
         const valObj = extObj[key];
-        if (valObj && typeof valObj === 'object') {
-          if ('evidence' in valObj) {
-            evidence[key] = String(valObj.evidence);
-          } else if ('logic_trace' in valObj && valObj.logic_trace && typeof valObj.logic_trace === 'object') {
-            evidence[key] = String(valObj.logic_trace.evidence || '');
-          }
-        }
+        mapping[key] = extractMappingReasoning(key, locateMapping, valObj);
+        evidence[key] = extractEvidenceQuote(key, valObj);
       });
       
       return { mapping, evidence };
     } catch (e) {}
     return { mapping: {}, evidence: {} };
-  }, []);
+  }, [getExtractedDataStr]);
 
   // Extract all unique filter options from the dataset dynamically
   const filterOptions = useMemo(() => {
@@ -1591,6 +1597,16 @@ export default function FinalCohortPanel({
         totalUnfilteredCount={allPapers.length}
         isFiltered={filteredPapers.length < allPapers.length}
         umbrellanizerMap={umbrellanizerMap}
+      />
+
+      <LlmContextBuilderModal
+        isOpen={isLlmContextBuilderOpen}
+        onClose={() => setIsLlmContextBuilderOpen(false)}
+        allPapers={allPapers}
+        filteredPapers={filteredPapers}
+        umbrellanizerMap={umbrellanizerMap}
+        projectId={projectId}
+        showToast={showToast}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import db, { getConfig } from '@/lib/db';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
@@ -134,11 +134,21 @@ export async function POST(request: Request) {
     goldMineStateTracker.reset();
 
     // Get Project Info
-    const project = db.prepare('SELECT rclone_remote_name, gdrive_dest_path, goldmine_dest_path FROM projects WHERE id = ?').get(projectId) as any;
-    if (!project || !project.rclone_remote_name) {
+    const project = db.prepare('SELECT name, rclone_remote_name, gdrive_dest_path, goldmine_dest_path, cloud_provider FROM projects WHERE id = ?').get(projectId) as any;
+    if (!project) {
       pipelineLock.release();
-      return NextResponse.json({ error: 'Project or rclone configuration not found' }, { status: 404 });
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    if (!project.rclone_remote_name || !project.rclone_remote_name.trim()) {
+      pipelineLock.release();
+      const projName = project.name || projectId;
+      return NextResponse.json({ 
+        error: `Rclone remote name is not configured for project '${projName}'. Please configure Cloud Sync in Project Settings.` 
+      }, { status: 400 });
+    }
+
+    const effectiveRemote = project.rclone_remote_name.trim();
 
     const resolvedGoldminePath = (project.goldmine_dest_path && project.goldmine_dest_path.trim() !== '')
       ? project.goldmine_dest_path.trim()
@@ -182,7 +192,7 @@ export async function POST(request: Request) {
         ai_stage, manual_stage
       FROM papers 
       WHERE Project_ID = ?
-        AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) = 4
+        AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
         AND CASE 
             WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision
             WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision
@@ -424,7 +434,7 @@ export async function POST(request: Request) {
         }
 
         // Phase 2: Uploading via rclone
-        const remoteDest = `${project.rclone_remote_name}:${resolvedGoldminePath}/${exportSessionId}`;
+        const remoteDest = `${effectiveRemote}:${resolvedGoldminePath}/${exportSessionId}`;
         goldMineStateTracker.updateState({
           phase: 'uploading',
           progress: 0,
@@ -434,8 +444,14 @@ export async function POST(request: Request) {
         goldMineStateTracker.addLog(`[Upload]: Spawning rclone copy to ${remoteDest}...`);
         goldMineStateTracker.broadcast({ event: 'upload_start' });
 
+        const rclonePath = getConfig('RCLONE_EXECUTABLE_PATH', 'rclone');
+        const configPath = getConfig('RCLONE_CONFIG_PATH', '');
+
         const rcloneArgs = ['copy', exportTempDir, remoteDest, '-v', '--stats', '1s', '--stats-one-line'];
-        const rcloneProc = spawn('rclone', rcloneArgs);
+        if (configPath && configPath.trim()) {
+          rcloneArgs.push('--config', configPath.trim());
+        }
+        const rcloneProc = spawn(rclonePath, rcloneArgs);
         goldMineStateTracker.updateState({ activeChild: rcloneProc });
 
         const parseLine = (line: string) => {

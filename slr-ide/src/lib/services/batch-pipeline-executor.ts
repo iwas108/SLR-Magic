@@ -10,7 +10,7 @@ import { remoteWorkerManager } from '@/lib/services/remote-worker-manager';
 export async function runBackgroundExecution(steps: string[], compress: boolean, forceUpdate: boolean = false) {
   const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
   
-  const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+  const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
   const project = db.prepare('SELECT folder_name, gdrive_dest_path, cloud_provider, rclone_remote_name FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string; gdrive_dest_path: string; cloud_provider?: string; rclone_remote_name?: string } | undefined;
   const folderName = project ? project.folder_name : 'default_project';
   const gdriveDest = project ? project.gdrive_dest_path : 'SLR_Magic/PDFs';

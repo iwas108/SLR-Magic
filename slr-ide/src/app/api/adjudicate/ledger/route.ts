@@ -11,7 +11,7 @@ export async function GET(request: Request) {
       ? 'pool_c' 
       : 'pool_a';
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const ledger = db.prepare(`
       SELECT id, commit_hash, project_id, paper_id, pool, adjudicator, previous_state, resolved_decision, resolved_ec, resolved_rationale, resolved_qa_scores, resolved_extracted_data, commit_message, timestamp
       FROM calibration_commit_ledger

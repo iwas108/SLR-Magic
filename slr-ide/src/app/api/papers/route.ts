@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     
     // Check if only hashes/deduplication keys are requested
     if (searchParams.get('onlyHashes') === 'true') {
@@ -492,7 +492,7 @@ export async function POST(request: Request) {
     let skippedCount = 0;
     let updatedCitationsCount = 0;
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
 
     const findByDoiStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE DOI = ? AND DOI IS NOT NULL AND DOI != '' AND Project_ID = ?");
     const findByTitleStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE LOWER(REPLACE(Title, ' ', '')) = ? AND Project_ID = ?");
@@ -706,7 +706,7 @@ export async function PUT(request: Request) {
       params.push(localPdfStatus);
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const setClause = updates.join(', ');
     const query = `UPDATE papers SET ${setClause} WHERE Paper_ID = ? AND Project_ID = ?`;
 
@@ -737,7 +737,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Confirmation parameter confirm=DELETE_ALL is required' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     
     // PDF Rescue
     const { rescuePdfAssets } = require('@/lib/pdf-utils');

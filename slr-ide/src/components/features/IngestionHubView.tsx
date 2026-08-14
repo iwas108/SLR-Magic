@@ -99,7 +99,7 @@ export default function IngestionHubView({
         const res = await fetch('/api/projects');
         if (res.ok) {
           const data = await res.json();
-          const activeId = data.activeProjectId || 'default-project';
+          const activeId = data.activeProjectId || '';
           const active = data.projects?.find((p: any) => String(p.id) === String(activeId));
           if (active) {
             setActiveProjectName(active.name);

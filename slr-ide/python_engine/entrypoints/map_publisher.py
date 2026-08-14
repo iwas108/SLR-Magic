@@ -109,7 +109,7 @@ def main():
     if not active_proj_id:
         cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
         active_proj_row = cursor.fetchone()
-        active_proj_id = active_proj_row[0] if active_proj_row else 'default-project'
+        active_proj_id = active_proj_row[0] if active_proj_row else ''
 
     # Fetch papers for the active project
     force_update = '--force-update' in sys.argv

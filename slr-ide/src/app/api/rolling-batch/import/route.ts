@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const paramProjectId = searchParams.get('projectId');
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const fileProjectId = body.metadata?.project_id || body.metadata?.projectId;
 
     let targetProjectId = paramProjectId || activeProjectId;

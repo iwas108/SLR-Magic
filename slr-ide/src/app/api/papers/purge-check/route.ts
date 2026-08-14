@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payload must contain a "csvPapers" array' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
 
     // Fetch all existing papers in the active project
     const dbPapers = db.prepare(`

@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     
     const paramProjectId = searchParams.get('projectId');
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const targetProjectId = paramProjectId || activeProjectId;
 
     let project = db.prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(targetProjectId, targetProjectId) as any;

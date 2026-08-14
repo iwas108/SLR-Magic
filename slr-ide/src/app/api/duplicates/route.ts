@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export async function GET(req: Request) {
   try {
     const activeProjectRow = db.prepare("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'").get() as { value: string } | undefined;
-    const activeProjectId = activeProjectRow?.value || 'default-project';
+    const activeProjectId = activeProjectRow?.value || '';
 
     // Get all pending pairs
     const pairs = db.prepare(`

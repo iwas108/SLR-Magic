@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'seedPaperId is required' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
 
     let parsed: any;
     try {

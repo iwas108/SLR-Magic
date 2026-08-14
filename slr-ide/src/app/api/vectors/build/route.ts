@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       // Body might be empty, ignore
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     clearSemanticSearchCache(activeProjectId);
 
     const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');

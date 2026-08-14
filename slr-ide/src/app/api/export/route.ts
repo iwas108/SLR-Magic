@@ -3,7 +3,7 @@ import db, { getConfig } from '@/lib/db';
 
 export async function GET() {
   try {
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const papers = db.prepare('SELECT * FROM papers WHERE Project_ID = ?').all(activeProjectId) as any[];
 
     const headers = [

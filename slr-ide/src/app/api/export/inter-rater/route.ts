@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     }
 
     const paramProjectId = searchParams.get('projectId');
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const targetProjectId = paramProjectId || activeProjectId;
 
     let project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;

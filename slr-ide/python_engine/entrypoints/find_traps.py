@@ -23,7 +23,7 @@ def main():
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
         row = cursor.fetchone()
-        active_project_id = row[0] if row else 'default-project'
+        active_project_id = row[0] if (row and row[0]) else ''
     except Exception as e:
         print(json.dumps({"error": f"Failed to connect to database: {e}"}))
         sys.exit(1)

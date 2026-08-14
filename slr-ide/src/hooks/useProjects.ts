@@ -4,7 +4,7 @@ import { broadcastSync } from '@/lib/sync-utils';
 
 export function useProjects(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void) {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [activeProjectId, setActiveProjectId] = useState<string>('default-project');
+  const [activeProjectId, setActiveProjectId] = useState<string>('');
   const [loadingProjects, setLoadingProjects] = useState(true);
 
   // Connection testing states
@@ -20,7 +20,7 @@ export function useProjects(showToast: (msg: string, type: 'success' | 'error' |
       if (res.ok) {
         const data = await res.json();
         setProjects(data.projects || []);
-        setActiveProjectId(data.activeProjectId || 'default-project');
+        setActiveProjectId(data.activeProjectId || '');
         return { projects: data.projects, activeProjectId: data.activeProjectId };
       } else {
         showToast('Failed to load projects list', 'error');

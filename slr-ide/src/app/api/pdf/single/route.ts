@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'paperId is required' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const paper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND Project_ID = ?').get(paperId, activeProjectId) as any;
     if (!paper) {
       return NextResponse.json({ error: 'Paper not found in active project' }, { status: 404 });

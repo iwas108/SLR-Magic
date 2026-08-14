@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 
 export async function POST() {
   try {
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
     if (!project) {
       return NextResponse.json({ error: 'Active project not found' }, { status: 404 });

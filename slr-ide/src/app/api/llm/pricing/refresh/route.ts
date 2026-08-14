@@ -2,7 +2,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { NextResponse } from 'next/server';
-import { PROJECT_ROOT, getVaultKey } from '@/lib/db';
+import { PROJECT_ROOT, getVaultKey, getConfig } from '@/lib/db';
 import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
 import db from '@/lib/db';
@@ -46,7 +46,7 @@ export async function POST() {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(pythonExe, [
         mainScript,
-        '--project-id', 'default-project',
+        '--project-id', getConfig('ACTIVE_PROJECT_ID', ''),
         '--job-id', 'pricing-refresh-job',
         '--action', 'refresh-pricing'
       ], {

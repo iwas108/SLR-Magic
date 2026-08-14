@@ -106,10 +106,13 @@ export async function GET(request: Request) {
 
   try {
     // 1. Get Project Info
-    const project = db.prepare('SELECT rclone_remote_name, gdrive_dest_path, goldmine_dest_path FROM projects WHERE id = ?').get(projectId) as any;
+    const project = db.prepare('SELECT name, rclone_remote_name, gdrive_dest_path, goldmine_dest_path, cloud_provider FROM projects WHERE id = ?').get(projectId) as any;
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    const missingRemoteConfig = !project.rclone_remote_name || !project.rclone_remote_name.trim();
+    const effectiveRemote = project.rclone_remote_name?.trim() || (project.cloud_provider === 'onedrive' ? 'onedrive' : 'gdrive');
 
     const resolvedGoldminePath = (project.goldmine_dest_path && project.goldmine_dest_path.trim() !== '')
       ? project.goldmine_dest_path.trim()
@@ -117,7 +120,7 @@ export async function GET(request: Request) {
 
     const safeGroupKey = groupByKey ? String(groupByKey).trim().replace(/[^a-z0-9_\-]/gi, '_') : '';
     const sessionPrefix = safeGroupKey ? `${safeGroupKey}_<timestamp>` : `Flat_Exports_<timestamp>`;
-    const remoteDest = `${project.rclone_remote_name || 'gdrive'}:${resolvedGoldminePath}/${sessionPrefix}`;
+    const remoteDest = `${effectiveRemote}:${resolvedGoldminePath}/${sessionPrefix}`;
 
     // 2. Get Umbrellanizer mappings if key provided
     let umbrellaMapping: Record<string, any> = {};
@@ -157,7 +160,7 @@ export async function GET(request: Request) {
         ai_stage, manual_stage
       FROM papers 
       WHERE Project_ID = ?
-        AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) = 4
+        AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
         AND CASE 
             WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision
             WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision
@@ -308,6 +311,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       remoteDest,
+      missingRemoteConfig,
       totalQualifying: paperCategoryItems.length,
       totalStagedEstimate: totalCopiesEstimate,
       skippedQa,

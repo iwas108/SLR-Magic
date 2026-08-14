@@ -31,6 +31,7 @@ interface ExportStateSnapshot {
 
 interface PreviewData {
   remoteDest: string;
+  missingRemoteConfig?: boolean;
   totalQualifying: number;
   totalStagedEstimate: number;
   skippedQa: number;
@@ -390,10 +391,22 @@ export default function CloudGoldMinePanel({ projectId, showToast }: CloudGoldMi
             </div>
           </div>
 
+          {/* Missing Remote Config Warning Banner */}
+          {previewData?.missingRemoteConfig && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl flex items-start gap-3 text-xs text-amber-500 font-medium leading-relaxed">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-amber-400">Rclone Remote Name Required</span>
+                This project does not have an Rclone remote name configured. Please configure your cloud provider remote in <strong className="text-foreground">Project Settings &gt; Cloud Sync</strong> before initiating export.
+              </div>
+            </div>
+          )}
+
           <div className="pt-2 flex justify-center">
             <button
               onClick={handleExport}
-              disabled={Boolean(loadingKeys || (previewData && previewData.totalQualifying === 0))}
+              disabled={Boolean(loadingKeys || (previewData && previewData.totalQualifying === 0) || previewData?.missingRemoteConfig)}
+              title={previewData?.missingRemoteConfig ? 'Please set Rclone Remote Name in Project Settings before exporting' : undefined}
               className="px-8 py-3 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-bold rounded-xl shadow-md transition-all flex items-center gap-2 uppercase tracking-wide text-xs cursor-pointer disabled:cursor-not-allowed"
             >
               <UploadCloud className="w-4 h-4" />

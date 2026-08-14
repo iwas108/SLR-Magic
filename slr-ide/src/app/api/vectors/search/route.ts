@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const normalizedPool = pool === 'unassigned' ? 'none' : pool;
     let cachePoolKey = excludeReviews ? `${normalizedPool}_exclude_reviews` : normalizedPool;
     if (publisher && publisher !== 'all') {

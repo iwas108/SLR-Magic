@@ -42,8 +42,8 @@ def main():
     embed_all_fonts = True
     subset_fonts = True
     
-    active_proj_id = 'default-project'
-    folder_name = 'default_project'
+    active_proj_id = None
+    folder_name = ''
     papers = []
     
     if DB_PATH.exists():
@@ -65,8 +65,8 @@ def main():
                 if sys.argv[i] == '--project' and i + 1 < len(sys.argv):
                     active_proj_id = sys.argv[i+1]
                     
-            if not active_proj_id or active_proj_id == 'default-project':
-                active_proj_id = configs.get('ACTIVE_PROJECT_ID', active_proj_id)
+            if not active_proj_id:
+                active_proj_id = configs.get('ACTIVE_PROJECT_ID', '')
             
             cursor.execute("SELECT folder_name FROM projects WHERE id = ?", (active_proj_id,))
             proj_row = cursor.fetchone()

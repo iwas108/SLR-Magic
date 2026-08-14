@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Play, Loader2, HelpCircle, RotateCw, Copy, Check, X, BarChart3 } from 'lucide-react';
 import { useUmbrellanizer } from '@/hooks/useUmbrellanizer';
+import { extractMappingReasoning } from '@/lib/services/trace-normalizer';
 import UmbrellanizerWizard from './UmbrellanizerWizard';
 import QuickOverviewModal from './QuickOverviewModal';
 
@@ -279,11 +280,10 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
                         const rawEvidence = data?.evidence;
                         const hasRawVal = rawVal && rawVal !== 'NOT_STATED';
                         
-                        // Resolve logic_trace.extraction_mapping for hover mapping tooltip (Rule 2)
-                        // Tooltip reveals locate_rq... mapping details
+                        // Resolve logic_trace.extraction_mapping for hover mapping tooltip using Centralized Trace Normalizer Utility
                         const logicTrace = paper.logic_trace || {};
-                        const locateMapping = logicTrace.extraction_mapping || {};
-                        const logicTraceText = locateMapping[`locate_${key}`] || 'No trace mapping logged.';
+                        const locateMapping = logicTrace.extraction_mapping || logicTrace || {};
+                        const logicTraceText = extractMappingReasoning(key, locateMapping, data) || 'No trace mapping logged.';
 
                         // Resolve umbrella terms mapping (Rule Q12)
                         const umbrellaInfo = getUmbrellaValue(key, rawVal);

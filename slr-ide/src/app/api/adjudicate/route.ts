@@ -6,7 +6,7 @@ import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 export async function POST(request: Request) {
   try {
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const { 
       paper_id, 
       pool, 

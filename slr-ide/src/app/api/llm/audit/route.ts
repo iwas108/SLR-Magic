@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       const row = db.prepare(`
         SELECT l.*, p.Title as paper_title
         FROM llm_audit_log l
-        LEFT JOIN papers p ON l.paper_id = p.Paper_ID
+        LEFT JOIN papers p ON l.paper_id = p.Paper_ID AND CAST(l.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
         WHERE l.project_id = ? AND l.id = ?
       `).get(projectId, logId);
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       const rows = db.prepare(`
         SELECT l.*, p.Title as paper_title
         FROM llm_audit_log l
-        LEFT JOIN papers p ON l.paper_id = p.Paper_ID
+        LEFT JOIN papers p ON l.paper_id = p.Paper_ID AND CAST(l.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
         WHERE l.project_id = ? AND l.paper_id = ?
         ORDER BY l.created_at ASC
       `).all(projectId, paperId);
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     // Query audit logs with pagination and paper details joined (omitting heavy raw_prompt and raw_response text fields)
     let baseQuery = `
       FROM llm_audit_log l
-      LEFT JOIN papers p ON l.paper_id = p.Paper_ID
+      LEFT JOIN papers p ON l.paper_id = p.Paper_ID AND CAST(l.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
       WHERE l.project_id = ?
     `;
     const params: any[] = [projectId];

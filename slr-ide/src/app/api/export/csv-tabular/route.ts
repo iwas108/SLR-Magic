@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
 
 function escapeCsvCell(cell: any): string {
   if (cell === null || cell === undefined) return '';
@@ -144,7 +145,7 @@ export async function GET(request: Request) {
           `SELECT p.*
            FROM papers p
            WHERE p.Project_ID = ?
-             AND MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) = 4
+             AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
              AND CASE 
                  WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
                  WHEN IFNULL(p.ai_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.ai_decision
@@ -158,7 +159,7 @@ export async function GET(request: Request) {
         .prepare(
           `SELECT p.* FROM papers p
            WHERE p.Project_ID = ?
-             AND MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) = 4
+             AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
              AND CASE 
                  WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
                  WHEN IFNULL(p.ai_stage, 0) > IFNULL(p.manual_stage, 0) THEN p.ai_decision
@@ -292,16 +293,8 @@ export async function GET(request: Request) {
 
               extItems[k] = resolvedStr;
 
-              const mapping = locateMapping[`locate_${k}`] || locateMapping[k] || '';
-              let evidence = '';
-              if (v && typeof v === 'object') {
-                if ('evidence' in v) {
-                  evidence = String((v as any).evidence || '');
-                } else if ('logic_trace' in v && (v as any).logic_trace) {
-                  evidence = String((v as any).logic_trace.evidence || '');
-                }
-              }
-
+              const mapping = extractMappingReasoning(k, locateMapping, v);
+              const evidence = extractEvidenceQuote(k, v);
               const justification = getUmbrellanizerJustification(origVal, k);
 
               extTraces[k] = {

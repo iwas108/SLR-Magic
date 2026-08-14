@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode');
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
 
     if (mode === 'stage_comparison') {
       // Fetch only the latest adjudicated state for each paper from calibration_commit_ledger

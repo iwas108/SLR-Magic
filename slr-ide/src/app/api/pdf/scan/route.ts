@@ -4,7 +4,7 @@ import { PROJECT_ROOT, getConfig } from '@/lib/db';
 
 export async function POST() {
   try {
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
     const pythonModule = 'python_engine.entrypoints.match_cache';
 

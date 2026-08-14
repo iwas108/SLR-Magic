@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payload must contain a non-empty "paperIds" array' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
 
     // Retrieve active project details
     const project = db.prepare('SELECT folder_name FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string } | undefined;

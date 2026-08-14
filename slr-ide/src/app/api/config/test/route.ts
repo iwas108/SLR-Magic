@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const rclonePath = getConfig('RCLONE_EXECUTABLE_PATH', 'rclone');
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     
     // Check if parameters are passed in body, otherwise query active project
     let cloudProvider = body.cloud_provider;

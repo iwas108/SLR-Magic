@@ -30,7 +30,7 @@ def run_search(params):
     mode = params.get("mode", "papers")
     exclude_reviews = params.get("exclude_reviews", False)
     publisher = params.get("publisher")
-    active_project_id = params.get("project_id", "default-project")
+    active_project_id = params.get("project_id", "")
     
     if not query or not query.strip():
         return {"error": "Query text cannot be empty"}
@@ -143,7 +143,7 @@ def run_traps(params):
     # Replicate find_traps.py logic
     seed = params.get("seed")
     k = params.get("k", 1000)
-    active_project_id = params.get("project_id", "default-project")
+    active_project_id = params.get("project_id", "")
     
     if not seed:
         return {"error": "seedPaperId is required"}

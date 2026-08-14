@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     const paramProjectId = searchParams.get('projectId');
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const fileProjectId = body.metadata?.project_id || body.metadata?.projectId;
 
     let targetProjectId = paramProjectId || activeProjectId;
@@ -459,7 +459,7 @@ export async function DELETE(request: Request) {
     }
 
     const paramProjectId = searchParams.get('projectId');
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const targetProjectId = paramProjectId || activeProjectId;
 
     let project = db.prepare('SELECT * FROM projects WHERE id = ?').get(targetProjectId) as any;

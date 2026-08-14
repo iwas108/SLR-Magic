@@ -4,7 +4,7 @@ import db, { getConfig } from '@/lib/db';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const paramProjectId = searchParams.get('projectId');
-  const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+  const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
   const targetProjectId = paramProjectId || activeProjectId;
 
   try {

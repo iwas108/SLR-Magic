@@ -29,7 +29,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'paperId (query) or paperIds (body) is required' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const selectPaperStmt = db.prepare('SELECT Local_PDF_Path, Project_ID FROM papers WHERE Paper_ID = ? AND Project_ID = ?');
     const selectProjectFolderStmt = db.prepare('SELECT folder_name FROM projects WHERE id = ?');
     const updatePaperStmt = db.prepare(`

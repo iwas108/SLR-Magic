@@ -893,41 +893,10 @@ export function initializeDatabase(db: Database.Database): void {
     console.error("Failed to clean up deprecated default prompts:", e);
   }
 
-  // Auto-create a default project if none exist
-  const projectCount = db.prepare("SELECT COUNT(*) as count FROM projects").get() as { count: number };
-  if (projectCount.count === 0) {
-    const defaultProjectId = 'default-project';
-    db.prepare(`
-      INSERT INTO projects (id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, cloud_provider, rclone_remote_name, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      defaultProjectId,
-      'Default Project',
-      'default_project',
-      'This is the default SLR Magic research project.',
-      'To evaluate systematic literature reviews using LLMs.',
-      'RQ1: How effective are LLMs in screening papers?\nRQ2: What is the accuracy of data extraction?',
-      'Double screening by independent agents with manual resolution.',
-      'Papers not written in English or not peer-reviewed.',
-      50,
-      30,
-      20,
-      'SLR_Magic/PDFs',
-      'gdrive',
-      'gdrive',
-      new Date().toISOString()
-    );
-    
-    // Set as active project
-    db.prepare(`
-      INSERT OR REPLACE INTO configs (key, value)
-      VALUES ('ACTIVE_PROJECT_ID', ?)
-    `).run(defaultProjectId);
-    
-    // Update existing papers to belong to this default project if they don't have one
-    db.prepare(`
-      UPDATE papers SET Project_ID = ? WHERE Project_ID IS NULL
-    `).run(defaultProjectId);
+  // Ensure ACTIVE_PROJECT_ID config key exists
+  const activeProjConfig = db.prepare("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'").get() as { value: string } | undefined;
+  if (!activeProjConfig) {
+    db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('ACTIVE_PROJECT_ID', '')").run();
   }
 
   // Migrate legacy PDF paths to the unified pdf_library layout and perform self-healing
@@ -1405,7 +1374,7 @@ export function initializeDatabase(db: Database.Database): void {
   // Self-healing migration: reset unscreened papers in active project with manual_stage = 1 and manual_decision = 'PENDING' back to manual_stage = 0
   try {
     const activeProjRow = db.prepare("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'").get() as { value: string } | undefined;
-    const activeProjId = activeProjRow?.value || 'default-project';
+    const activeProjId = activeProjRow?.value || '';
     const info = db.prepare(`
       UPDATE papers 
       SET manual_stage = 0, manual_decision = NULL 
@@ -1418,6 +1387,13 @@ export function initializeDatabase(db: Database.Database): void {
     `).run(activeProjId);
     if (info.changes > 0) {
       console.log(`[Self-Healing Migration] Cleaned ${info.changes} unscreened papers in active project '${activeProjId}' from manual_stage 1 to 0.`);
+    }
+
+    // Self-healing migration: promote papers with extracted data to stage 4 (Miner data extraction) ONLY IF decision is INCLUDE
+    const promoteAi = db.prepare("UPDATE papers SET ai_stage = 4 WHERE ai_extracted_data IS NOT NULL AND ai_extracted_data != '' AND ai_decision LIKE 'INCLUDE%' AND (ai_stage IS NULL OR ai_stage < 4)").run();
+    const promoteManual = db.prepare("UPDATE papers SET manual_stage = 4 WHERE manual_extracted_data IS NOT NULL AND manual_extracted_data != '' AND manual_decision LIKE 'INCLUDE%' AND (manual_stage IS NULL OR manual_stage < 4)").run();
+    if (promoteAi.changes > 0 || promoteManual.changes > 0) {
+      console.log(`[Self-Healing Migration] Promoted ${promoteAi.changes} AI and ${promoteManual.changes} manual INCLUDED papers with extracted data to stage 4.`);
     }
   } catch (e) {
     console.error("Failed to run unscreened papers stage cleanup migration:", e);

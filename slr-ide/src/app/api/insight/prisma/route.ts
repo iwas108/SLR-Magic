@@ -135,8 +135,8 @@ export async function GET(request: Request) {
 
         const res = resolvePaper(paper);
 
-        // [**12] Studies included in review
-        if (res.effectiveStage >= 4 && res.isIncluded) {
+        // [**12] Studies included in review (Stage 3 Scientist is final inclusion screening stage)
+        if (res.effectiveStage >= 3 && res.isIncluded) {
           totalIncludedStudies++;
         }
 
@@ -186,8 +186,8 @@ export async function GET(request: Request) {
 
         const res = resolvePaper(paper);
 
-        // [**20] Reports of included studies
-        if (res.effectiveStage >= 4 && res.isIncluded) {
+        // [**20] Reports of included studies (Stage 3 Scientist is final inclusion screening stage)
+        if (res.effectiveStage >= 3 && res.isIncluded) {
           totalIncludedStudies++;
         }
 

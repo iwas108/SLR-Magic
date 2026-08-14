@@ -122,7 +122,7 @@ export async function runRcloneBackup(destination: string): Promise<boolean> {
       const remotesSet = new Set<string>();
 
       // 1. Remote from the active project
-      const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+      const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
       try {
         const activeProject = db.prepare("SELECT rclone_remote_name FROM projects WHERE id = ?").get(activeProjectId) as any;
         if (activeProject?.rclone_remote_name) {

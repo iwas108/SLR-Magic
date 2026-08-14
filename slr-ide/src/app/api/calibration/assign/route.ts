@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'paperId is required' }, { status: 400 });
     }
 
-    const targetProjectId = projectId || getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const targetProjectId = projectId || getConfig('ACTIVE_PROJECT_ID', '');
 
     if (calibration_pool && ['pool_a', 'pool_b', 'pool_c'].includes(calibration_pool)) {
       const paper = db.prepare("SELECT is_duplicate, Project_ID FROM papers WHERE Paper_ID = ? AND Project_ID = ?").get(paperId, targetProjectId) as { is_duplicate: number; Project_ID: string } | undefined;

@@ -20,6 +20,8 @@ interface InsightExportViewProps {
   setActiveFiltersCount?: (val: number) => void;
   isVisualizerOpen?: boolean;
   setIsVisualizerOpen?: (val: boolean) => void;
+  isLlmContextBuilderOpen?: boolean;
+  setIsLlmContextBuilderOpen?: (val: boolean) => void;
 }
 
 export default function InsightExportView({
@@ -33,7 +35,9 @@ export default function InsightExportView({
   activeFiltersCount,
   setActiveFiltersCount,
   isVisualizerOpen,
-  setIsVisualizerOpen
+  setIsVisualizerOpen,
+  isLlmContextBuilderOpen,
+  setIsLlmContextBuilderOpen
 }: InsightExportViewProps) {
   if (!projectId) {
     return (
@@ -60,6 +64,8 @@ export default function InsightExportView({
               setActiveFiltersCount={setActiveFiltersCount || (() => {})}
               isVisualizerOpen={isVisualizerOpen}
               setIsVisualizerOpen={setIsVisualizerOpen}
+              isLlmContextBuilderOpen={isLlmContextBuilderOpen}
+              setIsLlmContextBuilderOpen={setIsLlmContextBuilderOpen}
             />
           )}
           {activeTab === 'insight-export-fair-data' && <FairDataExportPanel projectId={projectId} showToast={showToast} />}

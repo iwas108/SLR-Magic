@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const forceUpdate = body.force_update === true;
 
     // Auto-update IGNORED papers with valid DOIs, stage > 0, and screening decision 'Include' to MISSING so the pipeline captures them
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     db.prepare(`
       UPDATE papers
       SET Local_PDF_Status = 'MISSING'

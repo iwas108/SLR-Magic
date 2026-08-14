@@ -255,7 +255,7 @@ export async function POST(req: Request) {
 
     // Get active project ID
     const activeProjectRow = db.prepare("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'").get() as { value: string } | undefined;
-    const activeProjectId = activeProjectRow?.value || 'default-project';
+    const activeProjectId = activeProjectRow?.value || '';
 
     batchState.isExecuting = true;
     batchState.steps = ['duplicate_scan'];

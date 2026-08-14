@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const paper = db.prepare(`
       SELECT *, 
              (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
@@ -43,7 +43,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Title is mandatory' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     
     // Fetch current paper record to preserve fields not supplied in body
     const currentPaper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND Project_ID = ?').get(id, activeProjectId) as any;
@@ -197,7 +197,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     
     db.prepare('DELETE FROM papers WHERE Paper_ID = ? AND Project_ID = ?').run(id, activeProjectId);
 

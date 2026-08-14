@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, ChevronUp, ChevronDown, BarChart2 } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, ChevronUp, ChevronDown, BarChart2, Sparkles } from 'lucide-react';
 
 import Sidebar from '@/components/Sidebar';
 import DashboardView from '../components/features/DashboardView';
@@ -12,6 +12,7 @@ import PipelineExecutionView from '../components/features/PipelineExecutionView'
 import PostValidationView from '../components/features/PostValidationView';
 import FullscreenAssignModal from '../components/features/modals/FullscreenAssignModal';
 import FullscreenInterRaterModal from '../components/features/modals/FullscreenInterRaterModal';
+import ProjectLockScreenModal from '../components/features/modals/ProjectLockScreenModal';
 import InsightExportView from '../components/features/InsightExportView';
 import MinimizedPipelineBanner from '../components/features/dashboard/MinimizedPipelineBanner';
 import ToastNotifications from '../components/features/dashboard/ToastNotifications';
@@ -52,6 +53,7 @@ export default function DashboardPage() {
 
   // Cohort Table Visualizer state
   const [isCohortVisualizerOpen, setIsCohortVisualizerOpen] = useState(false);
+  const [isCohortLlmContextBuilderOpen, setIsCohortLlmContextBuilderOpen] = useState(false);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     const id = Date.now() + Math.random();
@@ -332,6 +334,14 @@ export default function DashboardPage() {
               </button>
 
               <button
+                onClick={() => setIsCohortLlmContextBuilderOpen(true)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 transition-all shrink-0 cursor-pointer hover:scale-105 active:scale-95"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                LLM Context Builder
+              </button>
+
+              <button
                 onClick={() => setCohortShowFilters(!cohortShowFilters)}
                 className={`px-3 py-1.5 border rounded-lg text-xs font-semibold flex items-center gap-2 transition-colors shrink-0 ${
                   cohortShowFilters || cohortActiveFiltersCount > 0
@@ -425,6 +435,8 @@ export default function DashboardPage() {
               setActiveFiltersCount={setCohortActiveFiltersCount}
               isVisualizerOpen={isCohortVisualizerOpen}
               setIsVisualizerOpen={setIsCohortVisualizerOpen}
+              isLlmContextBuilderOpen={isCohortLlmContextBuilderOpen}
+              setIsLlmContextBuilderOpen={setIsCohortLlmContextBuilderOpen}
             />
           ) : activeTab === 'paper-database-ingestion' ? (
             <IngestionHubView
@@ -518,6 +530,11 @@ export default function DashboardPage() {
         initialSettingsTab={initialSettingsTab}
       />
       <ToastNotifications toasts={toasts} setToasts={setToasts} />
+      <ProjectLockScreenModal
+        isOpen={!projectsHook.loadingProjects && (projects.length === 0 || !activeProject)}
+        onOpenCreateProject={() => setShowCreateProjectModal(true)}
+        onOpenImportSLR={() => setActiveTab('paper-database-ingestion')}
+      />
     </div>
   );
 }

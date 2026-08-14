@@ -152,7 +152,7 @@ def main():
                 """
                 SELECT ai_extracted_data, manual_extracted_data 
                 FROM papers 
-                WHERE Project_ID = ? AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4
+                WHERE Project_ID = ? AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
                 """,
                 (project_id,)
             )

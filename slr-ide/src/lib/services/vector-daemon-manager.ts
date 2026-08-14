@@ -178,7 +178,7 @@ export class VectorDaemonManager {
     const reqId = `req_${Date.now()}_${this.requestCounter}`;
     
     // Fetch active project ID dynamically
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
 
     const requestBody = {
       id: reqId,

@@ -5,7 +5,7 @@ import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculati
 
 export async function POST(request: Request) {
   try {
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const { 
       paper_id, 
       batch_id, 

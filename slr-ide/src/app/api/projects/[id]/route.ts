@@ -83,12 +83,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       // Finally delete the project itself
       db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
 
-      // If active project is the deleted one, reset or set config to empty/default-project
-      const activeProjectId = getConfig('ACTIVE_PROJECT_ID', 'default-project');
+      // If active project is the deleted one, reset config to next available project or empty string
+      const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
       if (activeProjectId === projectId) {
-        // Find another project to set active if possible, otherwise default-project
+        // Find another project to set active if possible, otherwise empty string
         const nextProject = db.prepare('SELECT id FROM projects WHERE id != ? LIMIT 1').get(projectId) as { id: string } | undefined;
-        const newActiveId = nextProject ? nextProject.id : 'default-project';
+        const newActiveId = nextProject ? nextProject.id : '';
         db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('ACTIVE_PROJECT_ID', ?)").run(newActiveId);
       }
     });

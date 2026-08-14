@@ -170,7 +170,7 @@ export async function GET(request: Request) {
 
         const res = resolvePaper(paper);
 
-        if (res.effectiveStage >= 4 && res.isIncluded) {
+        if (res.effectiveStage >= 3 && res.isIncluded) {
           totalIncludedStudies++;
         }
 
@@ -229,7 +229,7 @@ export async function GET(request: Request) {
 
         const res = resolvePaper(paper);
 
-        if (res.effectiveStage >= 4 && res.isIncluded) {
+        if (res.effectiveStage >= 3 && res.isIncluded) {
           totalIncludedStudies++;
         }
 
@@ -1025,8 +1025,9 @@ export async function GET(request: Request) {
                    WHERE paper_id = p.Paper_ID AND project_id = p.Project_ID AND task_type = 'scientist'
                    ORDER BY id DESC LIMIT 1) as scientist_structured_output
            FROM papers p
-           WHERE p.Project_ID = ?
-             AND MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) = 4
+            WHERE p.Project_ID = ?
+              AND (p.is_duplicate IS NULL OR p.is_duplicate = 0)
+              AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
              AND CASE 
                  WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
                  WHEN IFNULL(p.ai_stage, 0) > IFNULL(p.manual_stage, 0) THEN p.ai_decision
@@ -1123,7 +1124,10 @@ export async function GET(request: Request) {
 
       try {
         if (paper.manual_extracted_data) {
-          manualExtracted = JSON.parse(paper.manual_extracted_data);
+          const parsed = JSON.parse(paper.manual_extracted_data);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed.extracted_data || parsed).length > 0) {
+            manualExtracted = parsed;
+          }
         }
       } catch (e) {}
 
