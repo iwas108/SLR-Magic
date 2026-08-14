@@ -130,6 +130,11 @@ px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, 
 *   **Single Source of Truth**: All UI components (`FinalCohortPanel`, `UmbrellanizerView`), modals (`LlmContextBuilderModal`), and API export endpoints (`csv-tabular`, `final-cohort`, `slr-viewer`) **MUST** resolve logic trace mappings and reasoning quotes using `extractMappingReasoning` and `extractEvidenceQuote` from `@/lib/services/trace-normalizer`.
 *   **Zero Islanded Lookups Policy**: Coding agents **MUST NEVER** write ad-hoc or inline key resolution logic (such as `locateMapping['locate_' + key]`) when extracting logic trace mappings. You must import and utilize the centralized `trace-normalizer` utility to ensure key normalization, prefix cleaning, candidate lookups, and nested property fallbacks remain synchronized.
 
+### 3.10 Mandatory Centralized Taxonomy & Cohort Metrics Protocol
+*   **Single Source of Truth**: All UI components (`VisualizerModal`, `BreakdownTablePanel`, `UmbrellanizerView`, `QuickOverviewModal`), modals (`LlmContextBuilderModal`), and API export endpoints (`csv-tabular`, `slr-viewer`, `cloud-gold-mine`) **MUST** resolve Umbrellanizer taxonomy categories, extract stage-dominant paper variables, and compute cohort statistical distributions using `@/lib/services/taxonomy-resolver` and `@/lib/services/cohort-metrics`.
+*   **Zero Loose Substring Matching Policy**: Coding agents **MUST NEVER** implement substring search heuristics (e.g. `.includes()`) for taxonomy dictionary lookups. Taxonomy keys must be matched using exact canonical case-insensitive and dash-normalized string equality (`normalizeForLookup(dictKey) === normalizeForLookup(rawVal)`) via `resolveUmbrellanizerValue()` to prevent fatal substring collisions on compound technical terms (such as `'1D CNN-LSTM'` or `'CNN-LSTM'` colliding with `'LSTM'`).
+*   **Metric Distinction Guardrail**: When displaying or aggregating extracted literature data, coding agents **MUST** strictly distinguish between **Unique Paper Prevalence** ($N = \text{unique papers} / \text{total cohort papers} \times 100$) and **Tag Share Distribution** ($\text{tag count} / \text{total extracted tags} \times 100$, balanced via Hare-Hamilton Largest Remainder Method to 100.00%). In multi-label literature extraction, never conflate total tag mentions with unique paper counts.
+
 ---
 
 

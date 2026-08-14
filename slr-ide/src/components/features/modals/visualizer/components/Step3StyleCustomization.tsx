@@ -18,6 +18,8 @@ import { useVisualizerContext } from '../context/VisualizerContext';
 import { SlotSwitcherBar } from './subcomponents/SlotSwitcherBar';
 import { SunburstLevelConfigPanel } from './subcomponents/SunburstLevelConfigPanel';
 import { HorizontalBarConfigPanel } from './subcomponents/HorizontalBarConfigPanel';
+import { ClusteredBarConfigPanel } from './subcomponents/ClusteredBarConfigPanel';
+import { ScientificAxisConfigPanel } from './subcomponents/ScientificAxisConfigPanel';
 import { LiveSplitPreview } from './subcomponents/LiveSplitPreview';
 import type { ThemePreset, FontFamily, SubfigureLabelStyle } from '../types';
 
@@ -359,7 +361,7 @@ export function Step3StyleCustomization() {
               </label>
             </div>
 
-            {['bar_vertical', 'line', 'stacked_bar', 'heatmap', 'boxplot'].includes(chartType) && (
+            {['bar_vertical', 'clustered_bar', 'line', 'stacked_bar', 'heatmap', 'boxplot'].includes(chartType) && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground block">Label Rotation Angle</label>
                 <select
@@ -401,7 +403,7 @@ export function Step3StyleCustomization() {
                   onChange={(e) => setSunburstLegendFormat(e.target.value as any)}
                   className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
                 >
-                  <option value="name">Name Only</option>
+                  <option value="name">Category Name Only</option>
                   <option value="name_count">Name + Count (N=X)</option>
                   <option value="name_percent">Name + Percent (XX.X%)</option>
                   <option value="name_count_percent">Name + Count + Percent (N=X, XX.X%)</option>
@@ -428,8 +430,8 @@ export function Step3StyleCustomization() {
             </div>
           )}
 
-          {/* Horizontal Bar specific legend controls */}
-          {chartType === 'bar_horizontal' && showLegend && (
+          {/* Bar specific legend controls */}
+          {['bar_horizontal', 'clustered_bar'].includes(chartType) && showLegend && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-foreground block">Legend Label Format</label>
@@ -438,7 +440,7 @@ export function Step3StyleCustomization() {
                   onChange={(e) => setBarLegendFormat(e.target.value as any)}
                   className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
                 >
-                  <option value="name">Category Name Only</option>
+                  <option value="name">Category/Series Name Only</option>
                   <option value="name_count">Name + Paper Count (N=X)</option>
                   <option value="name_percent">Name + Prevalence % (XX.X%)</option>
                   <option value="name_count_percent">Name + Count + Percent (N=X, XX.X%)</option>
@@ -474,6 +476,13 @@ export function Step3StyleCustomization() {
 
           {chartType === 'bar_horizontal' && (
             <HorizontalBarConfigPanel />
+          )}
+
+          {chartType === 'clustered_bar' && (
+            <div className="space-y-4">
+              <ClusteredBarConfigPanel />
+              <ScientificAxisConfigPanel />
+            </div>
           )}
 
           {chartType === 'sunburst' && (

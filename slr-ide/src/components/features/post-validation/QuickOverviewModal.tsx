@@ -3,6 +3,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, ChevronDown, ChevronUp, BarChart3, Download, HelpCircle, Printer } from 'lucide-react';
 import { MinerPaper } from '@/hooks/useUmbrellanizer';
+import {
+  resolveUmbrellanizerValue,
+  getUmbrellanizerJustification,
+  normalizeExtractedTokens,
+  canonicalizeString
+} from '@/lib/services/taxonomy-resolver';
 import { TaxonomyTrendsPrintDocument } from './TaxonomyTrendsPrintDocument';
 
 interface QuickOverviewModalProps {
@@ -114,38 +120,32 @@ export default function QuickOverviewModal({
         const fieldData = paper.extracted_data[key];
         if (!fieldData) return;
 
-        let rawVal = fieldData.value;
-        if (!rawVal) return;
+        const rawTokens = normalizeExtractedTokens(fieldData, key);
+        if (rawTokens.length === 0) return;
 
         // Collect resolved items
         const resolvedSet = new Set<string>();
 
-        const processVal = (val: any) => {
-          const v = String(val).trim();
+        rawTokens.forEach((rawTok) => {
+          const v = canonicalizeString(rawTok);
           if (!v) return;
 
           if (showRaw) {
             resolvedSet.add(v);
           } else {
-            // Resolve mapping
-            const mapped = keyMap[v];
-            const resolvedVal = mapped ? mapped.umbrella_category : v;
+            // Resolve mapping using centralized taxonomy resolver
+            const resolvedVal = resolveUmbrellanizerValue(v, key, true, mappingsByKey);
             resolvedSet.add(resolvedVal);
             
-            if (mapped && mapped.justification) {
+            const just = getUmbrellanizerJustification(v, key, undefined, mappingsByKey);
+            if (just) {
               if (!justifications[resolvedVal]) {
                 justifications[resolvedVal] = new Set<string>();
               }
-              justifications[resolvedVal].add(mapped.justification);
+              justifications[resolvedVal].add(just);
             }
           }
-        };
-
-        if (Array.isArray(rawVal)) {
-          rawVal.forEach(processVal);
-        } else {
-          processVal(rawVal);
-        }
+        });
 
         // Increment frequency (Rule: counts only once per paper)
         resolvedSet.forEach((cat) => {

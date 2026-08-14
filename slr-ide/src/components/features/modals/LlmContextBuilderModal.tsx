@@ -3,6 +3,11 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Sparkles, X, Copy, Download, Check, Search, Filter, FileText, BarChart2, ChevronDown, ChevronUp, Code2, Info, ShieldCheck, Calculator, PieChart } from 'lucide-react';
 import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
+import {
+  resolveUmbrellanizerValue as centralResolveUmbrellanizerValue,
+  getUmbrellanizerJustification as centralGetUmbrellanizerJustification
+} from '@/lib/services/taxonomy-resolver';
+import { calculateHareHamiltonPercentages } from '@/lib/services/cohort-metrics';
 
 interface LlmContextBuilderModalProps {
   isOpen: boolean;
@@ -12,27 +17,6 @@ interface LlmContextBuilderModalProps {
   umbrellanizerMap: Record<string, Record<string, string>>;
   projectId: string;
   showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
-}
-
-// Largest Remainder Method (Hare-Hamilton Quota) for exact 100.00% quota balancing
-function calculateHareHamiltonPercentages(counts: number[]): number[] {
-  const total = counts.reduce((a, b) => a + b, 0);
-  if (total === 0) return counts.map(() => 0);
-  
-  const exactPcts = counts.map(c => (c / total) * 100);
-  const floorPcts = exactPcts.map(p => Math.floor(p * 100) / 100);
-  const remainders = exactPcts.map((p, idx) => ({ remainder: p - floorPcts[idx], index: idx }));
-  
-  const currentSum = Math.round(floorPcts.reduce((a, b) => a + b, 0) * 100);
-  const diffCent = 10000 - currentSum; // remaining 0.01% units
-  
-  remainders.sort((a, b) => b.remainder - a.remainder);
-  const result = [...floorPcts];
-  for (let i = 0; i < diffCent && i < remainders.length; i++) {
-    const idx = remainders[i].index;
-    result[idx] = Math.round((result[idx] + 0.01) * 100) / 100;
-  }
-  return result;
 }
 
 export default function LlmContextBuilderModal({
@@ -168,75 +152,13 @@ export default function LlmContextBuilderModal({
 
   // Helper to resolve Umbrellanizer mapped value
   const resolveUmbrellanizerValue = useCallback((val: any, key: string) => {
-    if (val === undefined || val === null || val === '') return '';
-    const rawVal = String(val).trim();
-    const raw = rawVal.toLowerCase().replace(/\s+/g, ' ');
-    const map = umbrellanizerMap[key] || {};
-    
-    const matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === raw);
-    if (!matchedKey) return rawVal;
-    
-    const mappedVal = map[matchedKey] as any;
-    if (!mappedVal) return rawVal;
-    
-    if (typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-      return String(mappedVal.umbrella_category || matchedKey).trim();
-    }
-    if (Array.isArray(mappedVal)) {
-      return String(mappedVal[0] || matchedKey).trim();
-    }
-    return String(mappedVal).trim();
+    return centralResolveUmbrellanizerValue(val, key, true, umbrellanizerMap);
   }, [umbrellanizerMap]);
 
   // Helper to resolve Umbrellanizer justification
   const getUmbrellanizerJustification = useCallback((key: string, paper: any) => {
-    const extStr = getExtractedDataStr(paper);
-    if (!extStr) return '';
-
-    try {
-      const parsed = JSON.parse(extStr);
-      const extObj = parsed.extracted_data || parsed;
-      let rawVal = extObj[key];
-      if (rawVal === undefined || rawVal === null || rawVal === '') return '';
-
-      if (rawVal && typeof rawVal === 'object' && 'value' in rawVal) {
-        rawVal = rawVal.value;
-      }
-      if (rawVal === undefined || rawVal === null || rawVal === '') return '';
-
-      const map = umbrellanizerMap[key] || {};
-      
-      const resolveSingle = (singleRaw: any) => {
-        const r = String(singleRaw).trim();
-        const rNorm = r.toLowerCase().replace(/\s+/g, ' ');
-        let matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === rNorm);
-        
-        if (!matchedKey) {
-          matchedKey = Object.keys(map).find(k => {
-            const mappedVal = map[k] as any;
-            if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-              return String(mappedVal.umbrella_category || '').trim().toLowerCase().replace(/\s+/g, ' ') === rNorm;
-            }
-            return false;
-          });
-        }
-
-        if (matchedKey) {
-          const mappedVal = map[matchedKey] as any;
-          if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-            return String(mappedVal.justification || '').trim();
-          }
-        }
-        return '';
-      };
-
-      if (Array.isArray(rawVal)) {
-        return rawVal.map(resolveSingle).filter(Boolean).join(' || ');
-      }
-      return resolveSingle(rawVal);
-    } catch (e) {}
-    return '';
-  }, [umbrellanizerMap, getExtractedDataStr]);
+    return centralGetUmbrellanizerJustification(undefined, key, paper, umbrellanizerMap);
+  }, [umbrellanizerMap]);
 
   // Helper to parse logic traces and evidence quotes using Centralized Trace Normalizer Utility
   const parseExtractedTraces = useCallback((paper: any) => {

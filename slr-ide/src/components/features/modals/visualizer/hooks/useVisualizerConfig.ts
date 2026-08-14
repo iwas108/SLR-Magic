@@ -156,6 +156,9 @@ export function useVisualizerConfig(params: {
   const barSorting = currentSlotConfig.barSorting;
   const setBarSorting = useCallback((v: 'desc' | 'asc' | 'none') => updateActiveSlot({ barSorting: v }), [updateActiveSlot]);
 
+  const barOrientation = currentSlotConfig.barOrientation || 'horizontal';
+  const setBarOrientation = useCallback((v: 'horizontal' | 'vertical') => updateActiveSlot({ barOrientation: v }), [updateActiveSlot]);
+
   const barThickness = currentSlotConfig.barThickness;
   const setBarThickness = useCallback((v: number) => updateActiveSlot({ barThickness: v }), [updateActiveSlot]);
 
@@ -164,6 +167,36 @@ export function useVisualizerConfig(params: {
 
   const barGap = currentSlotConfig.barGap;
   const setBarGap = useCallback((v: number) => updateActiveSlot({ barGap: v }), [updateActiveSlot]);
+
+  const barClusterGap = currentSlotConfig.barClusterGap ?? 20;
+  const setBarClusterGap = useCallback((v: number) => updateActiveSlot({ barClusterGap: v }), [updateActiveSlot]);
+
+  const barInnerGap = currentSlotConfig.barInnerGap ?? 15;
+  const setBarInnerGap = useCallback((v: number) => updateActiveSlot({ barInnerGap: v }), [updateActiveSlot]);
+
+  const enableErrorBars = currentSlotConfig.enableErrorBars ?? false;
+  const setEnableErrorBars = useCallback((v: boolean) => updateActiveSlot({ enableErrorBars: v }), [updateActiveSlot]);
+
+  const errorBarType = currentSlotConfig.errorBarType || 'std_error';
+  const setErrorBarType = useCallback((v: 'std_dev' | 'std_error' | 'ci_95') => updateActiveSlot({ errorBarType: v }), [updateActiveSlot]);
+
+  const enableHatchPatterns = currentSlotConfig.enableHatchPatterns ?? false;
+  const setEnableHatchPatterns = useCallback((v: boolean) => updateActiveSlot({ enableHatchPatterns: v }), [updateActiveSlot]);
+
+  const axisScaleType = currentSlotConfig.axisScaleType || 'linear';
+  const setAxisScaleType = useCallback((v: 'linear' | 'log') => updateActiveSlot({ axisScaleType: v }), [updateActiveSlot]);
+
+  const axisTickDirection = currentSlotConfig.axisTickDirection || 'outside';
+  const setAxisTickDirection = useCallback((v: 'inside' | 'outside' | 'none') => updateActiveSlot({ axisTickDirection: v }), [updateActiveSlot]);
+
+  const showAxisBaseline = currentSlotConfig.showAxisBaseline ?? true;
+  const setShowAxisBaseline = useCallback((v: boolean) => updateActiveSlot({ showAxisBaseline: v }), [updateActiveSlot]);
+
+  const customAxisTitleX = currentSlotConfig.customAxisTitleX || '';
+  const setCustomAxisTitleX = useCallback((v: string) => updateActiveSlot({ customAxisTitleX: v }), [updateActiveSlot]);
+
+  const customAxisTitleY = currentSlotConfig.customAxisTitleY || '';
+  const setCustomAxisTitleY = useCallback((v: string) => updateActiveSlot({ customAxisTitleY: v }), [updateActiveSlot]);
 
   const barLabelPosition = currentSlotConfig.barLabelPosition;
   const setBarLabelPosition = useCallback((v: 'right' | 'inside' | 'insideLeft' | 'insideRight') => updateActiveSlot({ barLabelPosition: v }), [updateActiveSlot]);
@@ -176,6 +209,12 @@ export function useVisualizerConfig(params: {
 
   const barYAxisOverflow = currentSlotConfig.barYAxisOverflow;
   const setBarYAxisOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ barYAxisOverflow: v }), [updateActiveSlot]);
+
+  const barLineHeight = currentSlotConfig.barLineHeight ?? 14;
+  const setBarLineHeight = useCallback((v: number) => updateActiveSlot({ barLineHeight: v }), [updateActiveSlot]);
+
+  const barYAxisFontSize = currentSlotConfig.barYAxisFontSize ?? 11;
+  const setBarYAxisFontSize = useCallback((v: number) => updateActiveSlot({ barYAxisFontSize: v }), [updateActiveSlot]);
 
   const barBenchmarkLine = currentSlotConfig.barBenchmarkLine;
   const setBarBenchmarkLine = useCallback((v: boolean) => updateActiveSlot({ barBenchmarkLine: v }), [updateActiveSlot]);
@@ -218,6 +257,15 @@ export function useVisualizerConfig(params: {
 
   const pieLabelWidth = currentSlotConfig.pieLabelWidth ?? 140;
   const setPieLabelWidth = useCallback((v: number) => updateActiveSlot({ pieLabelWidth: v }), [updateActiveSlot]);
+
+  const customCategoryMap = currentSlotConfig.customCategoryMap || {};
+  const setCustomCategoryMap = useCallback((v: Record<string, Record<string, string>>) => updateActiveSlot({ customCategoryMap: v }), [updateActiveSlot]);
+
+  const levelCustomGroupLinks = currentSlotConfig.levelCustomGroupLinks || {};
+  const setLevelCustomGroupLinks = useCallback((v: Record<number, Record<string, string>>) => updateActiveSlot({ levelCustomGroupLinks: v }), [updateActiveSlot]);
+
+  const customSliceColors = currentSlotConfig.customSliceColors || {};
+  const setCustomSliceColors = useCallback((v: Record<string, string>) => updateActiveSlot({ customSliceColors: v }), [updateActiveSlot]);
 
   return {
     currentStep,
@@ -295,12 +343,34 @@ export function useVisualizerConfig(params: {
     setSunburstEmphasisFocus,
     barSorting,
     setBarSorting,
+    barOrientation,
+    setBarOrientation,
     barThickness,
     setBarThickness,
     barBorderRadius,
     setBarBorderRadius,
     barGap,
     setBarGap,
+    barClusterGap,
+    setBarClusterGap,
+    barInnerGap,
+    setBarInnerGap,
+    enableErrorBars,
+    setEnableErrorBars,
+    errorBarType,
+    setErrorBarType,
+    enableHatchPatterns,
+    setEnableHatchPatterns,
+    axisScaleType,
+    setAxisScaleType,
+    axisTickDirection,
+    setAxisTickDirection,
+    showAxisBaseline,
+    setShowAxisBaseline,
+    customAxisTitleX,
+    setCustomAxisTitleX,
+    customAxisTitleY,
+    setCustomAxisTitleY,
     barLabelPosition,
     setBarLabelPosition,
     barLabelFormat,
@@ -309,6 +379,10 @@ export function useVisualizerConfig(params: {
     setBarYAxisWidth,
     barYAxisOverflow,
     setBarYAxisOverflow,
+    barLineHeight,
+    setBarLineHeight,
+    barYAxisFontSize,
+    setBarYAxisFontSize,
     barBenchmarkLine,
     setBarBenchmarkLine,
     barBenchmarkValue,
@@ -336,6 +410,12 @@ export function useVisualizerConfig(params: {
     pieRadiusRatio,
     setPieRadiusRatio,
     pieLabelWidth,
-    setPieLabelWidth
+    setPieLabelWidth,
+    customCategoryMap,
+    setCustomCategoryMap,
+    levelCustomGroupLinks,
+    setLevelCustomGroupLinks,
+    customSliceColors,
+    setCustomSliceColors
   };
 }

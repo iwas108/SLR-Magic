@@ -10,5 +10,8 @@ export * from './subcomponents/CustomGroupingManager';
 export * from './subcomponents/BreakdownTablePanel';
 export * from './subcomponents/SunburstLevelConfigPanel';
 export * from './subcomponents/HorizontalBarConfigPanel';
+export * from './subcomponents/ClusteredBarConfigPanel';
+export * from './subcomponents/ScientificAxisConfigPanel';
+export * from './subcomponents/CrossTabMatrixPanel';
 export * from './subcomponents/CameraControlsOverlay';
 export * from './subcomponents/ExportPanel';

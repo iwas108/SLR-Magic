@@ -139,9 +139,12 @@ export function useVisualizerData(params: {
 
   // Dynamic real data calculation & percentage breakdown table
   const realDataBreakdown = useMemo((): RealDataBreakdownResult => {
-    const parentCounts = new Map<string, number>();
-    const childCounts = new Map<string, { count: number; parentName: string; childName: string }>();
+    const parentTagCounts = new Map<string, number>();
+    const parentPaperIds = new Map<string, Set<string>>();
+    const childTagCounts = new Map<string, { count: number; parentName: string; childName: string }>();
+    const childPaperIds = new Map<string, Set<string>>();
     let totalItems = 0;
+    const totalCohortPapers = papers.length;
 
     const extractOpts = { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty };
 
@@ -150,6 +153,7 @@ export function useVisualizerData(params: {
       const f2 = sankeyFields.length > 1 ? sankeyFields[1] : null;
 
       papers.forEach(p => {
+        const paperId = safeString(p.Paper_ID || p.id || p.Title || p.title || 'unknown');
         if (f1 === CUSTOM_GROUPING_KEY && f2) {
           const rawSubVals = getFieldValue(p, f2, extractOpts).map(safeString).filter(v => Boolean(v) && v !== '[object Object]' && v !== 'Unspecified');
           const linksMap = levelCustomGroupLinks[0] || {};
@@ -157,13 +161,18 @@ export function useVisualizerData(params: {
           rawSubVals.forEach(v2 => {
             const v1 = safeString(linksMap[v2] || 'Unassigned / Other');
             totalItems++;
-            parentCounts.set(v1, (parentCounts.get(v1) || 0) + 1);
+            parentTagCounts.set(v1, (parentTagCounts.get(v1) || 0) + 1);
+            if (!parentPaperIds.has(v1)) parentPaperIds.set(v1, new Set());
+            parentPaperIds.get(v1)!.add(paperId);
 
             const childKey = `${v1}||${v2}`;
-            if (!childCounts.has(childKey)) {
-              childCounts.set(childKey, { count: 0, parentName: v1, childName: v2 });
+            if (!childTagCounts.has(childKey)) {
+              childTagCounts.set(childKey, { count: 0, parentName: v1, childName: v2 });
             }
-            childCounts.get(childKey)!.count += 1;
+            childTagCounts.get(childKey)!.count += 1;
+
+            if (!childPaperIds.has(childKey)) childPaperIds.set(childKey, new Set());
+            childPaperIds.get(childKey)!.add(paperId);
           });
         } else {
           const v1List = getMappedFieldValue(p, f1, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, subFieldKey: f2 || undefined, levelIdx: 0 });
@@ -173,59 +182,99 @@ export function useVisualizerData(params: {
             const v1 = safeString(rawV1);
             if (!v1 || v1 === '[object Object]') return;
             totalItems++;
-            parentCounts.set(v1, (parentCounts.get(v1) || 0) + 1);
+            parentTagCounts.set(v1, (parentTagCounts.get(v1) || 0) + 1);
+            if (!parentPaperIds.has(v1)) parentPaperIds.set(v1, new Set());
+            parentPaperIds.get(v1)!.add(paperId);
 
             v2List.forEach(rawV2 => {
               const v2 = safeString(rawV2);
               if (!v2 || v2 === '[object Object]') return;
               const childKey = `${v1}||${v2}`;
-              if (!childCounts.has(childKey)) {
-                childCounts.set(childKey, { count: 0, parentName: v1, childName: v2 });
+              if (!childTagCounts.has(childKey)) {
+                childTagCounts.set(childKey, { count: 0, parentName: v1, childName: v2 });
               }
-              childCounts.get(childKey)!.count += 1;
+              childTagCounts.get(childKey)!.count += 1;
+
+              if (!childPaperIds.has(childKey)) childPaperIds.set(childKey, new Set());
+              childPaperIds.get(childKey)!.add(paperId);
             });
           });
         }
       });
     } else {
       papers.forEach(p => {
+        const paperId = safeString(p.Paper_ID || p.id || p.Title || p.title || 'unknown');
         const vals = getMappedFieldValue(p, primaryField, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, levelIdx: 0 });
         vals.forEach(rawV => {
           const v = safeString(rawV);
           if (!v || v === '[object Object]') return;
           totalItems++;
-          parentCounts.set(v, (parentCounts.get(v) || 0) + 1);
+          parentTagCounts.set(v, (parentTagCounts.get(v) || 0) + 1);
+          if (!parentPaperIds.has(v)) parentPaperIds.set(v, new Set());
+          parentPaperIds.get(v)!.add(paperId);
         });
       });
     }
 
     const rows: BreakdownRow[] = [];
-    const parentEntries = Array.from(parentCounts.entries());
+    const parentEntries = Array.from(parentTagCounts.entries());
     const quotaInputs = parentEntries.map(([parentName, count]) => ({ name: parentName, count }));
     const balancedParentPctMap = balanceQuotasToHundred(quotaInputs, totalItems);
 
-    parentCounts.forEach((count, parentName) => {
-      const realPct = balancedParentPctMap.get(parentName) ?? (totalItems > 0 ? parseFloat(((count / totalItems) * 100).toFixed(2)) : 0);
+    parentTagCounts.forEach((tagCount, parentName) => {
+      const paperCount = parentPaperIds.get(parentName)?.size || 0;
+      const paperPrevalencePct = totalCohortPapers > 0 ? parseFloat(((paperCount / totalCohortPapers) * 100).toFixed(2)) : 0;
+      const tagSharePct = balancedParentPctMap.get(parentName) ?? (totalItems > 0 ? parseFloat(((tagCount / totalItems) * 100).toFixed(2)) : 0);
+      
+      const realPct = currentSlotConfig.metricMode === 'tag_share' ? tagSharePct : paperPrevalencePct;
+      const activeCount = currentSlotConfig.metricMode === 'tag_share' ? tagCount : paperCount;
       const manualVal = manualCategoryValues[parentName];
       const activeVal = (enableManualOverrides && manualVal !== undefined) ? manualVal : realPct;
-      rows.push({ name: parentName, count, realPct, activeVal });
 
-      childCounts.forEach((childItem) => {
+      rows.push({
+        name: parentName,
+        count: activeCount,
+        paperCount,
+        tagCount,
+        paperPrevalencePct,
+        tagSharePct,
+        realPct,
+        activeVal
+      });
+
+      childTagCounts.forEach((childItem, childKey) => {
         if (childItem.parentName === parentName) {
-          const childRealPct = totalItems > 0 ? parseFloat(((childItem.count / totalItems) * 100).toFixed(2)) : 0;
-          const childKey = `${parentName} → ${childItem.childName}`;
-          const childManualVal = manualCategoryValues[childKey] ?? manualCategoryValues[childItem.childName];
+          const childPaperCount = childPaperIds.get(childKey)?.size || 0;
+          const childPaperPrevalencePct = totalCohortPapers > 0 ? parseFloat(((childPaperCount / totalCohortPapers) * 100).toFixed(2)) : 0;
+          const childTagSharePct = totalItems > 0 ? parseFloat(((childItem.count / totalItems) * 100).toFixed(2)) : 0;
+          const childRealPct = currentSlotConfig.metricMode === 'tag_share' ? childTagSharePct : childPaperPrevalencePct;
+          const childActiveCount = currentSlotConfig.metricMode === 'tag_share' ? childItem.count : childPaperCount;
+
+          const childRowKey = `${parentName} → ${childItem.childName}`;
+          const childManualVal = manualCategoryValues[childRowKey] ?? manualCategoryValues[childItem.childName];
           const childActiveVal = (enableManualOverrides && childManualVal !== undefined) ? childManualVal : childRealPct;
-          rows.push({ name: childItem.childName, parentName, count: childItem.count, realPct: childRealPct, activeVal: childActiveVal });
+
+          rows.push({
+            name: childItem.childName,
+            parentName,
+            count: childActiveCount,
+            paperCount: childPaperCount,
+            tagCount: childItem.count,
+            paperPrevalencePct: childPaperPrevalencePct,
+            tagSharePct: childTagSharePct,
+            realPct: childRealPct,
+            activeVal: childActiveVal
+          });
         }
       });
     });
 
     const topRows = rows.filter(r => !r.parentName);
     const activeSum = parseFloat(topRows.reduce((sum, r) => sum + r.activeVal, 0).toFixed(2));
+    const isMultiLabel = totalItems > totalCohortPapers;
 
-    return { rows, totalItems, activeSum };
-  }, [papers, chartType, sankeyFields, primaryField, useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroupLinks, manualCategoryValues, enableManualOverrides]);
+    return { rows, totalItems, totalCohortPapers, activeSum, isMultiLabel };
+  }, [papers, chartType, sankeyFields, primaryField, useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroupLinks, manualCategoryValues, enableManualOverrides, currentSlotConfig.metricMode]);
 
   // Autofill / Normalize percentages to 100%
   const normalizePercentages = useCallback(() => {

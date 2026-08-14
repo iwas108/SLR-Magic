@@ -20,6 +20,10 @@ export function HorizontalBarConfigPanel() {
     setBarYAxisWidth,
     barYAxisOverflow,
     setBarYAxisOverflow,
+    barLineHeight = 14,
+    setBarLineHeight,
+    barYAxisFontSize = 11,
+    setBarYAxisFontSize,
     barBenchmarkLine,
     setBarBenchmarkLine,
     barBenchmarkValue,
@@ -116,10 +120,10 @@ export function HorizontalBarConfigPanel() {
         </div>
       </div>
 
-      {/* Y-Axis Label Width & Overflow Treatment */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/20 border border-border/60 rounded-xl">
+      {/* Y-Axis Label Width, Line Height & Overflow Treatment */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-secondary/20 border border-border/60 rounded-xl">
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Y-Axis Max Label Width ({barYAxisWidth}px)</label>
+          <label className="text-xs font-bold text-foreground block">Y-Axis Width ({barYAxisWidth}px)</label>
           <input
             type="range"
             min={80}
@@ -131,15 +135,39 @@ export function HorizontalBarConfigPanel() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Y-Axis Text Overflow Wrapping</label>
+          <label className="text-xs font-bold text-foreground block">Line Height ({barLineHeight}px)</label>
+          <input
+            type="range"
+            min={8}
+            max={32}
+            value={barLineHeight}
+            onChange={(e) => setBarLineHeight(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Label Font Size ({barYAxisFontSize}px)</label>
+          <input
+            type="range"
+            min={8}
+            max={18}
+            value={barYAxisFontSize}
+            onChange={(e) => setBarYAxisFontSize(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Overflow Wrapping</label>
           <select
             value={barYAxisOverflow}
             onChange={(e) => setBarYAxisOverflow(e.target.value as any)}
             className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
           >
-            <option value="break">Word Wrap & Slash Break</option>
-            <option value="truncate">Truncate with Ellipsis (...)</option>
-            <option value="none">No Wrapping (Full Length)</option>
+            <option value="break">Word Wrap</option>
+            <option value="truncate">Truncate (...)</option>
+            <option value="none">Full Length</option>
           </select>
         </div>
       </div>

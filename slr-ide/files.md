@@ -137,6 +137,8 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | :--- | :--- | :--- |
 | `lib/services/prompt-validator.ts` | Backend Service | Service encapsulating stage baseline JSON schema validation (`fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`) and default schema template generators. |
 | `lib/services/trace-normalizer.ts` | Backend Service | Centralized Trace Normalizer Utility service providing robust logic trace mapping and evidence quote resolution across all RQs. |
+| `lib/services/taxonomy-resolver.ts` | Backend / Domain Service | Centralized Taxonomy Resolver service enforcing exact case-insensitive key matching, canonical string/dash normalization, array/string token unwrapping, and stage dominance resolution across all modules. |
+| `lib/services/cohort-metrics.ts` | Backend / Domain Service | Centralized Cohort Metrics service providing exact Unique Paper Prevalence calculations, Quota-balanced Tag Share distributions (Hare-Hamilton Largest Remainder Method), and multi-label cohort statistics. |
 | `lib/services/goldmine-state-tracker.ts` | Backend Service | Singleton NDJSON state tracker for Gold Mine exports managing execution phase, progress counters, live logs, state restore on reconnect, and process cancellation. |
 | `lib/services/process-manager.ts` | Backend Service | Singleton manager for active child process instances, arguments, PIDs, and clean tree termination (`taskkill` / `SIGKILL`). |
 | `lib/services/stream-manager.ts` | Backend Service | Encapsulates Server-Sent Events (SSE) stream lifecycles, HTTP keep-alive headers, and periodic heartbeat pings. |
@@ -341,4 +343,11 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `src/components/features/post-validation/RollingBatchAdjudicationModal.tsx` | UI Component | Fullscreen workspace modal for resolving conflicts on rolling batch papers |
 | `src/components/features/post-validation/BatchImportSlot.tsx` | UI Component | Upload card for mapping and parsing completed .slr review files per slot |
 | `src/components/features/modals/LlmContextBuilderModal.tsx` | UI Component | Interactive modal allowing dynamic selection of extracted data keys, paper metadata fields, cohort scope, baked ground-truth statistics (Hare-Hamilton 100.00% quota balanced), and strict LLM directives to export LLM-friendly JSON payloads for Gemini 3.1 Pro visualization and narration |
+| `src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts` | Chart Strategy Generator | Publication-standard Clustered / Comparative Bar Chart strategy generator supporting horizontal/vertical orientation, dual-dimension cross-tabulation, error bars, and texture hatching. |
+| `src/components/features/modals/visualizer/utils/statisticalUtils.ts` | Domain Utility | Pure statistical domain utility calculating grouped descriptive metrics (Mean, Variance, SD, SE, 95% CI) and whisker bounds for scientific charts. |
+| `src/components/features/modals/visualizer/utils/hatchPatternUtils.ts` | Domain Utility | Academic monochrome texture pattern builder generating high-contrast SVG fills for print and colorblind accessibility (WCAG 2.1 AAA). |
+| `src/components/features/modals/visualizer/components/subcomponents/ClusteredBarConfigPanel.tsx` | Subcomponent | Configuration panel for clustered bar chart orientation, spacing, error bars, monochrome texture hatching, and series color overrides. |
+| `src/components/features/modals/visualizer/components/subcomponents/ScientificAxisConfigPanel.tsx` | Subcomponent | Configuration panel for scientific publishing axis titles, tick directions, log/linear scale, and journal baseline borders. |
+| `src/components/features/modals/visualizer/components/subcomponents/CrossTabMatrixPanel.tsx` | Subcomponent | Tabbed cross-tabulation matrix inspection panel (2D Matrix with row/col totals + Flattened table) with direct TSV and CSV export. |
+
 

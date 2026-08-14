@@ -31,6 +31,13 @@ export const CHART_TYPES_INFO: Record<ChartType, ChartTypeMeta> = {
     slrUseCase: 'Best for long extraction strings like specific Research Methods or Intervention types.',
     icon: BarChart2
   },
+  clustered_bar: {
+    name: 'Clustered / Comparative Bar Chart',
+    category: 'Comparative / Multi-Series',
+    description: 'Compares secondary series groups side-by-side across primary categories with horizontal or vertical orientation.',
+    slrUseCase: 'Best for comparing Research Methods across Application Domains, Study Designs per Year, or Multi-Group Quality Metrics.',
+    icon: BarChart2
+  },
   stacked_bar: {
     name: 'Stacked Bar Chart',
     category: '2D Distribution',

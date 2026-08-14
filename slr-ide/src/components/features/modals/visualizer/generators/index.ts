@@ -9,6 +9,7 @@ import {
   generateHorizontalBarOption,
   generateStackedBarOption
 } from './categoricalBarGenerators';
+import { generateClusteredBarOption } from './clusteredBarGenerators';
 import { generateLineOption } from './trendLineGenerators';
 import { generatePieDonutOption } from './proportionsGenerators';
 import {
@@ -34,6 +35,7 @@ import {
 
 export * from './types';
 export * from './categoricalBarGenerators';
+export * from './clusteredBarGenerators';
 export * from './trendLineGenerators';
 export * from './proportionsGenerators';
 export * from './correlationGenerators';
@@ -82,13 +84,26 @@ export interface BuildChartOptionParams {
   sunburstNodeClick: 'rootToNode' | 'link' | 'none';
   sunburstEmphasisFocus: 'ancestor' | 'descendant' | 'none';
   barSorting: 'desc' | 'asc' | 'none';
+  barOrientation?: 'horizontal' | 'vertical';
   barThickness: number;
   barBorderRadius: number;
   barGap: number;
+  barClusterGap?: number;
+  barInnerGap?: number;
+  enableErrorBars?: boolean;
+  errorBarType?: 'std_dev' | 'std_error' | 'ci_95';
+  enableHatchPatterns?: boolean;
+  axisScaleType?: 'linear' | 'log';
+  axisTickDirection?: 'inside' | 'outside' | 'none';
+  showAxisBaseline?: boolean;
+  customAxisTitleX?: string;
+  customAxisTitleY?: string;
   barLabelPosition: 'right' | 'inside' | 'insideLeft' | 'insideRight';
   barLabelFormat: 'value' | 'value_pct' | 'pct_only';
   barYAxisWidth: number;
   barYAxisOverflow: 'break' | 'truncate' | 'none';
+  barLineHeight?: number;
+  barYAxisFontSize?: number;
   barBenchmarkLine: boolean;
   barBenchmarkValue: number;
   barBenchmarkLabel: string;
@@ -202,6 +217,8 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
       return generateVerticalBarOption(ctx);
     case 'bar_horizontal':
       return generateHorizontalBarOption(ctx);
+    case 'clustered_bar':
+      return generateClusteredBarOption(ctx);
     case 'stacked_bar':
       return generateStackedBarOption(ctx);
     case 'line':

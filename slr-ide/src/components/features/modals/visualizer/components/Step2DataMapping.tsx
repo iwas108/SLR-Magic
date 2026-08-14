@@ -101,12 +101,12 @@ export function Step2DataMapping() {
           </div>
         )}
 
-        {/* 2. Stacked Bar / Graph */}
-        {['stacked_bar', 'graph'].includes(chartType) && (
+        {/* 2. Clustered Bar / Stacked Bar / Graph */}
+        {['clustered_bar', 'stacked_bar', 'graph'].includes(chartType) && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground block">Primary Category / Source Node</label>
+                <label className="text-xs font-bold text-foreground block">Primary Category / Base Axis</label>
                 <select
                   value={primaryField}
                   onChange={(e) => setPrimaryField(e.target.value)}
@@ -119,7 +119,7 @@ export function Step2DataMapping() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground block">Sub-Category / Target Node</label>
+                <label className="text-xs font-bold text-foreground block">Comparison Series / Sub-Category</label>
                 <select
                   value={secondaryField}
                   onChange={(e) => setSecondaryField(e.target.value)}
@@ -132,7 +132,7 @@ export function Step2DataMapping() {
               </div>
             </div>
 
-            {chartType === 'stacked_bar' && (
+            {['clustered_bar', 'stacked_bar'].includes(chartType) && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-foreground block">Metric Calculation</label>
                 <select
@@ -415,7 +415,7 @@ export function Step2DataMapping() {
         )}
 
         {/* Category Data Limiting Option */}
-        {['bar_vertical', 'bar_horizontal', 'stacked_bar', 'line', 'pie_donut', 'funnel', 'radar', 'boxplot', 'graph', 'heatmap'].includes(chartType) && (
+        {['bar_vertical', 'bar_horizontal', 'clustered_bar', 'stacked_bar', 'line', 'pie_donut', 'funnel', 'radar', 'boxplot', 'graph', 'heatmap'].includes(chartType) && (
           <div className="p-4 bg-secondary/20 border border-border/80 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">

@@ -1,132 +1,20 @@
 import { CUSTOM_GROUPING_KEY, CUSTOM_GROUPING_LABEL } from '../constants/defaultConfigs';
 import type { ChartType, MetricMode, DetectedCategory } from '../types';
+import {
+  safeString,
+  resolveUmbrellanizerValue,
+  extractPaperFieldValues,
+  TaxonomyOptions
+} from '@/lib/services/taxonomy-resolver';
 
-export function safeString(val: any): string {
-  if (val === undefined || val === null) return '';
-  if (typeof val === 'string') return val === '[object Object]' ? '' : val;
-  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
-  if (typeof val === 'object') {
-    if (Array.isArray(val)) return val.map(safeString).filter(Boolean).join(', ');
-    const str = val.umbrella_category ?? val.value ?? val.canonical ?? val.name ?? val.title ?? val.answer ?? '';
-    if (typeof str === 'object') return safeString(str);
-    const res = String(str || '').trim();
-    return res === '[object Object]' ? '' : res;
-  }
-  return String(val);
-}
-
-export function resolveUmbrellanizerValue(
-  val: any, 
-  key: string, 
-  useUmbrellanizer: boolean, 
-  umbrellanizerMap: Record<string, Record<string, string>> = {}
-): string {
-  if (val === undefined || val === null || val === '') return '';
-  const rawVal = safeString(val).trim();
-  if (!rawVal || rawVal === '[object Object]') return '';
-  if (!useUmbrellanizer) return rawVal;
-
-  const raw = rawVal.toLowerCase().replace(/\s+/g, ' ');
-  const realKey = key.startsWith('ext:') ? key.substring(4) : key;
-  const dict = umbrellanizerMap[key] || umbrellanizerMap[realKey];
-  if (dict) {
-    const match = dict[raw] || Object.entries(dict).find(([p]) => raw.includes(p.toLowerCase()))?.[1];
-    if (match) {
-      const resolved = safeString(match);
-      return resolved || rawVal;
-    }
-  }
-  return rawVal;
-}
+export { safeString, resolveUmbrellanizerValue };
 
 export function getFieldValue(
   paper: any, 
   fieldKey: string, 
-  options: {
-    useUmbrellanizer?: boolean;
-    umbrellanizerMap?: Record<string, Record<string, string>>;
-    splitMultiValues?: boolean;
-    excludeEmpty?: boolean;
-  } = {}
+  options: TaxonomyOptions = {}
 ): string[] {
-  const {
-    useUmbrellanizer = true,
-    umbrellanizerMap = {},
-    splitMultiValues = true,
-    excludeEmpty = true
-  } = options;
-
-  if (!paper) return excludeEmpty ? [] : ['Unspecified'];
-
-  const resolveVal = (v: any, k: string) => resolveUmbrellanizerValue(v, k, useUmbrellanizer, umbrellanizerMap);
-
-  if (fieldKey.startsWith('ext:')) {
-    const realKey = fieldKey.substring(4);
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const extStr = isManualDominant 
-      ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
-    if (!extStr) return excludeEmpty ? [] : ['Unspecified'];
-    try {
-      const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
-      const extObj = parsed.extracted_data || parsed;
-      let rawVal = extObj[realKey];
-      if (rawVal === undefined || rawVal === null || rawVal === '') return excludeEmpty ? [] : ['Unspecified'];
-
-      // Unwrap object if rawVal is an object
-      if (typeof rawVal === 'object' && rawVal !== null && !Array.isArray(rawVal)) {
-        rawVal = safeString(rawVal);
-      }
-
-      if (rawVal === undefined || rawVal === null || rawVal === '') return excludeEmpty ? [] : ['Unspecified'];
-
-      if (Array.isArray(rawVal)) {
-        const resolvedList = rawVal.map(v => resolveVal(v, realKey)).map(safeString).filter(v => Boolean(v) && v !== '[object Object]');
-        return resolvedList.length > 0 ? resolvedList : (excludeEmpty ? [] : ['Unspecified']);
-      } else if (typeof rawVal === 'string' && rawVal.includes(',')) {
-        if (splitMultiValues) {
-          const splitted = rawVal.split(',').map(v => v.trim()).filter(Boolean);
-          const resolvedList = splitted.map(v => resolveVal(v, realKey)).map(safeString).filter(v => Boolean(v) && v !== '[object Object]');
-          return resolvedList.length > 0 ? resolvedList : (excludeEmpty ? [] : ['Unspecified']);
-        } else {
-          const joined = rawVal.split(',').map(v => resolveVal(v.trim(), realKey)).map(safeString).filter(v => Boolean(v) && v !== '[object Object]').join(', ');
-          return (joined && joined !== '[object Object]') ? [joined] : (excludeEmpty ? [] : ['Unspecified']);
-        }
-      } else {
-        const resolved = safeString(resolveVal(rawVal, realKey));
-        return (resolved && resolved !== '[object Object]') ? [resolved] : (excludeEmpty ? [] : ['Unspecified']);
-      }
-    } catch (e) {
-      return excludeEmpty ? [] : ['Unspecified'];
-    }
-  } else if (fieldKey === 'Publisher') {
-    const pub = safeString(paper.Publisher || paper.Original_Publisher || '');
-    return pub ? [pub] : (excludeEmpty ? [] : ['Unspecified']);
-  } else if (fieldKey === 'Overall_QA') {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const qaStr = isManualDominant 
-      ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '') 
-      : (paper.ai_quality_assessment || paper.manual_quality_assessment || '');
-    if (!qaStr) return excludeEmpty ? [] : ['Unspecified'];
-    try {
-      const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
-      const qaObj = parsed.qa_scores || parsed;
-      let score = 0;
-      Object.values(qaObj).forEach((v: any) => {
-        const val = safeString(v);
-        const num = parseFloat(val);
-        if (!isNaN(num)) score += num;
-        else if (['YES', 'PASS', 'TRUE'].includes(val.toUpperCase())) score += 1;
-      });
-      return [String(score)];
-    } catch (e) {
-      return [safeString(qaStr)];
-    }
-  } else {
-    const strVal = safeString(paper[fieldKey]).trim();
-    if (!strVal || strVal === '[object Object]') return excludeEmpty ? [] : ['Unspecified'];
-    return [strVal];
-  }
+  return extractPaperFieldValues(paper, fieldKey, options);
 }
 
 export function getMappedFieldValue(

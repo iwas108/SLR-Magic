@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import path from 'path';
+import { resolveUmbrellanizerValue } from '@/lib/services/taxonomy-resolver';
 
 /**
  * Helper to parse composite QA score from JSON or numeric value
@@ -19,28 +20,12 @@ function parseQaScore(paper: any): number {
       const qaObj = parsed.qa_scores || parsed;
       let score = 0;
 
-      Object.entries(qaObj).forEach(([k, v]) => {
-        if (k.startsWith('_') || k === 'logic_trace' || k === '_scientist_logic_trace' || k === 'qa_scores') return;
-        
-        let rawVal: any = v;
-        if (v !== null && v !== undefined && typeof v === 'object') {
-          const vObj = v as any;
-          if ('score' in vObj && vObj.score !== undefined && vObj.score !== null) {
-            rawVal = vObj.score;
-          } else if ('value' in vObj && vObj.value !== undefined && vObj.value !== null) {
-            rawVal = vObj.value;
-          } else {
-            const entries = Object.entries(vObj);
-            const nonTextMatch = entries.find(([key, val]) => {
-              const kLower = key.toLowerCase();
-              const isMeta = ['exact_quote', 'quote', 'evidence', 'text', 'snippet', 'reasoning', 'justification', 'analysis', 'rationale', 'explanation', 'logic_trace'].includes(kLower);
-              return !isMeta && (typeof val === 'number' || typeof val === 'boolean' || (typeof val === 'string' && val.length < 50));
-            });
-            rawVal = nonTextMatch ? nonTextMatch[1] : '';
-          }
+      Object.entries(qaObj).forEach(([, v]: [string, any]) => {
+        let rawVal = v;
+        if (typeof v === 'object' && v !== null && 'value' in v) {
+          rawVal = v.value;
         }
-
-        const valStr = (rawVal !== undefined && rawVal !== null) ? String(rawVal) : '';
+        const valStr = String(rawVal ?? '');
         const numVal = parseFloat(valStr);
         if (!isNaN(numVal)) {
           score += numVal;
@@ -61,36 +46,7 @@ function parseQaScore(paper: any): number {
  * Helper to resolve raw token against Umbrellanizer mapping dictionary
  */
 function resolveCategoryFromMapping(val: string, umbrellaMapping: Record<string, any>): string {
-  if (!val || typeof val !== 'string') return String(val || '').trim();
-  const raw = val.trim();
-  if (!raw || raw === '[object Object]') return '';
-
-  const rawNorm = raw.toLowerCase().replace(/\s+/g, ' ');
-
-  // Look for exact or normalized case match in mapping dictionary
-  const matchedKey = Object.keys(umbrellaMapping).find(
-    (k) => k.trim().toLowerCase().replace(/\s+/g, ' ') === rawNorm
-  );
-
-  const target = matchedKey ? umbrellaMapping[matchedKey] : umbrellaMapping[raw];
-  if (!target) return raw;
-
-  // Handle Object format { umbrella_category: '...', category: '...' }
-  if (typeof target === 'object' && target !== null && !Array.isArray(target)) {
-    const categoryName = target.umbrella_category || target.category || target.label || target.value || target.raw_token || matchedKey || raw;
-    return String(categoryName).trim();
-  }
-
-  // Handle Array format ['Category']
-  if (Array.isArray(target) && target.length > 0) {
-    const firstItem = target[0];
-    if (typeof firstItem === 'object' && firstItem !== null) {
-      return String(firstItem.umbrella_category || firstItem.category || firstItem.label || firstItem.raw_token || raw).trim();
-    }
-    return String(firstItem).trim();
-  }
-
-  return String(target).trim();
+  return resolveUmbrellanizerValue(val, '', true, umbrellaMapping);
 }
 
 export async function GET(request: Request) {

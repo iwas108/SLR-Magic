@@ -4,6 +4,11 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Loader2, ChevronLeft, ChevronRight, Check, ExternalLink, Eye, Link2, X, Copy, BarChart2 } from 'lucide-react';
 import { useAppSync } from '@/hooks/useAppSync';
 import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
+import {
+  resolveUmbrellanizerValue as centralResolveUmbrellanizerValue,
+  getUmbrellanizerJustification as centralGetUmbrellanizerJustification,
+  getStageDominantExtractedDataStr
+} from '@/lib/services/taxonomy-resolver';
 import VisualizerModal from '../modals/VisualizerModal';
 import LlmContextBuilderModal from '../modals/LlmContextBuilderModal';
 
@@ -358,91 +363,17 @@ export default function FinalCohortPanel({
 
   // Helper to resolve raw token to umbrellanized value
   const resolveUmbrellanizerValue = useCallback((val: any, key: string) => {
-    if (val === undefined || val === null || val === '') return '';
-    const rawVal = String(val).trim();
-    const raw = rawVal.toLowerCase().replace(/\s+/g, ' ');
-    const map = umbrellanizerMap[key] || {};
-    
-    // Case-insensitive key matching
-    const matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === raw);
-    if (!matchedKey) return rawVal; // Fallback to raw string if unmapped
-    
-    const mappedVal = map[matchedKey] as any;
-    if (!mappedVal) return rawVal;
-    
-    if (typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-      return String(mappedVal.umbrella_category || matchedKey).trim();
-    }
-    if (Array.isArray(mappedVal)) {
-      return String(mappedVal[0] || matchedKey).trim();
-    }
-    return String(mappedVal).trim();
+    return centralResolveUmbrellanizerValue(val, key, true, umbrellanizerMap);
   }, [umbrellanizerMap]);
 
   // Helper to resolve non-empty JSON strings (skipping empty '{}' or '[]')
   const getExtractedDataStr = useCallback((paper: any): string => {
-    const isNonEmpty = (str: any) => typeof str === 'string' && str.trim() !== '' && str.trim() !== '{}' && str.trim() !== '[]' && str.trim() !== 'null';
-    const hasManual = isNonEmpty(paper.manual_extracted_data);
-    const hasAi = isNonEmpty(paper.ai_extracted_data);
-    if (hasManual && hasAi) {
-      return (paper.manual_stage || 0) >= (paper.ai_stage || 0) ? paper.manual_extracted_data : paper.ai_extracted_data;
-    }
-    if (hasManual) return paper.manual_extracted_data;
-    if (hasAi) return paper.ai_extracted_data;
-    return '';
+    return getStageDominantExtractedDataStr(paper);
   }, []);
 
   // Helper to resolve Umbrellanizer taxonomy mapping justification using the raw database string
   const getUmbrellanizerJustification = useCallback((resolvedVal: any, key: string, paper: any) => {
-    const extStr = getExtractedDataStr(paper);
-    if (!extStr) return '';
-
-    try {
-      const parsed = JSON.parse(extStr);
-      const extObj = parsed.extracted_data || parsed;
-      let rawVal = extObj[key];
-      if (rawVal === undefined || rawVal === null || rawVal === '') return '';
-
-      // Unwrap the value if it's stored in an object structure with a 'value' property
-      if (rawVal && typeof rawVal === 'object' && 'value' in rawVal) {
-        rawVal = rawVal.value;
-      }
-      if (rawVal === undefined || rawVal === null || rawVal === '') return '';
-
-      const map = umbrellanizerMap[key] || {};
-      
-      const resolveSingle = (singleRaw: any) => {
-        const r = String(singleRaw).trim();
-        const rNorm = r.toLowerCase().replace(/\s+/g, ' ');
-        // 1. Try matching the raw value directly
-        let matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === rNorm);
-        
-        // 2. Try matching the umbrella_category if matching raw failed
-        if (!matchedKey) {
-          matchedKey = Object.keys(map).find(k => {
-            const mappedVal = map[k] as any;
-            if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-              return String(mappedVal.umbrella_category || '').trim().toLowerCase().replace(/\s+/g, ' ') === rNorm;
-            }
-            return false;
-          });
-        }
-
-        if (matchedKey) {
-          const mappedVal = map[matchedKey] as any;
-          if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-            return String(mappedVal.justification || '').trim();
-          }
-        }
-        return '';
-      };
-
-      if (Array.isArray(rawVal)) {
-        return rawVal.map(resolveSingle).filter(Boolean).join(' || ');
-      }
-      return resolveSingle(rawVal);
-    } catch (e) {}
-    return '';
+    return centralGetUmbrellanizerJustification(resolvedVal, key, paper, umbrellanizerMap);
   }, [umbrellanizerMap]);
 
   // Fetch all final cohort papers at once for client-side deep filtering

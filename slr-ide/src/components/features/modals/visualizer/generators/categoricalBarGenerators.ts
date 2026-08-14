@@ -178,6 +178,8 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
     barLabelFormat,
     barYAxisWidth,
     barYAxisOverflow,
+    barLineHeight,
+    barYAxisFontSize,
     barBenchmarkLine,
     barBenchmarkValue,
     barBenchmarkLabel,
@@ -409,19 +411,21 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
       data: categories,
       axisLabel: {
         fontFamily: font,
-        fontSize: Math.max(9, fontSize - 1),
+        fontSize: barYAxisFontSize ?? Math.max(9, fontSize - 2),
         color: palette.text,
         width: barYAxisWidth,
         overflow: barYAxisOverflow !== 'none' ? barYAxisOverflow : undefined,
-        lineHeight: Math.max(12, fontSize + 2),
+        lineHeight: barLineHeight ?? Math.max(12, (barYAxisFontSize ?? (fontSize - 2)) + 3),
         formatter: (val: string) => {
           if (barYAxisOverflow === 'break') {
-            if (val.length > 18) {
+            const effFont = barYAxisFontSize ?? Math.max(9, fontSize - 2);
+            const charLimit = Math.max(14, Math.floor((barYAxisWidth - 10) / (effFont * 0.55)));
+            if (val.length > charLimit - 2) {
               const words = val.split(' ');
               const lines: string[] = [];
               let cur = '';
               words.forEach(w => {
-                if ((cur + ' ' + w).trim().length > 20) {
+                if ((cur + ' ' + w).trim().length > charLimit) {
                   if (cur) lines.push(cur);
                   cur = w;
                 } else {

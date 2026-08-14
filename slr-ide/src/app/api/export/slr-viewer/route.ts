@@ -5,6 +5,10 @@ import {
   calculateWeightedKappa,
   getScoreIndex
 } from '@/lib/inter-rater/adjudication-calculations';
+import {
+  resolveUmbrellanizerValue,
+  normalizeExtractedTokens
+} from '@/lib/services/taxonomy-resolver';
 
 export async function GET(request: Request) {
   try {
@@ -715,30 +719,12 @@ export async function GET(request: Request) {
       const schemaDiscrepancies: Array<{ paper_id: string; title: string; missing_key: string }> = [];
 
       const resolveToken = (val: string, key: string) => {
-        if (val === undefined || val === null) return '';
-        const raw = String(val).trim().toLowerCase().replace(/\s+/g, ' ');
-        const map = umbMap[key] || {};
-        const matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === raw);
-        if (!matchedKey) return raw;
-        const mappedVal = map[matchedKey];
-        if (!mappedVal) return raw;
-        if (typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-          return String(mappedVal.umbrella_category || '').trim().toLowerCase();
-        }
-        if (Array.isArray(mappedVal)) {
-          return String(mappedVal[0] || '').trim().toLowerCase();
-        }
-        return String(mappedVal).trim().toLowerCase();
+        return resolveUmbrellanizerValue(val, key, true, umbMap).toLowerCase();
       };
 
       const resolveArray = (val: any, key: string) => {
-        if (Array.isArray(val)) {
-          return val.map(item => resolveToken(String(item), key)).filter(Boolean).sort();
-        }
-        if (typeof val === 'string') {
-          return val.split(',').map(item => resolveToken(item.trim(), key)).filter(Boolean).sort();
-        }
-        return [];
+        const tokens = normalizeExtractedTokens(val, key);
+        return tokens.map(item => resolveToken(item, key)).filter(Boolean).sort();
       };
 
       for (const paper of papers) {

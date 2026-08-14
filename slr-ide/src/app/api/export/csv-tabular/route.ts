@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
+import {
+  resolveUmbrellanizerValue,
+  getUmbrellanizerJustification
+} from '@/lib/services/taxonomy-resolver';
 
 function escapeCsvCell(cell: any): string {
   if (cell === null || cell === undefined) return '';
@@ -81,61 +85,10 @@ export async function GET(request: Request) {
     }
 
     // Helper to resolve Umbrellanizer category value
-    const resolveUmbrellanizerValue = (val: any, key: string) => {
-      if (val === undefined || val === null || val === '') return '';
-      const rawVal = String(val).trim();
-      const raw = rawVal.toLowerCase().replace(/\s+/g, ' ');
-      const map = umbrellanizerMap[key] || {};
-      
-      const matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === raw);
-      if (!matchedKey) return rawVal;
-      
-      const mappedVal = map[matchedKey];
-      if (!mappedVal) return rawVal;
-      
-      if (typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-        return String(mappedVal.umbrella_category || matchedKey).trim();
-      }
-      if (Array.isArray(mappedVal)) {
-        return String(mappedVal[0] || matchedKey).trim();
-      }
-      return String(mappedVal).trim();
-    };
+    const resolveUmbrellanizerValueFn = (val: any, key: string) => resolveUmbrellanizerValue(val, key, true, umbrellanizerMap);
 
     // Helper to resolve Umbrellanizer justification
-    const getUmbrellanizerJustification = (rawVal: any, key: string) => {
-      if (rawVal === undefined || rawVal === null || rawVal === '') return '';
-      const map = umbrellanizerMap[key] || {};
-
-      const resolveSingle = (singleRaw: any) => {
-        const r = String(singleRaw).trim();
-        const rNorm = r.toLowerCase().replace(/\s+/g, ' ');
-        let matchedKey = Object.keys(map).find(k => k.trim().toLowerCase().replace(/\s+/g, ' ') === rNorm);
-        
-        if (!matchedKey) {
-          matchedKey = Object.keys(map).find(k => {
-            const mappedVal = map[k];
-            if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-              return String(mappedVal.umbrella_category || '').trim().toLowerCase().replace(/\s+/g, ' ') === rNorm;
-            }
-            return false;
-          });
-        }
-
-        if (matchedKey) {
-          const mappedVal = map[matchedKey];
-          if (mappedVal && typeof mappedVal === 'object' && !Array.isArray(mappedVal)) {
-            return String(mappedVal.justification || '').trim();
-          }
-        }
-        return '';
-      };
-
-      if (Array.isArray(rawVal)) {
-        return rawVal.map(resolveSingle).filter(Boolean).join(' || ');
-      }
-      return resolveSingle(rawVal);
-    };
+    const getUmbrellanizerJustificationFn = (rawVal: any, key: string) => getUmbrellanizerJustification(rawVal, key, undefined, umbrellanizerMap);
 
     // 3. Fetch Final Cohort Papers (Stage 4 INCLUDE)
     let papers: any[] = [];
@@ -285,17 +238,17 @@ export async function GET(request: Request) {
               // Resolve Umbrellanized value
               let resolvedStr = '';
               if (Array.isArray(origVal)) {
-                const mapped = origVal.map(item => resolveUmbrellanizerValue(item, k)).filter(Boolean);
+                const mapped = origVal.map(item => resolveUmbrellanizerValueFn(item, k)).filter(Boolean);
                 resolvedStr = mapped.join('; ');
               } else if (origVal !== undefined && origVal !== null && origVal !== '') {
-                resolvedStr = resolveUmbrellanizerValue(origStr, k);
+                resolvedStr = resolveUmbrellanizerValueFn(origStr, k);
               }
 
               extItems[k] = resolvedStr;
 
               const mapping = extractMappingReasoning(k, locateMapping, v);
               const evidence = extractEvidenceQuote(k, v);
-              const justification = getUmbrellanizerJustification(origVal, k);
+              const justification = getUmbrellanizerJustificationFn(origVal, k);
 
               extTraces[k] = {
                 original: origStr,

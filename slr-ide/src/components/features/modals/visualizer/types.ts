@@ -4,6 +4,7 @@ import type * as echarts from 'echarts';
 export type ChartType = 
   | 'bar_vertical'
   | 'bar_horizontal'
+  | 'clustered_bar'
   | 'stacked_bar'
   | 'line'
   | 'pie_donut'
@@ -53,6 +54,46 @@ export type DimensionUnit = 'mm' | 'in' | 'px';
 export type PieLabelPlacement = 'outside' | 'inside' | 'legend_only' | 'edge_aligned';
 
 export type LegendFormat = 'name' | 'name_count' | 'name_percent' | 'name_count_percent';
+
+export type BarOrientation = 'horizontal' | 'vertical';
+
+export type ErrorBarType = 'std_dev' | 'std_error' | 'ci_95';
+
+export type AxisScaleType = 'linear' | 'log';
+
+export type AxisTickDirection = 'inside' | 'outside' | 'none';
+
+export interface StatisticalSummary {
+  mean: number;
+  count: number;
+  variance: number;
+  stdDev: number;
+  stdError: number;
+  ci95Lower: number;
+  ci95Upper: number;
+  min: number;
+  max: number;
+}
+
+export interface CrossTabCell {
+  primaryCat: string;
+  seriesKey: string;
+  count: number;
+  prevalencePct: number;
+  tagSharePct: number;
+  activeMetricVal: number;
+  stats?: StatisticalSummary;
+}
+
+export interface CrossTabMatrix {
+  categories: string[];
+  seriesList: string[];
+  matrix: Record<string, Record<string, CrossTabCell>>;
+  rowTotals: Record<string, { count: number; activeMetricVal: number }>;
+  colTotals: Record<string, { count: number; activeMetricVal: number }>;
+  grandTotalCount: number;
+  grandTotalMetricVal: number;
+}
 
 export type ThemePreset = 
   | 'academic_grayscale'
@@ -141,6 +182,10 @@ export interface BreakdownRow {
   name: string;
   parentName?: string;
   count: number;
+  paperCount: number;
+  tagCount: number;
+  paperPrevalencePct: number;
+  tagSharePct: number;
   realPct: number;
   activeVal: number;
 }
@@ -148,7 +193,9 @@ export interface BreakdownRow {
 export interface RealDataBreakdownResult {
   rows: BreakdownRow[];
   totalItems: number;
+  totalCohortPapers: number;
   activeSum: number;
+  isMultiLabel: boolean;
 }
 
 export interface DetectedCategory {
@@ -191,13 +238,26 @@ export interface SlotConfig {
   sunburstNodeClick: 'rootToNode' | 'link' | 'none';
   sunburstEmphasisFocus: 'ancestor' | 'descendant' | 'none';
   barSorting: 'desc' | 'asc' | 'none';
+  barOrientation?: BarOrientation;
   barThickness: number;
   barBorderRadius: number;
   barGap: number;
+  barClusterGap?: number;
+  barInnerGap?: number;
+  enableErrorBars?: boolean;
+  errorBarType?: ErrorBarType;
+  enableHatchPatterns?: boolean;
+  axisScaleType?: AxisScaleType;
+  axisTickDirection?: AxisTickDirection;
+  showAxisBaseline?: boolean;
+  customAxisTitleX?: string;
+  customAxisTitleY?: string;
   barLabelPosition: 'right' | 'inside' | 'insideLeft' | 'insideRight';
   barLabelFormat: 'value' | 'value_pct' | 'pct_only';
   barYAxisWidth: number;
   barYAxisOverflow: 'break' | 'truncate' | 'none';
+  barLineHeight?: number;
+  barYAxisFontSize?: number;
   barBenchmarkLine: boolean;
   barBenchmarkValue: number;
   barBenchmarkLabel: string;
@@ -284,13 +344,26 @@ export interface VisualizerPresetPayload {
   sunburstNodeClick?: 'rootToNode' | 'link' | 'none';
   sunburstEmphasisFocus?: 'ancestor' | 'descendant' | 'none';
   barSorting?: 'desc' | 'asc' | 'none';
+  barOrientation?: BarOrientation;
   barThickness?: number;
   barBorderRadius?: number;
   barGap?: number;
+  barClusterGap?: number;
+  barInnerGap?: number;
+  enableErrorBars?: boolean;
+  errorBarType?: ErrorBarType;
+  enableHatchPatterns?: boolean;
+  axisScaleType?: AxisScaleType;
+  axisTickDirection?: AxisTickDirection;
+  showAxisBaseline?: boolean;
+  customAxisTitleX?: string;
+  customAxisTitleY?: string;
   barLabelPosition?: 'right' | 'inside' | 'insideLeft' | 'insideRight';
   barLabelFormat?: 'value' | 'value_pct' | 'pct_only';
   barYAxisWidth?: number;
   barYAxisOverflow?: 'break' | 'truncate' | 'none';
+  barLineHeight?: number;
+  barYAxisFontSize?: number;
   barBenchmarkLine?: boolean;
   barBenchmarkValue?: number;
   barBenchmarkLabel?: string;
