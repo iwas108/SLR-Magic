@@ -104,11 +104,11 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
       return false;
     }
     try {
-      const text = await file.text();
+      const buffer = await file.arrayBuffer();
       const res = await fetch(`/api/rolling-batch/import?projectId=${projectId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: text
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: buffer
       });
       const data = await res.json();
       if (res.ok) {

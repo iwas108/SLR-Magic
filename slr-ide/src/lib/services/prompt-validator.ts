@@ -1,4 +1,4 @@
-export type PromptType = 'fast_filter' | 'gatekeeper' | 'scientist' | 'miner' | 'umbrellanizer';
+export type PromptType = 'fast_filter' | 'gatekeeper' | 'scientist' | 'miner' | 'umbrellanizer' | 'duplicate_review' | 'consolidation_audit' | 'prompt_optimizer';
 
 export interface PromptTypeOption {
   id: PromptType;
@@ -12,6 +12,9 @@ export const PROMPT_TYPE_OPTIONS: PromptTypeOption[] = [
   { id: 'scientist', label: 'The Scientist', stageName: 'Stage 3: Scientist' },
   { id: 'miner', label: 'The Miner', stageName: 'Stage 4: Miner' },
   { id: 'umbrellanizer', label: 'The Umbrellanizer', stageName: 'Stage 5: Umbrellanizer' },
+  { id: 'duplicate_review', label: 'The Duplicate Specialist', stageName: 'Ingestion: Duplicate Review' },
+  { id: 'consolidation_audit', label: 'The Consolidation Auditor', stageName: 'Pre-Calibration: Prompt Consolidation' },
+  { id: 'prompt_optimizer', label: 'The Prompt Optimization Specialist', stageName: 'Pre-Calibration: Prompt Optimization Magic' },
 ];
 
 export const DEFAULT_STAGE_SCHEMAS: Record<PromptType, object> = {
@@ -268,6 +271,178 @@ export const DEFAULT_STAGE_SCHEMAS: Record<PromptType, object> = {
       }
     },
     required: ["taxonomy_mapping"]
+  },
+
+  duplicate_review: {
+    type: "object",
+    properties: {
+      verdict: {
+        type: "string",
+        enum: [
+          "CONFIRMED DUPLICATE",
+          "STRUCTURAL OVERLAP",
+          "COMPANION PAPERS",
+          "FALSE FLAG"
+        ]
+      },
+      primary_action: {
+        type: "string"
+      },
+      technical_breakdown: {
+        type: "object",
+        properties: {
+          mathematical_algorithmic_shift: { type: "string" },
+          topology_scope_change: { type: "string" },
+          data_implementation_footprint: { type: "string" }
+        },
+        required: [
+          "mathematical_algorithmic_shift",
+          "topology_scope_change",
+          "data_implementation_footprint"
+        ]
+      },
+      database_execution: {
+        type: "object",
+        properties: {
+          recommended_primary_paper_id: { type: "string" },
+          paper1_status: {
+            type: "string",
+            enum: ["PENDING", "EXCLUDED_DUPLICATE", "EXCLUDED_CONTAINER", "RETAINED_PRIMARY", "RETAINED_COMPANION", "RETAINED_DISTINCT"]
+          },
+          paper2_status: {
+            type: "string",
+            enum: ["PENDING", "EXCLUDED_DUPLICATE", "EXCLUDED_CONTAINER", "RETAINED_PRIMARY", "RETAINED_COMPANION", "RETAINED_DISTINCT"]
+          },
+          lineage_actions: { type: "string" }
+        },
+        required: [
+          "recommended_primary_paper_id",
+          "paper1_status",
+          "paper2_status",
+          "lineage_actions"
+        ]
+      }
+    },
+    required: [
+      "verdict",
+      "primary_action",
+      "technical_breakdown",
+      "database_execution"
+    ]
+  },
+
+  consolidation_audit: {
+    type: "object",
+    properties: {
+      availability_evaluation: {
+        type: "object",
+        properties: {
+          fast_filter_ready: { type: "boolean" },
+          gatekeeper_ready: { type: "boolean" },
+          scientist_ready: { type: "boolean" },
+          miner_ready: { type: "boolean" },
+          available_count: { type: "integer" },
+          notes: { type: "string" }
+        },
+        required: ["fast_filter_ready", "gatekeeper_ready", "scientist_ready", "miner_ready", "available_count", "notes"]
+      },
+      semantic_alignment_evaluation: {
+        type: "object",
+        properties: {
+          fast_filter_alignment: { type: "object", properties: { score: { type: "number" }, pass: { type: "boolean" }, analysis: { type: "string" }, gaps: { type: "array", items: { type: "string" } } }, required: ["score", "pass", "analysis", "gaps"] },
+          gatekeeper_alignment: { type: "object", properties: { score: { type: "number" }, pass: { type: "boolean" }, analysis: { type: "string" }, gaps: { type: "array", items: { type: "string" } } }, required: ["score", "pass", "analysis", "gaps"] },
+          scientist_alignment: { type: "object", properties: { score: { type: "number" }, pass: { type: "boolean" }, analysis: { type: "string" }, gaps: { type: "array", items: { type: "string" } } }, required: ["score", "pass", "analysis", "gaps"] },
+          miner_alignment: { type: "object", properties: { score: { type: "number" }, pass: { type: "boolean" }, analysis: { type: "string" }, gaps: { type: "array", items: { type: "string" } } }, required: ["score", "pass", "analysis", "gaps"] },
+          overall_semantic_pass: { type: "boolean" },
+          semantic_passed_count: { type: "integer" }
+        },
+        required: ["fast_filter_alignment", "gatekeeper_alignment", "scientist_alignment", "miner_alignment", "overall_semantic_pass", "semantic_passed_count"]
+      },
+      chainability_and_consistency: {
+        type: "object",
+        properties: {
+          s1_to_s2_chainable: { type: "boolean" },
+          s2_to_s3_chainable: { type: "boolean" },
+          s3_to_s4_chainable: { type: "boolean" },
+          exclusion_code_orthogonality: { type: "boolean" },
+          schema_data_flow_integrity: { type: "boolean" },
+          chainability_passed_count: { type: "integer" },
+          contradictions_or_overlaps: { type: "array", items: { type: "string" } },
+          overall_chainability_pass: { type: "boolean" }
+        },
+        required: ["s1_to_s2_chainable", "s2_to_s3_chainable", "s3_to_s4_chainable", "exclusion_code_orthogonality", "schema_data_flow_integrity", "chainability_passed_count", "contradictions_or_overlaps", "overall_chainability_pass"]
+      },
+      actionable_recommendations: {
+        type: "array",
+        items: { type: "string" }
+      },
+      overall_status: {
+        type: "string",
+        enum: ["PASSED", "WARNING", "FAILED"]
+      }
+    },
+    required: [
+      "availability_evaluation",
+      "semantic_alignment_evaluation",
+      "chainability_and_consistency",
+      "actionable_recommendations",
+      "overall_status"
+    ]
+  },
+
+  prompt_optimizer: {
+    type: "object",
+    properties: {
+      failure_diagnosis: {
+        type: "object",
+        properties: {
+          root_causes: { type: "array", items: { type: "string" } },
+          false_negative_analysis: { type: "string" },
+          false_positive_analysis: { type: "string" },
+          edge_case_traps_identified: { type: "array", items: { type: "string" } },
+          cross_stage_boundary_check: { type: "string" }
+        },
+        required: ["root_causes", "false_negative_analysis", "false_positive_analysis", "edge_case_traps_identified", "cross_stage_boundary_check"]
+      },
+      needs_full_text: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            paper_id: { type: "string" },
+            paper_title: { type: "string" },
+            technical_rationale: { type: "string" },
+            target_sections: { type: "string" }
+          },
+          required: ["paper_id", "paper_title", "technical_rationale", "target_sections"]
+        }
+      },
+      optimization_strategy: {
+        type: "string"
+      },
+      proposed_system_instruction: {
+        type: "string"
+      },
+      proposed_user_template: {
+        type: "string"
+      },
+      diff_explanation: {
+        type: "string"
+      },
+      key_modifications: {
+        type: "array",
+        items: { type: "string" }
+      }
+    },
+    required: [
+      "failure_diagnosis",
+      "needs_full_text",
+      "optimization_strategy",
+      "proposed_system_instruction",
+      "proposed_user_template",
+      "diff_explanation",
+      "key_modifications"
+    ]
   }
 };
 
@@ -366,6 +541,72 @@ export function validatePromptSchema(promptType: PromptType | string | null | un
     case 'umbrellanizer': {
       if (!props.taxonomy_mapping) {
         return { isValid: false, error: "[umbrellanizer] JSON Schema missing required top-level property 'taxonomy_mapping'." };
+      }
+      break;
+    }
+
+    case 'duplicate_review': {
+      if (!props.verdict) {
+        return { isValid: false, error: "[duplicate_review] JSON Schema missing required top-level property 'verdict'." };
+      }
+      if (!props.primary_action) {
+        return { isValid: false, error: "[duplicate_review] JSON Schema missing required top-level property 'primary_action'." };
+      }
+      if (!props.technical_breakdown) {
+        return { isValid: false, error: "[duplicate_review] JSON Schema missing required top-level property 'technical_breakdown'." };
+      }
+      if (!props.database_execution) {
+        return { isValid: false, error: "[duplicate_review] JSON Schema missing required top-level property 'database_execution'." };
+      }
+      const techProps = props.technical_breakdown.properties || {};
+      for (const k of ['mathematical_algorithmic_shift', 'topology_scope_change', 'data_implementation_footprint']) {
+        if (!techProps[k]) {
+          return { isValid: false, error: `[duplicate_review] 'technical_breakdown' missing required field '${k}'.` };
+        }
+      }
+      const dbProps = props.database_execution.properties || {};
+      for (const k of ['recommended_primary_paper_id', 'paper1_status', 'paper2_status', 'lineage_actions']) {
+        if (!dbProps[k]) {
+          return { isValid: false, error: `[duplicate_review] 'database_execution' missing required field '${k}'.` };
+        }
+      }
+      break;
+    }
+
+    case 'consolidation_audit': {
+      if (!props.availability_evaluation) {
+        return { isValid: false, error: "[consolidation_audit] JSON Schema missing required top-level property 'availability_evaluation'." };
+      }
+      if (!props.semantic_alignment_evaluation) {
+        return { isValid: false, error: "[consolidation_audit] JSON Schema missing required top-level property 'semantic_alignment_evaluation'." };
+      }
+      if (!props.chainability_and_consistency) {
+        return { isValid: false, error: "[consolidation_audit] JSON Schema missing required top-level property 'chainability_and_consistency'." };
+      }
+      if (!props.actionable_recommendations) {
+        return { isValid: false, error: "[consolidation_audit] JSON Schema missing required top-level property 'actionable_recommendations'." };
+      }
+      if (!props.overall_status) {
+        return { isValid: false, error: "[consolidation_audit] JSON Schema missing required top-level property 'overall_status'." };
+      }
+      break;
+    }
+
+    case 'prompt_optimizer': {
+      if (!props.failure_diagnosis) {
+        return { isValid: false, error: "[prompt_optimizer] JSON Schema missing required top-level property 'failure_diagnosis'." };
+      }
+      if (!props.needs_full_text) {
+        return { isValid: false, error: "[prompt_optimizer] JSON Schema missing required top-level property 'needs_full_text'." };
+      }
+      if (!props.proposed_system_instruction) {
+        return { isValid: false, error: "[prompt_optimizer] JSON Schema missing required top-level property 'proposed_system_instruction'." };
+      }
+      if (!props.proposed_user_template) {
+        return { isValid: false, error: "[prompt_optimizer] JSON Schema missing required top-level property 'proposed_user_template'." };
+      }
+      if (!props.diff_explanation) {
+        return { isValid: false, error: "[prompt_optimizer] JSON Schema missing required top-level property 'diff_explanation'." };
       }
       break;
     }

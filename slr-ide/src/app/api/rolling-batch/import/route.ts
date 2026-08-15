@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server';
 import db, { getConfig, setConfig } from '@/lib/db';
 import { createHash } from 'crypto';
 import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
+import { decompressSlrServer } from '@/lib/slr-compression';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const buffer = await request.arrayBuffer();
+    const body = decompressSlrServer(buffer);
     if (!body || !body.metadata || !body.papers || !Array.isArray(body.papers)) {
       return NextResponse.json({ error: 'Invalid .slr file: missing metadata or papers array' }, { status: 400 });
     }

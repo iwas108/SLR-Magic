@@ -130,12 +130,14 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/vault.ts` | Cryptography | Node.js cryptographic utilities for vault key encryption/decryption matching python formats. |
 | `lib/session.ts` | Session Management | In-memory server-side cache for storing master password inside active sessions. |
 | `lib/pdf-utils.ts` | Frontend Utility | Contains helper functions for validating PDF paths, checking file accessibility, managing local preview URIs, and project-deletion asset rescue. |
+| `lib/slr-compression.ts` | Compression / Utility | Universal GZIP compression and decompression utility supporting Node.js native `zlib` for API routes and Web Streams (`CompressionStream`/`DecompressionStream`) for client-side previews with automatic magic byte detection. |
 | `lib/sync-utils.ts` | Synchronization | Implements the Agnostic BroadcastChannel pattern (`broadcastSync`, `subscribeSyncChannel`) for cross-tab synchronization and reactivity. |
 
 ### Core Backend Services & Inter-Rater Libraries (`src/lib/services/` & `src/lib/inter-rater/`)
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
-| `lib/services/prompt-validator.ts` | Backend Service | Service encapsulating stage baseline JSON schema validation (`fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`) and default schema template generators. |
+| `lib/services/prompt-validator.ts` | Backend Service | Service encapsulating stage baseline JSON schema validation (`fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`, `duplicate_review`, `consolidation_audit`, `prompt_optimizer`) and default schema template generators. |
+| `lib/services/prompt-hydrator.ts` | Backend / Domain Utility | Centralized Prompt Template Hydrator matching Python Jinja2 conventions with case-insensitive aliases and fallback protection. |
 | `lib/services/trace-normalizer.ts` | Backend Service | Centralized Trace Normalizer Utility service providing robust logic trace mapping and evidence quote resolution across all RQs. |
 | `lib/services/taxonomy-resolver.ts` | Backend / Domain Service | Centralized Taxonomy Resolver service enforcing exact case-insensitive key matching, canonical string/dash normalization, array/string token unwrapping, and stage dominance resolution across all modules. |
 | `lib/services/cohort-metrics.ts` | Backend / Domain Service | Centralized Cohort Metrics service providing exact Unique Paper Prevalence calculations, Quota-balanced Tag Share distributions (Hare-Hamilton Largest Remainder Method), and multi-label cohort statistics. |
@@ -148,6 +150,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/services/semantic-search-cache.ts` | Backend Service | Lightweight SQLite caching system for turbovec semantic searches, fetching up-to-date metadata dynamically on hits. |
 | `lib/services/vector-daemon-manager.ts` | Backend Service | Singleton service orchestrating the lifecycle, crash recovery, and request routing of the persistent Python vector worker daemon. |
 | `lib/services/pipeline/subprocess-runner.ts` | Backend Service | Helper service orchestrating python child process execution, NDJSON buffering, and stdout/stderr event forwarding. |
+| `lib/services/python-path.ts` | Backend Service | Centralized cross-platform Python executable path and virtual environment detector for Windows, Linux, and macOS. |
 | `lib/services/pipeline/rclone-sync.ts` | Backend Service | Helper service constructing cloud sync commands, re-connecting OAuth configs, and updating paper local PDF paths to synced repo path upon link generation. |
 | `lib/inter-rater/adjudication-calculations.ts` | Domain Library | Pure TypeScript calculation library for Cohen's Kappa, agreement formulas, and data extraction JSON comparisons (zero Next.js dependencies, standalone SPA ready). |
 
@@ -162,10 +165,15 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `hooks/usePipeline.ts` | Custom Hook | Manages sequential PDF acquisition/OCR batch pipeline state, Server-Sent Events logging, and cancel controllers. |
 | `hooks/useCalibration.ts` | Custom Hook | Manages consensus screening pre-calibration pools, Kappa metrics calculation, and single-paper crawler executions. |
 | `hooks/useManualScreening.ts` | Custom Hook | State and business logic manager for the manual screening pipeline workspace, handling keyword/semantic filtering, single paper PDF acquisition stream handling, and CRUD updates. |
+| `hooks/usePromptStaging.ts` | Custom Hook | State management hook orchestrating the 5-card prompt quest-line, consolidation audits, sandbox benchmark test runs, and multi-turn Human-in-the-Loop prompt optimizations with mutable ref guards. |
 
 ### UI Components & Features (`src/components/`)
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
+| `components/features/pre-calibration/PromptStagingQuestPanel.tsx` | UI Container | Cyberpunk Quest-Line / Neon Glass HUD container orchestrating the 5-quest progression across Card 1 (Consolidation) and Cards 2–5 (Stage Benchmarks). |
+| `components/features/pre-calibration/PromptConsolidationCard.tsx` | Presentation Component | Card 1 component visualizing prompt availability ($N/4$), semantic alignment, inter-stage chainability, and actionable recommendations. |
+| `components/features/pre-calibration/StageBenchmarkCard.tsx` | Presentation Component | Cards 2–5 component for isolated stage benchmark execution, PRISMA gate evaluations, holdout metrics, and paper discrepancy inspection via `trace-normalizer`. |
+| `components/features/modals/PromptOptimizationDiffModal.tsx` | Modal Component | Diagnostic and prompt optimization modal featuring the Human-in-the-Loop PDF request approval drawer, editable side-by-side diff viewer, and Copy-on-Write template updates. |
 | `components/Sidebar.tsx` | View Component | Renders the collapsible primary navigation sidebar, theme toggle selectors, and global settings trigger. |
 | `components/SettingsModal.tsx` | View Component | Modal interface for configuring global application settings, Rclone paths, Tesseract OCR toggles, and scraper proxy URLs. |
 | `components/features/settings/RcloneSettingsTab.tsx` | View Component | Cloud destination configuration panel and remote test buttons. |
@@ -198,11 +206,11 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/paper-details/ParentPaperSelector.tsx` | UI Component | Autocomplete search selector for tracking chained parent paper references. |
 | `components/features/modals/paper-details/PdfPreview.tsx` | UI Component | Inline iframe preview panel for reading cached/downloaded paper PDFs. |
 | `components/features/modals/paper-details/ScreeningSummaryPanel.tsx` | Presentation Component | Reusable read-only panel displaying AI/Manual stage, decision, rationale, QA, and extraction variables. |
-| `components/features/modals/CreateProjectModal.tsx` | Modal Component| Standalone modal form encapsulating states and inputs for creating new systematic literature review projects. |
-| `components/features/modals/ProjectSettingsModal.tsx`| Modal Component| Standalone tabbed modal for editing project metadata settings, cloud credentials, LLM configuration, and prompts. |
-| `components/features/modals/settings/ProjectMetadataSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering metadata fields including Scopus and Manual / Google Scholar search query strings. |
-| `components/features/modals/settings/ProjectCalibrationSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering calibration pools, tags, and rules. |
-| `components/features/modals/settings/ProjectSyncSettings.tsx` | Presentation Tab | Tabbed settings sub-component rendering Cloud Sync provider and connection test parameters. |
+| `components/features/modals/CreateProjectModal.tsx` | Modal Component| Standalone dark glassmorphic modal with real-time auto slug generation, structured protocol sections, and smart defaults for new project scopes. |
+| `components/features/modals/ProjectSettingsModal.tsx`| Modal Component| Expanded (max-w-4xl) dark glassmorphic tabbed modal for editing project metadata, calibration rules, Rclone cloud sync, and budget safety. |
+| `components/features/modals/settings/ProjectMetadataSettings.tsx` | Presentation Tab | Tabbed settings sub-component with copy query buttons, syntax fonts, and dynamic Jinja2 Umbrellanizer RQ description mapper. |
+| `components/features/modals/settings/ProjectCalibrationSettings.tsx` | Presentation Tab | Tabbed settings sub-component with pool switcher tabs, chip badges, EC rules, reasoning templates, fatal-flaw QA rules, and schema-driven Miner JSON extraction key dropdowns with batch populate. |
+| `components/features/modals/settings/ProjectSyncSettings.tsx` | Presentation Tab | Tabbed settings sub-component with cloud provider cards, diagnostics connection testing badges, and Rclone setup guide. |
 | `components/features/modals/AdjudicationWorkspaceModal.tsx` | Modal Component| Standalone conflict resolution split-pane workspace with integrated PDF viewer, rich metadata, and fallback downloader. |
 | `components/features/modals/DeletePaperConfirmModal.tsx` | Modal Component| Standalone modal dialog for confirming permanent deletion of a single paper record (`DELETE /api/papers/[id]`). |
 | `components/features/modals/DeleteProjectConfirmModal.tsx`| Modal Component| Standalone modal dialog for confirming deletion of a literature review project configuration (`DELETE /api/projects/[id]`). |
@@ -232,11 +240,12 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/fullscreen-assign/PaperSelectionList.tsx` | UI Component | Left-hand paper search, pool filtering, and page checklist container. |
 | `components/features/modals/fullscreen-assign/AssignDetailView.tsx` | UI Component | Right-hand paper details panel featuring a multi-tab view (Metadata & Notes vs PDF Viewer), persistent pool assignment header, embedded iframe viewer, and single-paper acquisition console. |
 | `components/features/modals/FullscreenInterRaterModal.tsx` | Modal Component| Standalone fullscreen modal wrapping the Inter-Rater Dashboard for blinded review evaluation. |
-| `components/features/modals/ProjectLockScreenModal.tsx` | Modal Component| Full-screen dark glassmorphic Lock Screen modal forcing SLR project creation or import when zero active projects exist. |
-| `components/features/dashboard/MetricSummaryCards.tsx` | Widget Component| Displays executive metric calculations, total counts, duplicate statistics, and missing PDF percentages in glassmorphic cards. |
-| `components/features/dashboard/LocalPDFStatusChart.tsx`| Widget Component| Renders graphical status distribution bars and legends for `AVAILABLE`, `MISSING`, `FAILED`, and `EXCLUDED` local PDFs. |
-| `components/features/dashboard/ProjectActivityLog.tsx` | Widget Component| Renders chronological project activity items, status badges, timestamp formatting, and empty-state placeholders. |
-| `components/features/dashboard/DashboardQuickActions.tsx`| Widget Component| Houses quick navigation action buttons (Import CSV, Run Batch Pipeline, Review Duplicates, Export Database). |
+| `components/features/modals/ProjectLockScreenModal.tsx` | Modal Component| Full-screen dark glassmorphic Lock Screen modal with conditional yield for creating/importing SLR projects when zero projects exist. |
+| `components/features/GlobalModals.tsx` | Modal Container | Central orchestrator managing all global modals including CreateProjectModal, ProjectSettingsModal, ArchiveProjectModal, and ImportProjectModal. |
+| `components/features/dashboard/MetricSummaryCards.tsx` | Widget Component| Interactive 4-stage pipeline funnel with stage indicators, drop-off rates, exclusion breakdowns, and miner variable diagnostics. |
+| `components/features/dashboard/LocalPDFStatusChart.tsx`| Widget Component| Renders graphical status distribution bars, storage diagnostics, and Rclone cloud mirror telemetry. |
+| `components/features/dashboard/ProjectActivityLog.tsx` | Widget Component| Collapsible protocol inspector with research manifesto, objectives, formatted RQs, and QA definitions. |
+| `components/features/dashboard/DashboardQuickActions.tsx`| Widget Component| Houses quick navigation action buttons for literature scoping, background sync, and protocol configuration. |
 | `components/features/dashboard/PipelineProgressPanel.tsx` | Widget Component | Reusable dashboard component to display real-time batch pipeline progress, logs, and speed estimations. |
 | `components/features/dashboard/MinimizedPipelineBanner.tsx`| Widget Component| Floating banner component displaying real-time progress and active step statistics for minimized batch pipeline executions. |
 | `components/features/dashboard/ToastNotifications.tsx` | Widget Component| Fixed floating container component managing and rendering active toast notifications across the application. |
@@ -268,6 +277,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/config/env/route.ts` | REST Endpoint | Handles GET requests to verify system environment variables and confirm the existence of required external executables (`rclone`, `tesseract`). |
 | `api/config/test/route.ts` | REST Endpoint | Handles POST requests to test Rclone cloud storage connectivity (Google Drive / OneDrive) by listing remote root directories. |
 | `api/duplicates/route.ts` | REST Endpoint | Handles GET requests to retrieve pending candidate duplicate paper pairs for the active project from `duplicate_pairs`. |
+| `api/duplicates/ai-screen/route.ts` | REST Endpoint | Handles POST requests to run automated LLM screening on a duplicate pair, providing technical breakdown differences, verdict, and lineage recommendations. |
 | `api/duplicates/resolve/route.ts`| REST Endpoint | Handles POST requests to adjudicate duplicate pairs (`KEEP_BOTH`, `CONFIRMED_DUPLICATE`), executing atomic merge transactions. |
 | `api/duplicates/scan/route.ts` | REST Endpoint | Handles POST/GET requests to spawn the Python duplicate detection background process and stream live EventSource progress updates. |
 | `api/export/route.ts` | REST Endpoint | Handles POST requests to export filtered paper databases and screening results to downloadable CSV files or Google Sheets. |

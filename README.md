@@ -165,7 +165,31 @@ $$\kappa = \frac{P_o - P_e}{1 - P_e}$$
 
 ---
 
-## ⚡ Quick Start Guide
+## ⚡ Automated Quick Setup (Recommended)
+
+SLR Magic provides automated, cross-platform installation scripts that check system prerequisites (Node.js, npm, nvm, Python 3, and Python `venv` support), intelligently detect or create Python virtual environments, and install all submodule dependencies in a single step.
+
+### 🐧 Linux & 🍎 macOS
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+### 🪟 Windows (PowerShell / Command Prompt)
+```powershell
+# In PowerShell:
+.\install.ps1
+
+# Or in Command Prompt / double-click:
+install.bat
+
+# Or via npm from root:
+npm run setup
+```
+
+---
+
+## 🚀 Manual Quick Start Guide
 
 ### 1. Launching SLR IDE (Main Desktop App)
 ```bash
@@ -173,8 +197,14 @@ cd slr-ide
 npm install
 
 # Setup Python environment for scrapers & Turbovec daemon
+# Linux / macOS:
+python3 -m venv python_engine/venv
+source python_engine/venv/bin/activate
+pip install -r python_engine/requirements.txt
+
+# Windows (PowerShell / CMD):
 python -m venv python_engine/venv
-source python_engine/venv/bin/activate # Windows: python_engine\venv\Scripts\activate
+python_engine\venv\Scripts\activate
 pip install -r python_engine/requirements.txt
 
 # Start Next.js desktop engine

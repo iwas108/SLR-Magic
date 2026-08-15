@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, AlertCircle, RefreshCw, Layers, FileText, ArrowRight, ArrowLeft, Loader2, Award, Copy, CheckCircle2 } from 'lucide-react';
+import { 
+  X, Check, AlertCircle, RefreshCw, Layers, FileText, ArrowRight, ArrowLeft, 
+  Loader2, Award, Copy, CheckCircle2, Sparkles, BrainCircuit, Bot, AlertTriangle, 
+  GitMerge, BookOpen, Compass, ShieldAlert, Cpu
+} from 'lucide-react';
 import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 
 interface DuplicateReviewModalProps {
@@ -15,12 +19,30 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
   const [loading, setLoading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [primaryOverride, setPrimaryOverride] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [dupPrompts, setDupPrompts] = useState<any[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
 
   // prevent stale closures for BroadcastChannel messages
   const loadPapersRef = useRef(loadPapers);
   useEffect(() => {
     loadPapersRef.current = loadPapers;
   }, [loadPapers]);
+
+  const loadPrompts = async () => {
+    try {
+      const res = await fetch('/api/llm/prompts');
+      const data = await res.json();
+      if (data.prompts) {
+        const filtered = data.prompts.filter((p: any) => p.prompt_type === 'duplicate_review' && p.is_active);
+        setDupPrompts(filtered);
+        if (filtered.length > 0 && !selectedTemplateId) {
+          setSelectedTemplateId(filtered[0].id);
+        }
+      }
+    } catch {}
+  };
 
   const loadPairs = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -44,6 +66,7 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
   useEffect(() => {
     if (isOpen) {
       loadPairs();
+      loadPrompts();
     }
   }, [isOpen]);
 
@@ -123,12 +146,77 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
       }
     }
 
-    const recommendedId = score2 > score1 ? paper2.Paper_ID : paper1.Paper_ID;
+    // If AI suggested primary ID exists, prefer it, otherwise score
+    const recommendedId = activePair.ai_suggested_primary_id || (score2 > score1 ? paper2.Paper_ID : paper1.Paper_ID);
     return { recommendedId, score1, score2, breakdown1, breakdown2 };
   };
 
   const { recommendedId, score1, score2, breakdown1, breakdown2 } = getScoringRecommendation();
   const activePrimaryId = primaryOverride || recommendedId;
+
+  // Helper to parse AI analysis
+  const getParsedAiAnalysis = () => {
+    if (!activePair?.ai_analysis) return null;
+    try {
+      return typeof activePair.ai_analysis === 'string' ? JSON.parse(activePair.ai_analysis) : activePair.ai_analysis;
+    } catch {
+      return null;
+    }
+  };
+  const aiAnalysis = getParsedAiAnalysis();
+
+  const handleAiScreen = async () => {
+    if (!activePair) return;
+    setAiLoading(true);
+    setAiError(null);
+
+    try {
+      const res = await fetch('/api/duplicates/ai-screen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          pair_id: activePair.id,
+          template_id: selectedTemplateId || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'AI Duplicate Screening failed');
+      }
+
+      showToast(`AI Adjudication Verdict: ${data.verdict}`, 'success');
+
+      // Update local pair state with AI result
+      const updatedPairs = [...pairs];
+      updatedPairs[currentIndex] = {
+        ...activePair,
+        ai_verdict: data.verdict,
+        ai_suggested_primary_id: data.suggested_primary_id,
+        ai_analysis: typeof data.analysis === 'string' ? data.analysis : JSON.stringify(data.analysis)
+      };
+      setPairs(updatedPairs);
+
+      // Auto-set suggested primary override
+      if (data.suggested_primary_id) {
+        setPrimaryOverride(data.suggested_primary_id);
+      }
+    } catch (e: any) {
+      setAiError(e.message);
+      showToast(e.message, 'error');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const activePromptObj = dupPrompts.find(p => p.id === selectedTemplateId) || dupPrompts[0];
+  const activePromptConfig = (() => {
+    try {
+      return activePromptObj?.llm_config ? JSON.parse(activePromptObj.llm_config) : {};
+    } catch {
+      return {};
+    }
+  })();
 
   const handleResolve = async (action: 'KEEP_BOTH' | 'CONFIRMED_DUPLICATE') => {
     if (!activePair) return;
@@ -165,6 +253,7 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
 
         // Load next or update
         setPrimaryOverride(null);
+        setAiError(null);
         const updatedPairs = pairs.filter((_, idx) => idx !== currentIndex);
         setPairs(updatedPairs);
         if (currentIndex >= updatedPairs.length) {
@@ -195,18 +284,58 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
         {/* Navigation & Actions */}
         <div className="flex items-center gap-3">
           {activePair && (
-            <button
-              onClick={() => {
-                const text = `Paper 1:\nTitle: ${activePair.paper1?.Title || 'N/A'}\nDOI: ${activePair.paper1?.DOI || 'N/A'}\nAbstract: ${activePair.paper1?.Abstract || 'N/A'}\n\nPaper 2:\nTitle: ${activePair.paper2?.Title || 'N/A'}\nDOI: ${activePair.paper2?.DOI || 'N/A'}\nAbstract: ${activePair.paper2?.Abstract || 'N/A'}`;
-                navigator.clipboard.writeText(text);
-                showToast('Copied both paper details to clipboard!', 'info');
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-secondary/80 border border-border text-foreground hover:text-foreground rounded-lg font-bold text-xs cursor-pointer transition-colors shadow-sm"
-              title="Copy details of both papers to clipboard"
-            >
-              <Copy className="w-3.5 h-3.5 text-primary" />
-              Copy Both Details
-            </button>
+            <>
+              {dupPrompts.length > 1 ? (
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  disabled={loading || aiLoading}
+                  className="bg-secondary/80 border border-border text-foreground font-bold text-xs rounded-lg px-2.5 py-1.5 outline-none"
+                >
+                  {dupPrompts.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({JSON.parse(p.llm_config || '{}').model_id || 'gemini-2.5-flash'})
+                    </option>
+                  ))}
+                </select>
+              ) : activePromptObj ? (
+                <div 
+                  className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-secondary/50 border border-border/70 rounded-lg text-[10px] text-muted-foreground font-mono"
+                  title={`Prompt Template: ${activePromptObj.name} | Model: ${activePromptConfig.model_id || 'gemini-2.5-flash'} | Temp: ${activePromptConfig.temperature ?? 0.0} | Speed: ${(activePromptConfig.execution_mode || 'flex').toUpperCase()}`}
+                >
+                  <BrainCircuit className="w-3 h-3 text-indigo-400" />
+                  <span className="font-bold text-foreground truncate max-w-[120px]">{activePromptObj.name}</span>
+                  <span className="text-primary font-bold">({activePromptConfig.model_id || 'gemini-2.5-flash'})</span>
+                </div>
+              ) : null}
+
+              <button
+                onClick={handleAiScreen}
+                disabled={loading || aiLoading}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-lg font-extrabold text-xs cursor-pointer transition-all shadow-md hover:shadow-indigo-500/25 disabled:opacity-50"
+                title={`Run automated LLM deduplication specialist analysis (${activePromptConfig.model_id || 'gemini-2.5-flash'})`}
+              >
+                {aiLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                )}
+                <span>{aiLoading ? 'Analyzing...' : activePair.ai_verdict ? 'Re-Run AI Screen' : 'AI Screen Pair'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const text = `Paper 1:\nTitle: ${activePair.paper1?.Title || 'N/A'}\nDOI: ${activePair.paper1?.DOI || 'N/A'}\nAbstract: ${activePair.paper1?.Abstract || 'N/A'}\n\nPaper 2:\nTitle: ${activePair.paper2?.Title || 'N/A'}\nDOI: ${activePair.paper2?.DOI || 'N/A'}\nAbstract: ${activePair.paper2?.Abstract || 'N/A'}`;
+                  navigator.clipboard.writeText(text);
+                  showToast('Copied both paper details to clipboard!', 'info');
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary hover:bg-secondary/80 border border-border text-foreground hover:text-foreground rounded-lg font-bold text-xs cursor-pointer transition-colors shadow-sm"
+                title="Copy details of both papers to clipboard"
+              >
+                <Copy className="w-3.5 h-3.5 text-primary" />
+                Copy Both Details
+              </button>
+            </>
           )}
 
           {pairs.length > 1 && (
@@ -215,8 +344,9 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
                 onClick={() => {
                   setCurrentIndex(prev => (prev - 1 + pairs.length) % pairs.length);
                   setPrimaryOverride(null);
+                  setAiError(null);
                 }}
-                disabled={loading}
+                disabled={loading || aiLoading}
                 className="p-1 hover:bg-secondary rounded cursor-pointer disabled:opacity-50"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -228,8 +358,9 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
                 onClick={() => {
                   setCurrentIndex(prev => (prev + 1) % pairs.length);
                   setPrimaryOverride(null);
+                  setAiError(null);
                 }}
-                disabled={loading}
+                disabled={loading || aiLoading}
                 className="p-1 hover:bg-secondary rounded cursor-pointer disabled:opacity-50"
               >
                 <ArrowRight className="w-4 h-4" />
@@ -239,7 +370,7 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
 
           <button
             onClick={onClose}
-            disabled={loading}
+            disabled={loading || aiLoading}
             className="p-1.5 hover:bg-secondary border border-border/60 hover:border-border rounded-lg cursor-pointer transition-all disabled:opacity-50"
           >
             <X className="w-4 h-4" />
@@ -269,9 +400,9 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
             </button>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col min-h-0 space-y-4">
             {/* Metadata metrics bar */}
-            <div className="shrink-0 mb-4 bg-primary/5 border border-primary/20 rounded-lg p-3 flex justify-between items-center text-xs">
+            <div className="shrink-0 bg-primary/5 border border-primary/20 rounded-lg p-3 flex justify-between items-center text-xs">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-primary">SCAN HEURISTIC MATCH:</span>
                 <span className="bg-primary/20 text-primary font-extrabold px-2 py-0.5 rounded text-[10px]">
@@ -288,6 +419,94 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
               </div>
             </div>
 
+            {/* Error Notification Banner if AI call failed */}
+            {aiError && (
+              <div className="shrink-0 bg-destructive/10 border border-destructive/30 rounded-lg p-3 flex items-start gap-2.5 text-xs text-destructive animate-in fade-in duration-200">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-bold">AI Screening Blocked:</span> {aiError}
+                </div>
+                <button onClick={() => setAiError(null)} className="p-0.5 hover:bg-destructive/20 rounded cursor-pointer">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* AI Verdict & Technical Breakdown Banner */}
+            {activePair.ai_verdict && (
+              <div className="shrink-0 bg-card border border-indigo-500/30 rounded-xl p-4 shadow-md animate-in fade-in zoom-in-95 duration-200 space-y-3">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-indigo-500/10 rounded-md border border-indigo-500/20 text-indigo-400">
+                      <BrainCircuit className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">AI Deduplication Verdict</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase tracking-wider border ${
+                          activePair.ai_verdict === 'CONFIRMED DUPLICATE' ? 'bg-rose-500/15 text-rose-400 border-rose-500/30' :
+                          activePair.ai_verdict === 'STRUCTURAL OVERLAP' ? 'bg-purple-500/15 text-purple-400 border-purple-500/30' :
+                          activePair.ai_verdict === 'COMPANION PAPERS' ? 'bg-sky-500/15 text-sky-400 border-sky-500/30' :
+                          'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                        }`}>
+                          {activePair.ai_verdict}
+                        </span>
+                        {aiAnalysis?.primary_action && (
+                          <span className="text-xs font-semibold text-foreground">
+                            • {aiAnalysis.primary_action}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {aiAnalysis?.database_execution?.lineage_actions && (
+                    <div className="text-right">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Database Lineage</span>
+                      <p className="text-[11px] font-mono font-medium text-primary">
+                        {aiAnalysis.database_execution.lineage_actions}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Technical Differences Grid */}
+                {aiAnalysis?.technical_breakdown && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                    <div className="bg-secondary/25 border border-border/50 rounded-lg p-2.5 space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-400 uppercase tracking-wider">
+                        <Cpu className="w-3 h-3" />
+                        <span>Mathematical / Algorithmic Shift</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {aiAnalysis.technical_breakdown.mathematical_algorithmic_shift || 'No fundamental algorithmic shift noted.'}
+                      </p>
+                    </div>
+
+                    <div className="bg-secondary/25 border border-border/50 rounded-lg p-2.5 space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                        <Compass className="w-3 h-3" />
+                        <span>Topology / Scope Change</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {aiAnalysis.technical_breakdown.topology_scope_change || 'No scope or topology expansion noted.'}
+                      </p>
+                    </div>
+
+                    <div className="bg-secondary/25 border border-border/50 rounded-lg p-2.5 space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                        <FileText className="w-3 h-3" />
+                        <span>Data & Implementation Footprint</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {aiAnalysis.technical_breakdown.data_implementation_footprint || 'Comparable implementation footprint.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Split View */}
             <div className="flex-1 min-h-0 grid grid-cols-2 gap-6">
               {/* Paper 1 */}
@@ -298,20 +517,28 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
             </div>
 
             {/* Sticky Actions bar */}
-            <div className="shrink-0 mt-6 pt-4 border-t border-border flex justify-center gap-4">
+            <div className="shrink-0 pt-3 border-t border-border flex justify-center gap-4">
               <button
                 onClick={() => handleResolve('KEEP_BOTH')}
-                disabled={loading}
-                className="px-6 py-2.5 bg-background border border-border/80 hover:border-border hover:bg-secondary/40 text-foreground font-bold rounded-lg text-xs uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                disabled={loading || aiLoading}
+                className={`px-6 py-2.5 bg-background border text-foreground font-bold rounded-lg text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                  activePair.ai_verdict === 'FALSE FLAG' || activePair.ai_verdict === 'COMPANION PAPERS'
+                    ? 'border-emerald-500/80 bg-emerald-500/10 text-emerald-400 ring-2 ring-emerald-500/20'
+                    : 'border-border/80 hover:border-border hover:bg-secondary/40'
+                }`}
               >
-                <AlertCircle className="w-4 h-4 text-amber-500" />
-                Keep Both (False Flag)
+                <AlertCircle className="w-4 h-4 text-emerald-500" />
+                Keep Both ({activePair.ai_verdict === 'COMPANION PAPERS' ? 'Companion Study' : 'False Flag'})
               </button>
 
               <button
                 onClick={() => handleResolve('CONFIRMED_DUPLICATE')}
-                disabled={loading}
-                className="px-8 py-2.5 bg-primary text-primary-foreground font-extrabold rounded-lg text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                disabled={loading || aiLoading}
+                className={`px-8 py-2.5 font-extrabold rounded-lg text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                  activePair.ai_verdict === 'CONFIRMED DUPLICATE' || activePair.ai_verdict === 'STRUCTURAL OVERLAP'
+                    ? 'bg-gradient-to-r from-rose-600 to-primary text-white ring-2 ring-rose-500/30'
+                    : 'bg-primary text-primary-foreground'
+                }`}
               >
                 <Check className="w-4 h-4" />
                 Confirm Duplicate & Merge
@@ -344,7 +571,13 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
           </div>
 
           <div className="flex items-center gap-2">
-            {isRecommended && (
+            {activePair.ai_suggested_primary_id === paper.Paper_ID && (
+              <span className="bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 font-extrabold px-2 py-0.5 rounded text-[9px] uppercase flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                AI Primary Choice
+              </span>
+            )}
+            {isRecommended && activePair.ai_suggested_primary_id !== paper.Paper_ID && (
               <span className="bg-emerald-500/10 text-emerald-600 font-extrabold px-2 py-0.5 rounded text-[9px] uppercase flex items-center gap-1">
                 <Award className="w-3 h-3" />
                 Score Recommendation

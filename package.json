@@ -4,6 +4,7 @@
   "private": true,
   "description": "Systematic Literature Review Magic - SLR-IDE & SLR-Viewer monorepo",
   "scripts": {
+    "setup": "node scripts/install-launcher.mjs",
     "mirror:viewer": "node scripts/mirror-to-viewer.mjs",
     "dev:viewer": "npm --prefix slr-viewer run dev",
     "dev:ide": "npm --prefix slr-ide run dev",

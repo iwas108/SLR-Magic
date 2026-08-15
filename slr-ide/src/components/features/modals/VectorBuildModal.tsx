@@ -8,6 +8,7 @@ interface VectorBuildModalProps {
   isOpen: boolean;
   onClose: () => void;
   loadVectorStatus: () => Promise<void>;
+  onBuildSuccess?: () => void;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
@@ -15,6 +16,7 @@ export default function VectorBuildModal({
   isOpen,
   onClose,
   loadVectorStatus,
+  onBuildSuccess,
   showToast
 }: VectorBuildModalProps) {
   const [isRunning, setIsRunning] = useState(false);
@@ -61,10 +63,13 @@ export default function VectorBuildModal({
       } else if (parsed.event === 'complete') {
         setCurrentPhase('complete');
         setProgress(100);
-        setCounts({ pdfs: parsed.pdf_vectors, papers: parsed.paper_vectors });
-        setLogs(prev => [...prev, `[System]: Vector build finished. PDF vectors: ${parsed.pdf_vectors}, Paper vectors: ${parsed.paper_vectors}`]);
+        if (parsed.pdf_vectors !== undefined || parsed.paper_vectors !== undefined) {
+          setCounts({ pdfs: parsed.pdf_vectors, papers: parsed.paper_vectors });
+          setLogs(prev => [...prev, `[System]: Vector build finished. PDF vectors: ${parsed.pdf_vectors}, Paper vectors: ${parsed.paper_vectors}`]);
+        }
         showToast('Vector index built successfully!', 'success');
         loadVectorStatus();
+        onBuildSuccess?.();
       } else if (parsed.event === 'error') {
         throw new Error(parsed.message);
       }

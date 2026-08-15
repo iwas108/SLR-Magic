@@ -22,7 +22,17 @@ interface PaperSelectionListProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   assignSearchMode: 'keyword' | 'semantic';
   setAssignSearchMode: React.Dispatch<React.SetStateAction<'keyword' | 'semantic'>>;
-  vectorIndexStatus: { indexed: boolean; pdf_count: number; paper_count: number } | null;
+  vectorIndexStatus: {
+    indexed: boolean;
+    pdf_count: number;
+    paper_count: number;
+    project_id?: string;
+    total_project_papers?: number;
+    indexed_project_papers?: number;
+    missing_project_papers?: number;
+    coverage_pct?: number;
+    model?: string;
+  } | null;
   loadVectorStatus: () => Promise<void>;
   isMinimized: boolean;
   assignSortBy: string;
@@ -203,6 +213,25 @@ export default function PaperSelectionList({
             <Cpu className="w-4 h-4" />
             <span>{assignSearchMode === 'semantic' ? 'Semantic' : 'Keyword'}</span>
           </button>
+
+          {assignSearchMode === 'semantic' && vectorIndexStatus && (
+            <button
+              onClick={() => setShowBuildModal(true)}
+              title={vectorIndexStatus.indexed ? "Active project vector index 100% complete. Click to rebuild." : `Active project vector index incomplete (${vectorIndexStatus.indexed_project_papers ?? 0}/${vectorIndexStatus.total_project_papers ?? 0}). Click to build.`}
+              className={`px-2.5 py-2 rounded-xl text-[11px] font-mono font-bold flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm shrink-0 ${
+                vectorIndexStatus.indexed
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/25 animate-pulse'
+              }`}
+            >
+              <span>{vectorIndexStatus.indexed ? '⚡' : '⚠️'}</span>
+              <span>
+                {vectorIndexStatus.total_project_papers !== undefined
+                  ? `${vectorIndexStatus.indexed_project_papers ?? 0}/${vectorIndexStatus.total_project_papers} Indexed`
+                  : `${vectorIndexStatus.paper_count} Indexed`}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Row 2: Select Filters and Toggles */}
@@ -458,17 +487,23 @@ export default function PaperSelectionList({
         )}
 
         {assignSearchMode === 'semantic' && vectorIndexStatus && !vectorIndexStatus.indexed && (
-          <div className="p-2.5 border border-amber-500/30 bg-amber-500/10 rounded-lg flex flex-col gap-1.5 text-[9px] animate-in slide-in-from-top-1 duration-200">
-            <div className="flex items-center gap-1.5 font-bold text-amber-500">
+          <div className="p-2.5 border border-amber-500/30 bg-amber-500/10 rounded-xl flex flex-col gap-1.5 text-[9px] animate-in slide-in-from-top-1 duration-200">
+            <div className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400 text-[10px]">
               <Cpu className="w-3.5 h-3.5 animate-pulse" />
-              <span>Vector index not built</span>
+              <span>
+                {vectorIndexStatus.total_project_papers && vectorIndexStatus.missing_project_papers
+                  ? `Active Project Vector Index Incomplete (${vectorIndexStatus.indexed_project_papers}/${vectorIndexStatus.total_project_papers} Indexed)`
+                  : 'Vector Semantic Search Index Required'}
+              </span>
             </div>
-            <p className="text-muted-foreground font-semibold leading-relaxed">
-              To run semantic searches, you need to compile vector embeddings for your corpus.
+            <p className="text-muted-foreground font-medium leading-relaxed">
+              {vectorIndexStatus.missing_project_papers
+                ? `The active project has ${vectorIndexStatus.missing_project_papers} unindexed paper(s). Semantic queries require vector embeddings to rank candidates.`
+                : 'To run semantic searches, vector embeddings must be built for the active project corpus.'}
             </p>
             <button
               onClick={() => setShowBuildModal(true)}
-              className="w-full py-1 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded text-center transition-colors shadow-sm cursor-pointer uppercase tracking-wider text-[8px]"
+              className="w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg text-center transition-colors shadow-sm cursor-pointer uppercase tracking-wider text-[9px]"
             >
               Build Semantic Index Now
             </button>
@@ -555,8 +590,33 @@ export default function PaperSelectionList({
             </div>
           </div>
         ) : assignPapers.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-xs">
-            No papers found matching filters.
+          <div className="p-8 text-center text-muted-foreground text-xs flex flex-col items-center justify-center gap-3">
+            {assignSearchMode === 'semantic' && vectorIndexStatus && !vectorIndexStatus.indexed ? (
+              <div className="max-w-[320px] p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2">
+                <div className="text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center gap-1.5">
+                  <Cpu className="w-4 h-4 animate-pulse" />
+                  <span>Active Project Not Indexed</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  The active project ({vectorIndexStatus.total_project_papers || 0} papers) does not have embedded vector representations yet.
+                </p>
+                <button
+                  onClick={() => setShowBuildModal(true)}
+                  className="w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer"
+                >
+                  Build Semantic Index Now
+                </button>
+              </div>
+            ) : assignSearchMode === 'semantic' ? (
+              <div className="max-w-[300px] space-y-1">
+                <p className="font-semibold text-foreground text-xs">No semantic matches found</p>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  No papers matched your query above the similarity threshold (0.65). Try broadening your search terms or clearing active filters.
+                </p>
+              </div>
+            ) : (
+              <span>No papers found matching filters.</span>
+            )}
           </div>
         ) : (
           assignPapers.map((paper: any) => {
@@ -722,6 +782,9 @@ export default function PaperSelectionList({
         isOpen={showBuildModal}
         onClose={() => setShowBuildModal(false)}
         loadVectorStatus={loadVectorStatus}
+        onBuildSuccess={() => {
+          triggerSemanticSearch();
+        }}
         showToast={showToast}
       />
     </div>

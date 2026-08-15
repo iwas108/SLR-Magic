@@ -72,6 +72,38 @@ db.exec(`
     imported_at TEXT NOT NULL,
     FOREIGN KEY(batch_id) REFERENCES rolling_batches(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE prompt_audit_ledger (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    audit_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE prompt_benchmark_runs (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    stage_num INTEGER NOT NULL,
+    stage_name TEXT NOT NULL,
+    pool TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE prompt_benchmark_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    paper_id TEXT NOT NULL,
+    partition_type TEXT NOT NULL DEFAULT 'train',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(run_id) REFERENCES prompt_benchmark_runs(id) ON DELETE CASCADE,
+    FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+  );
 `);
 
 console.log('✅ 1. Schema with active foreign keys initialized.');

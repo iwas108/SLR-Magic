@@ -54,12 +54,21 @@ Operating 100% offline via **Dexie.js (IndexedDB)**, it provides researchers, pe
 
 ## ⚡ Quick Start Setup
 
+### Automated Setup (From Workspace Root)
+Run the root automated installer to install all workspace dependencies and sync shared components:
+- **Linux / macOS**: `./install.sh`
+- **Windows**: `.\install.ps1` (or `install.bat` / `npm run setup`)
+
+### Manual Setup
 ```bash
 # 1. Install dependencies
 cd slr-viewer
 npm install
 
-# 2. Start dev server
+# 2. Sync shared components from slr-ide
+npm --prefix .. run mirror:viewer
+
+# 3. Start dev server
 npm run dev
 ```
 Open **`http://localhost:3002`** (or `http://localhost:5173`) in your browser.

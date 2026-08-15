@@ -510,4 +510,93 @@ Tracks immutable audit trail for rolling batch adjudication commits.
 *   Added `rolling_batch_commit_ledger` table to record immutable adjudication audit trail.
 *   Added `rolling_batch_size` column (INTEGER, default 20) to `projects` table.
 
+### Interactive Prompt Staging & Benchmark Optimization Engine (2026-08-15)
+*   Added `prompt_audit_ledger` table to persist consolidation audits, adversarial red-team evaluations, and prompt optimization SHA-256 lineages.
+*   Added `prompt_benchmark_runs` table to record isolated sandbox benchmark evaluations on target calibration pools with 70/30 train/holdout partitions and PRISMA hard gate outcomes.
+*   Added `prompt_benchmark_results` table to store granular paper-by-paper AI predictions, Gold Standard consensus comparisons, and discrepancy details.
+
+---
+
+### Table: `prompt_audit_ledger`
+Persists inter-stage consolidation audits and prompt optimization lineage trees.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | TEXT | PRIMARY KEY | Unique audit run identifier (`audit-...` or `lineage-...`) |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `audit_type` | TEXT | NOT NULL | `consolidation_audit` or `prompt_optimization` |
+| `status` | TEXT | NOT NULL | `PASSED`, `WARNING`, or `FAILED` |
+| `prompt_id` | TEXT | | ID of target prompt template |
+| `prompt_hash` | TEXT | | SHA-256 hash of compiled prompt instruction & template |
+| `parent_prompt_id` | TEXT | | Parent prompt ID (for optimization lineage) |
+| `parent_prompt_hash` | TEXT | | Parent prompt SHA-256 hash |
+| `availability_score` | REAL | | Percentage of required stage prompts available (0..100) |
+| `semantic_score` | REAL | | Percentage of prompts passing semantic alignment (0..100) |
+| `chainability_score` | REAL | | Percentage of inter-stage data flows passing chainability checks |
+| `train_paper_ids` | TEXT | | JSON array of 70% calibration sample paper IDs |
+| `holdout_paper_ids` | TEXT | | JSON array of 30% holdout validation paper IDs |
+| `before_metrics` | TEXT | | JSON snapshot of metrics before optimization |
+| `after_metrics` | TEXT | | JSON snapshot of metrics after optimization |
+| `audit_report` | TEXT | | JSON structured diagnostic report |
+| `raw_prompt` | TEXT | | Complete hydrated prompt string sent to LLM |
+| `raw_response` | TEXT | | Raw text output returned by LLM |
+| `model_id` | TEXT | | Model identifier used for audit/optimization |
+| `input_tokens` | INTEGER | | Total prompt token count |
+| `output_tokens` | INTEGER | | Total candidate/output token count |
+| `cost_usd` | REAL | | Financial cost of audit call |
+| `created_at` | TEXT | NOT NULL | ISO datetime of audit execution |
+
+---
+
+### Table: `prompt_benchmark_runs`
+Records isolated sandbox benchmark test runs across calibration pools A, B, and C.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | TEXT | PRIMARY KEY | Unique run identifier (`run-...`) |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `stage_num` | INTEGER | NOT NULL | Pipeline stage number (1..4) |
+| `stage_name` | TEXT | NOT NULL | Descriptive stage label |
+| `pool` | TEXT | NOT NULL | Calibration pool (`POOL_A`, `POOL_B`, `POOL_C`) |
+| `prompt_template_id` | TEXT | | ID of prompt template tested |
+| `prompt_hash` | TEXT | | SHA-256 hash of prompt evaluated |
+| `status` | TEXT | NOT NULL | `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED` |
+| `total_papers` | INTEGER | DEFAULT 0 | Total papers in target pool |
+| `evaluated_papers` | INTEGER | DEFAULT 0 | Count of evaluated papers |
+| `train_count` | INTEGER | DEFAULT 0 | Count in 70% calibration subset |
+| `holdout_count` | INTEGER | DEFAULT 0 | Count in 30% holdout subset |
+| `summary_metrics` | TEXT | | JSON object containing overall and training metrics |
+| `holdout_metrics` | TEXT | | JSON object containing holdout generalization metrics |
+| `error_message` | TEXT | | Error details if run failed |
+| `created_at` | TEXT | NOT NULL | ISO datetime of benchmark initiation |
+| `updated_at` | TEXT | NOT NULL | ISO datetime of benchmark completion |
+
+---
+
+### Table: `prompt_benchmark_results`
+Stores paper-level AI predictions, gold standard comparison, and discrepancy breakdown.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique record key |
+| `run_id` | TEXT | NOT NULL | Reference to `prompt_benchmark_runs(id)` |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `paper_id` | TEXT | NOT NULL | Paper identifier |
+| `partition_type` | TEXT | NOT NULL DEFAULT 'train' | `train` (70%) or `holdout` (30%) |
+| `ai_decision` | TEXT | | AI prediction: `Include` or `Exclude` |
+| `ai_exclusion_code` | TEXT | | Triggered AI exclusion code |
+| `ai_rationale` | TEXT | | AI reasoning text |
+| `ai_qa_scores` | TEXT | | JSON of AI QA scores |
+| `ai_extracted_data` | TEXT | | JSON of AI extracted data |
+| `gold_decision` | TEXT | | Adjudicated human consensus decision |
+| `gold_exclusion_code` | TEXT | | Adjudicated exclusion code |
+| `gold_rationale` | TEXT | | Adjudication commit message / rationale |
+| `gold_qa_scores` | TEXT | | Adjudicated consensus QA scores |
+| `gold_extracted_data` | TEXT | | Adjudicated consensus extracted data |
+| `is_match` | INTEGER | DEFAULT 0 | `1` if AI matches Gold Standard, `0` if discrepancy |
+| `discrepancy_details` | TEXT | | JSON object classifying failure mode |
+| `raw_response` | TEXT | | Raw API response |
+| `created_at` | TEXT | NOT NULL | ISO datetime |
+
+
 

@@ -41,6 +41,12 @@ The **Inter-Rater SPA** is a standalone, offline-capable React Single-Page Appli
 
 ## ⚡ Quick Start Setup
 
+### Automated Setup (From Workspace Root)
+Run the root automated installer to install all workspace dependencies:
+- **Linux / macOS**: `./install.sh`
+- **Windows**: `.\install.ps1` (or `install.bat` / `npm run setup`)
+
+### Manual Setup
 ```bash
 # 1. Install dependencies
 cd inter-rater

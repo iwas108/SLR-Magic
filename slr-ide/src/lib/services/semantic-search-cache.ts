@@ -27,8 +27,7 @@ export function getCachedSemanticSearch(
 
     const cachedList = JSON.parse(row.results) as CachedResult[];
     if (cachedList.length === 0) return [];
-    // If cached set has fewer than 100 items, treat as legacy capped cache and force fresh vector search
-    if (cachedList.length < 100) return null;
+
 
     // Extract paper IDs
     const paperIds = cachedList.map(item => item.Paper_ID);

@@ -3,6 +3,7 @@ import db, { getConfig, setConfig } from '@/lib/db';
 import { createHash } from 'crypto';
 import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
 import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
+import { decompressSlrServer } from '@/lib/slr-compression';
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +19,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid pool specified' }, { status: 400 });
     }
 
-    const body = await request.json();
+    const buffer = await request.arrayBuffer();
+    const body = decompressSlrServer(buffer);
     if (!body || !body.metadata || !body.papers || !Array.isArray(body.papers)) {
       return NextResponse.json({ error: 'Invalid .slr file: missing metadata or papers array' }, { status: 400 });
     }

@@ -207,11 +207,11 @@ export default function InterRaterDashboard({
     setIsImporting(true);
     setImportError(null);
     try {
-      const text = await file.text();
+      const buffer = await file.arrayBuffer();
       const res = await fetch(`/api/import/inter-rater?pool=${activePoolTab}&projectId=${activeProjectId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: text
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: buffer
       });
 
       const data = await res.json();

@@ -90,5 +90,10 @@ def validate_stage_schema(prompt_type: str, schema_dict: dict) -> tuple[bool, st
         if "taxonomy_mapping" not in props:
             return False, "[umbrellanizer] schema missing required top-level property 'taxonomy_mapping'"
             
+    elif ptype == "duplicate_review":
+        for req in ["verdict", "primary_action", "technical_breakdown", "database_execution"]:
+            if req not in props:
+                return False, f"[duplicate_review] schema missing required top-level property '{req}'"
+                
     return True, None
 

@@ -88,6 +88,7 @@ graph TD
 *   **Double-Blind Identity Masking**: Raw reviewer usernames are masked to `Reviewer Alpha` and `Reviewer Beta` on the frontend. The mapping is determined deterministically using an alphabetical sort of the username strings.
 *   **Git-like Audit Ledger**: Manual conflict resolutions committed via the split-pane adjudication workspace are saved as immutable history entries in the `calibration_commit_ledger` table with SHA-256 commit hashes.
 *   **Pool & Tag Assignment**: Provides side-by-side assignment selectors and metadata crawlers for individual paper verification. Features an interactive dropdown selector in the Assign Papers Quick Action interface to apply configured decision tags.
+*   **Transparent GZIP `.slr` Compression & Exchange Protocol**: Exported `.slr` review packages across all pools (Pool A, Pool B, Pool C) and QA batches (QC_Batch) are GZIP-compressed binary streams (yielding 80-99% size reduction when base64 PDFs are embedded). Import routes (`/api/import/inter-rater`, `/api/rolling-batch/import`) and client validation components detect GZIP magic bytes (`0x1F, 0x8B`) to transparently decompress incoming files while maintaining 100% backward compatibility with legacy uncompressed JSON files.
 *   **Visual Hover Breakdowns**: Renders bottom-up and top-down popover balloons displaying tag count breakdowns on both the Pre-Calibration card summaries and Assign Papers modal header progress bars.
 
 ### 2.5 Centralized Pipeline Dashboard & LLM Operations Center
@@ -159,5 +160,22 @@ To support smart PDF vector-matching and advanced semantic discovery within the 
     *   *Stage 4 (Miner) Schema Integrity*: Evaluates `ai_extracted_data` structure against programmatic JSON schemas. It passes if schema conformance is exactly `100%` (0 missing keys, 100% correct type match).
     *   *Stage 4 (Miner) Semantic Agreement*: Evaluates semantic similarity between extracted values using the `umbrellanizer_results` mapping dictionary, serving as an informational-only metric.
     *   *Sequential stopping rule*: Evaluates stopping criteria over two consecutive cohorts (current cohort $B$ and previous cohort $B-1$). If `s3.passed && s4.passed` for both cohorts, the sequential stopping exit is triggered (`auditPassed = true`), concluding the quality control validation.
+
+### 2.9 Interactive Prompt Staging & Benchmark Optimization Engine
+*   **Purpose**: Systematic pre-execution testing, red-teaming, and refinement of all 4 pipeline stage prompt templates against double-blind adjudicated gold standard calibration pools.
+*   **Quest-Line HUD Architecture**:
+    *   *Card 1 (Inter-Stage Consolidation)*: Zero-temperature adversarial audit validating prompt availability ($4/4$), semantic context alignment with project research scope, and inter-stage data flow continuity (e.g. Stage 1 exclusion code outputs matching Stage 2 prerequisites).
+    *   *Cards 2–5 (Stage Benchmarks)*: Isolated sandbox test runner evaluating active prompts against committed human consensus papers (`calibration_commit_ledger` with `MAX(timestamp)` per paper) without altering live screening statuses in the main `papers` table. Uses a 70% Calibration Tuning / 30% Holdout Validation split.
+    *   *PRISMA Hard Exit Gates*:
+        *   Stage 1 (Fast Filter): 100% Recall target (0 false negatives permitted).
+        *   Stage 2 (Gatekeeper): $\ge 85\%$ Precision target, $\ge 90\%$ Recall target.
+        *   Stage 3 (Scientist): Weighted Kappa $\ge 0.65$ across ordinal QA criteria.
+        *   Stage 4 (Miner): 100% JSON extraction schema conformance.
+*   **Prompt Optimization Magic**:
+    *   *Failure Root Cause Diagnosis*: Analyzes error patterns and false negatives exclusively on the 70% calibration training split.
+    *   *Human-in-the-Loop PDF Retrieval*: When ambiguous claims require full-text inspection, the system displays an interactive drawer with paper title, technical rationale, and estimated token cost, allowing the researcher to approve selective attachment.
+    *   *Side-by-Side Diff & Copy-on-Write*: Displays an interactive colorized diff with direct template editing and handles Copy-on-Write forking for global templates (`project_id = activeProjectId`, `parent_prompt_id = originalId`).
+*   **Strict LLM Config Adherence**: All LLM calls dynamically extract pacing (`concurrency`, `request_delay`), model specs (`model_id`, `temperature`, `max_tokens`, `top_p`, `top_k`, `thinking_level`, `execution_mode`), and timeout settings directly from the prompt template's `llm_config`.
+
 
 

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Search, Loader2, ChevronLeft, ChevronRight, Cpu, ArrowDown, ArrowUp, Tag, Filter } from 'lucide-react';
 import { Paper } from '@/types';
+import VectorBuildModal from '../modals/VectorBuildModal';
 
 interface ManualScreeningListProps {
   screeningSearch: string;
@@ -42,6 +43,19 @@ interface ManualScreeningListProps {
   screeningTotalPages: number;
   screeningSearchTime: number | null;
   triggerSemanticSearch: () => void;
+  vectorIndexStatus?: {
+    indexed: boolean;
+    pdf_count: number;
+    paper_count: number;
+    project_id?: string;
+    total_project_papers?: number;
+    indexed_project_papers?: number;
+    missing_project_papers?: number;
+    coverage_pct?: number;
+    model?: string;
+  } | null;
+  loadVectorStatus?: () => Promise<void>;
+  showToast?: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   isMinimized?: boolean;
 }
 
@@ -85,10 +99,14 @@ export default function ManualScreeningList({
   screeningTotalPages,
   screeningSearchTime,
   triggerSemanticSearch,
+  vectorIndexStatus,
+  loadVectorStatus,
+  showToast,
   isMinimized = false
 }: ManualScreeningListProps) {
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showBuildModal, setShowBuildModal] = useState(false);
 
   // Auto-scroll list to active paper on select
   useEffect(() => {
@@ -174,7 +192,7 @@ export default function ManualScreeningList({
           </div>
           <button
             onClick={() => setScreeningSearchMode(prev => prev === 'keyword' ? 'semantic' : 'keyword')}
-            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer ${
+            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0 ${
               screeningSearchMode === 'semantic'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-secondary border border-border text-muted-foreground hover:text-foreground'
@@ -184,6 +202,25 @@ export default function ManualScreeningList({
             <Cpu className="w-4 h-4" />
             <span>{screeningSearchMode === 'semantic' ? 'Semantic' : 'Keyword'}</span>
           </button>
+
+          {screeningSearchMode === 'semantic' && vectorIndexStatus && (
+            <button
+              onClick={() => setShowBuildModal(true)}
+              title={vectorIndexStatus.indexed ? "Active project vector index 100% complete. Click to rebuild." : `Active project vector index incomplete (${vectorIndexStatus.indexed_project_papers ?? 0}/${vectorIndexStatus.total_project_papers ?? 0}). Click to build.`}
+              className={`px-2.5 py-2 rounded-xl text-[11px] font-mono font-bold flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm shrink-0 ${
+                vectorIndexStatus.indexed
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/25 animate-pulse'
+              }`}
+            >
+              <span>{vectorIndexStatus.indexed ? '⚡' : '⚠️'}</span>
+              <span>
+                {vectorIndexStatus.total_project_papers !== undefined
+                  ? `${vectorIndexStatus.indexed_project_papers ?? 0}/${vectorIndexStatus.total_project_papers} Indexed`
+                  : `${vectorIndexStatus.paper_count} Indexed`}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Unified Filter Button Popover Row */}
@@ -463,9 +500,36 @@ export default function ManualScreeningList({
             <span className="text-xs font-semibold">Loading paper library...</span>
           </div>
         ) : screeningPapers.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-center text-muted-foreground/60 p-6 flex-col gap-2">
-            <Search className="w-8 h-8 opacity-20" />
-            <span className="text-xs font-semibold">No papers match current search criteria.</span>
+          <div className="h-full flex items-center justify-center text-center text-muted-foreground/60 p-6 flex-col gap-3">
+            {screeningSearchMode === 'semantic' && vectorIndexStatus && !vectorIndexStatus.indexed ? (
+              <div className="max-w-[320px] p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2 text-center">
+                <div className="text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center gap-1.5">
+                  <Cpu className="w-4 h-4 animate-pulse" />
+                  <span>Active Project Not Indexed</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  The active project ({vectorIndexStatus.total_project_papers || 0} papers) does not have vector embeddings yet.
+                </p>
+                <button
+                  onClick={() => setShowBuildModal(true)}
+                  className="w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg text-xs uppercase tracking-wider shadow-md transition-all cursor-pointer"
+                >
+                  Build Semantic Index Now
+                </button>
+              </div>
+            ) : screeningSearchMode === 'semantic' ? (
+              <div className="max-w-[280px] space-y-1">
+                <p className="font-semibold text-foreground text-xs">No semantic matches found</p>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  No papers matched your query above the similarity threshold (0.65). Try broadening terms or clearing filters.
+                </p>
+              </div>
+            ) : (
+              <>
+                <Search className="w-8 h-8 opacity-20" />
+                <span className="text-xs font-semibold">No papers match current search criteria.</span>
+              </>
+            )}
           </div>
         ) : (
           screeningPapers.map((paper) => {
@@ -555,6 +619,18 @@ export default function ManualScreeningList({
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
+      )}
+
+      {showBuildModal && (
+        <VectorBuildModal
+          isOpen={showBuildModal}
+          onClose={() => setShowBuildModal(false)}
+          loadVectorStatus={loadVectorStatus || (async () => {})}
+          onBuildSuccess={() => {
+            triggerSemanticSearch();
+          }}
+          showToast={showToast || (() => {})}
+        />
       )}
     </div>
   );

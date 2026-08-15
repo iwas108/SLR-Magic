@@ -3,7 +3,28 @@ import { Project } from '@/types';
 
 export function useProjectForm(initialData?: any) {
   const [name, setName] = useState(initialData?.name || '');
-  const [folderName, setFolderName] = useState('');
+  const [folderName, setFolderName] = useState(initialData?.folder_name || '');
+  const isSlugCustomizedRef = useRef(false);
+
+  const generateSlug = (text: string) => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  };
+
+  const handleNameChange = (newName: string) => {
+    setName(newName);
+    if (!initialData && !isSlugCustomizedRef.current) {
+      setFolderName(generateSlug(newName));
+    }
+  };
+
+  const handleFolderNameChange = (newSlug: string) => {
+    isSlugCustomizedRef.current = true;
+    setFolderName(newSlug);
+  };
   const [manifesto, setManifesto] = useState(initialData?.manifesto || '');
   const [objective, setObjective] = useState(initialData?.objective || '');
   const [questions, setQuestions] = useState(initialData?.questions || '');
@@ -303,7 +324,19 @@ export function useProjectForm(initialData?: any) {
     setPoolCExtractionRules(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handlePopulateAllPoolCExtractionRules = (keys: string[]) => {
+    if (!keys || keys.length === 0) return;
+    setPoolCExtractionRules(prev => {
+      const existingKeys = new Set(prev.map(r => r.json_key));
+      const newRules = keys
+        .filter(k => k && !existingKeys.has(k))
+        .map(k => ({ json_key: k, question: '' }));
+      return [...prev, ...newRules];
+    });
+  };
+
   const resetForm = () => {
+    isSlugCustomizedRef.current = false;
     setName('');
     setFolderName('');
     setManifesto('');
@@ -424,8 +457,8 @@ export function useProjectForm(initialData?: any) {
 
   return {
     populateForm,
-    name, setName,
-    folderName, setFolderName,
+    name, setName, handleNameChange,
+    folderName, setFolderName, handleFolderNameChange,
     manifesto, setManifesto,
     objective, setObjective,
     questions, setQuestions,
@@ -458,6 +491,7 @@ export function useProjectForm(initialData?: any) {
     handleAddPoolBEcRule, handleUpdatePoolBEcRule, handleRemovePoolBEcRule,
     handleAddPoolBReasoningTemplate, handleUpdatePoolBReasoningTemplate, handleRemovePoolBReasoningTemplate,
     handleAddPoolCQaRule, handleUpdatePoolCQaRule, handleRemovePoolCQaRule,
-    handleAddPoolCExtractionRule, handleUpdatePoolCExtractionRule, handleRemovePoolCExtractionRule
+    handleAddPoolCExtractionRule, handleUpdatePoolCExtractionRule, handleRemovePoolCExtractionRule,
+    handlePopulateAllPoolCExtractionRules
   };
 }

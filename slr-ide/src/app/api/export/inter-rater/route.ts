@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
+import { compressSlrServer } from '@/lib/slr-compression';
 
 export async function GET(request: Request) {
   try {
@@ -190,9 +191,11 @@ export async function GET(request: Request) {
       papers: blindedPapers
     };
 
-    return new Response(JSON.stringify(payload, null, 2), {
+    const compressedBuffer = compressSlrServer(payload);
+
+    return new Response(new Uint8Array(compressedBuffer), {
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${project.folder_name}_${dbPool}_blinded_review.slr"`
       }
     });

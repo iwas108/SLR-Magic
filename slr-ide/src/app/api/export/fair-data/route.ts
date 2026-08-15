@@ -56,6 +56,15 @@ export async function GET(request: Request) {
     // 8. Calibration Papers
     exportData.calibration_papers = db.prepare('SELECT * FROM calibration_papers WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
+    // 9. Prompt Audit Ledger
+    exportData.prompt_audit_ledger = db.prepare('SELECT * FROM prompt_audit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
+    // 10. Prompt Benchmark Runs
+    exportData.prompt_benchmark_runs = db.prepare('SELECT * FROM prompt_benchmark_runs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
+    // 11. Prompt Benchmark Results
+    exportData.prompt_benchmark_results = db.prepare('SELECT * FROM prompt_benchmark_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
     const jsonString = JSON.stringify(exportData, null, 2);
     
     // Create response with headers for file download

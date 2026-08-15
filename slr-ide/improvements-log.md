@@ -1,3 +1,156 @@
+## #386 - Cross-Platform Automated Dependency Installer & Centralized Python Path Resolver (2026-08-15)
+- **Goal**: Implement automated, cross-platform dependency installation scripts (`install.sh`, `install.ps1`, `install.bat`, `npm run setup`) for Windows, Linux, and macOS across all workspace submodules (`root`, `slr-ide`, `inter-rater`, `slr-viewer`), providing prerequisite diagnostics (Node.js, npm, nvm, Python 3, Python `venv`), smart virtual environment detection/reuse, and centralized cross-platform Python executable resolution in `slr-ide`.
+- **Architectural Implementation**:
+  1. **Cross-Platform Automated Installers (`install.sh`, `install.ps1`, `install.bat`, `scripts/install-launcher.mjs`)**:
+     - Built POSIX-compliant `install.sh` for Linux and macOS with color-coded diagnostic checks for Node.js (>=18), npm, nvm, Python 3, and Python `venv` support.
+     - Built PowerShell `install.ps1` and Command Prompt `install.bat` wrapper for Windows with automatic ExecutionPolicy handling.
+     - Implemented smart venv detection: checks if `slr-ide/python_engine/venv` exists; if present, logs detection and updates packages via `pip install -r requirements.txt`; if absent, creates the virtual environment with `python -m venv` and installs all dependencies.
+     - Automatically chains Node dependencies across `root`, `slr-ide`, `inter-rater`, and `slr-viewer`, followed by post-install `npm run mirror:viewer` sync.
+     - Added root `package.json` `"setup": "node scripts/install-launcher.mjs"` platform detector.
+  2. **Centralized Python Executable Resolver (`slr-ide/src/lib/services/python-path.ts`)**:
+     - Created `getPythonExecutablePath()` and `isPythonVenvPresent()` to resolve `python_engine/venv/Scripts/python.exe` on Windows and `python_engine/venv/bin/python` on Linux/macOS with fallback to system Python.
+     - Refactored all 13 `slr-ide` API routes and backend services (`screen/route.ts`, `pricing/refresh/route.ts`, `pdf/download/route.ts`, `pdf/scan/route.ts`, `pdf/single/route.ts`, `remote-worker/result/route.ts`, `umbrellanizer/route.ts`, `vectors/build/route.ts`, `vectors/search/route.ts`, `vectors/traps/route.ts`, `archive-service.ts`, `batch-pipeline-executor.ts`, `vector-daemon-manager.ts`) to use the centralized helper.
+  3. **Documentation & Governance**:
+     - Registered `src/lib/services/python-path.ts` in `slr-ide/files.md`.
+     - Updated Quick Start documentation across `README.md`, `slr-ide/README.md`, `inter-rater/README.md`, and `slr-viewer/README.md`.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit` exited with code 0).
+
+## #385 - Project-Scoped Vector Search Status, Corpus Index Health Badges & Assign Papers Empty-State Resolution (2026-08-15)
+- **Goal**: Fix empty semantic search results in "Assign Papers to Calibration Pools" and "Manual Screening Pipeline" by resolving multi-project corpus vector coverage isolation, providing real-time vector index health badges, two-tier context-aware diagnostics, and instant in-situ index building.
+- **Architectural Implementation**:
+  1. **Project-Scoped Vector Status API (`/api/vectors/status/route.ts`)**:
+     - Upgraded status route to compute project-specific indexing coverage metrics (`total_project_papers`, `indexed_project_papers`, `missing_project_papers`, `coverage_pct`).
+     - Utilized in-memory `Set` lookup of active project paper IDs against `vector_id_map.db` to prevent cross-database connection locking in SQLite while achieving $<1\text{ms}$ resolution.
+     - Enforced `indexed: true` only when both physical index files exist and active project corpus coverage is 100% (`indexed_project_papers >= total_project_papers`).
+  2. **Semantic Search Cache & Filter Alignment (`semantic-search-cache.ts`, `useCalibration.ts`)**:
+     - Removed restrictive legacy $<100$ result bypass in `semantic-search-cache.ts` to allow small corpora and selective queries to benefit from instant SQLite cache hits.
+     - Added `ready_for_ai` (`SYNCED` PDF) and `pending_pdf` (missing/inaccessible PDF) branch handling in client-side semantic filter pipeline in `useCalibration.ts` to match standard database view filtering.
+     - Consolidated duplicate search debouncing effects in `useCalibration.ts`.
+  3. **Frontend Index Health Badges & Context-Aware Empty State CTAs (`PaperSelectionList.tsx`, `VectorBuildModal.tsx`, `ManualScreeningList.tsx`, `useManualScreening.ts`)**:
+     - Added prominent index health badges (e.g. `⚡ 1,063/1,063 Indexed` or `⚠️ 0/1,063 Indexed`) in the search controls toolbars of both Assign Papers and Manual Screening views.
+     - Upgraded empty states from generic messages to two-tier diagnostic callouts: rendering an amber unindexed warning with an instant **"Build Semantic Index Now"** CTA button if the project corpus is unindexed, and query refinement guidance if 100% indexed.
+     - Added `onBuildSuccess` post-build callback to `VectorBuildModal` to automatically trigger `loadVectorStatus()` and re-run active semantic searches immediately upon completion without requiring manual retyping.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit` exited with code 0).
+
+## #384 - Interactive Prompt Staging Quest-Line, Sandbox Benchmarks & HITL Optimization Engine (2026-08-15)
+- **Goal**: Implement an interactive 5-stage progression HUD (Cyberpunk Quest-Line / Neon Glass HUD) in **SLR-IDE -> Pre-Calibration -> Statistics** to systematically evaluate the consistency, chainability, and empirical performance of the 4-stage LLM screening pipeline against double-blind adjudicated gold standard calibration pools, paired with an adversarial Prompt Optimization Magic engine featuring Human-in-the-Loop full-text PDF retrieval and Copy-on-Write template updates.
+- **Architectural Implementation**:
+  1. **Dynamic LLM Config Adherence & Zero Hardcoding (`prompt-validator.ts`, `prompt-hydrator.ts`, `db-init.ts`)**:
+     - Registered `consolidation_audit` and `prompt_optimizer` prompt types, default Jinja2 user templates, and baseline JSON schemas.
+     - Seeded `default-prompt-consolidation-audit` and `default-prompt-optimizer` in `prompt_templates`.
+     - Built centralized `hydrateTemplate` TypeScript utility matching Python Jinja2 conventions with case-insensitive aliases and fallback protection.
+     - Enforced 100% dynamic adherence to `prompt_templates.llm_config` (`concurrency`, `request_delay`, `model_id`, `temperature`, `max_tokens`, `top_p`, `top_k`, `thinking_level`, `execution_mode`, `timeout_seconds`).
+  2. **Audit Ledger & Sandbox Benchmark API Routes (`stage-audit/route.ts`, `benchmark/route.ts`)**:
+     - Created `POST /api/calibration/stage-audit` executing zero-temperature adversarial consolidation audits across all 4 pipeline stage prompts, evaluating research scope alignment, exclusion code orthogonality, and inter-stage input/output data flow continuity, persisted to `prompt_audit_ledger`.
+     - Created `GET/POST /api/calibration/benchmark` executing isolated sandbox benchmark runs against double-blind adjudicated calibration datasets (Pool A for Stage 1, Pool B for Stage 2, Pool C for Stage 3 & 4) partitioned into 70% Calibration Tuning / 30% Holdout Validation subsets, joining `calibration_commit_ledger` with `MAX(timestamp)` per paper to establish ground truth consensus, and evaluating PRISMA Hard Exit Gates (Stage 1 Recall 100%, Stage 2 Precision $\ge 85\%$, Stage 2 Recall $\ge 90\%$, Scientist Weighted Kappa $\ge 0.65$).
+  3. **Human-in-the-Loop Prompt Optimization Magic (`prompt-optimize/route.ts`)**:
+     - Multi-turn adversarial prompt diagnosis analyzing failure patterns in the 70% training subset.
+     - Implemented Turn 1 / Turn 2 Interaction Chaining: when the optimizer identifies subtle claims requiring full-text inspection, it presents an interactive HITL approval drawer displaying paper ID, title, technical reason, token estimate, and on-disk status.
+     - Upon user approval, attaches full-text content or structured metadata fallbacks (`PDF_UNAVAILABLE`) to refine prompt revisions.
+     - Implemented `PUT /api/calibration/prompt-optimize` supporting Copy-on-Write forked templates (`project_id = activeProjectId`, `parent_prompt_id = originalId`) to keep global defaults immutable.
+  4. **18-Table FAIR Data Export & Archival Integration (`archive-service.ts`, `fair-data/route.ts`, `projects/[id]/route.ts`)**:
+     - Integrated `prompt_audit_ledger`, `prompt_benchmark_runs`, and `prompt_benchmark_results` into the Project Archive service, FAIR data export payload, and project wipe transactions.
+  5. **Frontend Cyberpunk Quest-Line / Neon Glass HUD (`usePromptStaging.ts`, `PromptStagingQuestPanel.tsx`, `PromptConsolidationCard.tsx`, `StageBenchmarkCard.tsx`, `PromptOptimizationDiffModal.tsx`)**:
+     - Mounted `PromptStagingQuestPanel` in `PreCalibrationView.tsx` under the `statistics` tab.
+     - Created Card 1 with availability ($4/4$), semantic alignment, and chainability checks with expandable diagnostic consoles.
+     - Created Cards 2–5 with progressive unlocking prerequisites, real-time benchmark execution, statistical accuracy tables, and paper discrepancy inspection using `extractMappingReasoning` and `extractEvidenceQuote` from `trace-normalizer.ts`.
+     - Implemented `PromptOptimizationDiffModal` featuring the HITL PDF approval drawer, side-by-side colorized diff viewer, and direct Copy-on-Write template application.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit` exited with code 0) and archive service unit tests (`node scripts/test-archive-service.mjs` passed with 0 FK violations).
+
+## #383 - Project-Specific Prompt Forking & Global Default Immutability (2026-08-15)
+- **Goal**: Guarantee that when a user edits any prompt template (including seeded global defaults like `'default-duplicate-review'`) within a project context, the modifications are saved as a project-specific copy (`project_id = activeProject.id`) with an auto-generated UUID, leaving the global default template 100% immutable and untouched.
+- **Architectural Implementation**:
+  1. **Safe Project Forking in REST API (`/api/llm/prompts/route.ts`)**:
+     - Inspected existing prompt record before update: if the template is Global (`project_id === null`) and a `project_id` is supplied in the request, automatically creates a new project-scoped template row (`INSERT INTO prompt_templates ... VALUES (newId, project_id, ...)`).
+     - Directly updates existing project-scoped templates if the template already belongs to that project.
+     - Automatically updates the active project's default prompt stage binding (`projects.llm_config.default_prompts[prompt_type]`) to reference the new project-specific template ID.
+     - Returned `{ success: true, id, is_forked, message }` informing the client whether a project-specific fork occurred.
+  2. **UI Scope Indicators & State Synchronization (`GlobalLLMSettingsView.tsx`, `PromptLibraryView.tsx`)**:
+     - Added scope badge pills in the prompt editor headers (`Global Default (Saves as Project-Specific Copy)` vs `Project-Specific Template`).
+     - Synchronized `defaultPromptsState` immediately when a template is forked to ensure active stage dropdowns reflect the new project-specific template.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit` exited with code 0).
+
+## #382 - 100% Strict LLM Config Settings Adherence in AI Deduplication Pipeline (2026-08-15)
+- **Goal**: Guarantee that AI duplicate screening in `POST /api/duplicates/ai-screen` strictly honors all prompt settings defined in the **LLM Config** section of the selected prompt template in the Prompt Library (`model_id`, `temperature`, `max_tokens`, `top_p`, `top_k`, `thinking_level`, `execution_mode`, `discount`, `timeout_seconds`).
+- **Architectural Implementation**:
+  1. **Strict LLM Config Extraction & Generation Payload (`/api/duplicates/ai-screen/route.ts`)**:
+     - Parsed `llm_config` from active prompt template with strict fallbacks.
+     - Enforced `model_id` (sanitized from `models/` prefix), `temperature`, `max_tokens` (`maxOutputTokens`), `top_p` (`topP`), and `top_k` (`topK`).
+     - Implemented `thinkingConfig` mapping: dynamically allocated thinking token budget for `'minimal'` (1024), `'low'` (2048), `'medium'` (4096), and `'high'` (8192), while setting `thinkingBudget: 0` for non-thinking requests on Gemini 2.0 / 2.5 models.
+     - Wired up `timeout_seconds` to `AbortSignal.timeout(timeoutSeconds * 1000)` on the fetch request to prevent hanging requests.
+     - Applied prompt-configured `discount` or Flex mode default discount to token accounting (`projects.project_current_spend`) and recorded `speed_mode`, `flex_discount`, `thinking_tokens`, and `structured_output` in `llm_audit_log`.
+  2. **Template Selection & Config Transparency in UI (`DuplicateReviewModal.tsx`)**:
+     - Loaded active `'duplicate_review'` prompt templates from `/api/llm/prompts` on modal open.
+     - Rendered dynamic prompt selector dropdown or live model info pill badge in the modal header.
+     - Passed `template_id` in API payload to guarantee the chosen prompt template's settings are executed.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit` exited with code 0).
+
+## #381 - Schema-Driven JSON Key Autocomplete & Mapping in Project Calibration Settings (2026-08-15)
+- **Goal**: Upgrade **Project Settings -> Calibration & Pools -> Data Extraction Rules (JSON Mapping)** from manual free-text input to a strict schema-driven `<select>` dropdown populated dynamically from the project's active Miner prompt schema (`properties.extracted_data.properties`), with missing prompt alert guidance and a one-click "Populate from Schema" batch shortcut.
+- **Architectural Implementation**:
+  1. **Dynamic Miner Prompt Schema Resolution (`ProjectSettingsModal.tsx`)**:
+     - Fetched project-tied prompt templates from `/api/llm/prompts?project_id=${project.id}` when opening project settings.
+     - Resolved the active Miner prompt (`prompt_type === 'miner'`, prioritizing `is_active === 1` or most recent update) and strictly extracted all keys from `properties.extracted_data.properties`.
+     - Computed schema state (`minerSchemaKeys`, `hasMinerPrompt`, `isLoadingMinerPrompt`) and passed down to calibration settings.
+  2. **Form State Batch Populate Helper (`useProjectForm.ts`)**:
+     - Implemented `handlePopulateAllPoolCExtractionRules(keys: string[])` to deduplicate and batch-append all Miner schema keys into `projectFormPoolCExtractionRules` in one step.
+  3. **Strict Select Dropdown & UI Overhaul (`ProjectCalibrationSettings.tsx`)**:
+     - Replaced free-text input with a styled `<select>` dropdown displaying all Miner schema keys, with automatic preservation and tagging of existing `(Custom / Legacy)` keys.
+     - Added an inline warning alert banner when no active Miner prompt template exists for the project, guiding the user to configure one in Global LLM Settings / Prompt Library.
+     - Added a "Populate from Schema" button with a `Sparkles` icon to batch-populate all schema keys into the mapping table with a single click.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit` exited with code 0).
+
+## #380 - Automated AI Duplicate Screening & Adjudication Pipeline in Review Duplicates (2026-08-15)
+- **Goal**: Implement high-precision automated AI screening for candidate duplicate paper pairs in `slr-ide` Review Duplicates modal, providing detailed technical breakdowns across mathematical shifts, topology/scope changes, and data footprints, taxonomy classification (`CONFIRMED DUPLICATE`, `STRUCTURAL OVERLAP`, `COMPANION PAPERS`, `FALSE FLAG`), database lineage recommendations, and auto-selection of recommended primary papers.
+- **Architectural Implementation**:
+  1. **Prompt Library Integration & Schema Validation (`prompt-validator.ts`, `schema_registry.py`)**:
+     - Added `'duplicate_review'` to `PromptType` union, `PROMPT_TYPE_OPTIONS`, `DEFAULT_STAGE_SCHEMAS`, and schema validation rules.
+     - Registered duplicate review taxonomy and schema keys (`verdict`, `technical_breakdown`, `primary_action`, `suggested_primary_id`, `database_execution`).
+  2. **Database Migration & Seeding (`db-init.ts`)**:
+     - Expanded `duplicate_pairs` table schema with `ai_verdict`, `ai_analysis`, and `ai_suggested_primary_id` columns with self-healing fallback migrations.
+     - Seeded default global prompt template `'default-duplicate-review'` with structured system instructions, Jinja2 template bindings (`{{paper1_id}}`, `{{paper1_title}}`, etc.), and strict JSON schema.
+  3. **Backend API Endpoint (`/api/duplicates/ai-screen/route.ts`)**:
+     - Enforced preflight guardrails: pipeline lock, vault unlock state, in-memory AES decryption of `GEMINI_API_KEY`, budget limit enforcement, active prompt template resolution from Prompt Library with fallback.
+     - Executed structured Gemini API generation (`response_schema` enforcement).
+     - Recorded execution in `llm_audit_log` with project isolation and updated `projects.project_current_spend` atomically.
+     - Persisted AI analysis and verdict to `duplicate_pairs`.
+  4. **Frontend Review Duplicates Modal (`DuplicateReviewModal.tsx`)**:
+     - Added "AI Screen Pair" / "Re-Run AI Screen" Magic Button with loader and error banner handling.
+     - Rendered AI Deduplication Verdict banner with color-coded taxonomy badges, primary action, database lineage recommendation, and 3-column technical breakdown grid (Mathematical Shift, Topology/Scope Change, Data Footprint).
+     - Added "AI Primary Choice" badge and auto-selected recommended primary paper radio button on AI completion.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit` exited with code 0).
+
+## #379 - Transparent GZIP Compression Protocol for Review Files Across All Pools & QA Batches (2026-08-15)
+- **Goal**: Adopt transparent GZIP compression across all exported `.slr` review packages (Pool A, Pool B, Pool C, and QC/QA Batch) in `slr-ide`, drastically reducing exported file sizes (80-99% reduction when base64 PDFs and rich extraction metadata are embedded) while preserving full backward compatibility with legacy uncompressed JSON files.
+- **Changes**:
+  - Created [`src/lib/slr-compression.ts`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/lib/slr-compression.ts): Universal compression utility supporting Node.js native `zlib` (`compressSlrServer`, `decompressSlrServer`) and browser Web Streams (`compressSlrBrowser`, `decompressSlrBrowser` using `CompressionStream`/`DecompressionStream`) with automatic GZIP magic byte detection (`0x1F, 0x8B`).
+  - Modified [`src/app/api/export/inter-rater/route.ts`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/export/inter-rater/route.ts): Compressed exported review packages for Pool A, Pool B, and Pool C with `compressSlrServer`, returning `application/octet-stream` responses.
+  - Modified [`src/app/api/rolling-batch/export/route.ts`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/export/route.ts): Compressed exported review packages for QA batches (`QC_Batch`) with `compressSlrServer`.
+  - Modified [`src/app/api/import/inter-rater/route.ts`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/import/inter-rater/route.ts): Updated import route to read request `arrayBuffer()` and parse using `decompressSlrServer`, accepting both compressed GZIP payloads and uncompressed JSON text.
+  - Modified [`src/app/api/rolling-batch/import/route.ts`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/app/api/rolling-batch/import/route.ts): Updated import route to read request `arrayBuffer()` and parse using `decompressSlrServer`.
+  - Modified [`src/components/InterRaterDashboard.tsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/InterRaterDashboard.tsx) & [`src/hooks/useRollingBatch.ts`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/hooks/useRollingBatch.ts): Sent binary `arrayBuffer()` directly with `application/octet-stream` during import uploads to minimize client upload overhead.
+  - Modified [`src/components/features/post-validation/ImportBatchStandbyModal.tsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/ImportBatchStandbyModal.tsx): Updated file loader to use `decompressSlrBrowser` for client-side pre-validation and reconciliation of reviewer files.
+- **Verification**: Verified TypeScript compilation with 0 errors (`npx tsc --noEmit`); ran cross-platform compression tests (`scripts/test-compression.mjs`) confirming 99.5% compression ratio on base64 PDF payloads.
+
+## #378 - Fix Lock Screen Stuck UI, Global Modal Lifting & Executive Command Center Dashboard Redesign (2026-08-15)
+- **Goal**: Fix the UI getting stuck when clicking 'Create Project' from the empty-project Lock Screen (`ProjectLockScreenModal`), lift project modals out of isolated tab views into the global layer (`GlobalModals`), and overhaul the Project Dashboard and Project Settings UI into a modern, high-aesthetic Executive Command Center.
+- **Root Cause & Fix for Stuck UI**:
+  - `CreateProjectModal` was previously rendered exclusively inside `DashboardView.tsx`. When zero projects existed, `ProjectLockScreenModal` rendered a full-screen blurred backdrop with `z-50` that did not yield or unmount when `showCreateProjectModal` became true, trapping the creation modal behind the lock screen overlay and rendering the UI non-responsive.
+  - Lifted `CreateProjectModal`, `ProjectSettingsModal`, `ArchiveProjectModal`, and `ImportProjectModal` into `GlobalModals.tsx` and updated `ProjectLockScreenModal` in `page.tsx` with conditional unmounting (`isOpen={... && !showCreateProjectModal && !showImportModal && !showLockScreenImportModal}`).
+- **Key Enhancements**:
+  1. **Create Project Modal (`CreateProjectModal.tsx` & `useProjectForm.ts`)**: Added real-time auto-slug generation from project titles with manual slug override, structured card sections with iconography, smart default pool sizes (50/30/20), and cloud sync presets.
+  2. **Project Settings Modal (`ProjectSettingsModal.tsx`)**: Expanded modal width to `max-w-4xl` with glassmorphic styling, icon pill tab navigation (`Scope & Search Queries`, `Calibration & Pools`, `Cloud Sync & Rclone`, `Budget & Safety`), and sticky header/footer.
+  3. **Project Settings Sub-Components**:
+     - `ProjectMetadataSettings.tsx`: Added copy-to-clipboard buttons for Scopus & Google Scholar query strings, monospaced query textareas, and enhanced Jinja2 Umbrellanizer RQ description mapping.
+     - `ProjectCalibrationSettings.tsx`: Redesigned pool switcher tabs with chip badges, visual EC rules mapper, reasoning templates, and fatal-flaw QA rules.
+     - `ProjectSyncSettings.tsx`: Added cloud provider card buttons (Google Drive / OneDrive), diagnostics connection test widget with animated spinner, and Rclone setup guide.
+  4. **Executive Command Center Dashboard (`DashboardView.tsx`)**:
+     - Created top Executive Hero Command Banner with live active project badges, creation timestamps, overview metric counters, and direct action shortcuts.
+     - Upgraded `MetricSummaryCards.tsx` into an interactive 4-Stage Pipeline Funnel (Fast Filter -> Gatekeeper -> Scientist -> Miner) with stage indicators, drop-offs, and missing variable analytics.
+     - Enhanced `LocalPDFStatusChart.tsx` with asset storage and cloud mirror telemetry meters.
+     - Refactored Projects Manager table with real-time text search filtering across project names, slugs, and cloud providers.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit` exited with code 0).
+
 ## #377 - Synchronize Project Repo Folder Cleanup on Confirm Wipe Project (2026-08-15)
 - **Goal**: Align the **Confirm Wipe Project** (`DELETE /api/projects/[id]`) workflow so that deleting a project also removes the project workspace directory (`pdf_library/repo/<folder_name>/`), while keeping the eternal PDF library (`raw` and `cached` directories) 100% untouched.
 - **Changes**:

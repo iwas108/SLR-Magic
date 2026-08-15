@@ -64,8 +64,9 @@ export async function POST(req: NextRequest) {
     const path = await import('path');
     const fs = await import('fs');
     const { PROJECT_ROOT } = await import('@/lib/db');
+    const { getPythonExecutablePath } = await import('@/lib/services/python-path');
 
-    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+    const pythonExe = getPythonExecutablePath(PROJECT_ROOT);
     const mainScript = path.join(PROJECT_ROOT, 'python_engine', 'llm', 'main.py');
     const targetResearchQuestion = body.targetResearchQuestion || body.targetVariableName || key;
     const targetResearchQuestionDescription = body.targetResearchQuestionDescription || '';

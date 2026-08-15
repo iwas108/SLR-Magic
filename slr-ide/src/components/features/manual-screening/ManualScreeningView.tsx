@@ -138,6 +138,9 @@ export default function ManualScreeningView({
         screeningTotalPages={screeningTotalPages}
         screeningSearchTime={screeningSearchTime}
         triggerSemanticSearch={triggerSemanticSearch}
+        vectorIndexStatus={manualScreeningHook.vectorIndexStatus}
+        loadVectorStatus={manualScreeningHook.loadVectorStatus}
+        showToast={showToast}
         isMinimized={!!screeningSelectedPaper}
       />
       {screeningSelectedPaper && (

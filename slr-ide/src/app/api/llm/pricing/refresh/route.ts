@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 import { PROJECT_ROOT, getVaultKey, getConfig } from '@/lib/db';
 import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 import db from '@/lib/db';
 
 export async function POST() {
@@ -32,7 +33,7 @@ export async function POST() {
       return NextResponse.json({ error: 'Failed to decrypt Gemini API Key. Vault locked.' }, { status: 401 });
     }
 
-    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+    const pythonExe = getPythonExecutablePath();
     const mainScript = path.join(PROJECT_ROOT, 'python_engine', 'llm', 'main.py');
 
     if (!fs.existsSync(pythonExe) || !fs.existsSync(mainScript)) {

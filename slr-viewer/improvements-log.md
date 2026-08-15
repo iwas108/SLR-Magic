@@ -4,6 +4,22 @@ All notable changes, refactoring milestones, and feature additions to `slr-viewe
 
 ---
 
+## [2026-08-15] - Granular & Bulk Copy Functionality for Project Governance (1.1) and Frozen Prompts (2.4)
+
+### Added
+- **1.1 Project Metadata & Governance Copy Actions**:
+  - Master **Copy Full Spec** button at the top of the 1.1 drawer exporting structured Markdown of the entire governance manifesto, objectives, RQs, ECs, and QA rubrics.
+  - Granular copy buttons on Project Name, Description, Research Manifesto, Research Objective, and Research Questions.
+  - **Exclusion Criteria**: "Copy All ECs" section button plus individual copy buttons on every EC criterion card.
+  - **Quality Assurance & Fatal Flaw Gates**: "Copy All QA Rules" section button, full rule copy buttons on every QA gate, and granular copy buttons on individual score tiers (Score 1.0 Full Pass, Score 0.5 Partial, Score 0.0 Fail, and Generic Score Definitions).
+- **2.4 Frozen Prompt & Schema Mount Copy Actions**:
+  - Registry header **Copy All Templates** button exporting all registered prompt templates into structured Markdown.
+  - Per-template **Copy Template** button compiling full template metadata, stage badges, system instructions, user prompts, and response JSON schemas.
+  - Individual copy buttons on System Instruction, User Template Prompt, and Response JSON Schema code blocks.
+- **Dynamic Clipboard Feedback System**:
+  - Centralized `handleCopy` helper with dynamic key-based 2-second auto-resetting checkmark indicator pill (`isCopied` state transition).
+  - Synchronized global toast notification alerts using `ViewerContext.showToast`.
+
 ## [2026-08-15] - Fix Multi-Project Snapshot Export Scoping & Ingestion Hydration
 
 ### Fixed

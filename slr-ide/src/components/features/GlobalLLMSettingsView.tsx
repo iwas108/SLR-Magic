@@ -634,9 +634,16 @@ export default function GlobalLLMSettingsView({
         })
       });
       if (res.ok) {
-        showToast?.('Prompt template saved successfully', 'success');
+        const resData = await res.json();
+        showToast?.(resData.message || 'Prompt template saved successfully', 'success');
         setEditingPrompt(null);
         loadPrompts();
+        if (resData.id && editingPrompt.prompt_type) {
+          setDefaultPromptsState(prev => ({
+            ...prev,
+            [editingPrompt.prompt_type as string]: resData.id
+          }));
+        }
       } else {
         const errorData = await res.json();
         showToast?.(errorData.error || 'Failed to save template', 'error');
@@ -1143,9 +1150,24 @@ export default function GlobalLLMSettingsView({
               <div className="space-y-4 bg-secondary/5 border border-border/40 p-4 rounded-xl">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
-                  <div>
-                    <h4 className="font-bold text-foreground text-sm">{editingPrompt.id ? 'Edit Prompt Template' : 'Create Prompt Template'}</h4>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Customize LLM instructions, Jinja2 template fields, and JSON schemas.</p>
+                  <div className="flex items-center gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-foreground text-sm">{editingPrompt.id ? 'Edit Prompt Template' : 'Create Prompt Template'}</h4>
+                        {editingPrompt.id && (
+                          editingPrompt.project_id === null ? (
+                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">
+                              Global Default (Saves as Project-Specific Copy)
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                              Project-Specific Template
+                            </span>
+                          )
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Customize LLM instructions, Jinja2 template fields, and JSON schemas.</p>
+                    </div>
                   </div>
                   <button 
                     type="button"

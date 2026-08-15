@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import readline from 'readline';
 import path from 'path';
 import { PROJECT_ROOT, getConfig } from '@/lib/db';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 
 export class VectorDaemonManager {
   private static instance: VectorDaemonManager | null = null;
@@ -51,7 +52,7 @@ export class VectorDaemonManager {
       try {
         console.log('[VectorDaemonManager]: Starting Python vector worker daemon...');
         
-        const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+        const pythonExe = getPythonExecutablePath();
         const pythonModule = 'python_engine.entrypoints.vector_worker';
 
         // Spawn with -u for unbuffered stdout/stderr

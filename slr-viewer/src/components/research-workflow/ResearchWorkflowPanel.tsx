@@ -157,17 +157,87 @@ const DEFAULT_MINER_EXTRACTION = [
 ];
 
 export default function ResearchWorkflowPanel() {
-  const { activeSession } = useViewerData();
+  const { activeSession, showToast } = useViewerData();
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [activeGroupIndex, setActiveGroupIndex] = useState(0);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(true);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [copiedSearchQuery, setCopiedSearchQuery] = useState(false);
   const [copiedManualSearchQuery, setCopiedManualSearchQuery] = useState(false);
   const [expandedTaxonomyKey, setExpandedTaxonomyKey] = useState(null);
   const [activeJustificationKey, setActiveJustificationKey] = useState(null);
   const [isPrintingTaxonomy, setIsPrintingTaxonomy] = useState(false);
   const [showRawTaxonomy, setShowRawTaxonomy] = useState(false);
+
+  // Dynamic clipboard copy handler with inline 2s auto-reset and global toast feedback
+  const handleCopy = (key: string, text: string, toastLabel: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    if (showToast) {
+      showToast(`Copied ${toastLabel} to clipboard`, 'success');
+    }
+    setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 2000);
+  };
+
+  // Inline styled copy button helper (text pill button)
+  const renderCopyBtn = (key: string, text: string, toastLabel: string, btnLabel: string = 'Copy') => {
+    if (!text || !text.trim()) return null;
+    const isCopied = copiedKey === key;
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleCopy(key, text, toastLabel);
+        }}
+        className={`px-2 py-1 rounded text-[11px] font-semibold border flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
+          isCopied
+            ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
+            : 'bg-secondary hover:bg-secondary/80 text-foreground border-border hover:border-primary/40'
+        }`}
+        title={`Copy ${toastLabel} to clipboard`}
+      >
+        {isCopied ? (
+          <>
+            <Check className="w-3 h-3 text-emerald-500" />
+            <span className="text-emerald-500 font-bold">Copied!</span>
+          </>
+        ) : (
+          <>
+            <Copy className="w-3 h-3 text-muted-foreground" />
+            <span>{btnLabel}</span>
+          </>
+        )}
+      </button>
+    );
+  };
+
+  // Compact icon copy button helper
+  const renderCopyIconBtn = (key: string, text: string, toastLabel: string, title?: string) => {
+    if (!text || !text.trim()) return null;
+    const isCopied = copiedKey === key;
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleCopy(key, text, toastLabel);
+        }}
+        className={`p-1 rounded transition-all cursor-pointer shrink-0 ${
+          isCopied
+            ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/40'
+            : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80 border border-transparent hover:border-border'
+        }`}
+        title={title || `Copy ${toastLabel} to clipboard`}
+      >
+        {isCopied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+      </button>
+    );
+  };
 
   // Extract real live data from activeSession (unwrapping nested rawData if present)
   const rawData = activeSession?.rawData || activeSession || {};
@@ -758,6 +828,8 @@ export default function ResearchWorkflowPanel() {
                   parsedQa = typeof project.pool_c_qa_rules === 'string' ? JSON.parse(project.pool_c_qa_rules || '[]') : (project.pool_c_qa_rules || []);
                 } catch (e) {}
 
+                const projectNameVal = project.name || activeSession?.projectName || 'Active Project';
+                const projectDescVal = (project.description || '').trim();
                 const manifestoVal = (project.research_manifesto || project.manifesto || rawData.research_manifesto || rawData.manifesto || '').trim();
                 const objectiveVal = (project.research_objective || project.objective || rawData.research_objective || rawData.objective || '').trim();
                 const questionsVal = (project.research_questions || project.questions || rawData.research_questions || rawData.questions || '').trim();
@@ -769,18 +841,61 @@ export default function ResearchWorkflowPanel() {
                 // Format QA lines if text string available
                 const qaTextLines = qaDefVal ? qaDefVal.split('\n').filter((l) => l.trim().length > 0) : [];
 
+                const allEcText = ecTextLines.length > 0
+                  ? ecTextLines.map((l, i) => `${i + 1}. ${l.replace(/^\d+[\.\)]\s*/, '')}`).join('\n')
+                  : parsedEc.map((ec, i) => `${i + 1}. [${ec.code || ec.id || `EC-${i + 1}`}] ${ec.name ? ec.name + ': ' : ''}${ec.description || ec.desc || ec.code}`).join('\n');
+
+                const allQaText = parsedQa.length > 0
+                  ? parsedQa.map((qa, i) => {
+                      let lines = [`${i + 1}. [${qa.code || qa.id || `QA${i + 1}`}] ${qa.question || qa.name || qa.title || qa.code} ${qa.is_fatal_flaw ? '(Fatal Flaw Gate: Score > 0.0)' : ''}`];
+                      if (qa.score_1_logic || qa.score_1) lines.push(`   - Score 1.0 (Full Pass): ${qa.score_1_logic || qa.score_1}`);
+                      if (qa.score_05_logic || qa.score_05) lines.push(`   - Score 0.5 (Partial): ${qa.score_05_logic || qa.score_05}`);
+                      if (qa.score_0_logic || qa.score_0) lines.push(`   - Score 0.0 (Fail): ${qa.score_0_logic || qa.score_0}`);
+                      if (!qa.score_1_logic && !qa.score_05_logic && !qa.score_0_logic && (qa.score_definition || qa.description || qa.definition)) {
+                        lines.push(`   - Score Definition: ${qa.score_definition || qa.description || qa.definition}`);
+                      }
+                      return lines.join('\n');
+                    }).join('\n\n')
+                  : qaTextLines.map((l, i) => `${i + 1}. ${l.replace(/^\d+[\.\)]\s*/, '')}`).join('\n');
+
+                const fullGovernanceMarkdown = [
+                  `# Project Governance & Metadata: ${projectNameVal}`,
+                  projectDescVal ? `\n## Description\n${projectDescVal}` : '',
+                  manifestoVal ? `\n## Research Manifesto\n${manifestoVal}` : '',
+                  objectiveVal ? `\n## Research Objective\n${objectiveVal}` : '',
+                  questionsVal ? `\n## Research Questions\n${questionsVal}` : '',
+                  allEcText ? `\n## Exclusion Criteria\n${allEcText}` : '',
+                  allQaText ? `\n## Quality Assurance Definition & Fatal Flaw Gates\n${allQaText}` : ''
+                ].filter(Boolean).join('\n');
+
                 return (
                   <div className="space-y-6">
+                    {/* Master Copy Full Spec Button */}
+                    <div className="flex items-center justify-between p-3.5 bg-secondary/40 rounded-xl border border-border">
+                      <div className="flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-primary" />
+                        <div>
+                          <h4 className="text-xs font-extrabold text-foreground uppercase tracking-wider">Governance Specification</h4>
+                          <p className="text-[10px] text-muted-foreground">Complete project manifesto, objectives, RQs, ECs, and QA rubrics</p>
+                        </div>
+                      </div>
+                      {renderCopyBtn('copy-gov-all', fullGovernanceMarkdown, 'Full Governance Specification', 'Copy Full Spec')}
+                    </div>
+
                     {/* Project Overview Card */}
                     <div className="p-4 bg-secondary/30 rounded-xl border border-border space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-muted-foreground uppercase">Project Name</span>
-                        <span className="text-xs font-mono font-bold text-primary">{project.name || activeSession?.projectName || 'Not specified'}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-primary">{projectNameVal}</span>
+                          {renderCopyIconBtn('copy-gov-pname', projectNameVal, 'Project Name')}
+                        </div>
                       </div>
-                      {project.description ? (
-                        <p className="text-xs text-muted-foreground leading-normal border-t border-border/40 pt-2 mt-1">
-                          {project.description}
-                        </p>
+                      {projectDescVal ? (
+                        <div className="border-t border-border/40 pt-2 mt-1 flex items-start justify-between gap-2">
+                          <p className="text-xs text-muted-foreground leading-normal">{projectDescVal}</p>
+                          {renderCopyIconBtn('copy-gov-pdesc', projectDescVal, 'Project Description')}
+                        </div>
                       ) : (
                         <div className="text-[11px] italic text-muted-foreground border-t border-border/40 pt-2 mt-1">No description specified.</div>
                       )}
@@ -788,10 +903,13 @@ export default function ResearchWorkflowPanel() {
 
                     {/* Manifesto Section */}
                     <div className="space-y-1.5">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <BookOpen className="w-3.5 h-3.5 text-primary" />
-                        Research Manifesto
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-primary" />
+                          Research Manifesto
+                        </h4>
+                        {manifestoVal && renderCopyBtn('copy-gov-manifesto', manifestoVal, 'Research Manifesto', 'Copy Manifesto')}
+                      </div>
                       <div className="p-3 bg-secondary/30 rounded-xl border border-border text-xs leading-relaxed text-foreground font-sans">
                         {manifestoVal || <span className="italic text-muted-foreground">Not specified in project metadata</span>}
                       </div>
@@ -799,10 +917,13 @@ export default function ResearchWorkflowPanel() {
 
                     {/* Objective Section */}
                     <div className="space-y-1.5">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5 text-indigo-500" />
-                        Research Objective
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 text-indigo-500" />
+                          Research Objective
+                        </h4>
+                        {objectiveVal && renderCopyBtn('copy-gov-objective', objectiveVal, 'Research Objective', 'Copy Objective')}
+                      </div>
                       <div className="p-3 bg-secondary/30 rounded-xl border border-border text-xs leading-relaxed text-foreground font-sans">
                         {objectiveVal || <span className="italic text-muted-foreground">Not specified in project metadata</span>}
                       </div>
@@ -810,10 +931,13 @@ export default function ResearchWorkflowPanel() {
 
                     {/* Research Questions */}
                     <div className="space-y-1.5">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Code2 className="w-3.5 h-3.5 text-emerald-500" />
-                        Research Questions (RQs)
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Code2 className="w-3.5 h-3.5 text-emerald-500" />
+                          Research Questions (RQs)
+                        </h4>
+                        {questionsVal && renderCopyBtn('copy-gov-rqs', questionsVal, 'Research Questions', 'Copy RQs')}
+                      </div>
                       <div className="p-3 bg-secondary/30 rounded-xl border border-border text-xs font-mono whitespace-pre-wrap text-foreground">
                         {questionsVal || <span className="italic text-muted-foreground font-sans">Not specified in project metadata</span>}
                       </div>
@@ -821,28 +945,45 @@ export default function ResearchWorkflowPanel() {
 
                     {/* Exclusion Criteria (Numbered List sourced from projects.exclusion_criteria) */}
                     <div className="space-y-1.5">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Filter className="w-3.5 h-3.5 text-rose-500" />
-                        Exclusion Criteria
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Filter className="w-3.5 h-3.5 text-rose-500" />
+                          Exclusion Criteria
+                        </h4>
+                        {allEcText && renderCopyBtn('copy-gov-ec-all', allEcText, 'All Exclusion Criteria', 'Copy All ECs')}
+                      </div>
                       <div className="p-3 bg-secondary/30 rounded-xl border border-border text-xs text-foreground space-y-2">
                         {ecTextLines.length > 0 ? (
                           <ol className="list-decimal pl-4 space-y-2">
-                            {ecTextLines.map((line, idx) => (
-                              <li key={idx} className="leading-relaxed font-sans text-xs">
-                                <span className="font-medium text-foreground">{line.replace(/^\d+[\.\)]\s*/, '')}</span>
-                              </li>
-                            ))}
+                            {ecTextLines.map((line, idx) => {
+                              const cleanedLine = line.replace(/^\d+[\.\)]\s*/, '');
+                              return (
+                                <li key={idx} className="leading-relaxed font-sans text-xs">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="font-medium text-foreground">{cleanedLine}</span>
+                                    {renderCopyIconBtn(`copy-gov-ec-item-${idx}`, cleanedLine, `Exclusion Criterion ${idx + 1}`)}
+                                  </div>
+                                </li>
+                              );
+                            })}
                           </ol>
                         ) : parsedEc.length > 0 ? (
                           <ol className="list-decimal pl-4 space-y-2">
-                            {parsedEc.map((ec, idx) => (
-                              <li key={idx} className="leading-relaxed">
-                                <span className="font-bold text-rose-500 font-mono mr-1">[{ec.code || ec.id || `EC-${idx + 1}`}]</span>
-                                {ec.name && <span className="font-bold text-foreground mr-1.5">{ec.name}:</span>}
-                                <span>{ec.description || ec.desc || ec.code}</span>
-                              </li>
-                            ))}
+                            {parsedEc.map((ec, idx) => {
+                              const ecText = `[${ec.code || ec.id || `EC-${idx + 1}`}] ${ec.name ? ec.name + ': ' : ''}${ec.description || ec.desc || ec.code}`;
+                              return (
+                                <li key={idx} className="leading-relaxed">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <span className="font-bold text-rose-500 font-mono mr-1">[{ec.code || ec.id || `EC-${idx + 1}`}]</span>
+                                      {ec.name && <span className="font-bold text-foreground mr-1.5">{ec.name}:</span>}
+                                      <span>{ec.description || ec.desc || ec.code}</span>
+                                    </div>
+                                    {renderCopyIconBtn(`copy-gov-ec-item-${idx}`, ecText, `${ec.code || `EC-${idx + 1}`}`)}
+                                  </div>
+                                </li>
+                              );
+                            })}
                           </ol>
                         ) : (
                           <span className="italic text-muted-foreground font-sans">Not specified in project metadata</span>
@@ -852,10 +993,13 @@ export default function ResearchWorkflowPanel() {
 
                     {/* Quality Assurance Definition & Fatal Flaw Gates (Sourced from pool_c_qa_rules) */}
                     <div className="space-y-1.5">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
-                        Quality Assurance Definition & Fatal Flaw Gates
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                          Quality Assurance Definition & Fatal Flaw Gates
+                        </h4>
+                        {allQaText && renderCopyBtn('copy-gov-qa-all', allQaText, 'All QA Definitions', 'Copy All QA Rules')}
+                      </div>
                       <div className="p-3 bg-secondary/30 rounded-xl border border-border text-xs text-foreground space-y-3">
                         {parsedQa.length > 0 ? (
                           <ol className="list-decimal pl-4 space-y-4">
@@ -866,25 +1010,38 @@ export default function ResearchWorkflowPanel() {
                               const genericScoreDef = (qa.score_definition || qa.description || qa.definition || '').trim();
                               const hasScoreLogics = Boolean(score1 || score05 || score0);
 
+                              const qaCodeStr = qa.code || qa.id || `QA${idx + 1}`;
+                              const qaQuestionStr = qa.question || qa.name || qa.title || qa.code;
+                              const fullQaItemText = [
+                                `[${qaCodeStr}] ${qaQuestionStr} ${qa.is_fatal_flaw ? '(Fatal Flaw Gate: Score > 0.0)' : '(Scored Criterion)'}`,
+                                score1 ? `- Score 1.0 (Full Pass): ${score1}` : '',
+                                score05 ? `- Score 0.5 (Partial): ${score05}` : '',
+                                score0 ? `- Score 0.0 (Fail): ${score0}` : '',
+                                !hasScoreLogics && genericScoreDef ? `- Score Definition: ${genericScoreDef}` : ''
+                              ].filter(Boolean).join('\n');
+
                               return (
                                 <li key={idx} className="space-y-2">
                                   {/* Rule Header with Question */}
                                   <div className="flex flex-wrap items-start justify-between gap-2">
                                     <div className="font-bold text-foreground text-xs leading-snug max-w-xl">
-                                      <span className="font-mono text-amber-500 font-extrabold mr-1.5">[{qa.code || qa.id || `QA${idx + 1}`}]</span>
-                                      <span>{qa.question || qa.name || qa.title || qa.code}</span>
+                                      <span className="font-mono text-amber-500 font-extrabold mr-1.5">[{qaCodeStr}]</span>
+                                      <span>{qaQuestionStr}</span>
                                     </div>
-                                    {qa.is_fatal_flaw ? (
-                                      <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-500 font-bold text-[10px] border border-rose-500/20 flex items-center gap-1 shrink-0">
-                                        <CheckCircle2 className="w-3 h-3 text-rose-500" />
-                                        Fatal Flaw Gate (Mandatory Pass, Score &gt; 0.0)
-                                      </span>
-                                    ) : (
-                                      <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground font-bold text-[10px] border border-border flex items-center gap-1 shrink-0">
-                                        <Check className="w-3 h-3 text-muted-foreground" />
-                                        Scored Criterion
-                                      </span>
-                                    )}
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      {qa.is_fatal_flaw ? (
+                                        <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-500 font-bold text-[10px] border border-rose-500/20 flex items-center gap-1">
+                                          <CheckCircle2 className="w-3 h-3 text-rose-500" />
+                                          Fatal Flaw Gate (Score &gt; 0.0)
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground font-bold text-[10px] border border-border flex items-center gap-1">
+                                          <Check className="w-3 h-3 text-muted-foreground" />
+                                          Scored Criterion
+                                        </span>
+                                      )}
+                                      {renderCopyIconBtn(`copy-gov-qa-rule-${idx}`, fullQaItemText, `${qaCodeStr} Complete Rule`)}
+                                    </div>
                                   </div>
 
                                   {/* Score Definition Displayed Below Question */}
@@ -893,29 +1050,41 @@ export default function ResearchWorkflowPanel() {
                                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Score Definitions:</span>
                                       <div className="grid grid-cols-1 gap-1.5 font-mono text-[11px]">
                                         {score1 && (
-                                          <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/20 text-emerald-500 leading-normal">
-                                            <span className="font-extrabold mr-1 shadow-sm">Score 1.0 (Full Pass):</span>
-                                            <span className="text-foreground/90">{score1}</span>
+                                          <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/20 text-emerald-500 leading-normal flex items-start justify-between gap-2">
+                                            <div>
+                                              <span className="font-extrabold mr-1 shadow-sm">Score 1.0 (Full Pass):</span>
+                                              <span className="text-foreground/90">{score1}</span>
+                                            </div>
+                                            {renderCopyIconBtn(`copy-gov-qa-${idx}-s1`, score1, `${qaCodeStr} Score 1.0 Criteria`)}
                                           </div>
                                         )}
                                         {score05 && (
-                                          <div className="p-2 rounded bg-amber-500/5 border border-amber-500/20 text-amber-500 leading-normal">
-                                            <span className="font-extrabold mr-1 shadow-sm">Score 0.5 (Partial):</span>
-                                            <span className="text-foreground/90">{score05}</span>
+                                          <div className="p-2 rounded bg-amber-500/5 border border-amber-500/20 text-amber-500 leading-normal flex items-start justify-between gap-2">
+                                            <div>
+                                              <span className="font-extrabold mr-1 shadow-sm">Score 0.5 (Partial):</span>
+                                              <span className="text-foreground/90">{score05}</span>
+                                            </div>
+                                            {renderCopyIconBtn(`copy-gov-qa-${idx}-s05`, score05, `${qaCodeStr} Score 0.5 Criteria`)}
                                           </div>
                                         )}
                                         {score0 && (
-                                          <div className="p-2 rounded bg-rose-500/5 border border-rose-500/20 text-rose-500 leading-normal">
-                                            <span className="font-extrabold mr-1 shadow-sm">Score 0.0 (Fail):</span>
-                                            <span className="text-foreground/90">{score0}</span>
+                                          <div className="p-2 rounded bg-rose-500/5 border border-rose-500/20 text-rose-500 leading-normal flex items-start justify-between gap-2">
+                                            <div>
+                                              <span className="font-extrabold mr-1 shadow-sm">Score 0.0 (Fail):</span>
+                                              <span className="text-foreground/90">{score0}</span>
+                                            </div>
+                                            {renderCopyIconBtn(`copy-gov-qa-${idx}-s0`, score0, `${qaCodeStr} Score 0.0 Criteria`)}
                                           </div>
                                         )}
                                       </div>
                                     </div>
                                   ) : genericScoreDef && genericScoreDef !== (qa.question || '').trim() ? (
-                                    <div className="p-2.5 bg-card/60 rounded-lg border border-border/50 text-[11px] font-mono text-muted-foreground leading-relaxed">
-                                      <span className="font-bold text-foreground mr-1.5">Score Definition:</span>
-                                      <span>{genericScoreDef}</span>
+                                    <div className="p-2.5 bg-card/60 rounded-lg border border-border/50 text-[11px] font-mono text-muted-foreground leading-relaxed flex items-start justify-between gap-2">
+                                      <div>
+                                        <span className="font-bold text-foreground mr-1.5">Score Definition:</span>
+                                        <span>{genericScoreDef}</span>
+                                      </div>
+                                      {renderCopyIconBtn(`copy-gov-qa-${idx}-sgen`, genericScoreDef, `${qaCodeStr} Score Definition`)}
                                     </div>
                                   ) : null}
                                 </li>
@@ -924,11 +1093,17 @@ export default function ResearchWorkflowPanel() {
                           </ol>
                         ) : qaTextLines.length > 0 ? (
                           <ol className="list-decimal pl-4 space-y-2 font-sans">
-                            {qaTextLines.map((line, idx) => (
-                              <li key={idx} className="leading-relaxed text-xs">
-                                <span className="font-medium text-foreground">{line.replace(/^\d+[\.\)]\s*/, '')}</span>
-                              </li>
-                            ))}
+                            {qaTextLines.map((line, idx) => {
+                              const cleanedLine = line.replace(/^\d+[\.\)]\s*/, '');
+                              return (
+                                <li key={idx} className="leading-relaxed text-xs">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="font-medium text-foreground">{cleanedLine}</span>
+                                    {renderCopyIconBtn(`copy-gov-qa-line-${idx}`, cleanedLine, `QA Criterion ${idx + 1}`)}
+                                  </div>
+                                </li>
+                              );
+                            })}
                           </ol>
                         ) : (
                           <span className="italic text-muted-foreground font-sans">Not specified in project metadata</span>
@@ -1115,6 +1290,23 @@ export default function ResearchWorkflowPanel() {
               {activeSelectedNode.id === 'node-2-4' && (() => {
                 const templates = project.prompt_templates || rawData.prompt_templates || rawData.project?.prompt_templates || [];
 
+                const formatSingleTemplate = (tpl: any) => {
+                  const schemaStr = tpl.response_schema
+                    ? (typeof tpl.response_schema === 'string' ? tpl.response_schema : JSON.stringify(tpl.response_schema, null, 2))
+                    : '';
+                  return [
+                    `# Template: ${tpl.name || tpl.id} (${tpl.prompt_type || 'unclassified'})`,
+                    tpl.description ? `\n*${tpl.description}*\n` : '',
+                    tpl.system_instruction ? `\n## System Instruction\n\`\`\`text\n${tpl.system_instruction}\n\`\`\`` : '',
+                    tpl.user_template ? `\n## User Template Prompt\n\`\`\`text\n${tpl.user_template}\n\`\`\`` : '',
+                    schemaStr ? `\n## Response JSON Schema\n\`\`\`json\n${schemaStr}\n\`\`\`` : ''
+                  ].filter(Boolean).join('\n');
+                };
+
+                const allTemplatesMarkdown = templates.map((tpl: any, i: number) => {
+                  return `### Template #${i + 1}\n` + formatSingleTemplate(tpl);
+                }).join('\n\n---\n\n');
+
                 return (
                   <div className="space-y-6">
                     <div className="flex items-center justify-between p-3.5 bg-secondary/30 rounded-xl border border-border">
@@ -1124,87 +1316,109 @@ export default function ResearchWorkflowPanel() {
                           {templates.length > 0 ? `${templates.length} Registered Prompt Templates` : 'Pipeline Prompt Schemas & CoT Templates'}
                         </p>
                       </div>
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500 font-mono font-bold text-[10px] border border-emerald-500/20">
-                        MOUNTED & LOCKED
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {templates.length > 0 && renderCopyBtn('copy-prompt-all', allTemplatesMarkdown, 'All Registered Prompt Templates', 'Copy All Templates')}
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500 font-mono font-bold text-[10px] border border-emerald-500/20">
+                          MOUNTED & LOCKED
+                        </span>
+                      </div>
                     </div>
 
                     {/* Mounted Prompt Templates List */}
                     <div className="space-y-4">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Code2 className="w-3.5 h-3.5 text-primary" />
-                        Prompt Templates Registry ({templates.length} Templates)
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Code2 className="w-3.5 h-3.5 text-primary" />
+                          Prompt Templates Registry ({templates.length} Templates)
+                        </h4>
+                      </div>
 
                       {templates.length > 0 ? (
                         <div className="space-y-4">
-                          {templates.map((tpl, idx) => (
-                            <div key={tpl.id || idx} className="p-4 bg-secondary/20 rounded-xl border border-border space-y-3">
-                              <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-mono font-extrabold text-xs text-primary">#{idx + 1}</span>
-                                  <span className="font-bold text-foreground text-xs">{tpl.name || tpl.id}</span>
-                                  {(() => {
-                                    const typeKey = tpl.prompt_type || 'fast_filter';
-                                    const badgeMap = {
-                                      fast_filter: { label: 'Stage 1: Fast Filter', cls: 'bg-amber-500/10 text-amber-500 border-amber-500/20' },
-                                      gatekeeper: { label: 'Stage 2: Gatekeeper', cls: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
-                                      scientist: { label: 'Stage 3: Scientist', cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
-                                      miner: { label: 'Stage 4: Miner', cls: 'bg-purple-500/10 text-purple-500 border-purple-500/20' },
-                                      umbrellanizer: { label: 'Stage 5: Umbrellanizer', cls: 'bg-pink-500/10 text-pink-500 border-pink-500/20' },
-                                    };
-                                    const badge = badgeMap[typeKey] || { label: typeKey, cls: 'bg-secondary text-muted-foreground border-border' };
-                                    return (
-                                      <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${badge.cls}`}>
-                                        {badge.label}
+                          {templates.map((tpl: any, idx: number) => {
+                            const typeKey = tpl.prompt_type || 'fast_filter';
+                            const badgeMap: Record<string, { label: string; cls: string }> = {
+                              fast_filter: { label: 'Stage 1: Fast Filter', cls: 'bg-amber-500/10 text-amber-500 border-amber-500/20' },
+                              gatekeeper: { label: 'Stage 2: Gatekeeper', cls: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
+                              scientist: { label: 'Stage 3: Scientist', cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
+                              miner: { label: 'Stage 4: Miner', cls: 'bg-purple-500/10 text-purple-500 border-purple-500/20' },
+                              umbrellanizer: { label: 'Stage 5: Umbrellanizer', cls: 'bg-pink-500/10 text-pink-500 border-pink-500/20' },
+                            };
+                            const badge = badgeMap[typeKey] || { label: typeKey, cls: 'bg-secondary text-muted-foreground border-border' };
+
+                            const schemaFormatted = tpl.response_schema
+                              ? (typeof tpl.response_schema === 'string' ? tpl.response_schema : JSON.stringify(tpl.response_schema, null, 2))
+                              : '';
+
+                            const singleTplMd = formatSingleTemplate(tpl);
+
+                            return (
+                              <div key={tpl.id || idx} className="p-4 bg-secondary/20 rounded-xl border border-border space-y-3">
+                                <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono font-extrabold text-xs text-primary">#{idx + 1}</span>
+                                    <span className="font-bold text-foreground text-xs">{tpl.name || tpl.id}</span>
+                                    <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${badge.cls}`}>
+                                      {badge.label}
+                                    </span>
+                                    {tpl.is_active !== 0 && (
+                                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                        ACTIVE
                                       </span>
-                                    );
-                                  })()}
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {renderCopyBtn(`copy-prompt-tpl-${tpl.id || idx}`, singleTplMd, `${tpl.name || tpl.id} Full Template`, 'Copy Template')}
+                                  </div>
                                 </div>
-                                {tpl.is_active !== 0 && (
-                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                                    ACTIVE
-                                  </span>
+
+                                {tpl.description && (
+                                  <p className="text-[11px] text-muted-foreground italic leading-relaxed">
+                                    {tpl.description}
+                                  </p>
+                                )}
+
+                                {/* System Instruction */}
+                                {tpl.system_instruction && (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">System Instruction:</span>
+                                      {renderCopyBtn(`copy-prompt-sys-${tpl.id || idx}`, tpl.system_instruction, `${tpl.name || tpl.id} System Instruction`, 'Copy Instruction')}
+                                    </div>
+                                    <div className="p-3 bg-card/80 rounded-lg border border-border/60 text-[11px] font-mono text-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                                      {tpl.system_instruction}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* User Template */}
+                                {tpl.user_template && (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">User Template Prompt:</span>
+                                      {renderCopyBtn(`copy-prompt-user-${tpl.id || idx}`, tpl.user_template, `${tpl.name || tpl.id} User Template Prompt`, 'Copy Prompt')}
+                                    </div>
+                                    <div className="p-3 bg-card/80 rounded-lg border border-border/60 text-[11px] font-mono text-foreground whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
+                                      {tpl.user_template}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Response Schema */}
+                                {schemaFormatted && (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Response JSON Schema:</span>
+                                      {renderCopyBtn(`copy-prompt-schema-${tpl.id || idx}`, schemaFormatted, `${tpl.name || tpl.id} Response Schema`, 'Copy Schema')}
+                                    </div>
+                                    <div className="p-3 bg-card/80 rounded-lg border border-border/60 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                                      {schemaFormatted}
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-
-                              {tpl.description && (
-                                <p className="text-[11px] text-muted-foreground italic leading-relaxed">
-                                  {tpl.description}
-                                </p>
-                              )}
-
-                              {/* System Instruction */}
-                              {tpl.system_instruction && (
-                                <div className="space-y-1">
-                                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">System Instruction:</div>
-                                  <div className="p-3 bg-card/80 rounded-lg border border-border/60 text-[11px] font-mono text-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
-                                    {tpl.system_instruction}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* User Template */}
-                              {tpl.user_template && (
-                                <div className="space-y-1">
-                                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">User Template Prompt:</div>
-                                  <div className="p-3 bg-card/80 rounded-lg border border-border/60 text-[11px] font-mono text-foreground whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
-                                    {tpl.user_template}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Response Schema */}
-                              {tpl.response_schema && (
-                                <div className="space-y-1">
-                                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Response JSON Schema:</div>
-                                  <div className="p-3 bg-card/80 rounded-lg border border-border/60 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
-                                    {typeof tpl.response_schema === 'string' ? tpl.response_schema : JSON.stringify(tpl.response_schema, null, 2)}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="p-4 bg-secondary/20 rounded-xl border border-border/60 text-xs italic text-muted-foreground leading-relaxed">

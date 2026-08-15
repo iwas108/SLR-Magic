@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StorageService } from '../StorageService';
+import { decompressSlr } from '../lib/slrCompression';
 
 const ImportWorkflow = ({ onNavigate }) => {
   const [file, setFile] = useState(null);
@@ -10,50 +11,42 @@ const ImportWorkflow = ({ onNavigate }) => {
     setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file) {
-      setError('Please select a .slr (JSON) file.');
+      setError('Please select a .slr file.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const parsedData = JSON.parse(event.target.result);
+    try {
+      const parsedData = await decompressSlr(file);
 
-        if (!parsedData.papers || !Array.isArray(parsedData.papers)) {
-          setError('Invalid file format. The file must contain a "papers" array.');
-          return;
-        }
-
-        const data = parsedData.papers;
-        if (data.length === 0) {
-          setError('The file contains no papers to review.');
-          return;
-        }
-
-        // Validate Paper_ID presence
-        if (!Object.keys(data[0]).includes('Paper_ID')) {
-          setError('The papers must contain a "Paper_ID" attribute.');
-          return;
-        }
-
-        const metadata = parsedData.metadata || {};
-
-        // Create the session
-        const session = await StorageService.createSession(file.name, data, metadata);
-        onNavigate('prescreen', { sessionId: session.id });
-
-      } catch (err) {
-        setError(`Error parsing JSON: ${err.message}`);
+      if (!parsedData.papers || !Array.isArray(parsedData.papers)) {
+        setError('Invalid file format. The file must contain a "papers" array.');
+        return;
       }
-    };
-    reader.onerror = () => {
-      setError('Error reading file.');
-    };
 
-    reader.readAsText(file);
+      const data = parsedData.papers;
+      if (data.length === 0) {
+        setError('The file contains no papers to review.');
+        return;
+      }
+
+      // Validate Paper_ID presence
+      if (!Object.keys(data[0]).includes('Paper_ID')) {
+        setError('The papers must contain a "Paper_ID" attribute.');
+        return;
+      }
+
+      const metadata = parsedData.metadata || {};
+
+      // Create the session
+      const session = await StorageService.createSession(file.name, data, metadata);
+      onNavigate('prescreen', { sessionId: session.id });
+
+    } catch (err) {
+      setError(`Error reading .slr file: ${err.message}`);
+    }
   };
 
   return (

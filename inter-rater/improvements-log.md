@@ -4,6 +4,17 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#029] Transparent GZIP Compression Protocol for Review Exports & Imports - 2026-08-15
+
+- **Web Streams Compression & Decompression Utilities (`src/lib/slrCompression.js`)**:
+  - Implemented client-side compression (`compressSlr`) and decompression (`decompressSlr`) using native browser `CompressionStream('gzip')` and `DecompressionStream('gzip')` with 0 external dependencies.
+  - Implemented automatic GZIP magic byte (`0x1F, 0x8B`) detection with graceful fallback to standard UTF-8 JSON parsing for older uncompressed `.slr` files.
+- **Compressed Review Export (`Dashboard.jsx`)**:
+  - Updated `handleConfirmExport` to compress completed review sessions into GZIP-compressed binary Blobs prior to triggering the `.slr` file download.
+- **Dual-Mode Import & Session Update (`ImportWorkflow.jsx` & `Dashboard.jsx`)**:
+  - Updated `ImportWorkflow.jsx`, `Dashboard.jsx` (hero dropzone, quick dropzone, and Update SLR modal) to parse both compressed GZIP `.slr` packages and legacy plain JSON `.slr` files transparently.
+- **Verification**: Verified `npm run build` completed cleanly; verified cross-compatibility tests with `slr-ide`.
+
 ## [#028] Auto Incremental Versioning & Compilation Date-Time Injection - 2026-08-08
 
 - **Auto-Incremental Prebuild Automation (`scripts/bump-version.js`)**:

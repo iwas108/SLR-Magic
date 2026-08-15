@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { spawnSync } from 'child_process';
 import db, { PROJECT_ROOT, getConfig, setConfig } from '@/lib/db';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 
 export interface ArchiveManifest {
   format: 'SLR_PROJECT_ARCHIVE';
@@ -35,11 +36,14 @@ export interface ProjectArchivePayload {
     umbrellanizer_results: any[];
     llm_jobs: any[];
     prompt_templates: any[];
+    prompt_audit_ledger?: any[];
+    prompt_benchmark_runs?: any[];
+    prompt_benchmark_results?: any[];
   };
 }
 
 /**
- * Exports all project-tied records across all 15 relational tables into a single versioned archive structure.
+ * Exports all project-tied records across all 18 relational tables into a single versioned archive structure.
  */
 export function exportProjectArchive(projectId: string): {
   payload: ProjectArchivePayload;
@@ -56,7 +60,7 @@ export function exportProjectArchive(projectId: string): {
     throw new Error(`Project with ID '${projectId}' not found`);
   }
 
-  // Query all 15 project-tied database tables
+  // Query all 18 project-tied database tables
   const tables = {
     projects: [project],
     papers: db.prepare('SELECT * FROM papers WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
@@ -73,6 +77,9 @@ export function exportProjectArchive(projectId: string): {
     umbrellanizer_results: db.prepare('SELECT * FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
     llm_jobs: db.prepare('SELECT * FROM llm_jobs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
     prompt_templates: db.prepare('SELECT * FROM prompt_templates WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
+    prompt_audit_ledger: db.prepare('SELECT * FROM prompt_audit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
+    prompt_benchmark_runs: db.prepare('SELECT * FROM prompt_benchmark_runs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
+    prompt_benchmark_results: db.prepare('SELECT * FROM prompt_benchmark_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
   };
 
   const recordCounts: Record<string, number> = {};
@@ -136,8 +143,7 @@ export function createProjectPdfZipBuffer(projectId: string): { buffer: Buffer; 
   const tempZipPath = path.join(PROJECT_ROOT, 'pdf_library', `temp_${project.folder_name}_${Date.now()}.zip`);
   
   // Locate python executable
-  const venvPython = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
-  const pythonExe = fs.existsSync(venvPython) ? venvPython : 'python';
+  const pythonExe = getPythonExecutablePath();
 
   const pythonScript = `
 import zipfile, sys, os
@@ -620,6 +626,22 @@ export function importProjectArchive(archiveData: any): {
       const ljCols = getTableColumns('llm_jobs');
       for (const lj of (rawTables.llm_jobs || [])) {
         insertAdaptiveRow('llm_jobs', { ...lj, id: `job-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, project_id: targetProjectId }, ljCols, false);
+      }
+
+      // L. Insert Prompt Audit Ledger & Benchmark Runs/Results
+      const palCols = getTableColumns('prompt_audit_ledger');
+      for (const pal of (rawTables.prompt_audit_ledger || [])) {
+        insertAdaptiveRow('prompt_audit_ledger', { ...pal, project_id: targetProjectId }, palCols, false);
+      }
+
+      const pbrCols = getTableColumns('prompt_benchmark_runs');
+      for (const pbr of (rawTables.prompt_benchmark_runs || [])) {
+        insertAdaptiveRow('prompt_benchmark_runs', { ...pbr, project_id: targetProjectId }, pbrCols, false);
+      }
+
+      const pbresCols = getTableColumns('prompt_benchmark_results');
+      for (const res of (rawTables.prompt_benchmark_results || [])) {
+        insertAdaptiveRow('prompt_benchmark_results', { ...res, paper_id: remapPaperId(res.paper_id), project_id: targetProjectId }, pbresCols, true);
       }
     });
 

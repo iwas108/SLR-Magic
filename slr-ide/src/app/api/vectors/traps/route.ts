@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { PROJECT_ROOT, getConfig } from '@/lib/db';
 import { vectorDaemonManager } from '@/lib/services/vector-daemon-manager';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 
 async function runFallbackTraps(
   seedPaperId: string,
@@ -10,7 +11,7 @@ async function runFallbackTraps(
   k: number | undefined,
   signal: AbortSignal
 ): Promise<any> {
-  const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+  const pythonExe = getPythonExecutablePath();
   const pythonModule = 'python_engine.entrypoints.find_traps';
 
   const args = ['-u', '-m', pythonModule, '--seed', seedPaperId, '--project', projectId];

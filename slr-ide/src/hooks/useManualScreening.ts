@@ -36,6 +36,35 @@ export function useManualScreening(
   const [screeningSortOrder, setScreeningSortOrder] = useState<'ASC' | 'DESC'>('ASC');
   const [screeningSearchTime, setScreeningSearchTime] = useState<number | null>(null);
 
+  const [vectorIndexStatus, setVectorIndexStatus] = useState<{
+    indexed: boolean;
+    pdf_count: number;
+    paper_count: number;
+    project_id?: string;
+    total_project_papers?: number;
+    indexed_project_papers?: number;
+    missing_project_papers?: number;
+    coverage_pct?: number;
+    model?: string;
+  } | null>(null);
+
+  const loadVectorStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/vectors/status${activeProjectId ? `?projectId=${encodeURIComponent(activeProjectId)}` : ''}`);
+      if (res.ok) {
+        const data = await res.json();
+        setVectorIndexStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to load vector status in manual screening:', err);
+    }
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    loadVectorStatus();
+  }, [loadVectorStatus]);
+
+
   // Fetch EC triggers when pipelineStageFilter changes
   useEffect(() => {
     const fetchEcTriggers = async () => {
@@ -648,6 +677,8 @@ export function useManualScreening(
     manualPdfWaitingLogin,
     runSinglePaperPipeline,
     cancelSinglePaperPipeline,
-    singlePipelineAbortControllerRef
+    singlePipelineAbortControllerRef,
+    vectorIndexStatus,
+    loadVectorStatus
   };
 }

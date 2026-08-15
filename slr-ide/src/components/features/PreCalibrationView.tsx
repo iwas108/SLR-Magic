@@ -11,6 +11,7 @@ import {
 import { broadcastSync } from '@/lib/sync-utils';
 import PoolMetricsPanel from './pre-calibration/PoolMetricsPanel';
 import StageComparisonPanel from './pre-calibration/StageComparisonPanel';
+import PromptStagingQuestPanel from './pre-calibration/PromptStagingQuestPanel';
 
 interface PreCalibrationViewProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -187,6 +188,12 @@ export default function PreCalibrationView({
                 loading={stageStatsLoading}
               />
             </div>
+
+            {/* Prompt Staging & Benchmark Optimization HUD */}
+            <PromptStagingQuestPanel
+              projectId={activeProjectId}
+              showToast={showToast}
+            />
           </div>
         ) : (
           <>

@@ -31,6 +31,7 @@ This document serves as a comprehensive index of every file within the `inter-ra
 | `App.css` | Styling | Global application CSS styling definitions and CSS variables for light/dark themes. |
 | `index.css` | Styling | Base CSS entrypoint importing Tailwind CSS v4 `@import "tailwindcss"`, platform HSL CSS theme tokens, and `@theme` mappings. |
 | `StorageService.js` | Database / Services | Direct interface wrapping IndexedDB (via Dexie) for local storage, CRUD actions, session creation, paper validation, and export generation. |
+| `lib/slrCompression.js` | Compression / Utility | Native Web Streams compression and decompression utility using `CompressionStream` and `DecompressionStream` with automatic GZIP magic byte detection and plain JSON fallback. |
 
 ---
 

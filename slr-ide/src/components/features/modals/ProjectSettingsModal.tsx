@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, X, RefreshCw } from 'lucide-react';
+import { Settings, X, RefreshCw, BookOpen, Layers, Cloud, Banknote, Sparkles, CheckCircle2 } from 'lucide-react';
 import LLMConfigView from '../LLMConfigView';
 import ProjectMetadataSettings from './settings/ProjectMetadataSettings';
 import ProjectCalibrationSettings from './settings/ProjectCalibrationSettings';
@@ -37,12 +37,81 @@ export default function ProjectSettingsModal({
   initialTab = 'metadata'
 }: ProjectSettingsModalProps) {
   const [projectSettingsTab, setProjectSettingsTab] = useState<'metadata' | 'calibration' | 'sync' | 'llm'>(initialTab);
+  const [minerSchemaKeys, setMinerSchemaKeys] = useState<string[]>([]);
+  const [hasMinerPrompt, setHasMinerPrompt] = useState<boolean>(true);
+  const [isLoadingMinerPrompt, setIsLoadingMinerPrompt] = useState<boolean>(false);
 
   React.useEffect(() => {
     if (isOpen && initialTab) {
       setProjectSettingsTab(initialTab);
     }
   }, [isOpen, initialTab]);
+
+  React.useEffect(() => {
+    if (!isOpen || !project?.id) {
+      setMinerSchemaKeys([]);
+      setHasMinerPrompt(true);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingMinerPrompt(true);
+
+    fetch(`/api/llm/prompts?project_id=${project.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted) return;
+        if (data.success && Array.isArray(data.prompts)) {
+          const minerPrompts = data.prompts.filter((p: any) => p.prompt_type === 'miner');
+          if (minerPrompts.length === 0) {
+            setHasMinerPrompt(false);
+            setMinerSchemaKeys([]);
+            return;
+          }
+
+          // Pick active prompt (is_active === 1) or most recently updated/created
+          const activePrompt = minerPrompts.find((p: any) => p.is_active === 1) || minerPrompts[0];
+          setHasMinerPrompt(true);
+
+          if (activePrompt?.response_schema) {
+            try {
+              const parsed = typeof activePrompt.response_schema === 'string'
+                ? JSON.parse(activePrompt.response_schema)
+                : activePrompt.response_schema;
+
+              const extProps = parsed?.properties?.extracted_data?.properties;
+              if (extProps && typeof extProps === 'object') {
+                const keys = Object.keys(extProps).filter(k => k && (typeof extProps[k] === 'object' || typeof extProps[k] === 'string'));
+                setMinerSchemaKeys(keys);
+              } else {
+                setMinerSchemaKeys([]);
+              }
+            } catch (err) {
+              console.error('Failed to parse miner response_schema:', err);
+              setMinerSchemaKeys([]);
+            }
+          } else {
+            setMinerSchemaKeys([]);
+          }
+        } else {
+          setHasMinerPrompt(false);
+          setMinerSchemaKeys([]);
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error('Failed to load miner prompts for project:', err);
+        setHasMinerPrompt(false);
+        setMinerSchemaKeys([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingMinerPrompt(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, project?.id]);
 
   const form = useProjectForm(project);
 
@@ -178,46 +247,75 @@ export default function ProjectSettingsModal({
     }
   };
 
+  const navTabs = [
+    { id: 'metadata', label: 'Scope & Search Queries', icon: BookOpen },
+    { id: 'calibration', label: 'Calibration & Pools', icon: Layers },
+    { id: 'sync', label: 'Cloud Sync & Rclone', icon: Cloud },
+    { id: 'llm', label: 'Budget & Safety', icon: Banknote }
+  ] as const;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-card border border-border w-full max-w-2xl rounded-xl shadow-xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/15">
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-sm text-foreground">
-              Project Settings: <span className="text-primary">{form.name}</span>
-            </h3>
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300">
+      <div className="relative bg-card/95 border border-border/80 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200 backdrop-blur-xl">
+        {/* Top Decorative Gradient Accent */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 z-10" />
+
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border/70 bg-secondary/20 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-inner">
+              <Settings className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-sm text-foreground">
+                  Project Settings
+                </h3>
+                <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+                  {form.name || project?.name}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono bg-secondary/60 px-2 py-0.5 rounded border border-border/60">
+                  slug: {project?.folder_name}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Configure FAIR protocol bounds, calibration rules, and cloud mirroring.</p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg transition-colors hover:bg-secondary/60 cursor-pointer"
+            title="Close Settings"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-border bg-secondary/5 px-4 select-none">
-          {(['metadata', 'calibration', 'sync', 'llm'] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setProjectSettingsTab(tab)}
-              className={`px-4 py-3 text-xs font-semibold border-b-2 transition-all capitalize ${
-                projectSettingsTab === tab ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {tab === 'sync' ? 'Cloud Sync' : tab === 'llm' ? 'Budget Settings' : tab}
-            </button>
-          ))}
+        {/* Tab Navigation Bar */}
+        <div className="flex border-b border-border/70 bg-secondary/10 px-6 gap-2 select-none shrink-0 overflow-x-auto py-2">
+          {navTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = projectSettingsTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setProjectSettingsTab(tab.id as any)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 ring-1 ring-primary/30'
+                    : 'bg-background/50 text-muted-foreground hover:text-foreground hover:bg-secondary/60 border border-border/50'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Form Container */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto flex flex-col min-h-0">
           <div className="p-6 space-y-4 flex-1">
-            
             {/* Tab Content: Metadata */}
             {projectSettingsTab === 'metadata' && (
               <ProjectMetadataSettings form={mappedForm} />
@@ -225,7 +323,13 @@ export default function ProjectSettingsModal({
 
             {/* Tab Content: Pre-Calibration */}
             {projectSettingsTab === 'calibration' && (
-              <ProjectCalibrationSettings form={mappedForm} />
+              <ProjectCalibrationSettings 
+                form={mappedForm} 
+                minerSchemaKeys={minerSchemaKeys}
+                hasMinerPrompt={hasMinerPrompt}
+                isLoadingMinerPrompt={isLoadingMinerPrompt}
+                onPopulateAllExtractionKeys={() => form.handlePopulateAllPoolCExtractionRules(minerSchemaKeys)}
+              />
             )}
 
             {/* Tab Content: Sync */}
@@ -255,23 +359,32 @@ export default function ProjectSettingsModal({
             )}
           </div>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-border flex justify-end gap-3 bg-secondary/10 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-secondary text-foreground hover:bg-secondary/80 border border-border font-semibold rounded-lg text-xs transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={savingProject}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg text-xs transition-colors flex items-center gap-1.5"
-            >
-              {savingProject && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-              Save Configurations
-            </button>
+          {/* Modal Footer */}
+          <div className="px-6 py-4 border-t border-border/70 flex items-center justify-between bg-secondary/15 shrink-0">
+            <span className="text-[11px] text-muted-foreground font-mono">
+              Changes update active database configuration immediately.
+            </span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 bg-secondary/80 text-foreground hover:bg-secondary border border-border/80 font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingProject}
+                className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold rounded-xl text-xs transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 cursor-pointer disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                {savingProject ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
+                Save Configurations
+              </button>
+            </div>
           </div>
         </form>
       </div>

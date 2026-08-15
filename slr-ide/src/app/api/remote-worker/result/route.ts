@@ -7,6 +7,7 @@ import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 
 const PROJECT_ROOT = process.cwd().endsWith('slr-ide') 
   ? process.cwd() 
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
       streamManager.broadcast({ event: 'progress', log: `[Remote Worker] Downloaded paper ${paper_id}. Initiating PDF Integrity Verification...` });
 
       // Run Python PDF Integrity Verification gate on this paper
-      const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+      const pythonExe = getPythonExecutablePath(PROJECT_ROOT);
       const verifyProcess = spawn(pythonExe, ['-m', 'python_engine.entrypoints.verify_pdfs', '--project', targetProjectId, '--paper', paper_id], {
         cwd: PROJECT_ROOT,
       });

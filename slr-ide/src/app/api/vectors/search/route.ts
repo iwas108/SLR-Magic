@@ -4,6 +4,7 @@ import path from 'path';
 import { PROJECT_ROOT, getConfig } from '@/lib/db';
 import { getCachedSemanticSearch, saveCachedSemanticSearch } from '@/lib/services/semantic-search-cache';
 import { vectorDaemonManager } from '@/lib/services/vector-daemon-manager';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 
 async function runFallbackSearch(
   query: string,
@@ -15,7 +16,7 @@ async function runFallbackSearch(
   publisher: string | undefined,
   signal: AbortSignal
 ): Promise<any> {
-  const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+  const pythonExe = getPythonExecutablePath();
   const pythonModule = 'python_engine.entrypoints.semantic_search';
 
   const args = ['-u', '-m', pythonModule, '--query', query, '--project', projectId];

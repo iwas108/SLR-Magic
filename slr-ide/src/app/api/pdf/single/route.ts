@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 import { NextResponse } from 'next/server';
 
 interface GlobalBatchState {
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
       db.prepare("UPDATE papers SET Local_PDF_Status = 'MISSING' WHERE Paper_ID = ? AND Project_ID = ?").run(paperId, activeProjectId);
     }
 
-    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+    const pythonExe = getPythonExecutablePath();
     const cacheMatcherModule = 'python_engine.entrypoints.match_cache';
     const scraperModule = 'python_engine.entrypoints.scrape_pdfs';
 

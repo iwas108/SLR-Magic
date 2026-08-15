@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { PROJECT_ROOT, getConfig } from '@/lib/db';
 import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     clearSemanticSearchCache(activeProjectId);
 
-    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+    const pythonExe = getPythonExecutablePath();
     const pythonModule = 'python_engine.entrypoints.build_vectors';
     const args = ['-u', '-m', pythonModule, '--project', activeProjectId];
     if (rebuild) {

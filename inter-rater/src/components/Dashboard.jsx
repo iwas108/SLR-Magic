@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageService } from '../StorageService';
+import { decompressSlr, compressSlr } from '../lib/slrCompression';
 
 const Dashboard = ({ onNavigate }) => {
   const [sessions, setSessions] = useState([]);
@@ -28,50 +29,38 @@ const Dashboard = ({ onNavigate }) => {
   const [uploadError, setUploadError] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
-  const processAndImportFile = (file) => {
+  const processAndImportFile = async (file) => {
     if (!file) return;
     setUploadError('');
     setIsUploading(true);
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const parsedData = JSON.parse(event.target.result);
+    try {
+      const parsedData = await decompressSlr(file);
 
-        if (!parsedData.papers || !Array.isArray(parsedData.papers)) {
-          setUploadError('Invalid file format. The file must contain a "papers" array.');
-          setIsUploading(false);
-          return;
-        }
-
-        const data = parsedData.papers;
-        if (data.length === 0) {
-          setUploadError('The file contains no papers to review.');
-          setIsUploading(false);
-          return;
-        }
-
-        if (!data[0] || !Object.keys(data[0]).includes('Paper_ID')) {
-          setUploadError('The papers must contain a "Paper_ID" attribute.');
-          setIsUploading(false);
-          return;
-        }
-
-        const metadata = parsedData.metadata || {};
-        const session = await StorageService.createSession(file.name, data, metadata);
-        onNavigate('prescreen', { sessionId: session.id });
-      } catch (err) {
-        setUploadError(`Error parsing JSON: ${err.message}`);
-        setIsUploading(false);
+      if (!parsedData.papers || !Array.isArray(parsedData.papers)) {
+        setUploadError('Invalid file format. The file must contain a "papers" array.');
+        return;
       }
-    };
 
-    reader.onerror = () => {
-      setUploadError('Error reading file.');
+      const data = parsedData.papers;
+      if (data.length === 0) {
+        setUploadError('The file contains no papers to review.');
+        return;
+      }
+
+      if (!data[0] || !Object.keys(data[0]).includes('Paper_ID')) {
+        setUploadError('The papers must contain a "Paper_ID" attribute.');
+        return;
+      }
+
+      const metadata = parsedData.metadata || {};
+      const session = await StorageService.createSession(file.name, data, metadata);
+      onNavigate('prescreen', { sessionId: session.id });
+    } catch (err) {
+      setUploadError(`Error reading .slr file: ${err.message}`);
+    } finally {
       setIsUploading(false);
-    };
-
-    reader.readAsText(file);
+    }
   };
 
   const handleDragOver = (e) => {
@@ -122,45 +111,37 @@ const Dashboard = ({ onNavigate }) => {
     const file = e.target.files[0];
     if (!file || !updatingSessionId) return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const parsedData = JSON.parse(event.target.result);
-        if (!parsedData.papers || !Array.isArray(parsedData.papers)) {
-          alert('Invalid file format. The file must contain a "papers" array.');
-          return;
-        }
-
-        const data = parsedData.papers;
-        if (data.length === 0) {
-          alert('The file contains no papers.');
-          return;
-        }
-
-        // Validate Paper_ID presence
-        if (!data[0].Paper_ID) {
-          alert('The papers must contain a "Paper_ID" attribute.');
-          return;
-        }
-
-        const metadata = parsedData.metadata || {};
-
-        if (window.confirm('This will update the project data. Papers not present in the new file will be removed, new papers will be added, and existing papers will have their metadata updated while preserving your review progress. Proceed?')) {
-          await StorageService.updateSessionData(updatingSessionId, metadata, data);
-          alert('Project SLR updated successfully!');
-          await loadSessions();
-        }
-      } catch (err) {
-        alert(`Error parsing JSON: ${err.message}`);
-      } finally {
-        setUpdatingSessionId(null);
+    try {
+      const parsedData = await decompressSlr(file);
+      if (!parsedData.papers || !Array.isArray(parsedData.papers)) {
+        alert('Invalid file format. The file must contain a "papers" array.');
+        return;
       }
-    };
-    reader.onerror = () => {
-      alert('Error reading file.');
+
+      const data = parsedData.papers;
+      if (data.length === 0) {
+        alert('The file contains no papers.');
+        return;
+      }
+
+      // Validate Paper_ID presence
+      if (!data[0] || !data[0].Paper_ID) {
+        alert('The papers must contain a "Paper_ID" attribute.');
+        return;
+      }
+
+      const metadata = parsedData.metadata || {};
+
+      if (window.confirm('This will update the project data. Papers not present in the new file will be removed, new papers will be added, and existing papers will have their metadata updated while preserving your review progress. Proceed?')) {
+        await StorageService.updateSessionData(updatingSessionId, metadata, data);
+        alert('Project SLR updated successfully!');
+        await loadSessions();
+      }
+    } catch (err) {
+      alert(`Error reading .slr file: ${err.message}`);
+    } finally {
       setUpdatingSessionId(null);
-    };
-    reader.readAsText(file);
+    }
   };
 
   const loadSessions = async () => {
@@ -218,8 +199,7 @@ const Dashboard = ({ onNavigate }) => {
       const payload = await StorageService.exportSession(exportSessionId, reviewerName);
       const session = sessions.find(s => s.id === exportSessionId);
 
-      const jsonString = JSON.stringify(payload, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+      const blob = await compressSlr(payload);
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
       link.setAttribute("href", url);

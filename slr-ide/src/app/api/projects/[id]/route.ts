@@ -87,6 +87,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       db.prepare('DELETE FROM umbrellanizer_results WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM llm_jobs WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM prompt_templates WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM prompt_audit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
+      db.prepare('DELETE FROM prompt_benchmark_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
+      db.prepare('DELETE FROM prompt_benchmark_runs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
       
       // Delete papers
       db.prepare('DELETE FROM papers WHERE Project_ID = ?').run(projectId);

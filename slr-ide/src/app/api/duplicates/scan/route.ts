@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 import { NextResponse } from 'next/server';
 
 interface GlobalBatchState {
@@ -136,10 +137,8 @@ function createSubscribedStream() {
 }
 
 function runBackgroundScan(activeProjectId: string) {
-  // Resolve python paths
-  const pythonPath = process.platform === 'win32'
-    ? path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe')
-    : path.join(PROJECT_ROOT, 'python_engine', 'venv', 'bin', 'python');
+  // Resolve python path
+  const pythonPath = getPythonExecutablePath();
 
   const args = ['-m', 'python_engine.entrypoints.detect_duplicates', '--project', activeProjectId];
 

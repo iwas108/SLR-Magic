@@ -102,7 +102,7 @@ The `inter-rater` project is structured as follows:
     ]
   }
   ```
-- A JSON string is generated and downloaded with a `.slr` file extension. The file is imported directly back into the local `slr-ide` application.
+- **Transparent GZIP Binary Download**: A GZIP-compressed binary Blob is generated via native Web Streams (`CompressionStream('gzip')`) and downloaded with a `.slr` file extension. The file is imported directly back into the local `slr-ide` application. Importers across `inter-rater` automatically detect GZIP magic bytes (`0x1F, 0x8B`) via `DecompressionStream('gzip')` while retaining seamless fallback for legacy plain JSON `.slr` files.
 
 ---
 

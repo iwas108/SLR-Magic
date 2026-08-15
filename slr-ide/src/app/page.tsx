@@ -13,7 +13,6 @@ import PostValidationView from '../components/features/PostValidationView';
 import FullscreenAssignModal from '../components/features/modals/FullscreenAssignModal';
 import FullscreenInterRaterModal from '../components/features/modals/FullscreenInterRaterModal';
 import ProjectLockScreenModal from '../components/features/modals/ProjectLockScreenModal';
-import ImportProjectModal from '../components/features/modals/ImportProjectModal';
 import InsightExportView from '../components/features/InsightExportView';
 import MinimizedPipelineBanner from '../components/features/dashboard/MinimizedPipelineBanner';
 import ToastNotifications from '../components/features/dashboard/ToastNotifications';
@@ -46,6 +45,9 @@ export default function DashboardPage() {
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [showLockScreenImportModal, setShowLockScreenImportModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivingProject, setArchivingProject] = useState<any>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
   const [deletingProject, setDeletingProject] = useState<string | null>(null);
   const [deleteProjectConfirm, setDeleteProjectConfirm] = useState<{ isOpen: boolean; projectId: string; projectName: string } | null>(null);
@@ -382,6 +384,11 @@ export default function DashboardPage() {
               editingProject={editingProject}
               projectSettingsInitialTab={projectSettingsInitialTab}
               setActiveTab={setActiveTab}
+              setShowImportModal={setShowImportModal}
+              onOpenArchive={(proj: any) => {
+                setArchivingProject(proj);
+                setShowArchiveModal(true);
+              }}
               projectsHook={{
                 ...projectsHook,
                 createProject: handleCreateProject,
@@ -519,7 +526,11 @@ export default function DashboardPage() {
         showToast={showToast}
       />
       <GlobalModals
-        projectsHook={projectsHook}
+        projectsHook={{
+          ...projectsHook,
+          createProject: handleCreateProject,
+          updateProject: handleSaveProject
+        }}
         papersHook={papersHook}
         deleteProjectConfirm={deleteProjectConfirm}
         setDeleteProjectConfirm={setDeleteProjectConfirm}
@@ -530,21 +541,36 @@ export default function DashboardPage() {
         setShowDuplicateModal={setShowDuplicateModal}
         preSelectedPaperIds={preSelectedPaperIds}
         initialSettingsTab={initialSettingsTab}
+        showCreateProjectModal={showCreateProjectModal}
+        setShowCreateProjectModal={setShowCreateProjectModal}
+        showEditProjectModal={showEditProjectModal}
+        setShowEditProjectModal={setShowEditProjectModal}
+        editingProject={editingProject}
+        projectSettingsInitialTab={projectSettingsInitialTab}
+        savingProject={savingProject}
+        showArchiveModal={showArchiveModal}
+        setShowArchiveModal={setShowArchiveModal}
+        archivingProject={archivingProject}
+        setArchivingProject={setArchivingProject}
+        showImportModal={showImportModal || showLockScreenImportModal}
+        setShowImportModal={(val) => {
+          setShowImportModal(val);
+          setShowLockScreenImportModal(val);
+        }}
       />
       <ToastNotifications toasts={toasts} setToasts={setToasts} />
       <ProjectLockScreenModal
-        isOpen={!projectsHook.loadingProjects && (projects.length === 0 || !activeProject)}
+        isOpen={!projectsHook.loadingProjects && (projects.length === 0 || !activeProject) && !showCreateProjectModal && !showImportModal && !showLockScreenImportModal}
         onOpenCreateProject={() => setShowCreateProjectModal(true)}
-        onOpenImportSLR={() => setActiveTab('paper-database-ingestion')}
-        onOpenImportArchive={() => setShowLockScreenImportModal(true)}
+        onOpenImportSLR={() => {
+          if (projects.length > 0 && activeProject) {
+            setActiveTab('paper-database-ingestion');
+          } else {
+            showToast('Please create or select an active project scope first', 'warning');
+          }
+        }}
+        onOpenImportArchive={() => setShowImportModal(true)}
       />
-      {showLockScreenImportModal && projectsHook.importProject && (
-        <ImportProjectModal
-          isOpen={showLockScreenImportModal}
-          onClose={() => setShowLockScreenImportModal(false)}
-          onImport={projectsHook.importProject}
-        />
-      )}
     </div>
   );
 }

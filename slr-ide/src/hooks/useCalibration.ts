@@ -101,6 +101,12 @@ export function useCalibration({
     indexed: boolean;
     pdf_count: number;
     paper_count: number;
+    project_id?: string;
+    total_project_papers?: number;
+    indexed_project_papers?: number;
+    missing_project_papers?: number;
+    coverage_pct?: number;
+    model?: string;
   } | null>(null);
 
   // Single paper crawler states (within assignment details pane)
@@ -337,7 +343,15 @@ export function useCalibration({
                   return effStage === stageNum && effDec.startsWith('EXCLUDE');
                 }
                 if (assignPipelineStatusFilter === 'unprocessed') {
-                  return effStage < stageNum || (effStage === stageNum && !effDec);
+                  return (effStage < stageNum || (effStage === stageNum && !effDec)) &&
+                    !!p.Local_PDF_Status && !['MISSING', 'IGNORED', 'INACCESSIBLE'].includes(p.Local_PDF_Status);
+                }
+                if (assignPipelineStatusFilter === 'ready_for_ai') {
+                  return (effStage < stageNum || (effStage === stageNum && !effDec)) && p.Local_PDF_Status === 'SYNCED';
+                }
+                if (assignPipelineStatusFilter === 'pending_pdf') {
+                  return (effStage < stageNum || (effStage === stageNum && !effDec)) && 
+                    (!p.Local_PDF_Status || ['MISSING', 'IGNORED', 'INACCESSIBLE'].includes(p.Local_PDF_Status));
                 }
                 return true;
               });
@@ -587,13 +601,6 @@ export function useCalibration({
     }
   }, []);
 
-  // Debounce keyword search input
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedKeywordSearch(assignSearch);
-    }, 250);
-    return () => clearTimeout(handler);
-  }, [assignSearch]);
 
   // Trigger vector status check and eager daemon warmup
   useEffect(() => {

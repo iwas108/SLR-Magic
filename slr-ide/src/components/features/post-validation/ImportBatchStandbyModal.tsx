@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, AlertTriangle, CheckCircle, FileText, X, Layers, ArrowRight, RefreshCw } from 'lucide-react';
+import { decompressSlrBrowser } from '@/lib/slr-compression';
 
 interface ImportBatchStandbyModalProps {
   isOpen: boolean;
@@ -49,8 +50,7 @@ export function ImportBatchStandbyModal({
     }
 
     try {
-      const text = await file.text();
-      const json = JSON.parse(text);
+      const json = await decompressSlrBrowser(file);
       if (!json.metadata || !Array.isArray(json.papers)) {
         showToast(`Invalid .slr file format in ${file.name}`, 'error');
         return;

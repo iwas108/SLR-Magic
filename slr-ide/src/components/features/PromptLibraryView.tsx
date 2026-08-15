@@ -125,7 +125,8 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
       });
 
       if (res.ok) {
-        showToast?.('Prompt saved successfully', 'success');
+        const resData = await res.json();
+        showToast?.(resData.message || 'Prompt saved successfully', 'success');
         setEditingPrompt(null);
         setSchemaError(null);
         fetchPrompts();
@@ -195,7 +196,24 @@ export default function PromptLibraryView({ projectId = null, showToast }: Promp
       ) : editingPrompt ? (
         <div className="flex-1 overflow-y-auto bg-secondary/10 border border-border rounded-lg p-4 space-y-4 animate-in fade-in zoom-in-95 duration-200">
           <div className="flex justify-between items-center mb-2 border-b border-border/50 pb-2">
-            <h4 className="text-xs font-bold text-foreground">{editingPrompt.id ? 'Edit Prompt' : 'New Prompt'}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-xs font-bold text-foreground">{editingPrompt.id ? 'Edit Prompt' : 'New Prompt'}</h4>
+              {editingPrompt.id && (
+                editingPrompt.project_id === null && projectId ? (
+                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">
+                    Global Default (Saves as Project Copy)
+                  </span>
+                ) : editingPrompt.project_id ? (
+                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                    Project-Specific
+                  </span>
+                ) : (
+                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">
+                    Global Shared
+                  </span>
+                )
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
                 <input

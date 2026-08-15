@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
 import { 
-  Plus, CheckCircle2, AlertCircle, RefreshCw, Settings, Trash2, Layers, Calendar, Check, Archive, UploadCloud
+  Plus, Settings, Trash2, Layers, Calendar, Check, Archive, UploadCloud, 
+  Search, Play, Sparkles, Folder, DollarSign, Database, HardDrive, ShieldCheck, ChevronRight
 } from 'lucide-react';
 
 import MetricSummaryCards from './dashboard/MetricSummaryCards';
 import LocalPDFStatusChart from './dashboard/LocalPDFStatusChart';
 import ProjectActivityLog from './dashboard/ProjectActivityLog';
-import DashboardQuickActions from './dashboard/DashboardQuickActions';
-import CreateProjectModal from './modals/CreateProjectModal';
-import ProjectSettingsModal from './modals/ProjectSettingsModal';
-import ArchiveProjectModal from './modals/ArchiveProjectModal';
-import ImportProjectModal from './modals/ImportProjectModal';
 
 interface DashboardViewProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -29,6 +25,8 @@ interface DashboardViewProps {
   editingProject: any;
   projectSettingsInitialTab?: 'metadata' | 'calibration' | 'sync' | 'llm';
   setActiveTab: (tab: string) => void;
+  setShowImportModal?: (val: boolean) => void;
+  onOpenArchive?: (proj: any) => void;
   projectsHook: {
     projects: any[];
     activeProjectId: string;
@@ -48,130 +46,236 @@ interface DashboardViewProps {
 
 export default function DashboardView({
   showToast,
-  showCreateProjectModal,
   setShowCreateProjectModal,
-  showEditProjectModal,
-  setShowEditProjectModal,
   openProjectSettings,
-  savingProject,
-  deletingProject,
-  deleteProjectConfirm,
   setDeleteProjectConfirm,
-  deleteProjectConfirmationText,
-  setDeleteProjectConfirmationText,
-  editingProject,
-  projectSettingsInitialTab,
   setActiveTab,
+  setShowImportModal = () => {},
+  onOpenArchive,
   projectsHook
 }: DashboardViewProps) {
   const {
     projects,
     activeProjectId,
     activeProject,
-    activateProject,
-    loadProjects,
-    createProject,
-    updateProject,
-    handleTestProjectConnection,
-    testingProjectConnection,
-    projectConnectionTestResult,
-    archiveProject,
-    importProject
+    activateProject
   } = projectsHook;
+
+  const [projectSearchTerm, setProjectSearchTerm] = useState('');
 
   const activeProj = projects.find((p: any) => String(p.id) === String(activeProjectId)) || activeProject;
 
-  const [showArchiveModal, setShowArchiveModal] = useState(false);
-  const [archivingProject, setArchivingProject] = useState<any>(null);
-  const [showImportModal, setShowImportModal] = useState(false);
+  // Active Project Metric Calculations
+  const stats = activeProj?.stats || { total: 0, screened: 0, acquired: 0, synced: 0, duplicates: 0 };
+  const screenedPct = stats.total > 0 ? Math.round((stats.screened / stats.total) * 100) : 0;
+  const acquiredPct = stats.total > 0 ? Math.round((stats.acquired / stats.total) * 100) : 0;
+  
+  const budgetLimit = activeProj?.project_budget_limit || 0;
+  const currentSpend = activeProj?.project_current_spend || 0;
+  const spendPct = budgetLimit > 0 ? Math.round((currentSpend / budgetLimit) * 100) : 0;
 
-  const handleOpenArchive = (proj: any) => {
-    setArchivingProject(proj);
-    setShowArchiveModal(true);
-  };
+  // Filtered Projects for Data Table
+  const filteredProjects = projects.filter((p: any) => {
+    if (!projectSearchTerm.trim()) return true;
+    const term = projectSearchTerm.toLowerCase();
+    return (
+      (p.name && p.name.toLowerCase().includes(term)) ||
+      (p.folder_name && p.folder_name.toLowerCase().includes(term)) ||
+      (p.cloud_provider && p.cloud_provider.toLowerCase().includes(term))
+    );
+  });
 
   return (
-    <>
-      <div className="h-full flex flex-col overflow-y-auto space-y-6 animate-in fade-in duration-200">
-        
-        {/* TOP METRICS ROW */}
-        <MetricSummaryCards activeProject={activeProj} />
+    <div className="h-full flex flex-col overflow-y-auto space-y-6 animate-in fade-in duration-200">
+      
+      {/* 1. EXECUTIVE HERO COMMAND BANNER */}
+      <div className="relative bg-card border border-border/80 rounded-2xl shadow-xl overflow-hidden p-6 backdrop-blur-xl">
+        {/* Top Decorative Gradient Accent */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
-        {/* LOCAL PDF STATUS DISTRIBUTION CHART */}
-        <LocalPDFStatusChart activeProject={activeProj} />
-
-        {/* PROJECT ACTIVITY & PROTOCOL LOG */}
-        <ProjectActivityLog activeProject={activeProj} />
-
-        {/* EXECUTIVE QUICK ACTIONS */}
-        <DashboardQuickActions 
-          activeProject={activeProj}
-          setShowCreateProjectModal={setShowCreateProjectModal}
-          openProjectSettings={openProjectSettings}
-          showToast={showToast}
-          setActiveTab={setActiveTab}
-        />
-
-        {/* Full-Page Projects Manager */}
-        <div className="bg-card border border-border rounded-xl shadow-md p-6 space-y-4 w-full">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <div className="space-y-1">
-              <h3 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-2">
-                <Layers className="w-4 h-4 text-primary" />
-                Projects Manager
-              </h3>
-              <p className="text-[10px] text-muted-foreground">Manage systematic review scopes, cloud configurations, targets and calibration pools.</p>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          {/* Active Project Identification */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active Review Scope
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground bg-secondary/60 px-2 py-0.5 rounded border border-border/60">
+                slug: {activeProj?.folder_name || 'none'}
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground bg-secondary/60 px-2 py-0.5 rounded border border-border/60 capitalize">
+                {activeProj?.cloud_provider === 'onedrive' ? 'OneDrive' : 'Google Drive'}
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="px-3 py-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border text-[10px] font-bold uppercase rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
-              >
-                <UploadCloud className="w-3.5 h-3.5 text-primary" />
-                Import Archive (.slr)
-              </button>
-              <button
-                onClick={() => setShowCreateProjectModal(true)}
-                className="px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-[10px] font-bold uppercase rounded-lg flex items-center gap-1 transition-colors shadow-md hover:shadow-lg"
-              >
-                <Plus className="w-4 h-4" />
-                New Project
-              </button>
-            </div>
+
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+              {activeProj?.name || 'No Active Project Selected'}
+            </h2>
+
+            <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed line-clamp-2">
+              {activeProj?.manifesto || 'No manifesto defined. Use project settings to configure literature review parameters and exclusion criteria.'}
+            </p>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border text-[9px] text-muted-foreground uppercase font-black tracking-wider bg-secondary/15 select-none">
-                  <th className="py-3 px-3">Project details</th>
-                  <th className="py-3 px-3">Cloud Configuration</th>
-                  <th className="py-3 px-3 text-center">Screening rate</th>
-                  <th className="py-3 px-3 text-center">PDF Acquisition</th>
-                  <th className="py-3 px-3 text-center">Calibration Pools</th>
-                  <th className="py-3 px-3 text-center">Budget Spent</th>
-                  <th className="py-3 px-3 text-right">Actions</th>
+          {/* Quick Action Trigger Buttons */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              onClick={() => {
+                if (activeProj) openProjectSettings(activeProj);
+                else showToast('No active project to configure', 'warning');
+              }}
+              className="px-3.5 py-2 bg-secondary/80 hover:bg-secondary text-foreground border border-border font-bold rounded-xl text-xs flex items-center gap-2 transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Settings className="w-3.5 h-3.5 text-primary" />
+              Settings
+            </button>
+
+            <button
+              onClick={() => setActiveTab('pipeline-data-acquisition')}
+              className="px-3.5 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 font-bold rounded-xl text-xs flex items-center gap-2 transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Play className="w-3.5 h-3.5" />
+              Acquisition Pipeline
+            </button>
+
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-3.5 py-2 bg-secondary/80 hover:bg-secondary text-foreground border border-border font-bold rounded-xl text-xs flex items-center gap-2 transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-primary" />
+              Import Archive
+            </button>
+
+            <button
+              onClick={() => setShowCreateProjectModal(true)}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              New Project
+            </button>
+          </div>
+        </div>
+
+        {/* High-Level Overview Metrics Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-5 border-t border-border/60">
+          <div className="bg-secondary/15 p-3 rounded-xl border border-border/50">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Total Ingested Papers</span>
+            <div className="text-lg font-mono font-bold text-foreground">{stats.total}</div>
+            <span className="text-[9px] text-muted-foreground">{stats.duplicates > 0 ? `(${stats.duplicates} duplicates excluded)` : 'Unique literature cohort'}</span>
+          </div>
+
+          <div className="bg-secondary/15 p-3 rounded-xl border border-border/50">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Screening Progression</span>
+            <div className="text-lg font-mono font-bold text-emerald-500">{screenedPct}%</div>
+            <span className="text-[9px] text-muted-foreground">{stats.screened} of {stats.total} screened</span>
+          </div>
+
+          <div className="bg-secondary/15 p-3 rounded-xl border border-border/50">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">PDF Asset Acquisition</span>
+            <div className="text-lg font-mono font-bold text-blue-500">{acquiredPct}%</div>
+            <span className="text-[9px] text-muted-foreground">{stats.acquired} local PDFs cached</span>
+          </div>
+
+          <div className="bg-secondary/15 p-3 rounded-xl border border-border/50">
+            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Budget Spent</span>
+            <div className="text-lg font-mono font-bold text-foreground">${currentSpend.toFixed(2)}</div>
+            <span className="text-[9px] text-muted-foreground">of ${budgetLimit.toFixed(2)} limit ({spendPct}%)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. 4-STAGE PIPELINE FUNNEL BREAKDOWN */}
+      <MetricSummaryCards activeProject={activeProj} />
+
+      {/* 3. STORAGE & CLOUD MIRROR TELEMETRY */}
+      <LocalPDFStatusChart activeProject={activeProj} />
+
+      {/* 4. PROTOCOL MANIFESTO & ACTIVE SCOPE LOG */}
+      <ProjectActivityLog activeProject={activeProj} />
+
+      {/* 5. PROJECTS MANAGER REPOSITORY TABLE */}
+      <div className="bg-card border border-border/80 rounded-2xl shadow-md p-6 space-y-4 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-4">
+          <div className="space-y-1">
+            <h3 className="font-extrabold text-xs text-foreground uppercase tracking-wider flex items-center gap-2">
+              <Layers className="w-4 h-4 text-primary" />
+              Projects Repository Manager
+              <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                {projects.length} {projects.length === 1 ? 'Project' : 'Projects'}
+              </span>
+            </h3>
+            <p className="text-[11px] text-muted-foreground">Manage systematic review scopes, cloud configurations, targets and calibration pools.</p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Project Search Input */}
+            <div className="relative min-w-[220px]">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={projectSearchTerm}
+                onChange={(e) => setProjectSearchTerm(e.target.value)}
+                placeholder="Search projects by name, slug..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-secondary/40 border border-border/80 rounded-xl text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-medium placeholder:text-muted-foreground/70 shadow-inner"
+              />
+            </div>
+
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-3 py-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border/80 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-primary" />
+              Import
+            </button>
+            <button
+              onClick={() => setShowCreateProjectModal(true)}
+              className="px-3.5 py-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md hover:shadow-lg cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Project
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border/80 text-[9px] text-muted-foreground uppercase font-black tracking-wider bg-secondary/20 select-none">
+                <th className="py-3 px-3">Project Scope</th>
+                <th className="py-3 px-3">Cloud Configuration</th>
+                <th className="py-3 px-3 text-center">Screening Rate</th>
+                <th className="py-3 px-3 text-center">PDF Acquisition</th>
+                <th className="py-3 px-3 text-center">Calibration Pools</th>
+                <th className="py-3 px-3 text-center">Budget Spent</th>
+                <th className="py-3 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60 text-xs">
+              {filteredProjects.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-muted-foreground italic text-xs">
+                    {projectSearchTerm ? 'No projects match your search criteria.' : 'No projects available. Click New Project to create one.'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60 text-xs">
-                {projects.map((proj: any) => {
-                  const isActive = proj.id === activeProjectId;
+              ) : (
+                filteredProjects.map((proj: any) => {
+                  const isActive = String(proj.id) === String(activeProjectId);
                   
                   // stats calculations
-                  const stats = proj.stats || { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0 };
-                  const screenedPct = stats.total > 0 ? Math.round((stats.screened / stats.total) * 100) : 0;
-                  const acquiredPct = stats.total > 0 ? Math.round((stats.acquired / stats.total) * 100) : 0;
+                  const pStats = proj.stats || { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0 };
+                  const pScreenedPct = pStats.total > 0 ? Math.round((pStats.screened / pStats.total) * 100) : 0;
+                  const pAcquiredPct = pStats.total > 0 ? Math.round((pStats.acquired / pStats.total) * 100) : 0;
                   
                   const projCloudProvider = proj.cloud_provider || 'gdrive';
                   const projRemote = proj.rclone_remote_name || (projCloudProvider === 'onedrive' ? 'onedrive' : 'gdrive');
                   const projDest = proj.gdrive_dest_path || 'SLR_Magic/PDFs';
 
-                  const budgetLimit = proj.project_budget_limit || 0;
-                  const currentSpend = proj.project_current_spend || 0;
-                  const spendPct = budgetLimit > 0 ? Math.round((currentSpend / budgetLimit) * 100) : 0;
+                  const pBudgetLimit = proj.project_budget_limit || 0;
+                  const pCurrentSpend = proj.project_current_spend || 0;
+                  const pSpendPct = pBudgetLimit > 0 ? Math.round((pCurrentSpend / pBudgetLimit) * 100) : 0;
 
                   return (
-                    <tr key={proj.id} className={`hover:bg-secondary/15 transition-colors ${isActive ? 'bg-primary/5' : ''}`}>
+                    <tr key={proj.id} className={`hover:bg-secondary/20 transition-colors ${isActive ? 'bg-primary/5' : ''}`}>
                       <td className="py-3.5 px-3">
                         <div className="font-bold text-foreground text-sm flex items-center gap-2">
                           {proj.name}
@@ -182,8 +286,8 @@ export default function DashboardView({
                           )}
                         </div>
                         <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">slug: {proj.folder_name}</div>
-                        <div className="text-[9px] text-muted-foreground/60 mt-1 flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-muted-foreground/40" />
+                        <div className="text-[9px] text-muted-foreground/70 mt-1 flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-muted-foreground/50" />
                           Created: {new Date(proj.created_at).toLocaleDateString()}
                         </div>
                       </td>
@@ -200,11 +304,11 @@ export default function DashboardView({
                                 Google Drive
                               </span>
                             )}
-                            <span className="text-[10px] font-mono text-muted-foreground bg-secondary/35 px-1 py-0.5 rounded border border-border">
+                            <span className="text-[10px] font-mono text-muted-foreground bg-secondary/50 px-1 py-0.5 rounded border border-border/60">
                               {projRemote}:
                             </span>
                           </div>
-                          <span className="text-[10px] font-semibold text-muted-foreground max-w-[200px] truncate" title={`${projDest}/${proj.folder_name}`}>
+                          <span className="text-[10px] font-medium text-muted-foreground max-w-[200px] truncate" title={`${projDest}/${proj.folder_name}`}>
                             {projDest}/{proj.folder_name}
                           </span>
                         </div>
@@ -213,13 +317,13 @@ export default function DashboardView({
                       <td className="py-3.5 px-3 text-center">
                         <div className="inline-flex flex-col items-center gap-1.5 min-w-[100px]">
                           <div className="text-[11px] font-mono font-bold text-foreground">
-                            {stats.screened} <span className="text-muted-foreground font-normal">/ {stats.total}</span>
+                            {pStats.screened} <span className="text-muted-foreground font-normal">/ {pStats.total}</span>
                           </div>
-                          <div className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 px-1 py-0.5 rounded">
-                            {screenedPct}% screened
+                          <div className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                            {pScreenedPct}% screened
                           </div>
                           <div className="w-24 bg-secondary rounded-full h-1.5 overflow-hidden border border-border/30">
-                            <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${screenedPct}%` }} />
+                            <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${pScreenedPct}%` }} />
                           </div>
                         </div>
                       </td>
@@ -227,13 +331,13 @@ export default function DashboardView({
                       <td className="py-3.5 px-3 text-center">
                         <div className="inline-flex flex-col items-center gap-1.5 min-w-[100px]">
                           <div className="text-[11px] font-mono font-bold text-foreground">
-                            {stats.acquired} <span className="text-muted-foreground font-normal">/ {stats.total}</span>
+                            {pStats.acquired} <span className="text-muted-foreground font-normal">/ {pStats.total}</span>
                           </div>
-                          <div className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1 py-0.5 rounded">
-                            {acquiredPct}% acquired
+                          <div className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                            {pAcquiredPct}% acquired
                           </div>
                           <div className="w-24 bg-secondary rounded-full h-1.5 overflow-hidden border border-border/30">
-                            <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${acquiredPct}%` }} />
+                            <div className="bg-amber-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${pAcquiredPct}%` }} />
                           </div>
                         </div>
                       </td>
@@ -242,15 +346,15 @@ export default function DashboardView({
                         <div className="inline-flex flex-col items-start gap-1 font-mono text-[10px] text-muted-foreground">
                           <div className="flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                            <span className="font-bold text-foreground/80">Pool A:</span> {stats.pool_a_count} <span className="text-[9px] text-muted-foreground/50">/ {proj.pool_a_size || 50}</span>
+                            <span className="font-bold text-foreground/80">Pool A:</span> {pStats.pool_a_count} <span className="text-[9px] text-muted-foreground/50">/ {proj.pool_a_size || 50}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-                            <span className="font-bold text-foreground/80">Pool B:</span> {stats.pool_b_count} <span className="text-[9px] text-muted-foreground/50">/ {proj.pool_b_size || 30}</span>
+                            <span className="font-bold text-foreground/80">Pool B:</span> {pStats.pool_b_count} <span className="text-[9px] text-muted-foreground/50">/ {proj.pool_b_size || 30}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
-                            <span className="font-bold text-foreground/80">Pool C:</span> {stats.pool_c_count} <span className="text-[9px] text-muted-foreground/50">/ {proj.pool_c_size || 20}</span>
+                            <span className="font-bold text-foreground/80">Pool C:</span> {pStats.pool_c_count} <span className="text-[9px] text-muted-foreground/50">/ {proj.pool_c_size || 20}</span>
                           </div>
                         </div>
                       </td>
@@ -258,13 +362,13 @@ export default function DashboardView({
                       <td className="py-3.5 px-3 text-center">
                         <div className="inline-flex flex-col items-center gap-1.5 min-w-[100px]">
                           <div className="text-[11px] font-mono font-bold text-foreground">
-                            ${currentSpend.toFixed(2)} <span className="text-muted-foreground font-normal">/ ${budgetLimit.toFixed(2)}</span>
+                            ${pCurrentSpend.toFixed(2)} <span className="text-muted-foreground font-normal">/ ${pBudgetLimit.toFixed(2)}</span>
                           </div>
-                          <div className={`text-[9px] font-bold px-1 py-0.5 rounded ${spendPct > 90 ? 'text-red-500 bg-red-500/10' : 'text-indigo-500 bg-indigo-500/10'}`}>
-                            {spendPct}% spent
+                          <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${pSpendPct > 90 ? 'text-red-500 bg-red-500/10' : 'text-indigo-500 bg-indigo-500/10'}`}>
+                            {pSpendPct}% spent
                           </div>
                           <div className="w-24 bg-secondary rounded-full h-1.5 overflow-hidden border border-border/30">
-                            <div className={`h-1.5 rounded-full transition-all duration-300 ${spendPct > 90 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(spendPct, 100)}%` }} />
+                            <div className={`h-1.5 rounded-full transition-all duration-300 ${pSpendPct > 90 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(pSpendPct, 100)}%` }} />
                           </div>
                         </div>
                       </td>
@@ -273,15 +377,17 @@ export default function DashboardView({
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openProjectSettings(proj)}
-                            className="p-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border rounded-lg transition-colors flex items-center justify-center"
+                            className="p-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border rounded-lg transition-colors flex items-center justify-center cursor-pointer shadow-sm"
                             title="Configure Project Settings"
                           >
                             <Settings className="w-3.5 h-3.5 text-primary" />
                           </button>
 
                           <button
-                            onClick={() => handleOpenArchive(proj)}
-                            className="p-1.5 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/20 rounded-lg transition-colors flex items-center justify-center"
+                            onClick={() => {
+                              if (onOpenArchive) onOpenArchive(proj);
+                            }}
+                            className="p-1.5 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/20 rounded-lg transition-colors flex items-center justify-center cursor-pointer shadow-sm"
                             title="Archive & Offboard Project"
                           >
                             <Archive className="w-3.5 h-3.5" />
@@ -289,7 +395,7 @@ export default function DashboardView({
                           
                           <button
                             onClick={() => setDeleteProjectConfirm({ isOpen: true, projectId: proj.id, projectName: proj.name })}
-                            className="p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 rounded-lg transition-colors flex items-center justify-center"
+                            className="p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 rounded-lg transition-colors flex items-center justify-center cursor-pointer shadow-sm"
                             title="Delete Project"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -302,7 +408,7 @@ export default function DashboardView({
                           ) : (
                             <button
                               onClick={() => activateProject(proj.id)}
-                              className="px-2.5 py-1 bg-primary text-primary-foreground hover:bg-primary/95 text-[10px] font-bold uppercase rounded-lg transition-all shadow-sm hover:shadow"
+                              className="px-2.5 py-1 bg-primary text-primary-foreground hover:bg-primary/95 text-[10px] font-bold uppercase rounded-lg transition-all shadow-sm hover:shadow cursor-pointer"
                             >
                               Activate
                             </button>
@@ -311,59 +417,13 @@ export default function DashboardView({
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
         </div>
-
-        {showCreateProjectModal && (
-          <CreateProjectModal
-            isOpen={showCreateProjectModal}
-            onClose={() => setShowCreateProjectModal(false)}
-            onCreateProject={createProject}
-            savingProject={savingProject}
-          />
-        )}
-
-        {showEditProjectModal && editingProject && (
-          <ProjectSettingsModal
-            isOpen={showEditProjectModal}
-            onClose={() => setShowEditProjectModal(false)}
-            projects={projects}
-            project={editingProject}
-            loadProjects={loadProjects}
-            showToast={showToast}
-            onSaveProject={updateProject}
-            savingProject={savingProject}
-            testingProjectConnection={testingProjectConnection}
-            projectConnectionTestResult={projectConnectionTestResult}
-            handleTestProjectConnection={handleTestProjectConnection}
-            initialTab={projectSettingsInitialTab}
-          />
-        )}
-
-        {showArchiveModal && archivingProject && archiveProject && (
-          <ArchiveProjectModal
-            isOpen={showArchiveModal}
-            project={archivingProject}
-            onClose={() => {
-              setShowArchiveModal(false);
-              setArchivingProject(null);
-            }}
-            onArchive={archiveProject}
-          />
-        )}
-
-        {showImportModal && importProject && (
-          <ImportProjectModal
-            isOpen={showImportModal}
-            onClose={() => setShowImportModal(false)}
-            onImport={importProject}
-          />
-        )}
-
       </div>
-    </>
+
+    </div>
   );
 }

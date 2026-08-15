@@ -78,13 +78,25 @@ slr-ide/
 
 ## ⚡ Quick Start Setup
 
+### Automated Setup (From Workspace Root)
+Run the automated installer from the repository root to configure `slr-ide` and its Python engine automatically:
+- **Linux / macOS**: `./install.sh`
+- **Windows (PowerShell)**: `.\install.ps1` (or `install.bat`)
+
+### Manual Setup
 ```bash
 # 1. Install Node.js dependencies
 npm install
 
 # 2. Setup Python environment
+# Linux / macOS:
+python3 -m venv python_engine/venv
+source python_engine/venv/bin/activate
+pip install -r python_engine/requirements.txt
+
+# Windows:
 python -m venv python_engine/venv
-source python_engine/venv/bin/activate # On Windows: python_engine\venv\Scripts\activate
+python_engine\venv\Scripts\activate
 pip install -r python_engine/requirements.txt
 
 # 3. Start development server

@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 import { streamManager } from '@/lib/services/stream-manager';
 import { batchStateTracker } from '@/lib/services/batch-state-tracker';
 import { runSubprocessStep } from './pipeline/subprocess-runner';
@@ -8,7 +9,7 @@ import { runCloudSync, generateCloudLinks } from './pipeline/rclone-sync';
 import { remoteWorkerManager } from '@/lib/services/remote-worker-manager';
 
 export async function runBackgroundExecution(steps: string[], compress: boolean, forceUpdate: boolean = false) {
-  const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+  const pythonExe = getPythonExecutablePath();
   
   const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
   const project = db.prepare('SELECT folder_name, gdrive_dest_path, cloud_provider, rclone_remote_name FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string; gdrive_dest_path: string; cloud_provider?: string; rclone_remote_name?: string } | undefined;

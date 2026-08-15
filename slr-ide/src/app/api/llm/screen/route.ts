@@ -6,6 +6,7 @@ import { PROJECT_ROOT, getVaultKey } from '@/lib/db';
 import db from '@/lib/db';
 import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
+import { getPythonExecutablePath } from '@/lib/services/python-path';
 import { operationsManager } from '@/lib/llm-operations';
 import { pipelineLock } from '@/lib/services/pipeline-lock';
 
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Determine absolute paths relative to project root
-    const pythonExe = path.join(PROJECT_ROOT, 'python_engine', 'venv', 'Scripts', 'python.exe');
+    const pythonExe = getPythonExecutablePath();
     const mainScript = path.join(PROJECT_ROOT, 'python_engine', 'llm', 'main.py');
 
     if (!fs.existsSync(pythonExe)) {
