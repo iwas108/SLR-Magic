@@ -207,6 +207,8 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/DeletePaperConfirmModal.tsx` | Modal Component| Standalone modal dialog for confirming permanent deletion of a single paper record (`DELETE /api/papers/[id]`). |
 | `components/features/modals/DeleteProjectConfirmModal.tsx`| Modal Component| Standalone modal dialog for confirming deletion of a literature review project configuration (`DELETE /api/projects/[id]`). |
 | `components/features/modals/DeleteAllPapersConfirmModal.tsx`| Modal Component| Standalone security dialog verifying active project name before executing bulk wipe of all project papers. |
+| `components/features/modals/ArchiveProjectModal.tsx` | Modal Component | Standalone modal for offboarding projects with destination selection (.slr file / Rclone cloud), PDF zip retention toggle, confirmation phrase, and zero-trace DB purge. |
+| `components/features/modals/ImportProjectModal.tsx` | Modal Component | Standalone modal for restoring `.slr` project archives with drag-and-drop file inspection, schema preflight verification, and automatic collision resolution. |
 | `components/features/modals/CsvReviewModal.tsx` | Modal Component | Standalone modal component for reviewing mapped CSV structures and duplicate exclusions prior to importing. |
 | `components/features/modals/PrismaConfigModal.tsx` | Modal Component | Standalone modal component for customizing the PRISMA diagram layout, colors, typography, box styles, and export scale. |
 | `src/components/features/modals/VisualizerModal.tsx` | Modal Facade / Orchestrator | Ultra-clean thin orchestrator (<50 lines) wrapping `VisualizerProvider`, `VisualizerHeader`, and modular step components (`Step1ChartSelector`, `Step2DataMapping`, `Step3StyleCustomization`, `Step4PreviewStage`). |
@@ -306,6 +308,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/projects/route.ts` | REST Endpoint | Handles GET and POST requests to list all active literature review projects or create new project database records. |
 | `api/projects/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests to retrieve, update, or permanently wipe a specific project configuration and its associated data. |
 | `api/projects/activate/route.ts` | REST Endpoint | Handles POST requests to update the `ACTIVE_PROJECT_ID` value in the SQLite `configs` table, switching the active workspace context. |
+| `api/projects/archive/route.ts` | REST Endpoint | Handles GET (download `.slr` JSON archive or `.zip` repository PDFs) and POST (cloud sync via Rclone, zero-trace 15-table database purge, and SQLite VACUUM optimization). |
+| `api/projects/import/route.ts` | REST Endpoint | Handles POST requests to reimport `.slr` project archives with dynamic schema adaptation, collision resolution, and atomic transaction rollback. |
+| `lib/services/archive-service.ts` | Core Services | Core archiving and restore engine providing `exportProjectArchive`, `createProjectPdfZipBuffer`, `purgeProjectZeroTrace`, and `importProjectArchive`. |
 | `api/vectors/search/route.ts` | REST Endpoint | Handles POST requests to run semantic searches on paper/PDF cache vector indexes. |
 | `api/vectors/status/route.ts` | REST Endpoint | Handles GET requests to check vector database index status parameters and count fields. |
 | `api/vectors/build/route.ts` | REST Endpoint | Handles POST requests to spawn the incremental vector index build subprocess and stream progress. |
@@ -347,7 +352,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `src/components/features/modals/visualizer/utils/statisticalUtils.ts` | Domain Utility | Pure statistical domain utility calculating grouped descriptive metrics (Mean, Variance, SD, SE, 95% CI) and whisker bounds for scientific charts. |
 | `src/components/features/modals/visualizer/utils/hatchPatternUtils.ts` | Domain Utility | Academic monochrome texture pattern builder generating high-contrast SVG fills for print and colorblind accessibility (WCAG 2.1 AAA). |
 | `src/components/features/modals/visualizer/components/subcomponents/ClusteredBarConfigPanel.tsx` | Subcomponent | Configuration panel for clustered bar chart orientation, spacing, error bars, monochrome texture hatching, and series color overrides. |
-| `src/components/features/modals/visualizer/components/subcomponents/ScientificAxisConfigPanel.tsx` | Subcomponent | Configuration panel for scientific publishing axis titles, tick directions, log/linear scale, and journal baseline borders. |
-| `src/components/features/modals/visualizer/components/subcomponents/CrossTabMatrixPanel.tsx` | Subcomponent | Tabbed cross-tabulation matrix inspection panel (2D Matrix with row/col totals + Flattened table) with direct TSV and CSV export. |
+| `src/components/features/modals/visualizer/utils/smartOptimizer.ts` | Pure Utility / Auto-Optimizer | Intelligent heuristic parameter optimizer analyzing dataset cardinality, skewness, dominance ratios, label lengths, and chart aspect ratios to compute optimal visualization settings. |
+| `src/components/features/modals/visualizer/components/subcomponents/ChartConfigPanels.tsx` | UI Subcomponent | Modular parameter configuration panels providing dedicated customization controls across 12 scientific chart formats (Vertical Bar, Stacked Bar, Line, Treemap, Heatmap, Radar, Funnel, Boxplot, Graph, Gauge, Calendar, Scatter/Bubble). |
+| `src/components/features/modals/visualizer/utils/formatterUtils.ts` | Domain Utility | Pure reviewer-grade statistical formatting engine providing granular decimal rounding, coarse tilde (`~`) prefixes, custom ratio representations (`n = x/N`, `x/N`, `(x/N)`), and context-aware denominator resolution across charts, legends, tables, and tooltips. |
+
 
 

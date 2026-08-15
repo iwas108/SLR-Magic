@@ -62,7 +62,7 @@ export default function DeleteProjectConfirmModal({
           <div className="space-y-2 text-center w-full">
             <h3 className="font-bold text-sm text-foreground">Confirm Wipe Project</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Are you sure you want to permanently delete project <span className="font-bold text-foreground">&quot;{deleteProjectConfirm.projectName}&quot;</span>? This will rescue project PDF assets, but completely delete the project database entry, its papers, decisions, and commitment logs.
+              Are you sure you want to permanently delete project <span className="font-bold text-foreground">&quot;{deleteProjectConfirm.projectName}&quot;</span>? This will delete the project repo folder and completely purge all database entries (papers, decisions, audit logs, and calibration ledger) with database space reclamation. <span className="text-emerald-500 font-semibold">The eternal PDF library (raw and cached folders) remains 100% untouched.</span>
             </p>
             
             <div className="mt-4 p-3 bg-secondary/30 border border-border rounded-lg text-left">

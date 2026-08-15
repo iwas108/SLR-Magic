@@ -164,6 +164,94 @@ export function useProjects(showToast: (msg: string, type: 'success' | 'error' |
     }
   }, []);
 
+  const archiveProject = useCallback(async (
+    projectId: string, 
+    options: { destination: 'local' | 'cloud'; keepPdfZip: boolean }, 
+    onSuccess?: () => void
+  ) => {
+    try {
+      if (options.destination === 'local') {
+        // Trigger direct browser download for SLR Archive
+        window.location.href = `/api/projects/archive?projectId=${projectId}&type=slr`;
+        
+        // If user elected to keep PDF zip, trigger second download after brief delay
+        if (options.keepPdfZip) {
+          setTimeout(() => {
+            window.location.href = `/api/projects/archive?projectId=${projectId}&type=pdf_zip`;
+          }, 1500);
+        }
+      }
+
+      // Execute the server-side purge & optimization
+      const res = await fetch('/api/projects/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          destination: options.destination,
+          keepPdfZip: options.keepPdfZip,
+          executePurge: true
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        showToast(
+          options.destination === 'cloud'
+            ? `Project archived & synced to cloud! Database space reclaimed.`
+            : `Project archived & purged cleanly! Database space reclaimed.`,
+          'success'
+        );
+        await loadProjects();
+        if (onSuccess) onSuccess();
+        broadcastSync('SYNC_PROJECTS');
+        broadcastSync('SYNC_PAPERS');
+        return true;
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to archive project', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showToast(`Error archiving project: ${err.message || err}`, 'error');
+      return false;
+    }
+  }, [loadProjects, showToast]);
+
+  const importProject = useCallback(async (archiveData: any, onSuccess?: (newId: string) => void) => {
+    try {
+      const res = await fetch('/api/projects/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archiveData })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        let successMsg = `Project '${data.project?.name}' restored successfully!`;
+        if (data.remappedPapersCount > 0) {
+          successMsg += ` (${data.remappedPapersCount} papers deconflicted)`;
+        }
+        showToast(successMsg, 'success');
+        await loadProjects();
+        if (data.project?.id) {
+          await activateProject(data.project.id);
+          if (onSuccess) onSuccess(data.project.id);
+        }
+        broadcastSync('SYNC_PROJECTS');
+        broadcastSync('SYNC_PAPERS');
+        return true;
+      } else {
+        const data = await res.json();
+        showToast(data.error || 'Failed to import project archive', 'error');
+        return false;
+      }
+    } catch (err: any) {
+      showToast(`Error importing project: ${err.message || err}`, 'error');
+      return false;
+    }
+  }, [loadProjects, activateProject, showToast]);
+
   return {
     projects,
     setProjects,
@@ -180,6 +268,8 @@ export function useProjects(showToast: (msg: string, type: 'success' | 'error' |
     createProject,
     updateProject,
     deleteProject,
+    archiveProject,
+    importProject,
     handleTestProjectConnection
   };
 }

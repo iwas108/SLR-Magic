@@ -5,12 +5,14 @@ interface ProjectLockScreenModalProps {
   isOpen: boolean;
   onOpenCreateProject: () => void;
   onOpenImportSLR?: () => void;
+  onOpenImportArchive?: () => void;
 }
 
 export default function ProjectLockScreenModal({
   isOpen,
   onOpenCreateProject,
-  onOpenImportSLR
+  onOpenImportSLR,
+  onOpenImportArchive
 }: ProjectLockScreenModalProps) {
   if (!isOpen) return null;
 
@@ -34,25 +36,34 @@ export default function ProjectLockScreenModal({
           </h2>
 
           <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed max-w-md font-medium">
-            SLR Magic enforces strict FAIR data isolation. To begin ingesting references, executing AI screening pipelines, or performing calibration reviews, you must first create or select an active literature review project.
+            SLR Magic enforces strict FAIR data isolation. To begin ingesting references, executing AI screening pipelines, or performing calibration reviews, you must first create or restore an active literature review project.
           </p>
 
           <div className="mt-7 w-full flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={onOpenCreateProject}
-              className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
             >
               <FolderPlus className="w-4 h-4" />
-              Create New SLR Project
+              Create Project
             </button>
+
+            {onOpenImportArchive && (
+              <button
+                onClick={onOpenImportArchive}
+                className="w-full sm:w-auto px-4 py-2.5 bg-secondary/80 hover:bg-secondary text-foreground border border-border/80 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <FileUp className="w-4 h-4 text-primary" />
+                Import Archive (.slr)
+              </button>
+            )}
 
             {onOpenImportSLR && (
               <button
                 onClick={onOpenImportSLR}
-                className="w-full sm:w-auto px-5 py-2.5 bg-secondary/80 hover:bg-secondary text-foreground border border-border/80 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full sm:w-auto px-4 py-2.5 bg-secondary/60 hover:bg-secondary text-muted-foreground hover:text-foreground border border-border/60 font-semibold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
               >
-                <FileUp className="w-4 h-4 text-purple-400" />
-                Import SLR Dataset
+                CSV Ingestion
               </button>
             )}
           </div>

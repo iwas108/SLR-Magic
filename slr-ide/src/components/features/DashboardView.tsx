@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
-  Plus, CheckCircle2, AlertCircle, RefreshCw, Settings, Trash2, Layers, Calendar, Check
+  Plus, CheckCircle2, AlertCircle, RefreshCw, Settings, Trash2, Layers, Calendar, Check, Archive, UploadCloud
 } from 'lucide-react';
 
 import MetricSummaryCards from './dashboard/MetricSummaryCards';
@@ -9,6 +9,9 @@ import ProjectActivityLog from './dashboard/ProjectActivityLog';
 import DashboardQuickActions from './dashboard/DashboardQuickActions';
 import CreateProjectModal from './modals/CreateProjectModal';
 import ProjectSettingsModal from './modals/ProjectSettingsModal';
+import ArchiveProjectModal from './modals/ArchiveProjectModal';
+import ImportProjectModal from './modals/ImportProjectModal';
+
 interface DashboardViewProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   showCreateProjectModal: boolean;
@@ -34,6 +37,9 @@ interface DashboardViewProps {
     loadProjects: () => Promise<any>;
     createProject: (data: any) => Promise<boolean>;
     updateProject: (id: string, data: any) => Promise<boolean>;
+    deleteProject: (id: string) => Promise<boolean>;
+    archiveProject?: (id: string, options: any) => Promise<boolean>;
+    importProject?: (archiveData: any, onSuccess?: (newId: string) => void) => Promise<boolean>;
     handleTestProjectConnection: (provider: string, remoteName: string) => Promise<void>;
     testingProjectConnection: boolean;
     projectConnectionTestResult: any;
@@ -68,10 +74,21 @@ export default function DashboardView({
     updateProject,
     handleTestProjectConnection,
     testingProjectConnection,
-    projectConnectionTestResult
+    projectConnectionTestResult,
+    archiveProject,
+    importProject
   } = projectsHook;
 
   const activeProj = projects.find((p: any) => String(p.id) === String(activeProjectId)) || activeProject;
+
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivingProject, setArchivingProject] = useState<any>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  const handleOpenArchive = (proj: any) => {
+    setArchivingProject(proj);
+    setShowArchiveModal(true);
+  };
 
   return (
     <>
@@ -105,13 +122,22 @@ export default function DashboardView({
               </h3>
               <p className="text-[10px] text-muted-foreground">Manage systematic review scopes, cloud configurations, targets and calibration pools.</p>
             </div>
-            <button
-              onClick={() => setShowCreateProjectModal(true)}
-              className="px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-[10px] font-bold uppercase rounded-lg flex items-center gap-1 transition-colors shadow-md hover:shadow-lg"
-            >
-              <Plus className="w-4 h-4" />
-              New Project
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="px-3 py-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border text-[10px] font-bold uppercase rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <UploadCloud className="w-3.5 h-3.5 text-primary" />
+                Import Archive (.slr)
+              </button>
+              <button
+                onClick={() => setShowCreateProjectModal(true)}
+                className="px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-[10px] font-bold uppercase rounded-lg flex items-center gap-1 transition-colors shadow-md hover:shadow-lg"
+              >
+                <Plus className="w-4 h-4" />
+                New Project
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -244,13 +270,21 @@ export default function DashboardView({
                       </td>
 
                       <td className="py-3.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-2.5">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openProjectSettings(proj)}
                             className="p-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border rounded-lg transition-colors flex items-center justify-center"
                             title="Configure Project Settings"
                           >
-                            <Settings className="w-4 h-4 text-primary" />
+                            <Settings className="w-3.5 h-3.5 text-primary" />
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenArchive(proj)}
+                            className="p-1.5 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/20 rounded-lg transition-colors flex items-center justify-center"
+                            title="Archive & Offboard Project"
+                          >
+                            <Archive className="w-3.5 h-3.5" />
                           </button>
                           
                           <button
@@ -258,7 +292,7 @@ export default function DashboardView({
                             className="p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 rounded-lg transition-colors flex items-center justify-center"
                             title="Delete Project"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
 
                           {isActive ? (
@@ -306,6 +340,26 @@ export default function DashboardView({
             projectConnectionTestResult={projectConnectionTestResult}
             handleTestProjectConnection={handleTestProjectConnection}
             initialTab={projectSettingsInitialTab}
+          />
+        )}
+
+        {showArchiveModal && archivingProject && archiveProject && (
+          <ArchiveProjectModal
+            isOpen={showArchiveModal}
+            project={archivingProject}
+            onClose={() => {
+              setShowArchiveModal(false);
+              setArchivingProject(null);
+            }}
+            onArchive={archiveProject}
+          />
+        )}
+
+        {showImportModal && importProject && (
+          <ImportProjectModal
+            isOpen={showImportModal}
+            onClose={() => setShowImportModal(false)}
+            onImport={importProject}
           />
         )}
 

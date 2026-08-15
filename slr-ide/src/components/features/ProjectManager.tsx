@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Project } from '@/types';
 import { 
   Folder, Database, CheckCircle2, TrendingUp, Layers, Plus, Calendar, 
-  Trash2, Play, Settings, Edit
+  Trash2, Play, Settings, Edit, Archive, UploadCloud, Check
 } from 'lucide-react';
-import { useProjectForm } from '@/hooks/useProjectForm';
+import ArchiveProjectModal from './modals/ArchiveProjectModal';
+import ImportProjectModal from './modals/ImportProjectModal';
+import CreateProjectModal from './modals/CreateProjectModal';
 
 interface ProjectManagerProps {
   projects: Project[];
@@ -13,7 +15,10 @@ interface ProjectManagerProps {
   createProject: (data: any, onSuccess?: (id: string) => void) => Promise<boolean>;
   updateProject: (id: string, data: any, onSuccess?: () => void) => Promise<boolean>;
   deleteProject: (id: string, onSuccess?: () => void) => Promise<boolean>;
+  archiveProject?: (id: string, options: any, onSuccess?: () => void) => Promise<boolean>;
+  importProject?: (archiveData: any, onSuccess?: (newId: string) => void) => Promise<boolean>;
   showToast: (msg: string, type: 'success' | 'error' | 'info' | 'warning') => void;
+  openProjectSettings?: (proj: any) => void;
 }
 
 export default function ProjectManager({
@@ -23,7 +28,10 @@ export default function ProjectManager({
   createProject,
   updateProject,
   deleteProject,
-  showToast
+  archiveProject,
+  importProject,
+  showToast,
+  openProjectSettings
 }: ProjectManagerProps) {
   const activeProj = projects.find(p => p.id === activeProjectId);
   const stats = (activeProj as any)?.stats || { total: 0, screened: 0, acquired: 0, synced: 0 };
@@ -31,6 +39,15 @@ export default function ProjectManager({
   const acquiredPct = stats.total > 0 ? Math.round((stats.acquired / stats.total) * 100) : 0;
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivingProject, setArchivingProject] = useState<any>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+
+  const handleOpenArchive = (proj: any) => {
+    setArchivingProject(proj);
+    setShowArchiveModal(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -76,13 +93,24 @@ export default function ProjectManager({
               Projects Manager
             </h3>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-[10px] font-bold uppercase rounded-lg flex items-center gap-1 transition-colors shadow-md hover:shadow-lg"
-          >
-            <Plus className="w-4 h-4" />
-            New Project
-          </button>
+          <div className="flex items-center gap-2">
+            {importProject && (
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="px-3 py-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border text-[10px] font-bold uppercase rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <UploadCloud className="w-3.5 h-3.5 text-primary" />
+                Import Archive (.slr)
+              </button>
+            )}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-[10px] font-bold uppercase rounded-lg flex items-center gap-1 transition-colors shadow-md hover:shadow-lg"
+            >
+              <Plus className="w-4 h-4" />
+              New Project
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -128,14 +156,46 @@ export default function ProjectManager({
                       <div className="text-[11px] font-mono font-bold">{pStats.acquired} / {pStats.total}</div>
                     </td>
                     <td className="py-3.5 px-3 text-right flex items-center justify-end gap-2">
-                      {!isActive && (
-                        <button onClick={() => activateProject(proj.id)} className="px-2 py-1 bg-secondary hover:bg-secondary/80 rounded text-[10px] font-bold">
+                      {openProjectSettings && (
+                        <button
+                          onClick={() => openProjectSettings(proj)}
+                          className="p-1.5 bg-secondary text-foreground hover:bg-secondary/80 border border-border rounded-lg transition-colors flex items-center justify-center"
+                          title="Configure Project Settings"
+                        >
+                          <Settings className="w-3.5 h-3.5 text-primary" />
+                        </button>
+                      )}
+
+                      {archiveProject && (
+                        <button
+                          onClick={() => handleOpenArchive(proj)}
+                          className="p-1.5 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/20 rounded-lg transition-colors flex items-center justify-center"
+                          title="Archive & Offboard Project"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      <button 
+                        onClick={() => deleteProject(proj.id)} 
+                        className="p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 rounded-lg transition-colors flex items-center justify-center"
+                        title="Delete Project"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      {isActive ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded text-[9px] font-bold uppercase tracking-wider select-none">
+                          <Check className="w-3 h-3" /> Active
+                        </span>
+                      ) : (
+                        <button 
+                          onClick={() => activateProject(proj.id)} 
+                          className="px-2.5 py-1 bg-primary text-primary-foreground hover:bg-primary/95 text-[10px] font-bold uppercase rounded-lg transition-all shadow-sm hover:shadow"
+                        >
                           Activate
                         </button>
                       )}
-                      <button onClick={() => deleteProject(proj.id)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </td>
                   </tr>
                 );
@@ -144,6 +204,40 @@ export default function ProjectManager({
           </table>
         </div>
       </div>
+
+      {showCreateModal && (
+        <CreateProjectModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onCreateProject={async (data) => {
+            setSavingProject(true);
+            const res = await createProject(data);
+            setSavingProject(false);
+            return res;
+          }}
+          savingProject={savingProject}
+        />
+      )}
+
+      {showArchiveModal && archivingProject && archiveProject && (
+        <ArchiveProjectModal
+          isOpen={showArchiveModal}
+          project={archivingProject}
+          onClose={() => {
+            setShowArchiveModal(false);
+            setArchivingProject(null);
+          }}
+          onArchive={archiveProject}
+        />
+      )}
+
+      {showImportModal && importProject && (
+        <ImportProjectModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          onImport={importProject}
+        />
+      )}
     </div>
   );
 }

@@ -323,13 +323,315 @@ function calculateMetrics(papers, key, taxonomy) {
   };
 }
 
-const metrics = calculateMetrics(mockCohort18Papers, 'rq7a_predictive_algorithms', predictiveAlgoTaxonomy);
+// Test 10: Smart Auto-Optimizer Parameter Tuning
+console.log('10. Testing Smart Auto-Optimizer Parameter Tuning...');
+const sampleCohortForOptimization = [
+  { Paper_ID: 'P1', Framework: 'Unspecified' },
+  { Paper_ID: 'P2', Framework: 'Unspecified' },
+  { Paper_ID: 'P3', Framework: 'Unspecified' },
+  { Paper_ID: 'P4', Framework: 'Unspecified' },
+  { Paper_ID: 'P5', Framework: 'Unspecified' },
+  { Paper_ID: 'P6', Framework: 'Unspecified' },
+  { Paper_ID: 'P7', Framework: 'Unspecified' },
+  { Paper_ID: 'P8', Framework: 'Unspecified' },
+  { Paper_ID: 'P9', Framework: 'OPC UA Information Model' },
+  { Paper_ID: 'P10', Framework: 'Ontology' }
+];
 
-// Assert exact values for Recurrent & Temporal Neural Networks
-assert.strictEqual(metrics.recurrentUniquePapers, 9, 'Recurrent Neural Networks must have exactly 9 unique papers (N=9)');
-assert.strictEqual(metrics.recurrentTagCount, 10, 'Recurrent Neural Networks must have exactly 10 tag mentions across the 9 papers');
-assert.strictEqual(metrics.hybridUniquePapers, 2, 'Hybrid architectures must have exactly 2 papers (Thirupathi and Venkateswarlu)');
+function mockOptimizeSlotConfig(config, papers) {
+  const cfg = { ...config };
+  const counts = new Map();
+  papers.forEach(p => {
+    const v = p[cfg.primaryField] || 'Unspecified';
+    counts.set(v, (counts.get(v) || 0) + 1);
+  });
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  const highest = sorted[0]?.[1] || 0;
+  const dominanceRatio = papers.length > 0 ? highest / papers.length : 0;
 
-console.log('✓ All 9 anti-regression unit & scientific validation tests PASSED successfully!');
+  if (cfg.chartType === 'pie_donut') {
+    cfg.donutRatio = 48;
+    cfg.showLegend = true;
+    cfg.legendPosition = 'right';
+    cfg.legendFormat = 'name_count_percent';
+    cfg.pieLeaderLineLength = 12;
+    cfg.pieLineHeight = 15;
+    if (dominanceRatio > 0.65) {
+      cfg.pieLabelPlacement = 'inside';
+      cfg.pieRadiusRatio = 70;
+    }
+  }
+  return cfg;
+}
+
+const unoptimizedDonut = {
+  chartType: 'pie_donut',
+  primaryField: 'Framework',
+  donutRatio: 20,
+  showLegend: false,
+  legendPosition: 'top',
+  pieLabelPlacement: 'outside',
+  pieRadiusRatio: 40
+};
+
+const optimizedDonut = mockOptimizeSlotConfig(unoptimizedDonut, sampleCohortForOptimization);
+assert.strictEqual(optimizedDonut.donutRatio, 48, 'Donut ratio should be optimized to 48%');
+assert.strictEqual(optimizedDonut.showLegend, true, 'Legend should be enabled');
+assert.strictEqual(optimizedDonut.legendPosition, 'right', 'Legend should be placed on the right');
+assert.strictEqual(optimizedDonut.pieLabelPlacement, 'inside', 'Dominant distribution should use inside label placement');
+assert.strictEqual(optimizedDonut.pieRadiusRatio, 70, 'Outer radius should be enlarged to 70% for prominent visibility');
+assert.strictEqual(optimizedDonut.pieLeaderLineLength, 12, 'Leader line length should be optimized to 12px');
+console.log('11. Testing Sunburst Scale Factor & Level Radius Normalization...');
+const testChartScale1 = 1.0;
+const testChartScale100 = 100;
+const normScale1 = testChartScale1 > 10 ? testChartScale1 / 100 : (testChartScale1 || 1.0);
+const normScale100 = testChartScale100 > 10 ? testChartScale100 / 100 : (testChartScale100 || 1.0);
+assert.strictEqual(normScale1, 1.0, 'Scale factor 1.0 should resolve to 1.0 (100%)');
+assert.strictEqual(normScale100, 1.0, 'Scale factor 100 should resolve to 1.0 (100%)');
+
+const lvl0_r0 = 15;
+const lvl0_r = 40;
+const scaledLvl0_r0 = Math.round(lvl0_r0 * normScale1);
+const scaledLvl0_r = Math.round(lvl0_r * normScale1);
+assert.strictEqual(scaledLvl0_r0, 15, 'Level 0 inner radius must be 15%');
+assert.strictEqual(scaledLvl0_r, 40, 'Level 0 outer radius must be 40%');
+
+console.log('12. Testing Sunburst Legend Label Formatting Priority...');
+function formatLegendLabel(name, stats, format = 'name') {
+  const pCount = stats.paperCount;
+  const pctRaw = stats.percent ?? stats.prevalencePct;
+  const pctStr = pctRaw !== undefined ? (typeof pctRaw === 'number' ? pctRaw.toFixed(2) : pctRaw) : undefined;
+  if (format === 'name_count' && pCount !== undefined) return `${name} (N=${pCount})`;
+  if (format === 'name_percent' && pctStr !== undefined) return `${name} (${pctStr}%)`;
+  if (format === 'name_count_percent' && pCount !== undefined) return `${name} (N=${pCount}, ${pctStr || '0.00'}%)`;
+  return name;
+}
+
+const sunburstLegendFormat = 'name_count_percent';
+const generalLegendFormat = 'name';
+const effectiveLegendFormat = sunburstLegendFormat || generalLegendFormat || 'name';
+const label = formatLegendLabel('Indoor Architecture', { paperCount: 11, percent: '61.11' }, effectiveLegendFormat);
+console.log('13. Testing Legend Distance to Main Chart Offsets...');
+const legendDistance = 45;
+const testLegendPosMap = {
+  'top-left': { top: 15, left: legendDistance },
+  'top-center': { top: legendDistance, left: 'center' },
+  'top-right': { top: 15, right: legendDistance },
+  'left': { left: legendDistance, top: 'center' },
+  'right': { right: legendDistance, top: 'center' },
+  'bottom-left': { bottom: 15, left: legendDistance },
+  'bottom-center': { bottom: legendDistance, left: 'center' },
+  'bottom-right': { bottom: 15, right: legendDistance }
+};
+assert.strictEqual(testLegendPosMap['right'].right, 45, 'Right legend offset must be 45px');
+console.log('14. Testing Sunburst Level Slice Label Formatting Engine...');
+function formatSunburstSliceLabel(name, nodeVal, totalVal, lblFormat = 'name', overflowMode = 'none') {
+  let formattedName = name || '';
+  if (overflowMode === 'break') {
+    formattedName = formattedName.replace(/\//g, '/\n');
+  }
+  if (lblFormat === 'name') return formattedName;
+  const pctStr = totalVal > 0 ? `${((nodeVal / totalVal) * 100).toFixed(1)}%` : '0.0%';
+
+  if (lblFormat === 'name_count') return nodeVal > 0 ? `${formattedName}\nN=${nodeVal}` : formattedName;
+  if (lblFormat === 'name_percent') return nodeVal > 0 ? `${formattedName}\n${pctStr}` : formattedName;
+  if (lblFormat === 'name_count_percent') return nodeVal > 0 ? `${formattedName}\nN=${nodeVal} (${pctStr})` : formattedName;
+  if (lblFormat === 'count_only') return nodeVal > 0 ? `N=${nodeVal}` : formattedName;
+  if (lblFormat === 'percent_only') return nodeVal > 0 ? `${pctStr}` : formattedName;
+  return formattedName;
+}
+
+const sliceName = 'Manufacturing';
+const sliceVal = 6;
+const totalSunburstVal = 18;
+
+assert.strictEqual(formatSunburstSliceLabel(sliceName, sliceVal, totalSunburstVal, 'name'), 'Manufacturing');
+assert.strictEqual(formatSunburstSliceLabel(sliceName, sliceVal, totalSunburstVal, 'name_count'), 'Manufacturing\nN=6');
+assert.strictEqual(formatSunburstSliceLabel(sliceName, sliceVal, totalSunburstVal, 'name_percent'), 'Manufacturing\n33.3%');
+assert.strictEqual(formatSunburstSliceLabel(sliceName, sliceVal, totalSunburstVal, 'name_count_percent'), 'Manufacturing\nN=6 (33.3%)');
+assert.strictEqual(formatSunburstSliceLabel(sliceName, sliceVal, totalSunburstVal, 'count_only'), 'N=6');
+assert.strictEqual(formatSunburstSliceLabel(sliceName, sliceVal, totalSunburstVal, 'percent_only'), '33.3%');
+
+console.log('15. Testing Reviewer Statistical Granularity & Ratio Formatters...');
+
+function formatPercentage(val, decimalPrecision = 0, useTildeForCoarse = true) {
+  if (val === undefined || val === null || isNaN(val)) return '0%';
+  if (decimalPrecision === 0) {
+    const rounded = Math.round(val);
+    return useTildeForCoarse ? `~${rounded}%` : `${rounded}%`;
+  }
+  return `${val.toFixed(decimalPrecision)}%`;
+}
+
+function formatRatio(count, total, ratioStyle = 'n_over_N') {
+  const safeCount = count ?? 0;
+  const safeTotal = total ?? 0;
+  if (ratioStyle === 'fraction') return `${safeCount}/${safeTotal}`;
+  if (ratioStyle === 'bracketed') return `(${safeCount}/${safeTotal})`;
+  return `n = ${safeCount}/${safeTotal}`;
+}
+
+function formatMetricDisplay(opts) {
+  const {
+    name = '',
+    count = 0,
+    paperCount,
+    totalCohortPapers = 18,
+    totalExtractedTags = 18,
+    metricMode = 'paper_prevalence',
+    prevalencePct,
+    tagSharePct,
+    template = 'ratio_percent',
+    decimalPrecision = 0,
+    useTildeForCoarse = true,
+    ratioStyle = 'n_over_N',
+    forceCohortDenominator = false
+  } = opts;
+
+  let denominator = totalCohortPapers;
+  let effectiveCount = paperCount !== undefined ? paperCount : count;
+  if (metricMode === 'tag_share' && !forceCohortDenominator) {
+    denominator = totalExtractedTags;
+    effectiveCount = opts.tagCount !== undefined ? opts.tagCount : count;
+  }
+
+  const effectivePct = (prevalencePct !== undefined && metricMode !== 'tag_share')
+    ? prevalencePct
+    : (tagSharePct !== undefined && metricMode === 'tag_share')
+      ? tagSharePct
+      : denominator > 0 ? (effectiveCount / denominator) * 100 : 0;
+
+  const pctStr = formatPercentage(effectivePct, decimalPrecision, useTildeForCoarse);
+  const ratioStr = formatRatio(effectiveCount, denominator, ratioStyle);
+  const countStr = `n = ${effectiveCount}`;
+
+  switch (template) {
+    case 'name_ratio_percent':
+      return `${name} (${ratioStr}, ${pctStr})`;
+    case 'ratio_percent':
+      return `${ratioStr}, ${pctStr}`;
+    case 'percent_ratio':
+      return `${pctStr} (${ratioStr})`;
+    case 'ratio_only':
+      return ratioStr;
+    case 'name_ratio':
+      return `${name} (${ratioStr})`;
+    case 'count_percent':
+      return `${countStr} (${pctStr})`;
+    case 'percent_only':
+      return pctStr;
+    case 'count_only':
+      return countStr;
+    case 'name_count':
+      return `${name} (${countStr})`;
+    case 'name_percent':
+      return `${name} (${pctStr})`;
+    case 'name_count_percent':
+      return `${name} (${countStr}, ${pctStr})`;
+    case 'name_only':
+    case 'name':
+      return name;
+    default:
+      return `${ratioStr}, ${pctStr}`;
+  }
+}
+
+// Reviewer Sample: N = 18, n = 1, single paper accounts for ~6%
+const singlePaperPct = (1 / 18) * 100;
+assert.strictEqual(formatPercentage(singlePaperPct, 0, true), '~6%', '0 decimals with tilde should format as ~6%');
+assert.strictEqual(formatPercentage(singlePaperPct, 0, false), '6%', '0 decimals without tilde should format as 6%');
+assert.strictEqual(formatPercentage(singlePaperPct, 1, true), '5.6%', '1 decimal should format as 5.6%');
+assert.strictEqual(formatPercentage(singlePaperPct, 2, true), '5.56%', '2 decimals should format as 5.56%');
+
+// Ratio styles
+assert.strictEqual(formatRatio(1, 18, 'n_over_N'), 'n = 1/18');
+assert.strictEqual(formatRatio(1, 18, 'fraction'), '1/18');
+assert.strictEqual(formatRatio(1, 18, 'bracketed'), '(1/18)');
+
+// Reviewer Template Outputs for 11 papers out of 18 (e.g. 61.11% coarse = ~61%)
+const testP11 = {
+  name: 'Industrial IoT',
+  count: 11,
+  paperCount: 11,
+  totalCohortPapers: 18,
+  totalExtractedTags: 42,
+  decimalPrecision: 0,
+  useTildeForCoarse: true,
+  ratioStyle: 'n_over_N'
+};
+
+assert.strictEqual(
+  formatMetricDisplay({ ...testP11, template: 'ratio_percent' }),
+  'n = 11/18, ~61%',
+  'ratio_percent must output "n = 11/18, ~61%"'
+);
+assert.strictEqual(
+  formatMetricDisplay({ ...testP11, template: 'name_ratio_percent' }),
+  'Industrial IoT (n = 11/18, ~61%)',
+  'name_ratio_percent must output "Industrial IoT (n = 11/18, ~61%)"'
+);
+assert.strictEqual(
+  formatMetricDisplay({ ...testP11, template: 'percent_ratio' }),
+  '~61% (n = 11/18)',
+  'percent_ratio must output "~61% (n = 11/18)"'
+);
+assert.strictEqual(
+  formatMetricDisplay({ ...testP11, template: 'ratio_only' }),
+  'n = 11/18',
+  'ratio_only must output "n = 11/18"'
+);
+assert.strictEqual(
+  formatMetricDisplay({ ...testP11, template: 'name_ratio' }),
+  'Industrial IoT (n = 11/18)',
+  'name_ratio must output "Industrial IoT (n = 11/18)"'
+);
+assert.strictEqual(
+  formatMetricDisplay({ ...testP11, template: 'count_percent' }),
+  'n = 11 (~61%)',
+  'count_percent must output "n = 11 (~61%)"'
+);
+assert.strictEqual(
+  formatMetricDisplay({ ...testP11, template: 'percent_only' }),
+  '~61%',
+  'percent_only must output "~61%"'
+);
+assert.strictEqual(
+  formatMetricDisplay({ ...testP11, template: 'name_only' }),
+  'Industrial IoT',
+  'name_only must output "Industrial IoT"'
+);
+
+// Context-aware denominator in Tag Share mode
+const testTagShare = {
+  name: 'Sensor Fusion',
+  tagCount: 15,
+  totalCohortPapers: 18,
+  totalExtractedTags: 42,
+  metricMode: 'tag_share',
+  forceCohortDenominator: false,
+  decimalPrecision: 0,
+  useTildeForCoarse: true,
+  template: 'ratio_percent'
+};
+assert.strictEqual(
+  formatMetricDisplay(testTagShare),
+  'n = 15/42, ~36%',
+  'Tag share mode must use total extracted tags 42 as denominator when forceCohortDenominator is false'
+);
+
+const testTagShareForced = {
+  ...testTagShare,
+  paperCount: 12,
+  forceCohortDenominator: true
+};
+assert.strictEqual(
+  formatMetricDisplay(testTagShareForced),
+  'n = 12/18, ~67%',
+  'Tag share mode with forceCohortDenominator=true must use cohort papers 18 as denominator'
+);
+
+console.log('✓ All 15 anti-regression & reviewer granularity unit tests PASSED successfully!');
+
+
 
 

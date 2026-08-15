@@ -13,6 +13,7 @@ import PostValidationView from '../components/features/PostValidationView';
 import FullscreenAssignModal from '../components/features/modals/FullscreenAssignModal';
 import FullscreenInterRaterModal from '../components/features/modals/FullscreenInterRaterModal';
 import ProjectLockScreenModal from '../components/features/modals/ProjectLockScreenModal';
+import ImportProjectModal from '../components/features/modals/ImportProjectModal';
 import InsightExportView from '../components/features/InsightExportView';
 import MinimizedPipelineBanner from '../components/features/dashboard/MinimizedPipelineBanner';
 import ToastNotifications from '../components/features/dashboard/ToastNotifications';
@@ -44,6 +45,7 @@ export default function DashboardPage() {
   // Project Modals & Operations States
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
+  const [showLockScreenImportModal, setShowLockScreenImportModal] = useState(false);
   const [editingProject, setEditingProject] = useState<any>(null);
   const [deletingProject, setDeletingProject] = useState<string | null>(null);
   const [deleteProjectConfirm, setDeleteProjectConfirm] = useState<{ isOpen: boolean; projectId: string; projectName: string } | null>(null);
@@ -534,7 +536,15 @@ export default function DashboardPage() {
         isOpen={!projectsHook.loadingProjects && (projects.length === 0 || !activeProject)}
         onOpenCreateProject={() => setShowCreateProjectModal(true)}
         onOpenImportSLR={() => setActiveTab('paper-database-ingestion')}
+        onOpenImportArchive={() => setShowLockScreenImportModal(true)}
       />
+      {showLockScreenImportModal && projectsHook.importProject && (
+        <ImportProjectModal
+          isOpen={showLockScreenImportModal}
+          onClose={() => setShowLockScreenImportModal(false)}
+          onImport={projectsHook.importProject}
+        />
+      )}
     </div>
   );
 }

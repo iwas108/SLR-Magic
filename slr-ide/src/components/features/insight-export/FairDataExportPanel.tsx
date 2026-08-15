@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Download, Eye, Table, ShieldCheck, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Download, Eye, Table, ShieldCheck, Loader2, FolderKanban, CheckCircle2, FileText, Database } from 'lucide-react';
+import { Project } from '@/types';
 
 interface FairDataExportPanelProps {
   projectId: string;
@@ -12,18 +13,61 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
   projectId,
   showToast,
 }) => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projectId || '');
+  const [loadingProjects, setLoadingProjects] = useState(false);
   const [exportingViewer, setExportingViewer] = useState(false);
   const [exportingCsv, setExportingCsv] = useState(false);
 
+  // Load projects list
+  const loadProjects = useCallback(async () => {
+    setLoadingProjects(true);
+    try {
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const data = await res.json();
+        const list: Project[] = data.projects || [];
+        setProjects(list);
+        if (!selectedProjectId && list.length > 0) {
+          const active = data.activeProjectId || list[0].id;
+          setSelectedProjectId(String(active));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load projects list in FairDataExportPanel:', e);
+    } finally {
+      setLoadingProjects(false);
+    }
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
+  useEffect(() => {
+    if (projectId) {
+      setSelectedProjectId(projectId);
+    }
+  }, [projectId]);
+
+  const currentProject = projects.find(p => String(p.id) === String(selectedProjectId)) || projects[0];
+
   const handleExportViewer = async () => {
-    if (!projectId) return;
+    const targetId = selectedProjectId || projectId;
+    if (!targetId) {
+      showToast('Please select a project to export', 'warning');
+      return;
+    }
     setExportingViewer(true);
     try {
-      const response = await fetch(`/api/export/slr-viewer?projectId=${projectId}`);
-      if (!response.ok) throw new Error('Failed to generate SLR Viewer export');
+      const response = await fetch(`/api/export/slr-viewer?projectId=${encodeURIComponent(targetId)}`);
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to generate SLR Viewer export');
+      }
 
       const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `slr_export_${projectId}.slr-viewer`;
+      let filename = `slr_export_${targetId}.slr-viewer`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="?([^"]+)"?/);
         if (match && match[1]) {
@@ -41,7 +85,7 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      showToast('SLR Viewer export (.slr-viewer) generated successfully', 'success');
+      showToast(`Exported "${currentProject?.name || targetId}" snapshot (.slr-viewer) successfully!`, 'success');
     } catch (err: any) {
       console.error('Export SLR Viewer Error:', err);
       showToast(err.message || 'Export failed', 'error');
@@ -51,14 +95,21 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
   };
 
   const handleExportCsv = async () => {
-    if (!projectId) return;
+    const targetId = selectedProjectId || projectId;
+    if (!targetId) {
+      showToast('Please select a project to export', 'warning');
+      return;
+    }
     setExportingCsv(true);
     try {
-      const response = await fetch(`/api/export/csv-tabular?projectId=${projectId}`);
-      if (!response.ok) throw new Error('Failed to generate CSV export');
+      const response = await fetch(`/api/export/csv-tabular?projectId=${encodeURIComponent(targetId)}`);
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to generate CSV export');
+      }
 
       const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = `cohort_export_${projectId}.csv`;
+      let filename = `cohort_export_${targetId}.csv`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename="?([^"]+)"?/);
         if (match && match[1]) {
@@ -76,7 +127,7 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      showToast('CSV Tabular export (.csv) generated successfully', 'success');
+      showToast(`Exported "${currentProject?.name || targetId}" cohort tabular CSV successfully!`, 'success');
     } catch (err: any) {
       console.error('Export CSV Error:', err);
       showToast(err.message || 'Export failed', 'error');
@@ -88,7 +139,7 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
   return (
     <div className="space-y-6 max-w-5xl mx-auto py-4">
       {/* Header Banner matching app theme */}
-      <div className="flex items-center justify-between p-5 bg-card border border-border rounded-xl shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 bg-card border border-border rounded-xl shadow-sm gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
             <ShieldCheck className="w-6 h-6" />
@@ -100,7 +151,57 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Explicit Project Selector */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Target Project:</label>
+          <select
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            disabled={loadingProjects || projects.length === 0}
+            className="bg-secondary border border-border rounded-lg px-3 py-1.5 text-xs text-foreground font-bold focus:outline-none focus:border-primary cursor-pointer max-w-xs truncate"
+          >
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.id})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {/* Target Project Verification Card */}
+      {currentProject && (
+        <div className="p-4 bg-secondary/30 border border-border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-secondary text-primary font-bold">
+              <FolderKanban className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-foreground">{currentProject.name}</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-secondary text-muted-foreground border border-border">
+                  ID: {currentProject.id}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                {currentProject.description || currentProject.manifesto || 'No description provided'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0 font-medium">
+            <div className="flex items-center gap-1.5">
+              <Database className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Pool A: {currentProject.pool_a_size || 50}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Pool B: {currentProject.pool_b_size || 30}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Two Side-by-Side Export Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -135,8 +236,8 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
 
           <button
             onClick={handleExportViewer}
-            disabled={exportingViewer || !projectId}
-            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm uppercase tracking-wide"
+            disabled={exportingViewer || !selectedProjectId}
+            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm uppercase tracking-wide cursor-pointer"
           >
             {exportingViewer ? (
               <>
@@ -183,8 +284,8 @@ export const FairDataExportPanel: React.FC<FairDataExportPanelProps> = ({
 
           <button
             onClick={handleExportCsv}
-            disabled={exportingCsv || !projectId}
-            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm uppercase tracking-wide"
+            disabled={exportingCsv || !selectedProjectId}
+            className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm uppercase tracking-wide cursor-pointer"
           >
             {exportingCsv ? (
               <>

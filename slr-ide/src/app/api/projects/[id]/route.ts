@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import db, { getConfig } from '@/lib/db';
-import { rescuePdfAssets } from '@/lib/pdf-utils';
+import fs from 'fs';
+import path from 'path';
+import db, { PROJECT_ROOT, getConfig } from '@/lib/db';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -55,16 +56,24 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
 
-    // 1. Fetch papers for the project to rescue their PDFs
-    const papers = db.prepare('SELECT Paper_ID FROM papers WHERE Project_ID = ?').all(projectId) as { Paper_ID: string }[];
-    const paperIds = papers.map(p => p.Paper_ID);
-    
-    // 2. Perform PDF rescue
-    const rescuedCount = rescuePdfAssets(paperIds);
+    // 1. Fetch project to get folder_name for repository directory deletion
+    const project = db.prepare('SELECT id, folder_name, name FROM projects WHERE id = ?').get(projectId) as { id: string; folder_name?: string; name: string } | undefined;
 
-    // 3. Run deletion inside a transaction
+    // 2. Delete project repository folder if present (pdf_library/repo/<folder_name>/)
+    // Raw and cached PDF library folders remain 100% untouched as eternal storage
+    if (project?.folder_name) {
+      const repoDir = path.join(PROJECT_ROOT, 'pdf_library', 'repo', project.folder_name);
+      if (fs.existsSync(repoDir)) {
+        try {
+          fs.rmSync(repoDir, { recursive: true, force: true });
+        } catch (err) {
+          console.error(`Failed to delete repo folder ${repoDir}:`, err);
+        }
+      }
+    }
+
+    // 3. Run deletion across all 15 project-scoped tables inside an atomic transaction
     const deleteTransaction = db.transaction(() => {
-      // Clear all related tables to be absolutely sure the database is fully clear of this project data
       db.prepare('DELETE FROM reviewer_decisions WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM calibration_commit_ledger WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM calibration_papers WHERE Project_ID = ?').run(projectId);
@@ -76,6 +85,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       db.prepare('DELETE FROM rolling_batch_reviewer_decisions WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM rolling_batch_commit_ledger WHERE project_id = ?').run(projectId);
       db.prepare('DELETE FROM umbrellanizer_results WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM llm_jobs WHERE project_id = ?').run(projectId);
+      db.prepare('DELETE FROM prompt_templates WHERE project_id = ?').run(projectId);
       
       // Delete papers
       db.prepare('DELETE FROM papers WHERE Project_ID = ?').run(projectId);
@@ -86,7 +97,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       // If active project is the deleted one, reset config to next available project or empty string
       const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
       if (activeProjectId === projectId) {
-        // Find another project to set active if possible, otherwise empty string
         const nextProject = db.prepare('SELECT id FROM projects WHERE id != ? LIMIT 1').get(projectId) as { id: string } | undefined;
         const newActiveId = nextProject ? nextProject.id : '';
         db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('ACTIVE_PROJECT_ID', ?)").run(newActiveId);
@@ -95,9 +105,18 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     deleteTransaction();
 
+    // 4. Reclaim SQLite database disk space with checkpoint and VACUUM
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)');
+      db.exec('VACUUM');
+      db.pragma('optimize');
+    } catch (vErr) {
+      console.warn('Post-deletion VACUUM warning:', vErr);
+    }
+
     return NextResponse.json({ 
       success: true, 
-      message: `Project and associated data deleted successfully. Rescued ${rescuedCount} PDF assets.` 
+      message: `Project '${project?.name || projectId}' and its repository folder wiped. Database space reclaimed.` 
     });
   } catch (error: any) {
     console.error('Failed to delete project:', error);

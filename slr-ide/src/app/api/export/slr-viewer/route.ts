@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import zlib from 'zlib';
+import db, { getConfig } from '@/lib/db';
 import {
   calculateCohensKappa,
   calculateWeightedKappa,
@@ -13,37 +14,31 @@ import {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('projectId');
+    const paramProjectId = searchParams.get('projectId');
+    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const targetProjectId = paramProjectId || activeProjectId;
 
-    if (!projectId) {
+    if (!targetProjectId) {
       return NextResponse.json(
-        { error: 'Project ID is required' },
+        { error: 'Project ID is required. Please specify a projectId query parameter or set an active project in SLR IDE.' },
         { status: 400 }
       );
     }
 
-    // 1. Fetch Project Metadata
+    // 1. Fetch Project Metadata with strict ID matching (string and numeric fallback)
     let project = db
-      .prepare('SELECT * FROM projects WHERE id = ?')
-      .get(projectId) as any;
+      .prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)')
+      .get(targetProjectId, targetProjectId) as any;
 
-    if (!project) {
-      const numericProjectId = parseInt(projectId, 10);
-      if (!isNaN(numericProjectId)) {
-        project = db
-          .prepare('SELECT * FROM projects WHERE id = ?')
-          .get(numericProjectId) as any;
-      }
-    }
-
-    if (!project) {
-      // Fallback to active project or first available project if string ID doesn't match
-      project = db.prepare('SELECT * FROM projects ORDER BY id ASC LIMIT 1').get() as any;
+    if (!project && activeProjectId && activeProjectId !== targetProjectId) {
+      project = db
+        .prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)')
+        .get(activeProjectId, activeProjectId) as any;
     }
 
     if (!project) {
       return NextResponse.json(
-        { error: 'Project not found' },
+        { error: `Project "${targetProjectId}" not found in database.` },
         { status: 404 }
       );
     }
@@ -667,10 +662,10 @@ export async function GET(request: Request) {
     try {
       const calCounts = db.prepare(`
         SELECT 
-          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool IN ('pool_a', 'CAL_Pool_A') AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_a_count,
-          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool IN ('pool_b', 'CAL_Pool_B') AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_b_count,
-          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool IN ('pool_c', 'CAL_Pool_C') AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_c_count
-      `).get(resolvedProjectId, resolvedProjectId, resolvedProjectId) as any;
+          (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool IN ('pool_a', 'CAL_Pool_A') AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_a_count,
+          (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool IN ('pool_b', 'CAL_Pool_B') AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_b_count,
+          (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool IN ('pool_c', 'CAL_Pool_C') AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_c_count
+      `).get(resolvedProjectId, resolvedProjectId, resolvedProjectId, resolvedProjectId, resolvedProjectId, resolvedProjectId) as any;
 
       if (calCounts) {
         poolMetrics.pool_a_count = calCounts.pool_a_count || 0;
@@ -957,16 +952,16 @@ export async function GET(request: Request) {
         const placeholders = completedBatchIds.map(() => '?').join(',');
         const allCompletedPapers = db.prepare(`
           SELECT * FROM rolling_batch_papers 
-          WHERE batch_id IN (${placeholders}) AND Project_ID = ?
-        `).all(...completedBatchIds, resolvedProjectId) as any[];
+          WHERE batch_id IN (${placeholders}) AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+        `).all(...completedBatchIds, resolvedProjectId, resolvedProjectId) as any[];
 
         rollingBatchQC.cumulative_stats = calculateCohortStats(allCompletedPapers, qaRules, umbMap, extractionRules);
 
         rollingBatchQC.individual_batch_stats = completedBatches.map(batch => {
           const batchPapers = db.prepare(`
             SELECT * FROM rolling_batch_papers 
-            WHERE batch_id = ? AND Project_ID = ?
-          `).all(batch.id, resolvedProjectId) as any[];
+            WHERE batch_id = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+          `).all(batch.id, resolvedProjectId, resolvedProjectId) as any[];
 
           return {
             batchNumber: batch.batch_number,
@@ -986,8 +981,8 @@ export async function GET(request: Request) {
 
             const previousPapers = db.prepare(`
               SELECT * FROM rolling_batch_papers 
-              WHERE batch_id IN (${prevPlaceholders}) AND Project_ID = ?
-            `).all(...previousBatchIds, resolvedProjectId) as any[];
+              WHERE batch_id IN (${prevPlaceholders}) AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+            `).all(...previousBatchIds, resolvedProjectId, resolvedProjectId) as any[];
 
             const previousStats = calculateCohortStats(previousPapers, qaRules, umbMap);
             if (previousStats.s3.passed && previousStats.s4.passed) {
@@ -1008,10 +1003,13 @@ export async function GET(request: Request) {
         .prepare(
           `SELECT p.*,
                   (SELECT structured_output FROM llm_audit_log 
-                   WHERE paper_id = p.Paper_ID AND project_id = p.Project_ID AND task_type = 'scientist'
-                   ORDER BY id DESC LIMIT 1) as scientist_structured_output
+                   WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'scientist' OR task_type LIKE '%scientist%')
+                   ORDER BY id DESC LIMIT 1) as scientist_structured_output,
+                  (SELECT structured_output FROM llm_audit_log 
+                   WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%')
+                   ORDER BY id DESC LIMIT 1) as miner_audit_structured_output
            FROM papers p
-            WHERE p.Project_ID = ?
+            WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
               AND (p.is_duplicate IS NULL OR p.is_duplicate = 0)
               AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
              AND CASE 
@@ -1021,7 +1019,7 @@ export async function GET(request: Request) {
              END LIKE 'INCLUDE%'
            ORDER BY p.Year DESC, p.Title ASC`
         )
-        .all(resolvedProjectId) as any[];
+        .all(resolvedProjectId, resolvedProjectId) as any[];
     } catch (e) {
       console.error('Failed to fetch Stage 4 cohort papers:', e);
     }
@@ -1033,10 +1031,13 @@ export async function GET(request: Request) {
           .prepare(
             `SELECT p.*,
                     (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND project_id = p.Project_ID AND task_type = 'scientist'
-                     ORDER BY id DESC LIMIT 1) as scientist_structured_output
+                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'scientist' OR task_type LIKE '%scientist%')
+                     ORDER BY id DESC LIMIT 1) as scientist_structured_output,
+                    (SELECT structured_output FROM llm_audit_log 
+                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%')
+                     ORDER BY id DESC LIMIT 1) as miner_audit_structured_output
              FROM papers p
-             WHERE p.Project_ID = ?
+             WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
                AND (p.is_duplicate IS NULL OR p.is_duplicate = 0)
                AND CASE 
                    WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
@@ -1045,7 +1046,7 @@ export async function GET(request: Request) {
                END LIKE 'INCLUDE%'
              ORDER BY p.Year DESC, p.Title ASC`
           )
-          .all(resolvedProjectId) as any[];
+          .all(resolvedProjectId, resolvedProjectId) as any[];
       } catch (e) {
         console.error('Failed fallback Tier 1 cohort papers:', e);
       }
@@ -1058,14 +1059,17 @@ export async function GET(request: Request) {
           .prepare(
             `SELECT p.*,
                     (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND project_id = p.Project_ID AND task_type = 'scientist'
-                     ORDER BY id DESC LIMIT 1) as scientist_structured_output
+                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND task_type = 'scientist'
+                     ORDER BY id DESC LIMIT 1) as scientist_structured_output,
+                    (SELECT structured_output FROM llm_audit_log 
+                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%')
+                     ORDER BY id DESC LIMIT 1) as miner_audit_structured_output
              FROM papers p
-             WHERE p.Project_ID = ?
+             WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
                AND (p.is_duplicate IS NULL OR p.is_duplicate = 0)
              ORDER BY p.Year DESC, p.Title ASC`
           )
-          .all(resolvedProjectId) as any[];
+          .all(resolvedProjectId, resolvedProjectId) as any[];
       } catch (e) {
         console.error('Failed fallback Tier 2 cohort papers:', e);
       }
@@ -1076,9 +1080,16 @@ export async function GET(request: Request) {
       try {
         cohortPapers = db
           .prepare(
-            `SELECT p.* FROM papers p WHERE p.Project_ID = ? ORDER BY p.Year DESC, p.Title ASC`
+            `SELECT p.*,
+                    (SELECT structured_output FROM llm_audit_log 
+                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'scientist' OR task_type LIKE '%scientist%')
+                     ORDER BY id DESC LIMIT 1) as scientist_structured_output,
+                    (SELECT structured_output FROM llm_audit_log 
+                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%')
+                     ORDER BY id DESC LIMIT 1) as miner_audit_structured_output
+             FROM papers p WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)) ORDER BY p.Year DESC, p.Title ASC`
           )
-          .all(resolvedProjectId) as any[];
+          .all(resolvedProjectId, resolvedProjectId) as any[];
       } catch (e) {
         console.error('Failed fallback Tier 3 cohort papers:', e);
       }
@@ -1092,47 +1103,94 @@ export async function GET(request: Request) {
 
       try {
         if (paper.ai_quality_assessment) {
-          aiQa = JSON.parse(paper.ai_quality_assessment);
+          aiQa = typeof paper.ai_quality_assessment === 'string' 
+            ? JSON.parse(paper.ai_quality_assessment) 
+            : paper.ai_quality_assessment;
         }
       } catch (e) {}
 
       try {
         if (paper.manual_quality_assessment) {
-          manualQa = JSON.parse(paper.manual_quality_assessment);
+          manualQa = typeof paper.manual_quality_assessment === 'string'
+            ? JSON.parse(paper.manual_quality_assessment)
+            : paper.manual_quality_assessment;
         }
       } catch (e) {}
 
       try {
         if (paper.ai_extracted_data) {
-          aiExtracted = JSON.parse(paper.ai_extracted_data);
+          aiExtracted = typeof paper.ai_extracted_data === 'string'
+            ? JSON.parse(paper.ai_extracted_data)
+            : paper.ai_extracted_data;
         }
       } catch (e) {}
 
       try {
         if (paper.manual_extracted_data) {
-          const parsed = JSON.parse(paper.manual_extracted_data);
+          const parsed = typeof paper.manual_extracted_data === 'string'
+            ? JSON.parse(paper.manual_extracted_data)
+            : paper.manual_extracted_data;
           if (parsed && typeof parsed === 'object' && Object.keys(parsed.extracted_data || parsed).length > 0) {
             manualExtracted = parsed;
           }
         }
       } catch (e) {}
 
-      if (aiQa && paper.scientist_structured_output) {
+      if (paper.scientist_structured_output) {
         try {
           const scientistOutput = JSON.parse(paper.scientist_structured_output);
           if (scientistOutput?.logic_trace) {
-            aiQa.logic_trace = {
-              ...(aiQa.logic_trace || {}),
-              ...scientistOutput.logic_trace
-            };
-            if (scientistOutput.logic_trace.appraisal_reasoning) {
-              aiQa._scientist_logic_trace = scientistOutput.logic_trace.appraisal_reasoning;
-            }
+            const rawQa = aiQa?.qa_scores ? { ...aiQa.qa_scores } : (aiQa ? { ...aiQa } : {});
+            delete rawQa.logic_trace;
+            delete rawQa.logicTrace;
+            delete rawQa._scientist_logic_trace;
+            delete rawQa.qa_scores;
+
+            const existingLt = aiQa?.logic_trace || aiQa?.logicTrace || {};
+            aiQa = {
+              qa_scores: rawQa,
+              logic_trace: {
+                ...existingLt,
+                ...scientistOutput.logic_trace,
+                appraisal_reasoning: {
+                  ...(existingLt.appraisal_reasoning || {}),
+                  ...(scientistOutput.logic_trace.appraisal_reasoning || {})
+                }
+              },
+              _scientist_logic_trace: scientistOutput.logic_trace.appraisal_reasoning || undefined
+            } as any;
           }
         } catch (e) {}
       }
 
-      const { scientist_structured_output, ...cleanPaper } = paper;
+      if (paper.miner_audit_structured_output) {
+        try {
+          const minerOutput = JSON.parse(paper.miner_audit_structured_output);
+          const auditLt = minerOutput.logic_trace || minerOutput.logicTrace;
+          if (auditLt) {
+            const rawExt = aiExtracted?.extracted_data ? { ...aiExtracted.extracted_data } : (aiExtracted ? { ...aiExtracted } : {});
+            delete rawExt.logic_trace;
+            delete rawExt.logicTrace;
+            delete rawExt._scientist_logic_trace;
+            delete rawExt.extracted_data;
+
+            const existingLt = aiExtracted?.logic_trace || aiExtracted?.logicTrace || {};
+            aiExtracted = {
+              extracted_data: rawExt,
+              logic_trace: {
+                ...existingLt,
+                ...auditLt,
+                extraction_mapping: {
+                  ...(existingLt.extraction_mapping || {}),
+                  ...(auditLt.extraction_mapping || auditLt || {})
+                }
+              }
+            };
+          }
+        } catch (e) {}
+      }
+
+      const { scientist_structured_output, miner_audit_structured_output, ...cleanPaper } = paper;
 
       return {
         ...cleanPaper,
@@ -1351,11 +1409,28 @@ export async function GET(request: Request) {
     const dateStr = new Date().toISOString().split('T')[0];
     const filename = `${sanitizedProjectName}_slr_export_${dateStr}.slr-viewer`;
 
-    return new NextResponse(JSON.stringify(exportPayload, null, 2), {
+    const rawJson = JSON.stringify(exportPayload, null, 2);
+    const useCompression = searchParams.get('compressed') !== 'false';
+
+    if (useCompression) {
+      const compressedBuffer = zlib.gzipSync(Buffer.from(rawJson, 'utf-8'), { level: 9 });
+      return new NextResponse(compressedBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'X-SLR-Schema-Version': exportPayload.schema_version,
+          'X-SLR-Compressed': 'gzip'
+        },
+      });
+    }
+
+    return new NextResponse(rawJson, {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
         'Content-Disposition': `attachment; filename="${filename}"`,
+        'X-SLR-Schema-Version': exportPayload.schema_version,
       },
     });
   } catch (error: any) {

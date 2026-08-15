@@ -4,7 +4,7 @@ import db, { getConfig } from '@/lib/db';
 import crypto from 'crypto';
 import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
-function generatePaperId(rawData: { Title?: string; DOI?: string; Authors?: string; Year?: any }): string {
+function generatePaperId(rawData: { Title?: string; DOI?: string; Authors?: string; Year?: any; Project_ID?: string }): string {
   const authorsField = rawData.Authors || "";
   let author = "Unknown";
   if (authorsField) {
@@ -25,12 +25,14 @@ function generatePaperId(rawData: { Title?: string; DOI?: string; Authors?: stri
   const shortTitle = title.replace(/[^a-zA-Z0-9]/g, "").substring(0, 15);
 
   const doi = rawData.DOI || "";
-  const stringToHash = (title + doi + authorsField).toLowerCase().replace(/[^a-z0-9]/g, "");
-  const finalStringToHash = stringToHash || (author + year + shortTitle);
+  const projId = rawData.Project_ID || "";
+  const stringToHash = (title + doi + authorsField + projId).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const finalStringToHash = stringToHash || (author + year + shortTitle + projId);
 
   const hashStr = crypto.createHash('md5').update(finalStringToHash).digest('hex').substring(0, 5);
+  const projSuffix = projId ? `_${crypto.createHash('md5').update(projId).digest('hex').substring(0, 4)}` : '';
 
-  return `${author}_${year}_${shortTitle}_${hashStr}`;
+  return `${author}_${year}_${shortTitle}_${hashStr}${projSuffix}`;
 }
 
 export async function GET(request: Request) {
@@ -589,7 +591,8 @@ export async function POST(request: Request) {
           Title: title,
           DOI: doi,
           Authors: paper.Authors,
-          Year: paper.Year
+          Year: paper.Year,
+          Project_ID: activeProjectId
         });
 
         // Resolve conflict if the Paper_ID already exists globally in the database
