@@ -8,11 +8,12 @@ const PROJECT_ROOT = process.cwd().endsWith('slr-ide') ? process.cwd() : path.jo
  * Self-healing database & filesystem migration:
  * Permanently migrates legacy 'default-project' records to 'proj-global-predictive-dt'
  * across all 11 project-tied SQLite tables and renames filesystem PDF storage directories.
+ * Protected with fast O(1) existence checks to prevent redundant startup overhead.
  */
 export function migrateProjectIds(db: Database.Database): void {
   try {
-    // 1. One-time Migration of legacy 'default-project' record
-    const legacyProject = db.prepare("SELECT * FROM projects WHERE id = 'default-project'").get() as any;
+    // 1. One-time Migration of legacy 'default-project' record (O(1) existence check)
+    const legacyProject = db.prepare("SELECT 1 FROM projects WHERE id = 'default-project' LIMIT 1").get();
     
     if (legacyProject) {
       console.log("[DB Migration] Found legacy 'default-project'. Migrating to 'proj-global-predictive-dt'...");
@@ -109,15 +110,20 @@ export function migrateProjectIds(db: Database.Database): void {
       db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('ACTIVE_PROJECT_ID', ?)").run(activeProjectId);
     }
 
-    // 3. Normalize any orphaned paper rows with empty or NULL Project_ID to current active project
+    // 3. Normalize any orphaned paper rows with empty or NULL Project_ID to current active project (with fast pre-check)
     if (activeProjectId) {
-      const updatePapers = db.prepare("UPDATE papers SET Project_ID = ? WHERE Project_ID IS NULL OR Project_ID = ''");
-      const updateCalPapers = db.prepare("UPDATE calibration_papers SET Project_ID = ? WHERE Project_ID IS NULL OR Project_ID = ''");
-      const papersResult = updatePapers.run(activeProjectId);
-      const calResult = updateCalPapers.run(activeProjectId);
+      const hasOrphaned = db.prepare("SELECT 1 FROM papers WHERE Project_ID IS NULL OR Project_ID = '' LIMIT 1").get() ||
+                          db.prepare("SELECT 1 FROM calibration_papers WHERE Project_ID IS NULL OR Project_ID = '' LIMIT 1").get();
+      
+      if (hasOrphaned) {
+        const updatePapers = db.prepare("UPDATE papers SET Project_ID = ? WHERE Project_ID IS NULL OR Project_ID = ''");
+        const updateCalPapers = db.prepare("UPDATE calibration_papers SET Project_ID = ? WHERE Project_ID IS NULL OR Project_ID = ''");
+        const papersResult = updatePapers.run(activeProjectId);
+        const calResult = updateCalPapers.run(activeProjectId);
 
-      if (papersResult.changes > 0 || calResult.changes > 0) {
-        console.log(`[DB Migration] Normalized ${papersResult.changes} papers and ${calResult.changes} calibration papers to project: ${activeProjectId}`);
+        if (papersResult.changes > 0 || calResult.changes > 0) {
+          console.log(`[DB Migration] Normalized ${papersResult.changes} papers and ${calResult.changes} calibration papers to project: ${activeProjectId}`);
+        }
       }
     }
   } catch (err) {

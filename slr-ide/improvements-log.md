@@ -1,3 +1,20 @@
+## #387 - Canonical Schema Initialization, Obsolete Patch Purge & Schema Version Checkpointing (2026-08-16)
+- **Goal**: Modernize and streamline SQLite database startup initialization in `slr-ide` (`src/lib/db/db-init.ts`, `migrate-project-ids.ts`), ensuring 100% canonical DDLs across all 25 tables for fresh installs, purging ~40 redundant inline `ALTER TABLE` try-catch blocks and 7 dead commented-out migration blocks, and implementing an idempotent `SCHEMA_VERSION = '3'` fast-path guard (<0.35ms startup latency).
+- **Architectural Implementation**:
+  1. **Canonical Topological DDL Suite (`src/lib/db/db-init.ts`)**:
+     - Standardized all 25 SQLite tables (`configs`, `vault_config`, `api_key_vault`, `remote_workers`, `llm_pricing`, `projects`, `papers`, `calibration_papers`, `prompt_templates`, `llm_jobs`, `llm_batch_jobs`, `reviewer_decisions`, `calibration_commit_ledger`, `llm_audit_log`, `manual_audit_log`, `duplicate_pairs`, `semantic_search_cache`, `umbrellanizer_results`, `rolling_batches`, `rolling_batch_papers`, `rolling_batch_reviewer_decisions`, `rolling_batch_commit_ledger`, `prompt_audit_ledger`, `prompt_benchmark_runs`, `prompt_benchmark_results`).
+     - Directly embedded all columns (including `prompt_type`, `parent_prompt_id`, `is_duplicate`, `ai_*`, `manual_*`, and benchmark columns) directly into `CREATE TABLE IF NOT EXISTS` blocks.
+     - Ordered table definitions topologically so parent entities are created before child foreign key references.
+  2. **Schema Version Checkpoint & Fallback Guard (`SCHEMA_VERSION = '3'`)**:
+     - Introduced an idempotent `SCHEMA_VERSION = '3'` fast-path in `configs`. Fresh installations record version 3 immediately upon initial DDL creation, bypassing all fallback `ALTER TABLE` exception catches on subsequent boots.
+     - Provided a one-time migration fallback for pre-v3 databases that executes necessary column checks and marks `SCHEMA_VERSION = '3'`.
+  3. **Obsolete Patch & Dead Code Purge**:
+     - Removed ~40 redundant inline `ALTER TABLE ... ADD COLUMN` try-catch blocks from the active startup loop.
+     - Purged 7 large legacy disabled migration code blocks (legacy PDF path migration, legacy AI stage bumps, old `Human_*` column migrations).
+  4. **Startup I/O Optimization (`src/lib/db/migrate-project-ids.ts`)**:
+     - Gated project normalization with fast $O(1)$ pre-checks (`SELECT 1 FROM projects WHERE id = 'default-project' LIMIT 1` and `SELECT 1 FROM papers WHERE Project_ID IS NULL LIMIT 1`), eliminating redundant full-table write queries on healthy databases.
+- **Verification**: Verified TypeScript compilation with 0 errors (`npx tsc --noEmit`) and executed fresh in-memory database initialization benchmarking with all 25 tables passing assertions in 6.11ms and subsequent boots running in 0.31ms.
+
 ## #386 - Cross-Platform Automated Dependency Installer & Centralized Python Path Resolver (2026-08-15)
 - **Goal**: Implement automated, cross-platform dependency installation scripts (`install.sh`, `install.ps1`, `install.bat`, `npm run setup`) for Windows, Linux, and macOS across all workspace submodules (`root`, `slr-ide`, `inter-rater`, `slr-viewer`), providing prerequisite diagnostics (Node.js, npm, nvm, Python 3, Python `venv`), smart virtual environment detection/reuse, and centralized cross-platform Python executable resolution in `slr-ide`.
 - **Architectural Implementation**:
