@@ -20,7 +20,13 @@ import {
   AlertCircle,
   CheckSquare,
   Square,
-  MinusSquare
+  MinusSquare,
+  Cpu,
+  Sliders,
+  Zap,
+  Copy,
+  Check,
+  Terminal
 } from 'lucide-react';
 import { useMockupReview, isMockupResultFailed } from '@/hooks/useMockupReview';
 
@@ -77,6 +83,35 @@ export default function MockupReviewModal({
   const [showPaperList, setShowPaperList] = useState(false);
   const [showResultLog, setShowResultLog] = useState(true);
   const [logFilter, setLogFilter] = useState<'ALL' | 'SUCCEEDED' | 'FAILED'>('ALL');
+  const [showPromptDetails, setShowPromptDetails] = useState(false);
+  const [activePromptStageIndex, setActivePromptStageIndex] = useState(0);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Reset stage tab when pool changes
+  React.useEffect(() => {
+    setActivePromptStageIndex(0);
+  }, [selectedPool]);
+
+  const copyToClipboard = (text: string, fieldId: string) => {
+    if (!text) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedField(fieldId);
+      setTimeout(() => setCopiedField(null), 2000);
+      showToast('Copied to clipboard', 'info');
+    } catch (e) {
+      console.warn('Clipboard write failed:', e);
+    }
+  };
 
   // Close on Escape key press when not actively running
   React.useEffect(() => {
@@ -138,6 +173,11 @@ export default function MockupReviewModal({
     return true;
   });
 
+  // Prompt configurations for active pool
+  const promptConfigs = cacheInfo?.prompt_configs || [];
+  const safeStageIndex = activePromptStageIndex < promptConfigs.length ? activePromptStageIndex : 0;
+  const activePromptConfig = promptConfigs[safeStageIndex] || promptConfigs[0] || null;
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200"
@@ -163,6 +203,12 @@ export default function MockupReviewModal({
                 <span className="text-xs px-2 py-0.5 font-mono font-semibold bg-muted text-muted-foreground rounded-md border border-border">
                   CTRL+M
                 </span>
+                {activePromptConfig?.clean_model_name && (
+                  <span className="text-xs px-2 py-0.5 font-mono font-semibold bg-primary/10 text-primary rounded-md border border-primary/20 flex items-center gap-1">
+                    <Cpu className="w-3.5 h-3.5" />
+                    {activePromptConfig.clean_model_name}
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Generate LLM-driven blinded <code className="font-mono text-primary">.slr</code> files isolated from PRISMA screening records.
@@ -225,12 +271,231 @@ export default function MockupReviewModal({
                     )}
                   </div>
                   <div className="text-sm font-semibold text-foreground">{tab.label}</div>
+                  {selectedPool === tab.id && activePromptConfig?.clean_model_name && (
+                    <div className="text-[10px] font-mono text-muted-foreground mt-1 flex items-center gap-1 truncate">
+                      <Cpu className="w-3 h-3 text-primary shrink-0" />
+                      <span>{activePromptConfig.clean_model_name}</span>
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
               <Info className="w-3.5 h-3.5 text-primary" /> {poolMeta.desc}
             </p>
+          </div>
+
+          {/* Active Prompt & Model Configuration HUD */}
+          <div className="p-4 rounded-xl border border-border bg-card/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <Cpu className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                      Active Prompt &amp; Model Configuration
+                    </span>
+                    {activePromptConfig?.clean_model_name && (
+                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
+                        {activePromptConfig.clean_model_name}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Essential parameters configured in Prompt Library applied during mockup review generation.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPromptDetails(!showPromptDetails)}
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-muted transition-colors"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                {showPromptDetails ? 'Hide Parameters' : 'View Parameters'}
+                {showPromptDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {/* Multi-Stage Tabs for Pool C (Scientist & Miner) */}
+            {promptConfigs.length > 1 && (
+              <div className="flex items-center gap-2 border-b border-border pb-2">
+                {promptConfigs.map((cfg, idx) => (
+                  <button
+                    key={cfg.prompt_type || idx}
+                    type="button"
+                    onClick={() => setActivePromptStageIndex(idx)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                      safeStageIndex === idx
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border border-border'
+                    }`}
+                  >
+                    <span>{cfg.stage_label || `Stage ${cfg.stage_num}`}</span>
+                    <span className="text-[10px] font-mono opacity-80">({cfg.clean_model_name})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Essential Parameters Grid */}
+            {activePromptConfig ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="p-2 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground">Model Type</div>
+                    <div className="font-mono font-bold text-foreground truncate flex items-center gap-1 mt-0.5" title={activePromptConfig.model_id}>
+                      <Cpu className="w-3 h-3 text-primary shrink-0" />
+                      <span>{activePromptConfig.clean_model_name}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground">Temperature &amp; Thinking</div>
+                    <div className="font-mono font-semibold text-foreground truncate mt-0.5">
+                      T: <span className="font-bold text-primary">{activePromptConfig.temperature}</span>
+                      <span className="text-muted-foreground mx-1">|</span>
+                      <span className="capitalize font-bold text-foreground">
+                        {activePromptConfig.thinking_level === 'none' || activePromptConfig.thinking_level === 'off'
+                          ? 'Off'
+                          : activePromptConfig.thinking_level}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground">Max Output Tokens</div>
+                    <div className="font-mono font-semibold text-foreground truncate mt-0.5">
+                      <span className="font-bold text-foreground">{activePromptConfig.max_tokens.toLocaleString()}</span> tokens
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-muted/30 border border-border/60">
+                    <div className="text-[10px] uppercase font-bold text-muted-foreground">Mode &amp; Delay</div>
+                    <div className="font-mono font-semibold text-foreground truncate mt-0.5">
+                      <span className="font-bold text-primary">{activePromptConfig.execution_mode}</span>
+                      <span className="text-muted-foreground mx-1">|</span>
+                      {activePromptConfig.request_delay >= 1
+                        ? `${activePromptConfig.request_delay}s`
+                        : `${activePromptConfig.request_delay}s (${activePromptConfig.request_delay_ms || Math.round(activePromptConfig.request_delay * 1000)}ms)`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expanded Details Drawer */}
+                {showPromptDetails && (
+                  <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 space-y-3 animate-in fade-in duration-150">
+                    {/* Secondary Parameter Row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
+                      <div className="p-2 rounded-lg bg-background border border-border/60">
+                        <span className="text-muted-foreground block text-[10px] uppercase font-sans font-bold">Template</span>
+                        <span className="font-semibold text-foreground truncate block" title={activePromptConfig.template_name}>
+                          {activePromptConfig.template_name}
+                        </span>
+                        <span className={`text-[9px] px-1.5 py-0.2 rounded font-sans font-bold inline-block mt-1 ${
+                          activePromptConfig.is_project_custom
+                            ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {activePromptConfig.is_project_custom ? 'Project Custom' : 'System Default'}
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-background border border-border/60">
+                        <span className="text-muted-foreground block text-[10px] uppercase font-sans font-bold">Timeout &amp; Top-P/K</span>
+                        <span className="font-semibold text-foreground block">
+                          {activePromptConfig.timeout_seconds}s timeout
+                        </span>
+                        <span className="text-[10px] text-muted-foreground block mt-1">
+                          Top-P: {activePromptConfig.top_p ?? 'Auto'} | Top-K: {activePromptConfig.top_k ?? 'Auto'}
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-background border border-border/60">
+                        <span className="text-muted-foreground block text-[10px] uppercase font-sans font-bold">Response Schema</span>
+                        <span className="font-semibold text-foreground truncate block font-mono" title={activePromptConfig.response_schema_name}>
+                          {activePromptConfig.response_schema_name || 'Standard Schema'}
+                        </span>
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-sans font-bold inline-block mt-1">
+                          Strict JSON Enforced
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-background border border-border/60">
+                        <span className="text-muted-foreground block text-[10px] uppercase font-sans font-bold">
+                          {activePromptConfig.prompt_type === 'miner' ? 'Interaction Chaining' : 'Stage Scope'}
+                        </span>
+                        {activePromptConfig.prompt_type === 'miner' ? (
+                          <span className={`text-[10px] font-bold block mt-1 ${
+                            activePromptConfig.interaction_chaining !== false
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }`}>
+                            {activePromptConfig.interaction_chaining !== false ? '✓ Uses QA Context' : '✗ Chaining Disabled'}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground block mt-1">
+                            Single Stage Pass
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* System Instruction Drawer */}
+                    {activePromptConfig.system_instruction && (
+                      <div className="border border-border rounded-lg bg-background overflow-hidden text-xs">
+                        <div className="px-3 py-1.5 flex items-center justify-between bg-muted/40 border-b border-border">
+                          <span className="font-bold text-[11px] text-muted-foreground uppercase flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-primary" /> System Instruction Preview
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(activePromptConfig.system_instruction || '', 'system')}
+                            className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
+                          >
+                            {copiedField === 'system' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                            {copiedField === 'system' ? 'Copied' : 'Copy System Instruction'}
+                          </button>
+                        </div>
+                        <pre className="p-3 font-mono text-[11px] text-muted-foreground whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed bg-muted/10">
+                          {activePromptConfig.system_instruction}
+                        </pre>
+                      </div>
+                    )}
+
+                    {/* User Template Drawer */}
+                    {activePromptConfig.user_template && (
+                      <div className="border border-border rounded-lg bg-background overflow-hidden text-xs">
+                        <div className="px-3 py-1.5 flex items-center justify-between bg-muted/40 border-b border-border">
+                          <span className="font-bold text-[11px] text-muted-foreground uppercase flex items-center gap-1.5">
+                            <Terminal className="w-3.5 h-3.5 text-primary" /> User Template Seed ({activePromptConfig.prompt_type})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(activePromptConfig.user_template || '', 'template')}
+                            className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
+                          >
+                            {copiedField === 'template' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                            {copiedField === 'template' ? 'Copied' : 'Copy Template Seed'}
+                          </button>
+                        </div>
+                        <pre className="p-3 font-mono text-[11px] text-muted-foreground whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed bg-muted/10">
+                          {activePromptConfig.user_template}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg bg-muted/20 border border-border text-xs text-muted-foreground flex items-center gap-2">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary" />
+                <span>Loading prompt configuration for {selectedPool.toUpperCase()}...</span>
+              </div>
+            )}
           </div>
 
           {/* Reviewer Identity & Slot Status */}
@@ -423,10 +688,17 @@ export default function MockupReviewModal({
               </div>
 
               {/* Overview Metrics Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
                 <div className="p-2.5 rounded-lg bg-card/60 border border-border">
                   <div className="text-muted-foreground text-[10px] uppercase font-bold">Reviewer</div>
                   <div className="font-mono font-semibold text-foreground truncate">{cacheInfo.reviewer_name || 'N/A'}</div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-card/60 border border-border">
+                  <div className="text-muted-foreground text-[10px] uppercase font-bold">Model Used</div>
+                  <div className="font-mono font-bold text-foreground truncate flex items-center gap-1" title={cacheInfo.model_id || 'gemini-2.5-flash'}>
+                    <Cpu className="w-3 h-3 text-primary shrink-0" />
+                    <span>{cacheInfo.model_id?.replace(/^models\//, '') || 'gemini-2.5-flash'}</span>
+                  </div>
                 </div>
                 <div className="p-2.5 rounded-lg bg-card/60 border border-border">
                   <div className="text-muted-foreground text-[10px] uppercase font-bold">Total Papers</div>
@@ -452,7 +724,7 @@ export default function MockupReviewModal({
                     <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20">
                       <div className="text-primary text-[10px] uppercase font-bold">QA &amp; Extracted</div>
                       <div className="font-mono font-bold text-primary">
-                        {succeededCount} Papers
+                        {succeededCount} / {cacheInfo.total_papers} Papers
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-card/60 border border-border">

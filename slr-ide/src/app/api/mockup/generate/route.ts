@@ -6,11 +6,13 @@ import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterP
 import { decryptKey } from '@/lib/vault';
 import {
   resolveMockupStagePrompt,
+  getMockupPromptConfigs,
   evaluateMockupPaperScreening,
   evaluateMockupPaperPoolC,
   buildMockupSlrFile,
   isMockupResultFailed,
-  MockupPaperResult
+  MockupPaperResult,
+  MockupPromptConfig
 } from '@/lib/services/mockup-generator';
 import { compressSlrServer, decompressSlrServer } from '@/lib/slr-compression';
 
@@ -152,6 +154,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const promptConfigs = getMockupPromptConfigs(projectId, dbPool);
+
     return NextResponse.json({
       cached: Boolean(cacheRow),
       cache_id: cacheRow?.id || null,
@@ -172,7 +176,8 @@ export async function GET(req: NextRequest) {
       updated_at: cacheRow?.updated_at || null,
       occupied_slots: occupiedSlots,
       papers_count: calPapers.length,
-      papers_preview: calPapers
+      papers_preview: calPapers,
+      prompt_configs: promptConfigs
     });
   } catch (error: any) {
     console.error('Failed to get mockup cache status:', error);
@@ -346,14 +351,16 @@ export async function POST(req: NextRequest) {
     let qaRules: any[] = [];
     let extractionRules: any[] = [];
     if (dbPool === 'pool_c') {
-      if (project.pool_c_qa_rules) {
+      const rawQa = project.pool_c_qa_rules || project.qa_rules;
+      if (rawQa) {
         try {
-          qaRules = typeof project.pool_c_qa_rules === 'string' ? JSON.parse(project.pool_c_qa_rules) : project.pool_c_qa_rules;
+          qaRules = typeof rawQa === 'string' ? JSON.parse(rawQa) : rawQa;
         } catch {}
       }
-      if (project.pool_c_extraction_rules) {
+      const rawExt = project.pool_c_extraction_rules || project.extraction_rules;
+      if (rawExt) {
         try {
-          extractionRules = typeof project.pool_c_extraction_rules === 'string' ? JSON.parse(project.pool_c_extraction_rules) : project.pool_c_extraction_rules;
+          extractionRules = typeof rawExt === 'string' ? JSON.parse(rawExt) : rawExt;
         } catch {}
       }
     }
@@ -363,8 +370,8 @@ export async function POST(req: NextRequest) {
       ? safeJsonParse(scientistPrompt?.llm_config, {}) 
       : safeJsonParse(promptTemplateAorB?.llm_config, {});
     const rawDelay = activeTplConfig.request_delay;
-    const delayMs = rawDelay !== undefined && rawDelay !== null 
-      ? (Number(rawDelay) > 10 ? Number(rawDelay) : Math.max(0, Number(rawDelay) * 1000))
+    const delayMs = (rawDelay !== undefined && rawDelay !== null && !isNaN(Number(rawDelay)))
+      ? Math.max(0, Math.round(Number(rawDelay) * 1000))
       : 300;
 
     // Create a streaming SSE response

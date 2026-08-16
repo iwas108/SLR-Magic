@@ -333,7 +333,8 @@ export function useIngestion(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           papers: papersToSend,
-          syncCitations: syncCitations
+          syncCitations: syncCitations,
+          projectId: activeProjectId
         })
       });
 

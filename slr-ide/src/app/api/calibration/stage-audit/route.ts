@@ -6,6 +6,7 @@ import { decryptKey } from '@/lib/vault';
 import { validatePromptSchema, PromptType, DEFAULT_STAGE_SCHEMAS } from '@/lib/services/prompt-validator';
 import { hydrateTemplate } from '@/lib/services/prompt-hydrator';
 import { pipelineLock } from '@/lib/services/pipeline-lock';
+import { resolveGeminiThinkingConfig } from '@/lib/gemini-thinking-specs';
 
 export const dynamic = 'force-dynamic';
 
@@ -260,18 +261,9 @@ export async function POST(req: Request) {
       generationConfig.topK = topK;
     }
 
-    if (auditLlmConfig.thinking_level !== undefined && auditLlmConfig.thinking_level !== null) {
-      const level = String(auditLlmConfig.thinking_level).toLowerCase();
-      const budgetMap: Record<string, number> = {
-        minimal: 1024,
-        low: 2048,
-        medium: 4096,
-        high: 8192,
-        none: 0,
-        off: 0
-      };
-      const budget = budgetMap[level] ?? (typeof auditLlmConfig.thinking_budget === 'number' ? auditLlmConfig.thinking_budget : (level === 'none' || level === 'off' ? 0 : 2048));
-      generationConfig.thinkingConfig = { thinkingBudget: budget };
+    const thinkingConfig = resolveGeminiThinkingConfig(cleanModelName, auditLlmConfig.thinking_level);
+    if (thinkingConfig) {
+      generationConfig.thinkingConfig = thinkingConfig;
     }
 
     const apiPayload = {

@@ -5,6 +5,7 @@ import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterP
 import { decryptKey } from '@/lib/vault';
 import { validatePromptSchema } from '@/lib/services/prompt-validator';
 import { pipelineLock } from '@/lib/services/pipeline-lock';
+import { resolveGeminiThinkingConfig } from '@/lib/gemini-thinking-specs';
 
 export const dynamic = 'force-dynamic';
 
@@ -169,25 +170,8 @@ export async function POST(req: Request) {
     const systemPrompt = template.system_instruction || '';
     const parsedResponseSchema = JSON.parse(template.response_schema);
 
-    // Build thinkingConfig for Gemini 2.0 / 2.5 models
-    let thinkingConfig: any = undefined;
-    if (thinkingLevel !== 'none') {
-      const budgetMap: Record<string, number> = {
-        minimal: 1024,
-        low: 2048,
-        medium: 4096,
-        high: 8192
-      };
-      const budget = budgetMap[thinkingLevel] || 2048;
-      thinkingConfig = {
-        thinkingBudget: budget
-      };
-    } else if (cleanModelName.includes('2.5') || cleanModelName.includes('2.0')) {
-      // Deterministic non-thinking if 'none' is explicitly selected on Gemini 2.5
-      thinkingConfig = {
-        thinkingBudget: 0
-      };
-    }
+    // Build thinkingConfig strictly adhering to model specs
+    const thinkingConfig = resolveGeminiThinkingConfig(cleanModelName, thinkingLevel);
 
     // 9. Execute Google GenAI REST API Call with timeout and strict config
     const startTime = Date.now();

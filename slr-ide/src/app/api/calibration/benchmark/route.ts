@@ -8,6 +8,7 @@ import { decryptKey } from '@/lib/vault';
 import { validatePromptSchema, PromptType, DEFAULT_STAGE_SCHEMAS } from '@/lib/services/prompt-validator';
 import { hydrateTemplate } from '@/lib/services/prompt-hydrator';
 import { pipelineLock } from '@/lib/services/pipeline-lock';
+import { resolveGeminiThinkingConfig } from '@/lib/gemini-thinking-specs';
 import { 
   calculateCohensKappa, 
   calculateWeightedKappa, 
@@ -62,6 +63,84 @@ function resolveStagePrompt(projectId: string, promptType: PromptType): any {
   return template || null;
 }
 
+export interface BenchmarkImprovementMetrics {
+  accuracy_diff: number;
+  recall_diff: number;
+  precision_diff: number;
+  f1_diff: number;
+  kappa_diff: number;
+  holdout_accuracy_diff?: number | null;
+  holdout_f1_diff?: number | null;
+  has_improved: boolean;
+  has_regressed: boolean;
+  is_unchanged: boolean;
+  previous_created_at?: string;
+  previous_run_id?: string;
+  previous_summary_metrics?: any;
+  previous_holdout_metrics?: any;
+}
+
+function calculateImprovementMetrics(
+  latestMetrics: any,
+  previousMetrics: any,
+  latestHoldout?: any,
+  previousHoldout?: any,
+  previousRunMeta?: { id?: string; created_at?: string }
+): BenchmarkImprovementMetrics | null {
+  if (!latestMetrics || !previousMetrics) return null;
+
+  const latAcc = Number(latestMetrics.accuracy_pct ?? 0);
+  const prevAcc = Number(previousMetrics.accuracy_pct ?? 0);
+  const accuracy_diff = parseFloat((latAcc - prevAcc).toFixed(2));
+
+  const latRec = Number(latestMetrics.recall ?? 0);
+  const prevRec = Number(previousMetrics.recall ?? 0);
+  const recall_diff = parseFloat(((latRec - prevRec) * 100).toFixed(2));
+
+  const latPrec = Number(latestMetrics.precision ?? 0);
+  const prevPrec = Number(previousMetrics.precision ?? 0);
+  const precision_diff = parseFloat(((latPrec - prevPrec) * 100).toFixed(2));
+
+  const latF1 = Number(latestMetrics.f1 ?? 0);
+  const prevF1 = Number(previousMetrics.f1 ?? 0);
+  const f1_diff = parseFloat((latF1 - prevF1).toFixed(4));
+
+  const latKappa = Number(latestMetrics.kappa ?? 0);
+  const prevKappa = Number(previousMetrics.kappa ?? 0);
+  const kappa_diff = parseFloat((latKappa - prevKappa).toFixed(4));
+
+  let holdout_accuracy_diff: number | null = null;
+  let holdout_f1_diff: number | null = null;
+
+  if (latestHoldout && previousHoldout && latestHoldout.accuracy_pct !== undefined && previousHoldout.accuracy_pct !== undefined) {
+    holdout_accuracy_diff = parseFloat((Number(latestHoldout.accuracy_pct) - Number(previousHoldout.accuracy_pct)).toFixed(2));
+  }
+  if (latestHoldout && previousHoldout && latestHoldout.f1 !== undefined && previousHoldout.f1 !== undefined) {
+    holdout_f1_diff = parseFloat((Number(latestHoldout.f1) - Number(previousHoldout.f1)).toFixed(4));
+  }
+
+  const has_improved = accuracy_diff > 0.001 || f1_diff > 0.001 || recall_diff > 0.001 || precision_diff > 0.001 || kappa_diff > 0.001;
+  const has_regressed = accuracy_diff < -0.001 || f1_diff < -0.001 || recall_diff < -0.001 || precision_diff < -0.001 || kappa_diff < -0.001;
+  const is_unchanged = !has_improved && !has_regressed;
+
+  return {
+    accuracy_diff,
+    recall_diff,
+    precision_diff,
+    f1_diff,
+    kappa_diff,
+    holdout_accuracy_diff,
+    holdout_f1_diff,
+    has_improved,
+    has_regressed,
+    is_unchanged,
+    previous_created_at: previousRunMeta?.created_at,
+    previous_run_id: previousRunMeta?.id,
+    previous_summary_metrics: previousMetrics,
+    previous_holdout_metrics: previousHoldout || null
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -111,24 +190,48 @@ export async function GET(req: Request) {
       return !resolvedPdfPath || !fs.existsSync(resolvedPdfPath) || paper.Local_PDF_Status === 'MISSING' || paper.Local_PDF_Status === 'FAILED';
     });
 
-    // Fetch latest benchmark run for this stage
-    const latestRun = db.prepare(`
+    // Fetch top 2 benchmark runs for this stage to allow comparing with previous benchmark
+    const benchmarkRuns = db.prepare(`
       SELECT * FROM prompt_benchmark_runs 
-      WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) 
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) 
         AND stage_num = ?
+        AND status = 'COMPLETED'
       ORDER BY created_at DESC 
-      LIMIT 1
-    `).get(projectId, stageNum) as any;
+      LIMIT 2
+    `).all(projectId, projectId, stageNum) as any[];
+
+    // Fallback: If no completed run is found, check if any run exists (e.g. running or failed)
+    let latestRun = benchmarkRuns[0] || null;
+    let previousRun = benchmarkRuns.length > 1 ? benchmarkRuns[1] : null;
+
+    if (!latestRun) {
+      latestRun = db.prepare(`
+        SELECT * FROM prompt_benchmark_runs 
+        WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) 
+          AND stage_num = ?
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `).get(projectId, projectId, stageNum) as any;
+    }
+
+    const latestSummary = latestRun ? safeJsonParse(latestRun.summary_metrics, {}) : null;
+    const latestHoldout = latestRun ? safeJsonParse(latestRun.holdout_metrics, {}) : null;
+    const prevSummary = previousRun ? safeJsonParse(previousRun.summary_metrics, {}) : null;
+    const prevHoldout = previousRun ? safeJsonParse(previousRun.holdout_metrics, {}) : null;
+
+    const improvementMetrics = (latestRun && previousRun && latestSummary && prevSummary)
+      ? calculateImprovementMetrics(latestSummary, prevSummary, latestHoldout, prevHoldout, previousRun)
+      : null;
 
     let paperResults: any[] = [];
     if (latestRun) {
       paperResults = db.prepare(`
         SELECT r.*, p.Title, p.Abstract, p.Authors, p.Year, p.DOI, p.Local_PDF_Path
         FROM prompt_benchmark_results r
-        LEFT JOIN papers p ON r.paper_id = p.Paper_ID AND CAST(p.Project_ID AS TEXT) = CAST(r.project_id AS TEXT)
-        WHERE r.run_id = ? AND CAST(r.project_id AS TEXT) = CAST(? AS TEXT)
+        LEFT JOIN papers p ON r.paper_id = p.Paper_ID AND (CAST(p.Project_ID AS TEXT) = CAST(r.project_id AS TEXT) OR p.Project_ID = r.project_id)
+        WHERE r.run_id = ? AND (CAST(r.project_id AS TEXT) = CAST(? AS TEXT) OR r.project_id = ?)
         ORDER BY r.is_match ASC, r.paper_id ASC
-      `).all(latestRun.id, projectId);
+      `).all(latestRun.id, projectId, projectId);
     }
 
     return NextResponse.json({
@@ -141,9 +244,15 @@ export async function GET(req: Request) {
       missing_pdf_papers: missingPdfPapers.map(p => ({ paper_id: p.Paper_ID, title: p.Title })),
       latest_run: latestRun ? {
         ...latestRun,
-        summary_metrics: safeJsonParse(latestRun.summary_metrics, {}),
-        holdout_metrics: safeJsonParse(latestRun.holdout_metrics, {})
+        summary_metrics: latestSummary,
+        holdout_metrics: latestHoldout
       } : null,
+      previous_run: previousRun ? {
+        ...previousRun,
+        summary_metrics: prevSummary,
+        holdout_metrics: prevHoldout
+      } : null,
+      improvement_metrics: improvementMetrics,
       results: paperResults.map(r => ({
         ...r,
         ai_qa_scores: safeJsonParse(r.ai_qa_scores, null),
@@ -375,18 +484,9 @@ export async function POST(req: Request) {
         generationConfig.topK = topK;
       }
 
-      if (promptConfig.thinking_level !== undefined && promptConfig.thinking_level !== null) {
-        const level = String(promptConfig.thinking_level).toLowerCase();
-        const budgetMap: Record<string, number> = {
-          minimal: 1024,
-          low: 2048,
-          medium: 4096,
-          high: 8192,
-          none: 0,
-          off: 0
-        };
-        const budget = budgetMap[level] ?? (typeof promptConfig.thinking_budget === 'number' ? promptConfig.thinking_budget : (level === 'none' || level === 'off' ? 0 : 2048));
-        generationConfig.thinkingConfig = { thinkingBudget: budget };
+      const thinkingConfig = resolveGeminiThinkingConfig(cleanModelName, promptConfig.thinking_level);
+      if (thinkingConfig) {
+        generationConfig.thinkingConfig = thinkingConfig;
       }
 
       const parts: any[] = [];
@@ -756,6 +856,27 @@ export async function POST(req: Request) {
       `).run(totalCostUsd, projectId);
     } catch (e) {}
 
+    // Find preceding completed benchmark run for delta comparison
+    const prevCompletedRun = db.prepare(`
+      SELECT * FROM prompt_benchmark_runs 
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) 
+        AND stage_num = ?
+        AND status = 'COMPLETED'
+        AND id != ?
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `).get(projectId, projectId, stageNum, runId) as any;
+
+    const previousRunMetrics = prevCompletedRun ? safeJsonParse(prevCompletedRun.summary_metrics, null) : null;
+    const previousHoldoutMetrics = prevCompletedRun ? safeJsonParse(prevCompletedRun.holdout_metrics, null) : null;
+    const improvementMetrics = prevCompletedRun ? calculateImprovementMetrics(
+      summaryPayload,
+      previousRunMetrics,
+      holdoutMetrics,
+      previousHoldoutMetrics,
+      prevCompletedRun
+    ) : null;
+
     return NextResponse.json({
       success: true,
       run_id: runId,
@@ -764,6 +885,12 @@ export async function POST(req: Request) {
       total_evaluated: evaluatedCount,
       summary_metrics: summaryPayload,
       holdout_metrics: holdoutMetrics,
+      previous_run: prevCompletedRun ? {
+        ...prevCompletedRun,
+        summary_metrics: previousRunMetrics,
+        holdout_metrics: previousHoldoutMetrics
+      } : null,
+      improvement_metrics: improvementMetrics,
       usage: {
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,

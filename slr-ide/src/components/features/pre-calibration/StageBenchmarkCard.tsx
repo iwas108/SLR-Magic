@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { 
   Lock, Unlock, Play, Sparkles, CheckCircle2, XCircle, AlertTriangle, 
-  ChevronDown, ChevronRight, RefreshCw, BarChart2, ShieldCheck, FileText, Database
+  ChevronDown, ChevronRight, RefreshCw, BarChart2, ShieldCheck, FileText, Database,
+  TrendingUp, TrendingDown, Minus, History
 } from 'lucide-react';
 import { BenchmarkRunState } from '@/hooks/usePromptStaging';
 import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
@@ -35,6 +36,7 @@ export default function StageBenchmarkCard({
 
   const metrics = benchmarkState?.summary_metrics;
   const holdout = benchmarkState?.holdout_metrics;
+  const improvements = benchmarkState?.improvement_metrics;
   const results = benchmarkState?.results || [];
   const discrepancies = results.filter(r => r.is_match === 0);
 
@@ -95,6 +97,34 @@ export default function StageBenchmarkCard({
                     : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
                 }`}>
                   {gatePassed ? 'PRISMA GATE PASSED' : 'TARGET DISCREPANCY'}
+                </span>
+              )}
+              {isCompleted && improvements && (
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border flex items-center gap-1 ${
+                  improvements.has_improved 
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' 
+                    : improvements.has_regressed
+                    ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                    : 'bg-secondary text-secondary-foreground border-border'
+                }`}>
+                  {improvements.has_improved ? (
+                    <>
+                      <TrendingUp className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                      <span>
+                        IMPROVED ({improvements.accuracy_diff > 0 ? `+${improvements.accuracy_diff.toFixed(1)}% Acc` : improvements.f1_diff > 0 ? `+${improvements.f1_diff.toFixed(3)} F1` : `+${improvements.recall_diff.toFixed(1)}% Rec`})
+                      </span>
+                    </>
+                  ) : improvements.has_regressed ? (
+                    <>
+                      <TrendingDown className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                      <span>REGRESSED ({improvements.accuracy_diff < 0 ? `${improvements.accuracy_diff.toFixed(1)}% Acc` : `${improvements.f1_diff.toFixed(3)} F1`})</span>
+                    </>
+                  ) : (
+                    <>
+                      <Minus className="w-3 h-3 opacity-60" />
+                      <span>BASELINE MATCHED</span>
+                    </>
+                  )}
                 </span>
               )}
             </div>
@@ -170,48 +200,225 @@ export default function StageBenchmarkCard({
       {/* Metrics Row (When completed) */}
       {isCompleted && metrics && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 mt-4 pt-4 border-t border-border">
-          <div className="p-3 rounded-xl bg-secondary/40 border border-border">
-            <div className="text-[10px] text-muted-foreground font-mono uppercase font-bold">{stageNum === 4 ? 'Schema Integrity' : 'Accuracy'}</div>
-            <div className="text-base font-mono font-extrabold text-foreground mt-0.5">{metrics.accuracy_pct}%</div>
-            <div className="text-[10px] text-muted-foreground font-mono">{metrics.tp + metrics.tn}/{metrics.total} papers</div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-secondary/40 border border-border">
-            <div className="text-[10px] text-muted-foreground font-mono uppercase font-bold">Recall</div>
-            <div className={`text-base font-mono font-extrabold mt-0.5 ${metrics.recall >= (stageNum === 1 ? 1.0 : 0.9) ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-              {(metrics.recall * 100).toFixed(1)}%
+          {/* 1. Accuracy */}
+          <div className="p-3 rounded-xl bg-secondary/40 border border-border flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold">
+                  {stageNum === 4 ? 'Schema Integrity' : 'Accuracy'}
+                </span>
+                {improvements && (
+                  <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                    improvements.accuracy_diff > 0 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : improvements.accuracy_diff < 0 
+                      ? 'text-rose-600 dark:text-rose-400' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {improvements.accuracy_diff > 0 ? <TrendingUp className="w-3 h-3" /> : improvements.accuracy_diff < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                    {improvements.accuracy_diff > 0 ? `+${improvements.accuracy_diff.toFixed(1)}%` : `${improvements.accuracy_diff.toFixed(1)}%`}
+                  </span>
+                )}
+              </div>
+              <div className="text-base font-mono font-extrabold text-foreground mt-0.5">{metrics.accuracy_pct}%</div>
             </div>
-            <div className="text-[10px] text-muted-foreground font-mono">Target: {stageNum === 1 ? '100%' : '>=90%'}</div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-secondary/40 border border-border">
-            <div className="text-[10px] text-muted-foreground font-mono uppercase font-bold">Precision</div>
-            <div className={`text-base font-mono font-extrabold mt-0.5 ${metrics.precision >= 0.85 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-              {(metrics.precision * 100).toFixed(1)}%
+            <div className="text-[10px] text-muted-foreground font-mono mt-1">
+              <div>{metrics.tp + metrics.tn}/{metrics.total} papers</div>
+              {improvements?.previous_summary_metrics && (
+                <div className="text-muted-foreground/75 text-[9px]">
+                  Prev: {improvements.previous_summary_metrics.accuracy_pct}%
+                </div>
+              )}
             </div>
-            <div className="text-[10px] text-muted-foreground font-mono">Target: &gt;=85%</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-secondary/40 border border-border">
-            <div className="text-[10px] text-muted-foreground font-mono uppercase font-bold">F1-Score</div>
-            <div className={`text-base font-mono font-extrabold mt-0.5 ${metrics.f1 >= 0.85 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-              {metrics.f1.toFixed(3)}
+          {/* 2. Recall */}
+          <div className="p-3 rounded-xl bg-secondary/40 border border-border flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold">Recall</span>
+                {improvements && (
+                  <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                    improvements.recall_diff > 0 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : improvements.recall_diff < 0 
+                      ? 'text-rose-600 dark:text-rose-400' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {improvements.recall_diff > 0 ? <TrendingUp className="w-3 h-3" /> : improvements.recall_diff < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                    {improvements.recall_diff > 0 ? `+${improvements.recall_diff.toFixed(1)}%` : `${improvements.recall_diff.toFixed(1)}%`}
+                  </span>
+                )}
+              </div>
+              <div className={`text-base font-mono font-extrabold mt-0.5 ${metrics.recall >= (stageNum === 1 ? 1.0 : 0.9) ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                {(metrics.recall * 100).toFixed(1)}%
+              </div>
             </div>
-            <div className="text-[10px] text-muted-foreground font-mono">Target: &gt;=0.850</div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-secondary/40 border border-border">
-            <div className="text-[10px] text-muted-foreground font-mono uppercase font-bold">{stageNum === 3 ? 'Weighted Kappa' : "Cohen's Kappa"}</div>
-            <div className="text-base font-mono font-extrabold text-foreground mt-0.5">{metrics.kappa.toFixed(3)}</div>
-            <div className="text-[10px] text-muted-foreground font-mono">{stageNum === 3 ? 'Target: >=0.650' : metrics.kappa_label}</div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-secondary/40 border border-border">
-            <div className="text-[10px] text-muted-foreground font-mono uppercase font-bold">Holdout (30%)</div>
-            <div className="text-base font-mono font-extrabold text-foreground mt-0.5">
-              {holdout ? `${holdout.accuracy_pct}%` : 'N/A'}
+            <div className="text-[10px] text-muted-foreground font-mono mt-1">
+              <div>Target: {stageNum === 1 ? '100%' : '>=90%'}</div>
+              {improvements?.previous_summary_metrics && (
+                <div className="text-muted-foreground/75 text-[9px]">
+                  Prev: {(improvements.previous_summary_metrics.recall * 100).toFixed(1)}%
+                </div>
+              )}
             </div>
-            <div className="text-[10px] text-muted-foreground font-mono">F1: {holdout?.f1?.toFixed(2) || 'N/A'}</div>
+          </div>
+
+          {/* 3. Precision */}
+          <div className="p-3 rounded-xl bg-secondary/40 border border-border flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold">Precision</span>
+                {improvements && (
+                  <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                    improvements.precision_diff > 0 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : improvements.precision_diff < 0 
+                      ? 'text-rose-600 dark:text-rose-400' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {improvements.precision_diff > 0 ? <TrendingUp className="w-3 h-3" /> : improvements.precision_diff < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                    {improvements.precision_diff > 0 ? `+${improvements.precision_diff.toFixed(1)}%` : `${improvements.precision_diff.toFixed(1)}%`}
+                  </span>
+                )}
+              </div>
+              <div className={`text-base font-mono font-extrabold mt-0.5 ${metrics.precision >= 0.85 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                {(metrics.precision * 100).toFixed(1)}%
+              </div>
+            </div>
+            <div className="text-[10px] text-muted-foreground font-mono mt-1">
+              <div>Target: &gt;=85%</div>
+              {improvements?.previous_summary_metrics && (
+                <div className="text-muted-foreground/75 text-[9px]">
+                  Prev: {(improvements.previous_summary_metrics.precision * 100).toFixed(1)}%
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 4. F1-Score */}
+          <div className="p-3 rounded-xl bg-secondary/40 border border-border flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold">F1-Score</span>
+                {improvements && (
+                  <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                    improvements.f1_diff > 0 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : improvements.f1_diff < 0 
+                      ? 'text-rose-600 dark:text-rose-400' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {improvements.f1_diff > 0 ? <TrendingUp className="w-3 h-3" /> : improvements.f1_diff < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                    {improvements.f1_diff > 0 ? `+${improvements.f1_diff.toFixed(3)}` : `${improvements.f1_diff.toFixed(3)}`}
+                  </span>
+                )}
+              </div>
+              <div className={`text-base font-mono font-extrabold mt-0.5 ${metrics.f1 >= 0.85 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                {metrics.f1.toFixed(3)}
+              </div>
+            </div>
+            <div className="text-[10px] text-muted-foreground font-mono mt-1">
+              <div>Target: &gt;=0.850</div>
+              {improvements?.previous_summary_metrics && (
+                <div className="text-muted-foreground/75 text-[9px]">
+                  Prev: {improvements.previous_summary_metrics.f1.toFixed(3)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 5. Kappa */}
+          <div className="p-3 rounded-xl bg-secondary/40 border border-border flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold">
+                  {stageNum === 3 ? 'Weighted Kappa' : "Cohen's Kappa"}
+                </span>
+                {improvements && (
+                  <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                    improvements.kappa_diff > 0 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : improvements.kappa_diff < 0 
+                      ? 'text-rose-600 dark:text-rose-400' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {improvements.kappa_diff > 0 ? <TrendingUp className="w-3 h-3" /> : improvements.kappa_diff < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                    {improvements.kappa_diff > 0 ? `+${improvements.kappa_diff.toFixed(3)}` : `${improvements.kappa_diff.toFixed(3)}`}
+                  </span>
+                )}
+              </div>
+              <div className="text-base font-mono font-extrabold text-foreground mt-0.5">{metrics.kappa.toFixed(3)}</div>
+            </div>
+            <div className="text-[10px] text-muted-foreground font-mono mt-1">
+              <div>{stageNum === 3 ? 'Target: >=0.650' : metrics.kappa_label}</div>
+              {improvements?.previous_summary_metrics && (
+                <div className="text-muted-foreground/75 text-[9px]">
+                  Prev: {improvements.previous_summary_metrics.kappa.toFixed(3)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 6. Holdout */}
+          <div className="p-3 rounded-xl bg-secondary/40 border border-border flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase font-bold">Holdout (30%)</span>
+                {improvements && improvements.holdout_accuracy_diff !== null && improvements.holdout_accuracy_diff !== undefined && (
+                  <span className={`text-[10px] font-mono font-bold flex items-center gap-0.5 ${
+                    improvements.holdout_accuracy_diff > 0 
+                      ? 'text-emerald-600 dark:text-emerald-400' 
+                      : improvements.holdout_accuracy_diff < 0 
+                      ? 'text-rose-600 dark:text-rose-400' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {improvements.holdout_accuracy_diff > 0 ? <TrendingUp className="w-3 h-3" /> : improvements.holdout_accuracy_diff < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                    {improvements.holdout_accuracy_diff > 0 ? `+${improvements.holdout_accuracy_diff.toFixed(1)}%` : `${improvements.holdout_accuracy_diff.toFixed(1)}%`}
+                  </span>
+                )}
+              </div>
+              <div className="text-base font-mono font-extrabold text-foreground mt-0.5">
+                {holdout ? `${holdout.accuracy_pct}%` : 'N/A'}
+              </div>
+            </div>
+            <div className="text-[10px] text-muted-foreground font-mono mt-1">
+              <div>F1: {holdout?.f1 !== undefined ? holdout.f1.toFixed(2) : 'N/A'}</div>
+              {improvements?.previous_holdout_metrics && (
+                <div className="text-muted-foreground/75 text-[9px]">
+                  Prev: {improvements.previous_holdout_metrics.accuracy_pct ?? 'N/A'}% (F1: {improvements.previous_holdout_metrics.f1 !== undefined ? improvements.previous_holdout_metrics.f1.toFixed(2) : 'N/A'})
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Comparison History Bar (When previous benchmark run is available) */}
+      {isCompleted && improvements && (
+        <div className="mt-3 px-3.5 py-2.5 rounded-xl bg-secondary/30 border border-border flex flex-wrap items-center justify-between gap-2.5 text-xs font-mono">
+          <div className="flex items-center gap-2 text-muted-foreground text-[11px]">
+            <History className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span>
+              Benchmark Improvement vs Previous Run ({improvements.previous_created_at ? new Date(improvements.previous_created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + new Date(improvements.previous_created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : 'Previous Run'})
+            </span>
+          </div>
+          <div className="flex items-center gap-2.5 text-[11px] font-semibold flex-wrap">
+            <span className={improvements.accuracy_diff > 0 ? 'text-emerald-600 dark:text-emerald-400' : improvements.accuracy_diff < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}>
+              Accuracy: {improvements.accuracy_diff > 0 ? `+${improvements.accuracy_diff.toFixed(1)}%` : `${improvements.accuracy_diff.toFixed(1)}%`}
+            </span>
+            <span className="text-muted-foreground/40">•</span>
+            <span className={improvements.recall_diff > 0 ? 'text-emerald-600 dark:text-emerald-400' : improvements.recall_diff < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}>
+              Recall: {improvements.recall_diff > 0 ? `+${improvements.recall_diff.toFixed(1)}%` : `${improvements.recall_diff.toFixed(1)}%`}
+            </span>
+            <span className="text-muted-foreground/40">•</span>
+            <span className={improvements.f1_diff > 0 ? 'text-emerald-600 dark:text-emerald-400' : improvements.f1_diff < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}>
+              F1: {improvements.f1_diff > 0 ? `+${improvements.f1_diff.toFixed(3)}` : `${improvements.f1_diff.toFixed(3)}`}
+            </span>
+            <span className="text-muted-foreground/40">•</span>
+            <span className={improvements.kappa_diff > 0 ? 'text-emerald-600 dark:text-emerald-400' : improvements.kappa_diff < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}>
+              Kappa: {improvements.kappa_diff > 0 ? `+${improvements.kappa_diff.toFixed(3)}` : `${improvements.kappa_diff.toFixed(3)}`}
+            </span>
           </div>
         </div>
       )}

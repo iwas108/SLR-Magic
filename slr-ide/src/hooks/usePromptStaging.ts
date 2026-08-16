@@ -36,6 +36,23 @@ export interface BenchmarkSummaryMetrics {
   train_metrics?: any;
 }
 
+export interface BenchmarkImprovementMetrics {
+  accuracy_diff: number;
+  recall_diff: number;
+  precision_diff: number;
+  f1_diff: number;
+  kappa_diff: number;
+  holdout_accuracy_diff?: number | null;
+  holdout_f1_diff?: number | null;
+  has_improved: boolean;
+  has_regressed: boolean;
+  is_unchanged: boolean;
+  previous_created_at?: string;
+  previous_run_id?: string;
+  previous_summary_metrics?: BenchmarkSummaryMetrics;
+  previous_holdout_metrics?: any;
+}
+
 export interface BenchmarkRunState {
   id: string;
   stage_num: number;
@@ -49,6 +66,8 @@ export interface BenchmarkRunState {
   missing_pdf_papers?: Array<{ paper_id: string; title: string }>;
   summary_metrics: BenchmarkSummaryMetrics;
   holdout_metrics: any;
+  previous_run?: any;
+  improvement_metrics?: BenchmarkImprovementMetrics | null;
   results: any[];
 }
 
@@ -186,6 +205,8 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
             pool_papers_count: data.pool_papers_count,
             missing_pdf_count: data.missing_pdf_count,
             missing_pdf_papers: data.missing_pdf_papers || [],
+            previous_run: data.previous_run || null,
+            improvement_metrics: data.improvement_metrics || null,
             results: data.results || []
           }
         }));
@@ -203,6 +224,8 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
             pool_papers_count: data.pool_papers_count ?? 0,
             missing_pdf_count: data.missing_pdf_count ?? 0,
             missing_pdf_papers: data.missing_pdf_papers || [],
+            previous_run: null,
+            improvement_metrics: null,
             summary_metrics: {
               total: 0,
               tp: 0,

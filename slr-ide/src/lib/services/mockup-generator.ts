@@ -5,6 +5,39 @@ import db, { PROJECT_ROOT } from '@/lib/db';
 import { hydrateTemplate } from '@/lib/services/prompt-hydrator';
 import { PromptType, DEFAULT_STAGE_SCHEMAS } from '@/lib/services/prompt-validator';
 import { compressSlrServer } from '@/lib/slr-compression';
+import { resolveGeminiThinkingConfig } from '@/lib/gemini-thinking-specs';
+import {
+  matchQaRuleKey,
+  matchExtractionKey,
+  extractScoreValue,
+  extractEvidenceQuote
+} from '@/lib/services/trace-normalizer';
+import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
+
+export interface MockupPromptConfig {
+  stage_num: number;
+  stage_label: string;
+  prompt_type: PromptType;
+  template_id: string | null;
+  template_name: string;
+  is_project_custom: boolean;
+  model_id: string;
+  clean_model_name: string;
+  temperature: number;
+  max_tokens: number;
+  top_p?: number;
+  top_k?: number;
+  thinking_level: string;
+  thinking_budget?: number;
+  execution_mode: string;
+  request_delay: number;
+  request_delay_ms: number;
+  timeout_seconds: number;
+  response_schema_name?: string;
+  system_instruction?: string;
+  user_template?: string;
+  interaction_chaining?: boolean;
+}
 
 export interface MockupPaperResult {
   paper_id: string;
@@ -97,6 +130,128 @@ export function resolveMockupStagePrompt(projectId: string, promptType: PromptTy
   }
 
   return template || null;
+}
+
+/**
+ * Extracts essential configuration parameters from a prompt template
+ */
+export function extractMockupPromptConfig(
+  template: any,
+  stageNum: number,
+  stageLabel: string,
+  promptType: PromptType,
+  projectId: string
+): MockupPromptConfig {
+  if (!template) {
+    return {
+      stage_num: stageNum,
+      stage_label: stageLabel,
+      prompt_type: promptType,
+      template_id: null,
+      template_name: 'Not Configured (System Default)',
+      is_project_custom: false,
+      model_id: 'gemini-2.5-flash',
+      clean_model_name: 'gemini-2.5-flash',
+      temperature: 0.0,
+      max_tokens: 4000,
+      thinking_level: 'none',
+      thinking_budget: 0,
+      execution_mode: 'FLEX',
+      request_delay: 0.3,
+      request_delay_ms: 300,
+      timeout_seconds: 900,
+      response_schema_name: (DEFAULT_STAGE_SCHEMAS as any)[promptType]?.name || `${promptType}_schema`,
+      system_instruction: '',
+      user_template: ''
+    };
+  }
+
+  const llmConfig = safeJsonParse(template.llm_config, {});
+  const rawModelId = llmConfig.model_id || 'gemini-2.5-flash';
+  const cleanModelName = rawModelId.replace(/^models\//, '');
+  const isProjectCustom = Boolean(template.project_id && String(template.project_id) === String(projectId));
+
+  // Temperature
+  const rawTemp = llmConfig.temperature;
+  const temperature = (typeof rawTemp === 'number' && Number.isFinite(rawTemp))
+    ? rawTemp
+    : (rawTemp !== undefined && !isNaN(Number(rawTemp)) ? Number(rawTemp) : 0.0);
+
+  // Max output tokens
+  const rawMaxTokens = llmConfig.max_tokens ?? llmConfig.max_output_tokens;
+  const maxTokens = (typeof rawMaxTokens === 'number' && rawMaxTokens > 0)
+    ? rawMaxTokens
+    : (Number(rawMaxTokens) > 0 ? Number(rawMaxTokens) : 4000);
+
+  // Thinking level
+  const thinkingLevel = String(llmConfig.thinking_level || 'none').toLowerCase();
+  const thinkingBudget = typeof llmConfig.thinking_budget === 'number' ? llmConfig.thinking_budget : undefined;
+
+  // Delay in seconds & milliseconds
+  const rawDelay = llmConfig.request_delay;
+  const requestDelaySeconds = (rawDelay !== undefined && rawDelay !== null && !isNaN(Number(rawDelay)))
+    ? Math.max(0, Number(rawDelay))
+    : 0.3;
+  const requestDelayMs = Math.round(requestDelaySeconds * 1000);
+
+  // Timeout
+  const rawTimeout = llmConfig.timeout_seconds;
+  const timeoutSeconds = (typeof rawTimeout === 'number' && rawTimeout >= 5)
+    ? rawTimeout
+    : (Number(rawTimeout) >= 5 ? Number(rawTimeout) : 900);
+
+  // Schema name
+  const parsedSchema = safeJsonParse(template.response_schema, (DEFAULT_STAGE_SCHEMAS as any)[promptType] || {});
+  const schemaName = parsedSchema.name || `${promptType}_schema`;
+
+  return {
+    stage_num: stageNum,
+    stage_label: stageLabel,
+    prompt_type: promptType,
+    template_id: template.id ? String(template.id) : null,
+    template_name: template.name || `${stageLabel} Default`,
+    is_project_custom: isProjectCustom,
+    model_id: rawModelId,
+    clean_model_name: cleanModelName,
+    temperature,
+    max_tokens: maxTokens,
+    top_p: llmConfig.top_p !== undefined && !isNaN(Number(llmConfig.top_p)) ? Number(llmConfig.top_p) : undefined,
+    top_k: llmConfig.top_k !== undefined && !isNaN(Number(llmConfig.top_k)) ? Number(llmConfig.top_k) : undefined,
+    thinking_level: thinkingLevel,
+    thinking_budget: thinkingBudget,
+    execution_mode: llmConfig.execution_mode || 'FLEX',
+    request_delay: requestDelaySeconds,
+    request_delay_ms: requestDelayMs,
+    timeout_seconds: timeoutSeconds,
+    response_schema_name: schemaName,
+    system_instruction: template.system_instruction || template.system_prompt || '',
+    user_template: template.user_template || template.user_prompt_template || '',
+    interaction_chaining: promptType === 'miner' ? (llmConfig.interaction_chaining !== false) : undefined
+  };
+}
+
+/**
+ * Returns array of active prompt configurations for the specified pool
+ */
+export function getMockupPromptConfigs(projectId: string, pool: 'pool_a' | 'pool_b' | 'pool_c'): MockupPromptConfig[] {
+  if (pool === 'pool_c') {
+    const sciPrompt = resolveMockupStagePrompt(projectId, 'scientist');
+    const minPrompt = resolveMockupStagePrompt(projectId, 'miner');
+    return [
+      extractMockupPromptConfig(sciPrompt, 3, 'Stage 3: Scientist (QA)', 'scientist', projectId),
+      extractMockupPromptConfig(minPrompt, 4, 'Stage 4: Miner (Extraction)', 'miner', projectId)
+    ];
+  } else if (pool === 'pool_b') {
+    const gatePrompt = resolveMockupStagePrompt(projectId, 'gatekeeper');
+    return [
+      extractMockupPromptConfig(gatePrompt, 2, 'Stage 2: Gatekeeper', 'gatekeeper', projectId)
+    ];
+  } else {
+    const fastPrompt = resolveMockupStagePrompt(projectId, 'fast_filter');
+    return [
+      extractMockupPromptConfig(fastPrompt, 1, 'Stage 1: Fast Filter', 'fast_filter', projectId)
+    ];
+  }
 }
 
 /**
@@ -255,26 +410,10 @@ async function callGeminiApi(
   if (topP !== undefined) generationConfig.topP = topP;
   if (topK !== undefined) generationConfig.topK = topK;
 
-  // 6. Thinking level (Gemini 2.5 models)
-  const isThinkingCapable = cleanModelName.includes('2.5') || cleanModelName.includes('gemini-2.');
-  if (isThinkingCapable) {
-    const level = String(modelConfig.thinking_level || 'none').toLowerCase();
-    const budgetMap: Record<string, number> = {
-      none: 0,
-      off: 0,
-      minimal: 1024,
-      low: 2048,
-      medium: 4096,
-      high: 8192
-    };
-    let budget = budgetMap[level];
-    if (budget === undefined && typeof modelConfig.thinking_budget === 'number') {
-      budget = modelConfig.thinking_budget;
-    }
-    if (budget === undefined) budget = 0;
-    
-    // Explicitly configure thinkingBudget to ensure 'none' shuts off reasoning tokens
-    generationConfig.thinkingConfig = { thinkingBudget: budget };
+  // 6. Thinking Configuration (Strict adherence to supported model levels)
+  const thinkingConfig = resolveGeminiThinkingConfig(cleanModelName, modelConfig.thinking_level);
+  if (thinkingConfig) {
+    generationConfig.thinkingConfig = thinkingConfig;
   }
 
   const parts: any[] = [];
@@ -570,6 +709,22 @@ export async function evaluateMockupPaperPoolC(
 ): Promise<MockupPaperResult> {
   const taxRate = Number(project.project_tax || 0);
 
+  const rawQa = project.pool_c_qa_rules || project.qa_rules;
+  let effectiveQaRules = Array.isArray(qaRules) && qaRules.length > 0 ? qaRules : [];
+  if (effectiveQaRules.length === 0 && rawQa) {
+    try {
+      effectiveQaRules = typeof rawQa === 'string' ? JSON.parse(rawQa) : rawQa;
+    } catch {}
+  }
+
+  const rawExt = project.pool_c_extraction_rules || project.extraction_rules;
+  let effectiveExtRules = Array.isArray(extractionRules) && extractionRules.length > 0 ? extractionRules : [];
+  if (effectiveExtRules.length === 0 && rawExt) {
+    try {
+      effectiveExtRules = typeof rawExt === 'string' ? JSON.parse(rawExt) : rawExt;
+    } catch {}
+  }
+
   // --- Step 1: Scientist (QA Scoring) ---
   const sciConfig = safeJsonParse(scientistPrompt.llm_config, {});
   const sciSchema = safeJsonParse(scientistPrompt.response_schema, DEFAULT_STAGE_SCHEMAS.scientist);
@@ -580,7 +735,7 @@ export async function evaluateMockupPaperPoolC(
       objective: project.objective || '',
       manifesto: project.manifesto || '',
       questions: project.questions || '',
-      qa_rules: project.pool_c_qa_rules || project.qa_rules
+      qa_rules: rawQa
     },
     paper: {
       id: paper.Paper_ID,
@@ -704,7 +859,7 @@ export async function evaluateMockupPaperPoolC(
       objective: project.objective || '',
       manifesto: project.manifesto || '',
       questions: project.questions || '',
-      extraction_rules: project.pool_c_extraction_rules
+      extraction_rules: rawExt
     },
     paper: {
       id: paper.Paper_ID,
@@ -807,46 +962,85 @@ export async function evaluateMockupPaperPoolC(
     latencyMs: minerRes.latencyMs
   });
 
-  // Normalize QA Scores
+  // Centralized QA Scores Normalization
   const normalizedQA: Record<string, { value: number | null; evidence: string }> = {};
-  qaRules.forEach((rule: any) => {
-    const code = rule.code;
-    const item = rawQAScores[code];
-    if (item && typeof item === 'object') {
-      normalizedQA[code] = {
-        value: typeof item.value === 'number' ? item.value : (item.score !== undefined ? Number(item.score) : null),
-        evidence: String(item.evidence || item.rationale || '')
-      };
-    } else if (typeof item === 'number') {
-      normalizedQA[code] = { value: item, evidence: '' };
-    } else {
-      normalizedQA[code] = { value: null, evidence: '' };
-    }
-  });
+  const rawQaKeys = Object.keys(rawQAScores);
 
-  // Normalize Extracted Data
+  if (effectiveQaRules.length > 0) {
+    effectiveQaRules.forEach((rule: any, idx: number) => {
+      const code = rule.code || `QA-${idx + 1}`;
+      const matchedKey = matchQaRuleKey(code, rawQaKeys, idx);
+      const item = matchedKey ? rawQAScores[matchedKey] : undefined;
+      const numVal = extractScoreValue(item);
+      const ev = extractEvidenceQuote(code, item);
+      normalizedQA[code] = {
+        value: numVal,
+        evidence: ev
+      };
+    });
+  } else {
+    rawQaKeys.forEach((k: string) => {
+      if (k === 'logic_trace' || k === 'final_evaluation' || k.startsWith('_')) return;
+      const item = rawQAScores[k];
+      const numVal = extractScoreValue(item);
+      const ev = extractEvidenceQuote(k, item);
+      normalizedQA[k] = {
+        value: numVal,
+        evidence: ev
+      };
+    });
+  }
+
+  // Centralized Extracted Data Normalization
   const normalizedExt: Record<string, { value: any; evidence: string }> = {};
-  extractionRules.forEach((rule: any) => {
-    const key = rule.json_key;
-    const item = rawExtractedData[key];
-    if (item && typeof item === 'object') {
+  const rawExtKeys = Object.keys(rawExtractedData);
+
+  if (effectiveExtRules.length > 0) {
+    effectiveExtRules.forEach((rule: any, idx: number) => {
+      const key = rule.json_key || `rq_${idx + 1}`;
+      const matchedKey = matchExtractionKey(key, rawExtKeys, idx);
+      const item = matchedKey ? rawExtractedData[matchedKey] : undefined;
+      let valStr = '';
+      if (item && typeof item === 'object') {
+        const val = item.value !== undefined ? item.value : (item.val !== undefined ? item.val : item.text);
+        valStr = val !== undefined ? (typeof val === 'object' ? JSON.stringify(val) : String(val)) : (typeof item === 'object' && !('value' in item) && !('val' in item) && !('text' in item) ? JSON.stringify(item) : '');
+      } else if (item !== undefined && item !== null) {
+        valStr = typeof item === 'object' ? JSON.stringify(item) : String(item);
+      }
+      const ev = extractEvidenceQuote(key, item);
       normalizedExt[key] = {
-        value: item.value !== undefined ? (typeof item.value === 'object' ? JSON.stringify(item.value) : String(item.value)) : '',
-        evidence: String(item.evidence || item.quote || '')
+        value: valStr,
+        evidence: ev
       };
-    } else if (item !== undefined && item !== null) {
-      normalizedExt[key] = {
-        value: typeof item === 'object' ? JSON.stringify(item) : String(item),
-        evidence: ''
+    });
+  } else {
+    rawExtKeys.forEach((k: string) => {
+      if (k === 'logic_trace' || k === 'final_evaluation' || k.startsWith('_')) return;
+      const item = rawExtractedData[k];
+      let valStr = '';
+      if (item && typeof item === 'object') {
+        const val = item.value !== undefined ? item.value : (item.val !== undefined ? item.val : item.text);
+        valStr = val !== undefined ? (typeof val === 'object' ? JSON.stringify(val) : String(val)) : (typeof item === 'object' && !('value' in item) && !('val' in item) && !('text' in item) ? JSON.stringify(item) : '');
+      } else if (item !== undefined && item !== null) {
+        valStr = typeof item === 'object' ? JSON.stringify(item) : String(item);
+      }
+      const ev = extractEvidenceQuote(k, item);
+      normalizedExt[k] = {
+        value: valStr,
+        evidence: ev
       };
-    } else {
-      normalizedExt[key] = { value: '', evidence: '' };
-    }
-  });
+    });
+  }
+
+  // Calculate dynamic Pool C decision based on normalized QA scores and rules
+  const poolCDec = calculatePoolCDecision(normalizedQA, effectiveQaRules);
 
   return {
     paper_id: paper.Paper_ID,
     title: paper.Title,
+    decision: poolCDec.decision,
+    exclusion_code: poolCDec.exclusionCode,
+    rationale: poolCDec.rationale,
     qa_scores: normalizedQA,
     extracted_data: normalizedExt,
     tokens: sciTokens + minerTokens,
@@ -869,14 +1063,16 @@ export function buildMockupSlrFile(
   let extractionRules = [];
 
   if (dbPool === 'pool_c') {
-    if (project.pool_c_qa_rules) {
+    const rawQa = project.pool_c_qa_rules || project.qa_rules;
+    if (rawQa) {
       try {
-        qaRules = typeof project.pool_c_qa_rules === 'string' ? JSON.parse(project.pool_c_qa_rules) : project.pool_c_qa_rules;
+        qaRules = typeof rawQa === 'string' ? JSON.parse(rawQa) : rawQa;
       } catch {}
     }
-    if (project.pool_c_extraction_rules) {
+    const rawExt = project.pool_c_extraction_rules || project.extraction_rules;
+    if (rawExt) {
       try {
-        extractionRules = typeof project.pool_c_extraction_rules === 'string' ? JSON.parse(project.pool_c_extraction_rules) : project.pool_c_extraction_rules;
+        extractionRules = typeof rawExt === 'string' ? JSON.parse(rawExt) : rawExt;
       } catch {}
     }
   }

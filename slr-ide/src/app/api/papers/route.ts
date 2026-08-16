@@ -588,7 +588,7 @@ export async function POST(request: Request) {
         let existingPaperId = '';
         let existingPaperDoi = '';
         if (doi) {
-          const existingDoi = findByDoiStmt.get(doi, activeProjectId) as { Paper_ID: string; DOI: string } | undefined;
+          const existingDoi = findByDoiStmt.get(doi, activeProjectId, activeProjectId) as { Paper_ID: string; DOI: string } | undefined;
           if (existingDoi) {
             duplicate = true;
             existingPaperId = existingDoi.Paper_ID;
@@ -599,7 +599,7 @@ export async function POST(request: Request) {
         // 2. Stripped Title check (lowercase, remove spaces)
         if (!duplicate) {
           const cleanTitle = title.toLowerCase().replace(/\s+/g, '');
-          const existingTitle = findByTitleStmt.get(cleanTitle, activeProjectId) as { Paper_ID: string; DOI: string } | undefined;
+          const existingTitle = findByTitleStmt.get(cleanTitle, activeProjectId, activeProjectId) as { Paper_ID: string; DOI: string } | undefined;
           if (existingTitle) {
             duplicate = true;
             existingPaperId = existingTitle.Paper_ID;
@@ -622,9 +622,9 @@ export async function POST(request: Request) {
             const isIncomingDoiFilled = !!doi && doi.trim() !== '';
             
             if (isDbDoiEmpty && isIncomingDoiFilled) {
-              updateCitationAndDoiStmt.run(citationCount, doi.trim(), existingPaperId, activeProjectId);
+              updateCitationAndDoiStmt.run(citationCount, doi.trim(), existingPaperId, activeProjectId, activeProjectId);
             } else {
-              updateCitationStmt.run(citationCount, existingPaperId, activeProjectId);
+              updateCitationStmt.run(citationCount, existingPaperId, activeProjectId, activeProjectId);
             }
             updatedCitationsCount++;
           }

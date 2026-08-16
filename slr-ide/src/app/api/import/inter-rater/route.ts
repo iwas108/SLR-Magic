@@ -4,6 +4,7 @@ import { createHash } from 'crypto';
 import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
 import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 import { decompressSlrServer } from '@/lib/slr-compression';
+import { matchQaRuleKey, matchExtractionKey, extractScoreValue } from '@/lib/services/trace-normalizer';
 
 export async function POST(request: Request) {
   try {
@@ -63,20 +64,22 @@ export async function POST(request: Request) {
     let qaRules: any[] = [];
     let extractionRules: any[] = [];
     if (dbPool === 'pool_c') {
-      if (project.pool_c_qa_rules) {
+      const rawQa = project.pool_c_qa_rules || project.qa_rules || body.metadata?.qa_rules;
+      if (rawQa) {
         try {
-          qaRules = typeof project.pool_c_qa_rules === 'string' 
-            ? JSON.parse(project.pool_c_qa_rules) 
-            : project.pool_c_qa_rules;
+          qaRules = typeof rawQa === 'string' 
+            ? JSON.parse(rawQa) 
+            : rawQa;
         } catch (e) {
           console.error("Error parsing pool_c_qa_rules in import", e);
         }
       }
-      if (project.pool_c_extraction_rules) {
+      const rawExt = project.pool_c_extraction_rules || project.extraction_rules || body.metadata?.extraction_rules;
+      if (rawExt) {
         try {
-          extractionRules = typeof project.pool_c_extraction_rules === 'string' 
-            ? JSON.parse(project.pool_c_extraction_rules) 
-            : project.pool_c_extraction_rules;
+          extractionRules = typeof rawExt === 'string' 
+            ? JSON.parse(rawExt) 
+            : rawExt;
         } catch (e) {
           console.error("Error parsing pool_c_extraction_rules in import", e);
         }
@@ -210,8 +213,11 @@ export async function POST(request: Request) {
         }
 
         if (dbPool === 'pool_c') {
-          const qaScoresJson = paper.Human_QA_Scores ? JSON.stringify(paper.Human_QA_Scores) : '{}';
-          const extractedDataJson = paper.Human_Extracted_Data ? JSON.stringify(paper.Human_Extracted_Data) : '{}';
+          const rawQaScores = paper.Human_QA_Scores || paper.Reviewer_QA_Scores || paper.qa_scores;
+          const rawExtracted = paper.Human_Extracted_Data || paper.Reviewer_Extracted_Data || paper.extracted_data;
+
+          const qaScoresJson = rawQaScores ? JSON.stringify(rawQaScores) : '{}';
+          const extractedDataJson = rawExtracted ? JSON.stringify(rawExtracted) : '{}';
           
           insertDecisionStmt.run(
             paperId,
@@ -298,29 +304,51 @@ export async function POST(request: Request) {
               newDecision = r1_dec_res.decision;
               newEC = r1_dec_res.exclusionCode;
               
-              // Simple consensus for text/scores: if identical, use it. Otherwise, flag conflict.
+              // Value-based consensus for text/scores using centralized key resolution
               let qaConflict = false;
               for (const rule of qaRules) {
-                if (r1_qa[rule.code] !== r2_qa[rule.code]) {
+                const ruleCode = rule.code || '';
+                const matchKey1 = matchQaRuleKey(ruleCode, Object.keys(r1_qa));
+                const matchKey2 = matchQaRuleKey(ruleCode, Object.keys(r2_qa));
+
+                const item1 = matchKey1 ? r1_qa[matchKey1] : undefined;
+                const item2 = matchKey2 ? r2_qa[matchKey2] : undefined;
+
+                const val1 = extractScoreValue(item1);
+                const val2 = extractScoreValue(item2);
+
+                if (val1 !== val2) {
                   qaConflict = true;
                   break;
                 }
               }
               
               let extConflict = false;
-              if (project.pool_c_extraction_rules) {
-                let extRules = [];
+              let extRules = [];
+              const rawExtRules = project.pool_c_extraction_rules || project.extraction_rules || body.metadata?.extraction_rules;
+              if (rawExtRules) {
                 try {
-                  extRules = typeof project.pool_c_extraction_rules === 'string' 
-                    ? JSON.parse(project.pool_c_extraction_rules) 
-                    : project.pool_c_extraction_rules;
+                  extRules = typeof rawExtRules === 'string' 
+                    ? JSON.parse(rawExtRules) 
+                    : rawExtRules;
                 } catch {}
-                
-                for (const rule of extRules) {
-                  if (JSON.stringify(r1_ext[rule.json_key]) !== JSON.stringify(r2_ext[rule.json_key])) {
-                    extConflict = true;
-                    break;
-                  }
+              }
+              
+              const getExtVal = (extObj: any, jsonKey: string) => {
+                if (!extObj) return '';
+                const matchedKey = matchExtractionKey(jsonKey, Object.keys(extObj));
+                const item = matchedKey ? extObj[matchedKey] : undefined;
+                if (item === undefined || item === null) return '';
+                if (typeof item === 'object') return String(item.value ?? item.val ?? item.text ?? '').trim();
+                return String(item).trim();
+              };
+
+              for (const rule of extRules) {
+                const val1 = getExtVal(r1_ext, rule.json_key).replace(/\s+/g, ' ');
+                const val2 = getExtVal(r2_ext, rule.json_key).replace(/\s+/g, ' ');
+                if (val1 !== val2) {
+                  extConflict = true;
+                  break;
                 }
               }
               

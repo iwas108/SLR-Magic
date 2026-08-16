@@ -31,9 +31,13 @@ export function calculatePoolCDecision(qaScores: Record<string, any>, qaRules: Q
     const scoreVal = extractNumericVal(qaScores[code]);
     totalScore += scoreVal;
     
-    // Check if this rule is flagged as a fatal flaw
-    const ruleDef = qaRules.find(r => r.code.toLowerCase() === code.toLowerCase());
-    const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].includes(code.toLowerCase());
+    // Check if this rule is flagged as a fatal flaw with normalized alphanumeric key matching
+    const cleanK = code.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const ruleDef = qaRules.find(r => {
+      const cleanCode = (r.code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return cleanCode === cleanK || cleanK.startsWith(cleanCode) || cleanCode.startsWith(cleanK);
+    });
+    const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].some(f => cleanK.startsWith(f));
     
     if (isFatal && scoreVal === 0) {
       hasFatalFlaw = true;
@@ -48,13 +52,17 @@ export function calculatePoolCDecision(qaScores: Record<string, any>, qaRules: Q
     if (hasFatalFlaw) {
       const failedCodes = ruleKeys.filter(code => {
         const scoreVal = extractNumericVal(qaScores[code]);
-        const ruleDef = qaRules.find(r => r.code.toLowerCase() === code.toLowerCase());
-        const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].includes(code.toLowerCase());
+        const cleanK = code.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const ruleDef = qaRules.find(r => {
+          const cleanCode = (r.code || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          return cleanCode === cleanK || cleanK.startsWith(cleanCode) || cleanCode.startsWith(cleanK);
+        });
+        const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].some(f => cleanK.startsWith(f));
         return isFatal && scoreVal === 0;
       });
       exclusionCode = failedCodes.map(code => {
         const codeUpper = code.toUpperCase();
-        const m = codeUpper.match(/^QA(\d+)$/);
+        const m = codeUpper.match(/^QA[-_]?(\d+)/i);
         return m ? `QA-${m[1]}` : codeUpper;
       }).join(', ');
     } else {

@@ -1,6 +1,7 @@
-'use client';
-
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { MockupPromptConfig } from '@/lib/services/mockup-generator';
+
+export type { MockupPromptConfig };
 
 export interface MockupCacheInfo {
   cached: boolean;
@@ -23,6 +24,7 @@ export interface MockupCacheInfo {
   occupied_slots: number;
   papers_count: number;
   papers_preview: any[];
+  prompt_configs?: MockupPromptConfig[];
 }
 
 export interface MockupProgressState {

@@ -40,11 +40,21 @@ function runTests() {
     const projectId = String(project.id);
     console.log(`Testing with project: ${project.name} (${projectId})`);
 
-    // 3. Ensure test calibration papers exist
+    // 3. Ensure test calibration papers and papers exist
+    const ensurePaper = (paperId, title) => {
+      db.prepare(`
+        INSERT OR REPLACE INTO papers (Paper_ID, Title, Abstract, Year, Authors, Project_ID, Import_Date, Import_Source)
+        VALUES (?, ?, 'Sample abstract text', 2024, 'Author A, Author B', ?, datetime('now'), 'test')
+      `).run(paperId, title, projectId);
+    };
+    ensurePaper('MOCK-P1', 'AI in Systematic Reviews 1');
+    ensurePaper('MOCK-P2', 'AI in Systematic Reviews 2');
+    ensurePaper('MOCK-P3', 'AI in Systematic Reviews 3');
+
     const ensureCalPaper = (paperId, pool, title) => {
       db.prepare(`
-        INSERT OR IGNORE INTO calibration_papers (Paper_ID, Title, Abstract, Year, Authors, Project_ID, calibration_pool)
-        VALUES (?, ?, 'Sample abstract text', 2024, 'Author A, Author B', ?, ?)
+        INSERT OR REPLACE INTO calibration_papers (Paper_ID, Title, Abstract, Year, Authors, Project_ID, calibration_pool, Import_Date, Import_Source)
+        VALUES (?, ?, 'Sample abstract text', 2024, 'Author A, Author B', ?, ?, datetime('now'), 'test')
       `).run(paperId, title, projectId, pool);
     };
 
@@ -338,6 +348,303 @@ function runTests() {
     const afterDelete = db.prepare("SELECT * FROM mockup_cache WHERE project_id = ? AND pool = 'pool_a'").get(projectId);
     assert(!afterDelete, 'mockup_cache row deleted cleanly on rerun');
 
+    // 15. Test Mockup Prompt Configurations Extraction for Pool A, Pool B, and Pool C
+    const safeJsonParse = (val, fallback = {}) => {
+      if (!val) return fallback;
+      if (typeof val === 'object') return val;
+      try { return JSON.parse(val); } catch { return fallback; }
+    };
+
+    const extractPromptConfigTest = (template, stageNum, stageLabel, promptType) => {
+      const llmConfig = safeJsonParse(template?.llm_config, {});
+      const rawModelId = llmConfig.model_id || 'gemini-2.5-flash';
+      const cleanModelName = rawModelId.replace(/^models\//, '');
+      return {
+        stage_num: stageNum,
+        stage_label: stageLabel,
+        prompt_type: promptType,
+        template_id: template?.id ? String(template.id) : null,
+        template_name: template?.name || `${stageLabel} Default`,
+        model_id: rawModelId,
+        clean_model_name: cleanModelName,
+        temperature: llmConfig.temperature !== undefined ? Number(llmConfig.temperature) : 0.0,
+        max_tokens: Number(llmConfig.max_tokens || llmConfig.max_output_tokens || 4000),
+        thinking_level: String(llmConfig.thinking_level || 'none').toLowerCase(),
+        execution_mode: llmConfig.execution_mode || 'FLEX',
+        request_delay: llmConfig.request_delay !== undefined ? Number(llmConfig.request_delay) : 0.3,
+        request_delay_ms: Math.round((llmConfig.request_delay !== undefined ? Number(llmConfig.request_delay) : 0.3) * 1000),
+        timeout_seconds: llmConfig.timeout_seconds !== undefined ? Number(llmConfig.timeout_seconds) : 900,
+        interaction_chaining: promptType === 'miner' ? (llmConfig.interaction_chaining !== false) : undefined
+      };
+    };
+
+    // Ensure prompt templates exist in DB
+    const ensurePromptTemplate = (type, name, modelId, temp, maxTokens, thinking) => {
+      let tpl = db.prepare("SELECT * FROM prompt_templates WHERE prompt_type = ? LIMIT 1").get(type);
+      if (!tpl) {
+        db.prepare(`
+          INSERT INTO prompt_templates (id, name, prompt_type, system_prompt, user_prompt_template, llm_config, is_active, created_at, updated_at)
+          VALUES (?, ?, ?, 'System instruction text', 'User template text', ?, 1, datetime('now'), datetime('now'))
+        `).run(`tpl-${type}`, name, type, JSON.stringify({ model_id: modelId, temperature: temp, max_tokens: maxTokens, thinking_level: thinking }));
+        tpl = db.prepare("SELECT * FROM prompt_templates WHERE id = ?").get(`tpl-${type}`);
+      }
+      return tpl;
+    };
+
+    const fastTpl = ensurePromptTemplate('fast_filter', 'Fast Filter Default', 'gemini-2.5-flash', 0.0, 4000, 'none');
+    const gateTpl = ensurePromptTemplate('gatekeeper', 'Gatekeeper Default', 'gemini-2.5-flash', 0.0, 4000, 'none');
+    const sciTpl = ensurePromptTemplate('scientist', 'Scientist Default', 'gemini-2.5-flash', 0.0, 4000, 'none');
+    const minTpl = ensurePromptTemplate('miner', 'Miner Default', 'gemini-2.5-flash', 0.0, 8000, 'none');
+
+    // Pool A config test
+    const poolAConfigs = [extractPromptConfigTest(fastTpl, 1, 'Stage 1: Fast Filter', 'fast_filter')];
+    assert(poolAConfigs.length === 1, 'Pool A prompt config contains exactly 1 stage prompt');
+    assert(poolAConfigs[0].prompt_type === 'fast_filter', 'Pool A prompt type is fast_filter');
+    assert(poolAConfigs[0].clean_model_name.includes('gemini'), 'Pool A prompt has valid model name');
+    assert(typeof poolAConfigs[0].temperature === 'number', 'Pool A prompt has valid temperature');
+    assert(poolAConfigs[0].max_tokens > 0, 'Pool A prompt has valid max_tokens');
+
+    // Pool B config test
+    const poolBConfigs = [extractPromptConfigTest(gateTpl, 2, 'Stage 2: Gatekeeper', 'gatekeeper')];
+    assert(poolBConfigs.length === 1, 'Pool B prompt config contains exactly 1 stage prompt');
+    assert(poolBConfigs[0].prompt_type === 'gatekeeper', 'Pool B prompt type is gatekeeper');
+    assert(poolBConfigs[0].stage_num === 2, 'Pool B prompt stage number is 2');
+
+    // Pool C config test
+    const poolCConfigs = [
+      extractPromptConfigTest(sciTpl, 3, 'Stage 3: Scientist (QA)', 'scientist'),
+      extractPromptConfigTest(minTpl, 4, 'Stage 4: Miner (Extraction)', 'miner')
+    ];
+    assert(poolCConfigs.length === 2, 'Pool C prompt config contains exactly 2 stage prompts (Scientist & Miner)');
+    assert(typeof poolCConfigs[1].interaction_chaining === 'boolean', 'Pool C Miner extraction interaction chaining is a valid boolean flag');
+    
+    // Explicit chaining test
+    const customMinerTpl = {
+      id: 'custom-miner',
+      name: 'Custom Miner',
+      prompt_type: 'miner',
+      llm_config: JSON.stringify({ model_id: 'gemini-2.5-pro', interaction_chaining: true })
+    };
+    // 16. Test Official Gemini Model Thinking Specifications Reference Table
+    const GEMINI_MODEL_THINKING_SPECS = {
+      'gemini-3.7-flash': { default: 'medium', supported: ['low', 'medium', 'high'] },
+      'gemini-3.6-flash': { default: 'medium', supported: ['minimal', 'low', 'medium', 'high'] },
+      'gemini-3.5-flash-lite': { default: 'minimal', supported: ['minimal', 'low', 'medium', 'high'] },
+      'gemini-3.1-pro-preview': { default: 'high', supported: ['low', 'medium', 'high'] },
+      'gemini-3.1-flash-lite-image': { default: 'minimal', supported: ['minimal', 'high'] },
+      'gemini-3-flash-preview': { default: 'high', supported: ['minimal', 'low', 'medium', 'high'] },
+      'gemini-3-pro-preview': { default: 'high', supported: ['low', 'high'] },
+      'gemini-3.5-flash': { default: 'medium', supported: ['minimal', 'low', 'medium', 'high'] },
+      'gemini-2.5-pro': { default: 'on', supported: ['low', 'medium', 'high'] },
+      'gemini-2.5-flash': { default: 'on', supported: ['low', 'medium', 'high'] },
+      'gemini-2.5-flash-lite': { default: 'off', supported: ['low', 'medium', 'high'] }
+    };
+
+    const resolveThinkingConfigLocal = (modelId, thinkingLevel) => {
+      const cleanModel = (modelId || '').toLowerCase().replace(/^models\//, '');
+      const level = (thinkingLevel || 'none').toLowerCase().trim();
+      if (level === 'none' || level === 'off') {
+        return { thinkingBudget: 0 };
+      }
+      const spec = GEMINI_MODEL_THINKING_SPECS[cleanModel];
+      let targetLevel = level;
+      if (spec && !spec.supported.includes(targetLevel)) {
+        targetLevel = spec.default !== 'off' && spec.default !== 'on' ? spec.default : (spec.supported.includes('medium') ? 'medium' : spec.supported[0]);
+      }
+      return { thinkingLevel: targetLevel };
+    };
+
+    // Test Gemini 3.7 Flash thinkingLevel
+    const g37Config = resolveThinkingConfigLocal('gemini-3.7-flash', 'high');
+    assert(g37Config.thinkingLevel === 'high' && g37Config.thinkingBudget === undefined, 'Gemini 3.7 Flash sends qualitative thinkingLevel=high without arbitrary 8192t token budget');
+
+    // Test Gemini 3.1 Pro Preview thinkingLevel
+    const g31Config = resolveThinkingConfigLocal('gemini-3.1-pro-preview', 'high');
+    assert(g31Config.thinkingLevel === 'high', 'Gemini 3.1 Pro Preview accurately sends thinkingLevel=high');
+
+    // Test Disabled Thinking
+    const gOffConfig = resolveThinkingConfigLocal('gemini-2.5-flash', 'none');
+    assert(gOffConfig.thinkingBudget === 0 && gOffConfig.thinkingLevel === undefined, 'Disabled thinking (none/off) sends thinkingBudget=0 to shut off reasoning tokens');
+
+    // Test Model Unsupported Level Fallback (e.g. gemini-3.7-flash requested with minimal -> falls back to medium)
+    const g37Fallback = resolveThinkingConfigLocal('gemini-3.7-flash', 'minimal');
+    assert(g37Fallback.thinkingLevel === 'medium', 'Unsupported level (minimal) on gemini-3.7-flash safely falls back to supported level (medium)');
+
+    // 17. Test Pool C QA Score Normalization, .slr Assembly & Import
+    const samplePoolCQaRules = [
+      { code: 'QA-1', question: 'Context definition', is_fatal_flaw: false },
+      { code: 'QA-2', question: 'Hardware specification', is_fatal_flaw: true },
+      { code: 'QA-3', question: 'Validation', is_fatal_flaw: false },
+      { code: 'QA-4', question: 'Footprint measurement', is_fatal_flaw: true },
+      { code: 'QA-5', question: 'Communication protocol', is_fatal_flaw: false },
+      { code: 'QA-6', question: 'Control loop', is_fatal_flaw: false },
+      { code: 'QA-7', question: 'Lifecycle barriers', is_fatal_flaw: false },
+      { code: 'QA-8', question: 'Reusability', is_fatal_flaw: false }
+    ];
+
+    const sampleScientistOutput = {
+      qa_scores: {
+        qa1_aims: { score: '1.0', exact_quote: 'The study investigates edge computing models.' },
+        qa2_hardware: { score: '1.0', exact_quote: 'Deployed on Raspberry Pi 4 Model B (Cortex-A72, 4GB RAM).' },
+        qa3_validation: { score: '1.0', exact_quote: 'Validated against physical sensor telemetry.' },
+        qa4_footprint: { score: '0.5', exact_quote: 'Inference latency was 14.2 ms.' },
+        qa5_communication: { score: '0.0', exact_quote: 'Protocol not evaluated.' },
+        qa6_actuation: { score: '0.0', exact_quote: 'Passive forecasting only.' },
+        qa7_barriers: { score: '1.0', exact_quote: 'Network packet loss discussed in Section 4.' },
+        qa8_reusability: { score: '0.5', exact_quote: 'Architecture diagram shown in Fig 2.' }
+      }
+    };
+
+    // Helper functions simulating trace-normalizer
+    const normalizeQaKeyLocal = (k) => (k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const matchQaRuleKeyLocal = (ruleCode, candidateKeys, idx) => {
+      const clean = normalizeQaKeyLocal(ruleCode);
+      const match = candidateKeys.find(k => {
+        const cleanK = normalizeQaKeyLocal(k);
+        return cleanK === clean || cleanK.startsWith(clean) || clean.startsWith(cleanK);
+      });
+      if (match) return match;
+      if (idx !== undefined && candidateKeys[idx]) return candidateKeys[idx];
+      return undefined;
+    };
+    const extractScoreValueLocal = (item) => {
+      if (item === undefined || item === null) return null;
+      if (typeof item === 'object') {
+        const raw = item.score ?? item.value ?? item.val ?? item.numeric_score ?? null;
+        if (raw === null || raw === undefined) return null;
+        const parsed = parseFloat(String(raw));
+        return isNaN(parsed) ? null : parsed;
+      }
+      const parsed = parseFloat(String(item));
+      return isNaN(parsed) ? null : parsed;
+    };
+    const extractEvidenceQuoteLocal = (valObj) => {
+      if (!valObj || typeof valObj !== 'object') return '';
+      return String(valObj.exact_quote ?? valObj.evidence ?? valObj.quote ?? valObj.text ?? valObj.rationale ?? valObj.reasoning ?? '').trim();
+    };
+
+    const normalizedPoolCQA = {};
+    const rawKeys = Object.keys(sampleScientistOutput.qa_scores);
+    samplePoolCQaRules.forEach((rule, idx) => {
+      const code = rule.code;
+      const matchedKey = matchQaRuleKeyLocal(code, rawKeys, idx);
+      const item = matchedKey ? sampleScientistOutput.qa_scores[matchedKey] : undefined;
+      const numVal = extractScoreValueLocal(item);
+      const ev = extractEvidenceQuoteLocal(item);
+      normalizedPoolCQA[code] = { value: numVal, evidence: ev };
+    });
+
+    assert(normalizedPoolCQA['QA-1']?.value === 1.0, 'Pool C QA-1 normalized value is 1.0 (not null)');
+    assert(normalizedPoolCQA['QA-1']?.evidence.includes('edge computing models'), 'Pool C QA-1 exact_quote captured as evidence');
+    assert(normalizedPoolCQA['QA-2']?.value === 1.0, 'Pool C QA-2 normalized value is 1.0');
+    assert(normalizedPoolCQA['QA-4']?.value === 0.5, 'Pool C QA-4 normalized value is 0.5');
+    assert(normalizedPoolCQA['QA-5']?.value === 0.0, 'Pool C QA-5 normalized value is 0.0');
+
+    // Test calculatePoolCDecision
+    const calculatePoolCDecisionLocal = (qaScores, qaRules) => {
+      let hasFatal = false;
+      let total = 0;
+      const ruleKeys = Object.keys(qaScores);
+      for (const code of ruleKeys) {
+        const scoreVal = extractScoreValueLocal(qaScores[code]) ?? 0;
+        total += scoreVal;
+        const cleanK = normalizeQaKeyLocal(code);
+        const ruleDef = qaRules.find(r => {
+          const cleanCode = normalizeQaKeyLocal(r.code);
+          return cleanCode === cleanK || cleanK.startsWith(cleanCode) || cleanCode.startsWith(cleanK);
+        });
+        const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].some(f => cleanK.startsWith(f));
+        if (isFatal && scoreVal === 0) {
+          hasFatal = true;
+        }
+      }
+      const meetsCum = total >= 4.5;
+      const dec = (!hasFatal && meetsCum) ? 'Include' : 'Exclude';
+      let ec = null;
+      if (dec === 'Exclude') {
+        if (hasFatal) {
+          const failed = ruleKeys.filter(code => {
+            const scoreVal = extractScoreValueLocal(qaScores[code]) ?? 0;
+            const cleanK = normalizeQaKeyLocal(code);
+            const ruleDef = qaRules.find(r => {
+              const cleanCode = normalizeQaKeyLocal(r.code);
+              return cleanCode === cleanK || cleanK.startsWith(cleanCode) || cleanCode.startsWith(cleanK);
+            });
+            const isFatal = ruleDef ? !!ruleDef.is_fatal_flaw : ['qa1', 'qa2', 'qa3', 'qa4', 'qa6'].some(f => cleanK.startsWith(f));
+            return isFatal && scoreVal === 0;
+          });
+          ec = failed.map(c => {
+            const up = c.toUpperCase();
+            const m = up.match(/^QA[-_]?(\d+)/i);
+            return m ? `QA-${m[1]}` : up;
+          }).join(', ');
+        } else {
+          ec = 'QA-CUMULATIVE';
+        }
+      }
+      return { decision: dec, exclusionCode: ec, totalScore: total };
+    };
+
+    const poolCDecRes = calculatePoolCDecisionLocal(normalizedPoolCQA, samplePoolCQaRules);
+    assert(poolCDecRes.decision === 'Include', 'Pool C decision calculates as Include for 5.0 cumulative score');
+    assert(poolCDecRes.totalScore === 5.0, 'Pool C total score sums to 5.0');
+
+    // Test Fatal Flaw Exclude detection
+    const fatalFlawQA = {
+      ...normalizedPoolCQA,
+      'QA-2': { value: 0.0, evidence: 'Hardware unstated' }
+    };
+    const fatalDecRes = calculatePoolCDecisionLocal(fatalFlawQA, samplePoolCQaRules);
+    assert(fatalDecRes.decision === 'Exclude', 'Pool C decision calculates as Exclude when QA-2 is 0.0 (Fatal Flaw)');
+    assert(fatalDecRes.exclusionCode === 'QA-2', 'Pool C exclusion code accurately returns QA-2');
+
+    // Test .slr payload creation with populated Human_QA_Scores
+    const poolCPayload = {
+      metadata: {
+        project_id: projectId,
+        project_name: project.name,
+        reviewer_name: 'rev_pool_c_test',
+        pool_type: 'CAL_Pool_C',
+        qa_rules: samplePoolCQaRules
+      },
+      papers: [
+        {
+          Paper_ID: 'MOCK-P3',
+          Title: 'AI in Systematic Reviews 3',
+          Human_QA_Scores: normalizedPoolCQA,
+          Human_Extracted_Data: { rq1a_constraint: { value: 'Edge MCU', evidence: 'ESP32 referenced' } }
+        }
+      ]
+    };
+
+    const gzippedPoolC = zlib.gzipSync(JSON.stringify(poolCPayload));
+    const decompressedPoolC = JSON.parse(zlib.gunzipSync(gzippedPoolC).toString('utf-8'));
+    assert(decompressedPoolC.papers[0].Human_QA_Scores['QA-1'].value === 1.0, '.slr binary preserves QA-1 score value (1.0)');
+    assert(decompressedPoolC.papers[0].Human_QA_Scores['QA-4'].value === 0.5, '.slr binary preserves QA-4 score value (0.5)');
+
+    // Simulate import into SQLite reviewer_decisions & calibration_papers
+    db.prepare("DELETE FROM reviewer_decisions WHERE project_id = ? AND pool = 'pool_c' AND reviewer_name = 'rev_pool_c_test'").run(projectId);
+    db.prepare(`
+      INSERT INTO reviewer_decisions (paper_id, project_id, pool, reviewer_name, qa_scores, extracted_data, imported_at)
+      VALUES (?, ?, 'pool_c', 'rev_pool_c_test', ?, ?, datetime('now'))
+    `).run('MOCK-P3', projectId, JSON.stringify(normalizedPoolCQA), JSON.stringify(poolCPayload.papers[0].Human_Extracted_Data));
+
+    const savedDecision = db.prepare("SELECT * FROM reviewer_decisions WHERE paper_id = 'MOCK-P3' AND project_id = ? AND reviewer_name = 'rev_pool_c_test'").get(projectId);
+    const parsedSavedQA = JSON.parse(savedDecision.qa_scores);
+    assert(parsedSavedQA['QA-1'].value === 1.0, 'Imported reviewer_decisions has non-empty QA-1 value');
+    assert(parsedSavedQA['QA-1'].evidence.length > 0, 'Imported reviewer_decisions has non-empty QA-1 evidence');
+
+    // Update calibration_papers master record
+    db.prepare(`
+      UPDATE calibration_papers 
+      SET manual_decision = ?, manual_quality_assessment = ?, manual_stage = 3
+      WHERE Paper_ID = 'MOCK-P3' AND Project_ID = ?
+    `).run(poolCDecRes.decision, savedDecision.qa_scores, projectId);
+
+    const updatedCalPaper = db.prepare("SELECT manual_decision, manual_quality_assessment FROM calibration_papers WHERE Paper_ID = 'MOCK-P3' AND Project_ID = ?").get(projectId);
+    assert(updatedCalPaper.manual_decision === 'Include', 'calibration_papers manual_decision updated to Include');
+    assert(JSON.parse(updatedCalPaper.manual_quality_assessment)['QA-1'].value === 1.0, 'calibration_papers manual_quality_assessment QA-1 value is 1.0 (not empty)');
+
     console.log(`\n--- TEST RESULTS: ${passed} PASSED, ${failed} FAILED ---`);
   } catch (err) {
     console.error('Test execution error:', err);
@@ -347,6 +654,7 @@ function runTests() {
 }
 
 runTests();
+
 
 
 

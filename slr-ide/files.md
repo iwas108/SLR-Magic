@@ -58,6 +58,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `scripts/test-mockup-review.mjs` | Test Automation | Standalone test suite verifying multi-pool mockup review generation, LLM parameters compliance, partial execution for failed reviews, GZIP .slr compression/decompression, PRISMA isolation, and cache lifecycle. |
 | `scripts/test-adjudication-discrepancies.mjs` | Test Automation | Standalone test suite verifying calibration discrepancy resolution status, import vs human adjudication lifecycle, and project isolation in the inter-rater workflow. |
 | `scripts/test-quest-pdf-llm-guard.mjs` | Test Automation | Standalone test suite verifying Quests 03, 04, 05 PDF presence enforcement, stage-specific execution guards, and 100% Prompt Library LLM parameter parsing and synchronization. |
+| `scripts/test-benchmark-improvements.mjs` | Test Automation | Standalone test suite verifying benchmark historical run comparisons, delta calculations (accuracy, recall, precision, F1, kappa, holdout), baseline handling, and multi-project isolation. |
 
 ---
 
@@ -140,6 +141,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/session.ts` | Session Management | In-memory server-side cache for storing master password inside active sessions. |
 | `lib/pdf-utils.ts` | Frontend Utility | Contains helper functions for validating PDF paths, checking file accessibility, managing local preview URIs, and project-deletion asset rescue. |
 | `lib/slr-compression.ts` | Compression / Utility | Universal GZIP compression and decompression utility supporting Node.js native `zlib` for API routes and Web Streams (`CompressionStream`/`DecompressionStream`) for client-side previews with automatic magic byte detection. |
+| `lib/gemini-thinking-specs.ts` | Configuration / Specifications | Official Google Gemini model thinking specifications reference table and resolver enforcing supported qualitative thinking levels (`minimal`, `low`, `medium`, `high`, `off`) per model. |
 | `lib/sync-utils.ts` | Synchronization | Implements the Agnostic BroadcastChannel pattern (`broadcastSync`, `subscribeSyncChannel`) for cross-tab synchronization and reactivity. |
 
 ### Core Backend Services & Inter-Rater Libraries (`src/lib/services/` & `src/lib/inter-rater/`)
@@ -147,7 +149,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | :--- | :--- | :--- |
 | `lib/services/prompt-validator.ts` | Backend Service | Service encapsulating stage baseline JSON schema validation (`fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`, `duplicate_review`, `consolidation_audit`, `prompt_optimizer`) and default schema template generators. |
 | `lib/services/prompt-hydrator.ts` | Backend / Domain Utility | Centralized Prompt Template Hydrator matching Python Jinja2 conventions with case-insensitive aliases and fallback protection. |
-| `lib/services/trace-normalizer.ts` | Backend Service | Centralized Trace Normalizer Utility service providing robust logic trace mapping and evidence quote resolution across all RQs. |
+| `lib/services/trace-normalizer.ts` | Backend Service | Centralized Trace Normalizer Utility service providing robust logic trace mapping, QA/extraction key normalization (`normalizeQaKey`, `matchQaRuleKey`, `matchExtractionKey`), score extraction (`extractScoreValue`), and evidence quote resolution across all RQs and QA variables. |
 | `lib/services/taxonomy-resolver.ts` | Backend / Domain Service | Centralized Taxonomy Resolver service enforcing exact case-insensitive key matching, canonical string/dash normalization, array/string token unwrapping, and stage dominance resolution across all modules. |
 | `lib/services/cohort-metrics.ts` | Backend / Domain Service | Centralized Cohort Metrics service providing exact Unique Paper Prevalence calculations, Quota-balanced Tag Share distributions (Hare-Hamilton Largest Remainder Method), and multi-label cohort statistics. |
 | `lib/services/goldmine-state-tracker.ts` | Backend Service | Singleton NDJSON state tracker for Gold Mine exports managing execution phase, progress counters, live logs, state restore on reconnect, and process cancellation. |
@@ -163,7 +165,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/services/pipeline/rclone-sync.ts` | Backend Service | Helper service constructing cloud sync commands, re-connecting OAuth configs, and updating paper local PDF paths to synced repo path upon link generation. |
 | `lib/services/archive-service.ts` | Core Services | Core archiving and restore engine providing `exportProjectArchive`, `createProjectPdfZipBuffer`, `purgeProjectZeroTrace`, and `importProjectArchive`. |
 | `lib/services/remote-worker-manager.ts` | Core Services | Singleton service orchestrating worker pools, heartbeats, and reclaims. |
-| `lib/services/mockup-generator.ts` | Backend Service | Dedicated service for evaluating calibration papers with Gemini REST API following 100% LLM parameters configuration, generating import-compatible blinded `.slr` payloads, handling timeout/errors, and tracking PRISMA-isolated LLM audit interactions. |
+| `lib/services/mockup-generator.ts` | Backend Service | Dedicated service for evaluating calibration papers with Gemini REST API following 100% LLM parameters configuration, extracting essential prompt configuration metadata (`getMockupPromptConfigs`), generating import-compatible blinded `.slr` payloads, handling timeout/errors, and tracking PRISMA-isolated LLM audit interactions. |
 | `lib/inter-rater/adjudication-calculations.ts` | Domain Library | Pure TypeScript calculation library for Cohen's Kappa, agreement formulas, and data extraction JSON comparisons (zero Next.js dependencies, standalone SPA ready). |
 
 ### State Management Hooks (`src/hooks/`)
@@ -181,7 +183,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `hooks/useRollingBatch.ts` | Custom Hook | State manager handling rolling batch operations, status polling, and reviewer imports. |
 | `hooks/useUmbrellanizer.ts` | Custom Hook | Custom React hook state manager handling papers, results, polling jobs and taxonomy executions. |
 | `hooks/useRemoteWorkers.ts` | React Hooks | Custom hook to interface with the remote worker API. |
-| `hooks/useMockupReview.ts` | Custom Hook | State management hook for multi-pool mockup review generation, handling reviewer ID generation, SSE live progress streaming, manual paper selection, selective rerun execution, partial execution targeting failed reviews only, caching, redownload, and cache invalidation. |
+| `hooks/useMockupReview.ts` | Custom Hook | State management hook for multi-pool mockup review generation, handling reviewer ID generation, SSE live progress streaming, active prompt configuration metadata caching, manual paper selection, selective rerun execution, partial execution targeting failed reviews only, caching, redownload, and cache invalidation. |
 
 ### UI Components & Features (`src/components/`)
 | File Path | Architectural Layer | Function & Purpose |
@@ -191,7 +193,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/pre-calibration/StageComparisonPanel.tsx` | Presentation Component | Stage comparison cards benchmarking Gold Standard adjudicated decisions against AI screening models across Stages 1 to 4. |
 | `components/features/pre-calibration/PromptStagingQuestPanel.tsx` | UI Container | Cyberpunk Quest-Line / Neon Glass HUD container orchestrating the 5-quest progression across Card 1 (Consolidation) and Cards 2–5 (Stage Benchmarks). |
 | `components/features/pre-calibration/PromptConsolidationCard.tsx` | Presentation Component | Card 1 component visualizing prompt availability ($N/4$), semantic alignment, inter-stage chainability, and actionable recommendations. |
-| `components/features/pre-calibration/StageBenchmarkCard.tsx` | Presentation Component | Cards 2–5 component for isolated stage benchmark execution, PRISMA gate evaluations, holdout metrics, and paper discrepancy inspection via `trace-normalizer`. |
+| `components/features/pre-calibration/StageBenchmarkCard.tsx` | Presentation Component | Cards 2–5 component for isolated stage benchmark execution, historical run comparisons, delta improvement metrics (Accuracy, Recall, Precision, F1, Kappa, Holdout), PRISMA gate evaluations, and paper discrepancy inspection via `trace-normalizer`. |
 | `components/features/modals/PromptOptimizationDiffModal.tsx` | Modal Component | Diagnostic and prompt optimization modal featuring the Human-in-the-Loop PDF request approval drawer, editable side-by-side diff viewer, and Copy-on-Write template updates. |
 | `components/features/modals/LlmPayloadConfirmationModal.tsx` | Modal Component | Transparent Human-in-the-Loop LLM payload confirmation modal displaying exact hydrated prompts, system instructions, generation configs, dataset partitions, and token/cost estimations before execution. |
 | `components/Sidebar.tsx` | View Component | Renders the collapsible primary navigation sidebar, theme toggle selectors, and global settings trigger. |
@@ -240,7 +242,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/CsvReviewModal.tsx` | Modal Component | Standalone modal component for reviewing mapped CSV structures and duplicate exclusions prior to importing. |
 | `components/features/modals/ExportCsvModal.tsx` | Modal Component | Standalone modal component for exporting selected or full project papers with Ingestion Hub compatibility presets and granular column selection. |
 | `components/features/modals/PrismaConfigModal.tsx` | Modal Component | Standalone modal component for customizing the PRISMA diagram layout, colors, typography, box styles, and export scale. |
-| `components/features/modals/MockupReviewModal.tsx` | Modal Component | Standalone modal component for multi-pool mockup review generation (CTRL+M) with reviewer identity configuration, slot occupancy warnings, interactive paper selection checkboxes, bulk selection toolbars, targeted rerun execution, live progress ticker, partial execution for failed reviews, stream log filters, and cached download controls. |
+| `components/features/modals/MockupReviewModal.tsx` | Modal Component | Standalone modal component for multi-pool mockup review generation (CTRL+M) with real-time prompt & model essential configuration inspection (model type, temperature, thinking budget, token limits, execution mode, delay, strict schema, and prompt preview), reviewer identity configuration, slot occupancy warnings, interactive paper selection checkboxes, bulk selection toolbars, targeted rerun execution, live progress ticker, partial execution for failed reviews, stream log filters, and cached download controls. |
 | `components/features/modals/LlmContextBuilderModal.tsx` | UI Component | Interactive modal allowing dynamic selection of extracted data keys, paper metadata fields, cohort scope, baked ground-truth statistics (Hare-Hamilton 100.00% quota balanced), and strict LLM directives to export LLM-friendly JSON payloads for Gemini 3.1 Pro visualization and narration. |
 | `components/features/modals/VisualizerModal.tsx` | Modal Facade / Orchestrator | Ultra-clean thin orchestrator (<50 lines) wrapping `VisualizerProvider`, `VisualizerHeader`, and modular step components (`Step1ChartSelector`, `Step2DataMapping`, `Step3StyleCustomization`, `Step4PreviewStage`). |
 | `components/features/modals/visualizer/types.ts` | Type Definitions | Domain interfaces for ChartType, LayoutMode, SlotId, SubfigureLabelStyle, SlotConfig, GlobalStyleConfig, ThemePreset, FontFamily, MetricMode, SunburstLevelConfig, VisualizerPresetPayload, and BreakdownRow. |
