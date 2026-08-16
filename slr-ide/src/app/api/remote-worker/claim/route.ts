@@ -27,9 +27,9 @@ export async function GET(req: Request) {
       const rows = db.prepare(`
         SELECT Paper_ID, DOI, Title, PDF_Link
         FROM papers
-        WHERE Project_ID = ? AND Local_PDF_Status = 'MISSING' AND (is_duplicate IS NULL OR is_duplicate = 0)
+        WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Local_PDF_Status = 'MISSING' AND (is_duplicate IS NULL OR is_duplicate = 0)
         LIMIT ?
-      `).all(project_id, batchSize) as any[];
+      `).all(project_id, project_id, batchSize) as any[];
 
       if (rows.length === 0) {
         return [];
@@ -44,11 +44,11 @@ export async function GET(req: Request) {
         SET Local_PDF_Status = 'IN_PROGRESS', 
             remote_worker_id = ?, 
             scrape_claimed_at = ?
-        WHERE Paper_ID = ? AND Project_ID = ?
+        WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
       `);
 
       for (const id of paperIds) {
-        updateStmt.run(worker_id, now, id, project_id);
+        updateStmt.run(worker_id, now, id, project_id, project_id);
       }
 
       return rows;

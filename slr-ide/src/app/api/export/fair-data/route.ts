@@ -41,6 +41,9 @@ export async function GET(request: Request) {
     // 3. LLM Audit Log
     exportData.llm_audit_log = db.prepare('SELECT * FROM llm_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
+    // 3b. LLM Screening Records (PRISMA Gate Executions)
+    exportData.llm_screening_records = db.prepare('SELECT * FROM llm_screening_records WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
     // 4. Manual Audit Log
     exportData.manual_audit_log = db.prepare('SELECT * FROM manual_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
 
@@ -64,6 +67,24 @@ export async function GET(request: Request) {
 
     // 11. Prompt Benchmark Results
     exportData.prompt_benchmark_results = db.prepare('SELECT * FROM prompt_benchmark_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
+    // 12. Rolling Batches
+    exportData.rolling_batches = db.prepare('SELECT * FROM rolling_batches WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
+    // 13. Rolling Batch Papers
+    exportData.rolling_batch_papers = db.prepare('SELECT * FROM rolling_batch_papers WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
+    // 14. Rolling Batch Reviewer Decisions
+    exportData.rolling_batch_reviewer_decisions = db.prepare('SELECT * FROM rolling_batch_reviewer_decisions WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
+    // 15. Rolling Batch Commit Ledger
+    exportData.rolling_batch_commit_ledger = db.prepare('SELECT * FROM rolling_batch_commit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
+    // 16. Duplicate Pairs
+    exportData.duplicate_pairs = db.prepare('SELECT * FROM duplicate_pairs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(resolvedProjectId);
+
+    // 17. Prompt Templates
+    exportData.prompt_templates = db.prepare('SELECT * FROM prompt_templates WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id IS NULL').all(resolvedProjectId);
 
     const jsonString = JSON.stringify(exportData, null, 2);
     

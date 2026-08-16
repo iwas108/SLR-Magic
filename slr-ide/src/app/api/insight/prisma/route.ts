@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   try {
     // 1. Fetch project config for EC labels and QA rules
-    const project = db.prepare('SELECT name, ec_rules, pool_c_qa_rules FROM projects WHERE id = ?').get(projectId) as any;
+    const project = db.prepare('SELECT name, ec_rules, pool_c_qa_rules FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(projectId, projectId) as any;
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
@@ -47,8 +47,8 @@ export async function GET(request: Request) {
         ai_exclusion_code, 
         Local_PDF_Status 
       FROM papers 
-      WHERE Project_ID = ?
-    `).all(projectId) as any[];
+      WHERE Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)
+    `).all(projectId, projectId) as any[];
 
     // Other sources filter list
     const otherSources = ['backward snowball', 'forward snowball', 'manual search', 'manual ingestion'];

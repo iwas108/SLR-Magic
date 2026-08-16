@@ -67,8 +67,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
-    let query = "SELECT count(*) as count FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)";
-    let params: any[] = [projectId];
+    let query = "SELECT count(*) as count FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)";
+    let params: any[] = [projectId, projectId];
 
     const isManualSelection = paperSelectionMode === 'selected' && Boolean(paperIds);
 
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
         query += ` AND NOT EXISTS (
           SELECT 1 FROM manual_audit_log 
           WHERE manual_audit_log.paper_id = papers.Paper_ID 
-            AND manual_audit_log.project_id = papers.Project_ID
+            AND (manual_audit_log.project_id = papers.Project_ID OR CAST(manual_audit_log.project_id AS TEXT) = CAST(papers.Project_ID AS TEXT))
             AND manual_audit_log.manual_stage = ?
         )`;
         params.push(taskType);
@@ -117,8 +117,8 @@ export async function GET(req: NextRequest) {
           const stageRow = db.prepare(`
             SELECT MAX(MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0))) as maxStage 
             FROM papers 
-            WHERE Project_ID = ? AND Paper_ID IN (${placeholders})
-          `).get(projectId, ...ids) as { maxStage: number } | undefined;
+            WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Paper_ID IN (${placeholders})
+          `).get(projectId, projectId, ...ids) as { maxStage: number } | undefined;
 
           if (stageRow !== undefined && stageRow.maxStage !== null) {
             maxStage = Number(stageRow.maxStage);

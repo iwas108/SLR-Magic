@@ -12,7 +12,7 @@ export async function runBackgroundExecution(steps: string[], compress: boolean,
   const pythonExe = getPythonExecutablePath();
   
   const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
-  const project = db.prepare('SELECT folder_name, gdrive_dest_path, cloud_provider, rclone_remote_name FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string; gdrive_dest_path: string; cloud_provider?: string; rclone_remote_name?: string } | undefined;
+  const project = db.prepare('SELECT folder_name, gdrive_dest_path, cloud_provider, rclone_remote_name FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(activeProjectId, activeProjectId) as { folder_name: string; gdrive_dest_path: string; cloud_provider?: string; rclone_remote_name?: string } | undefined;
   const folderName = project ? project.folder_name : 'default_project';
   const gdriveDest = project ? project.gdrive_dest_path : 'SLR_Magic/PDFs';
 
@@ -75,14 +75,14 @@ export async function runBackgroundExecution(steps: string[], compress: boolean,
 
               let loopCount = 0;
               while (!batchState.cancelRequested) {
-                const totalRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND DOI IS NOT NULL AND DOI != ''`).get(activeProjectId) as { c: number };
-                const leftRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND DOI IS NOT NULL AND DOI != '' AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING' OR Local_PDF_Status = 'IN_PROGRESS')`).get(activeProjectId) as { c: number };
+                const totalRow = db.prepare(`SELECT count(*) as c FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND DOI IS NOT NULL AND DOI != ''`).get(activeProjectId, activeProjectId) as { c: number };
+                const leftRow = db.prepare(`SELECT count(*) as c FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND DOI IS NOT NULL AND DOI != '' AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING' OR Local_PDF_Status = 'IN_PROGRESS')`).get(activeProjectId, activeProjectId) as { c: number };
                 
                 if (leftRow.c === 0) break;
                 
                 if (loopCount % 2 === 0) { // Broadcast progress roughly every 4 seconds
-                  const doneRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND Local_PDF_Status = 'DOWNLOADED'`).get(activeProjectId) as { c: number };
-                  const failedRow = db.prepare(`SELECT count(*) as c FROM papers WHERE Project_ID = ? AND Local_PDF_Status = 'FAILED'`).get(activeProjectId) as { c: number };
+                  const doneRow = db.prepare(`SELECT count(*) as c FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Local_PDF_Status = 'DOWNLOADED'`).get(activeProjectId, activeProjectId) as { c: number };
+                  const failedRow = db.prepare(`SELECT count(*) as c FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Local_PDF_Status = 'FAILED'`).get(activeProjectId, activeProjectId) as { c: number };
                   
                   streamManager.broadcast({ 
                     event: 'progress', 

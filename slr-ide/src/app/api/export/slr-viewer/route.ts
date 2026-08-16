@@ -65,9 +65,9 @@ export async function GET(request: Request) {
     const allPapers = db
       .prepare(
         `SELECT Import_Source, Source, is_duplicate, manual_stage, ai_stage, manual_decision, ai_decision, manual_exclusion_code, ai_exclusion_code, Local_PDF_Status 
-         FROM papers WHERE Project_ID = ?`
+         FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`
       )
-      .all(resolvedProjectId) as any[];
+      .all(resolvedProjectId, resolvedProjectId) as any[];
 
     // Other sources filter list
     const otherSources = ['backward snowball', 'forward snowball', 'manual search', 'manual ingestion'];
@@ -353,18 +353,35 @@ export async function GET(request: Request) {
           let totalRatingComparisons = 0;
 
           for (const entry of poolEntries) {
-            const auditRow = db.prepare(`
-              SELECT structured_output 
-              FROM llm_audit_log 
-              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'scientist' AND status = 'SUCCESS'
-              ORDER BY created_at DESC LIMIT 1
-            `).get(resolvedProjectId, entry.paper_id) as { structured_output: string } | undefined;
+            const screeningRow = db.prepare(`
+              SELECT structured_output, quality_assessment
+              FROM llm_screening_records
+              WHERE (CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id = ?) AND paper_id = ? AND stage = 3
+            `).get(resolvedProjectId, resolvedProjectId, entry.paper_id) as { structured_output: string; quality_assessment: string } | undefined;
 
-            if (auditRow?.structured_output && entry.resolved_qa_scores) {
+            let structuredOutput = screeningRow?.structured_output;
+            let qaScoresStr = screeningRow?.quality_assessment;
+
+            if (!structuredOutput && !qaScoresStr) {
+              const auditRow = db.prepare(`
+                SELECT structured_output 
+                FROM llm_audit_log 
+                WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'scientist' AND status = 'SUCCESS'
+                ORDER BY created_at DESC LIMIT 1
+              `).get(resolvedProjectId, entry.paper_id) as { structured_output: string } | undefined;
+              structuredOutput = auditRow?.structured_output;
+            }
+
+            if ((structuredOutput || qaScoresStr) && entry.resolved_qa_scores) {
               evaluatedCount++;
               try {
-                const aiBody = JSON.parse(auditRow.structured_output);
-                const aiQa = aiBody.qa_scores || {};
+                let aiQa: Record<string, any> = {};
+                if (qaScoresStr) {
+                  aiQa = typeof qaScoresStr === 'string' ? JSON.parse(qaScoresStr) : qaScoresStr;
+                } else if (structuredOutput) {
+                  const aiBody = JSON.parse(structuredOutput);
+                  aiQa = aiBody.qa_scores || {};
+                }
                 const goldQa = JSON.parse(entry.resolved_qa_scores || '{}');
 
                 for (const rule of qaRules) {
@@ -474,18 +491,35 @@ export async function GET(request: Request) {
           };
 
           for (const entry of poolEntries) {
-            const auditRow = db.prepare(`
-              SELECT structured_output 
-              FROM llm_audit_log 
-              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'miner' AND status = 'SUCCESS'
-              ORDER BY created_at DESC LIMIT 1
-            `).get(resolvedProjectId, entry.paper_id) as { structured_output: string } | undefined;
+            const screeningRow = db.prepare(`
+              SELECT structured_output, extracted_data
+              FROM llm_screening_records
+              WHERE (CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id = ?) AND paper_id = ? AND stage = 4
+            `).get(resolvedProjectId, resolvedProjectId, entry.paper_id) as { structured_output: string; extracted_data: string } | undefined;
 
-            if (auditRow?.structured_output && entry.resolved_extracted_data) {
+            let structuredOutput = screeningRow?.structured_output;
+            let extDataStr = screeningRow?.extracted_data;
+
+            if (!structuredOutput && !extDataStr) {
+              const auditRow = db.prepare(`
+                SELECT structured_output 
+                FROM llm_audit_log 
+                WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'miner' AND status = 'SUCCESS'
+                ORDER BY created_at DESC LIMIT 1
+              `).get(resolvedProjectId, entry.paper_id) as { structured_output: string } | undefined;
+              structuredOutput = auditRow?.structured_output;
+            }
+
+            if ((structuredOutput || extDataStr) && entry.resolved_extracted_data) {
               evaluatedCount++;
               try {
-                const aiBody = JSON.parse(auditRow.structured_output);
-                const aiExt = aiBody.extracted_data || aiBody;
+                let aiExt: Record<string, any> = {};
+                if (extDataStr) {
+                  aiExt = typeof extDataStr === 'string' ? JSON.parse(extDataStr) : extDataStr;
+                } else if (structuredOutput) {
+                  const aiBody = JSON.parse(structuredOutput);
+                  aiExt = aiBody.extracted_data || aiBody;
+                }
                 const goldExt = JSON.parse(entry.resolved_extracted_data || '{}');
 
                 for (const rule of extractionRules) {
@@ -525,20 +559,30 @@ export async function GET(request: Request) {
         let TP = 0, TN = 0, FP = 0, FN = 0;
         for (const entry of poolEntries) {
           const goldDec = (entry.adjudicated_decision || '').toUpperCase();
-          const auditRow = db.prepare(`
-            SELECT structured_output 
-            FROM llm_audit_log 
-            WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = ? AND status = 'SUCCESS'
-            ORDER BY created_at DESC LIMIT 1
-          `).get(resolvedProjectId, entry.paper_id, stageNum === 1 ? 'fast_filter' : 'gatekeeper') as { structured_output: string } | undefined;
+          const screeningRow = db.prepare(`
+            SELECT decision, structured_output
+            FROM llm_screening_records
+            WHERE (CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id = ?) AND paper_id = ? AND stage = ?
+          `).get(resolvedProjectId, resolvedProjectId, entry.paper_id, stageNum) as { decision: string; structured_output: string } | undefined;
 
           let aiDec = 'PENDING';
-          if (auditRow?.structured_output) {
-            try {
-              const body = JSON.parse(auditRow.structured_output);
-              const finalEval = body.final_evaluation || body;
-              if (finalEval && finalEval.decision) aiDec = finalEval.decision.toUpperCase();
-            } catch {}
+          if (screeningRow && screeningRow.decision) {
+            aiDec = screeningRow.decision.toUpperCase();
+          } else {
+            const auditRow = db.prepare(`
+              SELECT structured_output 
+              FROM llm_audit_log 
+              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = ? AND status = 'SUCCESS'
+              ORDER BY created_at DESC LIMIT 1
+            `).get(resolvedProjectId, entry.paper_id, stageNum === 1 ? 'fast_filter' : 'gatekeeper') as { structured_output: string } | undefined;
+
+            if (auditRow?.structured_output) {
+              try {
+                const body = JSON.parse(auditRow.structured_output);
+                const finalEval = body.final_evaluation || body;
+                if (finalEval && finalEval.decision) aiDec = finalEval.decision.toUpperCase();
+              } catch {}
+            }
           }
 
           const isGoldInc = goldDec.startsWith('INCLUDE');
@@ -1002,21 +1046,27 @@ export async function GET(request: Request) {
       cohortPapers = db
         .prepare(
           `SELECT p.*,
-                  (SELECT structured_output FROM llm_audit_log 
-                   WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'scientist' OR task_type LIKE '%scientist%')
-                   ORDER BY id DESC LIMIT 1) as scientist_structured_output,
-                  (SELECT structured_output FROM llm_audit_log 
-                   WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%')
-                   ORDER BY id DESC LIMIT 1) as miner_audit_structured_output
+                  COALESCE(lsr_sci.quality_assessment, p.ai_quality_assessment) as ai_quality_assessment_override,
+                  COALESCE(lsr_min.extracted_data, p.ai_extracted_data) as ai_extracted_data_override,
+                  lsr_sci.logic_trace as scientist_logic_trace,
+                  lsr_min.logic_trace as miner_logic_trace
            FROM papers p
-            WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
-              AND (p.is_duplicate IS NULL OR p.is_duplicate = 0)
-              AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
-             AND CASE 
-                 WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
-                 WHEN IFNULL(p.ai_stage, 0) > IFNULL(p.manual_stage, 0) THEN p.ai_decision
-                 ELSE COALESCE(p.manual_decision, p.ai_decision)
-             END LIKE 'INCLUDE%'
+           LEFT JOIN llm_screening_records lsr_sci 
+             ON lsr_sci.paper_id = p.Paper_ID 
+            AND (lsr_sci.project_id = p.Project_ID OR CAST(lsr_sci.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+            AND lsr_sci.stage = 3
+           LEFT JOIN llm_screening_records lsr_min 
+             ON lsr_min.paper_id = p.Paper_ID 
+            AND (lsr_min.project_id = p.Project_ID OR CAST(lsr_min.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+            AND lsr_min.stage = 4
+           WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
+             AND (p.is_duplicate IS NULL OR p.is_duplicate = 0)
+             AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
+            AND CASE 
+                WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
+                WHEN IFNULL(p.ai_stage, 0) > IFNULL(p.manual_stage, 0) THEN p.ai_decision
+                ELSE COALESCE(p.manual_decision, p.ai_decision)
+            END LIKE 'INCLUDE%'
            ORDER BY p.Year DESC, p.Title ASC`
         )
         .all(resolvedProjectId, resolvedProjectId) as any[];
@@ -1030,13 +1080,19 @@ export async function GET(request: Request) {
         cohortPapers = db
           .prepare(
             `SELECT p.*,
-                    (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'scientist' OR task_type LIKE '%scientist%')
-                     ORDER BY id DESC LIMIT 1) as scientist_structured_output,
-                    (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%')
-                     ORDER BY id DESC LIMIT 1) as miner_audit_structured_output
+                    COALESCE(lsr_sci.quality_assessment, p.ai_quality_assessment) as ai_quality_assessment_override,
+                    COALESCE(lsr_min.extracted_data, p.ai_extracted_data) as ai_extracted_data_override,
+                    lsr_sci.logic_trace as scientist_logic_trace,
+                    lsr_min.logic_trace as miner_logic_trace
              FROM papers p
+             LEFT JOIN llm_screening_records lsr_sci 
+               ON lsr_sci.paper_id = p.Paper_ID 
+              AND (lsr_sci.project_id = p.Project_ID OR CAST(lsr_sci.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+              AND lsr_sci.stage = 3
+             LEFT JOIN llm_screening_records lsr_min 
+               ON lsr_min.paper_id = p.Paper_ID 
+              AND (lsr_min.project_id = p.Project_ID OR CAST(lsr_min.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+              AND lsr_min.stage = 4
              WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
                AND (p.is_duplicate IS NULL OR p.is_duplicate = 0)
                AND CASE 
@@ -1058,13 +1114,19 @@ export async function GET(request: Request) {
         cohortPapers = db
           .prepare(
             `SELECT p.*,
-                    (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND task_type = 'scientist'
-                     ORDER BY id DESC LIMIT 1) as scientist_structured_output,
-                    (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%')
-                     ORDER BY id DESC LIMIT 1) as miner_audit_structured_output
+                    COALESCE(lsr_sci.quality_assessment, p.ai_quality_assessment) as ai_quality_assessment_override,
+                    COALESCE(lsr_min.extracted_data, p.ai_extracted_data) as ai_extracted_data_override,
+                    lsr_sci.logic_trace as scientist_logic_trace,
+                    lsr_min.logic_trace as miner_logic_trace
              FROM papers p
+             LEFT JOIN llm_screening_records lsr_sci 
+               ON lsr_sci.paper_id = p.Paper_ID 
+              AND (lsr_sci.project_id = p.Project_ID OR CAST(lsr_sci.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+              AND lsr_sci.stage = 3
+             LEFT JOIN llm_screening_records lsr_min 
+               ON lsr_min.paper_id = p.Paper_ID 
+              AND (lsr_min.project_id = p.Project_ID OR CAST(lsr_min.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+              AND lsr_min.stage = 4
              WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
                AND (p.is_duplicate IS NULL OR p.is_duplicate = 0)
              ORDER BY p.Year DESC, p.Title ASC`
@@ -1081,13 +1143,20 @@ export async function GET(request: Request) {
         cohortPapers = db
           .prepare(
             `SELECT p.*,
-                    (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'scientist' OR task_type LIKE '%scientist%')
-                     ORDER BY id DESC LIMIT 1) as scientist_structured_output,
-                    (SELECT structured_output FROM llm_audit_log 
-                     WHERE paper_id = p.Paper_ID AND (project_id = p.Project_ID OR CAST(project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%')
-                     ORDER BY id DESC LIMIT 1) as miner_audit_structured_output
-             FROM papers p WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)) ORDER BY p.Year DESC, p.Title ASC`
+                    COALESCE(lsr_sci.quality_assessment, p.ai_quality_assessment) as ai_quality_assessment_override,
+                    COALESCE(lsr_min.extracted_data, p.ai_extracted_data) as ai_extracted_data_override,
+                    lsr_sci.logic_trace as scientist_logic_trace,
+                    lsr_min.logic_trace as miner_logic_trace
+             FROM papers p 
+             LEFT JOIN llm_screening_records lsr_sci 
+               ON lsr_sci.paper_id = p.Paper_ID 
+              AND (lsr_sci.project_id = p.Project_ID OR CAST(lsr_sci.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+              AND lsr_sci.stage = 3
+             LEFT JOIN llm_screening_records lsr_min 
+               ON lsr_min.paper_id = p.Paper_ID 
+              AND (lsr_min.project_id = p.Project_ID OR CAST(lsr_min.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+              AND lsr_min.stage = 4
+             WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)) ORDER BY p.Year DESC, p.Title ASC`
           )
           .all(resolvedProjectId, resolvedProjectId) as any[];
       } catch (e) {
@@ -1101,11 +1170,10 @@ export async function GET(request: Request) {
       let aiExtracted = null;
       let manualExtracted = null;
 
+      const rawAiQa = paper.ai_quality_assessment_override || paper.ai_quality_assessment;
       try {
-        if (paper.ai_quality_assessment) {
-          aiQa = typeof paper.ai_quality_assessment === 'string' 
-            ? JSON.parse(paper.ai_quality_assessment) 
-            : paper.ai_quality_assessment;
+        if (rawAiQa) {
+          aiQa = typeof rawAiQa === 'string' ? JSON.parse(rawAiQa) : rawAiQa;
         }
       } catch (e) {}
 
@@ -1117,11 +1185,10 @@ export async function GET(request: Request) {
         }
       } catch (e) {}
 
+      const rawAiExt = paper.ai_extracted_data_override || paper.ai_extracted_data;
       try {
-        if (paper.ai_extracted_data) {
-          aiExtracted = typeof paper.ai_extracted_data === 'string'
-            ? JSON.parse(paper.ai_extracted_data)
-            : paper.ai_extracted_data;
+        if (rawAiExt) {
+          aiExtracted = typeof rawAiExt === 'string' ? JSON.parse(rawAiExt) : rawAiExt;
         }
       } catch (e) {}
 
@@ -1136,10 +1203,12 @@ export async function GET(request: Request) {
         }
       } catch (e) {}
 
-      if (paper.scientist_structured_output) {
+      if (paper.scientist_logic_trace) {
         try {
-          const scientistOutput = JSON.parse(paper.scientist_structured_output);
-          if (scientistOutput?.logic_trace) {
+          const scientistLt = typeof paper.scientist_logic_trace === 'string'
+            ? JSON.parse(paper.scientist_logic_trace)
+            : paper.scientist_logic_trace;
+          if (scientistLt) {
             const rawQa = aiQa?.qa_scores ? { ...aiQa.qa_scores } : (aiQa ? { ...aiQa } : {});
             delete rawQa.logic_trace;
             delete rawQa.logicTrace;
@@ -1151,23 +1220,24 @@ export async function GET(request: Request) {
               qa_scores: rawQa,
               logic_trace: {
                 ...existingLt,
-                ...scientistOutput.logic_trace,
+                ...scientistLt,
                 appraisal_reasoning: {
                   ...(existingLt.appraisal_reasoning || {}),
-                  ...(scientistOutput.logic_trace.appraisal_reasoning || {})
+                  ...(scientistLt.appraisal_reasoning || scientistLt || {})
                 }
               },
-              _scientist_logic_trace: scientistOutput.logic_trace.appraisal_reasoning || undefined
+              _scientist_logic_trace: (scientistLt.appraisal_reasoning || scientistLt) || undefined
             } as any;
           }
         } catch (e) {}
       }
 
-      if (paper.miner_audit_structured_output) {
+      if (paper.miner_logic_trace) {
         try {
-          const minerOutput = JSON.parse(paper.miner_audit_structured_output);
-          const auditLt = minerOutput.logic_trace || minerOutput.logicTrace;
-          if (auditLt) {
+          const minerLt = typeof paper.miner_logic_trace === 'string'
+            ? JSON.parse(paper.miner_logic_trace)
+            : paper.miner_logic_trace;
+          if (minerLt) {
             const rawExt = aiExtracted?.extracted_data ? { ...aiExtracted.extracted_data } : (aiExtracted ? { ...aiExtracted } : {});
             delete rawExt.logic_trace;
             delete rawExt.logicTrace;
@@ -1179,10 +1249,10 @@ export async function GET(request: Request) {
               extracted_data: rawExt,
               logic_trace: {
                 ...existingLt,
-                ...auditLt,
+                ...minerLt,
                 extraction_mapping: {
                   ...(existingLt.extraction_mapping || {}),
-                  ...(auditLt.extraction_mapping || auditLt || {})
+                  ...(minerLt.extraction_mapping || minerLt || {})
                 }
               }
             };
@@ -1190,7 +1260,7 @@ export async function GET(request: Request) {
         } catch (e) {}
       }
 
-      const { scientist_structured_output, miner_audit_structured_output, ...cleanPaper } = paper;
+      const { scientist_logic_trace, miner_logic_trace, ai_quality_assessment_override, ai_extracted_data_override, ...cleanPaper } = paper;
 
       return {
         ...cleanPaper,
@@ -1334,8 +1404,8 @@ export async function GET(request: Request) {
     let promptTemplates: any[] = [];
     try {
       promptTemplates = db
-        .prepare(`SELECT * FROM prompt_templates WHERE project_id = ? OR project_id IS NULL ORDER BY created_at ASC`)
-        .all(resolvedProjectId) as any[];
+        .prepare(`SELECT * FROM prompt_templates WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id IS NULL) ORDER BY created_at ASC`)
+        .all(resolvedProjectId, resolvedProjectId) as any[];
     } catch (e) {
       console.error('Failed to query prompt_templates for export:', e);
     }

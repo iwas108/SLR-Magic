@@ -262,9 +262,9 @@ def main():
             """
             SELECT ai_extracted_data, manual_extracted_data 
             FROM papers 
-            WHERE Project_ID = ? AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
+            WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
             """,
-            (project_id,)
+            (project_id, project_id)
         )
         tokens_set = set()
         for p in papers:

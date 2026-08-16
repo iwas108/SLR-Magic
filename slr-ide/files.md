@@ -365,6 +365,5 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `src/components/features/modals/visualizer/utils/smartOptimizer.ts` | Pure Utility / Auto-Optimizer | Intelligent heuristic parameter optimizer analyzing dataset cardinality, skewness, dominance ratios, label lengths, and chart aspect ratios to compute optimal visualization settings. |
 | `src/components/features/modals/visualizer/components/subcomponents/ChartConfigPanels.tsx` | UI Subcomponent | Modular parameter configuration panels providing dedicated customization controls across 12 scientific chart formats (Vertical Bar, Stacked Bar, Line, Treemap, Heatmap, Radar, Funnel, Boxplot, Graph, Gauge, Calendar, Scatter/Bubble). |
 | `src/components/features/modals/visualizer/utils/formatterUtils.ts` | Domain Utility | Pure reviewer-grade statistical formatting engine providing granular decimal rounding, coarse tilde (`~`) prefixes, custom ratio representations (`n = x/N`, `x/N`, `(x/N)`), and context-aware denominator resolution across charts, legends, tables, and tooltips. |
-
-
-
+| `src/app/api/papers/[id]/screening/route.ts` | REST Endpoint | Handles GET requests to retrieve verified, non-duplicate PRISMA LLM screening stage records for a specific paper. |
+| `scripts/test-llm-screening-records.mjs` | Test Automation | Standalone test suite verifying `llm_screening_records` table, multi-stage transitions, SQLite trigger synchronization, downstream invalidation on re-run exclusions, and paper deletion cascades. |

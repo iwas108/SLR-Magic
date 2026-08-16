@@ -30,14 +30,14 @@ export async function POST(req: Request) {
     db.prepare(`
       UPDATE papers
       SET Local_PDF_Status = 'MISSING'
-      WHERE Project_ID = ?
-        AND (manual_stage > 0 OR ai_stage > 0)
+      WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+        AND (IFNULL(manual_stage, 0) > 0 OR IFNULL(ai_stage, 0) > 0)
         AND (Local_PDF_Status = 'IGNORED' OR Local_PDF_Status = 'Ignored')
         AND DOI IS NOT NULL
         AND DOI != ''
         AND TRIM(DOI) != ''
         AND (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'INCLUDE%'
-    `).run(activeProjectId);
+    `).run(activeProjectId, activeProjectId);
 
     const batchState = batchStateTracker.getState();
     if (batchState.isExecuting) {

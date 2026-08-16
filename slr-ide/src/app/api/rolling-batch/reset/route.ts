@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       db.transaction(() => {
         db.prepare(`DELETE FROM rolling_batch_reviewer_decisions WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)`).run(resolvedProjectId);
         db.prepare(`DELETE FROM rolling_batch_commit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)`).run(resolvedProjectId);
-        db.prepare(`DELETE FROM rolling_batch_papers WHERE batch_id IN (${placeholders})`).run(...batchIds);
+        db.prepare(`DELETE FROM rolling_batch_papers WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT) OR batch_id IN (${placeholders})`).run(resolvedProjectId, ...batchIds);
         db.prepare(`DELETE FROM rolling_batches WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)`).run(resolvedProjectId);
       })();
 

@@ -4,7 +4,7 @@ import db, { getConfig } from '@/lib/db';
 export async function GET() {
   try {
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
-    const papers = db.prepare('SELECT * FROM papers WHERE Project_ID = ?').all(activeProjectId) as any[];
+    const papers = db.prepare('SELECT * FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').all(activeProjectId, activeProjectId) as any[];
 
     const headers = [
       'Paper_ID',
@@ -25,7 +25,7 @@ export async function GET() {
     const csvRows = [headers.join(',')];
 
     for (const paper of papers) {
-      const activeStage = paper.manual_stage > 0 ? paper.manual_stage : (paper.ai_stage || 0);
+      const activeStage = Math.max(Number(paper.manual_stage || 0), Number(paper.ai_stage || 0));
       const row = [
         paper.Paper_ID || '',
         paper.Import_Date || '',

@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
     let project = db.prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(targetProjectId, targetProjectId) as any;
     if (!project) {
-      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+      project = db.prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(activeProjectId, activeProjectId) as any;
     }
 
     if (!project) {
@@ -367,12 +367,22 @@ export async function POST(request: Request) {
 
           // Equalize AI decisions based on Stage
           if (targetStage === 2) {
-            const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND CAST(project_id AS TEXT) = CAST(? AS TEXT) AND task_type = 'gatekeeper' AND status = 'SUCCESS' LIMIT 1").get(paperId, resolvedProjectId);
+            const hasLog = db.prepare(`
+              SELECT 1 FROM llm_screening_records WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND stage = 2
+              UNION ALL
+              SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND task_type = 'gatekeeper' AND status = 'SUCCESS'
+              LIMIT 1
+            `).get(paperId, resolvedProjectId, resolvedProjectId, paperId, resolvedProjectId, resolvedProjectId);
             if (!hasLog) {
               db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)").run(paperId, resolvedProjectId);
             }
           } else if (targetStage === 3) {
-            const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND CAST(project_id AS TEXT) = CAST(? AS TEXT) AND task_type = 'scientist' AND status = 'SUCCESS' LIMIT 1").get(paperId, resolvedProjectId);
+            const hasLog = db.prepare(`
+              SELECT 1 FROM llm_screening_records WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND stage = 3
+              UNION ALL
+              SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND task_type = 'scientist' AND status = 'SUCCESS'
+              LIMIT 1
+            `).get(paperId, resolvedProjectId, resolvedProjectId, paperId, resolvedProjectId, resolvedProjectId);
             const hasScores = paper.ai_quality_assessment && paper.ai_quality_assessment !== '{}';
             if (!hasLog && !hasScores) {
               db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)").run(paperId, resolvedProjectId);

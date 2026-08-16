@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     
     // Stage dominance rule for final cohort (Stage 4, INCLUDE)
     const baseWhere = `
-      Project_ID = ?
+      (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
       AND (is_duplicate IS NULL OR is_duplicate = 0)
       AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
       AND (
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       ) LIKE 'INCLUDE%'
     `;
 
-    let queryParams: any[] = [projectId];
+    let queryParams: any[] = [projectId, projectId];
     let whereClause = baseWhere;
 
     if (search) {
@@ -49,32 +49,40 @@ export async function GET(request: Request) {
     
     const papers = db.prepare(`
       SELECT 
-        Paper_ID, Title, Authors, Year, Abstract, 
-        ai_quality_assessment, manual_quality_assessment,
-        ai_extracted_data, manual_extracted_data,
-        Local_PDF_Status, Import_Source, DOI, PDF_Link,
-        Publisher, Original_Publisher, citation_count,
-        ai_stage, manual_stage,
-        (SELECT structured_output FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND (task_type = 'scientist' OR task_type LIKE '%scientist%') ORDER BY id DESC LIMIT 1) AS qa_audit_structured_output,
-        (SELECT structured_output FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND (task_type = 'miner' OR task_type LIKE '%miner%' OR response_schema_name LIKE '%miner%') ORDER BY id DESC LIMIT 1) AS miner_audit_structured_output
-      FROM papers 
-      WHERE ${whereClause}
-      ORDER BY Paper_ID ASC
+        p.Paper_ID, p.Title, p.Authors, p.Year, p.Abstract, 
+        COALESCE(lsr_sci.quality_assessment, p.ai_quality_assessment) as ai_quality_assessment,
+        p.manual_quality_assessment,
+        COALESCE(lsr_min.extracted_data, p.ai_extracted_data) as ai_extracted_data,
+        p.manual_extracted_data,
+        p.Local_PDF_Status, p.Import_Source, p.DOI, p.PDF_Link,
+        p.Publisher, p.Original_Publisher, p.citation_count,
+        p.ai_stage, p.manual_stage,
+        lsr_sci.logic_trace as scientist_logic_trace,
+        lsr_min.logic_trace as miner_logic_trace
+      FROM papers p
+      LEFT JOIN llm_screening_records lsr_sci 
+        ON lsr_sci.paper_id = p.Paper_ID 
+       AND (lsr_sci.project_id = p.Project_ID OR CAST(lsr_sci.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+       AND lsr_sci.stage = 3
+      LEFT JOIN llm_screening_records lsr_min 
+        ON lsr_min.paper_id = p.Paper_ID 
+       AND (lsr_min.project_id = p.Project_ID OR CAST(lsr_min.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+       AND lsr_min.stage = 4
+      WHERE ${whereClause.replace(/Project_ID/g, 'p.Project_ID').replace(/is_duplicate/g, 'p.is_duplicate').replace(/manual_stage/g, 'p.manual_stage').replace(/ai_stage/g, 'p.ai_stage').replace(/manual_decision/g, 'p.manual_decision').replace(/ai_decision/g, 'p.ai_decision').replace(/ai_extracted_data/g, 'p.ai_extracted_data').replace(/manual_extracted_data/g, 'p.manual_extracted_data')}
+      ORDER BY p.Paper_ID ASC
       LIMIT ? OFFSET ?
     `).all(...queryParams, limit, offset) as any[];
 
     const processedPapers = papers.map((paper: any) => {
       let aiQA = paper.ai_quality_assessment;
-      if (paper.qa_audit_structured_output) {
+      if (paper.scientist_logic_trace) {
         try {
-          const parsedQA = aiQA ? JSON.parse(aiQA) : {};
-          const parsedAudit = JSON.parse(paper.qa_audit_structured_output);
-          const auditLt = parsedAudit.logic_trace || parsedAudit.logicTrace;
-          const qaLt = parsedQA.logic_trace || parsedQA.logicTrace;
-          if (auditLt && (!qaLt || Object.keys(qaLt).length === 0)) {
+          const parsedQA = aiQA ? (typeof aiQA === 'string' ? JSON.parse(aiQA) : aiQA) : {};
+          const parsedLt = typeof paper.scientist_logic_trace === 'string' ? JSON.parse(paper.scientist_logic_trace) : paper.scientist_logic_trace;
+          if (parsedLt && Object.keys(parsedLt).length > 0) {
             const mergedQA = {
               qa_scores: parsedQA.qa_scores || parsedQA,
-              logic_trace: auditLt
+              logic_trace: parsedLt
             };
             aiQA = JSON.stringify(mergedQA);
           }
@@ -84,18 +92,21 @@ export async function GET(request: Request) {
       }
 
       let aiExt = paper.ai_extracted_data;
-      if (paper.miner_audit_structured_output) {
+      if (paper.miner_logic_trace) {
         try {
-          const parsedExt = aiExt ? JSON.parse(aiExt) : {};
-          const parsedAudit = JSON.parse(paper.miner_audit_structured_output);
-          const auditLt = parsedAudit.logic_trace || parsedAudit.logicTrace;
-          const extLt = parsedExt.logic_trace || parsedExt.logicTrace;
-          if (auditLt && (!extLt || Object.keys(extLt).length === 0 || !extLt.extraction_mapping)) {
+          const parsedExt = aiExt ? (typeof aiExt === 'string' ? JSON.parse(aiExt) : aiExt) : {};
+          const parsedLt = typeof paper.miner_logic_trace === 'string' ? JSON.parse(paper.miner_logic_trace) : paper.miner_logic_trace;
+          if (parsedLt && Object.keys(parsedLt).length > 0) {
+            const extLt = parsedExt.logic_trace || parsedExt.logicTrace || {};
             const mergedExt = {
               extracted_data: parsedExt.extracted_data || parsedExt,
               logic_trace: {
-                ...(extLt || {}),
-                ...auditLt
+                ...extLt,
+                ...parsedLt,
+                extraction_mapping: {
+                  ...(extLt.extraction_mapping || {}),
+                  ...(parsedLt.extraction_mapping || parsedLt)
+                }
               }
             };
             aiExt = JSON.stringify(mergedExt);
@@ -105,7 +116,7 @@ export async function GET(request: Request) {
         }
       }
       
-      const { qa_audit_structured_output, miner_audit_structured_output, ...rest } = paper;
+      const { scientist_logic_trace, miner_logic_trace, ...rest } = paper;
       return {
         ...rest,
         ai_quality_assessment: aiQA,

@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       }
     }
     if (!project) {
-      project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+      project = db.prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(activeProjectId, activeProjectId) as any;
     }
 
     if (!project) {
@@ -47,8 +47,8 @@ export async function GET(request: Request) {
     // Fetch papers in this project and in the selected pool
     const papers = db.prepare(`
       SELECT * FROM calibration_papers 
-      WHERE Project_ID = ? AND calibration_pool = ?
-    `).all(resolvedProjectId, dbPool) as any[];
+      WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = ?
+    `).all(resolvedProjectId, resolvedProjectId, dbPool) as any[];
 
     // Blind the papers (force empty human fields, remove AI status) and shuffle
     const shuffledPapers = [...papers];

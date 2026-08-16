@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 export async function POST() {
   try {
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    const project = db.prepare('SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(activeProjectId, activeProjectId) as any;
     if (!project) {
       return NextResponse.json({ error: 'Active project not found' }, { status: 404 });
     }
@@ -15,9 +15,9 @@ export async function POST() {
     // Check if there is an uncompleted batch
     const activeBatch = db.prepare(`
       SELECT * FROM rolling_batches 
-      WHERE project_id = ? AND status != 'complete'
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status != 'complete'
       LIMIT 1
-    `).get(activeProjectId) as any;
+    `).get(activeProjectId, activeProjectId) as any;
 
     if (activeBatch) {
       return NextResponse.json({ 
@@ -27,27 +27,27 @@ export async function POST() {
 
     // Determine next batch number
     const countRow = db.prepare(`
-      SELECT COUNT(*) as count FROM rolling_batches WHERE project_id = ?
-    `).get(activeProjectId) as { count: number };
+      SELECT COUNT(*) as count FROM rolling_batches WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+    `).get(activeProjectId, activeProjectId) as { count: number };
     const nextBatchNumber = countRow.count + 1;
 
     // Select eligible papers
     const eligiblePapers = db.prepare(`
       SELECT p.* FROM papers p
-      WHERE p.Project_ID = ?
+      WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
         AND (p.ai_stage = 4 OR (p.ai_stage = 3 AND p.ai_quality_assessment IS NOT NULL AND p.ai_quality_assessment != '{}'))
         AND p.ai_decision LIKE 'INCLUDE%'
         AND p.is_duplicate = 0
         AND p.manual_decision IS NULL
         AND p.Paper_ID NOT IN (
-          SELECT cp.Paper_ID FROM calibration_papers cp WHERE cp.Project_ID = ?
+          SELECT cp.Paper_ID FROM calibration_papers cp WHERE (cp.Project_ID = ? OR CAST(cp.Project_ID AS TEXT) = CAST(? AS TEXT))
         )
         AND p.Paper_ID NOT IN (
-          SELECT rbp.Paper_ID FROM rolling_batch_papers rbp WHERE CAST(rbp.Project_ID AS TEXT) = CAST(? AS TEXT)
+          SELECT rbp.Paper_ID FROM rolling_batch_papers rbp WHERE (rbp.Project_ID = ? OR CAST(rbp.Project_ID AS TEXT) = CAST(? AS TEXT))
         )
       ORDER BY RANDOM()
       LIMIT ?
-    `).all(activeProjectId, activeProjectId, activeProjectId, rollingBatchSize) as any[];
+    `).all(activeProjectId, activeProjectId, activeProjectId, activeProjectId, activeProjectId, activeProjectId, rollingBatchSize) as any[];
 
     if (eligiblePapers.length === 0) {
       return NextResponse.json({ 

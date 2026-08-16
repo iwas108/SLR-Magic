@@ -9,17 +9,17 @@ export async function GET(req: Request) {
     // Get all pending pairs
     const pairs = db.prepare(`
       SELECT * FROM duplicate_pairs 
-      WHERE project_id = ? AND status = 'PENDING'
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'PENDING'
       ORDER BY similarity_score DESC, created_at DESC
-    `).all(activeProjectId) as any[];
+    `).all(activeProjectId, activeProjectId) as any[];
 
     // For each pair, fetch both papers
     const resolvedPairs = [];
-    const getPaperStmt = db.prepare(`SELECT * FROM papers WHERE Paper_ID = ? AND Project_ID = ?`);
+    const getPaperStmt = db.prepare(`SELECT * FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`);
     
     for (const pair of pairs) {
-      const paper1 = getPaperStmt.get(pair.paper1_id, activeProjectId);
-      const paper2 = getPaperStmt.get(pair.paper2_id, activeProjectId);
+      const paper1 = getPaperStmt.get(pair.paper1_id, activeProjectId, activeProjectId);
+      const paper2 = getPaperStmt.get(pair.paper2_id, activeProjectId, activeProjectId);
       if (paper1 && paper2) {
         resolvedPairs.push({
           ...pair,

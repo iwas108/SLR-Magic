@@ -147,7 +147,7 @@ export async function POST(request: Request) {
         ai_extracted_data, manual_extracted_data,
         ai_stage, manual_stage
       FROM papers 
-      WHERE Project_ID = ?
+      WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
         AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
         AND CASE 
             WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
         END LIKE 'INCLUDE%'
         AND Local_PDF_Status = 'SYNCED'
         AND Local_PDF_Path IS NOT NULL
-    `).all(projectId) as any[];
+    `).all(projectId, projectId) as any[];
 
     // Filter by QA threshold if enabled
     let skippedQa = 0;

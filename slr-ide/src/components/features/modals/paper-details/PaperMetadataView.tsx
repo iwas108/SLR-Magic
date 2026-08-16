@@ -42,19 +42,19 @@ export default function PaperMetadataView({
   activeProject
 }: PaperMetadataViewProps) {
   const [proxyBaseUrl, setProxyBaseUrl] = useState('');
-  const [llmLogs, setLlmLogs] = useState<any[]>([]);
+  const [screeningRecords, setScreeningRecords] = useState<any[]>([]);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
 
   useEffect(() => {
-    if (paper?.Paper_ID && activeProject?.id) {
-      fetch(`/api/llm/audit?projectId=${activeProject.id}&paperId=${paper.Paper_ID}`)
+    if (paper?.Paper_ID) {
+      fetch(`/api/papers/${encodeURIComponent(paper.Paper_ID)}/screening`)
         .then(res => res.json())
         .then(data => {
-          if (data.success && data.logs) {
-            setLlmLogs(data.logs);
+          if (data.success && data.records) {
+            setScreeningRecords(data.records);
           }
         })
-        .catch(err => console.error('Failed to load paper LLM logs:', err));
+        .catch(err => console.error('Failed to load paper screening records:', err));
     }
   }, [paper?.Paper_ID, activeProject?.id]);
 
@@ -248,35 +248,58 @@ export default function PaperMetadataView({
           </div>
         </Row>
         
-        {llmLogs.length > 0 && (
+        {screeningRecords.length > 0 && (
           <Row label="LLM Stage Details">
             <div className="flex flex-col gap-2">
-              {['fast_filter', 'gatekeeper', 'scientist', 'miner'].map(stage => {
-                const logsForStage = llmLogs.filter(l => l.task_type === stage && l.status === 'SUCCESS');
-                if (logsForStage.length === 0) return null;
-                const latestLog = logsForStage[logsForStage.length - 1]; // chronologically last
-                const isExpanded = expandedLog === stage;
+              {screeningRecords.map((record) => {
+                const stageKey = `stage_${record.stage}_${record.task_type}`;
+                const isExpanded = expandedLog === stageKey;
+                const isExclude = (record.decision || '').toUpperCase().startsWith('EXCLUDE');
+                const stageNames: Record<number, string> = {
+                  1: 'Stage 1: Fast Filter',
+                  2: 'Stage 2: Gatekeeper',
+                  3: 'Stage 3: Quality Assessment',
+                  4: 'Stage 4: Data Extraction'
+                };
+                const displayTitle = stageNames[record.stage] || record.task_type.replace('_', ' ').toUpperCase();
+
                 return (
-                  <div key={stage} className="border border-border/50 rounded-lg overflow-hidden bg-secondary/5">
+                  <div key={record.id || stageKey} className="border border-border/50 rounded-lg overflow-hidden bg-secondary/5">
                     <button 
                       type="button"
                       onClick={(e) => {
                         e.preventDefault();
-                        setExpandedLog(isExpanded ? null : stage);
+                        setExpandedLog(isExpanded ? null : stageKey);
                       }}
                       className="w-full flex items-center justify-between p-3 bg-secondary/20 hover:bg-secondary/40 transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         {isExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                        <span className="font-bold text-xs uppercase text-foreground">{stage.replace('_', ' ')}</span>
+                        <span className="font-bold text-xs uppercase text-foreground">{displayTitle}</span>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isExclude ? 'bg-destructive/20 text-destructive border border-destructive/30' : 'bg-emerald-500/20 text-emerald-600 border border-emerald-500/30'}`}>
+                          {record.decision} {record.exclusion_code ? `(${record.exclusion_code})` : ''}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground font-mono bg-background border border-border px-1.5 py-0.5 rounded">
-                        {latestLog.model_id}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {record.total_tokens ? (
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {record.total_tokens.toLocaleString()} tok
+                          </span>
+                        ) : null}
+                        <span className="text-[10px] text-muted-foreground font-mono bg-background border border-border px-1.5 py-0.5 rounded">
+                          {record.model_id}
+                        </span>
+                      </div>
                     </button>
                     {isExpanded && (
-                      <div className="p-3 border-t border-border/50 bg-secondary/10">
-                        <JSONViewer data={latestLog.structured_output || latestLog.raw_response} />
+                      <div className="p-3 border-t border-border/50 bg-secondary/10 flex flex-col gap-2">
+                        {record.rationale && (
+                          <div className="text-xs text-muted-foreground bg-background/50 p-2 rounded border border-border/30">
+                            <span className="font-semibold text-foreground">Rationale: </span>
+                            {record.rationale}
+                          </div>
+                        )}
+                        <JSONViewer data={record.structured_output || record.extracted_data || record.quality_assessment || record.logic_trace || record} />
                       </div>
                     )}
                   </div>

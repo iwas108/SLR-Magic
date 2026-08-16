@@ -15,9 +15,9 @@ export async function GET(request: Request) {
     const ledger = db.prepare(`
       SELECT id, commit_hash, project_id, paper_id, pool, adjudicator, previous_state, resolved_decision, resolved_ec, resolved_rationale, resolved_qa_scores, resolved_extracted_data, commit_message, timestamp
       FROM calibration_commit_ledger
-      WHERE project_id = ? AND pool = ?
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND pool = ?
       ORDER BY timestamp DESC
-    `).all(activeProjectId, dbPool);
+    `).all(activeProjectId, activeProjectId, dbPool);
 
     return NextResponse.json({ success: true, ledger });
   } catch (error: any) {

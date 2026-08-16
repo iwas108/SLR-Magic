@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
     }
 
     const results = db.prepare(`
-      SELECT * FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
-    `).all(projectId);
+      SELECT * FROM umbrellanizer_results WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+    `).all(projectId, projectId);
 
     return NextResponse.json({ success: true, results });
   } catch (error: any) {

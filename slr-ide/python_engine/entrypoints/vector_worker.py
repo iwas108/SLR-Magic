@@ -46,17 +46,17 @@ def run_search(params):
     if mode == "papers":
         # Always construct allowlist scoped by active_project_id
         try:
-            query_parts = ["SELECT Paper_ID FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"]
-            sql_params = [active_project_id]
+            query_parts = ["SELECT Paper_ID FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)"]
+            sql_params = [active_project_id, active_project_id]
             
             if pool:
                 pool_lower = pool.lower()
                 if pool_lower == 'none':
-                    query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)")
-                    sql_params.append(active_project_id)
+                    query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)))")
+                    sql_params.extend([active_project_id, active_project_id])
                 elif pool_lower != 'all':
-                    query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)")
-                    sql_params.extend([active_project_id, pool_lower])
+                    query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = ?)")
+                    sql_params.extend([active_project_id, active_project_id, pool_lower])
                     
             if exclude_reviews:
                 query_parts.append("AND Title NOT LIKE '%review%' AND (Abstract IS NULL OR Abstract NOT LIKE '%survey%')")
@@ -92,10 +92,10 @@ def run_search(params):
         try:
             cursor.execute(
                 f"""SELECT *,
-                           (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
-                           (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag
-                    FROM papers WHERE Paper_ID IN ({placeholders}) AND Project_ID = ?""",
-                tuple(paper_ids) + (active_project_id,)
+                           (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_pool,
+                           (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_tag
+                    FROM papers WHERE Paper_ID IN ({placeholders}) AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))""",
+                tuple(paper_ids) + (active_project_id, active_project_id)
             )
             columns = [col[0] for col in cursor.description]
             metadata_map = {}

@@ -31,11 +31,12 @@ export async function GET(req: Request) {
 
     if (projectId) {
       if (includeGlobal) {
-        query += ' WHERE (project_id = ? OR project_id IS NULL)';
+        query += ' WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id IS NULL)';
+        params.push(projectId, projectId);
       } else {
-        query += ' WHERE project_id = ?';
+        query += ' WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))';
+        params.push(projectId, projectId);
       }
-      params.push(projectId);
     } else {
       query += ' WHERE project_id IS NULL';
     }

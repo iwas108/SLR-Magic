@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
         ai_stage, ai_decision, ai_extracted_data,
         manual_stage, manual_decision, manual_extracted_data
       FROM papers
-      WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
+      WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)
         AND (
           CASE 
             WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_stage
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
             ELSE COALESCE(manual_decision, ai_decision)
           END
         ) LIKE 'INCLUDE%'
-    `).all(projectId);
+    `).all(projectId, projectId);
 
     // Resolve stage-aware extracted_data for each paper
     const processedPapers = papers.map((paper: any) => {

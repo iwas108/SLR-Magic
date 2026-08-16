@@ -30,21 +30,21 @@ export async function DELETE(request: Request) {
     }
 
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
-    const selectPaperStmt = db.prepare('SELECT Local_PDF_Path, Project_ID FROM papers WHERE Paper_ID = ? AND Project_ID = ?');
-    const selectProjectFolderStmt = db.prepare('SELECT folder_name FROM projects WHERE id = ?');
+    const selectPaperStmt = db.prepare('SELECT Local_PDF_Path, Project_ID FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))');
+    const selectProjectFolderStmt = db.prepare('SELECT folder_name FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))');
     const updatePaperStmt = db.prepare(`
       UPDATE papers 
       SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL, PDF_Link = NULL 
-      WHERE Paper_ID = ? AND Project_ID = ?
+      WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
     `);
 
     // Run database updates and file deletes in a transaction
     const transaction = db.transaction(() => {
       for (const id of paperIds) {
-        const paper = selectPaperStmt.get(id, activeProjectId) as { Local_PDF_Path: string | null; Project_ID: string } | undefined;
+        const paper = selectPaperStmt.get(id, activeProjectId, activeProjectId) as { Local_PDF_Path: string | null; Project_ID: string } | undefined;
         if (!paper) continue;
 
-        const project = selectProjectFolderStmt.get(paper.Project_ID) as { folder_name: string } | undefined;
+        const project = selectProjectFolderStmt.get(paper.Project_ID, paper.Project_ID) as { folder_name: string } | undefined;
 
         // Delete the file at the database registered path
         if (paper.Local_PDF_Path) {
@@ -76,7 +76,7 @@ export async function DELETE(request: Request) {
           }
         }
 
-        updatePaperStmt.run(id, activeProjectId);
+        updatePaperStmt.run(id, activeProjectId, activeProjectId);
       }
     });
 

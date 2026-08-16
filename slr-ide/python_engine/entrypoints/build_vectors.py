@@ -55,8 +55,8 @@ def main():
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT Paper_ID, Title, Abstract FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)", 
-            (active_project_id,)
+            "SELECT Paper_ID, Title, Abstract FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)", 
+            (active_project_id, active_project_id)
         )
         paper_records = cursor.fetchall()
         conn.close()

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const selectPaperStmt = db.prepare(`
       SELECT * 
       FROM calibration_papers 
-      WHERE Paper_ID = ? AND Project_ID = ? AND calibration_pool = ?
+      WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = ?
     `);
 
     const updatePaperStmt = db.prepare(`
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
           manual_quality_assessment = ?,
           manual_extracted_data = ?,
           manual_stage = ?
-      WHERE Paper_ID = ? AND Project_ID = ? AND calibration_pool = ?
+      WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = ?
     `);
 
     const insertLedgerStmt = db.prepare(`
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     let final_extracted_data_str: string | null = null;
 
     if (dbPool === 'pool_c') {
-      const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+      const project = db.prepare('SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(activeProjectId, activeProjectId) as any;
       let qaRules = [];
       if (project && project.pool_c_qa_rules) {
         try {
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
     const commitEntry = db.transaction(() => {
       // 1. Read current paper state
-      const dbPaper = selectPaperStmt.get(paper_id, activeProjectId, dbPool) as any;
+      const dbPaper = selectPaperStmt.get(paper_id, activeProjectId, activeProjectId, dbPool) as any;
       if (!dbPaper) {
         throw new Error(`Paper with ID ${paper_id} not found in ${dbPool.toUpperCase()} of the active project.`);
       }
@@ -114,20 +114,31 @@ export async function POST(request: Request) {
         targetStage,
         paper_id, 
         activeProjectId,
+        activeProjectId,
         dbPool
       );
 
       // Equalize AI decisions based on Stage
       if (targetStage === 2) {
-        const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'gatekeeper' AND status = 'SUCCESS' LIMIT 1").get(paper_id, activeProjectId);
+        const hasLog = db.prepare(`
+          SELECT 1 FROM llm_screening_records WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND stage = 2
+          UNION ALL
+          SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND task_type = 'gatekeeper' AND status = 'SUCCESS'
+          LIMIT 1
+        `).get(paper_id, activeProjectId, activeProjectId, paper_id, activeProjectId, activeProjectId);
         if (!hasLog) {
-          db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paper_id, activeProjectId);
+          db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(paper_id, activeProjectId, activeProjectId);
         }
       } else if (targetStage === 3) {
-        const hasLog = db.prepare("SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND project_id = ? AND task_type = 'scientist' AND status = 'SUCCESS' LIMIT 1").get(paper_id, activeProjectId);
+        const hasLog = db.prepare(`
+          SELECT 1 FROM llm_screening_records WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND stage = 3
+          UNION ALL
+          SELECT 1 FROM llm_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND task_type = 'scientist' AND status = 'SUCCESS'
+          LIMIT 1
+        `).get(paper_id, activeProjectId, activeProjectId, paper_id, activeProjectId, activeProjectId);
         const hasScores = dbPaper.ai_quality_assessment && dbPaper.ai_quality_assessment !== '{}';
         if (!hasLog && !hasScores) {
-          db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND Project_ID = ?").run(paper_id, activeProjectId);
+          db.prepare("UPDATE calibration_papers SET ai_decision = NULL, ai_exclusion_code = NULL, ai_rationale = NULL WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(paper_id, activeProjectId, activeProjectId);
         }
       }
 

@@ -101,16 +101,16 @@ export async function POST(request: Request) {
       // 5. Check if all papers in this batch are resolved
       const unresolvedCountRow = db.prepare(`
         SELECT COUNT(*) as count FROM rolling_batch_papers 
-        WHERE batch_id = ? AND Project_ID = ? AND (manual_decision = 'PENDING_ADJUDICATION' OR manual_decision IS NULL)
-      `).get(batch_id, activeProjectId) as { count: number };
+        WHERE batch_id = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (manual_decision = 'PENDING_ADJUDICATION' OR manual_decision IS NULL)
+      `).get(batch_id, activeProjectId, activeProjectId) as { count: number };
 
       let batchFinalized = false;
       if (unresolvedCountRow.count === 0) {
         db.prepare(`
           UPDATE rolling_batches 
           SET status = 'complete', finalized_at = ? 
-          WHERE id = ? AND project_id = ?
-        `).run(timestamp, batch_id, activeProjectId);
+          WHERE id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+        `).run(timestamp, batch_id, activeProjectId, activeProjectId);
         batchFinalized = true;
       }
 

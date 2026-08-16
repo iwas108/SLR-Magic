@@ -48,8 +48,8 @@ export async function POST(req: Request) {
         db.prepare(`
           UPDATE papers
           SET is_duplicate = 1, merged_into_id = ?
-          WHERE Paper_ID = ? AND Project_ID = ?
-        `).run(keep_paper_id, exclude_paper_id, pair?.project_id);
+          WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+        `).run(keep_paper_id, exclude_paper_id, pair?.project_id, pair?.project_id);
 
         // 2. Update status of the duplicate pair
         db.prepare(`

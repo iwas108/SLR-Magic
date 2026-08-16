@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       `).all(activeProjectId, activeProjectId) as { paper_id: string; pool: string; adjudicated_decision: string; resolved_qa_scores: string; resolved_extracted_data: string }[];
 
       // Query project rules to parse fatal flaws and keys
-      const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+      const project = db.prepare('SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(activeProjectId, activeProjectId) as any;
       let qaRules: any[] = [];
       let extractionRules: any[] = [];
       if (project) {
@@ -70,18 +70,35 @@ export async function GET(request: Request) {
           let totalRatingComparisons = 0;
 
           for (const entry of poolEntries) {
-            const auditRow = db.prepare(`
-              SELECT structured_output 
-              FROM llm_audit_log 
-              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'scientist' AND status = 'SUCCESS'
-              ORDER BY created_at DESC LIMIT 1
-            `).get(activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
+            const screeningRow = db.prepare(`
+              SELECT structured_output, quality_assessment
+              FROM llm_screening_records
+              WHERE (CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id = ?) AND paper_id = ? AND stage = 3
+            `).get(activeProjectId, activeProjectId, entry.paper_id) as { structured_output: string; quality_assessment: string } | undefined;
 
-            if (auditRow?.structured_output && entry.resolved_qa_scores) {
+            let structuredOutput = screeningRow?.structured_output;
+            let qaScoresStr = screeningRow?.quality_assessment;
+
+            if (!structuredOutput && !qaScoresStr) {
+              const auditRow = db.prepare(`
+                SELECT structured_output 
+                FROM llm_audit_log 
+                WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'scientist' AND status = 'SUCCESS'
+                ORDER BY created_at DESC LIMIT 1
+              `).get(activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
+              structuredOutput = auditRow?.structured_output;
+            }
+
+            if ((structuredOutput || qaScoresStr) && entry.resolved_qa_scores) {
               evaluatedCount++;
               try {
-                const aiBody = JSON.parse(auditRow.structured_output);
-                const aiQa = aiBody.qa_scores || {};
+                let aiQa: Record<string, any> = {};
+                if (qaScoresStr) {
+                  aiQa = typeof qaScoresStr === 'string' ? JSON.parse(qaScoresStr) : qaScoresStr;
+                } else if (structuredOutput) {
+                  const aiBody = JSON.parse(structuredOutput);
+                  aiQa = aiBody.qa_scores || {};
+                }
                 const goldQa = JSON.parse(entry.resolved_qa_scores || '{}');
 
                 for (const rule of qaRules) {
@@ -108,17 +125,14 @@ export async function GET(request: Request) {
                   O[idx1][idx2]++;
                   totalRatings++;
 
-                  // Ordinal tier deviations (0.0, 0.5, 1.0)
-                  const goldNum = parseFloat(String(goldVal));
-                  const aiNum = parseFloat(String(aiVal));
-                  const diff = Math.abs(goldNum - aiNum);
-                  
+                  // Track granular deviation bands
                   totalRatingComparisons++;
-                  if (diff === 0) {
+                  const scoreDiff = Math.abs(idx1 - idx2);
+                  if (scoreDiff === 0) {
                     rawAgreementCount++;
-                  } else if (diff === 0.5) {
+                  } else if (scoreDiff === 1) {
                     minorDeviationCount++;
-                  } else if (diff === 1.0) {
+                  } else if (scoreDiff >= 2) {
                     criticalMissCount++;
                   }
                 }
@@ -202,18 +216,35 @@ export async function GET(request: Request) {
           };
 
           for (const entry of poolEntries) {
-            const auditRow = db.prepare(`
-              SELECT structured_output 
-              FROM llm_audit_log 
-              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'miner' AND status = 'SUCCESS'
-              ORDER BY created_at DESC LIMIT 1
-            `).get(activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
+            const screeningRow = db.prepare(`
+              SELECT structured_output, extracted_data
+              FROM llm_screening_records
+              WHERE (CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id = ?) AND paper_id = ? AND stage = 4
+            `).get(activeProjectId, activeProjectId, entry.paper_id) as { structured_output: string; extracted_data: string } | undefined;
 
-            if (auditRow?.structured_output && entry.resolved_extracted_data) {
+            let structuredOutput = screeningRow?.structured_output;
+            let extDataStr = screeningRow?.extracted_data;
+
+            if (!structuredOutput && !extDataStr) {
+              const auditRow = db.prepare(`
+                SELECT structured_output 
+                FROM llm_audit_log 
+                WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'miner' AND status = 'SUCCESS'
+                ORDER BY created_at DESC LIMIT 1
+              `).get(activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
+              structuredOutput = auditRow?.structured_output;
+            }
+
+            if ((structuredOutput || extDataStr) && entry.resolved_extracted_data) {
               evaluatedCount++;
               try {
-                const aiBody = JSON.parse(auditRow.structured_output);
-                const aiExt = aiBody.extracted_data || aiBody;
+                let aiExt: Record<string, any> = {};
+                if (extDataStr) {
+                  aiExt = typeof extDataStr === 'string' ? JSON.parse(extDataStr) : extDataStr;
+                } else if (structuredOutput) {
+                  const aiBody = JSON.parse(structuredOutput);
+                  aiExt = aiBody.extracted_data || aiBody;
+                }
                 const goldExt = JSON.parse(entry.resolved_extracted_data || '{}');
 
                 for (const rule of extractionRules) {
@@ -262,24 +293,33 @@ export async function GET(request: Request) {
         for (const entry of poolEntries) {
           const goldDec = (entry.adjudicated_decision || '').toUpperCase();
 
-          // Query the latest LLM audit log decision for this paper at this stage
-          // llm_audit_log has paper_id, project_id, task_type, and structured_output
-          const auditRow = db.prepare(`
-            SELECT structured_output 
-            FROM llm_audit_log 
-            WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = ? AND status = 'SUCCESS'
-            ORDER BY created_at DESC LIMIT 1
-          `).get(activeProjectId, entry.paper_id, stageNum === 1 ? 'fast_filter' : 'gatekeeper') as { structured_output: string } | undefined;
+          // Query the screening record for this paper at this stage
+          const screeningRow = db.prepare(`
+            SELECT decision, structured_output
+            FROM llm_screening_records
+            WHERE (CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id = ?) AND paper_id = ? AND stage = ?
+          `).get(activeProjectId, activeProjectId, entry.paper_id, stageNum) as { decision: string; structured_output: string } | undefined;
 
           let aiDec = 'PENDING';
-          if (auditRow?.structured_output) {
-            try {
-              const body = JSON.parse(auditRow.structured_output);
-              const finalEval = body.final_evaluation || body;
-              if (finalEval && finalEval.decision) {
-                aiDec = finalEval.decision.toUpperCase();
-              }
-            } catch {}
+          if (screeningRow && screeningRow.decision) {
+            aiDec = screeningRow.decision.toUpperCase();
+          } else {
+            const auditRow = db.prepare(`
+              SELECT structured_output 
+              FROM llm_audit_log 
+              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = ? AND status = 'SUCCESS'
+              ORDER BY created_at DESC LIMIT 1
+            `).get(activeProjectId, entry.paper_id, stageNum === 1 ? 'fast_filter' : 'gatekeeper') as { structured_output: string } | undefined;
+
+            if (auditRow?.structured_output) {
+              try {
+                const body = JSON.parse(auditRow.structured_output);
+                const finalEval = body.final_evaluation || body;
+                if (finalEval && finalEval.decision) {
+                  aiDec = finalEval.decision.toUpperCase();
+                }
+              } catch {}
+            }
           }
 
           const isGoldInc = goldDec.startsWith('INCLUDE');

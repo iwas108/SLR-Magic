@@ -258,164 +258,181 @@ class LLMQueueHandler:
             }
             incoming_stage = stage_map.get(self.task_type, 0)
 
-            # Fetch current ai_stage
-            paper_db = execute_read_one("SELECT ai_stage FROM papers WHERE Paper_ID = ? AND Project_ID = ?", (paper_id, self.project_id))
-            current_ai_stage = paper_db.get("ai_stage") if paper_db else 0
+            ai_decision = decision_text
+            ai_exclusion_code = None
+            if decision_text.upper() == "EXCLUDE":
+                ai_decision = "EXCLUDE"
+                ai_exclusion_code = ec_trigger if (ec_trigger and ec_trigger != "NONE") else None
 
-            if incoming_stage >= current_ai_stage:
-                ai_decision = decision_text
-                ai_exclusion_code = None
-                if decision_text.upper() == "EXCLUDE":
-                    ai_decision = "EXCLUDE"
-                    ai_exclusion_code = ec_trigger if (ec_trigger and ec_trigger != "NONE") else None
-
-                def normalize_extracted_data_payload(ext_payload):
-                    """
-                    Future-proofing helper:
-                    Normalizes any extraction key's 'value' field if it is a comma-separated string
-                    or 'NOT_STATED' into a clean list of trimmed strings.
-                    """
-                    if not ext_payload:
-                        return ext_payload
-                    
-                    if isinstance(ext_payload, str):
-                        try:
-                            import json
-                            parsed = json.loads(ext_payload)
-                            normalized = normalize_extracted_data_payload(parsed)
-                            return json.dumps(normalized, ensure_ascii=False)
-                        except Exception:
-                            return ext_payload
-
-                    if isinstance(ext_payload, dict):
-                        target_dict = ext_payload.get("extracted_data") if "extracted_data" in ext_payload and isinstance(ext_payload["extracted_data"], dict) else ext_payload
-                        for k, v in list(target_dict.items()):
-                            if k.startswith("_") or k in ("logic_trace", "qa_scores"):
-                                continue
-                            if isinstance(v, dict) and "value" in v:
-                                val = v["value"]
-                                if isinstance(val, str):
-                                    s_val = val.strip()
-                                    if s_val.upper() == 'NOT_STATED':
-                                        v["value"] = ["NOT_STATED"]
-                                    elif ',' in s_val:
-                                        items = [item.strip() for item in s_val.split(',') if item.strip()]
-                                        v["value"] = items if items else ["NOT_STATED"]
-                                elif isinstance(val, list):
-                                    normalized_items = []
-                                    for item in val:
-                                        if isinstance(item, str):
-                                            s_item = item.strip()
-                                            if s_item.upper() == 'NOT_STATED':
-                                                normalized_items.append("NOT_STATED")
-                                            elif s_item:
-                                                normalized_items.append(s_item)
-                                        else:
-                                            normalized_items.append(str(item))
-                                    v["value"] = normalized_items if normalized_items else ["NOT_STATED"]
+            def normalize_extracted_data_payload(ext_payload):
+                """
+                Future-proofing helper:
+                Normalizes any extraction key's 'value' field if it is a comma-separated string
+                or 'NOT_STATED' into a clean list of trimmed strings.
+                """
+                if not ext_payload:
+                    return ext_payload
+                
+                if isinstance(ext_payload, str):
+                    try:
+                        import json
+                        parsed = json.loads(ext_payload)
+                        normalized = normalize_extracted_data_payload(parsed)
+                        return json.dumps(normalized, ensure_ascii=False)
+                    except Exception:
                         return ext_payload
 
+                if isinstance(ext_payload, dict):
+                    target_dict = ext_payload.get("extracted_data") if "extracted_data" in ext_payload and isinstance(ext_payload["extracted_data"], dict) else ext_payload
+                    for k, v in list(target_dict.items()):
+                        if k.startswith("_") or k in ("logic_trace", "qa_scores"):
+                            continue
+                        if isinstance(v, dict) and "value" in v:
+                            val = v["value"]
+                            if isinstance(val, str):
+                                s_val = val.strip()
+                                if s_val.upper() == 'NOT_STATED':
+                                    v["value"] = ["NOT_STATED"]
+                                elif ',' in s_val:
+                                    items = [item.strip() for item in s_val.split(',') if item.strip()]
+                                    v["value"] = items if items else ["NOT_STATED"]
+                            elif isinstance(val, list):
+                                normalized_items = []
+                                for item in val:
+                                    if isinstance(item, str):
+                                        s_item = item.strip()
+                                        if s_item.upper() == 'NOT_STATED':
+                                            normalized_items.append("NOT_STATED")
+                                        elif s_item:
+                                            normalized_items.append(s_item)
+                                    else:
+                                        normalized_items.append(str(item))
+                                v["value"] = normalized_items if normalized_items else ["NOT_STATED"]
                     return ext_payload
 
-                def to_json_str(val):
-                    if not val:
-                        return None
-                    if isinstance(val, str):
-                        return val
+                return ext_payload
+
+            def to_json_str(val):
+                if not val:
+                    return None
+                if isinstance(val, str):
+                    return val
+                import json
+                return json.dumps(val)
+
+            qa_scores_json = to_json_str(response.get("qa_scores"))
+            if not qa_scores_json and struct_out:
+                try:
                     import json
-                    return json.dumps(val)
+                    parsed_so = json.loads(struct_out)
+                    if isinstance(parsed_so, dict) and "qa_scores" in parsed_so:
+                        qa_scores_json = to_json_str(parsed_so["qa_scores"])
+                except Exception:
+                    pass
 
-                qa_scores_json = to_json_str(response.get("qa_scores"))
-                if not qa_scores_json and struct_out:
+            raw_ext_data = response.get("extracted_data")
+            if self.task_type in ('miner', 'extraction') and not raw_ext_data and struct_out:
+                try:
+                    import json
+                    parsed_so = json.loads(struct_out)
+                    raw_ext_data = parsed_so.get("extracted_data") or parsed_so
+                except Exception:
+                    raw_ext_data = None
+
+            if raw_ext_data:
+                raw_ext_data = normalize_extracted_data_payload(raw_ext_data)
+
+            extracted_data_json = to_json_str(raw_ext_data)
+
+            # Extract logic_trace object if available
+            logic_trace_obj = response.get("logic_trace")
+            if not logic_trace_obj and struct_out:
+                try:
+                    import json
+                    parsed_so = json.loads(struct_out)
+                    if isinstance(parsed_so, dict):
+                        logic_trace_obj = parsed_so.get("logic_trace") or parsed_so.get("logicTrace")
+                except Exception:
+                    pass
+            logic_trace_json = to_json_str(logic_trace_obj)
+
+            # If re-running an earlier stage and decision is EXCLUDE, purge downstream records (stage > incoming_stage)
+            if ai_decision == "EXCLUDE" and incoming_stage > 0:
+                execute_write(
+                    "DELETE FROM llm_screening_records WHERE project_id = ? AND paper_id = ? AND stage > ?",
+                    (self.project_id, paper_id, incoming_stage)
+                )
+
+            # Write verified gate state to llm_screening_records (triggers will automatically sync papers & rolling_batch_papers)
+            now_iso = datetime.utcnow().isoformat()
+            execute_write(
+                """
+                INSERT INTO llm_screening_records (
+                    project_id, paper_id, stage, task_type, decision, exclusion_code,
+                    rationale, quality_assessment, extracted_data, logic_trace, structured_output,
+                    model_id, job_id, cost_usd, total_tokens, latency_ms, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(project_id, paper_id, stage) DO UPDATE SET
+                    task_type = excluded.task_type,
+                    decision = excluded.decision,
+                    exclusion_code = excluded.exclusion_code,
+                    rationale = excluded.rationale,
+                    quality_assessment = excluded.quality_assessment,
+                    extracted_data = excluded.extracted_data,
+                    logic_trace = excluded.logic_trace,
+                    structured_output = excluded.structured_output,
+                    model_id = excluded.model_id,
+                    job_id = excluded.job_id,
+                    cost_usd = excluded.cost_usd,
+                    total_tokens = excluded.total_tokens,
+                    latency_ms = excluded.latency_ms,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    self.project_id, paper_id, incoming_stage, self.task_type, ai_decision, ai_exclusion_code,
+                    rationale_text or None, qa_scores_json, extracted_data_json, logic_trace_json, struct_out,
+                    self.model_id, self.job_id, actual_cost, (input_tokens + output_tokens + thinking_tokens),
+                    response.get("latency_ms", 0), now_iso, now_iso
+                )
+            )
+            logger.info(f"AI screening record for paper {paper_id} saved to llm_screening_records (stage {incoming_stage}).")
+
+            if self.task_type in ('miner', 'extraction'):
+                from llm.fulltext import resolve_path
+                ext_data = None
+                if self.schema_mapping and self.schema_mapping.get("extracted_data"):
+                    ext_data = resolve_path(response.get("structured_output") or {}, self.schema_mapping.get("extracted_data"))
+                if not ext_data:
+                    ext_data = response.get("extracted_data")
+                if not ext_data and struct_out:
                     try:
                         import json
-                        parsed_so = json.loads(struct_out)
-                        if isinstance(parsed_so, dict) and "qa_scores" in parsed_so:
-                            qa_scores_json = to_json_str(parsed_so["qa_scores"])
-                    except Exception:
+                        parsed_struct = json.loads(struct_out)
+                        if self.schema_mapping and self.schema_mapping.get("extracted_data"):
+                            ext_data = resolve_path(parsed_struct, self.schema_mapping.get("extracted_data"))
+                        if not ext_data:
+                            ext_data = parsed_struct.get("extracted_data") or parsed_struct
+                    except:
                         pass
-
-                raw_ext_data = response.get("extracted_data")
-                if self.task_type in ('miner', 'extraction') and not raw_ext_data and struct_out:
-                    try:
-                        import json
-                        parsed_so = json.loads(struct_out)
-                        raw_ext_data = parsed_so.get("extracted_data") or parsed_so
-                    except Exception:
-                        raw_ext_data = None
-
-                if raw_ext_data:
-                    raw_ext_data = normalize_extracted_data_payload(raw_ext_data)
-
-                extracted_data_json = to_json_str(raw_ext_data)
-
-                execute_write(
-                    """
-                    UPDATE papers
-                    SET ai_stage = ?,
-                        ai_decision = ?,
-                        ai_exclusion_code = ?,
-                        ai_rationale = COALESCE(?, ai_rationale),
-                        ai_quality_assessment = COALESCE(?, ai_quality_assessment),
-                        ai_extracted_data = COALESCE(?, ai_extracted_data)
-                    WHERE Paper_ID = ? AND Project_ID = ?
-                    """,
-                    (incoming_stage, ai_decision, ai_exclusion_code, rationale_text or None,
-                     qa_scores_json, extracted_data_json, paper_id, self.project_id)
-                )
-
-                execute_write(
-                    """
-                    UPDATE rolling_batch_papers
-                    SET ai_stage = ?,
-                        ai_decision = ?,
-                        ai_exclusion_code = ?,
-                        ai_rationale = COALESCE(?, ai_rationale),
-                        ai_quality_assessment = COALESCE(?, ai_quality_assessment),
-                        ai_extracted_data = COALESCE(?, ai_extracted_data)
-                    WHERE Paper_ID = ? AND CAST(Project_ID AS TEXT) = CAST(? AS TEXT)
-                    """,
-                    (incoming_stage, ai_decision, ai_exclusion_code, rationale_text or None,
-                     qa_scores_json, extracted_data_json, paper_id, self.project_id)
-                )
-                logger.info(f"AI screening decision for paper {paper_id} saved to papers and rolling_batch_papers tables.")
-
-                if self.task_type in ('miner', 'extraction'):
-                    from llm.fulltext import resolve_path
-                    ext_data = None
-                    if self.schema_mapping and self.schema_mapping.get("extracted_data"):
-                        ext_data = resolve_path(response.get("structured_output") or {}, self.schema_mapping.get("extracted_data"))
-                    if not ext_data:
-                        ext_data = response.get("extracted_data")
-                    if not ext_data and struct_out:
-                        try:
-                            import json
-                            parsed_struct = json.loads(struct_out)
-                            if self.schema_mapping and self.schema_mapping.get("extracted_data"):
-                                ext_data = resolve_path(parsed_struct, self.schema_mapping.get("extracted_data"))
-                            if not ext_data:
-                                ext_data = parsed_struct.get("extracted_data") or parsed_struct
-                        except:
-                            pass
+                
+                if ext_data and isinstance(ext_data, dict):
+                    def is_not_stated(val):
+                        if isinstance(val, str):
+                            return val.strip().upper() == 'NOT_STATED'
+                        if isinstance(val, list):
+                            return any(isinstance(item, str) and item.strip().upper() == 'NOT_STATED' for item in val)
+                        return False
                     
-                    if ext_data and isinstance(ext_data, dict):
-                        def is_not_stated(val):
-                            if isinstance(val, str):
-                                return val.strip().upper() == 'NOT_STATED'
-                            if isinstance(val, list):
-                                return any(isinstance(item, str) and item.strip().upper() == 'NOT_STATED' for item in val)
-                            return False
-                        
-                        with self.lock:
-                            for key, field_obj in ext_data.items():
-                                val = None
-                                if isinstance(field_obj, dict):
-                                    val = field_obj.get("value")
-                                else:
-                                    val = field_obj
-                                
-                                if is_not_stated(val):
-                                    self.not_stated_metrics[key] = self.not_stated_metrics.get(key, 0) + 1
+                    with self.lock:
+                        for key, field_obj in ext_data.items():
+                            val = None
+                            if isinstance(field_obj, dict):
+                                val = field_obj.get("value")
+                            else:
+                                val = field_obj
+                            
+                            if is_not_stated(val):
+                                self.not_stated_metrics[key] = self.not_stated_metrics.get(key, 0) + 1
 
 
 

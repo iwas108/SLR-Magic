@@ -43,23 +43,23 @@ export async function GET(request: Request) {
     
     // Check if only hashes/deduplication keys are requested
     if (searchParams.get('onlyHashes') === 'true') {
-      const rows = db.prepare("SELECT DOI, Title FROM papers WHERE Project_ID = ?").all(activeProjectId) as { DOI: string; Title: string }[];
+      const rows = db.prepare("SELECT DOI, Title FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").all(activeProjectId, activeProjectId) as { DOI: string; Title: string }[];
       return NextResponse.json(rows);
     }
 
     // Check if only unique publishers are requested
     if (searchParams.get('getPublishers') === 'true') {
-      const rows = db.prepare("SELECT DISTINCT Publisher FROM papers WHERE Project_ID = ? AND Publisher IS NOT NULL AND Publisher != '' ORDER BY Publisher ASC").all(activeProjectId) as { Publisher: string }[];
+      const rows = db.prepare("SELECT DISTINCT Publisher FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Publisher IS NOT NULL AND Publisher != '' ORDER BY Publisher ASC").all(activeProjectId, activeProjectId) as { Publisher: string }[];
       return NextResponse.json(rows.map(r => r.Publisher));
     }
 
     if (searchParams.get('getManualStages') === 'true') {
-      const rows = db.prepare("SELECT DISTINCT manual_stage FROM papers WHERE Project_ID = ? AND manual_stage IS NOT NULL AND manual_stage != '' ORDER BY manual_stage ASC").all(activeProjectId) as { manual_stage: string }[];
+      const rows = db.prepare("SELECT DISTINCT manual_stage FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND manual_stage IS NOT NULL AND manual_stage != '' ORDER BY manual_stage ASC").all(activeProjectId, activeProjectId) as { manual_stage: string }[];
       return NextResponse.json(rows.map(r => r.manual_stage));
     }
 
     if (searchParams.get('getManualDecisions') === 'true') {
-      const rows = db.prepare("SELECT DISTINCT manual_decision FROM papers WHERE Project_ID = ? AND manual_decision IS NOT NULL AND manual_decision != '' ORDER BY manual_decision ASC").all(activeProjectId) as { manual_decision: string }[];
+      const rows = db.prepare("SELECT DISTINCT manual_decision FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND manual_decision IS NOT NULL AND manual_decision != '' ORDER BY manual_decision ASC").all(activeProjectId, activeProjectId) as { manual_decision: string }[];
       return NextResponse.json(rows.map(r => r.manual_decision));
     }
 
@@ -87,29 +87,36 @@ export async function GET(request: Request) {
         stageCode = 4;
       }
 
-      let manualAuditQuery = "SELECT DISTINCT ec_trigger as code FROM manual_audit_log WHERE project_id = ? AND ec_trigger IS NOT NULL AND ec_trigger != '' AND ec_trigger != 'NONE'";
-      let manualAuditParams = [activeProjectId];
+      let manualAuditQuery = "SELECT DISTINCT ec_trigger as code FROM manual_audit_log WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND ec_trigger IS NOT NULL AND ec_trigger != '' AND ec_trigger != 'NONE'";
+      let manualAuditParams: any[] = [activeProjectId, activeProjectId];
       if (manualStageFilter) {
         manualAuditQuery += " AND manual_stage = ?";
         manualAuditParams.push(manualStageFilter);
       }
 
-      let llmAuditQuery = "SELECT DISTINCT json_extract(structured_output, '$.final_evaluation.exclusion_code') as code FROM llm_audit_log WHERE project_id = ? AND status = 'SUCCESS' AND json_valid(structured_output) = 1";
-      let llmAuditParams = [activeProjectId];
+      let lsrQuery = "SELECT DISTINCT exclusion_code as code FROM llm_screening_records WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND exclusion_code IS NOT NULL AND exclusion_code != '' AND exclusion_code != 'NONE'";
+      let lsrParams: any[] = [activeProjectId, activeProjectId];
+      if (stageCode > 0) {
+        lsrQuery += " AND stage = ?";
+        lsrParams.push(stageCode);
+      }
+
+      let llmAuditQuery = "SELECT DISTINCT json_extract(structured_output, '$.final_evaluation.exclusion_code') as code FROM llm_audit_log WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS' AND json_valid(structured_output) = 1";
+      let llmAuditParams: any[] = [activeProjectId, activeProjectId];
       if (llmTaskTypeFilter) {
         llmAuditQuery += " AND task_type = ?";
         llmAuditParams.push(llmTaskTypeFilter);
       }
 
-      let papersAiQuery = "SELECT DISTINCT ai_exclusion_code as code FROM papers WHERE Project_ID = ? AND ai_exclusion_code IS NOT NULL AND ai_exclusion_code != ''";
-      let papersAiParams: any[] = [activeProjectId];
+      let papersAiQuery = "SELECT DISTINCT ai_exclusion_code as code FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND ai_exclusion_code IS NOT NULL AND ai_exclusion_code != ''";
+      let papersAiParams: any[] = [activeProjectId, activeProjectId];
       if (stageCode > 0) {
         papersAiQuery += " AND ai_stage = ?";
         papersAiParams.push(stageCode);
       }
 
-      let papersManualQuery = "SELECT DISTINCT manual_exclusion_code as code FROM papers WHERE Project_ID = ? AND manual_exclusion_code IS NOT NULL AND manual_exclusion_code != ''";
-      let papersManualParams: any[] = [activeProjectId];
+      let papersManualQuery = "SELECT DISTINCT manual_exclusion_code as code FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND manual_exclusion_code IS NOT NULL AND manual_exclusion_code != ''";
+      let papersManualParams: any[] = [activeProjectId, activeProjectId];
       if (stageCode > 0) {
         papersManualQuery += " AND manual_stage = ?";
         papersManualParams.push(stageCode);
@@ -120,6 +127,9 @@ export async function GET(request: Request) {
       try {
         const r1 = db.prepare(manualAuditQuery).all(...manualAuditParams) as { code: string }[];
         r1.forEach(r => { if (r.code) codesSet.add(r.code); });
+
+        const rLsr = db.prepare(lsrQuery).all(...lsrParams) as { code: string }[];
+        rLsr.forEach(r => { if (r.code) codesSet.add(r.code); });
 
         const r2 = db.prepare(llmAuditQuery).all(...llmAuditParams) as { code: string }[];
         r2.forEach(r => { if (r.code) codesSet.add(r.code); });
@@ -255,10 +265,13 @@ export async function GET(request: Request) {
         '4': 'miner'
       };
       const taskType = taskTypeMap[pipelineStage] || 'fast_filter';
+      const stageNum = parseInt(pipelineStage, 10) || 1;
       if (ecTrigger === 'Unspecified') {
         filterQuery += ` AND COALESCE((
           SELECT ec_trigger FROM (
-            SELECT ec_trigger, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = '${taskType}'
+            SELECT ec_trigger, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = '${taskType}'
+            UNION ALL
+            SELECT exclusion_code as ec_trigger, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = ${stageNum}
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = '${taskType}' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -266,7 +279,9 @@ export async function GET(request: Request) {
       } else {
         filterQuery += ` AND (
           SELECT ec_trigger FROM (
-            SELECT ec_trigger, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = '${taskType}'
+            SELECT ec_trigger, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = '${taskType}'
+            UNION ALL
+            SELECT exclusion_code as ec_trigger, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = ${stageNum}
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = '${taskType}' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -280,7 +295,9 @@ export async function GET(request: Request) {
       if (pipelineStatus === 'included') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'fast_filter'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'fast_filter'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 1
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -289,7 +306,9 @@ export async function GET(request: Request) {
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'fast_filter'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'fast_filter'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 1
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -301,6 +320,9 @@ export async function GET(request: Request) {
             SELECT 1 FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'fast_filter'
           )
           AND NOT EXISTS (
+            SELECT 1 FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 1
+          )
+          AND NOT EXISTS (
             SELECT 1 FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           )`;
       }
@@ -308,7 +330,9 @@ export async function GET(request: Request) {
       if (pipelineStatus === 'included') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'gatekeeper'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'gatekeeper'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 2
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -317,7 +341,9 @@ export async function GET(request: Request) {
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'gatekeeper'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'gatekeeper'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 2
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -326,13 +352,18 @@ export async function GET(request: Request) {
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai' || pipelineStatus === 'pending_pdf') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'fast_filter'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'fast_filter'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 1
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'fast_filter' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND NOT EXISTS (
           SELECT 1 FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'gatekeeper'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 2
         )
         AND NOT EXISTS (
           SELECT 1 FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
@@ -350,7 +381,9 @@ export async function GET(request: Request) {
       if (pipelineStatus === 'included') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'scientist'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'scientist'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 3
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -359,7 +392,9 @@ export async function GET(request: Request) {
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'scientist'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'scientist'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 3
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -368,13 +403,18 @@ export async function GET(request: Request) {
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'gatekeeper'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'gatekeeper'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 2
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'gatekeeper' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND NOT EXISTS (
           SELECT 1 FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'scientist'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 3
         )
         AND NOT EXISTS (
           SELECT 1 FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
@@ -390,7 +430,9 @@ export async function GET(request: Request) {
       if (pipelineStatus === 'included') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'miner'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'miner'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 4
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -399,7 +441,9 @@ export async function GET(request: Request) {
       } else if (pipelineStatus === 'excluded') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'miner'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'miner'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 4
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
@@ -408,13 +452,18 @@ export async function GET(request: Request) {
       } else if (pipelineStatus === 'unprocessed' || pipelineStatus === 'ready_for_ai') {
         filterQuery += ` AND (
           SELECT decision FROM (
-            SELECT decision, created_at, 1 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'scientist'
+            SELECT decision, created_at, 2 as priority FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'scientist'
+            UNION ALL
+            SELECT decision, updated_at as created_at, 1 as priority FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 3
             UNION ALL
             SELECT UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision, created_at, 0 as priority FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'scientist' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
           ) ORDER BY priority DESC, created_at DESC LIMIT 1
         ) LIKE 'INCLUDE%'
         AND NOT EXISTS (
           SELECT 1 FROM manual_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND manual_stage = 'miner'
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM llm_screening_records WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT)) AND stage = 4
         )
         AND NOT EXISTS (
           SELECT 1 FROM llm_audit_log WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
@@ -496,10 +545,10 @@ export async function POST(request: Request) {
 
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
 
-    const findByDoiStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE DOI = ? AND DOI IS NOT NULL AND DOI != '' AND Project_ID = ?");
-    const findByTitleStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE LOWER(REPLACE(Title, ' ', '')) = ? AND Project_ID = ?");
-    const updateCitationStmt = db.prepare("UPDATE papers SET citation_count = ? WHERE Paper_ID = ? AND Project_ID = ?");
-    const updateCitationAndDoiStmt = db.prepare("UPDATE papers SET citation_count = ?, DOI = ? WHERE Paper_ID = ? AND Project_ID = ?");
+    const findByDoiStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE DOI = ? AND DOI IS NOT NULL AND DOI != '' AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))");
+    const findByTitleStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE LOWER(REPLACE(Title, ' ', '')) = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))");
+    const updateCitationStmt = db.prepare("UPDATE papers SET citation_count = ? WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))");
+    const updateCitationAndDoiStmt = db.prepare("UPDATE papers SET citation_count = ?, DOI = ? WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))");
 
     const insertStmt = db.prepare(`
       INSERT INTO papers (
@@ -512,7 +561,7 @@ export async function POST(request: Request) {
     const paperIdSet = new Set(allPaperIds);
     
     // Fetch paper IDs for active project to set local ID counter
-    const activeProjectPaperIds = (db.prepare('SELECT Paper_ID FROM papers WHERE Project_ID = ?').all(activeProjectId) as { Paper_ID: string }[]).map(r => r.Paper_ID);
+    const activeProjectPaperIds = (db.prepare('SELECT Paper_ID FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').all(activeProjectId, activeProjectId) as { Paper_ID: string }[]).map(r => r.Paper_ID);
     let idCounter = 0;
     for (const id of activeProjectPaperIds) {
       if (id) {
@@ -711,12 +760,12 @@ export async function PUT(request: Request) {
 
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const setClause = updates.join(', ');
-    const query = `UPDATE papers SET ${setClause} WHERE Paper_ID = ? AND Project_ID = ?`;
+    const query = `UPDATE papers SET ${setClause} WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`;
 
     const stmt = db.prepare(query);
     const transaction = db.transaction((ids: string[]) => {
       for (const id of ids) {
-        stmt.run(...params, id, activeProjectId);
+        stmt.run(...params, id, activeProjectId, activeProjectId);
       }
     });
 

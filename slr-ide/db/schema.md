@@ -228,6 +228,49 @@ Stores immutable audit trails of all LLM interactions, decisions, and token cost
 
 ---
 
+### Table: `llm_screening_records`
+Stores non-duplicate, single last-updated PRISMA screening state and full reasoning traces per gate per paper per project. Acts as the sole authoritative source and trigger for synchronizing `papers.ai_*` and `rolling_batch_papers.ai_*`.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique record ID |
+| `project_id` | TEXT | NOT NULL | Reference to `projects(id)` |
+| `paper_id` | TEXT | NOT NULL | Reference to `papers(Paper_ID)` |
+| `stage` | INTEGER | NOT NULL | Pipeline stage number (1=Fast Filter, 2=Gatekeeper, 3=Scientist, 4=Miner) |
+| `task_type` | TEXT | NOT NULL | Task identifier (e.g. `fast_filter`, `gatekeeper`, `scientist`, `miner`) |
+| `decision` | TEXT | NOT NULL | Active decision (`INCLUDE`, `EXCLUDE`) |
+| `exclusion_code` | TEXT | | Exclusion criteria trigger code if excluded |
+| `rationale` | TEXT | | Reasoning / rationale justification |
+| `quality_assessment`| TEXT | | JSON string containing QA appraisal scores and rule evaluations (Stage 3) |
+| `extracted_data` | TEXT | | JSON string containing extracted data fields and values (Stage 4) |
+| `logic_trace` | TEXT | | JSON string containing step-by-step logic trace, appraisal reasoning, and mapping |
+| `structured_output` | TEXT | | Complete structured JSON response payload |
+| `model_id` | TEXT | | Model identifier used for execution |
+| `job_id` | TEXT | | Reference to batch job if applicable |
+| `cost_usd` | REAL | DEFAULT 0.0 | Actual API execution cost |
+| `total_tokens` | INTEGER | DEFAULT 0 | Total tokens consumed |
+| `latency_ms` | INTEGER | DEFAULT 0 | Generation latency in milliseconds |
+| `created_at` | TEXT | NOT NULL | ISO 8601 creation timestamp |
+| `updated_at` | TEXT | NOT NULL | ISO 8601 update timestamp |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+*   `FOREIGN KEY(paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE`
+
+**Unique Constraints**:
+*   `UNIQUE(project_id, paper_id, stage)`
+
+**Indexes**:
+*   `idx_lsr_proj_paper`: ON `llm_screening_records(project_id, paper_id)`
+*   `idx_lsr_stage`: ON `llm_screening_records(project_id, stage)`
+
+**Database Triggers**:
+*   `trg_lsr_insert`: Synchronizes `papers.ai_*` and `rolling_batch_papers.ai_*` on row insertion using stage-aware precedence (earliest exclusion or highest completed stage).
+*   `trg_lsr_update`: Synchronizes `papers.ai_*` and `rolling_batch_papers.ai_*` on row update.
+*   `trg_lsr_delete`: Recomputes or resets `papers.ai_*` and `rolling_batch_papers.ai_*` when a stage screening record is purged.
+
+---
+
 ### Table: `manual_audit_log`
 Stores immutable audit trails of all manual screening decisions per stage.
 

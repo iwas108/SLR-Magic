@@ -185,17 +185,17 @@ def main():
     if paper_id_arg:
         cursor.execute("""
             SELECT Paper_ID, Title, Local_PDF_Status, Local_PDF_Path FROM papers
-            WHERE Project_ID = ? AND Paper_ID = ?
+            WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Paper_ID = ?
               AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != ''
               AND (is_duplicate IS NULL OR is_duplicate = 0)
-        """, (active_proj_id, paper_id_arg))
+        """, (active_proj_id, active_proj_id, paper_id_arg))
     else:
         cursor.execute("""
             SELECT Paper_ID, Title, Local_PDF_Status, Local_PDF_Path FROM papers
-            WHERE Project_ID = ? AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED', 'NEEDS_REVIEW')
+            WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED', 'NEEDS_REVIEW')
               AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != ''
               AND (is_duplicate IS NULL OR is_duplicate = 0)
-        """, (active_proj_id,))
+        """, (active_proj_id, active_proj_id))
     
     papers = cursor.fetchall()
     total = len(papers)
@@ -244,8 +244,8 @@ def main():
             cursor.execute("""
                 UPDATE papers
                 SET Local_PDF_Status = 'NEEDS_REVIEW'
-                WHERE Paper_ID = ? AND Project_ID = ?
-            """, (paper_id, active_proj_id))
+                WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+            """, (paper_id, active_proj_id, active_proj_id))
             conn.commit()
             print(json.dumps({
                 "event": "paper_fail",
@@ -282,8 +282,8 @@ def main():
             cursor.execute("""
                 UPDATE papers
                 SET Local_PDF_Status = ?, Local_PDF_Path = ?
-                WHERE Paper_ID = ? AND Project_ID = ?
-            """, (target_status, target_path.replace('\\', '/'), paper_id, active_proj_id))
+                WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+            """, (target_status, target_path.replace('\\', '/'), paper_id, active_proj_id, active_proj_id))
             conn.commit()
 
             print(json.dumps({

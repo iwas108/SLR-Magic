@@ -152,9 +152,9 @@ def main():
                 """
                 SELECT ai_extracted_data, manual_extracted_data 
                 FROM papers 
-                WHERE Project_ID = ? AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
+                WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
                 """,
-                (project_id,)
+                (project_id, project_id)
             )
             tokens_set = set()
             for p in papers_data:
@@ -254,7 +254,7 @@ def main():
           query = "SELECT * FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
           params = [project_id]
       else:
-          query = "SELECT * FROM papers WHERE Project_ID = ? AND MAX(manual_stage, ai_stage) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
+          query = "SELECT * FROM papers WHERE Project_ID = ? AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
           params = [project_id, int(status_filter)]
       if decision_filter != 'ALL':
           query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'INCLUDE%' THEN 'INCLUDE' ELSE 'PENDING' END) = ?"

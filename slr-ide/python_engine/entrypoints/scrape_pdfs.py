@@ -53,18 +53,18 @@ def main():
             FROM papers
             WHERE DOI IS NOT NULL AND DOI != '' 
               AND Paper_ID = ?
-              AND Project_ID = ?
+              AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
               AND (is_duplicate IS NULL OR is_duplicate = 0)
-        """, (paper_id_arg, active_proj_id))
+        """, (paper_id_arg, active_proj_id, active_proj_id))
     else:
         cursor.execute("""
             SELECT Paper_ID, DOI, Title
             FROM papers
             WHERE DOI IS NOT NULL AND DOI != '' 
               AND (Local_PDF_Status IS NULL OR Local_PDF_Status = 'MISSING')
-              AND Project_ID = ?
+              AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
               AND (is_duplicate IS NULL OR is_duplicate = 0)
-        """, (active_proj_id,))
+        """, (active_proj_id, active_proj_id))
     papers = cursor.fetchall()
     total = len(papers)
 

@@ -31,17 +31,17 @@ def main():
     if args.mode == "papers":
         # Always construct allowlist scoped by active_project_id
         try:
-            query_parts = ["SELECT Paper_ID FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"]
-            params = [active_project_id]
+            query_parts = ["SELECT Paper_ID FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)"]
+            params = [active_project_id, active_project_id]
             
             if args.pool:
                 pool_lower = args.pool.lower()
                 if pool_lower == 'none':
-                    query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)")
-                    params.append(active_project_id)
+                    query_parts.append("AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)))")
+                    params.extend([active_project_id, active_project_id])
                 elif pool_lower != 'all':
-                    query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)")
-                    params.extend([active_project_id, pool_lower])
+                    query_parts.append("AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = ?)")
+                    params.extend([active_project_id, active_project_id, pool_lower])
                     
             if args.exclude_reviews:
                 query_parts.append("AND Title NOT LIKE '%review%' AND (Abstract IS NULL OR Abstract NOT LIKE '%survey%')")
@@ -77,8 +77,8 @@ def main():
         
         try:
             cursor.execute(
-                f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND Project_ID = ?",
-                tuple(paper_ids) + (active_project_id,)
+                f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))",
+                tuple(paper_ids) + (active_project_id, active_project_id)
             )
             columns = [col[0] for col in cursor.description]
             metadata_map = {}

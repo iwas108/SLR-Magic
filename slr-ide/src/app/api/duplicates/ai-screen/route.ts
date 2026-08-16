@@ -31,8 +31,8 @@ export async function POST(req: Request) {
     }
 
     // 2. Fetch paper 1 and paper 2 with project isolation
-    const paper1 = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND Project_ID = ?').get(pair.paper1_id, projectId) as any;
-    const paper2 = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND Project_ID = ?').get(pair.paper2_id, projectId) as any;
+    const paper1 = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').get(pair.paper1_id, projectId, projectId) as any;
+    const paper2 = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').get(pair.paper2_id, projectId, projectId) as any;
 
     if (!paper1 || !paper2) {
       return NextResponse.json({ error: 'One or both candidate papers not found in database.' }, { status: 404 });
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
 
     // 5. Pre-flight check: Prompt Template Resolution
     let templateId = reqTemplateId;
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as any;
+    const project = db.prepare('SELECT * FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)').get(projectId, projectId) as any;
 
     if (!templateId && project && project.llm_config) {
       try {
@@ -89,12 +89,12 @@ export async function POST(req: Request) {
     if (!template) {
       template = db.prepare(`
         SELECT * FROM prompt_templates 
-        WHERE (project_id = ? OR project_id IS NULL) 
+        WHERE ((project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) OR project_id IS NULL) 
           AND prompt_type = 'duplicate_review' 
           AND is_active = 1 
-        ORDER BY CASE WHEN project_id = ? THEN 0 ELSE 1 END, created_at DESC 
+        ORDER BY CASE WHEN (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) THEN 0 ELSE 1 END, created_at DESC 
         LIMIT 1
-      `).get(projectId, projectId);
+      `).get(projectId, projectId, projectId, projectId);
     }
 
     if (!template) {
@@ -329,8 +329,8 @@ export async function POST(req: Request) {
     db.prepare(`
       UPDATE duplicate_pairs
       SET ai_verdict = ?, ai_analysis = ?, ai_suggested_primary_id = ?
-      WHERE id = ? AND project_id = ?
-    `).run(verdict, analysisJson, suggestedPrimaryId, pair_id, projectId);
+      WHERE id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+    `).run(verdict, analysisJson, suggestedPrimaryId, pair_id, projectId, projectId);
 
     // 13. Atomically update project_current_spend
     db.prepare(`

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Loader2, ChevronLeft, ChevronRight, Cpu, ArrowDown, ArrowUp, Filter, Layers } from 'lucide-react';
+import { Search, Loader2, ChevronLeft, ChevronRight, Cpu, ArrowDown, ArrowUp, Filter, Layers, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import VectorBuildModal from '../VectorBuildModal';
 
 interface PaperSelectionListProps {
@@ -116,11 +116,25 @@ export default function PaperSelectionList({
   loadingEcTriggers
 }: PaperSelectionListProps) {
   const [showBuildModal, setShowBuildModal] = useState(false);
+  const [isControlsCollapsed, setIsControlsCollapsed] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showPipelineFilters, setShowPipelineFilters] = useState(false);
   const pipelineFiltersRef = useRef<HTMLDivElement>(null);
   const advancedFiltersRef = useRef<HTMLDivElement>(null);
+
+  const activeFilterCount = [
+    assignPoolFilter !== 'all',
+    assignPublisherFilter !== 'all',
+    !!assignPdfFilter,
+    !!assignSourceFilter,
+    !!assignDoiStatusFilter,
+    !!assignPdfLinkFilter,
+    !!assignPipelineStageFilter,
+    !!assignPipelineStatusFilter,
+    !!assignEcTriggerFilter,
+    assignExcludeReviews
+  ].filter(Boolean).length;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -169,14 +183,14 @@ export default function PaperSelectionList({
 
   return (
     <div className={`bg-card/30 flex flex-col overflow-hidden shrink-0 transition-all duration-300 ${
-      isMinimized ? 'w-[380px] border-r border-border' : 'flex-1'
+      isMinimized ? 'w-[410px] border-r border-border' : 'flex-1'
     }`}>
       {/* Search and pool filter */}
       <div className="p-4 border-b border-border space-y-3 shrink-0">
-        {/* Row 1: Search Input & Mode Switcher */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-muted-foreground/70 absolute left-3 top-1/2 -translate-y-1/2" />
+        {/* Row 1: Search Input & Collapse Toggle */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 flex items-center">
+            <Search className="w-4 h-4 text-muted-foreground/60 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               placeholder={assignSearchMode === 'semantic' ? "Semantic query (press Enter)..." : "Search papers..."}
@@ -187,382 +201,412 @@ export default function PaperSelectionList({
                   triggerSemanticSearch();
                 }
               }}
-              className={`w-full bg-secondary/40 border border-border rounded-xl pl-9 py-2 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-colors font-semibold ${
-                assignSearchMode === 'semantic' ? 'pr-16' : 'pr-4'
-              }`}
+              className="w-full bg-card hover:bg-card/90 border border-border/80 rounded-2xl pl-10 pr-24 py-2.5 text-xs text-foreground focus:outline-none focus:border-primary placeholder-muted-foreground/60 transition-all font-semibold shadow-sm"
             />
             {assignSearchMode === 'semantic' && (
               <button
                 onClick={triggerSemanticSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded text-[9px] font-bold uppercase transition-all duration-200 cursor-pointer select-none active:scale-95"
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-3.5 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer select-none active:scale-95 shadow-sm"
                 title="Run Semantic Search"
               >
-                Search
+                SEARCH
               </button>
             )}
           </div>
+
+          {/* Controls Collapse Toggle Button */}
           <button
-            onClick={() => setAssignSearchMode(prev => prev === 'keyword' ? 'semantic' : 'keyword')}
-            className={`px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0 ${
-              assignSearchMode === 'semantic'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary border border-border text-muted-foreground hover:text-foreground'
+            type="button"
+            onClick={() => setIsControlsCollapsed(prev => !prev)}
+            className={`px-3 py-2.5 rounded-2xl border transition-all cursor-pointer shadow-sm shrink-0 flex items-center gap-1.5 font-bold text-xs ${
+              isControlsCollapsed
+                ? 'bg-secondary/80 border-border text-foreground hover:bg-secondary'
+                : 'bg-card border-border/80 text-muted-foreground hover:text-foreground hover:bg-secondary/40'
             }`}
-            title="Toggle between Keyword filter and Vector Semantic Search"
+            title={isControlsCollapsed ? "Expand filters & sorting options" : "Collapse options to maximize paper list"}
           >
-            <Cpu className="w-4 h-4" />
-            <span>{assignSearchMode === 'semantic' ? 'Semantic' : 'Keyword'}</span>
+            <SlidersHorizontal className="w-4 h-4 text-primary" />
+            {isControlsCollapsed ? (
+              <ChevronDown className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronUp className="w-3.5 h-3.5" />
+            )}
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-primary text-primary-foreground text-[9px] font-extrabold">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
-
-          {assignSearchMode === 'semantic' && vectorIndexStatus && (
-            <button
-              onClick={() => setShowBuildModal(true)}
-              title={vectorIndexStatus.indexed ? "Active project vector index 100% complete. Click to rebuild." : `Active project vector index incomplete (${vectorIndexStatus.indexed_project_papers ?? 0}/${vectorIndexStatus.total_project_papers ?? 0}). Click to build.`}
-              className={`px-2.5 py-2 rounded-xl text-[11px] font-mono font-bold flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm shrink-0 ${
-                vectorIndexStatus.indexed
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-                  : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/25 animate-pulse'
-              }`}
-            >
-              <span>{vectorIndexStatus.indexed ? '⚡' : '⚠️'}</span>
-              <span>
-                {vectorIndexStatus.total_project_papers !== undefined
-                  ? `${vectorIndexStatus.indexed_project_papers ?? 0}/${vectorIndexStatus.total_project_papers} Indexed`
-                  : `${vectorIndexStatus.paper_count} Indexed`}
-              </span>
-            </button>
-          )}
         </div>
 
-        {/* Row 2: Select Filters and Toggles */}
-        <div className="flex items-center gap-2">
-          {/* Screening Pipeline Filters Button */}
-          <div className="relative" ref={pipelineFiltersRef}>
-            <button
-              onClick={() => {
-                setShowPipelineFilters(!showPipelineFilters);
-                setShowFilters(false);
-              }}
-              className={`px-2.5 py-1.5 border rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors ${
-                showPipelineFilters || assignPipelineStageFilter || assignPipelineStatusFilter || assignEcTriggerFilter
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-secondary/40 text-foreground border-border hover:bg-secondary/60'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Screening Pipeline</span>
-              {(assignPipelineStageFilter || assignPipelineStatusFilter || assignEcTriggerFilter) && (
-                <span className="ml-1 px-1 py-0.2 rounded-full bg-background/25 text-[9px]">
-                  {[assignPipelineStageFilter, assignPipelineStatusFilter, assignEcTriggerFilter].filter(Boolean).length}
-                </span>
-              )}
-            </button>
+        {/* Collapsible Options Container */}
+        {!isControlsCollapsed && (
+          <div className="space-y-3 pt-0.5 animate-in fade-in slide-in-from-top-1 duration-200">
+            {/* Row 2: Mode Switcher, Index Status & Action Filter Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setAssignSearchMode(prev => prev === 'keyword' ? 'semantic' : 'keyword')}
+                className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0 ${
+                  assignSearchMode === 'semantic'
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'
+                    : 'bg-card border border-border/80 text-muted-foreground hover:text-foreground hover:bg-secondary/40'
+                }`}
+                title="Toggle between Keyword filter and Vector Semantic Search"
+              >
+                <Cpu className="w-4 h-4" />
+                <span>{assignSearchMode === 'semantic' ? 'Semantic' : 'Keyword'}</span>
+              </button>
 
-            {showPipelineFilters && (
-              <div className="absolute top-full left-0 mt-2 w-60 bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 flex flex-col gap-2.5 animate-in slide-in-from-top-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-foreground uppercase tracking-wider">Screening Pipeline Filters</span>
-                  <button onClick={clearPipelineFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear</button>
-                </div>
-                
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Pipeline Stage</label>
-                  <select 
-                    className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
-                    value={assignPipelineStageFilter} 
-                    onChange={(e) => {
-                      setAssignPipelineStageFilter(e.target.value);
-                      setAssignPipelineStatusFilter('');
-                      setAssignEcTriggerFilter('');
-                    }}
-                  >
-                    <option value="">Any Stage</option>
-                    <option value="1">Stage 1: Fast Filter</option>
-                    <option value="2">Stage 2: Gatekeeper</option>
-                    <option value="3">Stage 3: Scientist</option>
-                    <option value="4">Stage 4: Miner</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Pipeline Status</label>
-                  <select 
-                    className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
-                    value={assignPipelineStatusFilter} 
-                    onChange={(e) => setAssignPipelineStatusFilter(e.target.value)}
-                    disabled={!assignPipelineStageFilter}
-                  >
-                    <option value="">Any Status</option>
-                    {assignPipelineStageFilter === '1' && (
-                      <>
-                        <option value="included">Included</option>
-                        <option value="excluded">Excluded</option>
-                        <option value="unprocessed">Unprocessed</option>
-                      </>
-                    )}
-                    {assignPipelineStageFilter === '2' && (
-                      <>
-                        <option value="included">Included</option>
-                        <option value="excluded">Excluded</option>
-                        <option value="unprocessed">Unprocessed (Has PDF)</option>
-                        <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
-                        <option value="pending_pdf">Pending PDF</option>
-                      </>
-                    )}
-                    {assignPipelineStageFilter === '3' && (
-                      <>
-                        <option value="included">Included</option>
-                        <option value="excluded">Excluded</option>
-                        <option value="unprocessed">Unprocessed (Has PDF)</option>
-                        <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
-                      </>
-                    )}
-                    {assignPipelineStageFilter === '4' && (
-                      <>
-                        <option value="included">Included</option>
-                        <option value="excluded">Excluded</option>
-                        <option value="unprocessed">Unprocessed (Has PDF)</option>
-                        <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Exclusion Trigger</label>
-                  <select 
-                    className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
-                    value={assignEcTriggerFilter} 
-                    onChange={(e) => setAssignEcTriggerFilter(e.target.value)}
-                    disabled={loadingEcTriggers}
-                  >
-                    <option value="">Any Exclusion Trigger</option>
-                    <option value="Unspecified">Unspecified / No Code</option>
-                    {ecTriggers.map((code) => (
-                      <option key={code} value={code}>{code}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Advanced Filters Button */}
-          <div className="relative" ref={advancedFiltersRef}>
-            <button
-              onClick={() => {
-                setShowFilters(!showFilters);
-                setShowPipelineFilters(false);
-              }}
-              className={`px-2.5 py-1.5 border rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors ${
-                showFilters || assignPoolFilter !== 'all' || assignPublisherFilter !== 'all' || assignPdfFilter || assignSourceFilter || assignDoiStatusFilter || assignPdfLinkFilter
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-secondary/40 text-foreground border-border hover:bg-secondary/60'
-              }`}
-            >
-              <Filter className="w-3.5 h-3.5" />
-              <span>Filters</span>
-              {(assignPoolFilter !== 'all' || assignPublisherFilter !== 'all' || assignPdfFilter || assignSourceFilter || assignDoiStatusFilter || assignPdfLinkFilter) && (
-                <span className="ml-1 px-1 py-0.2 rounded-full bg-background/25 text-[9px]">
-                  {[assignPoolFilter !== 'all', assignPublisherFilter !== 'all', assignPdfFilter, assignSourceFilter, assignDoiStatusFilter, assignPdfLinkFilter].filter(Boolean).length}
-                </span>
-              )}
-            </button>
-
-            {showFilters && (
-              <div className="absolute top-full left-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 flex flex-col gap-2.5 animate-in slide-in-from-top-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-foreground uppercase tracking-wider">Advanced Filters</span>
-                  <button onClick={clearAllFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear All</button>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Calibration Pool</label>
-                  <select
-                    value={assignPoolFilter}
-                    onChange={(e) => setAssignPoolFilter(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
-                  >
-                    <option value="all">All Papers</option>
-                    <option value="unassigned">Unassigned</option>
-                    <option value="pool_a">Pool A</option>
-                    <option value="pool_b">Pool B</option>
-                    <option value="pool_c">Pool C</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Publisher (Mapped)</label>
-                  <select
-                    value={assignPublisherFilter}
-                    onChange={(e) => setAssignPublisherFilter(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
-                  >
-                    <option value="all">Publisher (Mapped)</option>
-                    {uniquePublishers.map((pub) => (
-                      <option key={pub} value={pub} title={pub}>
-                        {pub}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">PDF Status</label>
-                  <select
-                    value={assignPdfFilter}
-                    onChange={(e) => setAssignPdfFilter(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
-                  >
-                    <option value="">Any PDF Status</option>
-                    <option value="IGNORED">IGNORED</option>
-                    <option value="MISSING">MISSING</option>
-                    <option value="INACCESSIBLE">INACCESSIBLE</option>
-                    <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
-                    <option value="MATCHED">MATCHED</option>
-                    <option value="DOWNLOADED">DOWNLOADED</option>
-                    <option value="SYNCED">SYNCED</option>
-                    <option value="FAILED">FAILED</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">Source Scope</label>
-                  <select
-                    value={assignSourceFilter}
-                    onChange={(e) => setAssignSourceFilter(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
-                  >
-                    <option value="">Any Source</option>
-                    <option value="manual">Manual Ingestion</option>
-                    <option value="backward">Backward Snowball</option>
-                    <option value="forward">Forward Snowball</option>
-                    <option value="csv">CSV Import</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">DOI Status</label>
-                  <select
-                    value={assignDoiStatusFilter}
-                    onChange={(e) => setAssignDoiStatusFilter(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
-                  >
-                    <option value="">Any DOI Status</option>
-                    <option value="has_doi">Has DOI</option>
-                    <option value="empty">Empty DOI</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[9px] font-bold text-muted-foreground uppercase">PDF Link Status</label>
-                  <select
-                    value={assignPdfLinkFilter}
-                    onChange={(e) => setAssignPdfLinkFilter(e.target.value)}
-                    className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
-                  >
-                    <option value="">Any PDF Link Status</option>
-                    <option value="has_link">Has PDF Link</option>
-                    <option value="empty">Empty PDF Link</option>
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {assignSearchMode === 'semantic' && (
-          <div className="flex items-center gap-1.5 select-none pt-0.5 animate-in fade-in duration-200">
-            <input
-              type="checkbox"
-              id="excludeReviews"
-              checked={assignExcludeReviews}
-              onChange={(e) => setAssignExcludeReviews(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-border bg-secondary/40 text-primary focus:ring-0 cursor-pointer"
-            />
-            <label htmlFor="excludeReviews" className="text-[10px] font-bold text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
-              Filter out reviews & surveys (increases search precision)
-            </label>
-          </div>
-        )}
-
-        {assignSearchMode === 'semantic' && vectorIndexStatus && !vectorIndexStatus.indexed && (
-          <div className="p-2.5 border border-amber-500/30 bg-amber-500/10 rounded-xl flex flex-col gap-1.5 text-[9px] animate-in slide-in-from-top-1 duration-200">
-            <div className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400 text-[10px]">
-              <Cpu className="w-3.5 h-3.5 animate-pulse" />
-              <span>
-                {vectorIndexStatus.total_project_papers && vectorIndexStatus.missing_project_papers
-                  ? `Active Project Vector Index Incomplete (${vectorIndexStatus.indexed_project_papers}/${vectorIndexStatus.total_project_papers} Indexed)`
-                  : 'Vector Semantic Search Index Required'}
-              </span>
-            </div>
-            <p className="text-muted-foreground font-medium leading-relaxed">
-              {vectorIndexStatus.missing_project_papers
-                ? `The active project has ${vectorIndexStatus.missing_project_papers} unindexed paper(s). Semantic queries require vector embeddings to rank candidates.`
-                : 'To run semantic searches, vector embeddings must be built for the active project corpus.'}
-            </p>
-            <button
-              onClick={() => setShowBuildModal(true)}
-              className="w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg text-center transition-colors shadow-sm cursor-pointer uppercase tracking-wider text-[9px]"
-            >
-              Build Semantic Index Now
-            </button>
-          </div>
-        )}
-
-
-
-        {/* Sorting Toolbar */}
-        <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground pt-2 border-t border-border/40 select-none">
-          <span className="uppercase tracking-wider">Sort by</span>
-          <div className="flex items-center gap-1.5">
-            {[
-              { id: 'citation_count', label: 'Citations' },
-              { id: 'Year', label: 'Year' },
-              ...(assignSearchMode === 'semantic' ? [{ id: 'semantic_score', label: 'Match %' }] : [])
-            ].map((option) => {
-              const isActive = assignSortBy === option.id;
-              return (
+              {assignSearchMode === 'semantic' && vectorIndexStatus && (
                 <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => {
-                    if (isActive) {
-                      setAssignSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
-                    } else {
-                      setAssignSortBy(option.id);
-                      setAssignSortOrder('DESC'); // Default to descending
-                    }
-                  }}
-                  className={`px-2 py-0.5 rounded transition-colors flex items-center gap-0.5 cursor-pointer ${
-                    isActive ? 'bg-primary/20 text-primary border border-primary/30' : 'hover:bg-secondary/40 border border-transparent'
+                  onClick={() => setShowBuildModal(true)}
+                  title={vectorIndexStatus.indexed ? "Active project vector index 100% complete. Click to rebuild." : `Active project vector index incomplete (${vectorIndexStatus.indexed_project_papers ?? 0}/${vectorIndexStatus.total_project_papers ?? 0}). Click to build.`}
+                  className={`px-3 py-1.5 rounded-2xl text-xs font-mono font-bold flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm shrink-0 ${
+                    vectorIndexStatus.indexed
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20'
+                      : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/25 animate-pulse'
                   }`}
                 >
-                  <span>{option.label}</span>
-                  {isActive && (
-                    assignSortOrder === 'DESC' ? <ArrowDown className="w-2.5 h-2.5" /> : <ArrowUp className="w-2.5 h-2.5" />
+                  <span className="text-amber-500 text-sm">⚡</span>
+                  <span>
+                    {vectorIndexStatus.total_project_papers !== undefined
+                      ? `${vectorIndexStatus.indexed_project_papers ?? 0}/${vectorIndexStatus.total_project_papers} Indexed`
+                      : `${vectorIndexStatus.paper_count} Indexed`}
+                  </span>
+                </button>
+              )}
+
+              {/* Screening Pipeline Filters Button */}
+              <div className="relative" ref={pipelineFiltersRef}>
+                <button
+                  onClick={() => {
+                    setShowPipelineFilters(!showPipelineFilters);
+                    setShowFilters(false);
+                  }}
+                  className={`px-3.5 py-1.5 border rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0 ${
+                    showPipelineFilters || assignPipelineStageFilter || assignPipelineStatusFilter || assignEcTriggerFilter
+                      ? 'bg-primary text-primary-foreground border-primary shadow-primary/20'
+                      : 'bg-card text-foreground border-border/80 hover:bg-secondary/50'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Screening Pipeline</span>
+                  {(assignPipelineStageFilter || assignPipelineStatusFilter || assignEcTriggerFilter) && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/25 text-[9px] font-bold">
+                      {[assignPipelineStageFilter, assignPipelineStatusFilter, assignEcTriggerFilter].filter(Boolean).length}
+                    </span>
                   )}
                 </button>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* Query execution metadata */}
-        {assignSearchTime !== null && !assignLoading && (
-          <div className="mt-2 px-2.5 py-1 bg-secondary/15 border border-border/30 rounded-lg text-[9px] text-muted-foreground font-semibold flex items-center justify-between select-none animate-in fade-in duration-200">
-            <span className="flex items-center gap-1">
-              {assignSearchMode === 'semantic' ? '🧠' : '🔍'}
-              <span>
-                {assignSearchMode === 'semantic' 
-                  ? `Semantic query processed in ${(assignSearchTime / 1000).toFixed(2)}s`
-                  : `Database query processed in ${(assignSearchTime / 1000).toFixed(2)}s`}
-              </span>
-            </span>
+                {showPipelineFilters && (
+                  <div className="absolute top-full left-0 mt-2 w-60 bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 flex flex-col gap-2.5 animate-in slide-in-from-top-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-foreground uppercase tracking-wider">Screening Pipeline Filters</span>
+                      <button onClick={clearPipelineFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear</button>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">Pipeline Stage</label>
+                      <select 
+                        className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                        value={assignPipelineStageFilter} 
+                        onChange={(e) => {
+                          setAssignPipelineStageFilter(e.target.value);
+                          setAssignPipelineStatusFilter('');
+                          setAssignEcTriggerFilter('');
+                        }}
+                      >
+                        <option value="">Any Stage</option>
+                        <option value="1">Stage 1: Fast Filter</option>
+                        <option value="2">Stage 2: Gatekeeper</option>
+                        <option value="3">Stage 3: Scientist</option>
+                        <option value="4">Stage 4: Miner</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">Pipeline Status</label>
+                      <select 
+                        className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                        value={assignPipelineStatusFilter} 
+                        onChange={(e) => setAssignPipelineStatusFilter(e.target.value)}
+                        disabled={!assignPipelineStageFilter}
+                      >
+                        <option value="">Any Status</option>
+                        {assignPipelineStageFilter === '1' && (
+                          <>
+                            <option value="included">Included</option>
+                            <option value="excluded">Excluded</option>
+                            <option value="unprocessed">Unprocessed</option>
+                          </>
+                        )}
+                        {assignPipelineStageFilter === '2' && (
+                          <>
+                            <option value="included">Included</option>
+                            <option value="excluded">Excluded</option>
+                            <option value="unprocessed">Unprocessed (Has PDF)</option>
+                            <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                            <option value="pending_pdf">Pending PDF</option>
+                          </>
+                        )}
+                        {assignPipelineStageFilter === '3' && (
+                          <>
+                            <option value="included">Included</option>
+                            <option value="excluded">Excluded</option>
+                            <option value="unprocessed">Unprocessed (Has PDF)</option>
+                            <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                          </>
+                        )}
+                        {assignPipelineStageFilter === '4' && (
+                          <>
+                            <option value="included">Included</option>
+                            <option value="excluded">Excluded</option>
+                            <option value="unprocessed">Unprocessed (Has PDF)</option>
+                            <option value="ready_for_ai">Unprocessed (Ready for AI — SYNCED PDF)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">Exclusion Trigger</label>
+                      <select 
+                        className="bg-secondary border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary font-semibold" 
+                        value={assignEcTriggerFilter} 
+                        onChange={(e) => setAssignEcTriggerFilter(e.target.value)}
+                        disabled={loadingEcTriggers}
+                      >
+                        <option value="">Any Exclusion Trigger</option>
+                        <option value="Unspecified">Unspecified / No Code</option>
+                        {ecTriggers.map((code) => (
+                          <option key={code} value={code}>{code}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Advanced Filters Button */}
+              <div className="relative" ref={advancedFiltersRef}>
+                <button
+                  onClick={() => {
+                    setShowFilters(!showFilters);
+                    setShowPipelineFilters(false);
+                  }}
+                  className={`px-3.5 py-1.5 border rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer shrink-0 ${
+                    showFilters || assignPoolFilter !== 'all' || assignPublisherFilter !== 'all' || assignPdfFilter || assignSourceFilter || assignDoiStatusFilter || assignPdfLinkFilter
+                      ? 'bg-primary text-primary-foreground border-primary shadow-primary/20'
+                      : 'bg-card text-foreground border-border/80 hover:bg-secondary/50'
+                  }`}
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>Filters</span>
+                  {(assignPoolFilter !== 'all' || assignPublisherFilter !== 'all' || assignPdfFilter || assignSourceFilter || assignDoiStatusFilter || assignPdfLinkFilter) && (
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background/25 text-[9px] font-bold">
+                      {[assignPoolFilter !== 'all', assignPublisherFilter !== 'all', assignPdfFilter, assignSourceFilter, assignDoiStatusFilter, assignPdfLinkFilter].filter(Boolean).length}
+                    </span>
+                  )}
+                </button>
+
+                {showFilters && (
+                  <div className="absolute top-full left-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 flex flex-col gap-2.5 animate-in slide-in-from-top-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-foreground uppercase tracking-wider">Advanced Filters</span>
+                      <button onClick={clearAllFilters} className="text-[10px] text-muted-foreground hover:text-primary transition-colors underline">Clear All</button>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">Calibration Pool</label>
+                      <select
+                        value={assignPoolFilter}
+                        onChange={(e) => setAssignPoolFilter(e.target.value)}
+                        className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                      >
+                        <option value="all">All Papers</option>
+                        <option value="unassigned">Unassigned</option>
+                        <option value="pool_a">Pool A</option>
+                        <option value="pool_b">Pool B</option>
+                        <option value="pool_c">Pool C</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">Publisher (Mapped)</label>
+                      <select
+                        value={assignPublisherFilter}
+                        onChange={(e) => setAssignPublisherFilter(e.target.value)}
+                        className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                      >
+                        <option value="all">Publisher (Mapped)</option>
+                        {uniquePublishers.map((pub) => (
+                          <option key={pub} value={pub} title={pub}>
+                            {pub}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">PDF Status</label>
+                      <select
+                        value={assignPdfFilter}
+                        onChange={(e) => setAssignPdfFilter(e.target.value)}
+                        className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                      >
+                        <option value="">Any PDF Status</option>
+                        <option value="IGNORED">IGNORED</option>
+                        <option value="MISSING">MISSING</option>
+                        <option value="INACCESSIBLE">INACCESSIBLE</option>
+                        <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
+                        <option value="MATCHED">MATCHED</option>
+                        <option value="DOWNLOADED">DOWNLOADED</option>
+                        <option value="SYNCED">SYNCED</option>
+                        <option value="FAILED">FAILED</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">Source Scope</label>
+                      <select
+                        value={assignSourceFilter}
+                        onChange={(e) => setAssignSourceFilter(e.target.value)}
+                        className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                      >
+                        <option value="">Any Source</option>
+                        <option value="manual">Manual Ingestion</option>
+                        <option value="backward">Backward Snowball</option>
+                        <option value="forward">Forward Snowball</option>
+                        <option value="csv">CSV Import</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">DOI Status</label>
+                      <select
+                        value={assignDoiStatusFilter}
+                        onChange={(e) => setAssignDoiStatusFilter(e.target.value)}
+                        className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                      >
+                        <option value="">Any DOI Status</option>
+                        <option value="has_doi">Has DOI</option>
+                        <option value="empty">Empty DOI</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-muted-foreground uppercase">PDF Link Status</label>
+                      <select
+                        value={assignPdfLinkFilter}
+                        onChange={(e) => setAssignPdfLinkFilter(e.target.value)}
+                        className="bg-secondary border border-border rounded-lg px-2 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary font-semibold cursor-pointer"
+                      >
+                        <option value="">Any PDF Link Status</option>
+                        <option value="has_link">Has PDF Link</option>
+                        <option value="empty">Empty PDF Link</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {assignSearchMode === 'semantic' && (
-              <span className="text-[8px] bg-primary/10 border border-primary/20 text-primary px-1 py-0.2 rounded uppercase font-bold shrink-0">
-                Top 200 Nearest Neighbors
-              </span>
+              <div className="flex items-center gap-2 select-none pt-0.5 animate-in fade-in duration-200">
+                <input
+                  type="checkbox"
+                  id="excludeReviews"
+                  checked={assignExcludeReviews}
+                  onChange={(e) => setAssignExcludeReviews(e.target.checked)}
+                  className="w-4 h-4 rounded border-border bg-card text-primary focus:ring-0 cursor-pointer"
+                />
+                <label htmlFor="excludeReviews" className="text-xs font-bold text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
+                  Filter out reviews & surveys (increases search precision)
+                </label>
+              </div>
+            )}
+
+            {assignSearchMode === 'semantic' && vectorIndexStatus && !vectorIndexStatus.indexed && (
+              <div className="p-3 border border-amber-500/30 bg-amber-500/10 rounded-2xl flex flex-col gap-1.5 text-xs animate-in slide-in-from-top-1 duration-200">
+                <div className="flex items-center gap-2 font-bold text-amber-600 dark:text-amber-400 text-xs">
+                  <Cpu className="w-4 h-4 animate-pulse" />
+                  <span>
+                    {vectorIndexStatus.total_project_papers && vectorIndexStatus.missing_project_papers
+                      ? `Active Project Vector Index Incomplete (${vectorIndexStatus.indexed_project_papers}/${vectorIndexStatus.total_project_papers} Indexed)`
+                      : 'Vector Semantic Search Index Required'}
+                  </span>
+                </div>
+                <p className="text-muted-foreground font-medium leading-relaxed text-[11px]">
+                  {vectorIndexStatus.missing_project_papers
+                    ? `The active project has ${vectorIndexStatus.missing_project_papers} unindexed paper(s). Semantic queries require vector embeddings to rank candidates.`
+                    : 'To run semantic searches, vector embeddings must be built for the active project corpus.'}
+                </p>
+                <button
+                  onClick={() => setShowBuildModal(true)}
+                  className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl text-center transition-colors shadow-sm cursor-pointer uppercase tracking-wider text-xs"
+                >
+                  Build Semantic Index Now
+                </button>
+              </div>
+            )}
+
+            <hr className="border-border/60 my-1" />
+
+            {/* Sorting Toolbar */}
+            <div className="flex items-center justify-between text-xs font-bold text-muted-foreground select-none">
+              <span className="uppercase tracking-wider font-extrabold text-[11px]">SORT BY</span>
+              <div className="flex items-center gap-2">
+                {[
+                  { id: 'citation_count', label: 'Citations' },
+                  { id: 'Year', label: 'Year' },
+                  ...(assignSearchMode === 'semantic' ? [{ id: 'semantic_score', label: 'Match %' }] : [])
+                ].map((option) => {
+                  const isActive = assignSortBy === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => {
+                        if (isActive) {
+                          setAssignSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC');
+                        } else {
+                          setAssignSortBy(option.id);
+                          setAssignSortOrder('DESC'); // Default to descending
+                        }
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1 cursor-pointer font-bold text-xs shadow-sm ${
+                        isActive
+                          ? 'bg-primary/20 text-primary border border-primary/40'
+                          : 'bg-card border border-border/80 text-muted-foreground hover:text-foreground hover:bg-secondary/40'
+                      }`}
+                    >
+                      <span>{option.label}</span>
+                      {isActive && (
+                        assignSortOrder === 'DESC' ? <ArrowDown className="w-3 h-3" /> : <ArrowUp className="w-3 h-3" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Query execution metadata */}
+            {assignSearchTime !== null && !assignLoading && (
+              <div className="px-4 py-2 bg-card/60 border border-border/70 rounded-2xl text-xs text-muted-foreground font-semibold flex items-center justify-between select-none animate-in fade-in duration-200">
+                <span className="flex items-center gap-2">
+                  <span className="text-sm">🧠</span>
+                  <span className="text-muted-foreground font-medium text-xs">
+                    {assignSearchMode === 'semantic' 
+                      ? `Semantic query processed in ${(assignSearchTime / 1000).toFixed(2)}s`
+                      : `Database query processed in ${(assignSearchTime / 1000).toFixed(2)}s`}
+                  </span>
+                </span>
+                {assignSearchMode === 'semantic' && (
+                  <span className="text-[10px] bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 px-2.5 py-0.5 rounded-lg uppercase font-extrabold tracking-wider shrink-0">
+                    TOP 200 NEAREST NEIGHBORS
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}

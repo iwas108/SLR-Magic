@@ -58,8 +58,8 @@ export async function GET(request: Request) {
     const umbrellanizerMap: Record<string, Record<string, any>> = {};
     try {
       const rows = db
-        .prepare('SELECT field_name, taxonomy_mapping, extracted_data_key, umbrella_mapping FROM umbrellanizer_results WHERE project_id = ?')
-        .all(resolvedProjectId) as any[];
+        .prepare('SELECT field_name, taxonomy_mapping, extracted_data_key, umbrella_mapping FROM umbrellanizer_results WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))')
+        .all(resolvedProjectId, resolvedProjectId) as any[];
 
       rows.forEach((r) => {
         try {
@@ -97,21 +97,7 @@ export async function GET(request: Request) {
         .prepare(
           `SELECT p.*
            FROM papers p
-           WHERE p.Project_ID = ?
-             AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
-             AND CASE 
-                 WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
-                 WHEN IFNULL(p.ai_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.ai_decision
-                 ELSE COALESCE(p.manual_decision, p.ai_decision)
-             END LIKE 'INCLUDE%'
-           ORDER BY p.Year DESC, p.Title ASC`
-        )
-        .all(resolvedProjectId) as any[];
-    } catch (e) {
-      papers = db
-        .prepare(
-          `SELECT p.* FROM papers p
-           WHERE p.Project_ID = ?
+           WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
              AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
              AND CASE 
                  WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
@@ -120,7 +106,21 @@ export async function GET(request: Request) {
              END LIKE 'INCLUDE%'
            ORDER BY p.Year DESC, p.Title ASC`
         )
-        .all(resolvedProjectId) as any[];
+        .all(resolvedProjectId, resolvedProjectId) as any[];
+    } catch (e) {
+      papers = db
+        .prepare(
+          `SELECT p.* FROM papers p
+           WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
+             AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
+             AND CASE 
+                 WHEN IFNULL(p.manual_stage, 0) > IFNULL(p.ai_stage, 0) THEN p.manual_decision
+                 WHEN IFNULL(p.ai_stage, 0) > IFNULL(p.manual_stage, 0) THEN p.ai_decision
+                 ELSE COALESCE(p.manual_decision, p.ai_decision)
+             END LIKE 'INCLUDE%'
+           ORDER BY p.Year DESC, p.Title ASC`
+        )
+        .all(resolvedProjectId, resolvedProjectId) as any[];
     }
 
     // 4. Pre-process papers to parse QA and Extracted Data with Stage Dominance

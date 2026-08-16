@@ -545,6 +545,441 @@ export function initializeDatabase(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_benchmark_results_run ON prompt_benchmark_results(run_id);
     CREATE INDEX IF NOT EXISTS idx_benchmark_results_paper ON prompt_benchmark_results(project_id, paper_id);
+
+    -- Dedicated PRISMA Screening State Table
+    CREATE TABLE IF NOT EXISTS llm_screening_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL,
+      paper_id TEXT NOT NULL,
+      stage INTEGER NOT NULL,
+      task_type TEXT NOT NULL,
+      decision TEXT NOT NULL,
+      exclusion_code TEXT,
+      rationale TEXT,
+      quality_assessment TEXT,
+      extracted_data TEXT,
+      logic_trace TEXT,
+      structured_output TEXT,
+      model_id TEXT,
+      job_id TEXT,
+      cost_usd REAL DEFAULT 0.0,
+      total_tokens INTEGER DEFAULT 0,
+      latency_ms INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (paper_id) REFERENCES papers(Paper_ID) ON DELETE CASCADE,
+      UNIQUE(project_id, paper_id, stage)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_lsr_proj_paper ON llm_screening_records(project_id, paper_id);
+    CREATE INDEX IF NOT EXISTS idx_lsr_stage ON llm_screening_records(project_id, stage);
+
+    -- Triggers to atomically sync papers, rolling_batch_papers, and calibration_papers ai_* state
+    CREATE TRIGGER IF NOT EXISTS trg_lsr_insert AFTER INSERT ON llm_screening_records
+    BEGIN
+      UPDATE papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = NEW.paper_id AND (Project_ID = NEW.project_id OR CAST(Project_ID AS TEXT) = CAST(NEW.project_id AS TEXT));
+
+      UPDATE rolling_batch_papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = NEW.paper_id AND (Project_ID = NEW.project_id OR CAST(Project_ID AS TEXT) = CAST(NEW.project_id AS TEXT));
+
+      UPDATE calibration_papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = NEW.paper_id AND (Project_ID = NEW.project_id OR CAST(Project_ID AS TEXT) = CAST(NEW.project_id AS TEXT));
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_lsr_update AFTER UPDATE ON llm_screening_records
+    BEGIN
+      UPDATE papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = NEW.paper_id AND (Project_ID = NEW.project_id OR CAST(Project_ID AS TEXT) = CAST(NEW.project_id AS TEXT));
+
+      UPDATE rolling_batch_papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = NEW.paper_id AND (Project_ID = NEW.project_id OR CAST(Project_ID AS TEXT) = CAST(NEW.project_id AS TEXT));
+
+      UPDATE calibration_papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = NEW.project_id AND paper_id = NEW.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = NEW.paper_id AND (Project_ID = NEW.project_id OR CAST(Project_ID AS TEXT) = CAST(NEW.project_id AS TEXT));
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS trg_lsr_delete AFTER DELETE ON llm_screening_records
+    BEGIN
+      UPDATE papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = OLD.paper_id AND (Project_ID = OLD.project_id OR CAST(Project_ID AS TEXT) = CAST(OLD.project_id AS TEXT));
+
+      UPDATE rolling_batch_papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = OLD.paper_id AND (Project_ID = OLD.project_id OR CAST(Project_ID AS TEXT) = CAST(OLD.project_id AS TEXT));
+
+      UPDATE calibration_papers
+      SET 
+        ai_stage = COALESCE((
+          SELECT stage FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ), 0),
+        ai_decision = (
+          SELECT decision FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_exclusion_code = (
+          SELECT exclusion_code FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_rationale = (
+          SELECT rationale FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id
+          ORDER BY 
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN 0 ELSE 1 END ASC,
+            CASE WHEN decision LIKE 'EXCLUDE%' THEN stage ELSE -stage END ASC
+          LIMIT 1
+        ),
+        ai_quality_assessment = (
+          SELECT quality_assessment FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id AND stage = 3
+        ),
+        ai_extracted_data = (
+          SELECT extracted_data FROM llm_screening_records
+          WHERE project_id = OLD.project_id AND paper_id = OLD.paper_id AND stage = 4
+        )
+      WHERE Paper_ID = OLD.paper_id AND (Project_ID = OLD.project_id OR CAST(Project_ID AS TEXT) = CAST(OLD.project_id AS TEXT));
+    END;
   `);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -959,4 +1394,106 @@ Analyze the error patterns, identify edge cases, determine if any full PDFs are 
 
   // Run self-healing Project ID normalization migration
   migrateProjectIds(db);
+
+  // Run backfill for llm_screening_records from existing papers and audit logs
+  backfillLlmScreeningRecords(db);
+}
+
+function backfillLlmScreeningRecords(db: any) {
+  try {
+    const flag = db.prepare("SELECT value FROM configs WHERE key = 'MIGRATION_LLM_SCREENING_RECORDS_BACKFILL_DONE'").get() as { value: string } | undefined;
+    if (flag?.value === 'true') return;
+
+    const countExisting = db.prepare("SELECT COUNT(*) as c FROM llm_screening_records").get() as { c: number };
+    if (countExisting && countExisting.c > 0) {
+      db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('MIGRATION_LLM_SCREENING_RECORDS_BACKFILL_DONE', 'true')").run();
+      return;
+    }
+
+    const papersWithAi = db.prepare(`
+      SELECT Paper_ID, Project_ID, ai_stage, ai_decision, ai_exclusion_code, ai_rationale, ai_quality_assessment, ai_extracted_data
+      FROM papers
+      WHERE (ai_stage > 0 OR ai_decision IS NOT NULL) AND Project_ID IS NOT NULL
+    `).all() as any[];
+
+    if (!papersWithAi || papersWithAi.length === 0) {
+      db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('MIGRATION_LLM_SCREENING_RECORDS_BACKFILL_DONE', 'true')").run();
+      return;
+    }
+
+    const insertStmt = db.prepare(`
+      INSERT OR IGNORE INTO llm_screening_records (
+        project_id, paper_id, stage, task_type, decision, exclusion_code,
+        rationale, quality_assessment, extracted_data, logic_trace, structured_output,
+        model_id, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const taskTypeMap: Record<number, string> = {
+      1: 'fast_filter',
+      2: 'gatekeeper',
+      3: 'scientist',
+      4: 'miner'
+    };
+
+    const now = new Date().toISOString();
+
+    const tx = db.transaction(() => {
+      for (const p of papersWithAi) {
+        const stage = p.ai_stage || 1;
+        const taskType = taskTypeMap[stage] || 'fast_filter';
+        
+        let logicTrace: string | null = null;
+        let structOut: string | null = null;
+        let modelId = 'migrated';
+
+        try {
+          const auditLog = db.prepare(`
+            SELECT model_id, structured_output 
+            FROM llm_audit_log 
+            WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS'
+              AND (task_type = ? OR task_type LIKE ?)
+            ORDER BY id DESC LIMIT 1
+          `).get(p.Paper_ID, p.Project_ID, p.Project_ID, taskType, `%${taskType}%`) as any;
+
+          if (auditLog) {
+            modelId = auditLog.model_id || 'migrated';
+            structOut = auditLog.structured_output;
+            if (structOut) {
+              try {
+                const parsed = JSON.parse(structOut);
+                const lt = parsed.logic_trace || parsed.logicTrace;
+                if (lt) {
+                  logicTrace = JSON.stringify(lt);
+                }
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+
+        insertStmt.run(
+          p.Project_ID,
+          p.Paper_ID,
+          stage,
+          taskType,
+          p.ai_decision || 'INCLUDE',
+          p.ai_exclusion_code || null,
+          p.ai_rationale || null,
+          p.ai_quality_assessment || null,
+          p.ai_extracted_data || null,
+          logicTrace,
+          structOut,
+          modelId,
+          now,
+          now
+        );
+      }
+
+      db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('MIGRATION_LLM_SCREENING_RECORDS_BACKFILL_DONE', 'true')").run();
+    });
+
+    tx();
+  } catch (err) {
+    console.error("Failed to run backfillLlmScreeningRecords migration:", err);
+  }
 }

@@ -14,9 +14,9 @@ export async function GET(req: Request) {
 
     const activeJobs = db.prepare(`
       SELECT * FROM llm_jobs 
-      WHERE project_id = ? AND status IN ('RUNNING', 'PAUSED_BUDGET', 'PAUSED_USER', 'PROCESSING_BATCH', 'STARTING')
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status IN ('RUNNING', 'PAUSED_BUDGET', 'PAUSED_USER', 'PROCESSING_BATCH', 'STARTING')
       ORDER BY created_at DESC
-    `).all(projectId);
+    `).all(projectId, projectId);
 
     // Attach inclusion/exclusion metrics from audit log
     for (const job of activeJobs as any[]) {

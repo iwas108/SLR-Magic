@@ -1,3 +1,202 @@
+## #399 - Umbrellanizer Service & Endpoints Multi-Project Hardening (2026-08-16)
+- **Goal**: Standardize project ID isolation across Umbrellanizer results querying, execution triggering, and stage 4 extracted data resolution endpoints.
+- **Architectural Implementation**:
+  1. **Umbrellanizer Results & Dispatch (`src/app/api/umbrellanizer/route.ts`)**:
+     - Standardized `umbrellanizer_results` retrieval query to use `WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))`.
+  2. **Umbrellanizer Miner Extraction Filter (`src/app/api/umbrellanizer/papers/route.ts`)**:
+     - Hardened candidate paper retrieval query with string/numeric project ID coercion safety and verified compliance with the Stage-Aware Decision Resolution Policy (§3.6).
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #398 - Papers Metadata, Import & Batch Update Project Isolation Hardening (2026-08-16)
+- **Goal**: Harden paper metadata lookups (`onlyHashes`, `getPublishers`, `getManualStages`, `getManualDecisions`), import deduplication lookups, citation update statements, and batch paper update transactions against string/integer project ID type coercion.
+- **Architectural Implementation**:
+  1. **Papers Metadata & Import Endpoint (`src/app/api/papers/route.ts`)**:
+     - Standardized `onlyHashes`, `getPublishers`, `getManualStages`, and `getManualDecisions` queries to enforce `WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`.
+     - Standardized `findByDoiStmt`, `findByTitleStmt`, `updateCitationStmt`, and `updateCitationAndDoiStmt` statements.
+     - Hardened batch paper status update transaction and statement (`UPDATE papers SET ... WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`).
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #397 - AI Duplicate Screening, Inter-Rater Ledger & Export Endpoints Scoping (2026-08-16)
+- **Goal**: Standardize project ID isolation across AI duplicate screening, inter-rater commit ledger, Umbrellanizer CSV export, and raw papers export endpoints.
+- **Architectural Implementation**:
+  1. **AI Duplicate Review Route (`src/app/api/duplicates/ai-screen/route.ts`)**:
+     - Standardized paper lookups, project configuration lookups, prompt template resolution queries, and `duplicate_pairs` update statements to enforce string/integer project ID type safety.
+  2. **Inter-Rater Ledger Endpoint (`src/app/api/adjudicate/ledger/route.ts`)**:
+     - Standardized `calibration_commit_ledger` retrieval query to use `WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))`.
+  3. **CSV Tabular & Inter-Rater Export Endpoints (`src/app/api/export/csv-tabular/route.ts`, `src/app/api/export/inter-rater/route.ts`, `src/app/api/export/route.ts`)**:
+     - Standardized `umbrellanizer_results` lookup, calibration paper retrieval, and paper export queries to use type-coercion-safe project ID checks and stage dominance `Math.max()`.
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #396 - PDF Scraper, Cache Matcher, Deduplication & Vector Pipeline Multi-Project Isolation (2026-08-16)
+- **Goal**: Harden PDF scraper routines, cache matcher script, duplicate paper detection, vector workers, and PDF batch/deletion API endpoints against string/integer project ID type coercion and cross-project pollution.
+- **Architectural Implementation**:
+  1. **Remote Worker Claim & Callback Scoping (`src/app/api/remote-worker/claim/route.ts`, `src/app/api/remote-worker/result/route.ts`)**:
+     - Standardized paper selection and status update queries to use `WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`.
+  2. **PDF Integrity Verification & Scraper Engine (`python_engine/entrypoints/scrape_pdfs.py`, `python_engine/entrypoints/verify_pdfs.py`)**:
+     - Standardized SQL paper filtering and status upgrade/downgrade queries to enforce type-coercion-safe project ID boundaries.
+  3. **Cache Matcher Project Isolation (`python_engine/entrypoints/match_cache.py`)**:
+     - Fixed missing `Project_ID` scoping on paper match UPDATE query (line 553), ensuring updates are strictly bounded to the active project.
+  4. **Duplicate Paper Detector & Vector Index Search (`python_engine/entrypoints/detect_duplicates.py`, `python_engine/entrypoints/semantic_search.py`, `python_engine/entrypoints/vector_worker.py`, `python_engine/entrypoints/build_vectors.py`)**:
+     - Standardized all SQL allowlist generation and paper metadata extraction queries to enforce string/integer project ID type safety.
+  5. **PDF Batch Pipeline & Deletion Routes (`src/app/api/pdf/batch/route.ts`, `src/app/api/pdf/delete/route.ts`)**:
+     - Fixed scalar function NULL evaluation in `pdf/batch/route.ts` using `(IFNULL(manual_stage, 0) > 0 OR IFNULL(ai_stage, 0) > 0)`.
+     - Standardized paper and project folder lookup queries in `pdf/delete/route.ts`.
+- **Verification**:
+  - Python modules verified with `python -m py_compile` across all modified entrypoints.
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #395 - Inter-Rater Adjudication Stats, Final Cohort & Import Route Parity (2026-08-16)
+- **Goal**: Harden inter-rater adjudication stats calculation, final cohort retrieval queries, and inter-rater review import fallback logic against string/integer project ID type coercion discrepancies.
+- **Architectural Implementation**:
+  1. **Inter-Rater Adjudication Stats Hardening (`src/app/api/adjudicate/stats/route.ts`)**:
+     - Standardized project query to use `WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))` to reliably fetch QA and extraction rules.
+  2. **Final Cohort Query Isolation (`src/app/api/insight/final-cohort/route.ts`)**:
+     - Hardened base query where clause to enforce `(Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))` across counting and paginated paper joins.
+  3. **Inter-Rater Import Project Fallback (`src/app/api/import/inter-rater/route.ts`)**:
+     - Updated fallback active project resolution to use type-coercion-safe SQL lookups.
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #394 - Project Statistics LLM Screening Records Integration & Scalar NULL Hardening (2026-08-16)
+- **Goal**: Integrate `llm_screening_records` as the authoritative source into project listing statistics (`GET /api/projects`), fix scalar function NULL evaluations in stage unprocessed counters, and standardize calibration pool assignment queries.
+- **Architectural Implementation**:
+  1. **Project Stats Combined Audit Log Integration (`src/app/api/projects/route.ts`)**:
+     - Updated all CTEs (`combined_logs`) across `stageStatsRows`, `stageECStatsRows`, `stage2Unprocessed`, `stage3Unprocessed`, and `stage4Unprocessed` to include `llm_screening_records` at Priority 1 (`manual_audit_log` at Priority 2, `llm_audit_log` at Priority 0).
+     - Fixed `MAX(p.manual_stage, p.ai_stage)` in `stage1Unprocessed` to `MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0))` to prevent NULL returns when `manual_stage` is NULL.
+     - Added `NOT EXISTS (SELECT 1 FROM llm_screening_records WHERE stage = 1)` to `stage1Unprocessed`.
+     - Standardized project ID type safety across all project statistics and tag count queries.
+  2. **Calibration Pool Assignment Queries (`src/app/api/calibration/assign/route.ts`)**:
+     - Hardened paper lookup, duplication validation, cloning, update, and unassignment queries to use string/numeric coercion protection.
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #393 - Zero-Trace Project Purge Completeness & Single Paper Query Isolation (2026-08-16)
+- **Goal**: Harden project deletion across all 18 project-scoped database tables including `semantic_search_cache`, and standardize project ID type safety in single paper metadata and prompt querying endpoints.
+- **Architectural Implementation**:
+  1. **Zero-Trace Project Deletion Hardening (`src/app/api/projects/[id]/route.ts`)**:
+     - Applied `(project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))` across all 18 project-scoped tables within an atomic transaction.
+     - Added explicit deletion of project vector index entries from `semantic_search_cache`.
+     - Standardized next-active-project reassignment logic with string/numeric type safety.
+  2. **Single Paper Metadata & Audit Logging (`src/app/api/papers/[id]/route.ts`)**:
+     - Updated GET and PUT queries to enforce `(Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))` on paper lookups and updates.
+  3. **Active Jobs and Prompt Query Isolation (`src/app/api/llm/jobs/active/route.ts`, `src/app/api/llm/prompts/route.ts`)**:
+     - Standardized project ID filtering to ensure consistent retrieval of project-specific vs global prompt templates and active jobs.
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #392 - CSV Tabular Stage Query Correction & FAIR Data Exporter Archive Expansion (2026-08-16)
+- **Goal**: Resolve a stage comparison SQL typo in `csv-tabular/route.ts`, expand FAIR data export coverage to include all rolling batch and prompt tables, and harden subquery project ID resolution in `manual-screening/route.ts`.
+- **Architectural Implementation**:
+  1. **CSV Tabular Stage Dominance Bug Fix (`src/app/api/export/csv-tabular/route.ts`)**:
+     - Fixed typo in line 104 where `IFNULL(p.ai_stage, 0) > IFNULL(p.ai_stage, 0)` was comparing `ai_stage` to itself; corrected to `IFNULL(p.ai_stage, 0) > IFNULL(p.manual_stage, 0)`.
+     - Standardized project ID type safety in CSV export queries.
+  2. **FAIR Data Exporter Completeness (`src/app/api/export/fair-data/route.ts`)**:
+     - Expanded the FAIR compliance export payload to include `rolling_batches`, `rolling_batch_papers`, `rolling_batch_reviewer_decisions`, `rolling_batch_commit_ledger`, `duplicate_pairs`, and `prompt_templates`.
+  3. **Manual Screening Subquery Isolation (`src/app/api/papers/manual-screening/route.ts`)**:
+     - Hardened scalar subqueries (`calibration_pool`, `calibration_tag`, `Parent_Paper_Title`, `reviewer_decisions_exist`) in `dataQuery` to evaluate `(Project_ID = papers.Project_ID OR CAST(Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))`.
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #391 - Rolling Batch Pipeline, Umbrellanizer Isolation & PRISMA Exporter Deep Hardening (2026-08-16)
+- **Goal**: Harden the rolling batch lifecycle (initialization, adjudication, reset, and export), ensure strict PRISMA 2020 flow metrics isolation, and guarantee multi-project SQL isolation parity across all analytical export endpoints.
+- **Architectural Implementation**:
+  1. **Rolling Batch Pipeline Hardening (`src/app/api/rolling-batch/`)**:
+     - Standardized project ID type safety across `initialize/route.ts`, `adjudicate/route.ts`, and `reset/route.ts` using `(Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`.
+     - Hardened rolling batch reset in `reset/route.ts` to perform a clean sweep of `rolling_batch_papers` by both project ID and batch ID collection, preventing lingering orphaned records.
+  2. **Umbrellanizer Multi-Project Isolation (`python_engine/llm/umbrellanizer.py`, `python_engine/llm/main.py`)**:
+     - Applied `(Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))` to dynamic token extraction queries across Miner-passed papers.
+  3. **PRISMA Flow & SLR Viewer Exporter Parity (`src/app/api/export/slr-viewer/route.ts`, `src/app/api/insight/prisma/route.ts`)**:
+     - Hardened PRISMA paper queries and prompt template queries to use string/numeric coercion protection.
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Python compiler verified with 0 syntax errors across all LLM modules (`python -m py_compile`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #390 - Deep Code Analysis: Scalar Function NULL Hardening, Project ID Type Coercion Parity & Multi-Stage Edge Case Hardening (2026-08-16)
+- **Goal**: Perform comprehensive iterative deep code analysis across background workers, API routes, database triggers, and UI components to hunt down and resolve scalar function NULL propagation, project ID type coercion anomalies, and multi-stage lifecycle edge cases.
+- **Architectural Implementation**:
+  1. **SQLite Scalar Function NULL Hardening (`python_engine/llm/main.py`)**:
+     - Fixed SQLite `MAX(manual_stage, ai_stage)` query in `main.py` line 257 to use `MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0))`, preventing scalar `MAX()` from returning `NULL` when either stage column is `NULL` (which caused unscreened papers with `manual_stage IS NULL` to be skipped during batch selection).
+  2. **Multi-Project ID Coercion Parity (§3.8 Isolation Standard)**:
+     - Hardened SQL queries across `src/app/api/llm/count/route.ts`, `src/app/api/papers/purge/route.ts`, `src/app/api/duplicates/route.ts`, `src/app/api/duplicates/resolve/route.ts`, `src/app/api/adjudicate/route.ts`, `src/app/api/pdf/single/route.ts`, and `src/lib/services/batch-pipeline-executor.ts` to utilize `(Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))` to eliminate string vs integer type coercion discrepancies in SQLite.
+  3. **Atomic Purge & Cascading Verification**:
+     - Verified atomic single and batch purge cascades across `papers`, `llm_screening_records`, `manual_audit_log`, and `llm_audit_log`.
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Python compiler verified with 0 syntax errors across all LLM modules (`python -m py_compile`).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #389 - Dedicated PRISMA Screening State Table (`llm_screening_records`), SQLite Precedence Triggers & Isolated Stage Execution (2026-08-16)
+- **Goal**: Establish a dedicated, non-duplicate, single last-updated PRISMA screening table (`llm_screening_records`) per gate per paper per project to eliminate multi-turn/multi-use contamination from `llm_audit_log` (e.g. Prompt Optimizer runs, sandbox benchmark evaluations, or mock review data), and configure automatic SQLite database triggers as the sole authoritative source of truth for synchronizing `papers.ai_*` and `rolling_batch_papers.ai_*`.
+- **Architectural Implementation**:
+  1. **Canonical Schema & Database Triggers (`src/lib/db/db-init.ts`)**:
+     - Created `llm_screening_records` table with composite uniqueness `UNIQUE(project_id, paper_id, stage)` storing `stage`, `task_type`, `decision`, `exclusion_code`, `rationale`, `quality_assessment`, `extracted_data`, `logic_trace`, `structured_output`, `model_id`, `job_id`, `cost_usd`, `total_tokens`, and `latency_ms`.
+     - Implemented automatic SQLite triggers (`trg_lsr_insert`, `trg_lsr_update`, `trg_lsr_delete`) enforcing stage-aware precedence funneling (earliest exclusion stage or highest completed stage) to keep `papers.ai_*` and `rolling_batch_papers.ai_*` in continuous, atomic synchronization.
+     - Added idempotent startup migration `backfillLlmScreeningRecords(db)` to backfill existing screened papers from `papers` and `llm_audit_log`.
+  2. **Python Engine Gate Worker (`python_engine/llm/queue_handler.py`)**:
+     - Updated `process_paper_worker` to write directly to `llm_screening_records` via `ON CONFLICT(project_id, paper_id, stage) DO UPDATE`.
+     - Integrated downstream record pruning: if an earlier stage $N$ is re-run and yields `EXCLUDE`, all downstream records (`stage > N`) are automatically purged, causing triggers to reflect the active gate exclusion.
+  3. **100% Backward-Compatible Archive Export/Import/Purge (`src/lib/services/archive-service.ts`)**:
+   4. **Tri-Table Automatic SQLite Triggers (`src/lib/db/db-init.ts`)**:
+      - Configured automatic triggers (`trg_lsr_insert`, `trg_lsr_update`, `trg_lsr_delete`) to keep `papers`, `rolling_batch_papers`, and `calibration_papers` in lockstep with the stage-dominant state in `llm_screening_records`.
+   5. **Cascading Deletion Endpoints & Paper Cleanup**:
+      - Updated `src/app/api/projects/[id]/route.ts`, `src/app/api/papers/purge/route.ts`, and `src/app/api/papers/[id]/route.ts` DELETE handlers to cascade delete from `llm_screening_records`.
+   6. **Direct Source Migration for Final Cohort, SLR Viewer, Paper Filtering & UI**:
+      - Updated `src/app/api/insight/final-cohort/route.ts`, `src/app/api/papers/route.ts`, `src/app/api/papers/manual-screening/route.ts`, `src/app/api/adjudicate/stats/route.ts`, `src/app/api/adjudicate/route.ts`, `src/app/api/import/inter-rater/route.ts`, `src/app/api/export/fair-data/route.ts`, and `src/app/api/export/slr-viewer/route.ts` to source PRISMA gate state, QA scores, and extracted data from `llm_screening_records` (with indexed lookups and fallback).
+      - Included `llm_screening_records` in distinct exclusion codes / EC trigger queries in `src/app/api/papers/route.ts`.
+      - Created dedicated endpoint `src/app/api/papers/[id]/screening/route.ts` and updated `src/components/features/modals/paper-details/PaperMetadataView.tsx` to display verified PRISMA gate states with expandable logic traces and tokens.
+   7. **Python Engine Indentation & Syntax Rectification (`python_engine/llm/queue_handler.py`)**:
+      - Resolved indentation disparity in `process_paper_worker` NOT_STATED extraction metrics block, preventing runtime `IndentationError`.
+- **Verification**:
+   - TypeScript compiler verified with 0 errors (`npx tsc --noEmit` exited with code 0).
+   - Python compilation verified with 0 errors (`python -m py_compile` across all LLM modules).
+   - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing all 7/7 verification stages across `papers`, `rolling_batch_papers`, and `calibration_papers`.
+   - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+   - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
+## #388 - Assign Papers to Calibration Pools Toolbar UI Modernization & Collapsible Filters (2026-08-16)
+- **Goal**: Modernize and align the "Assign Papers to Calibration Pools" search, filter, and metadata toolbar in `PaperSelectionList.tsx` with updated design specifications, featuring full-width `rounded-2xl` search input with integrated uppercase `SEARCH` trigger, collapsible options container to maximize vertical list viewport, prominent Semantic mode toggle, corpus indexing coverage badge, flexible filter actions, and high-contrast query latency metadata pill.
+- **Architectural Implementation**:
+  1. **Full-Width Search & Collapsible Options Container (`PaperSelectionList.tsx`)**:
+     - Allocated the search input to a dedicated full-width (`w-full`) `rounded-2xl` pill container with the `SEARCH` action button nested on the right.
+     - Added an interactive collapse/expand toggle button (`SlidersHorizontal` + `ChevronDown`/`ChevronUp`) with dynamic active filter count badge (`activeFilterCount`), allowing reviewers to collapse the mode toggles, pipeline filters, review exclusions, sort toolbar, and latency pill to maximize the paper list viewport (+240px vertical viewable space).
+     - Placed the "Semantic" mode switch, vector indexing status pill (`⚡ 1056/1056 Indexed`), "Screening Pipeline", and "Filters" buttons in a flexible, wrapped secondary action row inside the collapsible container.
+  2. **Refined Sorting Toolbar & Latency Metadata Banner**:
+     - Modernized the `SORT BY` toolbar with `rounded-xl` pill buttons for Citations, Year, and Match %.
+     - Styled the query execution metadata container into a `rounded-2xl` status bar displaying processing latency and the uppercase `TOP 200 NEAREST NEIGHBORS` purple badge.
+- **Verification**: Verified TypeScript compilation with 0 errors (`npx tsc --noEmit` exited with code 0).
+
 ## #387 - Canonical Schema Initialization, Obsolete Patch Purge & Schema Version Checkpointing (2026-08-16)
 - **Goal**: Modernize and streamline SQLite database startup initialization in `slr-ide` (`src/lib/db/db-init.ts`, `migrate-project-ids.ts`), ensuring 100% canonical DDLs across all 25 tables for fresh installs, purging ~40 redundant inline `ALTER TABLE` try-catch blocks and 7 dead commented-out migration blocks, and implementing an idempotent `SCHEMA_VERSION = '3'` fast-path guard (<0.35ms startup latency).
 - **Architectural Implementation**:

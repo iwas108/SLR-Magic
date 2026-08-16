@@ -58,6 +58,8 @@ graph TD
     - `calibration_commit_ledger`: tracks immutable audit trails for manual resolution history.
     - `duplicate_pairs`: stores candidate duplicate paper pairs identified by fuzzy heuristic matching for human-in-the-loop adjudication, alongside similarity scores, author overlaps, and resolution details.
     - `llm_jobs` & `llm_batch_jobs`: manage state and telemetry tracking for long-running screening and batch jobs.
+    - `llm_screening_records`: holds non-duplicate, single last-updated PRISMA screening state, structured extractions, and logic traces per gate per paper per project. Serves as the sole authoritative source that triggers automatic SQLite synchronization of `papers.ai_*` and `rolling_batch_papers.ai_*`.
+    - `llm_audit_log`: maintains an immutable FAIR interaction ledger of all prompt runs, model telemetry, and raw LLM responses.
 *   Papers and prompt templates are scoped to specific projects via the `Project_ID` foreign key column.
 
 ### 2.2 Decoupled Python Scraper (CGI Pattern)

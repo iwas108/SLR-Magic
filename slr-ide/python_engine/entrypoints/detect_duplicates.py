@@ -79,8 +79,8 @@ def main():
     cursor.execute("""
         SELECT paper1_id, paper2_id 
         FROM duplicate_pairs 
-        WHERE project_id = ?
-    """, (project_id,))
+        WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+    """, (project_id, project_id))
     existing_rows = cursor.fetchall()
     
     # Store existing pairs as set of canonical tuples
@@ -93,8 +93,8 @@ def main():
     cursor.execute("""
         SELECT Paper_ID, DOI, Title, Authors, Year, Abstract, Local_PDF_Status
         FROM papers
-        WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
-    """, (project_id,))
+        WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)
+    """, (project_id, project_id))
     papers = cursor.fetchall()
     total_papers = len(papers)
 

@@ -13,19 +13,19 @@ export async function GET() {
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 1 THEN 1 ELSE 0 END) as screened,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as acquired,
           SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced,
-          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_a' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_a_count,
-          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_b' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_b_count,
-          (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_c' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_c_count,
+          (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = 'pool_a' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_a_count,
+          (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = 'pool_b' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_b_count,
+          (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = 'pool_c' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_c_count,
           SUM(CASE WHEN is_duplicate = 1 THEN 1 ELSE 0 END) as duplicates
-        FROM papers WHERE Project_ID = ?
-      `).get(proj.id, proj.id, proj.id, proj.id) as any;
+        FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+      `).get(proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id) as any;
 
       const tagRows = db.prepare(`
         SELECT calibration_pool, calibration_tag, COUNT(*) as count 
         FROM calibration_papers 
-        WHERE Project_ID = ? AND calibration_pool IS NOT NULL AND (is_duplicate IS NULL OR is_duplicate = 0)
+        WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool IS NOT NULL AND (is_duplicate IS NULL OR is_duplicate = 0)
         GROUP BY calibration_pool, calibration_tag
-      `).all(proj.id) as { calibration_pool: string; calibration_tag: string | null; count: number }[];
+      `).all(proj.id, proj.id) as { calibration_pool: string; calibration_tag: string | null; count: number }[];
 
       const tagStats: Record<string, Record<string, number>> = {
         pool_a: {},
@@ -43,21 +43,36 @@ export async function GET() {
 
       const stageStatsRows = db.prepare(`
         WITH combined_logs AS (
+          SELECT paper_id, 
+                 CASE stage 
+                   WHEN 1 THEN 'fast_filter' 
+                   WHEN 2 THEN 'gatekeeper' 
+                   WHEN 3 THEN 'scientist' 
+                   WHEN 4 THEN 'miner' 
+                   ELSE CAST(stage AS TEXT) 
+                 END as task_type,
+                 UPPER(decision) as decision,
+                 UPPER(exclusion_code) as ec_trigger,
+                 updated_at as created_at,
+                 1 as priority
+          FROM llm_screening_records
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
+          SELECT paper_id, manual_stage as task_type,
+                 UPPER(decision) as decision,
+                 UPPER(ec_trigger) as ec_trigger,
+                 created_at,
+                 2 as priority
+          FROM manual_audit_log
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
           SELECT paper_id, task_type, 
                  UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision,
                  UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger,
                  created_at,
                  0 as priority
           FROM llm_audit_log
-          WHERE project_id = ? AND status = 'SUCCESS' AND json_valid(structured_output) = 1
-          UNION ALL
-          SELECT paper_id, manual_stage as task_type,
-                 UPPER(decision) as decision,
-                 UPPER(ec_trigger) as ec_trigger,
-                 created_at,
-                 1 as priority
-          FROM manual_audit_log
-          WHERE project_id = ?
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS' AND json_valid(structured_output) = 1
         ),
         ranked_decisions AS (
           SELECT *, ROW_NUMBER() OVER(PARTITION BY paper_id, task_type ORDER BY priority DESC, created_at DESC) as rn
@@ -77,28 +92,43 @@ export async function GET() {
           SUM(CASE WHEN d.decision LIKE 'INCLUDE%' AND (p.DOI IS NULL OR p.DOI = '') THEN 1 ELSE 0 END) as inc_no_doi,
           SUM(CASE WHEN d.decision LIKE 'INCLUDE%' AND p.Local_PDF_Status = 'FAILED' THEN 1 ELSE 0 END) as inc_pdf_failed
         FROM ranked_decisions d
-        JOIN papers p ON p.Paper_ID = d.paper_id AND CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)
+        JOIN papers p ON p.Paper_ID = d.paper_id AND (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
         WHERE d.rn = 1 AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) AND d.task_type IN ('fast_filter', 'gatekeeper', 'scientist', 'miner')
         GROUP BY d.task_type
-      `).all(proj.id, proj.id, proj.id) as { stage: string; included: number; excluded: number; inc_has_pdf: number; inc_no_doi: number; inc_pdf_failed: number; }[];
+      `).all(proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id) as { stage: string; included: number; excluded: number; inc_has_pdf: number; inc_no_doi: number; inc_pdf_failed: number; }[];
 
       const stageECStatsRows = db.prepare(`
         WITH combined_logs AS (
+          SELECT paper_id, 
+                 CASE stage 
+                   WHEN 1 THEN 'fast_filter' 
+                   WHEN 2 THEN 'gatekeeper' 
+                   WHEN 3 THEN 'scientist' 
+                   WHEN 4 THEN 'miner' 
+                   ELSE CAST(stage AS TEXT) 
+                 END as task_type,
+                 UPPER(decision) as decision,
+                 UPPER(exclusion_code) as ec_trigger,
+                 updated_at as created_at,
+                 1 as priority
+          FROM llm_screening_records
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
+          SELECT paper_id, manual_stage as task_type,
+                 UPPER(decision) as decision,
+                 UPPER(ec_trigger) as ec_trigger,
+                 created_at,
+                 2 as priority
+          FROM manual_audit_log
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
           SELECT paper_id, task_type, 
                  UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision,
                  UPPER(json_extract(structured_output, '$.final_evaluation.exclusion_code')) as ec_trigger,
                  created_at,
                  0 as priority
           FROM llm_audit_log
-          WHERE project_id = ? AND status = 'SUCCESS' AND json_valid(structured_output) = 1
-          UNION ALL
-          SELECT paper_id, manual_stage as task_type,
-                 UPPER(decision) as decision,
-                 UPPER(ec_trigger) as ec_trigger,
-                 created_at,
-                 1 as priority
-          FROM manual_audit_log
-          WHERE project_id = ?
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS' AND json_valid(structured_output) = 1
         ),
         ranked_decisions AS (
           SELECT *, ROW_NUMBER() OVER(PARTITION BY paper_id, task_type ORDER BY priority DESC, created_at DESC) as rn
@@ -115,43 +145,63 @@ export async function GET() {
           COALESCE(d.ec_trigger, 'Unspecified') as ec_trigger,
           COUNT(p.Paper_ID) as count
         FROM ranked_decisions d
-        JOIN papers p ON p.Paper_ID = d.paper_id AND CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)
+        JOIN papers p ON p.Paper_ID = d.paper_id AND (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
         WHERE d.rn = 1 AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) 
           AND d.task_type IN ('fast_filter', 'gatekeeper', 'scientist', 'miner')
           AND d.decision LIKE 'EXCLUDE%'
         GROUP BY d.task_type, d.ec_trigger
-      `).all(proj.id, proj.id, proj.id) as { stage: string; ec_trigger: string | null; count: number }[];
+      `).all(proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id) as { stage: string; ec_trigger: string | null; count: number }[];
 
       const stage1Unprocessed = db.prepare(`
         SELECT COUNT(p.Paper_ID) as count
         FROM papers p
-        WHERE p.Project_ID = ? AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) AND MAX(p.manual_stage, p.ai_stage) <= 1
+        WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)) 
+          AND (p.is_duplicate IS NULL OR p.is_duplicate = 0) 
+          AND MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) <= 1
           AND NOT EXISTS (
-            SELECT 1 FROM llm_audit_log l 
-            WHERE l.paper_id = p.Paper_ID AND l.project_id = p.Project_ID AND l.status = 'SUCCESS' AND json_valid(l.structured_output) = 1
-              AND l.task_type = 'fast_filter'
+            SELECT 1 FROM llm_screening_records lsr 
+            WHERE lsr.paper_id = p.Paper_ID AND (lsr.project_id = p.Project_ID OR CAST(lsr.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND lsr.stage = 1
           )
           AND NOT EXISTS (
             SELECT 1 FROM manual_audit_log m
-            WHERE m.paper_id = p.Paper_ID AND m.project_id = p.Project_ID AND m.manual_stage = 'fast_filter'
+            WHERE m.paper_id = p.Paper_ID AND (m.project_id = p.Project_ID OR CAST(m.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND m.manual_stage = 'fast_filter'
           )
-      `).get(proj.id) as { count: number };
+          AND NOT EXISTS (
+            SELECT 1 FROM llm_audit_log l 
+            WHERE l.paper_id = p.Paper_ID AND (l.project_id = p.Project_ID OR CAST(l.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND l.status = 'SUCCESS' AND json_valid(l.structured_output) = 1
+              AND l.task_type = 'fast_filter'
+          )
+      `).get(proj.id, proj.id) as { count: number };
 
       const stage2Unprocessed = db.prepare(`
         WITH combined_logs AS (
+          SELECT paper_id, 
+                 CASE stage 
+                   WHEN 1 THEN 'fast_filter' 
+                   WHEN 2 THEN 'gatekeeper' 
+                   WHEN 3 THEN 'scientist' 
+                   WHEN 4 THEN 'miner' 
+                   ELSE CAST(stage AS TEXT) 
+                 END as task_type,
+                 UPPER(decision) as decision,
+                 updated_at as created_at,
+                 1 as priority
+          FROM llm_screening_records
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
+          SELECT paper_id, manual_stage as task_type,
+                 UPPER(decision) as decision,
+                 created_at,
+                 2 as priority
+          FROM manual_audit_log
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
           SELECT paper_id, task_type, 
                  UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision,
                  created_at,
                  0 as priority
           FROM llm_audit_log
-          WHERE project_id = ? AND status = 'SUCCESS' AND json_valid(structured_output) = 1
-          UNION ALL
-          SELECT paper_id, manual_stage as task_type,
-                 UPPER(decision) as decision,
-                 created_at,
-                 1 as priority
-          FROM manual_audit_log
-          WHERE project_id = ?
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS' AND json_valid(structured_output) = 1
         ),
         ranked_decisions AS (
           SELECT *, ROW_NUMBER() OVER(PARTITION BY paper_id, task_type ORDER BY priority DESC, created_at DESC) as rn
@@ -167,29 +217,43 @@ export async function GET() {
           SUM(CASE WHEN UPPER(p.Local_PDF_Status) = 'INACCESSIBLE' THEN 1 ELSE 0 END) as inaccessible_pdf,
           SUM(CASE WHEN UPPER(p.Local_PDF_Status) NOT IN ('MATCHED', 'DOWNLOADED', 'SYNCED', 'INACCESSIBLE') THEN 1 ELSE 0 END) as pending_pdf
         FROM stage1_includes s1
-        JOIN papers p ON p.Paper_ID = s1.paper_id AND p.Project_ID = ?
+        JOIN papers p ON p.Paper_ID = s1.paper_id AND (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
         WHERE (p.is_duplicate IS NULL OR p.is_duplicate = 0)
           AND NOT EXISTS (
             SELECT 1 FROM ranked_decisions r
             WHERE r.paper_id = s1.paper_id AND r.rn = 1 AND r.task_type = 'gatekeeper'
           )
-      `).get(proj.id, proj.id, proj.id) as { unprocessed: number | null; inaccessible_pdf: number | null; pending_pdf: number | null };
+      `).get(proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id) as { unprocessed: number | null; inaccessible_pdf: number | null; pending_pdf: number | null };
 
       const stage3Unprocessed = db.prepare(`
         WITH combined_logs AS (
+          SELECT paper_id, 
+                 CASE stage 
+                   WHEN 1 THEN 'fast_filter' 
+                   WHEN 2 THEN 'gatekeeper' 
+                   WHEN 3 THEN 'scientist' 
+                   WHEN 4 THEN 'miner' 
+                   ELSE CAST(stage AS TEXT) 
+                 END as task_type,
+                 UPPER(decision) as decision,
+                 updated_at as created_at,
+                 1 as priority
+          FROM llm_screening_records
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
+          SELECT paper_id, manual_stage as task_type,
+                 UPPER(decision) as decision,
+                 created_at,
+                 2 as priority
+          FROM manual_audit_log
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
           SELECT paper_id, task_type, 
                  UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision,
                  created_at,
                  0 as priority
           FROM llm_audit_log
-          WHERE project_id = ? AND status = 'SUCCESS' AND json_valid(structured_output) = 1
-          UNION ALL
-          SELECT paper_id, manual_stage as task_type,
-                 UPPER(decision) as decision,
-                 created_at,
-                 1 as priority
-          FROM manual_audit_log
-          WHERE project_id = ?
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS' AND json_valid(structured_output) = 1
         ),
         ranked_decisions AS (
           SELECT *, ROW_NUMBER() OVER(PARTITION BY paper_id, task_type ORDER BY priority DESC, created_at DESC) as rn
@@ -202,29 +266,43 @@ export async function GET() {
         )
         SELECT COUNT(p.Paper_ID) as count
         FROM stage2_includes s2
-        JOIN papers p ON p.Paper_ID = s2.paper_id AND p.Project_ID = ?
+        JOIN papers p ON p.Paper_ID = s2.paper_id AND (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
         WHERE (p.is_duplicate IS NULL OR p.is_duplicate = 0)
           AND NOT EXISTS (
             SELECT 1 FROM ranked_decisions r
             WHERE r.paper_id = s2.paper_id AND r.rn = 1 AND r.task_type = 'scientist'
           )
-      `).get(proj.id, proj.id, proj.id) as { count: number };
+      `).get(proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id) as { count: number };
 
       const stage4Unprocessed = db.prepare(`
         WITH combined_logs AS (
+          SELECT paper_id, 
+                 CASE stage 
+                   WHEN 1 THEN 'fast_filter' 
+                   WHEN 2 THEN 'gatekeeper' 
+                   WHEN 3 THEN 'scientist' 
+                   WHEN 4 THEN 'miner' 
+                   ELSE CAST(stage AS TEXT) 
+                 END as task_type,
+                 UPPER(decision) as decision,
+                 updated_at as created_at,
+                 1 as priority
+          FROM llm_screening_records
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
+          SELECT paper_id, manual_stage as task_type,
+                 UPPER(decision) as decision,
+                 created_at,
+                 2 as priority
+          FROM manual_audit_log
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
           SELECT paper_id, task_type, 
                  UPPER(json_extract(structured_output, '$.final_evaluation.decision')) as decision,
                  created_at,
                  0 as priority
           FROM llm_audit_log
-          WHERE project_id = ? AND status = 'SUCCESS' AND json_valid(structured_output) = 1
-          UNION ALL
-          SELECT paper_id, manual_stage as task_type,
-                 UPPER(decision) as decision,
-                 created_at,
-                 1 as priority
-          FROM manual_audit_log
-          WHERE project_id = ?
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS' AND json_valid(structured_output) = 1
         ),
         ranked_decisions AS (
           SELECT *, ROW_NUMBER() OVER(PARTITION BY paper_id, task_type ORDER BY priority DESC, created_at DESC) as rn
@@ -237,13 +315,13 @@ export async function GET() {
         )
         SELECT COUNT(p.Paper_ID) as count
         FROM stage3_includes s3
-        JOIN papers p ON p.Paper_ID = s3.paper_id AND p.Project_ID = ?
+        JOIN papers p ON p.Paper_ID = s3.paper_id AND (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
         WHERE (p.is_duplicate IS NULL OR p.is_duplicate = 0)
           AND NOT EXISTS (
             SELECT 1 FROM ranked_decisions r
             WHERE r.paper_id = s3.paper_id AND r.rn = 1 AND r.task_type = 'miner'
           )
-      `).get(proj.id, proj.id, proj.id) as { count: number };
+      `).get(proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id) as { count: number };
 
       const ecBreakdown: Record<string, Record<string, number>> = {
         '1': {},

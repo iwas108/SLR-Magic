@@ -275,27 +275,27 @@ def run_matcher():
         print_event({"event": "error", "message": "Missing required --project parameter."})
         sys.exit(1)
 
-    cursor.execute("SELECT folder_name FROM projects WHERE id = ?", (active_proj_id,))
+    cursor.execute("SELECT folder_name FROM projects WHERE id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT)", (active_proj_id, active_proj_id))
     proj_row = cursor.fetchone()
     folder_name = proj_row[0] if proj_row else active_proj_id
 
     if paper_id_arg:
         cursor.execute("""
             SELECT Paper_ID, DOI, Title, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
-            WHERE Project_ID = ? AND Paper_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
-        """, (active_proj_id, paper_id_arg))
+            WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Paper_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
+        """, (active_proj_id, active_proj_id, paper_id_arg))
     else:
         force_update = '--force-update' in sys.argv
         if force_update:
             cursor.execute("""
                 SELECT Paper_ID, DOI, Title, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
-                WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status != 'IGNORED') AND (is_duplicate IS NULL OR is_duplicate = 0)
-            """, (active_proj_id,))
+                WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (Local_PDF_Status IS NULL OR Local_PDF_Status != 'IGNORED') AND (is_duplicate IS NULL OR is_duplicate = 0)
+            """, (active_proj_id, active_proj_id))
         else:
             cursor.execute("""
                 SELECT Paper_ID, DOI, Title, Local_PDF_Status, Local_PDF_Path, Abstract FROM papers
-                WHERE Project_ID = ? AND (Local_PDF_Status IS NULL OR Local_PDF_Status IN ('MISSING', 'FAILED')) AND (is_duplicate IS NULL OR is_duplicate = 0)
-            """, (active_proj_id,))
+                WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (Local_PDF_Status IS NULL OR Local_PDF_Status IN ('MISSING', 'FAILED')) AND (is_duplicate IS NULL OR is_duplicate = 0)
+            """, (active_proj_id, active_proj_id))
     papers = cursor.fetchall()
 
     # Pre-build sets of existing file IDs for O(1) existence checks
@@ -550,8 +550,8 @@ def run_matcher():
                 cursor.execute("""
                     UPDATE papers
                     SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ?
-                    WHERE Paper_ID = ?
-                """, (f"pdf_library/raw/{paper_id}.pdf", paper_id))
+                    WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+                """, (f"pdf_library/raw/{paper_id}.pdf", paper_id, active_proj_id, active_proj_id))
                 conn.commit()
 
                 matched_count += 1

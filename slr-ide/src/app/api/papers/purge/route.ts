@@ -55,16 +55,18 @@ export async function POST(request: Request) {
 
     // Execute atomic transaction for deletions
     const deleteTx = db.transaction(() => {
-      const deleteStmt = db.prepare('DELETE FROM papers WHERE Paper_ID = ? AND Project_ID = ?');
-      const deleteManualAuditStmt = db.prepare('DELETE FROM manual_audit_log WHERE paper_id = ? AND project_id = ?');
-      const deleteLlmAuditStmt = db.prepare('DELETE FROM llm_audit_log WHERE paper_id = ? AND project_id = ?');
+      const deleteStmt = db.prepare('DELETE FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))');
+      const deleteManualAuditStmt = db.prepare('DELETE FROM manual_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))');
+      const deleteLlmAuditStmt = db.prepare('DELETE FROM llm_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))');
+      const deleteLsrStmt = db.prepare('DELETE FROM llm_screening_records WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))');
       for (const id of allPaperIdsToDelete) {
-        // Clear associated audit log records
-        deleteManualAuditStmt.run(id, activeProjectId);
-        deleteLlmAuditStmt.run(id, activeProjectId);
+        // Clear associated audit log and screening records
+        deleteManualAuditStmt.run(id, activeProjectId, activeProjectId);
+        deleteLlmAuditStmt.run(id, activeProjectId, activeProjectId);
+        deleteLsrStmt.run(id, activeProjectId, activeProjectId);
 
         // Deleting the database record
-        const res = deleteStmt.run(id, activeProjectId);
+        const res = deleteStmt.run(id, activeProjectId, activeProjectId);
         if (res.changes > 0) {
           deletedCount++;
 

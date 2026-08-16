@@ -11,13 +11,13 @@ export async function GET(
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     const paper = db.prepare(`
       SELECT *, 
-             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
-             (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,
-             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID AND parent.Project_ID = papers.Project_ID) as Parent_Paper_Title,
-             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0 as reviewer_decisions_exist
+             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_pool,
+             (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_tag,
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID AND (parent.Project_ID = papers.Project_ID OR CAST(parent.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as Parent_Paper_Title,
+             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND (project_id = papers.Project_ID OR CAST(project_id AS TEXT) = CAST(papers.Project_ID AS TEXT))) > 0 as reviewer_decisions_exist
       FROM papers 
-      WHERE Paper_ID = ? AND Project_ID = ?
-    `).get(id, activeProjectId);
+      WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+    `).get(id, activeProjectId, activeProjectId);
     if (!paper) {
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }
@@ -46,7 +46,7 @@ export async function PUT(
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     
     // Fetch current paper record to preserve fields not supplied in body
-    const currentPaper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND Project_ID = ?').get(id, activeProjectId) as any;
+    const currentPaper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').get(id, activeProjectId, activeProjectId) as any;
     if (!currentPaper) {
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }
@@ -124,7 +124,7 @@ export async function PUT(
           manual_stage = ?,
           manual_quality_assessment = ?,
           manual_extracted_data = ?
-      WHERE Paper_ID = ? AND Project_ID = ?
+      WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
     `).run(
       Title.trim(),
       Authors !== undefined ? String(Authors).trim() : currentPaper.Authors,
@@ -145,6 +145,7 @@ export async function PUT(
       manualQaVal,
       manualExtVal,
       id,
+      activeProjectId,
       activeProjectId
     );
 
@@ -199,7 +200,10 @@ export async function DELETE(
     const { id } = await params;
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
     
-    db.prepare('DELETE FROM papers WHERE Paper_ID = ? AND Project_ID = ?').run(id, activeProjectId);
+    db.prepare('DELETE FROM llm_screening_records WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, activeProjectId, activeProjectId);
+    db.prepare('DELETE FROM manual_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, activeProjectId, activeProjectId);
+    db.prepare('DELETE FROM llm_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, activeProjectId, activeProjectId);
+    db.prepare('DELETE FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').run(id, activeProjectId, activeProjectId);
 
     clearSemanticSearchCache(activeProjectId);
 

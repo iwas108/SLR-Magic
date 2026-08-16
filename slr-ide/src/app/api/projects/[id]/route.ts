@@ -72,35 +72,37 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       }
     }
 
-    // 3. Run deletion across all 15 project-scoped tables inside an atomic transaction
+    // 3. Run deletion across all project-scoped tables inside an atomic transaction
     const deleteTransaction = db.transaction(() => {
-      db.prepare('DELETE FROM reviewer_decisions WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM calibration_commit_ledger WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM calibration_papers WHERE Project_ID = ?').run(projectId);
-      db.prepare('DELETE FROM manual_audit_log WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM llm_audit_log WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM duplicate_pairs WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM rolling_batches WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM rolling_batch_papers WHERE Project_ID = ?').run(projectId);
-      db.prepare('DELETE FROM rolling_batch_reviewer_decisions WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM rolling_batch_commit_ledger WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM umbrellanizer_results WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM llm_jobs WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM prompt_templates WHERE project_id = ?').run(projectId);
-      db.prepare('DELETE FROM prompt_audit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
-      db.prepare('DELETE FROM prompt_benchmark_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
-      db.prepare('DELETE FROM prompt_benchmark_runs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
+      db.prepare('DELETE FROM reviewer_decisions WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM calibration_commit_ledger WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM manual_audit_log WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM llm_audit_log WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM duplicate_pairs WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM rolling_batches WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM rolling_batch_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM rolling_batch_reviewer_decisions WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM rolling_batch_commit_ledger WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM umbrellanizer_results WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM llm_jobs WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM prompt_templates WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM prompt_audit_ledger WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM prompt_benchmark_results WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM prompt_benchmark_runs WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM llm_screening_records WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM semantic_search_cache WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
       
       // Delete papers
-      db.prepare('DELETE FROM papers WHERE Project_ID = ?').run(projectId);
+      db.prepare('DELETE FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
 
       // Finally delete the project itself
-      db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+      db.prepare('DELETE FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
 
       // If active project is the deleted one, reset config to next available project or empty string
       const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
-      if (activeProjectId === projectId) {
-        const nextProject = db.prepare('SELECT id FROM projects WHERE id != ? LIMIT 1').get(projectId) as { id: string } | undefined;
+      if (activeProjectId === projectId || String(activeProjectId) === String(projectId)) {
+        const nextProject = db.prepare('SELECT id FROM projects WHERE id != ? AND CAST(id AS TEXT) != CAST(? AS TEXT) LIMIT 1').get(projectId, projectId) as { id: string } | undefined;
         const newActiveId = nextProject ? nextProject.id : '';
         db.prepare("INSERT OR REPLACE INTO configs (key, value) VALUES ('ACTIVE_PROJECT_ID', ?)").run(newActiveId);
       }

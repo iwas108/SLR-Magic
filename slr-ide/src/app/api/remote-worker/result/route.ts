@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     if (status === 'DOWNLOADED') {
       const file = formData.get('file') as File;
       if (!file) {
-        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND Project_ID = ?`).run(paper_id, targetProjectId);
+        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`).run(paper_id, targetProjectId, targetProjectId);
         globalEventManager.broadcast({ type: 'SYNC_PAPERS' });
         return NextResponse.json({ error: 'Missing file payload for DOWNLOADED status' }, { status: 400 });
       }
@@ -52,14 +52,14 @@ export async function POST(req: Request) {
       // Basic validation (Node-side)
       if (buffer.length < 5 * 1024) {
         // Size too small
-        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND Project_ID = ?`).run(paper_id, targetProjectId);
+        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`).run(paper_id, targetProjectId, targetProjectId);
         globalEventManager.broadcast({ type: 'SYNC_PAPERS' });
         return NextResponse.json({ error: 'File too small (likely paywall html)' }, { status: 400 });
       }
 
       const header = buffer.subarray(0, 1024).toString('ascii');
       if (!header.includes('%PDF-')) {
-        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND Project_ID = ?`).run(paper_id, targetProjectId);
+        db.prepare(`UPDATE papers SET Local_PDF_Status = 'FAILED', remote_worker_id = NULL, scrape_claimed_at = NULL WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`).run(paper_id, targetProjectId, targetProjectId);
         globalEventManager.broadcast({ type: 'SYNC_PAPERS' });
         return NextResponse.json({ error: 'Invalid PDF header' }, { status: 400 });
       }
@@ -81,8 +81,8 @@ export async function POST(req: Request) {
             Local_PDF_Path = ?, 
             remote_worker_id = NULL, 
             scrape_claimed_at = NULL 
-        WHERE Paper_ID = ? AND Project_ID = ?
-      `).run(dbPath, paper_id, targetProjectId);
+        WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+      `).run(dbPath, paper_id, targetProjectId, targetProjectId);
 
       streamManager.broadcast({ event: 'progress', log: `[Remote Worker] Downloaded paper ${paper_id}. Initiating PDF Integrity Verification...` });
 
@@ -98,25 +98,28 @@ export async function POST(req: Request) {
           if (line.trim()) {
             try {
               const parsed = JSON.parse(line.trim());
-              if (parsed.event === 'log') {
-                streamManager.broadcast({ event: 'progress', log: `[Verification] ${parsed.message}` });
-              } else if (parsed.event === 'paper_fail') {
-                streamManager.broadcast({ event: 'progress', log: `[Verification Error] ${parsed.error}` });
-              }
-            } catch {
-              // Ignore non-json stdout
+              streamManager.broadcast({ event: 'progress', log: `[Verification] ${paper_id}: ${parsed.status} - ${parsed.message || ''}` });
+            } catch (e) {
+              streamManager.broadcast({ event: 'progress', log: `[Verification] ${paper_id}: ${line.trim()}` });
             }
           }
         }
       });
 
       verifyProcess.stderr.on('data', (data) => {
-        streamManager.broadcast({ event: 'progress', log: `[Verification Error] ${data.toString()}` });
+        console.error(`[PDF Verification Error ${paper_id}]:`, data.toString());
       });
 
-      await new Promise<void>((resolve) => {
-        verifyProcess.on('close', () => {
-          resolve();
+      verifyProcess.on('close', (code) => {
+        // Broadcast completion
+        globalEventManager.broadcast({ type: 'SYNC_PAPERS' });
+        // Refresh telemetry and progress metrics in batchStateTracker
+        if (paperRow) {
+          batchStateTracker.updateScrapingProgress(paperRow.Project_ID);
+        }
+        streamManager.broadcast({
+          event: 'complete',
+          log: `[Verification Finished] Paper ${paper_id} verification completed with code ${code}.`
         });
       });
 
@@ -126,8 +129,8 @@ export async function POST(req: Request) {
         SET Local_PDF_Status = 'FAILED', 
             remote_worker_id = NULL, 
             scrape_claimed_at = NULL 
-        WHERE Paper_ID = ? AND Project_ID = ?
-      `).run(paper_id, targetProjectId);
+        WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+      `).run(paper_id, targetProjectId, targetProjectId);
       if (error_reason) {
         console.warn(`Worker ${worker_id} failed to scrape ${paper_id}: ${error_reason}`);
         streamManager.broadcast({ event: 'progress', log: `[Remote Worker] Failed ${paper_id}: ${error_reason}` });

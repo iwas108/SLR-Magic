@@ -80,6 +80,7 @@ export function exportProjectArchive(projectId: string): {
     prompt_audit_ledger: db.prepare('SELECT * FROM prompt_audit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
     prompt_benchmark_runs: db.prepare('SELECT * FROM prompt_benchmark_runs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
     prompt_benchmark_results: db.prepare('SELECT * FROM prompt_benchmark_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
+    llm_screening_records: db.prepare('SELECT * FROM llm_screening_records WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').all(projectId) as any[],
   };
 
   const recordCounts: Record<string, number> = {};
@@ -221,7 +222,7 @@ export function purgeProjectZeroTrace(projectId: string, keepPdfZip: boolean = f
   let newActiveProjectId = '';
 
   const deleteTransaction = db.transaction(() => {
-    // 1. Clear all 15 relational tables
+    // 1. Clear all 19 relational tables
     db.prepare('DELETE FROM reviewer_decisions WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
     db.prepare('DELETE FROM calibration_commit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
     db.prepare('DELETE FROM calibration_papers WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT)').run(projectId);
@@ -234,6 +235,10 @@ export function purgeProjectZeroTrace(projectId: string, keepPdfZip: boolean = f
     db.prepare('DELETE FROM rolling_batches WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
     db.prepare('DELETE FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
     db.prepare('DELETE FROM semantic_search_cache WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
+    db.prepare('DELETE FROM prompt_audit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
+    db.prepare('DELETE FROM prompt_benchmark_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
+    db.prepare('DELETE FROM prompt_benchmark_runs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
+    db.prepare('DELETE FROM llm_screening_records WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
     db.prepare('DELETE FROM llm_jobs WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
     db.prepare('DELETE FROM prompt_templates WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)').run(projectId);
     db.prepare('DELETE FROM papers WHERE CAST(Project_ID AS TEXT) = CAST(? AS TEXT)').run(projectId);
@@ -266,7 +271,7 @@ export function purgeProjectZeroTrace(projectId: string, keepPdfZip: boolean = f
 
   return {
     success: true,
-    deletedTablesCount: 15,
+    deletedTablesCount: 19,
     vacuumCompleted,
     activeProjectSwitched,
     newActiveProjectId
@@ -643,6 +648,73 @@ export function importProjectArchive(archiveData: any): {
       for (const res of (rawTables.prompt_benchmark_results || [])) {
         insertAdaptiveRow('prompt_benchmark_results', { ...res, paper_id: remapPaperId(res.paper_id), project_id: targetProjectId }, pbresCols, true);
       }
+
+      // M. Insert LLM Screening Records
+      const lsrCols = getTableColumns('llm_screening_records');
+      let lsrCount = 0;
+      if (rawTables.llm_screening_records && Array.isArray(rawTables.llm_screening_records) && rawTables.llm_screening_records.length > 0) {
+        for (const lsr of rawTables.llm_screening_records) {
+          const adaptedLsr = {
+            ...lsr,
+            paper_id: remapPaperId(lsr.paper_id),
+            project_id: targetProjectId
+          };
+          insertAdaptiveRow('llm_screening_records', adaptedLsr, lsrCols, true);
+          lsrCount++;
+        }
+      } else {
+        // Synthesize llm_screening_records from imported papers and llm_audit_log (legacy archive fallback)
+        const taskTypeMap: Record<number, string> = { 1: 'fast_filter', 2: 'gatekeeper', 3: 'scientist', 4: 'miner' };
+        for (const p of incomingPapers) {
+          const paperId = remapPaperId(p.Paper_ID);
+          const stage = p.ai_stage || (p.ai_decision ? 1 : 0);
+          if (stage > 0 && paperId) {
+            const taskType = taskTypeMap[stage] || 'fast_filter';
+            let logicTrace: string | null = null;
+            let structOut: string | null = null;
+            let modelId = 'migrated';
+
+            if (rawTables.llm_audit_log && Array.isArray(rawTables.llm_audit_log)) {
+              const matchingLog = rawTables.llm_audit_log.find((l: any) => 
+                (l.paper_id === p.Paper_ID || l.paper_id === paperId) && 
+                (l.task_type === taskType || (l.task_type && String(l.task_type).includes(taskType))) &&
+                l.status === 'SUCCESS'
+              );
+              if (matchingLog) {
+                modelId = matchingLog.model_id || 'migrated';
+                structOut = matchingLog.structured_output;
+                if (structOut) {
+                  try {
+                    const parsed = JSON.parse(structOut);
+                    const lt = parsed.logic_trace || parsed.logicTrace;
+                    if (lt) logicTrace = JSON.stringify(lt);
+                  } catch (_) {}
+                }
+              }
+            }
+
+            const now = new Date().toISOString();
+            insertAdaptiveRow('llm_screening_records', {
+              project_id: targetProjectId,
+              paper_id: paperId,
+              stage,
+              task_type: taskType,
+              decision: p.ai_decision || 'INCLUDE',
+              exclusion_code: p.ai_exclusion_code || null,
+              rationale: p.ai_rationale || null,
+              quality_assessment: p.ai_quality_assessment || null,
+              extracted_data: p.ai_extracted_data || null,
+              logic_trace: logicTrace,
+              structured_output: structOut,
+              model_id: modelId,
+              created_at: now,
+              updated_at: now
+            }, lsrCols, true);
+            lsrCount++;
+          }
+        }
+      }
+      insertedCounts.llm_screening_records = lsrCount;
     });
 
     importTransaction();
