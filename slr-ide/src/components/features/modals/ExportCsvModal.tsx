@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileSpreadsheet, X, Download, Check, CheckSquare, Square,
   Search, ShieldCheck, Database, Layers, Sparkles, Filter,
-  FileText, ArrowRight, Loader2, AlertCircle, RefreshCw
+  FileText, ArrowRight, Loader2, AlertCircle, RefreshCw, GitFork, Link2
 } from 'lucide-react';
 
 export interface ColumnDefinition {
@@ -11,29 +11,30 @@ export interface ColumnDefinition {
   category: 'ingestion' | 'metadata' | 'screening' | 'appraisal';
   description: string;
   isIngestionHubDefault?: boolean;
+  isSnowballDefault?: boolean;
 }
 
 export const AVAILABLE_COLUMNS: ColumnDefinition[] = [
   // Ingestion Hub Standard Core (14 Columns)
-  { key: 'Paper_ID', label: 'Paper ID', category: 'ingestion', description: 'Deterministic unique paper identifier', isIngestionHubDefault: true },
-  { key: 'Import_Date', label: 'Import Date', category: 'ingestion', description: 'Date of paper ingestion (YYYY-MM-DD)', isIngestionHubDefault: true },
-  { key: 'Import_Source', label: 'Import Source', category: 'ingestion', description: 'Origin file name or ingest source batch', isIngestionHubDefault: true },
-  { key: 'Source', label: 'Source Database', category: 'ingestion', description: 'Academic search database (Scopus, IEEE, etc.)', isIngestionHubDefault: true },
-  { key: 'DOI', label: 'DOI', category: 'ingestion', description: 'Digital Object Identifier', isIngestionHubDefault: true },
-  { key: 'Title', label: 'Title', category: 'ingestion', description: 'Complete title of research paper', isIngestionHubDefault: true },
-  { key: 'Abstract', label: 'Abstract', category: 'ingestion', description: 'Full text abstract', isIngestionHubDefault: true },
-  { key: 'Authors', label: 'Authors', category: 'ingestion', description: 'Author names (semicolon-delimited)', isIngestionHubDefault: true },
-  { key: 'Year', label: 'Year', category: 'ingestion', description: 'Publication year', isIngestionHubDefault: true },
-  { key: 'PDF_Link', label: 'PDF Link', category: 'ingestion', description: 'External or cloud repository PDF link', isIngestionHubDefault: true },
-  { key: 'Status', label: 'Status (PDF Status)', category: 'ingestion', description: 'Local PDF state (MATCHED, DOWNLOADED, SYNCED, IGNORED)', isIngestionHubDefault: true },
-  { key: 'Original_Publisher', label: 'Original Publisher', category: 'ingestion', description: 'Raw publisher string from indexing source', isIngestionHubDefault: true },
-  { key: 'Publisher', label: 'Publisher (Normalized)', category: 'ingestion', description: 'Standardized canonical publisher name', isIngestionHubDefault: true },
-  { key: 'citation_count', label: 'Citation Count', category: 'ingestion', description: 'Citation count metrics from indexing service', isIngestionHubDefault: true },
+  { key: 'Paper_ID', label: 'Paper ID', category: 'ingestion', description: 'Deterministic unique paper identifier', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Import_Date', label: 'Import Date', category: 'ingestion', description: 'Date of paper ingestion (YYYY-MM-DD)', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Import_Source', label: 'Import Source', category: 'ingestion', description: 'Origin file name or ingest source batch', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Source', label: 'Source Database', category: 'ingestion', description: 'Academic search database (Scopus, Backward Snowball, etc.)', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'DOI', label: 'DOI', category: 'ingestion', description: 'Digital Object Identifier', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Title', label: 'Title', category: 'ingestion', description: 'Complete title of research paper', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Abstract', label: 'Abstract', category: 'ingestion', description: 'Full text abstract', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Authors', label: 'Authors', category: 'ingestion', description: 'Author names (semicolon-delimited)', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Year', label: 'Year', category: 'ingestion', description: 'Publication year', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'PDF_Link', label: 'PDF Link', category: 'ingestion', description: 'External or cloud repository PDF link', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Status', label: 'Status (PDF Status)', category: 'ingestion', description: 'Local PDF state (MATCHED, DOWNLOADED, SYNCED, IGNORED)', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Original_Publisher', label: 'Original Publisher', category: 'ingestion', description: 'Raw publisher string from indexing source', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'Publisher', label: 'Publisher (Normalized)', category: 'ingestion', description: 'Standardized canonical publisher name', isIngestionHubDefault: true, isSnowballDefault: true },
+  { key: 'citation_count', label: 'Citation Count', category: 'ingestion', description: 'Citation count metrics from indexing service', isIngestionHubDefault: true, isSnowballDefault: true },
 
   // Additional Metadata & Lineage
-  { key: 'Parent_Paper_ID', label: 'Parent Paper ID', category: 'metadata', description: 'Snowballing parent paper reference identifier' },
+  { key: 'Parent_Paper_ID', label: 'Parent Paper ID', category: 'metadata', description: 'Snowballing parent paper reference identifier', isSnowballDefault: true },
   { key: 'Local_PDF_Path', label: 'Local PDF Path', category: 'metadata', description: 'Relative filesystem path to cached/downloaded PDF' },
-  { key: 'notes', label: 'Notes', category: 'metadata', description: 'Reviewer manual annotations & comments' },
+  { key: 'notes', label: 'Notes', category: 'metadata', description: 'Reviewer manual annotations & comments', isSnowballDefault: true },
 
   // Screening Pipeline & Decisions
   { key: 'Stage', label: 'Effective Stage', category: 'screening', description: 'Highest completed stage (MAX of manual & AI stage)' },
@@ -57,6 +58,7 @@ export const AVAILABLE_COLUMNS: ColumnDefinition[] = [
 ];
 
 export const INGESTION_HUB_COLUMNS = AVAILABLE_COLUMNS.filter(c => c.isIngestionHubDefault).map(c => c.key);
+export const SNOWBALL_COLUMNS = AVAILABLE_COLUMNS.filter(c => c.isSnowballDefault).map(c => c.key);
 export const MINIMAL_COLUMNS = ['Paper_ID', 'DOI', 'Title', 'Authors', 'Year', 'Source'];
 export const SCREENING_COLUMNS = [
   'Paper_ID', 'Title', 'DOI', 'Stage', 'Decision',
@@ -71,6 +73,7 @@ interface ExportCsvModalProps {
   totalPapers: number;
   activeProjectId?: string;
   showToast?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  initialScope?: 'selected' | 'all' | 'snowballing';
 }
 
 export default function ExportCsvModal({
@@ -79,14 +82,22 @@ export default function ExportCsvModal({
   selectedPaperIds,
   totalPapers,
   activeProjectId,
-  showToast
+  showToast,
+  initialScope
 }: ExportCsvModalProps) {
   const selectedCount = selectedPaperIds.size;
   const hasSelected = selectedCount > 0;
 
-  // Export scope: 'selected' vs 'all'
-  const [exportScope, setExportScope] = useState<'selected' | 'all'>('all');
+  // Export scope: 'selected' | 'all' | 'snowballing'
+  const [exportScope, setExportScope] = useState<'selected' | 'all' | 'snowballing'>('all');
   
+  // Include referenced parent seed papers for snowballing transfer
+  const [includeParents, setIncludeParents] = useState(true);
+
+  // Snowballing papers count in active project
+  const [snowballCount, setSnowballCount] = useState<number>(0);
+  const [loadingSnowballCount, setLoadingSnowballCount] = useState(false);
+
   // Selected columns set
   const [selectedColumns, setSelectedColumns] = useState<Set<string>>(new Set(INGESTION_HUB_COLUMNS));
   
@@ -99,15 +110,47 @@ export default function ExportCsvModal({
   // Loading state
   const [isExporting, setIsExporting] = useState(false);
 
+  // Fetch count of snowballing papers in current project
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchSnowballCount = async () => {
+      setLoadingSnowballCount(true);
+      try {
+        const url = `/api/llm/count?taskType=scientist&paperSelectionMode=snowballing&statusFilter=ALL&decisionFilter=ALL${activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : ''}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setSnowballCount(data.count || 0);
+        }
+      } catch (err) {
+        console.error('Error fetching snowball count:', err);
+      } finally {
+        setLoadingSnowballCount(false);
+      }
+    };
+
+    fetchSnowballCount();
+  }, [isOpen, activeProjectId]);
+
   // Sync default scope on modal open
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
-      setExportScope(hasSelected ? 'selected' : 'all');
-      setSelectedColumns(new Set(INGESTION_HUB_COLUMNS));
+      if (initialScope === 'snowballing') {
+        setExportScope('snowballing');
+        setSelectedColumns(new Set(SNOWBALL_COLUMNS));
+      } else if (hasSelected) {
+        setExportScope('selected');
+        setSelectedColumns(new Set(INGESTION_HUB_COLUMNS));
+      } else {
+        setExportScope('all');
+        setSelectedColumns(new Set(INGESTION_HUB_COLUMNS));
+      }
+      setIncludeParents(true);
       setColumnSearch('');
       setActiveCategory('all');
     }
-  }, [isOpen, hasSelected]);
+  }, [isOpen, hasSelected, initialScope]);
 
   // Check if current selection matches Ingestion Hub preset exactly
   const isIngestionHubPreset = useMemo(() => {
@@ -115,10 +158,18 @@ export default function ExportCsvModal({
     return INGESTION_HUB_COLUMNS.every(col => selectedColumns.has(col));
   }, [selectedColumns]);
 
+  // Check if current selection matches Snowballing preset
+  const isSnowballPreset = useMemo(() => {
+    if (selectedColumns.size !== SNOWBALL_COLUMNS.length) return false;
+    return SNOWBALL_COLUMNS.every(col => selectedColumns.has(col));
+  }, [selectedColumns]);
+
   // Preset handlers
-  const applyPreset = (preset: 'ingestion_hub' | 'all' | 'minimal' | 'screening') => {
+  const applyPreset = (preset: 'ingestion_hub' | 'snowball' | 'all' | 'minimal' | 'screening') => {
     if (preset === 'ingestion_hub') {
       setSelectedColumns(new Set(INGESTION_HUB_COLUMNS));
+    } else if (preset === 'snowball') {
+      setSelectedColumns(new Set(SNOWBALL_COLUMNS));
     } else if (preset === 'all') {
       setSelectedColumns(new Set(AVAILABLE_COLUMNS.map(c => c.key)));
     } else if (preset === 'minimal') {
@@ -168,7 +219,11 @@ export default function ExportCsvModal({
     });
   }, [activeCategory, columnSearch]);
 
-  const targetPaperCount = exportScope === 'selected' ? selectedCount : totalPapers;
+  const targetPaperCount = exportScope === 'selected' 
+    ? selectedCount 
+    : exportScope === 'snowballing'
+    ? snowballCount
+    : totalPapers;
 
   // Handle CSV Generation & Download
   const handleExport = async () => {
@@ -182,12 +237,18 @@ export default function ExportCsvModal({
       return;
     }
 
+    if (exportScope === 'snowballing' && snowballCount === 0) {
+      showToast?.('No manual ingest / snowballing papers in this project', 'warning');
+      return;
+    }
+
     setIsExporting(true);
     try {
       const payload: any = {
         projectId: activeProjectId,
         scope: exportScope,
-        columns: Array.from(selectedColumns)
+        columns: Array.from(selectedColumns),
+        includeParents: exportScope === 'snowballing' ? includeParents : false
       };
 
       if (exportScope === 'selected') {
@@ -256,8 +317,14 @@ export default function ExportCsvModal({
                     Ingestion Hub Ready
                   </span>
                 )}
+                {isSnowballPreset && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-1">
+                    <GitFork className="w-3 h-3" />
+                    Snowball Transfer Ready
+                  </span>
+                )}
               </div>
-              <p className="text-[11px] text-muted-foreground">Configure paper export scope and column selection for Ingestion Hub or custom analysis</p>
+              <p className="text-[11px] text-muted-foreground">Configure paper export scope and column selection for Ingestion Hub, Snowballing transfer, or custom analysis</p>
             </div>
           </div>
           <button
@@ -277,7 +344,8 @@ export default function ExportCsvModal({
               <Filter className="w-3.5 h-3.5 text-primary" />
               1. Select Export Scope
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              
               {/* Option A: Selected Papers Only */}
               <button
                 type="button"
@@ -292,9 +360,9 @@ export default function ExportCsvModal({
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-xs text-foreground flex items-center gap-2">
+                  <span className="font-bold text-xs text-foreground flex items-center gap-1.5">
                     <CheckSquare className={`w-4 h-4 ${exportScope === 'selected' ? 'text-primary' : 'text-muted-foreground'}`} />
-                    Selected Papers Only
+                    Selected Only
                   </span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                     hasSelected ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
@@ -302,14 +370,41 @@ export default function ExportCsvModal({
                     {selectedCount} selected
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground">
                   {hasSelected
-                    ? `Export only the ${selectedCount} paper(s) currently checked in the database table.`
-                    : 'No papers currently checked. Select checkboxes in the table to enable this option.'}
+                    ? `Export only the ${selectedCount} paper(s) checked in the database table.`
+                    : 'No papers checked in table.'}
                 </p>
               </button>
 
-              {/* Option B: All Project Papers */}
+              {/* Option B: Manual Ingest / Snowballing */}
+              <button
+                type="button"
+                onClick={() => {
+                  setExportScope('snowballing');
+                  setSelectedColumns(new Set(SNOWBALL_COLUMNS));
+                }}
+                className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                  exportScope === 'snowballing'
+                    ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/40'
+                    : 'bg-secondary/20 border-border hover:bg-secondary/40'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                    <GitFork className={`w-4 h-4 ${exportScope === 'snowballing' ? 'text-primary' : 'text-muted-foreground'}`} />
+                    Manual Ingest / Snowballing
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/20">
+                    {loadingSnowballCount ? '...' : `${snowballCount} papers`}
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Export all backward/forward snowballing and manual search papers to transfer into another project.
+                </p>
+              </button>
+
+              {/* Option C: All Project Papers */}
               <button
                 type="button"
                 onClick={() => setExportScope('all')}
@@ -320,7 +415,7 @@ export default function ExportCsvModal({
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-xs text-foreground flex items-center gap-2">
+                  <span className="font-bold text-xs text-foreground flex items-center gap-1.5">
                     <Database className={`w-4 h-4 ${exportScope === 'all' ? 'text-primary' : 'text-muted-foreground'}`} />
                     All Project Papers
                   </span>
@@ -328,11 +423,47 @@ export default function ExportCsvModal({
                     {totalPapers} total
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[10px] text-muted-foreground">
                   Export all {totalPapers} bibliography papers contained in the active project.
                 </p>
               </button>
             </div>
+
+            {/* Snowballing Special Options Banner */}
+            {exportScope === 'snowballing' && (
+              <div className="mt-3 p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <GitFork className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-blue-200">Cross-Project Snowballing Transfer Mode:</span>
+                      <p className="text-[11px] text-blue-300/90 mt-0.5">
+                        Exports all papers ingested via Backward Snowball, Forward Snowball, Manual Search, or linked with a <code className="font-mono text-blue-200">Parent_Paper_ID</code>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-blue-500/20 flex items-center justify-between gap-2 flex-wrap">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      id="include-parents-toggle"
+                      checked={includeParents}
+                      onChange={(e) => setIncludeParents(e.target.checked)}
+                      className="w-4 h-4 text-primary bg-secondary border-border rounded focus:ring-0 cursor-pointer"
+                    />
+                    <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Link2 className="w-3.5 h-3.5 text-blue-400" />
+                      Include Referenced Seed / Parent Papers in Export Bundle
+                    </span>
+                  </label>
+                  <span className="text-[10px] text-muted-foreground">
+                    Guarantees complete parent-child lineage integrity in target project
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* STEP 2: Quick Column Presets */}
@@ -347,24 +478,37 @@ export default function ExportCsvModal({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <button
                 type="button"
                 onClick={() => applyPreset('ingestion_hub')}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
                   isIngestionHubPreset
                     ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 ring-1 ring-emerald-500/30'
                     : 'bg-secondary/30 text-foreground border-border hover:bg-secondary/60'
                 }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                Ingestion Hub Preset (14)
+                Ingestion Hub (14)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => applyPreset('snowball')}
+                className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  isSnowballPreset
+                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30 ring-1 ring-blue-500/30'
+                    : 'bg-secondary/30 text-foreground border-border hover:bg-secondary/60'
+                }`}
+              >
+                <GitFork className="w-3.5 h-3.5 text-blue-400" />
+                Snowball Transfer ({SNOWBALL_COLUMNS.length})
               </button>
 
               <button
                 type="button"
                 onClick={() => applyPreset('all')}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
                   selectedColumns.size === AVAILABLE_COLUMNS.length
                     ? 'bg-primary/15 text-primary border-primary/30 ring-1 ring-primary/30'
                     : 'bg-secondary/30 text-foreground border-border hover:bg-secondary/60'
@@ -377,27 +521,27 @@ export default function ExportCsvModal({
               <button
                 type="button"
                 onClick={() => applyPreset('minimal')}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
                   selectedColumns.size === MINIMAL_COLUMNS.length && MINIMAL_COLUMNS.every(c => selectedColumns.has(c))
                     ? 'bg-primary/15 text-primary border-primary/30 ring-1 ring-primary/30'
                     : 'bg-secondary/30 text-foreground border-border hover:bg-secondary/60'
                 }`}
               >
                 <FileText className="w-3.5 h-3.5" />
-                Minimal Bibliographic (6)
+                Minimal (6)
               </button>
 
               <button
                 type="button"
                 onClick={() => applyPreset('screening')}
-                className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                className={`px-2.5 py-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
                   selectedColumns.size === SCREENING_COLUMNS.length && SCREENING_COLUMNS.every(c => selectedColumns.has(c))
                     ? 'bg-primary/15 text-primary border-primary/30 ring-1 ring-primary/30'
                     : 'bg-secondary/30 text-foreground border-border hover:bg-secondary/60'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" />
-                Screening Decisions (13)
+                Decisions (13)
               </button>
             </div>
 
@@ -442,11 +586,11 @@ export default function ExportCsvModal({
                 <span className="text-muted-foreground text-xs">•</span>
                 <button
                   type="button"
-                  onClick={() => applyPreset('ingestion_hub')}
+                  onClick={() => applyPreset(exportScope === 'snowballing' ? 'snowball' : 'ingestion_hub')}
                   className="text-xs font-semibold text-emerald-400 hover:underline flex items-center gap-1"
                 >
                   <RefreshCw className="w-3 h-3" />
-                  Reset to Ingestion Preset
+                  Reset Preset
                 </button>
               </div>
             </div>
@@ -520,11 +664,18 @@ export default function ExportCsvModal({
                           <span className="font-semibold text-xs text-foreground truncate font-mono">
                             {col.key}
                           </span>
-                          {col.isIngestionHubDefault && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 shrink-0">
-                              Hub
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {col.key === 'Parent_Paper_ID' && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/15 text-blue-400">
+                                Snowball Chain
+                              </span>
+                            )}
+                            {col.isIngestionHubDefault && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400">
+                                Hub
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <p className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">
                           {col.description}
@@ -550,7 +701,7 @@ export default function ExportCsvModal({
               {selectedColumns.size} {selectedColumns.size === 1 ? 'column' : 'columns'}
             </strong>
             <span className="text-[11px] text-muted-foreground">
-              ({exportScope === 'selected' ? 'Selected subset' : 'Full project database'})
+              ({exportScope === 'selected' ? 'Selected subset' : exportScope === 'snowballing' ? 'Snowballing cohort' : 'Full project database'})
             </span>
           </div>
 

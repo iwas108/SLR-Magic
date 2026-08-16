@@ -147,7 +147,7 @@ export function useIngestion(
       
       const targetColumns = [
         'Paper_ID', 'Import_Date', 'Import_Source', 'Source', 'DOI', 'Title', 'Abstract', 'Authors', 'Year', 
-        'PDF_Link', 'Status', 'Original_Publisher', 'Publisher', 'citation_count'
+        'PDF_Link', 'Status', 'Original_Publisher', 'Publisher', 'citation_count', 'Parent_Paper_ID'
       ];
       const initialMapping: Record<string, string> = {};
       
@@ -162,6 +162,15 @@ export function useIngestion(
 
         if (col === 'Publisher') {
           initialMapping[col] = ''; // Always empty by default
+          return;
+        }
+
+        if (col === 'Parent_Paper_ID') {
+          const matched = headers.find(h => {
+            const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cleanH === 'parentpaperid' || cleanH === 'parent_paper_id' || cleanH === 'parentid';
+          });
+          initialMapping[col] = matched || '';
           return;
         }
 
@@ -288,23 +297,36 @@ export function useIngestion(
   const handleImport = async (onSuccess?: () => void) => {
     setImporting(true);
     try {
+      const isPreserveMode = csvSourceSelect === 'Preserve from CSV';
       const effectiveSource = csvSourceSelect === 'Other'
         ? (csvCustomSource.trim() || 'Other')
         : (csvSourceSelect || csvSource || 'CSV Import');
 
+      const resolveRowSources = (p: any) => {
+        let itemSource = effectiveSource;
+        let itemImportSource = effectiveSource;
+
+        if (isPreserveMode) {
+          itemSource = p.Source || p.Import_Source || effectiveSource;
+          itemImportSource = p.Import_Source || p.Source || effectiveSource;
+        } else if (p.Source && ['Backward Snowball', 'Forward Snowball', 'Manual Search', 'Manual Ingestion'].includes(p.Source)) {
+          // Auto-preserve explicit snowballing classifications from imported CSV
+          itemSource = p.Source;
+          itemImportSource = p.Import_Source || p.Source;
+        }
+
+        return {
+          ...p,
+          Import_Source: itemImportSource,
+          Import_Date: csvImportDate || p.Import_Date || new Date().toISOString().split('T')[0],
+          Source: itemSource,
+          Parent_Paper_ID: p.Parent_Paper_ID || ''
+        };
+      };
+
       const papersToSend = syncCitations
-        ? previewPapers.map(p => ({
-            ...p,
-            Import_Source: effectiveSource,
-            Import_Date: csvImportDate || new Date().toISOString().split('T')[0],
-            Source: effectiveSource
-          }))
-        : previewPapers.filter(p => !p.isDuplicate).map(p => ({
-            ...p,
-            Import_Source: effectiveSource,
-            Import_Date: csvImportDate || new Date().toISOString().split('T')[0],
-            Source: effectiveSource
-          }));
+        ? previewPapers.map(resolveRowSources)
+        : previewPapers.filter(p => !p.isDuplicate).map(resolveRowSources);
 
       const res = await fetch('/api/papers', {
         method: 'POST',

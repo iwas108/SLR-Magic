@@ -5,9 +5,10 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, Eye, Edit2, ChevronLeft, ChevronRight,
   Minus, Maximize2, LayoutDashboard, Plus, Edit, Folder, Calendar, CheckCircle2,
   TrendingUp, BarChart3, Cloud, Database, ShieldAlert, Terminal, ArrowRightLeft,
-  Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield
+  Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield, GitFork
 } from 'lucide-react';
 import CsvReviewModal from './modals/CsvReviewModal';
+import ExportCsvModal from './modals/ExportCsvModal';
 
 import { useIngestion } from '@/hooks/useIngestion';
 
@@ -95,6 +96,9 @@ export default function IngestionHubView({
   const [showPurgeConfirm, setShowPurgeConfirm] = React.useState(false);
   const [confirmProjectName, setConfirmProjectName] = React.useState('');
 
+  const [showExportModal, setShowExportModal] = React.useState(false);
+  const [snowballCount, setSnowballCount] = React.useState(0);
+
   React.useEffect(() => {
     const fetchActiveProject = async () => {
       try {
@@ -113,6 +117,22 @@ export default function IngestionHubView({
     };
     fetchActiveProject();
   }, []);
+
+  React.useEffect(() => {
+    const fetchSnowballCount = async () => {
+      try {
+        const url = `/api/llm/count?taskType=scientist&paperSelectionMode=snowballing&statusFilter=ALL&decisionFilter=ALL${activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : ''}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setSnowballCount(data.count || 0);
+        }
+      } catch (err) {
+        console.error('Error fetching snowball count in Ingestion Hub:', err);
+      }
+    };
+    fetchSnowballCount();
+  }, [activeProjectId, papers]);
 
 
   return (
@@ -195,6 +215,7 @@ export default function IngestionHubView({
                           onChange={(e) => setCsvSourceSelect(e.target.value)}
                           className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-primary"
                         >
+                          <option value="Preserve from CSV">✨ Preserve from CSV (Snowballing / Multi-source)</option>
                           <option value="IEEE Xplore">IEEE Xplore</option>
                           <option value="Scopus">Scopus</option>
                           <option value="Web of Science">Web of Science</option>
@@ -377,10 +398,41 @@ export default function IngestionHubView({
 
             {/* RIGHT COLUMN: Manual Ingest (Snowballing) */}
             <div className="lg:col-span-5 space-y-6">
-              <h4 className="font-bold text-xs text-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-primary" />
-                Manual Ingest (Snowballing)
-              </h4>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h4 className="font-bold text-xs text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <GitFork className="w-4 h-4 text-primary" />
+                  Manual Ingest (Snowballing)
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setShowExportModal(true)}
+                  className="px-2.5 py-1 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[11px] font-semibold rounded-lg transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  title="Export Snowballing & Manual Ingest papers to CSV"
+                >
+                  <Download className="w-3 h-3 text-primary" />
+                  Export Snowballing CSV ({snowballCount})
+                </button>
+              </div>
+
+              {snowballCount > 0 && (
+                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs text-blue-300 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <GitFork className="w-4 h-4 text-blue-400 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="font-semibold text-foreground text-xs">{snowballCount} Snowballing Papers in Project</span>
+                      <p className="text-[10px] text-muted-foreground truncate">Transfer to another project with full parent reference chains intact</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowExportModal(true)}
+                    className="px-2.5 py-1 bg-primary text-primary-foreground text-[10px] font-bold rounded-md hover:bg-primary/90 transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                  >
+                    <Download className="w-3 h-3" />
+                    Export
+                  </button>
+                </div>
+              )}
 
               <form onSubmit={handleManualIngest} className="space-y-4 bg-secondary/10 border border-border/50 rounded-xl p-5">
                 <div className="grid grid-cols-2 gap-4">
@@ -677,6 +729,16 @@ export default function IngestionHubView({
           </div>
         </div>
       )}
+
+      <ExportCsvModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        selectedPaperIds={new Set()}
+        totalPapers={papers.length}
+        activeProjectId={activeProjectId}
+        showToast={showToast}
+        initialScope="snowballing"
+      />
     </>
   );
 }

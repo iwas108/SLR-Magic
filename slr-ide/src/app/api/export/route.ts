@@ -16,7 +16,8 @@ const DEFAULT_INGESTION_HEADERS = [
   'Status',
   'Original_Publisher',
   'Publisher',
-  'citation_count'
+  'citation_count',
+  'Parent_Paper_ID'
 ];
 
 function resolveFieldValue(paper: any, fieldKey: string): string {
@@ -139,7 +140,51 @@ function buildCsvResponse(papers: any[], headers: string[], filename: string): R
   });
 }
 
-function getExportQueryAndParams(activeProjectId: string, paperIds?: string[]) {
+function fetchExportPapers(activeProjectId: string, scope?: string, paperIds?: string[], includeParents: boolean = false): any[] {
+  if (scope === 'snowballing') {
+    const snowballSql = `
+      SELECT * FROM papers 
+      WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+        AND (
+          Source IN ('Backward Snowball', 'Forward Snowball', 'Manual Search', 'Manual Ingestion')
+          OR Import_Source IN ('Backward Snowball', 'Forward Snowball', 'Manual Search', 'Manual Ingestion')
+          OR (Parent_Paper_ID IS NOT NULL AND Parent_Paper_ID != '')
+        )
+      ORDER BY Year DESC, Title ASC
+    `;
+    const snowballPapers = db.prepare(snowballSql).all(activeProjectId, activeProjectId) as any[];
+
+    if (includeParents && snowballPapers.length > 0) {
+      const parentIds = Array.from(new Set(
+        snowballPapers
+          .map(p => p.Parent_Paper_ID)
+          .filter((id): id is string => typeof id === 'string' && id.trim() !== '')
+      ));
+
+      if (parentIds.length > 0) {
+        const placeholders = parentIds.map(() => '?').join(',');
+        const parentSql = `
+          SELECT * FROM papers 
+          WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+            AND Paper_ID IN (${placeholders})
+        `;
+        const parentPapers = db.prepare(parentSql).all(activeProjectId, activeProjectId, ...parentIds) as any[];
+
+        // Combine parent seed papers + snowballing papers cleanly
+        const map = new Map<string, any>();
+        for (const p of parentPapers) {
+          map.set(p.Paper_ID, p);
+        }
+        for (const p of snowballPapers) {
+          map.set(p.Paper_ID, p);
+        }
+        return Array.from(map.values());
+      }
+    }
+
+    return snowballPapers;
+  }
+
   let sql = 'SELECT * FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))';
   const params: any[] = [activeProjectId, activeProjectId];
 
@@ -150,13 +195,15 @@ function getExportQueryAndParams(activeProjectId: string, paperIds?: string[]) {
   }
 
   sql += ' ORDER BY Year DESC, Title ASC';
-  return { sql, params };
+  return db.prepare(sql).all(...params) as any[];
 }
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const activeProjectId = searchParams.get('projectId') || getConfig('ACTIVE_PROJECT_ID', '');
+    const scope = searchParams.get('scope') || undefined;
+    const includeParents = searchParams.get('includeParents') === 'true';
 
     const columnsParam = searchParams.get('columns');
     const headers = columnsParam
@@ -168,14 +215,15 @@ export async function GET(request: Request) {
       ? paperIdsParam.split(',').map(s => s.trim()).filter(Boolean)
       : undefined;
 
-    const { sql, params } = getExportQueryAndParams(activeProjectId, paperIds);
-    const papers = db.prepare(sql).all(...params) as any[];
+    const papers = fetchExportPapers(activeProjectId, scope, paperIds, includeParents);
 
-    const isSelected = paperIds && paperIds.length > 0;
     const dateStr = new Date().toISOString().split('T')[0];
-    const filename = isSelected
-      ? `papers_export_selected_${dateStr}.csv`
-      : `papers_export_${activeProjectId || 'project'}_${dateStr}.csv`;
+    let filename = `papers_export_${activeProjectId || 'project'}_${dateStr}.csv`;
+    if (scope === 'snowballing') {
+      filename = `snowballing_papers_${activeProjectId || 'export'}_${dateStr}.csv`;
+    } else if (paperIds && paperIds.length > 0) {
+      filename = `papers_export_selected_${dateStr}.csv`;
+    }
 
     return buildCsvResponse(papers, headers, filename);
   } catch (error: any) {
@@ -188,6 +236,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const activeProjectId = body.projectId || getConfig('ACTIVE_PROJECT_ID', '');
+    const scope = body.scope || undefined;
+    const includeParents = body.includeParents === true;
 
     const headers = Array.isArray(body.columns) && body.columns.length > 0
       ? body.columns
@@ -197,14 +247,15 @@ export async function POST(request: Request) {
       ? body.paperIds
       : undefined;
 
-    const { sql, params } = getExportQueryAndParams(activeProjectId, paperIds);
-    const papers = db.prepare(sql).all(...params) as any[];
+    const papers = fetchExportPapers(activeProjectId, scope, paperIds, includeParents);
 
-    const isSelected = body.scope === 'selected' || (paperIds && paperIds.length > 0);
     const dateStr = new Date().toISOString().split('T')[0];
-    const filename = isSelected
-      ? `papers_export_selected_${dateStr}.csv`
-      : `papers_export_${activeProjectId || 'project'}_${dateStr}.csv`;
+    let filename = `papers_export_${activeProjectId || 'project'}_${dateStr}.csv`;
+    if (scope === 'snowballing') {
+      filename = `snowballing_papers_${activeProjectId || 'export'}_${dateStr}.csv`;
+    } else if (scope === 'selected' || (paperIds && paperIds.length > 0)) {
+      filename = `papers_export_selected_${dateStr}.csv`;
+    }
 
     return buildCsvResponse(papers, headers, filename);
   } catch (error: any) {

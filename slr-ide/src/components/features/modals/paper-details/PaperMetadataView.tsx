@@ -344,8 +344,8 @@ export default function PaperMetadataView({
           {paper.Parent_Paper_ID ? (
             <div className="flex items-center justify-between bg-secondary/20 p-2.5 rounded-lg border border-border/30">
               <div className="flex flex-col min-w-0 pr-4">
-                <span className="text-xs font-bold text-primary truncate" title={paper.Parent_Paper_Title || ''}>
-                  {paper.Parent_Paper_Title || 'Untitled Paper'}
+                <span className="text-xs font-bold text-primary truncate" title={paper.Parent_Paper_Title || 'Referenced Parent Paper'}>
+                  {paper.Parent_Paper_Title || 'Referenced Parent (Origin Project)'}
                 </span>
                 <span className="text-[10px] font-mono text-muted-foreground mt-0.5">ID: {paper.Parent_Paper_ID}</span>
               </div>
@@ -358,7 +358,7 @@ export default function PaperMetadataView({
                       const parentPaper = await res.json();
                       setPaperModal({ isOpen: true, mode: 'view', paper: parentPaper });
                     } else {
-                      showToast('Failed to load parent paper details', 'error');
+                      showToast(`Parent paper (${paper.Parent_Paper_ID}) was not transferred or is not in this project database`, 'info');
                     }
                   } catch (err: any) {
                     showToast(`Error loading parent paper: ${err.message || err}`, 'error');
