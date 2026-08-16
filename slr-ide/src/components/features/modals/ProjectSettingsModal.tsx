@@ -57,7 +57,7 @@ export default function ProjectSettingsModal({
     let isMounted = true;
     setIsLoadingMinerPrompt(true);
 
-    fetch(`/api/llm/prompts?project_id=${project.id}`)
+    fetch(`/api/llm/prompts?project_id=${project.id}&include_global=true`)
       .then((res) => res.json())
       .then((data) => {
         if (!isMounted) return;
@@ -69,8 +69,19 @@ export default function ProjectSettingsModal({
             return;
           }
 
-          // Pick active prompt (is_active === 1) or most recently updated/created
-          const activePrompt = minerPrompts.find((p: any) => p.is_active === 1) || minerPrompts[0];
+          let defaultMinerId = '';
+          if (project.llm_config) {
+            try {
+              const pCfg = JSON.parse(project.llm_config);
+              defaultMinerId = pCfg.default_prompts?.miner || '';
+            } catch (e) {}
+          }
+
+          // Pick mapped stage default prompt, or active project prompt, or global baseline
+          const activePrompt = (defaultMinerId && minerPrompts.find((p: any) => p.id === defaultMinerId))
+            || minerPrompts.find((p: any) => p.is_active === 1 && p.project_id !== null)
+            || minerPrompts.find((p: any) => p.is_active === 1)
+            || minerPrompts[0];
           setHasMinerPrompt(true);
 
           if (activePrompt?.response_schema) {

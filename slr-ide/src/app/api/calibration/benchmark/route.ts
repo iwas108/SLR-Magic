@@ -167,39 +167,41 @@ export async function POST(req: Request) {
     // 2. Fetch Adjudicated Target Pool Papers with Latest Commit Join
     const papersWithGold = db.prepare(`
       SELECT 
-        p.*,
+        COALESCE(cp.Paper_ID, p.Paper_ID) as Paper_ID,
+        COALESCE(cp.Title, p.Title) as Title,
+        COALESCE(cp.Abstract, p.Abstract) as Abstract,
+        COALESCE(cp.Authors, p.Authors) as Authors,
+        COALESCE(cp.Year, p.Year) as Year,
+        COALESCE(cp.DOI, p.DOI) as DOI,
+        COALESCE(cp.Local_PDF_Path, p.Local_PDF_Path) as Local_PDF_Path,
+        COALESCE(cp.PDF_Link, p.PDF_Link) as PDF_Link,
+        COALESCE(cp.Source, p.Source) as Source,
         latest_ccl.resolved_decision as gold_decision,
-        COALESCE(latest_ccl.resolved_ec, latest_ccl.resolved_exclusion_code) as gold_exclusion_code,
+        latest_ccl.resolved_ec as gold_exclusion_code,
         latest_ccl.resolved_qa_scores as gold_qa_scores,
         latest_ccl.resolved_extracted_data as gold_extracted_data,
         latest_ccl.commit_message as gold_rationale
-      FROM papers p
+      FROM calibration_commit_ledger latest_ccl
       JOIN (
-        SELECT l.* 
-        FROM calibration_commit_ledger l
-        JOIN (
-          SELECT paper_id, project_id, MAX(timestamp) as max_ts
-          FROM calibration_commit_ledger
-          WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
-          GROUP BY paper_id, project_id
-        ) latest ON l.paper_id = latest.paper_id 
-                AND CAST(latest.project_id AS TEXT) = CAST(l.project_id AS TEXT) 
-                AND l.timestamp = latest.max_ts
-        WHERE CAST(l.project_id AS TEXT) = CAST(? AS TEXT)
-      ) latest_ccl ON p.Paper_ID = latest_ccl.paper_id
-      WHERE CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)
+        SELECT paper_id, project_id, MAX(timestamp) as max_ts
+        FROM calibration_commit_ledger
+        WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+        GROUP BY paper_id, project_id
+      ) latest ON latest_ccl.paper_id = latest.paper_id 
+              AND CAST(latest.project_id AS TEXT) = CAST(latest_ccl.project_id AS TEXT) 
+              AND latest_ccl.timestamp = latest.max_ts
+      LEFT JOIN calibration_papers cp ON latest_ccl.paper_id = cp.Paper_ID AND CAST(cp.Project_ID AS TEXT) = CAST(latest_ccl.project_id AS TEXT)
+      LEFT JOIN papers p ON latest_ccl.paper_id = p.Paper_ID AND CAST(p.Project_ID AS TEXT) = CAST(latest_ccl.project_id AS TEXT)
+      WHERE CAST(latest_ccl.project_id AS TEXT) = CAST(? AS TEXT)
         AND (
           UPPER(latest_ccl.pool) = UPPER(?) 
-          OR UPPER(p.calibration_tag) = UPPER(?) 
-          OR UPPER(p.calibration_pool) = UPPER(?)
-          OR p.Paper_ID IN (
-            SELECT cp.Paper_ID FROM calibration_papers cp 
-            WHERE CAST(cp.Project_ID AS TEXT) = CAST(? AS TEXT) 
-              AND (UPPER(cp.calibration_tag) = UPPER(?) OR UPPER(cp.calibration_pool) = UPPER(?))
-          )
+          OR UPPER(COALESCE(cp.calibration_tag, '')) = UPPER(?) 
+          OR UPPER(COALESCE(cp.calibration_pool, '')) = UPPER(?)
+          OR UPPER(COALESCE(p.calibration_tag, '')) = UPPER(?) 
+          OR UPPER(COALESCE(p.calibration_pool, '')) = UPPER(?)
         )
-      ORDER BY p.Paper_ID ASC
-    `).all(projectId, projectId, projectId, stageMeta.pool, stageMeta.pool, stageMeta.pool, projectId, stageMeta.pool, stageMeta.pool) as any[];
+      ORDER BY latest_ccl.paper_id ASC
+    `).all(projectId, projectId, stageMeta.pool, stageMeta.pool, stageMeta.pool, stageMeta.pool, stageMeta.pool) as any[];
 
     if (!papersWithGold || papersWithGold.length === 0) {
       return NextResponse.json({

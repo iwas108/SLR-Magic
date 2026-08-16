@@ -35,25 +35,29 @@ export default function UmbrellanizerWizard({
   const [targetVariableName, setTargetVariableName] = useState('');
   const [targetVariableDescription, setTargetVariableDescription] = useState('');
 
-  // Fetch prompts list inside the project scope
   useEffect(() => {
     fetch(`/api/llm/prompts?project_id=${projectId}&include_global=true`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          setPromptsList(data.prompts || []);
-          // Automatically pick default configure template if matches
+          const loadedPrompts = data.prompts || [];
+          setPromptsList(loadedPrompts);
+          // Automatically pick default configure template if matches, or fallback to first available umbrellanizer template
           fetch(`/api/projects/${projectId}`)
             .then((res) => res.json())
             .then((pData) => {
               if (pData.success && pData.project?.llm_config) {
                 const config = JSON.parse(pData.project.llm_config);
                 const defaultPrompt = config.default_prompts?.umbrellanizer;
-                if (defaultPrompt) {
+                if (defaultPrompt && loadedPrompts.some((p: any) => p.id === defaultPrompt)) {
                   setSelectedPromptId(defaultPrompt);
                 } else {
-                  setSelectedPromptId('');
+                  const umbTemplate = loadedPrompts.find((p: any) => p.prompt_type === 'umbrellanizer');
+                  setSelectedPromptId(umbTemplate ? umbTemplate.id : (loadedPrompts[0]?.id || ''));
                 }
+              } else {
+                const umbTemplate = loadedPrompts.find((p: any) => p.prompt_type === 'umbrellanizer');
+                setSelectedPromptId(umbTemplate ? umbTemplate.id : (loadedPrompts[0]?.id || ''));
               }
             });
         }

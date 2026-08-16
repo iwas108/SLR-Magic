@@ -110,7 +110,7 @@ def main():
             sys.exit(1)
 
     # 1. Fetch active project details from SQLite
-    project = execute_read_one("SELECT * FROM projects WHERE id = ?", (project_id,))
+    project = execute_read_one("SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))", (project_id, project_id))
     if not project:
         fail_job(job_id, project_id, f"Project '{project_id}' not found in database.", task_type=task_type)
 

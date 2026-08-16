@@ -121,7 +121,7 @@ def run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens
     }), flush=True)
 
     # Pre-flight budget check
-    project = execute_read_one("SELECT * FROM projects WHERE id = ?", (project_id,))
+    project = execute_read_one("SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))", (project_id, project_id))
     project_tax = float(project.get("project_tax") or 0.0) if project else 0.0
     est = estimate_cost(model_id, user_prompt, None, speed_mode=speed_mode, discount=discount, tax_rate=project_tax)
     est_cost = est["estimated_cost"]

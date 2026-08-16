@@ -483,14 +483,28 @@ export function initializeDatabase(db: Database.Database): void {
 
     -- Prompt Auditing & Benchmarking
     CREATE TABLE IF NOT EXISTS prompt_audit_ledger (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
       audit_type TEXT NOT NULL DEFAULT 'consolidation_audit',
+      status TEXT NOT NULL DEFAULT 'PASSED',
+      prompt_id TEXT,
+      prompt_hash TEXT,
+      parent_prompt_id TEXT,
+      parent_prompt_hash TEXT,
       availability_score REAL DEFAULT 0.0,
-      semantic_alignment_score REAL DEFAULT 0.0,
+      semantic_score REAL DEFAULT 0.0,
       chainability_score REAL DEFAULT 0.0,
+      train_paper_ids TEXT,
+      holdout_paper_ids TEXT,
+      before_metrics TEXT,
+      after_metrics TEXT,
+      audit_report TEXT,
+      raw_prompt TEXT,
       raw_response TEXT,
-      structured_output TEXT,
+      model_id TEXT,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      cost_usd REAL DEFAULT 0.0,
       created_at TEXT NOT NULL,
       FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
@@ -502,18 +516,19 @@ export function initializeDatabase(db: Database.Database): void {
       project_id TEXT NOT NULL,
       stage_num INTEGER NOT NULL,
       stage_name TEXT NOT NULL,
-      prompt_id TEXT NOT NULL,
-      model_id TEXT NOT NULL,
-      total_papers INTEGER DEFAULT 0,
-      train_accuracy REAL DEFAULT 0.0,
-      val_accuracy REAL DEFAULT 0.0,
-      train_recall REAL DEFAULT 0.0,
-      val_recall REAL DEFAULT 0.0,
-      train_precision REAL DEFAULT 0.0,
-      val_precision REAL DEFAULT 0.0,
+      pool TEXT NOT NULL DEFAULT 'POOL_A',
+      prompt_template_id TEXT,
+      prompt_hash TEXT,
       status TEXT NOT NULL DEFAULT 'PENDING',
+      total_papers INTEGER DEFAULT 0,
+      evaluated_papers INTEGER DEFAULT 0,
+      train_count INTEGER DEFAULT 0,
+      holdout_count INTEGER DEFAULT 0,
+      summary_metrics TEXT,
+      holdout_metrics TEXT,
+      error_message TEXT,
       created_at TEXT NOT NULL,
-      completed_at TEXT,
+      updated_at TEXT NOT NULL,
       FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
     );
 
@@ -545,6 +560,26 @@ export function initializeDatabase(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_benchmark_results_run ON prompt_benchmark_results(run_id);
     CREATE INDEX IF NOT EXISTS idx_benchmark_results_paper ON prompt_benchmark_results(project_id, paper_id);
+
+    -- Mockup Review Cache Table
+    CREATE TABLE IF NOT EXISTS mockup_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id TEXT NOT NULL,
+      pool TEXT NOT NULL,
+      reviewer_name TEXT NOT NULL,
+      prompt_hash TEXT,
+      model_id TEXT NOT NULL,
+      slr_blob BLOB NOT NULL,
+      total_papers INTEGER DEFAULT 0,
+      total_cost_usd REAL DEFAULT 0.0,
+      total_tokens INTEGER DEFAULT 0,
+      paper_results TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_mockup_cache_project_pool ON mockup_cache(project_id, pool);
 
     -- Dedicated PRISMA Screening State Table
     CREATE TABLE IF NOT EXISTS llm_screening_records (
@@ -1069,6 +1104,34 @@ export function initializeDatabase(db: Database.Database): void {
     safeAddColumn('calibration_commit_ledger', 'resolved_extracted_data', 'TEXT');
 
     safeAddColumn('llm_jobs', 'task_type', 'TEXT');
+
+    safeAddColumn('prompt_audit_ledger', 'status', "TEXT DEFAULT 'PASSED'");
+    safeAddColumn('prompt_audit_ledger', 'prompt_id', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'prompt_hash', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'parent_prompt_id', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'parent_prompt_hash', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'semantic_score', 'REAL DEFAULT 0.0');
+    safeAddColumn('prompt_audit_ledger', 'train_paper_ids', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'holdout_paper_ids', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'before_metrics', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'after_metrics', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'audit_report', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'raw_prompt', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'model_id', 'TEXT');
+    safeAddColumn('prompt_audit_ledger', 'input_tokens', 'INTEGER DEFAULT 0');
+    safeAddColumn('prompt_audit_ledger', 'output_tokens', 'INTEGER DEFAULT 0');
+    safeAddColumn('prompt_audit_ledger', 'cost_usd', 'REAL DEFAULT 0.0');
+
+    safeAddColumn('prompt_benchmark_runs', 'pool', "TEXT DEFAULT 'POOL_A'");
+    safeAddColumn('prompt_benchmark_runs', 'prompt_template_id', 'TEXT');
+    safeAddColumn('prompt_benchmark_runs', 'prompt_hash', 'TEXT');
+    safeAddColumn('prompt_benchmark_runs', 'evaluated_papers', 'INTEGER DEFAULT 0');
+    safeAddColumn('prompt_benchmark_runs', 'train_count', 'INTEGER DEFAULT 0');
+    safeAddColumn('prompt_benchmark_runs', 'holdout_count', 'INTEGER DEFAULT 0');
+    safeAddColumn('prompt_benchmark_runs', 'summary_metrics', 'TEXT');
+    safeAddColumn('prompt_benchmark_runs', 'holdout_metrics', 'TEXT');
+    safeAddColumn('prompt_benchmark_runs', 'error_message', 'TEXT');
+    safeAddColumn('prompt_benchmark_runs', 'updated_at', 'TEXT');
 
     // Auto-infer prompt_type for legacy untyped prompt records
     try {

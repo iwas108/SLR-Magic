@@ -153,7 +153,7 @@ def main():
         sys.exit(1)
 
     # Get active project folder_name
-    cursor.execute("SELECT folder_name FROM projects WHERE id = ?", (active_proj_id,))
+    cursor.execute("SELECT folder_name FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))", (active_proj_id, active_proj_id))
     proj_row = cursor.fetchone()
     folder_name = proj_row[0] if proj_row else active_proj_id
 

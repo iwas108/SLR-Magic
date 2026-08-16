@@ -176,6 +176,7 @@ export default function GlobalModals({
         onClose={() => setShowDuplicateModal(false)} 
         showToast={showToast}
         loadPapers={loadPapers}
+        activeProject={projectsHook.activeProject}
       />
 
       {/* Create Project Modal */}

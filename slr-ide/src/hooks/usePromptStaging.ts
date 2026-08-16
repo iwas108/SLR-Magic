@@ -72,6 +72,17 @@ export interface OptimizationState {
   isSaving: boolean;
 }
 
+export interface PayloadConfirmationState {
+  isOpen: boolean;
+  type: 'consolidation_audit' | 'stage_benchmark' | null;
+  stageNum?: number;
+  stageName?: string;
+  poolName?: string;
+  isLoading: boolean;
+  previewData: any | null;
+  error: string | null;
+}
+
 export function usePromptStaging(projectId: string, showToast?: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void) {
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [auditScores, setAuditScores] = useState<any>(null);
@@ -91,6 +102,14 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
     4: null
   });
   const [runningBenchmarkStage, setRunningBenchmarkStage] = useState<number | null>(null);
+
+  const [confirmationState, setConfirmationState] = useState<PayloadConfirmationState>({
+    isOpen: false,
+    type: null,
+    isLoading: false,
+    previewData: null,
+    error: null
+  });
 
   const [optimizationState, setOptimizationState] = useState<OptimizationState>({
     isOpen: false,
@@ -185,27 +204,26 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
     ]);
   }, [fetchAuditStatus, fetchStageBenchmark]);
 
+  const refreshAllBenchmarksRef = useRef(refreshAllBenchmarks);
+  refreshAllBenchmarksRef.current = refreshAllBenchmarks;
+
   // Initial Load & Project switch
   useEffect(() => {
     refreshAllBenchmarks();
   }, [refreshAllBenchmarks]);
 
-  // Multi-Tab Sync Subscription
+  // Multi-Tab Sync Subscription (Mutable ref pattern per agents.md §3.3)
   useEffect(() => {
     const unsub = subscribeSyncChannel((syncType) => {
       if (syncType === 'SYNC_PROJECTS' || syncType === 'SYNC_PROMPTS' || syncType === 'SYNC_PAPERS') {
         // Only refresh metadata without resetting active modal editing state
         if (!optStateRef.current.isOpen) {
-          fetchAuditStatus();
-          fetchStageBenchmark(1);
-          fetchStageBenchmark(2);
-          fetchStageBenchmark(3);
-          fetchStageBenchmark(4);
+          refreshAllBenchmarksRef.current?.();
         }
       }
     });
     return () => unsub();
-  }, [fetchAuditStatus, fetchStageBenchmark]);
+  }, []);
 
   // 3. Trigger Inter-Stage Consolidation Audit (Card 1)
   const runConsolidationAudit = async () => {
@@ -404,6 +422,100 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
     setOptimizationState(prev => ({ ...prev, isOpen: false }));
   };
 
+  // 8. Trigger Dry-Run Confirmation Modals (Transparent Human-in-the-Loop)
+  const openAuditConfirmation = async () => {
+    if (!projectId) {
+      showToast?.('No active project selected.', 'error');
+      return;
+    }
+    setConfirmationState({
+      isOpen: true,
+      type: 'consolidation_audit',
+      isLoading: true,
+      previewData: null,
+      error: null
+    });
+
+    try {
+      const res = await fetch('/api/calibration/payload-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId, preview_type: 'consolidation_audit' })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to prepare audit payload preview.');
+      }
+      setConfirmationState(prev => ({
+        ...prev,
+        isLoading: false,
+        previewData: data
+      }));
+    } catch (err: any) {
+      setConfirmationState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: err.message
+      }));
+    }
+  };
+
+  const openBenchmarkConfirmation = async (stageNum: number, stageName?: string, poolName?: string) => {
+    if (!projectId) {
+      showToast?.('No active project selected.', 'error');
+      return;
+    }
+    setConfirmationState({
+      isOpen: true,
+      type: 'stage_benchmark',
+      stageNum,
+      stageName,
+      poolName,
+      isLoading: true,
+      previewData: null,
+      error: null
+    });
+
+    try {
+      const res = await fetch('/api/calibration/payload-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId, preview_type: 'stage_benchmark', stage_num: stageNum })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to prepare Stage ${stageNum} benchmark payload preview.`);
+      }
+      setConfirmationState(prev => ({
+        ...prev,
+        isLoading: false,
+        previewData: data
+      }));
+    } catch (err: any) {
+      setConfirmationState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: err.message
+      }));
+    }
+  };
+
+  const confirmPayloadExecution = () => {
+    const currentType = confirmationState.type;
+    const currentStage = confirmationState.stageNum;
+    setConfirmationState(prev => ({ ...prev, isOpen: false }));
+
+    if (currentType === 'consolidation_audit') {
+      runConsolidationAudit();
+    } else if (currentType === 'stage_benchmark' && currentStage !== undefined) {
+      runStageBenchmark(currentStage);
+    }
+  };
+
+  const closePayloadConfirmation = () => {
+    setConfirmationState(prev => ({ ...prev, isOpen: false }));
+  };
+
   return {
     loadingAudit,
     auditScores,
@@ -411,7 +523,12 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
     promptAvailability,
     benchmarkRuns,
     runningBenchmarkStage,
+    confirmationState,
     optimizationState,
+    openAuditConfirmation,
+    openBenchmarkConfirmation,
+    confirmPayloadExecution,
+    closePayloadConfirmation,
     runConsolidationAudit,
     runStageBenchmark,
     startPromptOptimization,

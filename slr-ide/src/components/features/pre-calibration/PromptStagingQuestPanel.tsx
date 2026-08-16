@@ -8,6 +8,7 @@ import { usePromptStaging } from '@/hooks/usePromptStaging';
 import PromptConsolidationCard from './PromptConsolidationCard';
 import StageBenchmarkCard from './StageBenchmarkCard';
 import PromptOptimizationDiffModal from '../modals/PromptOptimizationDiffModal';
+import LlmPayloadConfirmationModal from '../modals/LlmPayloadConfirmationModal';
 
 interface PromptStagingQuestPanelProps {
   projectId: string;
@@ -25,7 +26,12 @@ export default function PromptStagingQuestPanel({
     promptAvailability,
     benchmarkRuns,
     runningBenchmarkStage,
+    confirmationState,
     optimizationState,
+    openAuditConfirmation,
+    openBenchmarkConfirmation,
+    confirmPayloadExecution,
+    closePayloadConfirmation,
     runConsolidationAudit,
     runStageBenchmark,
     startPromptOptimization,
@@ -47,63 +53,84 @@ export default function PromptStagingQuestPanel({
   const isStage4Unlocked = isStage3Unlocked && s3Completed;
 
   return (
-    <div className="flex flex-col space-y-6 pt-4 border-t border-slate-200 dark:border-border">
-      {/* Cyberpunk HUD Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl border border-sky-200 dark:border-cyan-500/30 bg-gradient-to-r from-sky-50/90 via-cyan-50/70 to-indigo-50/60 dark:from-slate-900/90 dark:via-slate-950/90 dark:to-cyan-950/20 backdrop-blur-xl shadow-sm dark:shadow-lg">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 rounded-xl bg-cyan-100 border border-cyan-300 text-cyan-700 dark:bg-gradient-to-br dark:from-cyan-500/20 dark:to-blue-500/20 dark:border-cyan-500/30 dark:text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
-            <Flame className="w-6 h-6 animate-pulse text-cyan-600 dark:text-cyan-300" />
+    <div className="flex flex-col space-y-5 pt-4 border-t border-border">
+      {/* Workflow HUD Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 rounded-2xl border border-border bg-gradient-to-r from-slate-50 via-sky-50/40 to-indigo-50/30 dark:from-slate-900/80 dark:via-slate-900/40 dark:to-cyan-950/20 backdrop-blur-sm shadow-xs transition-all">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0 shadow-xs">
+            <Sparkles className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono uppercase tracking-widest text-cyan-800 dark:text-cyan-400 font-bold px-2.5 py-0.5 rounded-full bg-cyan-200/70 dark:bg-cyan-950/60 border border-cyan-300 dark:border-cyan-500/30 shadow-sm">
-                QUEST-LINE PROGRESSION ENGINE
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-primary font-bold px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20">
+                Quest Progression Engine
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                Methodology Pre-Calibration
               </span>
             </div>
-            <h2 className="text-lg font-extrabold text-slate-900 dark:text-slate-100 mt-1 flex items-center gap-2">
-              <span>Interactive Staging & Benchmark Optimization HUD</span>
+            <h2 className="text-base sm:text-lg font-bold text-foreground mt-1">
+              Interactive Staging & Benchmark Optimization HUD
             </h2>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl leading-relaxed">
               Verify prompt chainability, sandbox benchmark against double-blind gold standard pools, and optimize prompts with Human-in-the-Loop full-text inspection.
             </p>
           </div>
         </div>
 
         {/* 5-Quest Step Indicator Pips */}
-        <div className="flex items-center gap-1.5 p-2 rounded-xl bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 font-mono text-xs shadow-sm">
-          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
-            card1Passed ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 font-bold' : 'bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-900 dark:text-slate-600 dark:border-slate-800'
+        <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-card border border-border font-mono text-xs shadow-xs self-start lg:self-center shrink-0">
+          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all text-xs ${
+            card1Passed 
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-bold' 
+              : 'bg-muted/60 text-muted-foreground border border-border'
           }`}>
-            <span className="font-bold">Q1</span>
-            {card1Passed && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+            <span>Q1</span>
+            {card1Passed && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
           </div>
-          <span className="text-slate-400 dark:text-slate-600">→</span>
-          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
-            s1Completed ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 font-bold' : isStage1Unlocked ? 'bg-cyan-100 text-cyan-800 border border-cyan-300 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/40 font-bold' : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-900 dark:text-slate-600 dark:border-slate-800'
+          <span className="text-muted-foreground/60 text-xs">→</span>
+          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all text-xs ${
+            s1Completed 
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-bold' 
+              : isStage1Unlocked 
+              ? 'bg-primary/10 text-primary border border-primary/30 font-bold' 
+              : 'bg-muted/60 text-muted-foreground/60 border border-border/60'
           }`}>
-            <span className="font-bold">S1</span>
-            {s1Completed && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+            <span>S1</span>
+            {s1Completed && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
           </div>
-          <span className="text-slate-400 dark:text-slate-600">→</span>
-          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
-            s2Completed ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 font-bold' : isStage2Unlocked ? 'bg-cyan-100 text-cyan-800 border border-cyan-300 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/40 font-bold' : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-900 dark:text-slate-600 dark:border-slate-800'
+          <span className="text-muted-foreground/60 text-xs">→</span>
+          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all text-xs ${
+            s2Completed 
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-bold' 
+              : isStage2Unlocked 
+              ? 'bg-primary/10 text-primary border border-primary/30 font-bold' 
+              : 'bg-muted/60 text-muted-foreground/60 border border-border/60'
           }`}>
-            <span className="font-bold">S2</span>
-            {s2Completed && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+            <span>S2</span>
+            {s2Completed && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
           </div>
-          <span className="text-slate-400 dark:text-slate-600">→</span>
-          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
-            s3Completed ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 font-bold' : isStage3Unlocked ? 'bg-cyan-100 text-cyan-800 border border-cyan-300 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/40 font-bold' : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-900 dark:text-slate-600 dark:border-slate-800'
+          <span className="text-muted-foreground/60 text-xs">→</span>
+          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all text-xs ${
+            s3Completed 
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-bold' 
+              : isStage3Unlocked 
+              ? 'bg-primary/10 text-primary border border-primary/30 font-bold' 
+              : 'bg-muted/60 text-muted-foreground/60 border border-border/60'
           }`}>
-            <span className="font-bold">S3</span>
-            {s3Completed && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+            <span>S3</span>
+            {s3Completed && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
           </div>
-          <span className="text-slate-400 dark:text-slate-600">→</span>
-          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all ${
-            s4Completed ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40 font-bold' : isStage4Unlocked ? 'bg-cyan-100 text-cyan-800 border border-cyan-300 dark:bg-cyan-500/20 dark:text-cyan-300 dark:border-cyan-500/40 font-bold' : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-900 dark:text-slate-600 dark:border-slate-800'
+          <span className="text-muted-foreground/60 text-xs">→</span>
+          <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all text-xs ${
+            s4Completed 
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 font-bold' 
+              : isStage4Unlocked 
+              ? 'bg-primary/10 text-primary border border-primary/30 font-bold' 
+              : 'bg-muted/60 text-muted-foreground/60 border border-border/60'
           }`}>
-            <span className="font-bold">S4</span>
-            {s4Completed && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />}
+            <span>S4</span>
+            {s4Completed && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
           </div>
         </div>
       </div>
@@ -114,12 +141,12 @@ export default function PromptStagingQuestPanel({
         auditScores={auditScores}
         auditReport={auditReport}
         loadingAudit={loadingAudit}
-        onRunAudit={runConsolidationAudit}
+        onRunAudit={openAuditConfirmation}
       />
 
       {/* Quest Connector Line */}
-      <div className="flex items-center justify-center">
-        <div className="h-6 w-[2px] bg-gradient-to-b from-cyan-500/40 to-blue-500/40" />
+      <div className="flex items-center justify-center -my-2">
+        <div className="h-4 w-px bg-border" />
       </div>
 
       {/* Quest 2 Card: Stage 1 Fast Filter (Pool A) */}
@@ -131,13 +158,13 @@ export default function PromptStagingQuestPanel({
         lockReason="Complete Quest 1 (Inter-Stage Consolidation Audit) to unlock Stage 1 Fast Filter Benchmark."
         benchmarkState={benchmarkRuns[1]}
         isRunning={runningBenchmarkStage === 1}
-        onRunBenchmark={() => runStageBenchmark(1)}
+        onRunBenchmark={() => openBenchmarkConfirmation(1, 'Fast Filter (Metadata Screening)', 'Pool A')}
         onOptimizePrompt={() => startPromptOptimization(1, 'Fast Filter (Metadata Screening)')}
       />
 
       {/* Quest Connector Line */}
-      <div className="flex items-center justify-center">
-        <div className="h-6 w-[2px] bg-gradient-to-b from-blue-500/40 to-indigo-500/40" />
+      <div className="flex items-center justify-center -my-2">
+        <div className="h-4 w-px bg-border" />
       </div>
 
       {/* Quest 3 Card: Stage 2 Gatekeeper (Pool B) */}
@@ -149,13 +176,13 @@ export default function PromptStagingQuestPanel({
         lockReason="Run Stage 1 Benchmark to unlock Stage 2 Gatekeeper Benchmark."
         benchmarkState={benchmarkRuns[2]}
         isRunning={runningBenchmarkStage === 2}
-        onRunBenchmark={() => runStageBenchmark(2)}
+        onRunBenchmark={() => openBenchmarkConfirmation(2, 'Gatekeeper (Domain & Full-Text Screening)', 'Pool B')}
         onOptimizePrompt={() => startPromptOptimization(2, 'Gatekeeper (Domain & Full-Text Screening)')}
       />
 
       {/* Quest Connector Line */}
-      <div className="flex items-center justify-center">
-        <div className="h-6 w-[2px] bg-gradient-to-b from-indigo-500/40 to-purple-500/40" />
+      <div className="flex items-center justify-center -my-2">
+        <div className="h-4 w-px bg-border" />
       </div>
 
       {/* Quest 4 Card: Stage 3 Scientist (Pool C) */}
@@ -167,13 +194,13 @@ export default function PromptStagingQuestPanel({
         lockReason="Run Stage 2 Benchmark to unlock Stage 3 Scientist Benchmark."
         benchmarkState={benchmarkRuns[3]}
         isRunning={runningBenchmarkStage === 3}
-        onRunBenchmark={() => runStageBenchmark(3)}
+        onRunBenchmark={() => openBenchmarkConfirmation(3, 'Scientist (Quality Appraisal)', 'Pool C')}
         onOptimizePrompt={() => startPromptOptimization(3, 'Scientist (Quality Appraisal)')}
       />
 
       {/* Quest Connector Line */}
-      <div className="flex items-center justify-center">
-        <div className="h-6 w-[2px] bg-gradient-to-b from-purple-500/40 to-pink-500/40" />
+      <div className="flex items-center justify-center -my-2">
+        <div className="h-4 w-px bg-border" />
       </div>
 
       {/* Quest 5 Card: Stage 4 Miner (Pool C) */}
@@ -185,8 +212,18 @@ export default function PromptStagingQuestPanel({
         lockReason="Run Stage 3 Benchmark to unlock Stage 4 Miner Benchmark."
         benchmarkState={benchmarkRuns[4]}
         isRunning={runningBenchmarkStage === 4}
-        onRunBenchmark={() => runStageBenchmark(4)}
+        onRunBenchmark={() => openBenchmarkConfirmation(4, 'Miner (Data Extraction)', 'Pool C')}
         onOptimizePrompt={() => startPromptOptimization(4, 'Miner (Data Extraction)')}
+      />
+
+      {/* Transparent LLM Payload Confirmation Modal */}
+      <LlmPayloadConfirmationModal
+        isOpen={confirmationState.isOpen}
+        isLoading={confirmationState.isLoading}
+        error={confirmationState.error}
+        previewData={confirmationState.previewData}
+        onClose={closePayloadConfirmation}
+        onConfirm={confirmPayloadExecution}
       />
 
       {/* Diagnostic & Diff Modal */}

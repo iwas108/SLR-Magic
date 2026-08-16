@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     let resolvedTemplateId = templateId;
     if (!resolvedTemplateId) {
       try {
-        const project = db.prepare('SELECT llm_config FROM projects WHERE id = ?').get(projectId) as any;
+        const project = db.prepare('SELECT llm_config FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(projectId, projectId) as any;
         if (project && project.llm_config) {
           const config = JSON.parse(project.llm_config);
           resolvedTemplateId = config.default_prompts?.[taskType || 'fast_filter'];
@@ -126,9 +126,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Fallback: active prompt template for project or global baseline
+    if (!resolvedTemplateId) {
+      const fallback = db.prepare(`
+        SELECT id FROM prompt_templates 
+        WHERE (CAST(project_id AS TEXT) = CAST(? AS TEXT) OR project_id IS NULL) 
+          AND prompt_type = ? 
+          AND is_active = 1 
+        ORDER BY CASE WHEN CAST(project_id AS TEXT) = CAST(? AS TEXT) THEN 0 ELSE 1 END, created_at DESC 
+        LIMIT 1
+      `).get(projectId, taskType || 'fast_filter', projectId) as { id: string } | undefined;
+
+      if (fallback) {
+        resolvedTemplateId = fallback.id;
+      }
+    }
+
     if (!resolvedTemplateId) {
       return NextResponse.json({ 
-        error: `No default prompt template configured for stage '${taskType || 'fast_filter'}' in Project Settings.` 
+        error: `No default prompt template configured for stage '${taskType || 'fast_filter'}' in Prompt Library or Project Settings.` 
       }, { status: 400 });
     }
 

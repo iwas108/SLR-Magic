@@ -1,3 +1,133 @@
+## #406 - Light Theme UI Refactoring & Tailwind v4 Dark Variant Alignment (2026-08-16)
+- **Goal**: Refactor the `slr-ide` desktop application UI for light theme, eliminating visual clashes caused by Tailwind CSS v4's default media-query dark variant evaluation and overhauling the Pre-Calibration Interactive Staging & Benchmark Optimization HUD for crisp, high-contrast, professional scientific presentation.
+- **Architectural Implementation**:
+  1. **Tailwind CSS v4 Class-Based Variant Configuration (`src/app/globals.css`)**:
+     - Added `@custom-variant dark (&:where(.dark, .dark *));` to ensure Tailwind v4 variant modifiers (`dark:...`) strictly bind to the active `<html class="dark">` class rather than falling back to the host operating system's `prefers-color-scheme: dark` media query when `.light` is active.
+     - Refined light mode CSS custom property tokens (`--background`, `--card`, `--border`, `--muted`, `--secondary`) for high contrast, clean surfaces, and crisp borders.
+  2. **Interactive Staging & Benchmark Optimization HUD Redesign (`PromptStagingQuestPanel.tsx`)**:
+     - Redesigned the HUD header banner to replace heavy dark cyberpunk styling with a clean, modern scientific workflow banner with subtle gradient textures, crisp typography, and refined status icons.
+     - Re-engineered the 5-Quest Step Progression Pips with high-contrast, responsive states (completed, active, upcoming, locked) and clean vertical connectors.
+  3. **Pre-Calibration Quest Cards & Inspector Panels (`PromptConsolidationCard.tsx`, `StageBenchmarkCard.tsx`)**:
+     - Redesigned Quest 01 (Consolidation Audit) and Quests 02–05 (Stage 1–4 Benchmarks) with clean card containers, soft semantic status rings, and elevated metric tiles.
+     - Refactored inner metric tiles (Accuracy, Recall, Precision, F1-Score, Cohen's Kappa, Holdout 30%) with bold typography, clear labels, and target subtexts.
+     - Redesigned the Paper-by-Paper Discrepancy Inspector and Diagnostic Console with high-contrast cards, readable text, and soft alert badges in light theme.
+  4. **Pre-Calibration Statistics & Modals Polish (`PoolMetricsPanel.tsx`, `StageComparisonPanel.tsx`, `PreCalibrationView.tsx`, `PromptOptimizationDiffModal.tsx`, `LlmPayloadConfirmationModal.tsx`)**:
+     - Refined Pool A/B/C progress cards, stage comparison badges, confusion matrix tiles (`TP`, `TN`, `FP`, `FN`), and decision pills (`INCLUDE`/`EXCLUDE`) for optimal contrast in light mode.
+     - Polished modal dialogs for prompt optimization diffs and LLM payload previews with clean borders, legible editor textareas, and accessible buttons.
+- **Verification**: Executed `npx tsc --noEmit` — passed with 0 errors.
+
+## #405 - Complete LLM Parameter Suite & Multi-Turn Interaction Chaining Toggle in Prompt Studio (2026-08-16)
+- **Goal**: Expand the **Edit Prompt Template Modal** and **Inline Preview Drawers** in `PromptLibraryView` to include the full spectrum of LLM generation, sampling, runtime, and multi-turn interaction chaining configuration options.
+- **Architectural Implementation**:
+  1. **Multi-Turn Interaction Chaining Toggle (`interaction_chaining`)**:
+     - Added an interactive toggle card in Tab 4 (LLM Parameters) with a status badge (`Chaining Active (Multi-Turn)` vs `Disabled (Stateless)`).
+     - Allows researchers to control whether Gemini passes `previous_interaction_id` to maintain continuous conversational session context across sequential pipeline stages, or execute isolated stateless single-turn evaluations.
+  2. **Comprehensive Sampling & Runtime Pacing Controls**:
+     - Added Top-P nucleus sampling slider (0.0–1.0 with real-time numeric badge), Top-K token limit input (1–100), Max Output Tokens (1–64000), Request Delay rate-limiting input in seconds (0.0–10.0s), and Execution Timeout input in seconds (30–3600s).
+  3. **High-Density Inline Preview Drawer & Main Table Enhancements**:
+     - Upgraded the Tab 4 preview drawer with a 10-metric grid (Model ID, Speed Mode, Thinking Level, Temperature, Top-P, Top-K, Max Tokens, Concurrency, Request Delay, Timeout) and a full-width Interaction Chaining summary bar.
+     - Added `chained` and `stateless` visual badge indicators to the main data table's "Model & Config" column.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit`); ran test suite `scripts/test-prompt-library.mjs` (9/9 tests passed).
+
+## #404 - Multi-Pool Mockup Review Generator Modal with Isolated PRISMA Execution (CTRL+M) (2026-08-16)
+- **Goal**: Implement a hidden shortcut `CTRL+M` in the **Inter-Rater Dashboard** that opens a **Multi-Pool Mockup Review Modal**, allowing researchers to generate LLM-driven blinded `.slr` review packages across all calibration pools (Pool A, Pool B, Pool C) using project default prompts from the Prompt Library, with 100% inter-rater import compatibility, PRISMA isolation, and cost-free redownloads via project-scoped SQLite caching.
+- **Architectural Implementation**:
+  1. **PRISMA & Trigger Cascade Isolation (`mockup-generator.ts`)**:
+     - Engineered a dedicated backend service calling the Gemini REST API directly with prompt hydration, bypassing the standard Python pipeline's `llm_screening_records` table and eliminating SQLite trigger cascades (`trg_lsr_insert`/`trg_lsr_update`) that would otherwise contaminate `papers`, `rolling_batch_papers`, and `calibration_papers`.
+     - Logged LLM API interactions and financial costs into `llm_audit_log` with dedicated, project-scoped task types (`mockup_pool_a`, `mockup_pool_b`, `mockup_pool_c`), keeping `/api/insight/prisma` calculations completely untouched while maintaining full granularity in `/api/insight/accounting`.
+  2. **Sequential Pool C Architecture (Scientist + Miner)**:
+     - Implemented dual-stage sequential execution for Pool C papers: Stage 3 `scientist` evaluates Quality Assessment (`Human_QA_Scores`), followed by Stage 4 `miner` extracting FAIR variables (`Human_Extracted_Data`), merging both into a single unified blinded review object.
+  3. **SQLite Caching & File Assembly (`mockup_cache`, `mockup-generator.ts`)**:
+     - Added `mockup_cache` table to persist GZIP-compressed `.slr` payloads (`compressSlrServer`), execution metadata, total costs, token tallies, and prompt hashes.
+     - Added prompt hash difference tracking to alert users when default prompts have changed since the last mockup generation.
+  4. **Streaming SSE API Route (`/api/mockup/generate/route.ts`)**:
+     - Built `GET` (cache status, paper previews, slot occupancy, on-demand `.slr` download), `POST` (Server-Sent Events streaming real-time paper evaluations), and `DELETE` (cache invalidation for explicit reruns).
+  5. **Custom Hook & Rich UI Modal (`useMockupReview.ts`, `MockupReviewModal.tsx`)**:
+     - Created `useMockupReview` hook managing active pool synchronization, random reviewer ID generation (`rev_xxxx`), SSE stream reading, and auto-download triggers.
+     - Built `MockupReviewModal` featuring pool tabs, editable reviewer ID with randomize button, reviewer slot occupancy warning banner, collapsible paper preview list, live progress bar with running cost counter, evaluation stream log, and contextual action buttons ("Generate Review", "Redownload (.slr)", "Rerun & Regenerate").
+  6. **Dashboard Shortcut Integration (`InterRaterDashboard.tsx`)**:
+     - Registered hidden `Ctrl+M` / `Cmd+M` global keyboard listener and rendered `<MockupReviewModal />`.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit`); ran automated test suite `scripts/test-mockup-review.mjs` (9/9 tests passed).
+
+## #403 - Fix Column Alias & Relational Join in Benchmark and Payload Preview Routes (2026-08-16)
+- **Goal**: Fix the database runtime error `no such column: latest_ccl.resolved_exclusion_code` triggered in `LlmPayloadConfirmationModal` and `StageBenchmarkCard` when generating dry-run previews or executing sandbox benchmarks.
+- **Architectural Implementation**:
+  1. **Canonical Schema Alignment (`src/app/api/calibration/payload-preview/route.ts` & `src/app/api/calibration/benchmark/route.ts`)**:
+     - Corrected column alias from invalid `latest_ccl.resolved_exclusion_code` to the canonical database column `latest_ccl.resolved_ec as gold_exclusion_code` matching `calibration_commit_ledger` schema.
+     - Refactored the SQL query to start directly from `calibration_commit_ledger` (as the source of truth for gold standards) and `LEFT JOIN` on both `calibration_papers` and `papers`, ensuring metadata (`Title`, `Abstract`, `Authors`, `Year`, `DOI`, `Local_PDF_Path`) is resolved regardless of whether the paper is currently linked in `calibration_papers` or `papers`.
+     - Added an informative zero-adjudicated guard in `payload-preview/route.ts` returning a clean, descriptive message (`No adjudicated papers found in POOL_X for Stage X...`) when a pool has 0 committed papers.
+- **Verification**: Verified zero TypeScript errors (`npx tsc --noEmit` code 0).
+
+## #402 - Deeper Code Analysis, DDL Schema Parity & Multi-Tab Synchronization Hardening (2026-08-16)
+- **Goal**: Perform iterative deep code analysis across all layers of the Pre-Calibration Staging, Benchmarking, Prompt Optimization, and Database Persistence subsystems, hunting down edge cases, schema divergences, stale closures, and clipboard sandboxing exceptions.
+- **Architectural Implementation**:
+  1. **Canonical DDL & Migration Alignment (`src/lib/db/db-init.ts`)**:
+     - Aligned canonical `CREATE TABLE IF NOT EXISTS prompt_audit_ledger` and `CREATE TABLE IF NOT EXISTS prompt_benchmark_runs` DDL statements with `schema.md` and operational query requirements.
+     - Added comprehensive `safeAddColumn` checks in the backward-compatibility migration block for `status`, `prompt_id`, `prompt_hash`, `parent_prompt_id`, `parent_prompt_hash`, `semantic_score`, `train_paper_ids`, `holdout_paper_ids`, `before_metrics`, `after_metrics`, `audit_report`, `raw_prompt`, `model_id`, `input_tokens`, `output_tokens`, `cost_usd` on `prompt_audit_ledger`, and `pool`, `prompt_template_id`, `prompt_hash`, `evaluated_papers`, `train_count`, `holdout_count`, `summary_metrics`, `holdout_metrics`, `error_message`, `updated_at` on `prompt_benchmark_runs`.
+  2. **Multi-Tab Sync Stale-Closure Elimination (`src/hooks/usePromptStaging.ts`)**:
+     - Hardened `BroadcastChannel` subscription in `usePromptStaging` using the mutable `useRef` pattern (`refreshAllBenchmarksRef`) adhering strictly to `agents.md` §3.3 to eliminate stale closure captures during background multi-tab syncs.
+  3. **Modal Lifecycle & Clipboard Hardening (`LlmPayloadConfirmationModal.tsx`, `PromptOptimizationDiffModal.tsx`)**:
+     - Added `useEffect` reset and `safePaperIndex` clamping on `LlmPayloadConfirmationModal` to prevent out-of-range selection states across differing pool benchmarks.
+     - Wrapped clipboard copy routines in resilient `async`/`try`/`catch` with programmatic textarea fallbacks to eliminate sandboxed iframe rejections.
+  4. **Multi-Project Isolation & Trace Normalizer Compliance**:
+     - Verified 100% compliance with `agents.md` §3.8 (Multi-Project Isolation) across all SQL queries and §3.9 (Centralized Trace Normalizer) in benchmark result cards.
+- **Verification**: Executed `npx tsc --noEmit` — passed with 0 errors.
+
+## #401 - Human-in-the-Loop Transparent LLM Payload Confirmation Modal for Pre-Calibration HUD (2026-08-16)
+- **Goal**: Provide complete Human-in-the-Loop transparency across the Interactive Staging & Benchmark Optimization HUD (`PromptStagingQuestPanel`), enabling users to inspect the exact hydrated prompt, system instructions, generation parameters, dataset sample/partition, and projected token/cost estimates before triggering "Run Inter-Stage Audit" (Quest 1) or any Stage Benchmark Sandbox run (Quests 2–5 for Stages 1–4 Pool A/B/C).
+- **Architectural Implementation**:
+  1. **Server-Side Dry-Run Preview API Route (`src/app/api/calibration/payload-preview/route.ts`)**:
+     - Implemented `POST /api/calibration/payload-preview` supporting both `consolidation_audit` and `stage_benchmark` preview types.
+     - Performs non-destructive template hydration, prompt resolution, and parameter parsing without executing paid LLM API calls.
+     - Calculates precise token estimations and projected costs ($ USD) using the active `llm_pricing` table and discount/tax configurations.
+     - Previews paper samples across 70% Calibration Tuning / 30% Holdout Validation datasets for benchmark pools.
+  2. **Encapsulated Modal Dialog Component (`src/components/features/modals/LlmPayloadConfirmationModal.tsx`)**:
+     - Built a high-aesthetic cyberpunk / glassmorphic HUD modal featuring summary telemetry badges (Model ID, Estimated Tokens, Projected Cost in USD, and Paper/Scope Count).
+     - Integrated 3 dedicated inspection tabs:
+       - **Hydrated Prompt & Context**: System instruction viewer, interactive paper payload selector dropdown for benchmark runs, and formatted prompt text with one-click copy functionality.
+       - **Model & JSON Schema**: Temperature, Max Output Tokens, Thinking Budget, Top-P, Top-K, and formatted `responseSchema` viewer with syntax highlighting and copy button.
+       - **Target Scope / Dataset Partition**: List of resolved stage prompt templates (for Audit) and 70% Train vs 30% Holdout tabular breakdown with paper IDs and gold decisions (for Benchmarks).
+     - Handled vault lock states with visual warning banners and disabled confirm triggers if master password is locked.
+  3. **Hook State Management & HUD Container Wiring (`src/hooks/usePromptStaging.ts`, `PromptStagingQuestPanel.tsx`)**:
+     - Added `confirmationState`, `openAuditConfirmation`, `openBenchmarkConfirmation`, `confirmPayloadExecution`, and `closePayloadConfirmation` methods to `usePromptStaging`.
+     - Wired "Run Inter-Stage Audit" and all 4 stage benchmark "Run Benchmark" triggers to launch the confirmation preview modal before execution.
+- **Verification**: Verified TypeScript compiler check with 0 errors (`npx tsc --noEmit`).
+
+## #400 - Comprehensive Prompt Library Table & Stage Default Management (2026-08-16)
+- **Goal**: Transform the Prompt Library from a basic card grid into a high-density, comprehensive data table with stage filtering, scope filtering, instant full-text search, inline expandable preview drawers, template cloning, and 1-click stage default prompt assignment with multi-tab synchronization.
+- **Architectural Implementation**:
+  1. **Comprehensive Prompt Library Table (`src/components/features/PromptLibraryView.tsx`)**:
+     - Engineered a responsive data table presenting Pipeline Stage badges, Template Name & Scope indicators (`Global Shared` vs `Project Copy`), Active Stage Default status with gold star badges, Model & execution parameters (`T={temp}`, `flex`/`standard`, thinking levels), and Structured JSON Schema property counters.
+     - Implemented Stage Default Summary cards showing active stage defaults across all 8 pipeline stages with 1-click stage filtering.
+     - Added comprehensive filter pill bars for Pipeline Stages (`Stage 1: Fast Filter` through `Stage 5: Umbrellanizer`, `Duplicate Specialist`, `Consolidation Auditor`, `Prompt Optimizer`) and Scopes (`All`, `Project-Specific`, `Global Shared`).
+     - Added instant full-text search across template names, descriptions, system rules, and schemas.
+  2. **Expandable Inline Preview Drawers (`src/components/features/PromptLibraryView.tsx`)**:
+     - Built multi-tabbed inline expandable accordions under each row allowing instant inspection of System Instructions, Jinja2 dynamic variables, Structured JSON Schema, and LLM execution parameters with copy-to-clipboard functionality.
+  3. **1-Click Stage Default Assignment & Template Cloning**:
+     - Implemented direct 1-click "Set as Default" button on table rows and editor modal checkbox, dispatching `PATCH /api/llm/prompts` with `action: 'set_default'` and broadcasting multi-tab `SYNC_PROJECTS` signals.
+     - Implemented 1-click "Clone as New" (`(Fork)`) workflow opening the 4-tab studio prefilled for rapid iteration.
+  4. **Deep Bug Hunting, Stale-Closure Prevention, Zero-Latency Reactivity & SQLite Schema Fix (`src/app/api/llm/prompts/route.ts`, `src/components/features/PromptLibraryView.tsx`)**:
+     - Fixed SQLite error: Removed non-existent `updated_at` column references from all `UPDATE projects SET llm_config = ?` statements in `POST`, `PATCH`, and `DELETE` handlers in `app/api/llm/prompts/route.ts` and test runner scripts, resolving `"no such column: updated_at"`.
+     - Fixed potential state clobbering: wrapped BroadcastChannel listeners in `PromptLibraryView.tsx` with mutable `useRef` handles (`fetchPromptsRef`, `loadProjectsRef`) adhering strictly to `agents.md` §3.3 Stale-Closure Prevention.
+     - Implemented zero-latency optimistic state updates with rollback protection (`localDefaultsOverride`) for 1-click stage default prompt assignment, ensuring instant visual feedback (`ACTIVE DEFAULT` gold badge) without waiting for parent project re-hydration.
+     - Hardened `POST /api/llm/prompts`: added conditional `set_as_default` check preventing project draft/variant saves from inadvertently clobbering existing active stage default assignments unless explicitly chosen or when configuring the stage's initial baseline.
+     - Standardized all `projects` and `prompt_templates` SQL queries across `GET`, `POST`, `PATCH` with string/integer project ID type safety (`(id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))`).
+  5. **Pipeline-Wide Stage Prompt Resolution & Modal Default Binding (`src/app/api/llm/screen/route.ts`, `DuplicateReviewModal.tsx`, `UmbrellanizerWizard.tsx`, `ProjectSettingsModal.tsx`)**:
+     - Upgraded `POST /api/llm/screen` with resilient prompt template resolution, falling back to active project/global baseline templates with project ID coercion safety.
+     - Wired `DuplicateReviewModal.tsx` and `GlobalModals.tsx` with project-aware duplicate review prompt template loading and default binding.
+     - Enhanced `UmbrellanizerWizard.tsx` with intelligent default prompt resolution falling back to active Umbrellanizer templates.
+     - Upgraded `ProjectSettingsModal.tsx` to load both global and project-specific templates (`include_global=true`) and prioritize stage default Miner templates, populating JSON extraction keys seamlessly.
+  6. **Python Engine Project Isolation Standardizations (`python_engine/`)**:
+     - Standardized project ID lookups across `compress_pdfs.py`, `verify_pdfs.py`, `llm/main.py`, `llm/queue_handler.py`, and `llm/umbrellanizer.py` to use `(id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))` ensuring complete project boundaries per `agents.md` §3.8.
+  7. **Modular Integration & Tree Shaking (`src/components/features/GlobalLLMSettingsView.tsx`)**:
+     - Extracted Prompt Library rendering into the dedicated `PromptLibraryView` component, eliminating >500 lines of duplicated monolith code in `GlobalLLMSettingsView.tsx`.
+- **Verification**:
+  - TypeScript compiler verified with 0 errors (`npx tsc --noEmit`).
+  - Authored and executed dedicated test suite [`scripts/test-prompt-library.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-prompt-library.mjs) passing 9/9 tests (schema init, global resolution, 1-click default assignment, non-destructive global forking, draft non-overwriting guard, explicit default update, global template deletion protection, and cascade cleanup of orphaned project default pointers).
+  - Executed automated test suite [`scripts/test-llm-screening-records.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-llm-screening-records.mjs) passing 7/7 tests.
+  - Executed relational archive tests [`scripts/test-archive-service.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-archive-service.mjs) passing with 0 foreign key violations.
+  - Executed visualizer anti-regression tests [`scripts/test-visualizer-anti-regression.mjs`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/scripts/test-visualizer-anti-regression.mjs) passing all 15 tests.
+
 ## #399 - Umbrellanizer Service & Endpoints Multi-Project Hardening (2026-08-16)
 - **Goal**: Standardize project ID isolation across Umbrellanizer results querying, execution triggering, and stage 4 extracted data resolution endpoints.
 - **Architectural Implementation**:

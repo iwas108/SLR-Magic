@@ -144,10 +144,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // If saving in project context and prompt_type is set, automatically update project's default_prompts
+    // If saving in project context and prompt_type is set:
+    // Update default_prompts if explicitly requested (set_as_default: true) or if no default prompt was assigned yet
+    const setAsDefault = body.set_as_default;
     if (project_id && prompt_type) {
       try {
-        const project = db.prepare('SELECT id, llm_config FROM projects WHERE id = ?').get(project_id) as any;
+        const project = db.prepare('SELECT id, llm_config FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(project_id, project_id) as any;
         if (project) {
           let pLlmConfig: any = {};
           try {
@@ -155,10 +157,13 @@ export async function POST(req: Request) {
           } catch (e) {}
           if (!pLlmConfig.default_prompts) pLlmConfig.default_prompts = {};
 
-          pLlmConfig.default_prompts[prompt_type] = effectiveId;
+          const shouldSetDefault = setAsDefault === true || (setAsDefault === undefined && !pLlmConfig.default_prompts[prompt_type]);
+          if (shouldSetDefault) {
+            pLlmConfig.default_prompts[prompt_type] = effectiveId;
 
-          db.prepare('UPDATE projects SET llm_config = ?, updated_at = ? WHERE id = ?')
-            .run(JSON.stringify(pLlmConfig), now, project_id);
+            db.prepare('UPDATE projects SET llm_config = ? WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))')
+              .run(JSON.stringify(pLlmConfig), project_id, project_id);
+          }
         }
       } catch (err) {
         console.error('Failed to update project default prompt reference:', err);
@@ -179,6 +184,46 @@ export async function POST(req: Request) {
   }
 }
 
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    const { action, project_id, prompt_type, prompt_id } = body;
+
+    if (action === 'set_default') {
+      if (!project_id || !prompt_type || !prompt_id) {
+        return NextResponse.json({ error: 'project_id, prompt_type, and prompt_id are required' }, { status: 400 });
+      }
+
+      const project = db.prepare('SELECT id, llm_config FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(project_id, project_id) as any;
+      if (!project) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+
+      let pLlmConfig: any = {};
+      try {
+        pLlmConfig = project.llm_config ? JSON.parse(project.llm_config) : {};
+      } catch (e) {}
+      if (!pLlmConfig.default_prompts) pLlmConfig.default_prompts = {};
+
+      pLlmConfig.default_prompts[prompt_type] = prompt_id;
+
+      db.prepare('UPDATE projects SET llm_config = ? WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))')
+        .run(JSON.stringify(pLlmConfig), project_id, project_id);
+
+      return NextResponse.json({
+        success: true,
+        default_prompts: pLlmConfig.default_prompts,
+        message: 'Default prompt updated successfully'
+      });
+    }
+
+    return NextResponse.json({ error: 'Unsupported action' }, { status: 400 });
+  } catch (error: any) {
+    console.error('Failed to patch prompt settings:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -188,12 +233,44 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Prompt ID is required' }, { status: 400 });
     }
 
+    const existing = db.prepare('SELECT id, project_id FROM prompt_templates WHERE id = ?').get(id) as { id: string; project_id: string | null } | undefined;
+    if (!existing) {
+      return NextResponse.json({ error: 'Prompt template not found' }, { status: 404 });
+    }
+
+    // Protect global templates from deletion
+    if (existing.project_id === null) {
+      return NextResponse.json({ error: 'Global baseline templates cannot be deleted.' }, { status: 403 });
+    }
+
     const stmt = db.prepare('DELETE FROM prompt_templates WHERE id = ?');
     stmt.run(id);
 
-    return NextResponse.json({ success: true });
+    // Clean up any project default_prompts pointing to this deleted template ID
+    const projectsWithRef = db.prepare("SELECT id, llm_config FROM projects WHERE llm_config LIKE ?").all(`%${id}%`) as any[];
+    for (const proj of projectsWithRef) {
+      try {
+        const pCfg = proj.llm_config ? JSON.parse(proj.llm_config) : {};
+        if (pCfg.default_prompts) {
+          let modified = false;
+          for (const [stage, tplId] of Object.entries(pCfg.default_prompts)) {
+            if (tplId === id) {
+              delete pCfg.default_prompts[stage];
+              modified = true;
+            }
+          }
+          if (modified) {
+            db.prepare("UPDATE projects SET llm_config = ? WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))")
+              .run(JSON.stringify(pCfg), proj.id, proj.id);
+          }
+        }
+      } catch (e) {}
+    }
+
+    return NextResponse.json({ success: true, message: 'Template deleted and project references cleaned up' });
   } catch (error: any) {
     console.error('Failed to delete prompt:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
+

@@ -11,9 +11,10 @@ interface DuplicateReviewModalProps {
   onClose: () => void;
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   loadPapers: () => void;
+  activeProject?: any;
 }
 
-export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadPapers }: DuplicateReviewModalProps) {
+export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadPapers, activeProject }: DuplicateReviewModalProps) {
 
   const [pairs, setPairs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,12 +33,26 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
 
   const loadPrompts = async () => {
     try {
-      const res = await fetch('/api/llm/prompts');
+      const url = activeProject?.id
+        ? `/api/llm/prompts?project_id=${activeProject.id}&include_global=true`
+        : '/api/llm/prompts';
+      const res = await fetch(url);
       const data = await res.json();
       if (data.prompts) {
         const filtered = data.prompts.filter((p: any) => p.prompt_type === 'duplicate_review' && p.is_active);
         setDupPrompts(filtered);
-        if (filtered.length > 0 && !selectedTemplateId) {
+
+        let defaultTplId = '';
+        if (activeProject?.llm_config) {
+          try {
+            const pCfg = JSON.parse(activeProject.llm_config);
+            defaultTplId = pCfg.default_prompts?.duplicate_review || '';
+          } catch (e) {}
+        }
+
+        if (defaultTplId && filtered.some((p: any) => p.id === defaultTplId)) {
+          setSelectedTemplateId(defaultTplId);
+        } else if (filtered.length > 0 && !selectedTemplateId) {
           setSelectedTemplateId(filtered[0].id);
         }
       }

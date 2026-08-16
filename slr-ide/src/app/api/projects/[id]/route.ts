@@ -91,6 +91,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       db.prepare('DELETE FROM prompt_benchmark_results WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
       db.prepare('DELETE FROM prompt_benchmark_runs WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
       db.prepare('DELETE FROM llm_screening_records WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
+      db.prepare('DELETE FROM mockup_cache WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
       db.prepare('DELETE FROM semantic_search_cache WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(projectId, projectId);
       
       // Delete papers

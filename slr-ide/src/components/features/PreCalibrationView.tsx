@@ -442,8 +442,8 @@ export default function PreCalibrationView({
                                 <td className="p-3 truncate">
                                   {p.manual_decision ? (
                                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${
-                                      p.manual_decision.toUpperCase().startsWith('INCLUDE') ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                      p.manual_decision.toUpperCase().startsWith('EXCLUDE') ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                                      p.manual_decision.toUpperCase().startsWith('INCLUDE') ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' :
+                                      p.manual_decision.toUpperCase().startsWith('EXCLUDE') ? 'bg-destructive/10 border-destructive/30 text-destructive' :
                                       'bg-secondary border-border text-muted-foreground'
                                     }`} title={p.manual_rationale || ''}>
                                       {p.manual_decision}{p.manual_decision === 'EXCLUDE' && p.manual_exclusion_code ? ` (${p.manual_exclusion_code})` : ''}
@@ -454,8 +454,8 @@ export default function PreCalibrationView({
                                 </td>
                                 <td className="p-3 truncate">
                                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${
-                                    p.Status === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                    p.Status === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                                    p.Status === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' :
+                                    p.Status === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/30 text-destructive' :
                                     'bg-secondary border-border text-muted-foreground'
                                   }`}>
                                     {p.Status}
@@ -465,8 +465,8 @@ export default function PreCalibrationView({
                             ) : (
                               <td className="p-3 truncate">
                                 <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border truncate inline-block ${
-                                  p.Status === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                                  p.Status === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+                                  p.Status === 'INCLUDE' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400' :
+                                  p.Status === 'EXCLUDE' ? 'bg-destructive/10 border-destructive/30 text-destructive' :
                                   'bg-secondary border-border text-muted-foreground'
                                 }`}>
                                   {p.Status}

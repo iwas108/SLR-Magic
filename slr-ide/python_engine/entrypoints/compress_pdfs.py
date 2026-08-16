@@ -68,7 +68,7 @@ def main():
             if not active_proj_id:
                 active_proj_id = configs.get('ACTIVE_PROJECT_ID', '')
             
-            cursor.execute("SELECT folder_name FROM projects WHERE id = ?", (active_proj_id,))
+            cursor.execute("SELECT folder_name FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))", (active_proj_id, active_proj_id))
             proj_row = cursor.fetchone()
             if proj_row:
                 folder_name = proj_row[0]
@@ -76,7 +76,7 @@ def main():
             force_update = '--force-update' in sys.argv
             status_in = "('MATCHED', 'DOWNLOADED', 'SYNCED')" if force_update else "('MATCHED', 'DOWNLOADED')"
             
-            cursor.execute(f"SELECT Paper_ID, Local_PDF_Path FROM papers WHERE Project_ID = ? AND Local_PDF_Status IN {status_in} AND (is_duplicate IS NULL OR is_duplicate = 0)", (active_proj_id,))
+            cursor.execute(f"SELECT Paper_ID, Local_PDF_Path FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Local_PDF_Status IN {status_in} AND (is_duplicate IS NULL OR is_duplicate = 0)", (active_proj_id, active_proj_id))
             papers = cursor.fetchall()
             conn.close()
         except Exception as e:

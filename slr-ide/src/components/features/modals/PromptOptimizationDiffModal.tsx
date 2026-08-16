@@ -86,22 +86,22 @@ export default function PromptOptimizationDiffModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md">
-      <div className="relative w-full max-w-5xl max-h-[92vh] flex flex-col rounded-2xl border border-purple-400 dark:border-purple-500/40 bg-card dark:bg-slate-900 shadow-2xl overflow-hidden font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="relative w-full max-w-5xl max-h-[92vh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden font-sans">
         
-        {/* Decorative Glowing Top Bar */}
-        <div className="h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500" />
+        {/* Subtle Top Accent */}
+        <div className="h-1 bg-primary" />
 
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card dark:bg-slate-950/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/30">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400">
+            <div className="p-2 rounded-xl bg-primary/10 border border-primary/20 text-primary">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800/40">
-                  Prompt Optimization Magic
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                  Prompt Optimization
                 </span>
                 <span className="text-xs text-muted-foreground font-mono">Stage {stageNum} • {stageName}</span>
               </div>
@@ -316,9 +316,23 @@ export default function PromptOptimizationDiffModal({
                       </span>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const text = activeTab === 'system' ? editedSystemPrompt : editedUserTemplate;
-                            navigator.clipboard.writeText(text);
+                            if (!text) return;
+                            try {
+                              if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                                await navigator.clipboard.writeText(text);
+                              } else {
+                                const ta = document.createElement('textarea');
+                                ta.value = text;
+                                document.body.appendChild(ta);
+                                ta.select();
+                                document.execCommand('copy');
+                                document.body.removeChild(ta);
+                              }
+                            } catch (e) {
+                              console.warn('Clipboard write failed:', e);
+                            }
                           }}
                           className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-900/60 hover:bg-purple-300 dark:hover:bg-purple-800 text-purple-900 dark:text-purple-200 border border-purple-300 dark:border-purple-500/30 transition-colors"
                         >

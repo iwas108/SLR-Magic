@@ -4,6 +4,7 @@ import { broadcastSync } from '@/lib/sync-utils';
 import { renderPoolCReviewerSummary } from '@/lib/inter-rater/adjudication-calculations';
 import AgreementMetricsPanel from '@/components/features/inter-rater/AgreementMetricsPanel';
 import AdjudicationWorkspaceModal from '@/components/features/modals/AdjudicationWorkspaceModal';
+import MockupReviewModal from '@/components/features/modals/MockupReviewModal';
 import ActionControls from '@/components/features/inter-rater/ActionControls';
 import DiscrepancyTable from '@/components/features/inter-rater/DiscrepancyTable';
 import AuditLedger from '@/components/features/inter-rater/AuditLedger';
@@ -76,6 +77,25 @@ export default function InterRaterDashboard({
 
   // Modal State for Adjudication (Pool A & B)
   const [selectedDiscrepancy, setSelectedDiscrepancy] = useState<any | null>(null);
+
+  // Modal State for Multi-Pool Mockup Review (CTRL+M)
+  const [showMockupModal, setShowMockupModal] = useState(false);
+
+  // Hidden Keyboard Shortcut CTRL+M / CMD+M
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        setShowMockupModal(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Sync state on open from parent view
   useEffect(() => {
@@ -396,6 +416,16 @@ export default function InterRaterDashboard({
         showToast={showToast}
         discrepancies={stats?.discrepancies || []}
         onSelectDiscrepancy={setSelectedDiscrepancy}
+      />
+
+      {/* Multi-Pool Mockup Review Modal (CTRL+M) */}
+      <MockupReviewModal
+        isOpen={showMockupModal}
+        onClose={() => setShowMockupModal(false)}
+        activeProjectId={activeProjectId}
+        activeProject={activeProject}
+        activePoolTab={activePoolTab}
+        showToast={showToast}
       />
     </div>
   );

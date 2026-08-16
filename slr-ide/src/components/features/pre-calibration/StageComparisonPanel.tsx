@@ -64,7 +64,7 @@ export default function StageComparisonPanel({ stageStats, loading }: StageCompa
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
       {stageStats.map(stat => {
         return (
-          <div key={stat.stage} className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-sm relative group">
+          <div key={stat.stage} className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between shadow-xs relative group">
             <div className="space-y-3">
               <div className="flex justify-between items-start">
                 <div>
@@ -73,17 +73,17 @@ export default function StageComparisonPanel({ stageStats, loading }: StageCompa
                 </div>
                 {stat.evaluated > 0 ? (
                   stat.passes ? (
-                    <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> PASS
+                    <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                      <CheckCircle2 className="w-3 h-3" /> PASS
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-destructive/10 text-destructive border border-destructive/20">
-                      <AlertTriangle className="w-3.5 h-3.5" /> FAIL
+                    <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30">
+                      <AlertTriangle className="w-3 h-3" /> FAIL
                     </span>
                   )
                 ) : (
-                  <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground border border-border">
-                    <HelpCircle className="w-3.5 h-3.5" /> NO DATA
+                  <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
+                    <HelpCircle className="w-3 h-3" /> NO DATA
                   </span>
                 )}
               </div>

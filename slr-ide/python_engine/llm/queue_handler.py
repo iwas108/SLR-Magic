@@ -105,7 +105,7 @@ class LLMQueueHandler:
 
         # Template prompt hydration
         from llm.templating import hydrate_template
-        user_prompt = hydrate_template(self.user_template, execute_read_one("SELECT * FROM projects WHERE id = ?", (self.project_id,)), paper)
+        user_prompt = hydrate_template(self.user_template, execute_read_one("SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))", (self.project_id, self.project_id)), paper)
 
         # Resolve PDF Path
         pdf_path = paper.get("Local_PDF_Path")
