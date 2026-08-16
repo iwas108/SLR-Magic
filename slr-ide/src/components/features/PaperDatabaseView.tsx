@@ -8,6 +8,7 @@ import {
   Lock, Unlock, Loader2, Settings, MoreHorizontal, Globe, BookOpen, UserCheck, Shield, Filter
 } from 'lucide-react';
 import { broadcastSync } from '@/lib/sync-utils';
+import ExportCsvModal from './modals/ExportCsvModal';
 
 interface PaperDatabaseViewProps {
   duplicatesCount: number;
@@ -50,6 +51,7 @@ interface PaperDatabaseViewProps {
   onRunLLMOnSelected?: (paperIds: string[]) => void;
   showToast?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   loadPapers?: () => void;
+  activeProjectId?: string;
 }
 
 function LoaderIcon() {
@@ -101,9 +103,11 @@ export default function PaperDatabaseView({
   setSelectedPaperIds,
   onRunLLMOnSelected,
   showToast,
-  loadPapers
+  loadPapers,
+  activeProjectId
 }: PaperDatabaseViewProps) {
 
+  const [showExportCsvModal, setShowExportCsvModal] = React.useState(false);
   const [showFilters, setShowFilters] = React.useState(false);
   const [showPipelineFilters, setShowPipelineFilters] = React.useState(false);
   const [ecTriggers, setEcTriggers] = React.useState<string[]>([]);
@@ -282,14 +286,13 @@ export default function PaperDatabaseView({
               Ingestion Hub
             </button>
 
-            <a
-              href="/api/export"
-              download
-              className="px-3 py-2 bg-secondary text-foreground border border-border hover:bg-secondary/80 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+            <button
+              onClick={() => setShowExportCsvModal(true)}
+              className="px-3 py-2 bg-secondary text-foreground border border-border hover:bg-secondary/80 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               Export CSV
-            </a>
+            </button>
           </div>
 
           {/* Right Side: Combined Filters, Review Duplicates, Combined Bulk Operations, Delete All */}
@@ -875,6 +878,15 @@ export default function PaperDatabaseView({
           </div>
         )}
       </div>
+
+      <ExportCsvModal
+        isOpen={showExportCsvModal}
+        onClose={() => setShowExportCsvModal(false)}
+        selectedPaperIds={selectedPaperIds}
+        totalPapers={totalPapers}
+        activeProjectId={activeProjectId}
+        showToast={showToast}
+      />
     </>
   );
 }

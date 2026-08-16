@@ -514,6 +514,7 @@ export default function DashboardPage() {
               onRunLLMOnSelected={handleRunLLMOnSelected}
               showToast={showToast}
               loadPapers={loadPapers}
+              activeProjectId={activeProjectId}
             />
           )}
         </div>
