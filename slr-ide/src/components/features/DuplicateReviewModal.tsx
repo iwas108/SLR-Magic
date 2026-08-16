@@ -62,7 +62,8 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
   const loadPairs = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await fetch('/api/duplicates');
+      const url = activeProject?.id ? `/api/duplicates?projectId=${encodeURIComponent(activeProject.id)}` : '/api/duplicates';
+      const res = await fetch(url);
       const data = await res.json();
       if (data.pairs) {
         setPairs(data.pairs);

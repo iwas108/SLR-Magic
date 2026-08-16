@@ -44,6 +44,9 @@ export interface BenchmarkRunState {
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   total_papers: number;
   evaluated_papers: number;
+  pool_papers_count?: number;
+  missing_pdf_count?: number;
+  missing_pdf_papers?: Array<{ paper_id: string; title: string }>;
   summary_metrics: BenchmarkSummaryMetrics;
   holdout_metrics: any;
   results: any[];
@@ -180,13 +183,44 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
             ...data.latest_run,
             stage_name: data.stage_name,
             pool: data.pool,
+            pool_papers_count: data.pool_papers_count,
+            missing_pdf_count: data.missing_pdf_count,
+            missing_pdf_papers: data.missing_pdf_papers || [],
             results: data.results || []
           }
         }));
       } else {
         setBenchmarkRuns(prev => ({
           ...prev,
-          [stageNum]: null
+          [stageNum]: {
+            id: '',
+            stage_num: stageNum,
+            stage_name: data.stage_name,
+            pool: data.pool,
+            status: 'PENDING',
+            total_papers: 0,
+            evaluated_papers: 0,
+            pool_papers_count: data.pool_papers_count ?? 0,
+            missing_pdf_count: data.missing_pdf_count ?? 0,
+            missing_pdf_papers: data.missing_pdf_papers || [],
+            summary_metrics: {
+              total: 0,
+              tp: 0,
+              tn: 0,
+              fp: 0,
+              fn: 0,
+              accuracy_pct: 0,
+              precision: 0,
+              recall: 0,
+              f1: 0,
+              kappa: 0,
+              kappa_label: 'Pending Run',
+              prisma_gate_passed: false,
+              gate_reasons: []
+            },
+            holdout_metrics: null,
+            results: []
+          }
         }));
       }
     } catch (err) {
@@ -261,6 +295,13 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
       showToast?.('No active project selected.', 'error');
       return;
     }
+
+    const stageState = benchmarkRuns[stageNum];
+    if (stageNum >= 2 && stageState && (stageState.missing_pdf_count || 0) > 0) {
+      showToast?.(`Quest 0${stageNum + 1} requires a local PDF file for all papers in ${stageState.pool}. Please acquire missing PDFs first.`, 'error');
+      return;
+    }
+
     setRunningBenchmarkStage(stageNum);
     try {
       const res = await fetch('/api/calibration/benchmark', {
@@ -465,6 +506,13 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
       showToast?.('No active project selected.', 'error');
       return;
     }
+
+    const stageState = benchmarkRuns[stageNum];
+    if (stageNum >= 2 && stageState && (stageState.missing_pdf_count || 0) > 0) {
+      showToast?.(`Quest 0${stageNum + 1} (${stageName || stageState.stage_name}) requires a local PDF file for all papers in ${poolName || stageState.pool}. Found ${stageState.missing_pdf_count} paper(s) with missing PDFs.`, 'error');
+      return;
+    }
+
     setConfirmationState({
       isOpen: true,
       type: 'stage_benchmark',

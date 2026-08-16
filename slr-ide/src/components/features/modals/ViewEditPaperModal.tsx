@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, X, Trash2, Edit2, RefreshCw, Copy, Check } from 'lucide-react';
+import { 
+  FileText, X, Trash2, Edit2, RefreshCw, Copy, Check, 
+  Play, AlertTriangle, Terminal, ExternalLink 
+} from 'lucide-react';
 import { broadcastSync } from '@/lib/sync-utils';
+import { useNdjsonStream } from '@/hooks/useNdjsonStream';
 
 import PaperMetadataView from './paper-details/PaperMetadataView';
 import PaperMetadataEdit from './paper-details/PaperMetadataEdit';
@@ -11,7 +15,7 @@ import { Paper, Project } from '@/types';
 interface ViewEditPaperModalProps {
   paperModal: { isOpen: boolean; mode: 'view' | 'edit'; paper: Paper | null };
   setPaperModal: React.Dispatch<React.SetStateAction<any>>;
-  hasLocalPdf: boolean;
+  hasLocalPdf?: boolean;
   activeProject: Project | null;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   loadPapers: () => void;
@@ -23,7 +27,6 @@ interface ViewEditPaperModalProps {
 export default function ViewEditPaperModal({
   paperModal,
   setPaperModal,
-  hasLocalPdf,
   activeProject,
   showToast,
   loadPapers,
@@ -46,6 +49,194 @@ export default function ViewEditPaperModal({
   const [copied, setCopied] = useState(false);
   const [selectedEditParentPaper, setSelectedEditParentPaper] = useState<any>(null);
   const [editParentPaperId, setEditParentPaperId] = useState<string>('');
+
+  // Single PDF acquisition states
+  const [pdfLogs, setPdfLogs] = useState<string[]>([]);
+  const [pdfIsRunning, setPdfIsRunning] = useState(false);
+  const [pdfStatusText, setPdfStatusText] = useState('Idle');
+  const [pdfProgress, setPdfProgress] = useState(0);
+  const [pdfWaitingLogin, setPdfWaitingLogin] = useState(false);
+  const currentRunningPaperIdRef = useRef<string | null>(null);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
+  const { connect: connectNdjson, cancelStream: cancelSinglePipeline, abortControllerRef: singlePipelineAbortControllerRef } = useNdjsonStream({
+    onEvent: (parsed) => {
+      if (parsed.event === 'log') {
+        setPdfLogs(prev => [...prev, parsed.message]);
+      } else if (parsed.event === 'step_start') {
+        setPdfStatusText(parsed.message);
+        if (parsed.step === 'scan') {
+          setPdfProgress(15);
+        } else if (parsed.step === 'scrape') {
+          setPdfProgress(45);
+        }
+      } else if (parsed.event === 'step_complete') {
+        setPdfStatusText(parsed.message);
+      } else if (parsed.event === 'waiting_login') {
+        setPdfWaitingLogin(true);
+        setPdfStatusText(parsed.message);
+      } else if (parsed.event === 'resume') {
+        setPdfWaitingLogin(false);
+      } else if (parsed.event === 'paper_success') {
+        setPdfProgress(90);
+        showToast('Paper PDF acquired successfully!', 'success');
+      } else if (parsed.event === 'paper_fail') {
+        setPdfProgress(100);
+        showToast(`Scrape failed: ${parsed.error}`, 'error');
+      } else if (parsed.event === 'complete') {
+        setPdfProgress(100);
+        setPdfStatusText(parsed.message);
+        showToast(parsed.message, 'success');
+      } else if (parsed.event === 'error') {
+        setPdfProgress(100);
+        setPdfStatusText(parsed.message);
+        showToast(parsed.message, 'error');
+      }
+    },
+    onComplete: async () => {
+      const targetPaperId = currentRunningPaperIdRef.current || paperModal.paper?.Paper_ID;
+      const projId = activeProject?.id || paperModal.paper?.Project_ID || '';
+      if (targetPaperId) {
+        try {
+          const res = await fetch(`/api/papers/${encodeURIComponent(targetPaperId)}?projectId=${encodeURIComponent(projId)}`);
+          if (res.ok) {
+            const updatedPaper = await res.json();
+            setPaperModal((prev: any) => ({ ...prev, paper: updatedPaper }));
+            setEditPdfStatus(updatedPaper.Local_PDF_Status || 'MISSING');
+          }
+        } catch (e) {
+          console.error('Failed to re-fetch paper in ViewEditPaperModal:', e);
+        }
+
+        loadPapers();
+        loadProjects();
+        broadcastSync('SYNC_PAPERS');
+        broadcastSync('SYNC_PROJECTS');
+      }
+      setPdfIsRunning(false);
+      setPdfWaitingLogin(false);
+    },
+    onError: (err) => {
+      showToast(err.message || 'Failed to acquire PDF', 'error');
+      setPdfIsRunning(false);
+      setPdfWaitingLogin(false);
+    }
+  });
+
+  const runSinglePaperPipeline = async (paperId: string) => {
+    if (pdfIsRunning) {
+      showToast('A PDF acquisition process is already active.', 'warning');
+      return;
+    }
+    currentRunningPaperIdRef.current = paperId;
+    setPdfIsRunning(true);
+    setPdfLogs([]);
+    setPdfProgress(0);
+    setPdfStatusText('Starting single paper acquisition...');
+    setPdfWaitingLogin(false);
+
+    const projId = activeProject?.id || paperModal.paper?.Project_ID || '';
+
+    try {
+      await connectNdjson('/api/pdf/single', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paperId, projectId: projId })
+      });
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        showToast('Pipeline cancelled by user.', 'info');
+      } else {
+        showToast(`Pipeline execution failed: ${err.message}`, 'error');
+      }
+      setPdfIsRunning(false);
+    }
+  };
+
+  const handleResumeCrawler = async () => {
+    try {
+      const res = await fetch('/api/pdf/batch/resume', { method: 'POST' });
+      if (res.ok) {
+        showToast('Resuming crawler...', 'info');
+        setPdfWaitingLogin(false);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.message || 'Failed to resume crawler', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error resuming crawler', 'error');
+    }
+  };
+
+  const handleCancelCrawler = async () => {
+    singlePipelineAbortControllerRef.current?.abort();
+    await fetch('/api/pdf/batch/cancel', { method: 'POST' }).catch(() => {});
+  };
+
+  // Auto-scroll terminal log widget
+  useEffect(() => {
+    if (pdfLogs.length > 0) {
+      logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [pdfLogs]);
+
+  // Multi-tab BroadcastChannel listener to rehydrate paper data dynamically
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.BroadcastChannel) return;
+    const channel = new BroadcastChannel('slr-magic-sync');
+    channel.onmessage = (event) => {
+      const { type } = event.data || {};
+      if (type === 'SYNC_PAPERS' && paperModal?.isOpen && paperModal?.paper?.Paper_ID) {
+        const pId = paperModal.paper.Paper_ID;
+        const projId = activeProject?.id || paperModal.paper?.Project_ID || '';
+        fetch(`/api/papers/${encodeURIComponent(pId)}?projectId=${encodeURIComponent(projId)}`)
+          .then(res => res.json())
+          .then(updatedPaper => {
+            if (updatedPaper && !updatedPaper.error) {
+              setPaperModal((prev: any) => (prev && prev.paper?.Paper_ID === pId ? { ...prev, paper: updatedPaper } : prev));
+            }
+          })
+          .catch(() => {});
+      }
+    };
+    return () => channel.close();
+  }, [paperModal?.isOpen, paperModal?.paper?.Paper_ID, activeProject?.id, paperModal?.paper?.Project_ID, setPaperModal]);
+
+  // Authoritative on-open server re-fetch to ensure paper details and PDF status are up-to-date
+  useEffect(() => {
+    if (paperModal?.isOpen && paperModal?.paper?.Paper_ID) {
+      const pId = paperModal.paper.Paper_ID;
+      const projId = activeProject?.id || paperModal.paper?.Project_ID || '';
+      let isMounted = true;
+      fetch(`/api/papers/${encodeURIComponent(pId)}?projectId=${encodeURIComponent(projId)}`)
+        .then(res => res.json())
+        .then(serverPaper => {
+          if (!isMounted || !serverPaper || serverPaper.error) return;
+          setPaperModal((prev: any) => {
+            if (!prev?.isOpen || prev?.paper?.Paper_ID !== pId) return prev;
+            // Guard: Don't downgrade if local modal has acquired PDF and server returned stale
+            const localHasPdf = !!prev.paper?.Local_PDF_Path && prev.paper?.Local_PDF_Status !== 'MISSING';
+            const serverHasNoPdf = !serverPaper.Local_PDF_Path || serverPaper.Local_PDF_Status === 'MISSING';
+            if (localHasPdf && serverHasNoPdf) {
+              return prev;
+            }
+            if (JSON.stringify(serverPaper) !== JSON.stringify(prev.paper)) {
+              return { ...prev, paper: serverPaper };
+            }
+            return prev;
+          });
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [paperModal?.isOpen, paperModal?.paper?.Paper_ID, activeProject?.id, setPaperModal]);
+
+  const hasPdfAvailable = Boolean(
+    paperModal.paper?.Local_PDF_Path &&
+    ['MATCHED', 'DOWNLOADED', 'SYNCED', 'NEEDS_REVIEW'].includes(paperModal.paper?.Local_PDF_Status)
+  );
 
   const hasChanges = !!(
     editTitle !== (paperModal.paper?.Title || '') ||
@@ -77,17 +268,9 @@ export default function ViewEditPaperModal({
   const currentIndex = navigationIds.indexOf(paperModal.paper?.Paper_ID);
 
   const loadAndSetPaper = async (paperId: string) => {
-    const localMatch = papers.find((p: any) => p.Paper_ID === paperId);
-    if (localMatch) {
-      setPaperModal((prev: any) => ({
-        ...prev,
-        paper: localMatch
-      }));
-      return;
-    }
-
+    const projId = activeProject?.id || paperModal.paper?.Project_ID || '';
     try {
-      const res = await fetch(`/api/papers/${paperId}`);
+      const res = await fetch(`/api/papers/${encodeURIComponent(paperId)}?projectId=${encodeURIComponent(projId)}`);
       if (res.ok) {
         const paper = await res.json();
         setPaperModal((prev: any) => ({
@@ -95,10 +278,26 @@ export default function ViewEditPaperModal({
           paper
         }));
       } else {
-        showToast('Failed to load paper details', 'error');
+        const localMatch = papers.find((p: any) => p.Paper_ID === paperId);
+        if (localMatch) {
+          setPaperModal((prev: any) => ({
+            ...prev,
+            paper: localMatch
+          }));
+        } else {
+          showToast('Failed to load paper details', 'error');
+        }
       }
     } catch (err: any) {
-      showToast('Error loading paper details', 'error');
+      const localMatch = papers.find((p: any) => p.Paper_ID === paperId);
+      if (localMatch) {
+        setPaperModal((prev: any) => ({
+          ...prev,
+          paper: localMatch
+        }));
+      } else {
+        showToast('Error loading paper details', 'error');
+      }
     }
   };
 
@@ -211,24 +410,6 @@ export default function ViewEditPaperModal({
     }
   }, [paperModal?.isOpen, paperModal?.paper, paperModal?.mode, showToast]);
 
-  const getActiveProjectPoolTags = (poolId: string) => {
-    if (!activeProject) return [];
-    let parsedTags: { pool_a: any[]; pool_b: any[]; pool_c: any[] } = { pool_a: [], pool_b: [], pool_c: [] };
-    if (activeProject.pool_tags) {
-      try {
-        parsedTags = typeof activeProject.pool_tags === 'string'
-          ? JSON.parse(activeProject.pool_tags)
-          : activeProject.pool_tags;
-      } catch (e) {
-        console.error("Error parsing pool tags in ViewEditPaperModal", e);
-      }
-    }
-    if (poolId === 'pool_a') return parsedTags.pool_a || [];
-    if (poolId === 'pool_b') return parsedTags.pool_b || [];
-    if (poolId === 'pool_c') return parsedTags.pool_c || [];
-    return [];
-  };
-
   const handleSavePaper = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paperModal.paper) return;
@@ -237,9 +418,11 @@ export default function ViewEditPaperModal({
       return;
     }
 
+    const projId = activeProject?.id || paperModal.paper?.Project_ID || '';
+
     setSavingPaper(true);
     try {
-      const res = await fetch(`/api/papers/${paperModal.paper.Paper_ID}`, {
+      const res = await fetch(`/api/papers/${encodeURIComponent(paperModal.paper.Paper_ID)}?projectId=${encodeURIComponent(projId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -250,16 +433,19 @@ export default function ViewEditPaperModal({
           Abstract: editAbstract,
           PDF_Link: editPdfLink,
           Local_PDF_Status: editPdfStatus,
+          Local_PDF_Path: paperModal.paper.Local_PDF_Path,
           Parent_Paper_ID: editParentPaperId || null,
           Original_Publisher: editOriginalPublisher,
           Publisher: editPublisher,
           citation_count: editCitationCount,
-          notes: editNotes
+          notes: editNotes,
+          projectId: projId
         })
       });
 
       if (res.ok) {
-        const updatedPaper = {
+        const data = await res.json().catch(() => ({}));
+        const updatedPaper = data.paper || {
           ...paperModal.paper,
           Title: editTitle,
           Authors: editAuthors,
@@ -268,6 +454,7 @@ export default function ViewEditPaperModal({
           Abstract: editAbstract,
           PDF_Link: editPdfLink,
           Local_PDF_Status: editPdfStatus,
+          Local_PDF_Path: paperModal.paper.Local_PDF_Path,
           Parent_Paper_ID: editParentPaperId || null,
           Original_Publisher: editOriginalPublisher,
           Publisher: editPublisher,
@@ -306,72 +493,191 @@ export default function ViewEditPaperModal({
             </h3>
           </div>
 
-
-
           <button 
+            type="button"
             onClick={() => setPaperModal({ isOpen: false, mode: 'view', paper: null })} 
-            className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+            className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Modal Body wrapper for optional two column layout */}
-        <div className={`flex-1 flex overflow-hidden ${hasLocalPdf ? 'flex-col lg:flex-row' : 'flex-col'}`}>
-          {/* Modal Content / Form */}
-          <form onSubmit={handleSavePaper} className={`flex-1 overflow-y-auto ${hasLocalPdf ? 'lg:border-r border-border p-6' : 'p-6 flex justify-center'}`}>
-            <div className={`w-full ${hasLocalPdf ? '' : 'max-w-5xl space-y-4'}`}>
+        {/* Modal Body: Two column layout (Left: Metadata/Edit, Right: PDF Preview/Acquisition) */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          {/* Left Column: Metadata View / Edit Form */}
+          <form onSubmit={handleSavePaper} className="flex-1 overflow-y-auto lg:border-r border-border p-6">
+            <div className="w-full max-w-5xl space-y-4 mx-auto">
               {paperModal.mode === 'edit' ? (
-              <PaperMetadataEdit
-                paperId={paperModal.paper!.Paper_ID}
-                importDate={paperModal.paper!.Import_Date || ''}
-                importSource={paperModal.paper!.Import_Source || ''}
-                projectId={activeProject?.id || ''}
-                editParentPaperId={editParentPaperId}
-                setEditParentPaperId={setEditParentPaperId}
-                selectedEditParentPaper={selectedEditParentPaper}
-                setSelectedEditParentPaper={setSelectedEditParentPaper}
-                editTitle={editTitle}
-                setEditTitle={setEditTitle}
-                editAuthors={editAuthors}
-                setEditAuthors={setEditAuthors}
-                editYear={editYear}
-                setEditYear={setEditYear}
-                editDoi={editDoi}
-                setEditDoi={setEditDoi}
-                editPdfLink={editPdfLink}
-                setEditPdfLink={setEditPdfLink}
-                editOriginalPublisher={editOriginalPublisher}
-                setEditOriginalPublisher={setEditOriginalPublisher}
-                editPublisher={editPublisher}
-                setEditPublisher={setEditPublisher}
-                editAbstract={editAbstract}
-                setEditAbstract={setEditAbstract}
-                editPdfStatus={editPdfStatus}
-                setEditPdfStatus={setEditPdfStatus}
-                editCitationCount={editCitationCount}
-                setEditCitationCount={setEditCitationCount}
-                editNotes={editNotes}
-                setEditNotes={setEditNotes}
-                activeProject={activeProject}
-                paper={paperModal.paper!}
-              />
-            ) : (
-              <PaperMetadataView
-                paper={paperModal.paper!}
-                setPaperModal={setPaperModal}
-                showToast={showToast}
-                activeProject={activeProject}
-              />
-            )}
-            
-            {/* Hidden submit button to support Enter key save in edit mode */}
-            {paperModal.mode === 'edit' && <input type="submit" className="hidden" />}
+                <PaperMetadataEdit
+                  paperId={paperModal.paper!.Paper_ID}
+                  importDate={paperModal.paper!.Import_Date || ''}
+                  importSource={paperModal.paper!.Import_Source || ''}
+                  projectId={activeProject?.id || ''}
+                  editParentPaperId={editParentPaperId}
+                  setEditParentPaperId={setEditParentPaperId}
+                  selectedEditParentPaper={selectedEditParentPaper}
+                  setSelectedEditParentPaper={setSelectedEditParentPaper}
+                  editTitle={editTitle}
+                  setEditTitle={setEditTitle}
+                  editAuthors={editAuthors}
+                  setEditAuthors={setEditAuthors}
+                  editYear={editYear}
+                  setEditYear={setEditYear}
+                  editDoi={editDoi}
+                  setEditDoi={setEditDoi}
+                  editPdfLink={editPdfLink}
+                  setEditPdfLink={setEditPdfLink}
+                  editOriginalPublisher={editOriginalPublisher}
+                  setEditOriginalPublisher={setEditOriginalPublisher}
+                  editPublisher={editPublisher}
+                  setEditPublisher={setEditPublisher}
+                  editAbstract={editAbstract}
+                  setEditAbstract={setEditAbstract}
+                  editPdfStatus={editPdfStatus}
+                  setEditPdfStatus={setEditPdfStatus}
+                  editCitationCount={editCitationCount}
+                  setEditCitationCount={setEditCitationCount}
+                  editNotes={editNotes}
+                  setEditNotes={setEditNotes}
+                  activeProject={activeProject}
+                  paper={paperModal.paper!}
+                />
+              ) : (
+                <PaperMetadataView
+                  paper={paperModal.paper!}
+                  setPaperModal={setPaperModal}
+                  showToast={showToast}
+                  activeProject={activeProject}
+                  onTriggerPdfAcquisition={() => runSinglePaperPipeline(paperModal.paper!.Paper_ID)}
+                  isPdfRunning={pdfIsRunning}
+                />
+              )}
+              
+              {/* Hidden submit button to support Enter key save in edit mode */}
+              {paperModal.mode === 'edit' && <input type="submit" className="hidden" />}
             </div>
           </form>
 
-          {/* Right Column (PDF Viewer) */}
-          {hasLocalPdf && <PdfPreview localPdfPath={paperModal.paper!.Local_PDF_Path || ''} />}
+          {/* Right Column: PDF Viewer / Acquisition Workspace */}
+          <div className="flex-1 flex flex-col h-full overflow-hidden bg-secondary/15">
+            {hasPdfAvailable ? (
+              <PdfPreview localPdfPath={paperModal.paper!.Local_PDF_Path || ''} />
+            ) : (
+              <div className="flex-1 p-6 select-none flex flex-col justify-center overflow-y-auto">
+                <div className={`flex flex-col items-center justify-center text-center py-6 ${pdfIsRunning ? 'border-b border-border/40 pb-6 shrink-0' : 'flex-1'}`}>
+                  <AlertTriangle className="w-14 h-14 text-amber-500 mb-4 animate-pulse" />
+                  <h4 className="font-bold text-base mb-1.5 text-foreground">Local PDF Not Found</h4>
+                  <p className="text-xs text-muted-foreground max-w-md leading-relaxed mb-6">
+                    This paper reference does not have a local PDF yet. Trigger smart cache matching and crawler scraping specifically for this paper reference.
+                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => runSinglePaperPipeline(paperModal.paper!.Paper_ID)}
+                      disabled={pdfIsRunning}
+                      className={`px-5 py-2.5 font-bold rounded-xl shadow-md transition-all flex items-center gap-2 uppercase tracking-wide text-xs cursor-pointer ${
+                        pdfIsRunning
+                          ? 'bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-50 shadow-none'
+                          : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg hover:scale-105'
+                      }`}
+                    >
+                      {pdfIsRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                      {pdfIsRunning ? 'Acquiring PDF...' : 'Get PDF via Cache Matching & Scraping'}
+                    </button>
+
+                    {pdfIsRunning && (
+                      <button
+                        type="button"
+                        onClick={handleCancelCrawler}
+                        className="px-4 py-2.5 border border-border text-xs font-bold uppercase rounded-xl hover:bg-secondary text-foreground transition-colors shrink-0 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    )}
+
+                    {pdfIsRunning && pdfWaitingLogin && (
+                      <button
+                        type="button"
+                        onClick={handleResumeCrawler}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase rounded-xl text-xs tracking-wide shadow-md flex items-center gap-2 animate-pulse transition-all hover:scale-105 shrink-0 cursor-pointer"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                        Resume Download
+                      </button>
+                    )}
+
+                    {!pdfIsRunning && paperModal.paper?.DOI && (
+                      <a
+                        href={`https://doi.org/${encodeURIComponent(paperModal.paper.DOI.trim())}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <span>Publisher DOI</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+
+                    {!pdfIsRunning && paperModal.paper?.PDF_Link && (
+                      <a
+                        href={paperModal.paper.PDF_Link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border text-xs font-bold rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <span>Direct Web Link</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Real-time single-run console log widget */}
+                {pdfIsRunning && (
+                  <div className="mt-4 h-72 border border-border/80 rounded-xl bg-black text-emerald-400 font-mono text-[10px] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 shadow-inner select-text">
+                    {/* console header */}
+                    <div className="p-2.5 border-b border-border/40 bg-zinc-900/60 flex items-center justify-between shrink-0 select-none">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase flex items-center gap-1.5">
+                        <Terminal className="w-3.5 h-3.5 text-emerald-500" />
+                        Single PDF Pipeline: {pdfStatusText}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-emerald-400">{pdfProgress}%</span>
+                        {pdfWaitingLogin && (
+                          <button
+                            type="button"
+                            onClick={handleResumeCrawler}
+                            className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-black font-bold uppercase rounded text-[8px] cursor-pointer"
+                          >
+                            Resume Login
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleCancelCrawler}
+                          className="px-2 py-0.5 bg-destructive hover:bg-destructive/80 text-white font-bold uppercase rounded text-[8px] cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                    {/* logs body */}
+                    <div className="flex-1 p-3 overflow-y-auto space-y-1.5">
+                      {pdfLogs.length === 0 ? (
+                        <span className="text-zinc-600 block italic">Spawning subprocess connection...</span>
+                      ) : (
+                        pdfLogs.map((log: string, index: number) => (
+                          <div key={index} className="leading-normal whitespace-pre-wrap">{log}</div>
+                        ))
+                      )}
+                      <div ref={logEndRef} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Modal Footer Actions */}
@@ -381,7 +687,7 @@ export default function ViewEditPaperModal({
               <button
                 type="button"
                 onClick={() => setDeleteConfirm({ isOpen: true, paper: paperModal.paper })}
-                className="px-3.5 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-semibold rounded-lg border border-destructive/20 transition-colors flex items-center gap-1.5 animate-in fade-in"
+                className="px-3.5 py-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-semibold rounded-lg border border-destructive/20 transition-colors flex items-center gap-1.5 animate-in fade-in cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete Paper
@@ -396,7 +702,7 @@ export default function ViewEditPaperModal({
                 type="button"
                 onClick={handlePrevPaper}
                 disabled={currentIndex <= 0}
-                className="px-2 py-0.5 text-[10px] font-bold uppercase hover:bg-secondary border border-border/80 text-foreground disabled:opacity-30 disabled:cursor-not-allowed rounded transition-all"
+                className="px-2 py-0.5 text-[10px] font-bold uppercase hover:bg-secondary border border-border/80 text-foreground disabled:opacity-30 disabled:cursor-not-allowed rounded transition-all cursor-pointer"
                 title="Previous Paper"
               >
                 &larr; Prev
@@ -408,7 +714,7 @@ export default function ViewEditPaperModal({
                 type="button"
                 onClick={handleNextPaper}
                 disabled={currentIndex === -1 || currentIndex >= navigationIds.length - 1}
-                className="px-2 py-0.5 text-[10px] font-bold uppercase hover:bg-secondary border border-border/80 text-foreground disabled:opacity-30 disabled:cursor-not-allowed rounded transition-all"
+                className="px-2 py-0.5 text-[10px] font-bold uppercase hover:bg-secondary border border-border/80 text-foreground disabled:opacity-30 disabled:cursor-not-allowed rounded transition-all cursor-pointer"
                 title="Next Paper"
               >
                 Next &rarr;
@@ -431,7 +737,7 @@ export default function ViewEditPaperModal({
                 <button
                   type="button"
                   onClick={() => setPaperModal((prev: any) => ({ ...prev, mode: 'edit' }))}
-                  className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                   Edit Details
@@ -439,7 +745,7 @@ export default function ViewEditPaperModal({
                 <button
                   type="button"
                   onClick={() => setPaperModal({ isOpen: false, mode: 'view', paper: null })}
-                  className="px-4 py-2 border border-border text-xs font-semibold rounded-lg hover:bg-secondary text-foreground transition-colors"
+                  className="px-4 py-2 border border-border text-xs font-semibold rounded-lg hover:bg-secondary text-foreground transition-colors cursor-pointer"
                 >
                   Close
                 </button>
@@ -449,7 +755,7 @@ export default function ViewEditPaperModal({
                 <button
                   type="button"
                   onClick={() => setPaperModal((prev: any) => ({ ...prev, mode: 'view' }))}
-                  className="px-4 py-2 border border-border text-xs font-semibold rounded-lg hover:bg-secondary text-foreground transition-colors"
+                  className="px-4 py-2 border border-border text-xs font-semibold rounded-lg hover:bg-secondary text-foreground transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -457,7 +763,7 @@ export default function ViewEditPaperModal({
                   type="button"
                   disabled={savingPaper || !hasChanges}
                   onClick={handleSavePaper}
-                  className={`px-4 py-2 text-xs font-semibold rounded-lg shadow-md transition-colors flex items-center gap-1.5 ${(!hasChanges || savingPaper) ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed shadow-none' : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'}`}
+                  className={`px-4 py-2 text-xs font-semibold rounded-lg shadow-md transition-colors flex items-center gap-1.5 cursor-pointer ${(!hasChanges || savingPaper) ? 'bg-muted text-muted-foreground/50 border border-border/50 cursor-not-allowed shadow-none' : 'bg-primary text-primary-foreground hover:bg-primary/95 hover:shadow-lg'}`}
                 >
                   {savingPaper && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   Save Changes
@@ -471,3 +777,4 @@ export default function ViewEditPaperModal({
     </div>
   );
 }
+

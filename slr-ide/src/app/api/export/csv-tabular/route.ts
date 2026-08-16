@@ -28,22 +28,9 @@ export async function GET(request: Request) {
     }
 
     // 1. Fetch Project Metadata
-    let project = db
-      .prepare('SELECT * FROM projects WHERE id = ?')
-      .get(projectId) as any;
-
-    if (!project) {
-      const numericProjectId = parseInt(projectId, 10);
-      if (!isNaN(numericProjectId)) {
-        project = db
-          .prepare('SELECT * FROM projects WHERE id = ?')
-          .get(numericProjectId) as any;
-      }
-    }
-
-    if (!project) {
-      project = db.prepare('SELECT * FROM projects ORDER BY id ASC LIMIT 1').get() as any;
-    }
+    const project = db
+      .prepare('SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))')
+      .get(projectId, projectId) as any;
 
     if (!project) {
       return NextResponse.json(

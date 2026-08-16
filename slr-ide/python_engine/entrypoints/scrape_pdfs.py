@@ -154,8 +154,8 @@ def main():
             cursor.execute("""
                 UPDATE papers
                 SET Local_PDF_Status = 'FAILED'
-                WHERE Paper_ID = ? AND Project_ID = ?
-            """, (paper_id, active_proj_id))
+                WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+            """, (paper_id, active_proj_id, active_proj_id))
             conn.commit()
             print(json.dumps({
                 "event": "paper_fail",
@@ -219,8 +219,8 @@ def main():
                 cursor.execute("""
                     UPDATE papers
                     SET Local_PDF_Status = ?, Local_PDF_Path = ?
-                    WHERE Paper_ID = ? AND Project_ID = ?
-                """, (new_pdf_status, f"pdf_library/raw/{dest_filename}", paper_id, active_proj_id))
+                    WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+                """, (new_pdf_status, f"pdf_library/raw/{dest_filename}", paper_id, active_proj_id, active_proj_id))
                 conn.commit()
                 success_count += 1
                 
@@ -242,8 +242,8 @@ def main():
                 cursor.execute("""
                     UPDATE papers
                     SET Local_PDF_Status = 'FAILED'
-                    WHERE Paper_ID = ? AND Project_ID = ?
-                """, (paper_id, active_proj_id))
+                    WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+                """, (paper_id, active_proj_id, active_proj_id))
                 conn.commit()
                 print(json.dumps({"event": "paper_fail", "paper_id": paper_id, "title": title, "error": f"Failed to save file: {str(e)}"}))
                 sys.stdout.flush()
@@ -252,8 +252,8 @@ def main():
             cursor.execute("""
                 UPDATE papers
                 SET Local_PDF_Status = 'FAILED'
-                WHERE Paper_ID = ? AND Project_ID = ?
-            """, (paper_id, active_proj_id))
+                WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+            """, (paper_id, active_proj_id, active_proj_id))
             conn.commit()
             print(json.dumps({"event": "paper_fail", "paper_id": paper_id, "title": title, "error": "Download timed out or failed to resolve PDF link."}))
             sys.stdout.flush()

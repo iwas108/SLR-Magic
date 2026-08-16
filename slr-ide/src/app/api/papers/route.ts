@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
-import db, { getConfig } from '@/lib/db';
+import fs from 'fs';
+import path from 'path';
+import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
 import crypto from 'crypto';
 import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
@@ -39,7 +41,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = searchParams.get('projectId') || getConfig('ACTIVE_PROJECT_ID', '');
     
     // Check if only hashes/deduplication keys are requested
     if (searchParams.get('onlyHashes') === 'true') {
@@ -68,82 +70,58 @@ export async function GET(request: Request) {
       const stage = searchParams.get('pipelineStage');
       let manualStageFilter = '';
       let llmTaskTypeFilter = '';
-      let stageCode = 0;
-      if (stage === '1') {
-        manualStageFilter = 'fast_filter';
+
+      if (stage === '1' || stage === 'fast_filter') {
+        manualStageFilter = '1';
         llmTaskTypeFilter = 'fast_filter';
-        stageCode = 1;
-      } else if (stage === '2') {
-        manualStageFilter = 'gatekeeper';
+      } else if (stage === '2' || stage === 'gatekeeper') {
+        manualStageFilter = '2';
         llmTaskTypeFilter = 'gatekeeper';
-        stageCode = 2;
-      } else if (stage === '3') {
-        manualStageFilter = 'scientist';
+      } else if (stage === '3' || stage === 'scientist') {
+        manualStageFilter = '3';
         llmTaskTypeFilter = 'scientist';
-        stageCode = 3;
-      } else if (stage === '4') {
-        manualStageFilter = 'miner';
+      } else if (stage === '4' || stage === 'miner') {
+        manualStageFilter = '4';
         llmTaskTypeFilter = 'miner';
-        stageCode = 4;
       }
 
-      let manualAuditQuery = "SELECT DISTINCT ec_trigger as code FROM manual_audit_log WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND ec_trigger IS NOT NULL AND ec_trigger != '' AND ec_trigger != 'NONE'";
-      let manualAuditParams: any[] = [activeProjectId, activeProjectId];
+      // Query manual screening exclusion codes
+      let manualQuery = `
+        SELECT DISTINCT manual_exclusion_code 
+        FROM papers 
+        WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) 
+          AND manual_exclusion_code IS NOT NULL 
+          AND manual_exclusion_code != ''
+      `;
+      const manualParams: any[] = [activeProjectId, activeProjectId];
       if (manualStageFilter) {
-        manualAuditQuery += " AND manual_stage = ?";
-        manualAuditParams.push(manualStageFilter);
+        manualQuery += ` AND manual_stage = ?`;
+        manualParams.push(manualStageFilter);
       }
 
-      let lsrQuery = "SELECT DISTINCT exclusion_code as code FROM llm_screening_records WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND exclusion_code IS NOT NULL AND exclusion_code != '' AND exclusion_code != 'NONE'";
-      let lsrParams: any[] = [activeProjectId, activeProjectId];
-      if (stageCode > 0) {
-        lsrQuery += " AND stage = ?";
-        lsrParams.push(stageCode);
-      }
+      const manualRows = db.prepare(manualQuery).all(...manualParams) as { manual_exclusion_code: string }[];
+      const manualCodes = manualRows.map(r => r.manual_exclusion_code.trim()).filter(Boolean);
 
-      let llmAuditQuery = "SELECT DISTINCT json_extract(structured_output, '$.final_evaluation.exclusion_code') as code FROM llm_audit_log WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS' AND json_valid(structured_output) = 1";
-      let llmAuditParams: any[] = [activeProjectId, activeProjectId];
+      // Query LLM screening audit log exclusion codes
+      let llmQuery = `
+        SELECT DISTINCT ec_trigger 
+        FROM llm_audit_log 
+        WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) 
+          AND ec_trigger IS NOT NULL 
+          AND ec_trigger != ''
+      `;
+      const llmParams: any[] = [activeProjectId, activeProjectId];
       if (llmTaskTypeFilter) {
-        llmAuditQuery += " AND task_type = ?";
-        llmAuditParams.push(llmTaskTypeFilter);
+        llmQuery += ` AND task_type = ?`;
+        llmParams.push(llmTaskTypeFilter);
       }
 
-      let papersAiQuery = "SELECT DISTINCT ai_exclusion_code as code FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND ai_exclusion_code IS NOT NULL AND ai_exclusion_code != ''";
-      let papersAiParams: any[] = [activeProjectId, activeProjectId];
-      if (stageCode > 0) {
-        papersAiQuery += " AND ai_stage = ?";
-        papersAiParams.push(stageCode);
-      }
+      const llmRows = db.prepare(llmQuery).all(...llmParams) as { ec_trigger: string }[];
+      const llmCodes = llmRows.map(r => r.ec_trigger.trim()).filter(Boolean);
 
-      let papersManualQuery = "SELECT DISTINCT manual_exclusion_code as code FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND manual_exclusion_code IS NOT NULL AND manual_exclusion_code != ''";
-      let papersManualParams: any[] = [activeProjectId, activeProjectId];
-      if (stageCode > 0) {
-        papersManualQuery += " AND manual_stage = ?";
-        papersManualParams.push(stageCode);
-      }
-
-      const codesSet = new Set<string>();
-
-      try {
-        const r1 = db.prepare(manualAuditQuery).all(...manualAuditParams) as { code: string }[];
-        r1.forEach(r => { if (r.code) codesSet.add(r.code); });
-
-        const rLsr = db.prepare(lsrQuery).all(...lsrParams) as { code: string }[];
-        rLsr.forEach(r => { if (r.code) codesSet.add(r.code); });
-
-        const r2 = db.prepare(llmAuditQuery).all(...llmAuditParams) as { code: string }[];
-        r2.forEach(r => { if (r.code) codesSet.add(r.code); });
-
-        const r3 = db.prepare(papersAiQuery).all(...papersAiParams) as { code: string }[];
-        r3.forEach(r => { if (r.code) codesSet.add(r.code); });
-
-        const r4 = db.prepare(papersManualQuery).all(...papersManualParams) as { code: string }[];
-        r4.forEach(r => { if (r.code) codesSet.add(r.code); });
-      } catch (err) {
-        console.error("Error fetching ec triggers:", err);
-      }
-
-      return NextResponse.json(Array.from(codesSet).sort());
+      // Deduplicate and sort combined codes
+      const combinedCodes = Array.from(new Set([...manualCodes, ...llmCodes])).sort();
+      return NextResponse.json(combinedCodes);
     }
 
     const search = searchParams.get('search')?.trim() || '';
@@ -161,7 +139,7 @@ export async function GET(request: Request) {
     
     // Sort parameters
     const sortBy = searchParams.get('sortBy')?.trim() || 'Paper_ID';
-    const sortOrder = searchParams.get('sortOrder')?.trim() || 'ASC';
+    const sortOrder = (searchParams.get('sortOrder') || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
     
     // Pagination parameters
     const pageVal = parseInt(searchParams.get('page') || '1', 10);
@@ -172,8 +150,8 @@ export async function GET(request: Request) {
 
     const isCalQuery = calibrationPool && calibrationPool !== 'none';
     const tableName = isCalQuery ? 'calibration_papers' : 'papers';
-    let filterQuery = ` FROM ${tableName} WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)`;
-    const params: any[] = [activeProjectId];
+    let filterQuery = ` FROM ${tableName} WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)`;
+    const params: any[] = [activeProjectId, activeProjectId];
 
     if (search) {
       filterQuery += ' AND (Paper_ID LIKE ? OR Title LIKE ? OR Abstract LIKE ? OR Authors LIKE ? OR DOI LIKE ? OR Publisher LIKE ?)';
@@ -206,11 +184,11 @@ export async function GET(request: Request) {
     if (calibrationPool) {
       if (tableName === 'papers') {
         if (calibrationPool === 'none') {
-          filterQuery += ' AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?)';
-          params.push(activeProjectId);
+          filterQuery += ' AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)))';
+          params.push(activeProjectId, activeProjectId);
         } else {
-          filterQuery += ' AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = ?)';
-          params.push(activeProjectId, calibrationPool);
+          filterQuery += ' AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = ?)';
+          params.push(activeProjectId, activeProjectId, calibrationPool);
         }
       } else {
         if (calibrationPool === 'none') {
@@ -225,11 +203,11 @@ export async function GET(request: Request) {
     if (calibrationTag) {
       if (tableName === 'papers') {
         if (calibrationTag === 'none') {
-          filterQuery += ' AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_tag IS NOT NULL AND calibration_tag != \'\')';
-          params.push(activeProjectId);
+          filterQuery += ' AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_tag IS NOT NULL AND calibration_tag != \'\')';
+          params.push(activeProjectId, activeProjectId);
         } else {
-          filterQuery += ' AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ? AND calibration_tag = ?)';
-          params.push(activeProjectId, calibrationTag);
+          filterQuery += ' AND Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_tag = ?)';
+          params.push(activeProjectId, activeProjectId, calibrationTag);
         }
       } else {
         if (calibrationTag === 'none') {
@@ -497,25 +475,44 @@ export async function GET(request: Request) {
     const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const calibrationPoolSubquery = tableName === 'papers'
-      ? `(SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
-         (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_tag,`
+      ? `(SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_pool,
+         (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_tag,`
       : '';
 
     // 3. Paginated and sorted query execution with AI decisions subqueries
     const offset = (page - 1) * limit;
+    const pdfStatusSelect = tableName === 'calibration_papers'
+      ? `COALESCE((SELECT p.Local_PDF_Status FROM papers p WHERE p.Paper_ID = ${tableName}.Paper_ID AND (p.Project_ID = ${tableName}.Project_ID OR CAST(p.Project_ID AS TEXT) = CAST(${tableName}.Project_ID AS TEXT))), ${tableName}.Local_PDF_Status) as Local_PDF_Status,
+         COALESCE((SELECT p.Local_PDF_Path FROM papers p WHERE p.Paper_ID = ${tableName}.Paper_ID AND (p.Project_ID = ${tableName}.Project_ID OR CAST(p.Project_ID AS TEXT) = CAST(${tableName}.Project_ID AS TEXT))), ${tableName}.Local_PDF_Path) as Local_PDF_Path,`
+      : '';
+
     const dataQuery = `
-      SELECT *, 
+      SELECT ${tableName}.*, 
+             ${pdfStatusSelect}
              MAX(IFNULL(${tableName}.manual_stage, 0), IFNULL(${tableName}.ai_stage, 0)) as Status,
              ${calibrationPoolSubquery}
-             (SELECT Title FROM papers parent WHERE parent.Paper_ID = ${tableName}.Parent_Paper_ID AND parent.Project_ID = ${tableName}.Project_ID) as Parent_Paper_Title,
-             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = ${tableName}.Paper_ID AND project_id = ${tableName}.Project_ID) > 0 as reviewer_decisions_exist
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = ${tableName}.Parent_Paper_ID AND (parent.Project_ID = ${tableName}.Project_ID OR CAST(parent.Project_ID AS TEXT) = CAST(${tableName}.Project_ID AS TEXT))) as Parent_Paper_Title,
+             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = ${tableName}.Paper_ID AND (project_id = ${tableName}.Project_ID OR CAST(project_id AS TEXT) = CAST(${tableName}.Project_ID AS TEXT))) > 0 as reviewer_decisions_exist
       ${filterQuery} 
       ORDER BY ${safeSortBy} ${safeSortOrder} 
       LIMIT ? OFFSET ?
     `;
     const dataParams = [...params, limit, offset];
 
-    const papers = db.prepare(dataQuery).all(...dataParams);
+    const papers = db.prepare(dataQuery).all(...dataParams) as any[];
+
+    // On-demand self-healing check for physical files on disk
+    const rawDir = path.join(PROJECT_ROOT, 'pdf_library', 'raw');
+    for (const p of papers) {
+      const rawFile = path.join(rawDir, `${p.Paper_ID}.pdf`);
+      if (fs.existsSync(rawFile)) {
+        if (!p.Local_PDF_Path || p.Local_PDF_Status === 'MISSING' || p.Local_PDF_Status === 'FAILED' || p.Local_PDF_Status === 'IGNORED' || !p.Local_PDF_Status) {
+          p.Local_PDF_Status = 'MATCHED';
+          p.Local_PDF_Path = `pdf_library/raw/${p.Paper_ID}.pdf`;
+        }
+      }
+    }
+
     const totalPages = Math.ceil(total / limit) || 1;
 
     return NextResponse.json({
@@ -543,7 +540,7 @@ export async function POST(request: Request) {
     let skippedCount = 0;
     let updatedCitationsCount = 0;
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = body.projectId || getConfig('ACTIVE_PROJECT_ID', '');
 
     const findByDoiStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE DOI = ? AND DOI IS NOT NULL AND DOI != '' AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))");
     const findByTitleStmt = db.prepare("SELECT Paper_ID, DOI FROM papers WHERE LOWER(REPLACE(Title, ' ', '')) = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))");
@@ -758,7 +755,7 @@ export async function PUT(request: Request) {
       params.push(localPdfStatus);
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = body.projectId || getConfig('ACTIVE_PROJECT_ID', '');
     const setClause = updates.join(', ');
     const query = `UPDATE papers SET ${setClause} WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`;
 
@@ -789,15 +786,15 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Confirmation parameter confirm=DELETE_ALL is required' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = searchParams.get('projectId') || getConfig('ACTIVE_PROJECT_ID', '');
     
     // PDF Rescue
     const { rescuePdfAssets } = require('@/lib/pdf-utils');
-    const papers = db.prepare('SELECT Paper_ID FROM papers WHERE Project_ID = ?').all(activeProjectId) as { Paper_ID: string }[];
+    const papers = db.prepare('SELECT Paper_ID FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').all(activeProjectId, activeProjectId) as { Paper_ID: string }[];
     const paperIds = papers.map(p => p.Paper_ID);
     const rescuedCount = rescuePdfAssets(paperIds);
 
-    db.prepare('DELETE FROM papers WHERE Project_ID = ?').run(activeProjectId);
+    db.prepare('DELETE FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').run(activeProjectId, activeProjectId);
 
     // Invalidate semantic search cache for the active project
     clearSemanticSearchCache(activeProjectId);

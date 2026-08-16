@@ -118,14 +118,14 @@ def main():
         cursor.execute("""
             SELECT Paper_ID, DOI, Title, Original_Publisher, Publisher
             FROM papers
-            WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
-        """, (active_proj_id,))
+            WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)
+        """, (active_proj_id, active_proj_id))
     else:
         cursor.execute("""
             SELECT Paper_ID, DOI, Title, Original_Publisher, Publisher
             FROM papers
-            WHERE Project_ID = ? AND (Publisher IS NULL OR Publisher = '') AND (is_duplicate IS NULL OR is_duplicate = 0)
-        """, (active_proj_id,))
+            WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (Publisher IS NULL OR Publisher = '') AND (is_duplicate IS NULL OR is_duplicate = 0)
+        """, (active_proj_id, active_proj_id))
     papers = cursor.fetchall()
     total = len(papers)
 
@@ -209,8 +209,8 @@ def main():
             cursor.execute("""
                 UPDATE papers
                 SET Publisher = ?
-                WHERE Paper_ID = ? AND Project_ID = ?
-            """, (final_publisher, paper_id, active_proj_id))
+                WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+            """, (final_publisher, paper_id, active_proj_id, active_proj_id))
             conn.commit()
             success_count += 1
             print(json.dumps({"event": "paper_success", "paper_id": paper_id, "title": title}))

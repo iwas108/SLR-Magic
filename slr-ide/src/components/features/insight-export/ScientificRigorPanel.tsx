@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import PoolMetricsPanel from '../pre-calibration/PoolMetricsPanel';
+import BlindedAdjudicationPanel from '../pre-calibration/BlindedAdjudicationPanel';
 import StageComparisonPanel from '../pre-calibration/StageComparisonPanel';
 import RollingBatchView from '../post-validation/RollingBatchView';
 import PrismaFlowDiagram from './PrismaFlowDiagram';
@@ -16,6 +17,7 @@ export default function ScientificRigorPanel({ projectId, showToast }: Scientifi
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<any>(null);
   const [stageStats, setStageStats] = useState<any[]>([]);
+  const [blindedStats, setBlindedStats] = useState<any>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -23,17 +25,22 @@ export default function ScientificRigorPanel({ projectId, showToast }: Scientifi
       setLoading(true);
       try {
         // Fetch project for PoolMetrics
-        const projRes = await fetch(`/api/projects/${projectId}`);
+        const projRes = await fetch(`/api/projects/${encodeURIComponent(projectId)}`);
         if (projRes.ok) {
           const projData = await projRes.json();
-          // The API returns { success: true, project: ... } or raw project object.
-          // Let's check both structures to be safe.
           const projectObj = projData.project || projData;
           setProject(projectObj);
         }
 
+        // Fetch blinded review & adjudication stats for all pools
+        const blindedRes = await fetch(`/api/adjudicate/stats?mode=all_pools&projectId=${encodeURIComponent(projectId)}`);
+        if (blindedRes.ok) {
+          const blindedData = await blindedRes.json();
+          setBlindedStats(blindedData);
+        }
+
         // Fetch stage stats
-        const stageRes = await fetch('/api/adjudicate/stats?mode=stage_comparison');
+        const stageRes = await fetch(`/api/adjudicate/stats?mode=stage_comparison&projectId=${encodeURIComponent(projectId)}`);
         if (stageRes.ok) {
           const stageData = await stageRes.json();
           setStageStats(stageData.poolStats || []);
@@ -48,10 +55,12 @@ export default function ScientificRigorPanel({ projectId, showToast }: Scientifi
   }, [projectId, showToast]);
 
   if (loading) {
-    return <div className="p-4 flex flex-col items-center justify-center text-muted-foreground h-full gap-2">
-      <Loader2 className="w-6 h-6 animate-spin" />
-      Loading rigor metrics...
-    </div>;
+    return (
+      <div className="p-4 flex flex-col items-center justify-center text-muted-foreground h-full gap-2">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        Loading rigor metrics...
+      </div>
+    );
   }
 
   return (
@@ -65,6 +74,12 @@ export default function ScientificRigorPanel({ projectId, showToast }: Scientifi
       <div>
         <h3 className="text-sm font-semibold mb-3 text-foreground">Pre-Calibration Filling Status</h3>
         <PoolMetricsPanel projects={project ? [project] : []} activeProjectId={projectId} />
+      </div>
+
+      {/* 1.5 Blinded Review & Adjudication Results */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3 text-foreground">Blinded Review &amp; Adjudication Results</h3>
+        <BlindedAdjudicationPanel stats={blindedStats} loading={loading} />
       </div>
 
       {/* 2. Stage Comparison */}

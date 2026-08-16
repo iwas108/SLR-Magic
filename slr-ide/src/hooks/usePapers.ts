@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Paper } from '@/types';
-import { broadcastSync } from '@/lib/sync-utils';
+import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 
 export function usePapers(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void, loadProjects?: () => void) {
   const [papers, setPapers] = useState<Paper[]>([]);
@@ -267,6 +267,19 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     }
   }, [searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, showToast]);
 
+  const loadPapersRef = useRef(loadPapers);
+  loadPapersRef.current = loadPapers;
+
+  // Multi-tab & cross-component sync listener with mutable ref to prevent stale closures
+  useEffect(() => {
+    const unsub = subscribeSyncChannel((syncType) => {
+      if (syncType === 'SYNC_PAPERS') {
+        loadPapersRef.current();
+      }
+    });
+    return unsub;
+  }, []);
+
   const activePaperRef = useRef<any>(null);
   activePaperRef.current = paperModal.paper;
 
@@ -274,8 +287,16 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
   useEffect(() => {
     if (paperModal.isOpen && activePaperRef.current && papers.length > 0) {
       const updated = papers.find(p => p.Paper_ID === activePaperRef.current?.Paper_ID);
-      if (updated && JSON.stringify(updated) !== JSON.stringify(activePaperRef.current)) {
-        setPaperModal(prev => ({ ...prev, paper: updated }));
+      if (updated) {
+        // Guard: Don't downgrade if local modal has newer PDF acquisition
+        const modalHasPdf = !!activePaperRef.current.Local_PDF_Path && activePaperRef.current.Local_PDF_Status !== 'MISSING';
+        const listHasNoPdf = !updated.Local_PDF_Path || updated.Local_PDF_Status === 'MISSING';
+        if (modalHasPdf && listHasNoPdf) {
+          return;
+        }
+        if (JSON.stringify(updated) !== JSON.stringify(activePaperRef.current)) {
+          setPaperModal(prev => ({ ...prev, paper: updated }));
+        }
       }
     }
   }, [papers, paperModal.isOpen]);

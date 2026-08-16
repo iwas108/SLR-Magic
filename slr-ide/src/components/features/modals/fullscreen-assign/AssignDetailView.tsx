@@ -214,7 +214,12 @@ export default function AssignDetailView({
     }
   };
 
-  const hasPdfAvailable = (assignSelectedPaper.Local_PDF_Status === 'MATCHED' || assignSelectedPaper.Local_PDF_Status === 'DOWNLOADED' || assignSelectedPaper.Local_PDF_Status === 'SYNCED') && assignSelectedPaper.Local_PDF_Path;
+  const hasPdfAvailable = (
+    assignSelectedPaper.Local_PDF_Status === 'MATCHED' || 
+    assignSelectedPaper.Local_PDF_Status === 'DOWNLOADED' || 
+    assignSelectedPaper.Local_PDF_Status === 'SYNCED' ||
+    assignSelectedPaper.Local_PDF_Status === 'NEEDS_REVIEW'
+  ) && !!assignSelectedPaper.Local_PDF_Path;
   const isPoolA = assignSelectedPaper.calibration_pool === 'pool_a';
 
   return (

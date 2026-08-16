@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
         SELECT l.*, p.Title as paper_title
         FROM llm_audit_log l
         LEFT JOIN papers p ON l.paper_id = p.Paper_ID AND CAST(l.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
-        WHERE l.project_id = ? AND l.id = ?
-      `).get(projectId, logId);
+        WHERE (l.project_id = ? OR CAST(l.project_id AS TEXT) = CAST(? AS TEXT)) AND l.id = ?
+      `).get(projectId, projectId, logId);
 
       if (!row) {
         return NextResponse.json({ error: 'Log entry not found' }, { status: 404 });
@@ -41,9 +41,9 @@ export async function GET(request: NextRequest) {
         SELECT l.*, p.Title as paper_title
         FROM llm_audit_log l
         LEFT JOIN papers p ON l.paper_id = p.Paper_ID AND CAST(l.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
-        WHERE l.project_id = ? AND l.paper_id = ?
+        WHERE (l.project_id = ? OR CAST(l.project_id AS TEXT) = CAST(? AS TEXT)) AND l.paper_id = ?
         ORDER BY l.created_at ASC
-      `).all(projectId, paperId);
+      `).all(projectId, projectId, paperId);
 
       return NextResponse.json({
         success: true,
@@ -55,9 +55,9 @@ export async function GET(request: NextRequest) {
     let baseQuery = `
       FROM llm_audit_log l
       LEFT JOIN papers p ON l.paper_id = p.Paper_ID AND CAST(l.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
-      WHERE l.project_id = ?
+      WHERE (l.project_id = ? OR CAST(l.project_id AS TEXT) = CAST(? AS TEXT))
     `;
-    const params: any[] = [projectId];
+    const params: any[] = [projectId, projectId];
 
     if (stage && stage !== 'all') {
       baseQuery += ` AND l.task_type = ?`;

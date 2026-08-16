@@ -204,7 +204,7 @@ def main():
     # Extract configuration options
     model_id = llm_config.get("model_id") or "gemini-2.5-flash"
     temperature = float(llm_config.get("temperature", 0.0))
-    max_output_tokens = int(llm_config.get("max_tokens", 2000))
+    max_output_tokens = int(llm_config.get("max_tokens") or llm_config.get("max_output_tokens") or 2000)
     top_p = float(llm_config.get("top_p", 0.9))
     top_k = int(llm_config.get("top_k", 40))
     timeout_seconds = float(llm_config.get("timeout_seconds", 900.0))
@@ -239,8 +239,8 @@ def main():
     selection_mode = getattr(args, 'paper_selection_mode', 'all')
     if args.paper_ids:
       # User specified concrete Paper IDs. Fetch paper records directly to allow force rerun on any stage.
-      query = "SELECT * FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
-      params = [project_id]
+      query = "SELECT * FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)"
+      params = [project_id, project_id]
       if requires_pdf:
           query += " AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND Local_PDF_Status = 'SYNCED'"
       query += " ORDER BY Paper_ID ASC"
@@ -251,11 +251,11 @@ def main():
     else:
       # Standard range/limit batch query
       if status_filter == 'ALL':
-          query = "SELECT * FROM papers WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
-          params = [project_id]
+          query = "SELECT * FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)"
+          params = [project_id, project_id]
       else:
-          query = "SELECT * FROM papers WHERE Project_ID = ? AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
-          params = [project_id, int(status_filter)]
+          query = "SELECT * FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) = ? AND (is_duplicate IS NULL OR is_duplicate = 0)"
+          params = [project_id, project_id, int(status_filter)]
       if decision_filter != 'ALL':
           query += " AND (CASE WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'EXCLUDE%' THEN 'EXCLUDE' WHEN (CASE WHEN IFNULL(manual_stage, 0) > IFNULL(ai_stage, 0) THEN manual_decision WHEN IFNULL(ai_stage, 0) > IFNULL(manual_stage, 0) THEN ai_decision ELSE COALESCE(manual_decision, ai_decision) END) LIKE 'INCLUDE%' THEN 'INCLUDE' ELSE 'PENDING' END) = ?"
           params.append(decision_filter)
@@ -274,7 +274,7 @@ def main():
               'extraction': 'miner'
           }
           db_stage_name = stage_map.get(task_type, task_type)
-          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND manual_audit_log.project_id = papers.Project_ID AND manual_audit_log.manual_stage = ?)"
+          query += " AND NOT EXISTS (SELECT 1 FROM manual_audit_log WHERE manual_audit_log.paper_id = papers.Paper_ID AND (manual_audit_log.project_id = papers.Project_ID OR CAST(manual_audit_log.project_id AS TEXT) = CAST(papers.Project_ID AS TEXT)) AND manual_audit_log.manual_stage = ?)"
           params.append(db_stage_name)
       query += " ORDER BY Paper_ID ASC"
       

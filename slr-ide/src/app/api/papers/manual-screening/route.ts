@@ -5,7 +5,7 @@ import db, { getConfig } from '@/lib/db';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = searchParams.get('projectId') || getConfig('ACTIVE_PROJECT_ID', '');
 
     // Support getStats parameter for project-wide statistics
     const getStats = searchParams.get('getStats') === 'true';

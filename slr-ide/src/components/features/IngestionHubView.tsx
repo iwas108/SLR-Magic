@@ -16,15 +16,17 @@ interface IngestionHubViewProps {
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   papers: any[];
   loadPapers: () => void;
+  activeProjectId?: string;
 }
 
 export default function IngestionHubView({
   setShowImport,
   showToast,
   papers,
-  loadPapers
+  loadPapers,
+  activeProjectId
 }: IngestionHubViewProps) {
-  const ingestion = useIngestion(showToast, papers, loadPapers);
+  const ingestion = useIngestion(showToast, papers, loadPapers, activeProjectId);
   
   const {
     csvFile,

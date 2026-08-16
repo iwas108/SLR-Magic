@@ -122,8 +122,8 @@ def run_search(params):
         try:
             # Query filenames of PDFs belonging to papers in active_project_id
             cursor.execute(
-                "SELECT Paper_ID FROM papers WHERE Project_ID = ? AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND (is_duplicate IS NULL OR is_duplicate = 0)",
-                (active_project_id,)
+                "SELECT Paper_ID FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Local_PDF_Path IS NOT NULL AND Local_PDF_Path != '' AND (is_duplicate IS NULL OR is_duplicate = 0)",
+                (active_project_id, active_project_id)
             )
             proj_paper_ids = [r[0] for r in cursor.fetchall()]
             pdf_filenames = [f"{pid}.pdf" for pid in proj_paper_ids]
@@ -157,8 +157,8 @@ def run_traps(params):
     # Fetch seed paper Title + Abstract
     try:
         cursor.execute(
-            "SELECT Title, Abstract FROM papers WHERE Project_ID = ? AND Paper_ID = ?",
-            (active_project_id, seed)
+            "SELECT Title, Abstract FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Paper_ID = ?",
+            (active_project_id, active_project_id, seed)
         )
         seed_row = cursor.fetchone()
         if not seed_row:
@@ -172,8 +172,8 @@ def run_traps(params):
     # Get allowlist of UNASSIGNED papers
     try:
         cursor.execute(
-            "SELECT Paper_ID FROM papers WHERE Project_ID = ? AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?) AND (is_duplicate IS NULL OR is_duplicate = 0) AND Paper_ID != ?",
-            (active_project_id, active_project_id, seed)
+            "SELECT Paper_ID FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))) AND (is_duplicate IS NULL OR is_duplicate = 0) AND Paper_ID != ?",
+            (active_project_id, active_project_id, active_project_id, active_project_id, seed)
         )
         allowlist_ids = [r[0] for r in cursor.fetchall()]
     except Exception as e:
@@ -203,8 +203,8 @@ def run_traps(params):
     placeholders = ",".join(["?"] * len(paper_ids))
     try:
         cursor.execute(
-            f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND Project_ID = ?",
-            tuple(paper_ids) + (active_project_id,)
+            f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))",
+            tuple(paper_ids) + (active_project_id, active_project_id)
         )
         columns = [col[0] for col in cursor.description]
         metadata_map = {}

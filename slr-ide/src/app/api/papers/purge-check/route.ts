@@ -11,17 +11,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payload must contain a "csvPapers" array' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = body.projectId || getConfig('ACTIVE_PROJECT_ID', '');
 
     // Fetch all existing papers in the active project
     const dbPapers = db.prepare(`
       SELECT Paper_ID, Title, DOI, manual_decision, manual_exclusion_code, manual_stage, ai_stage, ai_decision, ai_exclusion_code,
-             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND cp.Project_ID = papers.Project_ID) as calibration_pool,
+             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_pool,
              is_duplicate, merged_into_id,
-             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) as reviewer_decisions_count
+             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND (project_id = papers.Project_ID OR CAST(project_id AS TEXT) = CAST(papers.Project_ID AS TEXT))) as reviewer_decisions_count
       FROM papers
-      WHERE Project_ID = ?
-    `).all(activeProjectId) as any[];
+      WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+    `).all(activeProjectId, activeProjectId) as any[];
 
     // Normalize CSV papers for quick O(1) matching
     const csvDois = new Set<string>();

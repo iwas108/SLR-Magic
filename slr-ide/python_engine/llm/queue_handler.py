@@ -124,12 +124,12 @@ class LLMQueueHandler:
                 """
                 SELECT interaction_id 
                 FROM llm_audit_log 
-                WHERE paper_id = ? AND project_id = ? AND status = 'SUCCESS' 
+                WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'SUCCESS' 
                   AND response_schema_name = ? AND interaction_id IS NOT NULL 
                 ORDER BY created_at DESC 
                 LIMIT 1
                 """,
-                (paper_id, self.project_id, schema_name)
+                (paper_id, self.project_id, self.project_id, schema_name)
             )
             previous_interaction_id = prev_row.get("interaction_id") if prev_row else None
 
@@ -359,8 +359,8 @@ class LLMQueueHandler:
             # If re-running an earlier stage and decision is EXCLUDE, purge downstream records (stage > incoming_stage)
             if ai_decision == "EXCLUDE" and incoming_stage > 0:
                 execute_write(
-                    "DELETE FROM llm_screening_records WHERE project_id = ? AND paper_id = ? AND stage > ?",
-                    (self.project_id, paper_id, incoming_stage)
+                    "DELETE FROM llm_screening_records WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND paper_id = ? AND stage > ?",
+                    (self.project_id, self.project_id, paper_id, incoming_stage)
                 )
 
             # Write verified gate state to llm_screening_records (triggers will automatically sync papers & rolling_batch_papers)

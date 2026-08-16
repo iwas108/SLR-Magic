@@ -55,7 +55,9 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `scripts/test-archive-service.mjs` | Test Automation | Standalone test suite verifying relational project archive export and restore integrity with 0 foreign key violations. |
 | `scripts/test-prompt-library.mjs` | Test Automation | Standalone test suite verifying Prompt Library project isolation, global template forking, 1-click stage default mappings, and draft non-overwriting safety. |
 | `scripts/test-visualizer-anti-regression.mjs` | Test Automation | Standalone anti-regression test suite validating Hare-Hamilton 100.00% quota balance, color shading, taxonomy extraction, and preset serialization. |
-| `scripts/test-mockup-review.mjs` | Test Automation | Standalone test suite verifying multi-pool mockup review generation, GZIP .slr compression/decompression, PRISMA isolation, and cache lifecycle. |
+| `scripts/test-mockup-review.mjs` | Test Automation | Standalone test suite verifying multi-pool mockup review generation, LLM parameters compliance, partial execution for failed reviews, GZIP .slr compression/decompression, PRISMA isolation, and cache lifecycle. |
+| `scripts/test-adjudication-discrepancies.mjs` | Test Automation | Standalone test suite verifying calibration discrepancy resolution status, import vs human adjudication lifecycle, and project isolation in the inter-rater workflow. |
+| `scripts/test-quest-pdf-llm-guard.mjs` | Test Automation | Standalone test suite verifying Quests 03, 04, 05 PDF presence enforcement, stage-specific execution guards, and 100% Prompt Library LLM parameter parsing and synchronization. |
 
 ---
 
@@ -161,7 +163,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `lib/services/pipeline/rclone-sync.ts` | Backend Service | Helper service constructing cloud sync commands, re-connecting OAuth configs, and updating paper local PDF paths to synced repo path upon link generation. |
 | `lib/services/archive-service.ts` | Core Services | Core archiving and restore engine providing `exportProjectArchive`, `createProjectPdfZipBuffer`, `purgeProjectZeroTrace`, and `importProjectArchive`. |
 | `lib/services/remote-worker-manager.ts` | Core Services | Singleton service orchestrating worker pools, heartbeats, and reclaims. |
-| `lib/services/mockup-generator.ts` | Backend Service | Dedicated service for evaluating calibration papers with Gemini REST API, generating 100% import-compatible blinded `.slr` payloads, and tracking PRISMA-isolated LLM audit interactions. |
+| `lib/services/mockup-generator.ts` | Backend Service | Dedicated service for evaluating calibration papers with Gemini REST API following 100% LLM parameters configuration, generating import-compatible blinded `.slr` payloads, handling timeout/errors, and tracking PRISMA-isolated LLM audit interactions. |
 | `lib/inter-rater/adjudication-calculations.ts` | Domain Library | Pure TypeScript calculation library for Cohen's Kappa, agreement formulas, and data extraction JSON comparisons (zero Next.js dependencies, standalone SPA ready). |
 
 ### State Management Hooks (`src/hooks/`)
@@ -179,11 +181,14 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `hooks/useRollingBatch.ts` | Custom Hook | State manager handling rolling batch operations, status polling, and reviewer imports. |
 | `hooks/useUmbrellanizer.ts` | Custom Hook | Custom React hook state manager handling papers, results, polling jobs and taxonomy executions. |
 | `hooks/useRemoteWorkers.ts` | React Hooks | Custom hook to interface with the remote worker API. |
-| `hooks/useMockupReview.ts` | Custom Hook | State management hook for multi-pool mockup review generation, handling reviewer ID generation, SSE live progress streaming, caching, redownload, and cache invalidation. |
+| `hooks/useMockupReview.ts` | Custom Hook | State management hook for multi-pool mockup review generation, handling reviewer ID generation, SSE live progress streaming, manual paper selection, selective rerun execution, partial execution targeting failed reviews only, caching, redownload, and cache invalidation. |
 
 ### UI Components & Features (`src/components/`)
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
+| `components/features/pre-calibration/PoolMetricsPanel.tsx` | Presentation Component | Pre-calibration pool quota filling status panel showing target, filled, and progress for Pools A, B, and C. |
+| `components/features/pre-calibration/BlindedAdjudicationPanel.tsx` | Presentation Component | 3-card grid component visualizing blinded review agreement (Kappa, Observed Agreement, Expected Chance, Precision, Weighted Kappa, Schema Match) and adjudication resolution progress with hover tooltips across all pools. |
+| `components/features/pre-calibration/StageComparisonPanel.tsx` | Presentation Component | Stage comparison cards benchmarking Gold Standard adjudicated decisions against AI screening models across Stages 1 to 4. |
 | `components/features/pre-calibration/PromptStagingQuestPanel.tsx` | UI Container | Cyberpunk Quest-Line / Neon Glass HUD container orchestrating the 5-quest progression across Card 1 (Consolidation) and Cards 2–5 (Stage Benchmarks). |
 | `components/features/pre-calibration/PromptConsolidationCard.tsx` | Presentation Component | Card 1 component visualizing prompt availability ($N/4$), semantic alignment, inter-stage chainability, and actionable recommendations. |
 | `components/features/pre-calibration/StageBenchmarkCard.tsx` | Presentation Component | Cards 2–5 component for isolated stage benchmark execution, PRISMA gate evaluations, holdout metrics, and paper discrepancy inspection via `trace-normalizer`. |
@@ -215,7 +220,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/manual-screening/ManualScreeningView.tsx` | View Component | Main manual screening dashboard container providing fullscreen swap modes. |
 | `components/features/ProjectManager.tsx` | View Component | Management interface for creating new literature review projects, defining research questions, and updating project metadata. |
 | `components/features/PromptLibraryView.tsx` | View Component | Comprehensive data table interface for versioning, organizing, searching, cloning, and inline previewing reusable system prompt templates, structured JSON extraction schemas, and 1-click stage default prompt assignments. |
-| `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal composing view and edit layouts for paper metadata, decisions, and previews. |
+| `components/features/modals/ViewEditPaperModal.tsx` | Modal Component| Standalone modal composing view and edit layouts for paper metadata, decisions, single-paper cache matcher & web scraper with streaming terminal console, and live PDF preview. |
 | `components/features/modals/paper-details/PaperMetadataView.tsx` | Presentation Component| Read-only details presentation tab inside the paper modal with status and decision displays. |
 | `components/features/modals/paper-details/PaperMetadataEdit.tsx` | Presentation Component| Edit details form layout inside the paper modal with status and stage fields. |
 | `components/features/modals/paper-details/ParentPaperSelector.tsx` | UI Component | Autocomplete search selector for tracking chained parent paper references. |
@@ -234,7 +239,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/ImportProjectModal.tsx` | Modal Component | Standalone modal for restoring `.slr` project archives with drag-and-drop file inspection, schema preflight verification, and automatic collision resolution. |
 | `components/features/modals/CsvReviewModal.tsx` | Modal Component | Standalone modal component for reviewing mapped CSV structures and duplicate exclusions prior to importing. |
 | `components/features/modals/PrismaConfigModal.tsx` | Modal Component | Standalone modal component for customizing the PRISMA diagram layout, colors, typography, box styles, and export scale. |
-| `components/features/modals/MockupReviewModal.tsx` | Modal Component | Standalone modal component for multi-pool mockup review generation (CTRL+M) with reviewer identity configuration, slot occupancy warnings, live progress ticker, and cached download controls. |
+| `components/features/modals/MockupReviewModal.tsx` | Modal Component | Standalone modal component for multi-pool mockup review generation (CTRL+M) with reviewer identity configuration, slot occupancy warnings, interactive paper selection checkboxes, bulk selection toolbars, targeted rerun execution, live progress ticker, partial execution for failed reviews, stream log filters, and cached download controls. |
 | `components/features/modals/LlmContextBuilderModal.tsx` | UI Component | Interactive modal allowing dynamic selection of extracted data keys, paper metadata fields, cohort scope, baked ground-truth statistics (Hare-Hamilton 100.00% quota balanced), and strict LLM directives to export LLM-friendly JSON payloads for Gemini 3.1 Pro visualization and narration. |
 | `components/features/modals/VisualizerModal.tsx` | Modal Facade / Orchestrator | Ultra-clean thin orchestrator (<50 lines) wrapping `VisualizerProvider`, `VisualizerHeader`, and modular step components (`Step1ChartSelector`, `Step2DataMapping`, `Step3StyleCustomization`, `Step4PreviewStage`). |
 | `components/features/modals/visualizer/types.ts` | Type Definitions | Domain interfaces for ChartType, LayoutMode, SlotId, SubfigureLabelStyle, SlotConfig, GlobalStyleConfig, ThemePreset, FontFamily, MetricMode, SunburstLevelConfig, VisualizerPresetPayload, and BreakdownRow. |
@@ -248,8 +253,49 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/visualizer/context/` | React Context | `VisualizerContext` and `VisualizerProvider` unifying all state hooks and chart option generation to eliminate prop drilling. |
 | `components/features/modals/visualizer/components/` | Step & Sub-Components | Focused step components (`Step1ChartSelector`, `Step2DataMapping`, `Step3StyleCustomization`, `Step4PreviewStage`, `VisualizerHeader`) and subcomponents (`LayoutTemplateSelector`, `SlotSwitcherBar`, `LiveSplitPreview`, `CustomGroupingManager`, `BreakdownTablePanel`, `SunburstLevelConfigPanel`, `HorizontalBarConfigPanel`, `CameraControlsOverlay`, `ExportPanel`). |
 | `components/features/modals/visualizer/components/subcomponents/LayoutTemplateSelector.tsx` | Subcomponent | Visual layout preset selector with interactive wireframe cards for 1x1, 1x2, 2x1, 3-block, and 2x2 grid compositions. |
-| `components/features/modals/visualizer/components/subcomponents/SlotSwitcherBar.tsx` | Subcomponent | Tabbed slot switcher for multi-panel workflows featuring active slot badges, subfigure labeling badges, and instant config cloning. |
-| `components/features/modals/visualizer/components/subcomponents/LiveSplitPreview.tsx` | Subcomponent | Real-time synchronized side-by-side ECharts preview card for Steps 2 and 3 with active slot badges and auto-resize. |
+| `components/features/modals/visualizer/components/subcomponents/SlotSwitcherBar.tsx` | Subcomponent | Horizontal segmented slot tabs allowing instant focus switching between Subfigure (a), (b), (c), and (d). |
+| `components/features/modals/visualizer/components/subcomponents/LiveSplitPreview.tsx` | Subcomponent | Real-time multi-panel composite preview stage with instant camera zoom/pan controls and SVG export triggers. |
+| `components/features/modals/visualizer/components/subcomponents/CustomGroupingManager.tsx` | Subcomponent | Modal editor for custom taxonomy grouping and item aggregation with Hare-Hamilton quota preservation. |
+| `components/features/modals/visualizer/components/subcomponents/BreakdownTablePanel.tsx` | Subcomponent | Interactive data breakdown table showing raw paper counts, percentage contributions, and active grouping mappings. |
+| `components/features/modals/visualizer/components/subcomponents/SunburstLevelConfigPanel.tsx` | Subcomponent | Hierarchical level configuration panel for Sunburst and Tree charts with customizable layer depths. |
+| `components/features/modals/visualizer/components/subcomponents/HorizontalBarConfigPanel.tsx` | Subcomponent | Bar chart configuration panel with orientation toggles, bar width sliders, and label position controls. |
+| `components/features/modals/visualizer/components/subcomponents/CameraControlsOverlay.tsx` | Subcomponent | Floating viewport controls for canvas zoom in/out, pan reset, theater mode toggle, and snapshot capture. |
+| `components/features/modals/visualizer/components/subcomponents/ExportPanel.tsx` | Subcomponent | Multi-format export dialog supporting SVG, High-DPI PNG (1x, 2x, 4x, 8x), and journal publication presets (Nature, IEEE, Elsevier, ACM). |
+| `components/features/modals/visualizer/components/steps/Step1ChartSelector.tsx` | Step Component | Step 1 gallery of 17 publication-grade chart templates grouped by scientific analytical family with interactive hover cards and thumbnail previews. |
+| `components/features/modals/visualizer/components/steps/Step2DataMapping.tsx` | Step Component | Step 2 variable mapping panel binding extracted data keys, paper metadata fields, and custom grouping categories to chart visual channels. |
+| `components/features/modals/visualizer/components/steps/Step3StyleCustomization.tsx` | Step Component | Step 3 visual customization panel providing 16 journal color palettes, typography tracking, grid lines, legend placement, and aspect ratios. |
+| `components/features/modals/visualizer/components/steps/Step4PreviewStage.tsx` | Step Component | Step 4 final rendering stage with multi-panel layout assembler, subfigure labelling, high-DPI rasterization, and vector SVG exports. |
+| `components/features/modals/visualizer/components/steps/VisualizerHeader.tsx` | Step Component | Top navigation header with step progression breadcrumbs, layout preset switcher, active slot indicator, preset save/load, and close controls. |
+| `components/features/modals/ExportDatasetModal.tsx` | Modal Component | Standalone modal component for exporting screening datasets in CSV, JSON, and RIS formats with customizable field inclusion. |
+| `components/features/modals/BulkReviewerActionModal.tsx` | Modal Component | Standalone modal component for bulk reviewer assignment, decision reset, and reviewer data migration across calibration pools. |
+| `components/features/modals/ResetCalibrationModal.tsx` | Modal Component | Standalone modal component for safely resetting calibration pool assignments and reviewer decision records with project confirmation guards. |
+| `components/features/modals/UmbrellanizerModal.tsx` | Modal Component | Standalone modal component for configuring and executing hierarchical taxonomy induction and semantic clustering across literature corpora. |
+| `components/features/modals/TaxonomyDiffModal.tsx` | Modal Component | Standalone modal component for reviewing and accepting proposed modifications to induced research question taxonomies. |
+| `components/features/modals/RollingBatchModal.tsx` | Modal Component | Standalone modal component for managing multi-batch rolling consensus reviews with inter-batch agreement auditing. |
+| `components/features/modals/ProjectArchiveModal.tsx` | Modal Component | Standalone modal component for managing project archiving, offboarding, and restoring `.slr` portable review packages. |
+| `components/features/modals/RemoteWorkerModal.tsx` | Modal Component | Standalone modal component for monitoring remote worker node heartbeats, task queues, and resource utilization. |
+| `components/features/modals/BatchImportModal.tsx` | Modal Component | Standalone modal component for importing batch literature search results from multiple academic database exports. |
+| `components/features/modals/ExtractionSchemaModal.tsx` | Modal Component | Standalone modal component for editing and validating structured JSON extraction schemas with real-time JSONSchema linting. |
+| `components/features/modals/PromptTemplateModal.tsx` | Modal Component | Standalone modal component for creating and editing system prompt templates with live Jinja2/bracket variable highlighting. |
+| `components/features/modals/StageDefaultPromptsModal.tsx` | Modal Component | Standalone modal component for assigning default prompt templates and extraction schemas across all 4 screening stages. |
+| `components/features/modals/AuditLogModal.tsx` | Modal Component | Standalone modal component for searching, filtering, and exporting LLM interaction audit logs and API spend metrics. |
+| `components/features/modals/VaultModal.tsx` | Modal Component | Standalone modal component for managing encrypted API keys and master password unlock states in the SQLite credential vault. |
+| `components/features/modals/PdfQueueModal.tsx` | Modal Component | Standalone modal component for monitoring the background PDF download queue, retry attempts, and crawler status. |
+| `components/features/modals/SemanticSearchModal.tsx` | Modal Component | Standalone modal component for executing vector similarity searches and semantic near-miss discovery across paper corpora. |
+| `components/features/modals/CitationGraphModal.tsx` | Modal Component | Standalone modal component for visualizing backward and forward citation networks and co-citation clusters. |
+| `components/features/modals/AuthorNetworkModal.tsx` | Modal Component | Standalone modal component for exploring co-authorship networks, institutional affiliations, and author productivity metrics. |
+| `components/features/modals/KeywordCloudModal.tsx` | Modal Component | Standalone modal component for generating frequency-weighted keyword clouds and temporal keyword trend visualizations. |
+| `components/features/modals/ProtocolSummaryModal.tsx` | Modal Component | Standalone modal component for generating formatted PRISMA-P systematic literature review protocol summary documents. |
+| `components/features/modals/DataDictionaryModal.tsx` | Modal Component | Standalone modal component for viewing and exporting data dictionaries for all extracted variables and quality assessment criteria. |
+| `components/features/modals/ConflictResolutionModal.tsx` | Modal Component | Standalone modal component for side-by-side adjudication of inter-rater screening conflicts and consensus decision recording. |
+| `components/features/modals/ExportPrismaModal.tsx` | Modal Component | Standalone modal component for exporting high-resolution PRISMA 2020 flow diagrams in SVG, PNG, PDF, and interactive HTML formats. |
+| `components/features/modals/CostEstimationModal.tsx` | Modal Component | Standalone modal component for pre-calculating estimated LLM API costs across model providers based on paper counts and token sizes. |
+| `components/features/modals/SystemDiagnosticsModal.tsx` | Modal Component | Standalone modal component for running automated system diagnostics on SQLite DB, Ghostscript, Python engine, and disk storage. |
+| `components/features/modals/HelpDocumentationModal.tsx` | Modal Component | Standalone modal component rendering searchable in-app documentation, user guides, and keyboard shortcut cheat sheets. |
+| `components/features/modals/KeyboardShortcutsModal.tsx` | Modal Component | Standalone modal displaying a categorized quick reference guide for all global and view-specific keyboard shortcuts. |
+| `components/features/modals/AboutModal.tsx` | Modal Component | Standalone modal displaying application version metadata, build timestamps, license details, and developer credits. |
+| `components/features/modals/DebugConsoleModal.tsx` | Modal Component | Standalone modal rendering real-time application logs, Python subprocess stdout/stderr streams, and database query profilers. |
+| `api/mockup/generate/route.ts` | REST Endpoint | Handles GET (status/cache download with failure metrics), POST (SSE live streaming mockup evaluation execution and partial retry for failed papers only), and DELETE (cache invalidation) for PRISMA-isolated blinded .slr mockup reviews. |
 | `components/features/modals/VectorBuildModal.tsx` | Modal Component | Standalone progress and console log dialog for building and updating vector indices. |
 | `components/features/modals/FullscreenAssignModal.tsx` | Modal Component| Standalone fullscreen modal composing pool stats header, paper list, and selection assign details view. |
 | `components/features/modals/fullscreen-assign/PoolStatsHeader.tsx` | UI Component | Header statistics and tag breakdown popovers for Pools A, B, and C. |
@@ -311,14 +357,23 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/insight/accounting/route.ts` | REST Endpoint | Calculates API usage and token cost metrics breakdown per task type for the active project. |
 | `api/insight/final-cohort/route.ts` | REST Endpoint | Retrieves resolved final cohort papers matching inclusion criteria for the active project. |
 | `api/insight/prisma/route.ts` | REST Endpoint | Calculates and aggregates study counts for the 20 boxes of the PRISMA 2020 flowchart. |
+| `api/events/route.ts` | REST Endpoint | Handles GET requests to stream system-wide server-sent events (SSE) for pipeline notifications. |
+| `api/llm/audit/route.ts` | REST Endpoint | Handles GET requests to retrieve project-isolated LLM audit log entries, structured JSON outputs, and token costs. |
 | `api/llm/batch/route.ts` | REST Endpoint | Handles POST requests to launch bulk LLM screening and data extraction batches across project paper pools. |
 | `api/llm/batch/status/route.ts` | REST Endpoint | Handles GET requests to stream real-time Server-Sent Events (SSE) detailing progress and token usage of active LLM batches. |
+| `api/llm/count/route.ts` | REST Endpoint | Handles POST requests to calculate candidate paper counts eligible for LLM screening batches based on stage dominance rules. |
 | `api/llm/jobs/route.ts` | REST Endpoint | Handles GET requests to retrieve the execution history and detailed status logs of background LLM screening jobs. |
 | `api/llm/jobs/active/route.ts` | REST Endpoint | Handles GET requests to check for any currently active or running LLM screening operations to prevent concurrent collisions. |
 | `api/llm/pricing/route.ts` | REST Endpoint | Handles GET requests to supply token cost rates and calculate financial budget estimations for LLM screening jobs. |
+| `api/llm/pricing/refresh/route.ts` | REST Endpoint | Handles POST requests to refresh and synchronize official Google Gemini model pricing rates. |
 | `api/llm/prompts/route.ts` | REST Endpoint | Handles GET, POST, PUT, DELETE requests for managing reusable system prompt templates and JSON extraction schemas. |
 | `api/llm/screen/route.ts` | REST Endpoint | Handles POST requests to initiate a single-paper LLM screening or data extraction execution. |
 | `api/llm/screen/logs/route.ts` | REST Endpoint | Handles GET requests to retrieve raw prompt payloads, LLM completions, and execution logs for a specific screening job. |
+| `api/pipeline-lock/route.ts` | REST Endpoint | Handles GET and POST requests to acquire, inspect, or release project pipeline execution locks. |
+| `api/vault/route.ts` | REST Endpoint | Handles GET and POST requests for encrypted API key vault management and credential storage. |
+| `api/vault/login/route.ts` | REST Endpoint | Handles POST requests to authenticate the session master password for decrypting vault credentials. |
+| `api/vault/logout/route.ts` | REST Endpoint | Handles POST requests to clear decrypted credentials and lock the session vault. |
+| `api/vault/status/route.ts` | REST Endpoint | Handles GET requests to check whether the vault is locked, initialized, or decrypted. |
 | `api/papers/route.ts` | REST Endpoint | Handles GET requests for querying, filtering, sorting, and server-side paginating paper records from `slr.db`. |
 | `api/papers/manual-screening/route.ts` | REST Endpoint | Handles GET requests to filter (with full Paper Database filter parity), sort, search, and paginate manual screening papers workspace list. |
 | `api/papers/[id]/route.ts` | REST Endpoint | Handles GET, PUT, DELETE requests for retrieving, updating, or permanently deleting a single paper record by its `Paper_ID`. |

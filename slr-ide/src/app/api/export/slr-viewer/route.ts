@@ -7,6 +7,10 @@ import {
   getScoreIndex
 } from '@/lib/inter-rater/adjudication-calculations';
 import {
+  computePoolABStats,
+  computePoolCStats
+} from '@/app/api/adjudicate/stats/route';
+import {
   resolveUmbrellanizerValue,
   normalizeExtractedTokens
 } from '@/lib/services/taxonomy-resolver';
@@ -682,6 +686,24 @@ export async function GET(request: Request) {
       ];
     } catch (e) {
       console.error('Failed to compute stage comparisons:', e);
+    }
+
+    // 3.5 Blinded Review & Adjudication Stats (All Pools)
+    let blindedAdjudicationStats: any = null;
+    try {
+      const pA_adj = computePoolABStats(resolvedProjectId, 'pool_a');
+      const pB_adj = computePoolABStats(resolvedProjectId, 'pool_b');
+      const pC_adj = computePoolCStats(resolvedProjectId);
+      blindedAdjudicationStats = {
+        pools: {
+          pool_a: pA_adj,
+          pool_b: pB_adj,
+          pool_c: pC_adj
+        },
+        poolList: [pA_adj, pB_adj, pC_adj]
+      };
+    } catch (e) {
+      console.error('Failed to compute blinded adjudication stats:', e);
     }
 
     // 4. Pre-Calibration Pool Filling Status
@@ -1447,8 +1469,9 @@ export async function GET(request: Request) {
       prompt_templates: promptTemplates,
       scientific_rigor: {
         prisma: prismaData,
-        stage_comparisons: stageComparisons,
         pool_metrics: poolMetrics,
+        blinded_adjudication_stats: blindedAdjudicationStats,
+        stage_comparisons: stageComparisons,
         rolling_batch_qc: rollingBatchQC,
       },
       final_cohort: {

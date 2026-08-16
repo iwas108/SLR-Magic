@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Payload must contain a non-empty "paperIds" array' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = body.projectId || getConfig('ACTIVE_PROJECT_ID', '');
 
     // Retrieve active project details
     const project = db.prepare('SELECT folder_name FROM projects WHERE id = ?').get(activeProjectId) as { folder_name: string } | undefined;
@@ -27,13 +27,13 @@ export async function POST(request: Request) {
     const blockedCountRow = db.prepare(`
       SELECT COUNT(*) as count 
       FROM papers 
-      WHERE Project_ID = ? 
+      WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
         AND Paper_ID IN (${placeHolders})
         AND (
-          Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = papers.Project_ID)
-          OR (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID) > 0
+          Paper_ID IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = papers.Project_ID OR CAST(Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT)))
+          OR (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND (project_id = papers.Project_ID OR CAST(project_id AS TEXT) = CAST(papers.Project_ID AS TEXT))) > 0
         )
-    `).get(activeProjectId, ...paperIds) as { count: number } | undefined;
+    `).get(activeProjectId, activeProjectId, ...paperIds) as { count: number } | undefined;
 
     if (blockedCountRow && blockedCountRow.count > 0) {
       return NextResponse.json({ error: 'Deletion blocked: Some selected papers are part of the inter-rater pool' }, { status: 400 });
@@ -42,8 +42,8 @@ export async function POST(request: Request) {
     // Find duplicate papers that are merged into the target papers
     const duplicatePapers = db.prepare(`
       SELECT Paper_ID FROM papers
-      WHERE Project_ID = ? AND merged_into_id IN (${placeHolders})
-    `).all(activeProjectId, ...paperIds) as { Paper_ID: string }[];
+      WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND merged_into_id IN (${placeHolders})
+    `).all(activeProjectId, activeProjectId, ...paperIds) as { Paper_ID: string }[];
 
     const duplicatePaperIds = duplicatePapers.map(p => p.Paper_ID);
     const allPaperIdsToDelete = [...new Set([...paperIds, ...duplicatePaperIds])];

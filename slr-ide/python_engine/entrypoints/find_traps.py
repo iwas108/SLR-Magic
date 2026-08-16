@@ -15,15 +15,19 @@ def main():
     parser = argparse.ArgumentParser(description="Find semantic near-miss traps for calibration pools.")
     parser.add_argument("--seed", type=str, required=True, help="Seed Paper_ID (known include).")
     parser.add_argument("--k", type=int, default=1000, help="Number of traps to find.")
+    parser.add_argument("--project", type=str, default=None, help="Target Project ID.")
     args = parser.parse_args()
 
-    # Fetch active project ID from configs
+    # Fetch active project ID from args or configs
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
-        row = cursor.fetchone()
-        active_project_id = row[0] if (row and row[0]) else ''
+        if args.project:
+            active_project_id = args.project
+        else:
+            cursor.execute("SELECT value FROM configs WHERE key = 'ACTIVE_PROJECT_ID'")
+            row = cursor.fetchone()
+            active_project_id = row[0] if (row and row[0]) else ''
     except Exception as e:
         print(json.dumps({"error": f"Failed to connect to database: {e}"}))
         sys.exit(1)
@@ -31,8 +35,8 @@ def main():
     # 1. Fetch seed paper Title + Abstract
     try:
         cursor.execute(
-            "SELECT Title, Abstract FROM papers WHERE Project_ID = ? AND Paper_ID = ?",
-            (active_project_id, args.seed)
+            "SELECT Title, Abstract FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Paper_ID = ?",
+            (active_project_id, active_project_id, args.seed)
         )
         seed_row = cursor.fetchone()
         if not seed_row:
@@ -46,8 +50,8 @@ def main():
     # 2. Get allowlist of UNASSIGNED papers
     try:
         cursor.execute(
-            "SELECT Paper_ID FROM papers WHERE Project_ID = ? AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE Project_ID = ?) AND (is_duplicate IS NULL OR is_duplicate = 0) AND Paper_ID != ?",
-            (active_project_id, active_project_id, args.seed)
+            "SELECT Paper_ID FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND Paper_ID NOT IN (SELECT Paper_ID FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))) AND (is_duplicate IS NULL OR is_duplicate = 0) AND Paper_ID != ?",
+            (active_project_id, active_project_id, active_project_id, active_project_id, args.seed)
         )
         allowlist_ids = [r[0] for r in cursor.fetchall()]
     except Exception as e:
@@ -77,8 +81,8 @@ def main():
     placeholders = ",".join(["?"] * len(paper_ids))
     try:
         cursor.execute(
-            f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND Project_ID = ?",
-            tuple(paper_ids) + (active_project_id,)
+            f"SELECT * FROM papers WHERE Paper_ID IN ({placeholders}) AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))",
+            tuple(paper_ids) + (active_project_id, active_project_id)
         )
         columns = [col[0] for col in cursor.description]
         metadata_map = {}

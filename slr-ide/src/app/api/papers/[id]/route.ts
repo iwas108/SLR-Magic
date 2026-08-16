@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import db, { getConfig } from '@/lib/db';
+import fs from 'fs';
+import path from 'path';
+import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
 import { clearSemanticSearchCache } from '@/lib/services/semantic-search-cache';
 
 export async function GET(
@@ -8,8 +10,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
-    const paper = db.prepare(`
+    const { searchParams } = new URL(request.url);
+    const queryProjId = searchParams.get('projectId');
+    const configProjId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = queryProjId || configProjId;
+
+    let paper = db.prepare(`
       SELECT *, 
              (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_pool,
              (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_tag,
@@ -17,10 +23,40 @@ export async function GET(
              (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND (project_id = papers.Project_ID OR CAST(project_id AS TEXT) = CAST(papers.Project_ID AS TEXT))) > 0 as reviewer_decisions_exist
       FROM papers 
       WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
-    `).get(id, activeProjectId, activeProjectId);
+    `).get(id, activeProjectId, activeProjectId) as any;
+
+    // Safe Project ID Discovery Fallback per agents.md Section 3.8
+    if (!paper) {
+      paper = db.prepare(`
+        SELECT *, 
+               (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_pool,
+               (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_tag,
+               (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID AND (parent.Project_ID = papers.Project_ID OR CAST(parent.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as Parent_Paper_Title,
+               (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND (project_id = papers.Project_ID OR CAST(project_id AS TEXT) = CAST(papers.Project_ID AS TEXT))) > 0 as reviewer_decisions_exist
+        FROM papers 
+        WHERE Paper_ID = ?
+      `).get(id) as any;
+    }
+
     if (!paper) {
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }
+
+    // On-demand PDF self-healing check: If the raw PDF file exists on disk, ensure Local_PDF_Status & Local_PDF_Path are populated
+    const rawPdfRelative = `pdf_library/raw/${id}.pdf`;
+    const rawPdfAbsolute = path.join(PROJECT_ROOT, 'pdf_library', 'raw', `${id}.pdf`);
+    if (fs.existsSync(rawPdfAbsolute)) {
+      if (!paper.Local_PDF_Path || paper.Local_PDF_Status === 'MISSING' || paper.Local_PDF_Status === 'FAILED' || !paper.Local_PDF_Status) {
+        const resolvedPid = paper.Project_ID || activeProjectId;
+        db.prepare("UPDATE papers SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ? WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))")
+          .run(rawPdfRelative, id, resolvedPid, resolvedPid);
+        db.prepare("UPDATE calibration_papers SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ? WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))")
+          .run(rawPdfRelative, id, resolvedPid, resolvedPid);
+        paper.Local_PDF_Status = 'MATCHED';
+        paper.Local_PDF_Path = rawPdfRelative;
+      }
+    }
+
     return NextResponse.json(paper);
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to fetch paper' }, { status: 500 });
@@ -35,21 +71,29 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     const { 
-      Title, Authors, Year, DOI, Abstract, PDF_Link, Local_PDF_Status, Parent_Paper_ID, Original_Publisher, Publisher, citation_count, notes,
-      manual_decision, manual_exclusion_code, manual_rationale, manual_stage, manual_quality_assessment, manual_extracted_data
+      Title, Authors, Year, DOI, Abstract, PDF_Link, Local_PDF_Status, Local_PDF_Path, Parent_Paper_ID, Original_Publisher, Publisher, citation_count, notes,
+      manual_decision, manual_exclusion_code, manual_rationale, manual_stage, manual_quality_assessment, manual_extracted_data,
+      projectId
     } = body;
 
     if (!Title || !Title.trim()) {
       return NextResponse.json({ error: 'Title is mandatory' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const { searchParams } = new URL(request.url);
+    const configProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = projectId || searchParams.get('projectId') || configProjectId;
     
     // Fetch current paper record to preserve fields not supplied in body
-    const currentPaper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').get(id, activeProjectId, activeProjectId) as any;
+    let currentPaper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').get(id, activeProjectId, activeProjectId) as any;
+    if (!currentPaper) {
+      currentPaper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ?').get(id) as any;
+    }
     if (!currentPaper) {
       return NextResponse.json({ error: 'Paper not found' }, { status: 404 });
     }
+
+    const resolvedProjectId = currentPaper.Project_ID || activeProjectId;
 
     // Safe integer parsing for year to prevent NaN bindings in SQLite
     let yearVal: number | null = null;
@@ -73,7 +117,17 @@ export async function PUT(
       citationCountVal = currentPaper.citation_count;
     }
 
-    const localPdfStatusVal = Local_PDF_Status !== undefined ? Local_PDF_Status : currentPaper.Local_PDF_Status;
+    let localPdfStatusVal = Local_PDF_Status !== undefined ? Local_PDF_Status : currentPaper.Local_PDF_Status;
+    let localPdfPathVal = Local_PDF_Path !== undefined ? Local_PDF_Path : currentPaper.Local_PDF_Path;
+
+    // Active PDF preservation guard: If local PDF file exists on disk, protect against accidental downgrade to MISSING
+    const rawPdfAbsolute = path.join(PROJECT_ROOT, 'pdf_library', 'raw', `${id}.pdf`);
+    const fileExistsOnDisk = fs.existsSync(rawPdfAbsolute);
+    if (fileExistsOnDisk && (!localPdfPathVal || localPdfStatusVal === 'MISSING' || localPdfStatusVal === 'FAILED' || !localPdfStatusVal)) {
+      localPdfStatusVal = 'MATCHED';
+      localPdfPathVal = `pdf_library/raw/${id}.pdf`;
+    }
+
     const parentPaperIdVal = Parent_Paper_ID !== undefined ? Parent_Paper_ID : currentPaper.Parent_Paper_ID;
     const originalPublisherVal = Original_Publisher !== undefined ? Original_Publisher : currentPaper.Original_Publisher;
     const publisherVal = Publisher !== undefined ? Publisher : currentPaper.Publisher;
@@ -113,6 +167,7 @@ export async function PUT(
           Abstract = ?,
           PDF_Link = ?,
           Local_PDF_Status = ?,
+          Local_PDF_Path = ?,
           Parent_Paper_ID = ?,
           Original_Publisher = ?,
           Publisher = ?,
@@ -133,6 +188,7 @@ export async function PUT(
       Abstract !== undefined ? String(Abstract).trim() : currentPaper.Abstract,
       PDF_Link !== undefined ? String(PDF_Link).trim() : currentPaper.PDF_Link,
       localPdfStatusVal || 'MISSING',
+      localPdfPathVal,
       parentPaperIdVal,
       originalPublisherVal,
       publisherVal,
@@ -145,8 +201,8 @@ export async function PUT(
       manualQaVal,
       manualExtVal,
       id,
-      activeProjectId,
-      activeProjectId
+      resolvedProjectId,
+      resolvedProjectId
     );
 
     // If manual screening fields were explicitly provided, write an audit log entry
@@ -173,7 +229,7 @@ export async function PUT(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         id,
-        activeProjectId,
+        resolvedProjectId,
         auditStageStr,
         activeDecision,
         ecTriggerVal,
@@ -184,9 +240,19 @@ export async function PUT(
       );
     }
 
-    clearSemanticSearchCache(activeProjectId);
+    clearSemanticSearchCache(resolvedProjectId);
 
-    return NextResponse.json({ success: true });
+    const updatedPaperRow = db.prepare(`
+      SELECT *, 
+             (SELECT calibration_pool FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_pool,
+             (SELECT calibration_tag FROM calibration_papers cp WHERE cp.Paper_ID = papers.Paper_ID AND (cp.Project_ID = papers.Project_ID OR CAST(cp.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as calibration_tag,
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = papers.Parent_Paper_ID AND (parent.Project_ID = papers.Project_ID OR CAST(parent.Project_ID AS TEXT) = CAST(papers.Project_ID AS TEXT))) as Parent_Paper_Title,
+             (SELECT COUNT(*) FROM reviewer_decisions WHERE paper_id = papers.Paper_ID AND (project_id = papers.Project_ID OR CAST(project_id AS TEXT) = CAST(papers.Project_ID AS TEXT))) > 0 as reviewer_decisions_exist
+      FROM papers 
+      WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+    `).get(id, resolvedProjectId, resolvedProjectId);
+
+    return NextResponse.json({ success: true, paper: updatedPaperRow });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to update paper' }, { status: 500 });
   }
@@ -198,17 +264,27 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const { searchParams } = new URL(request.url);
+    const queryProjId = searchParams.get('projectId');
+    const configProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = queryProjId || configProjectId;
     
-    db.prepare('DELETE FROM llm_screening_records WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, activeProjectId, activeProjectId);
-    db.prepare('DELETE FROM manual_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, activeProjectId, activeProjectId);
-    db.prepare('DELETE FROM llm_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, activeProjectId, activeProjectId);
-    db.prepare('DELETE FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').run(id, activeProjectId, activeProjectId);
+    let paper = db.prepare('SELECT Project_ID FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').get(id, activeProjectId, activeProjectId) as any;
+    if (!paper) {
+      paper = db.prepare('SELECT Project_ID FROM papers WHERE Paper_ID = ?').get(id) as any;
+    }
+    const resolvedProjectId = paper?.Project_ID || activeProjectId;
 
-    clearSemanticSearchCache(activeProjectId);
+    db.prepare('DELETE FROM llm_screening_records WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, resolvedProjectId, resolvedProjectId);
+    db.prepare('DELETE FROM manual_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, resolvedProjectId, resolvedProjectId);
+    db.prepare('DELETE FROM llm_audit_log WHERE paper_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').run(id, resolvedProjectId, resolvedProjectId);
+    db.prepare('DELETE FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').run(id, resolvedProjectId, resolvedProjectId);
+
+    clearSemanticSearchCache(resolvedProjectId);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to delete paper' }, { status: 500 });
   }
 }
+

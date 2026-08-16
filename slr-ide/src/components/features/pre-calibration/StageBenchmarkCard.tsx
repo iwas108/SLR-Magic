@@ -40,11 +40,16 @@ export default function StageBenchmarkCard({
 
   const isCompleted = benchmarkState?.status === 'COMPLETED';
   const gatePassed = metrics?.prisma_gate_passed;
+  const hasMissingPdfs = stageNum >= 2 && Boolean(benchmarkState?.missing_pdf_count && benchmarkState.missing_pdf_count > 0);
+  const hasZeroPoolPapers = benchmarkState?.pool_papers_count === 0;
+  const isRunDisabled = !isUnlocked || isRunning || hasMissingPdfs || hasZeroPoolPapers;
 
   return (
     <div className={`relative overflow-hidden rounded-2xl border p-5 transition-all duration-300 bg-card shadow-xs ${
       !isUnlocked 
         ? 'border-border/60 bg-muted/20 opacity-75' 
+        : hasMissingPdfs
+        ? 'border-amber-200/80 dark:border-amber-500/30 ring-1 ring-amber-500/10'
         : isCompleted && gatePassed
         ? 'border-emerald-200/80 dark:border-emerald-500/30 ring-1 ring-emerald-500/10'
         : isCompleted && !gatePassed
@@ -56,11 +61,12 @@ export default function StageBenchmarkCard({
         <div className="flex items-start gap-3.5">
           <div className={`p-2.5 rounded-xl border shrink-0 ${
             !isUnlocked ? 'bg-muted text-muted-foreground border-border' :
+            hasMissingPdfs ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' :
             isCompleted && gatePassed ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
             isCompleted && !gatePassed ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' :
             'bg-primary/10 border-primary/20 text-primary'
           }`}>
-            {!isUnlocked ? <Lock className="w-5 h-5" /> : <BarChart2 className="w-5 h-5" />}
+            {!isUnlocked ? <Lock className="w-5 h-5" /> : hasMissingPdfs ? <AlertTriangle className="w-5 h-5" /> : <BarChart2 className="w-5 h-5" />}
           </div>
 
           <div>
@@ -74,6 +80,12 @@ export default function StageBenchmarkCard({
               {!isUnlocked && (
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold bg-muted text-muted-foreground border border-border">
                   LOCKED
+                </span>
+              )}
+              {hasMissingPdfs && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                  PDF Missing ({benchmarkState?.missing_pdf_count})
                 </span>
               )}
               {isCompleted && (
@@ -103,9 +115,9 @@ export default function StageBenchmarkCard({
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
             onClick={onRunBenchmark}
-            disabled={!isUnlocked || isRunning}
+            disabled={isRunDisabled}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold font-mono tracking-wide transition-all shadow-xs ${
-              isRunning || !isUnlocked
+              isRunDisabled
                 ? 'bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-60'
                 : 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-98 shadow-sm'
             }`}
@@ -114,6 +126,16 @@ export default function StageBenchmarkCard({
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 <span>Running Benchmark...</span>
+              </>
+            ) : hasMissingPdfs ? (
+              <>
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                <span>PDF Required ({benchmarkState?.missing_pdf_count} Missing)</span>
+              </>
+            ) : hasZeroPoolPapers ? (
+              <>
+                <Database className="w-3.5 h-3.5 opacity-60" />
+                <span>No Papers in Pool</span>
               </>
             ) : (
               <>
@@ -134,6 +156,16 @@ export default function StageBenchmarkCard({
           )}
         </div>
       </div>
+
+      {/* Missing PDF Warning Box for Quest 03, 04, 05 */}
+      {hasMissingPdfs && (
+        <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="leading-relaxed font-sans">
+            <span className="font-bold">PDF Files Required for Quest 0{stageNum + 1}:</span> {benchmarkState?.missing_pdf_count} paper(s) in {poolName} do not have local PDF files available on disk. Full-text appraisal and extraction require valid local PDF files for 100% of the papers before this benchmark can run.
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row (When completed) */}
       {isCompleted && metrics && (

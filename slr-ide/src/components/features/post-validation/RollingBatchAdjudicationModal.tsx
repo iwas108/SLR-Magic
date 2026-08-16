@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, GitCommit, RefreshCw, AlertCircle, ExternalLink, Download, Play } from 'lucide-react';
 import { useNdjsonStream } from '@/hooks/useNdjsonStream';
+import { broadcastSync } from '@/lib/sync-utils';
 import { calculatePoolCDecision } from '@/lib/inter-rater/adjudication-calculations';
 import AdjudicationScorecardView from '@/components/features/inter-rater/AdjudicationScorecardView';
 import DataExtractionComparisonView from '@/components/features/inter-rater/DataExtractionComparisonView';
@@ -237,6 +238,8 @@ export default function RollingBatchAdjudicationModal({
     onComplete: async () => {
       await refreshPaperDetails();
       setActiveLeftTab('pdf');
+      broadcastSync('SYNC_PAPERS');
+      broadcastSync('SYNC_PROJECTS');
       setCrawlerIsRunning(false);
       setCrawlerWaitingLogin(false);
     },
@@ -260,7 +263,10 @@ export default function RollingBatchAdjudicationModal({
       await connectNdjson('/api/pdf/single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paperId: discrepancy.paper_id })
+        body: JSON.stringify({ 
+          paperId: discrepancy.paper_id,
+          projectId: activeProject?.id || discrepancy.project_id || ''
+        })
       });
     } catch (err: any) {
       setCrawlerIsRunning(false);

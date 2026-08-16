@@ -7,10 +7,17 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const { searchParams } = new URL(request.url);
+    const configProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    let activeProjectId = searchParams.get('projectId') || configProjectId;
 
     if (!id) {
       return NextResponse.json({ error: 'Paper ID is required' }, { status: 400 });
+    }
+
+    if (!activeProjectId) {
+      const paperRow = db.prepare('SELECT Project_ID FROM papers WHERE Paper_ID = ?').get(id) as any;
+      activeProjectId = paperRow?.Project_ID || '';
     }
 
     const records = db.prepare(`

@@ -1015,6 +1015,41 @@ export function initializeDatabase(db: Database.Database): void {
         )
       WHERE Paper_ID = OLD.paper_id AND (Project_ID = OLD.project_id OR CAST(Project_ID AS TEXT) = CAST(OLD.project_id AS TEXT));
     END;
+
+    -- Synchronize PDF status and path from papers to calibration_papers
+    CREATE TRIGGER IF NOT EXISTS trg_papers_pdf_sync_cal AFTER UPDATE OF Local_PDF_Status, Local_PDF_Path ON papers
+    BEGIN
+      UPDATE calibration_papers
+      SET Local_PDF_Status = NEW.Local_PDF_Status,
+          Local_PDF_Path = NEW.Local_PDF_Path
+      WHERE Paper_ID = NEW.Paper_ID AND (Project_ID = NEW.Project_ID OR CAST(Project_ID AS TEXT) = CAST(NEW.Project_ID AS TEXT));
+    END;
+
+    -- Synchronize PDF status and path from calibration_papers to papers
+    CREATE TRIGGER IF NOT EXISTS trg_cal_papers_pdf_sync AFTER UPDATE OF Local_PDF_Status, Local_PDF_Path ON calibration_papers
+    BEGIN
+      UPDATE papers
+      SET Local_PDF_Status = NEW.Local_PDF_Status,
+          Local_PDF_Path = NEW.Local_PDF_Path
+      WHERE Paper_ID = NEW.Paper_ID AND (Project_ID = NEW.Project_ID OR CAST(Project_ID AS TEXT) = CAST(NEW.Project_ID AS TEXT));
+    END;
+
+    -- Synchronize general metadata updates from papers to calibration_papers
+    CREATE TRIGGER IF NOT EXISTS trg_papers_metadata_sync_cal AFTER UPDATE OF Title, Authors, Year, DOI, Abstract, PDF_Link, Publisher, Original_Publisher, citation_count, notes ON papers
+    BEGIN
+      UPDATE calibration_papers
+      SET Title = NEW.Title,
+          Authors = NEW.Authors,
+          Year = NEW.Year,
+          DOI = NEW.DOI,
+          Abstract = NEW.Abstract,
+          PDF_Link = NEW.PDF_Link,
+          Publisher = NEW.Publisher,
+          Original_Publisher = NEW.Original_Publisher,
+          citation_count = NEW.citation_count,
+          notes = NEW.notes
+      WHERE Paper_ID = NEW.Paper_ID AND (Project_ID = NEW.Project_ID OR CAST(Project_ID AS TEXT) = CAST(NEW.Project_ID AS TEXT));
+    END;
   `);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1460,6 +1495,56 @@ Analyze the error patterns, identify edge cases, determine if any full PDFs are 
 
   // Run backfill for llm_screening_records from existing papers and audit logs
   backfillLlmScreeningRecords(db);
+
+  // Run synchronization for PDF statuses between papers, calibration_papers, and on-disk files
+  syncExistingPdfStatusesAndDisks(db);
+}
+
+function syncExistingPdfStatusesAndDisks(db: Database.Database) {
+  try {
+    // 1. Sync any divergent PDF statuses and paths from papers to calibration_papers
+    db.prepare(`
+      UPDATE calibration_papers
+      SET Local_PDF_Status = (
+        SELECT p.Local_PDF_Status FROM papers p 
+        WHERE p.Paper_ID = calibration_papers.Paper_ID 
+          AND (p.Project_ID = calibration_papers.Project_ID OR CAST(p.Project_ID AS TEXT) = CAST(calibration_papers.Project_ID AS TEXT))
+      ),
+      Local_PDF_Path = (
+        SELECT p.Local_PDF_Path FROM papers p 
+        WHERE p.Paper_ID = calibration_papers.Paper_ID 
+          AND (p.Project_ID = calibration_papers.Project_ID OR CAST(p.Project_ID AS TEXT) = CAST(calibration_papers.Project_ID AS TEXT))
+      )
+      WHERE EXISTS (
+        SELECT 1 FROM papers p 
+        WHERE p.Paper_ID = calibration_papers.Paper_ID 
+          AND (p.Project_ID = calibration_papers.Project_ID OR CAST(p.Project_ID AS TEXT) = CAST(calibration_papers.Project_ID AS TEXT))
+          AND (p.Local_PDF_Status != calibration_papers.Local_PDF_Status OR IFNULL(p.Local_PDF_Path, '') != IFNULL(calibration_papers.Local_PDF_Path, ''))
+      )
+    `).run();
+
+    // 2. Scan physical pdf_library/raw directory and auto-heal missing PDF statuses across both tables
+    const rawDir = path.join(PROJECT_ROOT, 'pdf_library', 'raw');
+    if (fs.existsSync(rawDir)) {
+      const files = fs.readdirSync(rawDir);
+      const updatePapersStmt = db.prepare("UPDATE papers SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ? WHERE Paper_ID = ? AND (Local_PDF_Path IS NULL OR Local_PDF_Status = 'MISSING' OR Local_PDF_Status = 'FAILED' OR Local_PDF_Status = 'IGNORED')");
+      const updateCalStmt = db.prepare("UPDATE calibration_papers SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ? WHERE Paper_ID = ? AND (Local_PDF_Path IS NULL OR Local_PDF_Status = 'MISSING' OR Local_PDF_Status = 'FAILED' OR Local_PDF_Status = 'IGNORED')");
+
+      const tx = db.transaction(() => {
+        for (const f of files) {
+          if (f.endsWith('.pdf')) {
+            const pId = f.slice(0, -4);
+            const relPath = `pdf_library/raw/${f}`;
+            updatePapersStmt.run(relPath, pId);
+            updateCalStmt.run(relPath, pId);
+          }
+        }
+      });
+      tx();
+    }
+  } catch (err) {
+    console.error("Failed to run syncExistingPdfStatusesAndDisks:", err);
+  }
 }
 
 function backfillLlmScreeningRecords(db: any) {

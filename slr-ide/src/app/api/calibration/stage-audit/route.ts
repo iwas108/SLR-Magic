@@ -210,10 +210,10 @@ export async function POST(req: Request) {
     const modelId = auditLlmConfig.model_id || 'gemini-2.5-flash';
     const cleanModelName = modelId.replace(/^models\//, '');
     const temperature = typeof auditLlmConfig.temperature === 'number' ? auditLlmConfig.temperature : 0.0;
-    const maxTokens = auditLlmConfig.max_tokens || 4000;
-    const topP = typeof auditLlmConfig.top_p === 'number' ? auditLlmConfig.top_p : undefined;
-    const topK = typeof auditLlmConfig.top_k === 'number' ? auditLlmConfig.top_k : undefined;
-    const timeoutSeconds = auditLlmConfig.timeout_seconds || 900;
+    const maxTokens = auditLlmConfig.max_tokens ?? auditLlmConfig.max_output_tokens ?? 4000;
+    const topP = typeof auditLlmConfig.top_p === 'number' ? auditLlmConfig.top_p : (auditLlmConfig.top_p !== undefined ? Number(auditLlmConfig.top_p) : undefined);
+    const topK = typeof auditLlmConfig.top_k === 'number' ? auditLlmConfig.top_k : (auditLlmConfig.top_k !== undefined ? Number(auditLlmConfig.top_k) : undefined);
+    const timeoutSeconds = auditLlmConfig.timeout_seconds ? Number(auditLlmConfig.timeout_seconds) : 900;
     const speedMode = (auditLlmConfig.execution_mode || 'STANDARD').toUpperCase();
 
     // 7. Hydrate Audit User Template
@@ -249,13 +249,18 @@ export async function POST(req: Request) {
     const generationConfig: Record<string, any> = {
       temperature,
       maxOutputTokens: maxTokens,
-      topP,
-      topK,
       responseMimeType: 'application/json',
       responseSchema: parsedResponseSchema
     };
 
-    if (auditLlmConfig.thinking_level) {
+    if (topP !== undefined && !isNaN(topP)) {
+      generationConfig.topP = topP;
+    }
+    if (topK !== undefined && !isNaN(topK)) {
+      generationConfig.topK = topK;
+    }
+
+    if (auditLlmConfig.thinking_level !== undefined && auditLlmConfig.thinking_level !== null) {
       const level = String(auditLlmConfig.thinking_level).toLowerCase();
       const budgetMap: Record<string, number> = {
         minimal: 1024,
@@ -265,10 +270,8 @@ export async function POST(req: Request) {
         none: 0,
         off: 0
       };
-      const budget = budgetMap[level] ?? (typeof auditLlmConfig.thinking_budget === 'number' ? auditLlmConfig.thinking_budget : 0);
-      if (budget > 0) {
-        generationConfig.thinkingConfig = { thinkingBudget: budget };
-      }
+      const budget = budgetMap[level] ?? (typeof auditLlmConfig.thinking_budget === 'number' ? auditLlmConfig.thinking_budget : (level === 'none' || level === 'off' ? 0 : 2048));
+      generationConfig.thinkingConfig = { thinkingBudget: budget };
     }
 
     const apiPayload = {

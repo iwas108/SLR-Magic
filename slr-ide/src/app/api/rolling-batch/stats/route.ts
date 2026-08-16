@@ -271,10 +271,11 @@ function calculateCohortStats(papers: any[], qaRules: QaRule[], extractionRules:
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
+    const { searchParams } = new URL(req.url);
+    const activeProjectId = searchParams.get('projectId') || getConfig('ACTIVE_PROJECT_ID', '');
+    const project = db.prepare('SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(activeProjectId, activeProjectId) as any;
     if (!project) {
       return NextResponse.json({ error: 'Active project not found' }, { status: 404 });
     }
@@ -298,7 +299,7 @@ export async function GET() {
     }
 
     // Fetch Umbrellanizer lookup map
-    const umbRows = db.prepare('SELECT extracted_data_key, umbrella_mapping FROM umbrellanizer_results WHERE project_id = ?').all(activeProjectId) as any[];
+    const umbRows = db.prepare('SELECT extracted_data_key, umbrella_mapping FROM umbrellanizer_results WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))').all(activeProjectId, activeProjectId) as any[];
     const umbMap: Record<string, Record<string, string>> = {};
     for (const row of umbRows) {
       try {
@@ -311,9 +312,9 @@ export async function GET() {
     // Get completed batches in sequential order
     const completedBatches = db.prepare(`
       SELECT * FROM rolling_batches 
-      WHERE project_id = ? AND status = 'complete'
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND status = 'complete'
       ORDER BY batch_number ASC
-    `).all(activeProjectId) as any[];
+    `).all(activeProjectId, activeProjectId) as any[];
 
     if (completedBatches.length === 0) {
       return NextResponse.json({

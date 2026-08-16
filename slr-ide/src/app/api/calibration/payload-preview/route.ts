@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 import db from '@/lib/db';
 import { hasSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 import { PromptType, DEFAULT_STAGE_SCHEMAS } from '@/lib/services/prompt-validator';
@@ -105,10 +107,11 @@ export async function POST(req: Request) {
       const modelId = auditLlmConfig.model_id || 'gemini-2.5-flash';
       const cleanModelName = modelId.replace(/^models\//, '');
       const temperature = typeof auditLlmConfig.temperature === 'number' ? auditLlmConfig.temperature : 0.0;
-      const maxTokens = auditLlmConfig.max_tokens || 4000;
+      const maxTokens = auditLlmConfig.max_tokens ?? auditLlmConfig.max_output_tokens ?? 4000;
       const topP = typeof auditLlmConfig.top_p === 'number' ? auditLlmConfig.top_p : undefined;
       const topK = typeof auditLlmConfig.top_k === 'number' ? auditLlmConfig.top_k : undefined;
       const speedMode = (auditLlmConfig.execution_mode || 'STANDARD').toUpperCase();
+      const timeoutSeconds = auditLlmConfig.timeout_seconds || 900;
 
       // Hydrate audit prompt
       const hydrationContext = {
@@ -162,7 +165,9 @@ export async function POST(req: Request) {
           top_p: topP,
           top_k: topK,
           execution_mode: speedMode,
-          thinking_level: auditLlmConfig.thinking_level || 'standard'
+          thinking_level: auditLlmConfig.thinking_level || 'none',
+          thinking_budget: auditLlmConfig.thinking_budget,
+          timeout_seconds: timeoutSeconds
         },
         response_schema: parsedResponseSchema,
         stage_prompts: [
@@ -198,6 +203,7 @@ export async function POST(req: Request) {
         COALESCE(cp.Year, p.Year) as Year,
         COALESCE(cp.DOI, p.DOI) as DOI,
         COALESCE(cp.Local_PDF_Path, p.Local_PDF_Path) as Local_PDF_Path,
+        COALESCE(cp.Local_PDF_Status, p.Local_PDF_Status) as Local_PDF_Status,
         COALESCE(cp.PDF_Link, p.PDF_Link) as PDF_Link,
         COALESCE(cp.Source, p.Source) as Source,
         latest_ccl.resolved_decision as gold_decision,
@@ -233,6 +239,24 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
+    // PDF Mandatory Guard for Quest 03, Quest 04, Quest 05 (Stage 2 Gatekeeper, Stage 3 Scientist, Stage 4 Miner)
+    if (stageNum >= 2) {
+      const missingPdfPapers = papersWithGold.filter(paper => {
+        const resolvedPdfPath = paper.Local_PDF_Path 
+          ? (path.isAbsolute(paper.Local_PDF_Path) ? paper.Local_PDF_Path : path.resolve(process.cwd(), paper.Local_PDF_Path))
+          : null;
+        return !resolvedPdfPath || !fs.existsSync(resolvedPdfPath) || paper.Local_PDF_Status === 'MISSING' || paper.Local_PDF_Status === 'FAILED';
+      });
+
+      if (missingPdfPapers.length > 0) {
+        const sample = missingPdfPapers.slice(0, 3).map(p => `"${p.Paper_ID}: ${p.Title || 'Untitled'}"`).join(', ');
+        const extra = missingPdfPapers.length > 3 ? ` and ${missingPdfPapers.length - 3} more` : '';
+        return NextResponse.json({
+          error: `Quest 0${stageNum + 1} (${stageMeta.name}) requires a local PDF file for every paper in ${stageMeta.pool}. Found ${missingPdfPapers.length} paper(s) with missing or unset PDFs (${sample}${extra}). Please acquire or upload all PDF files before running this benchmark.`
+        }, { status: 400 });
+      }
+    }
+
     const stagePrompt = resolveStagePrompt(projectId, stageMeta.type);
     if (!stagePrompt) {
       return NextResponse.json({
@@ -244,9 +268,9 @@ export async function POST(req: Request) {
     const modelId = promptConfig.model_id || 'gemini-2.5-flash';
     const cleanModelName = modelId.replace(/^models\//, '');
     const temperature = typeof promptConfig.temperature === 'number' ? promptConfig.temperature : 0.0;
-    const maxTokens = promptConfig.max_tokens || 4000;
-    const topP = typeof promptConfig.top_p === 'number' ? promptConfig.top_p : undefined;
-    const topK = typeof promptConfig.top_k === 'number' ? promptConfig.top_k : undefined;
+    const maxTokens = promptConfig.max_tokens ?? promptConfig.max_output_tokens ?? 4000;
+    const topP = typeof promptConfig.top_p === 'number' ? promptConfig.top_p : (promptConfig.top_p !== undefined ? Number(promptConfig.top_p) : undefined);
+    const topK = typeof promptConfig.top_k === 'number' ? promptConfig.top_k : (promptConfig.top_k !== undefined ? Number(promptConfig.top_k) : undefined);
     const speedMode = (promptConfig.execution_mode || 'STANDARD').toUpperCase();
     const concurrency = Math.max(1, Number(promptConfig.concurrency ?? 2));
     const delayMs = promptConfig.request_delay !== undefined && promptConfig.request_delay !== null
@@ -335,8 +359,9 @@ export async function POST(req: Request) {
         concurrency,
         delay_ms: delayMs,
         execution_mode: speedMode,
-        thinking_level: promptConfig.thinking_level || 'standard',
-        thinking_budget: promptConfig.thinking_budget
+        thinking_level: promptConfig.thinking_level || 'none',
+        thinking_budget: promptConfig.thinking_budget,
+        timeout_seconds: promptConfig.timeout_seconds || 900
       },
       response_schema: parsedResponseSchema,
       paper_samples: paperSamples,

@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import db, { getConfig, PROJECT_ROOT } from '@/lib/db';
 import { getPythonExecutablePath } from '@/lib/services/python-path';
 import { NextResponse } from 'next/server';
@@ -66,16 +67,24 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { paperId } = await request.json();
+    const { paperId, projectId } = await request.json();
     if (!paperId) {
       return NextResponse.json({ error: 'paperId is required' }, { status: 400 });
     }
 
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
-    const paper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').get(paperId, activeProjectId, activeProjectId) as any;
+    const configProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const activeProjectId = projectId || configProjectId;
+
+    let paper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))').get(paperId, activeProjectId, activeProjectId) as any;
     if (!paper) {
-      return NextResponse.json({ error: 'Paper not found in active project' }, { status: 404 });
+      paper = db.prepare('SELECT * FROM papers WHERE Paper_ID = ?').get(paperId) as any;
     }
+
+    if (!paper) {
+      return NextResponse.json({ error: 'Paper not found in database' }, { status: 404 });
+    }
+
+    const resolvedProjectId = String(paper.Project_ID || activeProjectId || configProjectId);
 
     // Initialize global state for this single-run
     batchState.isExecuting = true;
@@ -98,7 +107,8 @@ export async function POST(request: Request) {
 
     // Flag the paper as MISSING if ignored/failed
     if (paper.Local_PDF_Status === 'IGNORED' || paper.Local_PDF_Status === 'FAILED' || !paper.Local_PDF_Status) {
-      db.prepare("UPDATE papers SET Local_PDF_Status = 'MISSING' WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(paperId, activeProjectId, activeProjectId);
+      db.prepare("UPDATE papers SET Local_PDF_Status = 'MISSING' WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(paperId, resolvedProjectId, resolvedProjectId);
+      db.prepare("UPDATE calibration_papers SET Local_PDF_Status = 'MISSING' WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(paperId, resolvedProjectId, resolvedProjectId);
     }
 
     const pythonExe = getPythonExecutablePath();
@@ -163,7 +173,7 @@ export async function POST(request: Request) {
         if (!batchState.cancelRequested) {
           await new Promise<void>((resolve) => {
             pushLog(`Spawning cache matcher for ${paperId}...`);
-            const child = spawn(pythonExe, ['-u', '-m', cacheMatcherModule, '--project', activeProjectId, '--paper', paperId], { cwd: PROJECT_ROOT });
+            const child = spawn(pythonExe, ['-u', '-m', cacheMatcherModule, '--project', resolvedProjectId, '--paper', paperId], { cwd: PROJECT_ROOT });
             batchState.activeChild = child;
 
             let buffer = '';
@@ -212,11 +222,12 @@ export async function POST(request: Request) {
         }
 
         // Verify match status in SQLite
-        const dbStatusRow = db.prepare("SELECT Local_PDF_Status, Local_PDF_Path FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").get(paperId, activeProjectId, activeProjectId) as { Local_PDF_Status: string } | undefined;
+        const dbStatusRow = db.prepare("SELECT Local_PDF_Status, Local_PDF_Path FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").get(paperId, resolvedProjectId, resolvedProjectId) as { Local_PDF_Status: string; Local_PDF_Path: string } | undefined;
         if (dbStatusRow && (
           dbStatusRow.Local_PDF_Status === 'MATCHED' ||
           dbStatusRow.Local_PDF_Status === 'DOWNLOADED' ||
-          dbStatusRow.Local_PDF_Status === 'SYNCED'
+          dbStatusRow.Local_PDF_Status === 'SYNCED' ||
+          dbStatusRow.Local_PDF_Status === 'NEEDS_REVIEW'
         )) {
           matched = true;
         }
@@ -231,7 +242,7 @@ export async function POST(request: Request) {
         if (!matched && !batchState.cancelRequested) {
           if (!paper.DOI || !paper.DOI.trim()) {
             pushLog(`[WARNING]: Paper has no DOI. Cannot execute web scraping. Skipping...`);
-            db.prepare("UPDATE papers SET Local_PDF_Status = 'FAILED' WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(paperId, activeProjectId, activeProjectId);
+            db.prepare("UPDATE papers SET Local_PDF_Status = 'FAILED' WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(paperId, resolvedProjectId, resolvedProjectId);
           } else {
             pushEvent({
               event: 'step_start',
@@ -241,7 +252,7 @@ export async function POST(request: Request) {
 
             await new Promise<void>((resolve) => {
               pushLog(`Spawning browser scraper for DOI: ${paper.DOI}...`);
-              const child = spawn(pythonExe, ['-u', '-m', scraperModule, '--project', activeProjectId, '--paper', paperId], { cwd: PROJECT_ROOT });
+              const child = spawn(pythonExe, ['-u', '-m', scraperModule, '--project', resolvedProjectId, '--paper', paperId], { cwd: PROJECT_ROOT });
               batchState.activeChild = child;
 
               let buffer = '';
@@ -307,9 +318,24 @@ export async function POST(request: Request) {
           }
         }
 
+        // On-disk self-healing check in case file was saved/moved
+        const rawFilePath = path.join(PROJECT_ROOT, 'pdf_library', 'raw', `${paperId}.pdf`);
+        if (fs.existsSync(rawFilePath)) {
+          const currentPaperRow = db.prepare("SELECT Local_PDF_Status, Local_PDF_Path FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").get(paperId, resolvedProjectId, resolvedProjectId) as any;
+          if (!currentPaperRow || !currentPaperRow.Local_PDF_Path || currentPaperRow.Local_PDF_Status === 'MISSING' || currentPaperRow.Local_PDF_Status === 'FAILED') {
+            db.prepare("UPDATE papers SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ? WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(`pdf_library/raw/${paperId}.pdf`, paperId, resolvedProjectId, resolvedProjectId);
+            db.prepare("UPDATE calibration_papers SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ? WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").run(`pdf_library/raw/${paperId}.pdf`, paperId, resolvedProjectId, resolvedProjectId);
+          }
+        }
+
         // Final status verify
-        const finalPaper = db.prepare("SELECT Local_PDF_Status, Local_PDF_Path FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").get(paperId, activeProjectId, activeProjectId) as any;
-        const success = finalPaper && (finalPaper.Local_PDF_Status === 'MATCHED' || finalPaper.Local_PDF_Status === 'DOWNLOADED' || finalPaper.Local_PDF_Status === 'SYNCED');
+        const finalPaper = db.prepare("SELECT Local_PDF_Status, Local_PDF_Path FROM papers WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))").get(paperId, resolvedProjectId, resolvedProjectId) as any;
+        const success = finalPaper && (
+          finalPaper.Local_PDF_Status === 'MATCHED' ||
+          finalPaper.Local_PDF_Status === 'DOWNLOADED' ||
+          finalPaper.Local_PDF_Status === 'SYNCED' ||
+          finalPaper.Local_PDF_Status === 'NEEDS_REVIEW'
+        );
 
         if (batchState.cancelRequested) {
           pushEvent({ event: 'complete', message: 'Acquisition cancelled by user.', isTerminal: true });

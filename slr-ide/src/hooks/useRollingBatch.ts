@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { broadcastSync } from '@/lib/sync-utils';
+import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 
 interface UseRollingBatchProps {
   projectId: string;
@@ -98,11 +98,12 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
   };
 
   // Import reviewer decisions
-  const importReviewerSlr = async (file: File) => {
+  const importReviewerSlr = async (file: File): Promise<boolean> => {
     if (!currentBatch) {
       showToast('No active batch to upload reviewer decisions to', 'error');
       return false;
     }
+    setLoading(true);
     try {
       const buffer = await file.arrayBuffer();
       const res = await fetch(`/api/rolling-batch/import?projectId=${projectId}`, {
@@ -128,6 +129,8 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
     } catch (err: any) {
       showToast(err.message || 'Error processing reviewer file', 'error');
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -171,18 +174,13 @@ export function useRollingBatch({ projectId, showToast }: UseRollingBatchProps) 
   }, [loadStatus, loadStats]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.BroadcastChannel) return;
-    const channel = new BroadcastChannel('slr-magic-sync');
-    channel.onmessage = (event) => {
-      const { type } = event.data;
-      if (type === 'SYNC_PAPERS' || type === 'SYNC_ADJUDICATION') {
+    const unsub = subscribeSyncChannel((type) => {
+      if (type === 'SYNC_PAPERS' || type === 'SYNC_ADJUDICATION' || type === 'SYNC_PROJECTS') {
         latestLoaders.current.loadStatus();
         latestLoaders.current.loadStats();
       }
-    };
-    return () => {
-      channel.close();
-    };
+    });
+    return unsub;
   }, []);
 
   return {

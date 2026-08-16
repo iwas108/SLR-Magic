@@ -16,9 +16,13 @@ import {
   ChevronUp,
   RefreshCw,
   Info,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle,
+  CheckSquare,
+  Square,
+  MinusSquare
 } from 'lucide-react';
-import { useMockupReview } from '@/hooks/useMockupReview';
+import { useMockupReview, isMockupResultFailed } from '@/hooks/useMockupReview';
 
 interface MockupReviewModalProps {
   isOpen: boolean;
@@ -44,20 +48,35 @@ export default function MockupReviewModal({
     cacheInfo,
     progressState,
     liveResults,
+    selectedPaperIds,
     includedCount,
     excludedCount,
     evaluatedCount,
+    failedCount,
+    succeededCount,
+    hasFailedPapers,
+    missingPdfCount,
+    hasMissingPdfs,
     exclusionBreakdown,
     setReviewerName,
     handlePoolChange,
     handleRegenerateName,
     handleGenerate,
+    handleRetryFailed,
+    handleRerunSelected,
     handleRedownload,
-    handleRerun
+    handleRerun,
+    togglePaperSelection,
+    selectAllPapers,
+    deselectAllPapers,
+    selectFailedPapers,
+    selectSucceededPapers,
+    isPaperSelected
   } = useMockupReview(activeProjectId, activePoolTab, showToast);
 
   const [showPaperList, setShowPaperList] = useState(false);
   const [showResultLog, setShowResultLog] = useState(true);
+  const [logFilter, setLogFilter] = useState<'ALL' | 'SUCCEEDED' | 'FAILED'>('ALL');
 
   // Close on Escape key press when not actively running
   React.useEffect(() => {
@@ -84,19 +103,40 @@ export default function MockupReviewModal({
       name: 'Pool B',
       stageName: 'Stage 2: Gatekeeper',
       promptType: 'gatekeeper',
-      desc: 'Full-text structural screening verifying strict exclusion criteria.'
+      desc: 'Full-text structural screening verifying strict exclusion criteria (Mandatory PDF).'
     },
     pool_c: {
       name: 'Pool C',
       stageName: 'Stage 3 & 4: Scientist + Miner',
       promptType: 'scientist_miner',
-      desc: 'Two sequential calls per paper: Quality Assessment scoring + FAIR Data Extraction.'
+      desc: 'Two sequential calls per paper: Quality Assessment scoring + FAIR Data Extraction (Mandatory PDF).'
     }
   }[selectedPool];
 
   const papers = cacheInfo?.papers_preview || [];
   const occupiedSlots = cacheInfo?.occupied_slots || 0;
   const isSlotsFull = occupiedSlots >= 2;
+  const isPdfBlocked = (selectedPool === 'pool_b' || selectedPool === 'pool_c') && hasMissingPdfs;
+
+  // Selected papers stats
+  const selectedCount = selectedPaperIds.length;
+  const totalPapersCount = papers.length;
+  const isAllSelected = totalPapersCount > 0 && selectedCount === totalPapersCount;
+  const isPartiallySelected = selectedCount > 0 && selectedCount < totalPapersCount;
+
+  // Missing PDF validation specifically for selected papers
+  const selectedMissingPdfs = (selectedPool === 'pool_b' || selectedPool === 'pool_c')
+    ? papers.filter(p => selectedPaperIds.includes(String(p.Paper_ID)) && (!p.Local_PDF_Path || p.Local_PDF_Status === 'MISSING'))
+    : [];
+  const isSelectedPdfBlocked = (selectedPool === 'pool_b' || selectedPool === 'pool_c') && selectedMissingPdfs.length > 0;
+
+  // Filtered live results for log view
+  const filteredLogResults = liveResults.filter((item) => {
+    const isFailed = isMockupResultFailed(item, selectedPool);
+    if (logFilter === 'FAILED') return isFailed;
+    if (logFilter === 'SUCCEEDED') return !isFailed;
+    return true;
+  });
 
   return (
     <div 
@@ -167,8 +207,20 @@ export default function MockupReviewModal({
                       {tab.badge}
                     </span>
                     {cacheInfo?.cached && selectedPool === tab.id && (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                        <CheckCircle2 className="w-3 h-3" /> Cached
+                      <span className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                        hasFailedPapers
+                          ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                          : 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
+                      }`}>
+                        {hasFailedPapers ? (
+                          <>
+                            <AlertTriangle className="w-3 h-3" /> {failedCount} Failed
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3 h-3" /> Cached
+                          </>
+                        )}
                       </span>
                     )}
                   </div>
@@ -244,15 +296,129 @@ export default function MockupReviewModal({
             </div>
           </div>
 
+          {/* Missing PDF Warning Alert Banner (Mandatory for Pool B and Pool C) */}
+          {isPdfBlocked && !progressState.isRunning && (
+            <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 space-y-2 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-bold text-sm">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Mandatory PDF Requirement: {missingPdfCount} of {papers.length} Papers Lack Local Full-Text PDFs</span>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-700 dark:text-rose-300 font-mono">
+                  PDF Required for {selectedPool === 'pool_b' ? 'Pool B (Gatekeeper)' : 'Pool C (Scientist + Miner)'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {selectedPool === 'pool_b' 
+                  ? 'Stage 2 Gatekeeper structural screening evaluates full-text PDFs. Full-pool execution is blocked until all papers in this pool have verified local PDFs.'
+                  : 'Stage 3 QA scoring and Stage 4 Data Extraction require full-text PDFs. Full-pool execution is blocked until all papers in this pool have verified local PDFs.'}
+                You can acquire or match missing PDFs in the <strong>PDF Pipeline</strong>, or select only verified papers below for targeted execution.
+              </p>
+            </div>
+          )}
+
+          {/* Targeted Selective Selection HUD Banner */}
+          {selectedCount > 0 && !progressState.isRunning && (
+            <div className="p-4 rounded-xl border border-primary/30 bg-primary/10 space-y-2 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                  <CheckSquare className="w-4 h-4 shrink-0" />
+                  <span>Targeted Paper Selection Active ({selectedCount} of {papers.length} selected)</span>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary font-mono">
+                  {totalPapersCount > selectedCount ? `Saves ${totalPapersCount - selectedCount} Unselected Papers` : 'All Papers Selected'}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Executing a targeted rerun will evaluate only your {selectedCount} selected paper(s) and seamlessly merge their new outputs into the cached review file, preserving all other existing paper evaluations.
+              </p>
+              {isSelectedPdfBlocked && (
+                <div className="text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1.5 font-medium bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{selectedMissingPdfs.length} selected paper(s) lack a local PDF ({selectedMissingPdfs.slice(0, 3).map(p => p.Paper_ID).join(', ')}{selectedMissingPdfs.length > 3 ? '...' : ''}). Please deselect missing PDF papers or acquire their files.</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={isSelectedPdfBlocked}
+                  onClick={() => handleRerunSelected()}
+                  className="px-3.5 py-1.5 bg-primary hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Rerun Selected Papers ({selectedCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={deselectAllPapers}
+                  className="px-3 py-1.5 border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-medium rounded-lg transition-colors"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Partial Execution Banner (if failures exist in finished execution and user hasn't selected specific subset) */}
+          {cacheInfo?.cached && hasFailedPapers && selectedCount === 0 && !progressState.isRunning && (
+            <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 space-y-2 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-sm">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>Partial Execution Available ({failedCount} of {cacheInfo.total_papers} papers failed)</span>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono">
+                  Saves Rerun Cost for {succeededCount} Papers
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Targeted partial execution allows you to re-evaluate only the {failedCount} failed papers (e.g. from timeouts, rate limits, or previously missing PDFs), seamlessly preserving the {succeededCount} already completed evaluations and avoiding unnecessary rerun expenditure.
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={isPdfBlocked}
+                  onClick={handleRetryFailed}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Retry Failed Papers Only ({failedCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={selectFailedPapers}
+                  className="px-3 py-1.5 border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  Select Failed in Table
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Cached State Card (if present) */}
           {cacheInfo?.cached && !progressState.isRunning && (
-            <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-3">
+            <div className={`p-4 rounded-xl border space-y-3 ${
+              hasFailedPapers 
+                ? 'border-amber-500/20 bg-amber-500/5' 
+                : 'border-emerald-500/20 bg-emerald-500/5'
+            }`}>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-sm">
-                  <CheckCircle2 className="w-4 h-4" /> Cached Review Ready for Download
+                <div className={`flex items-center gap-2 font-bold text-sm ${
+                  hasFailedPapers ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'
+                }`}>
+                  {hasFailedPapers ? (
+                    <>
+                      <AlertCircle className="w-4 h-4" /> Cached Review Available ({failedCount} Failures / Rerun Needed)
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> Cached Review Complete &amp; Ready for Download
+                    </>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground font-mono">
-                  {cacheInfo.created_at ? new Date(cacheInfo.created_at).toLocaleString() : 'Recently generated'}
+                  {cacheInfo.updated_at || cacheInfo.created_at ? new Date(cacheInfo.updated_at || cacheInfo.created_at!).toLocaleString() : 'Recently generated'}
                 </div>
               </div>
 
@@ -271,22 +437,22 @@ export default function MockupReviewModal({
                     <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                       <div className="text-emerald-700 dark:text-emerald-400 text-[10px] uppercase font-bold">Included</div>
                       <div className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                        {includedCount} ({evaluatedCount > 0 ? ((includedCount / evaluatedCount) * 100).toFixed(1) : 0}%)
+                        {includedCount} ({succeededCount > 0 ? ((includedCount / succeededCount) * 100).toFixed(1) : 0}%)
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20">
                       <div className="text-rose-700 dark:text-rose-400 text-[10px] uppercase font-bold">Excluded</div>
                       <div className="font-mono font-bold text-rose-600 dark:text-rose-400">
-                        {excludedCount} ({evaluatedCount > 0 ? ((excludedCount / evaluatedCount) * 100).toFixed(1) : 0}%)
+                        {excludedCount} ({succeededCount > 0 ? ((excludedCount / succeededCount) * 100).toFixed(1) : 0}%)
                       </div>
                     </div>
                   </>
                 ) : (
                   <>
                     <div className="p-2.5 rounded-lg bg-primary/10 border border-primary/20">
-                      <div className="text-primary text-[10px] uppercase font-bold">QA & Extracted</div>
+                      <div className="text-primary text-[10px] uppercase font-bold">QA &amp; Extracted</div>
                       <div className="font-mono font-bold text-primary">
-                        {evaluatedCount} Papers
+                        {succeededCount} Papers
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-card/60 border border-border">
@@ -331,7 +497,7 @@ export default function MockupReviewModal({
               <div className="flex items-center justify-between text-xs font-bold">
                 <div className="flex items-center gap-2 text-primary">
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Screening Calibration Papers ({progressState.current} / {progressState.total})
+                  {progressState.isPartialRetry ? 'Executing Targeted Paper Rerun' : 'Screening Calibration Papers'} ({progressState.current} / {progressState.total})
                 </div>
                 <div className="flex items-center gap-3 font-mono text-xs">
                   {selectedPool !== 'pool_c' && (
@@ -360,43 +526,195 @@ export default function MockupReviewModal({
             </div>
           )}
 
+          {/* Quick Selection Toolbar (when papers exist) */}
+          {papers.length > 0 && !progressState.isRunning && (
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl border border-border bg-muted/20 text-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={isAllSelected ? deselectAllPapers : selectAllPapers}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-foreground transition-colors"
+                  title={isAllSelected ? 'Deselect all papers' : 'Select all papers in pool'}
+                >
+                  {isAllSelected ? (
+                    <CheckSquare className="w-3.5 h-3.5 text-primary" />
+                  ) : isPartiallySelected ? (
+                    <MinusSquare className="w-3.5 h-3.5 text-primary" />
+                  ) : (
+                    <Square className="w-3.5 h-3.5 text-muted-foreground" />
+                  )}
+                  <span>{isAllSelected ? 'Deselect All' : 'Select All'} ({papers.length})</span>
+                </button>
+
+                {liveResults.length > 0 && (
+                  <>
+                    {failedCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={selectFailedPapers}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold transition-colors"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Select Failed ({failedCount})</span>
+                      </button>
+                    )}
+                    {succeededCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={selectSucceededPapers}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold transition-colors"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Select Succeeded ({succeededCount})</span>
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {selectedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={deselectAllPapers}
+                    className="text-muted-foreground hover:text-foreground text-xs font-medium underline px-1.5 py-1"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <span className={`px-2 py-0.5 rounded font-bold ${
+                  selectedCount > 0
+                    ? 'bg-primary/20 text-primary border border-primary/30'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {selectedCount} / {papers.length} Selected for Rerun
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Live / Cached Result Log */}
           {liveResults.length > 0 && (
             <div className="border border-border rounded-xl overflow-hidden bg-card">
-              <button
-                type="button"
-                onClick={() => setShowResultLog(!showResultLog)}
-                className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold bg-muted/40 hover:bg-muted/60 transition-colors border-b border-border"
-              >
-                <div className="flex items-center gap-2">
+              <div className="px-4 py-2.5 flex items-center justify-between text-xs font-bold bg-muted/40 border-b border-border">
+                <button
+                  type="button"
+                  onClick={() => setShowResultLog(!showResultLog)}
+                  className="flex items-center gap-2 hover:text-foreground transition-colors"
+                >
                   <FileText className="w-4 h-4 text-primary" />
                   <span>Evaluation Stream Log ({liveResults.length} records)</span>
+                  {showResultLog ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {/* Filter tabs */}
+                <div className="flex items-center gap-1 bg-background/80 p-0.5 rounded-lg border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('ALL')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                      logFilter === 'ALL' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    All ({liveResults.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('SUCCEEDED')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                      logFilter === 'SUCCEEDED' ? 'bg-emerald-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Succeeded ({succeededCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLogFilter('FAILED')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                      logFilter === 'FAILED' ? 'bg-rose-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Failed ({failedCount})
+                  </button>
                 </div>
-                {showResultLog ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </button>
+              </div>
+
               {showResultLog && (
-                <div className="max-h-48 overflow-y-auto divide-y divide-border text-xs">
-                  {liveResults.map((item, idx) => (
-                    <div key={idx} className="p-3 flex items-center justify-between gap-4 hover:bg-muted/20">
-                      <div className="truncate flex-1">
-                        <span className="font-mono font-bold text-muted-foreground mr-2">{item.paper_id}</span>
-                        <span className="text-foreground">{item.title}</span>
-                      </div>
-                      <div className="shrink-0 flex items-center gap-2 font-mono">
-                        {item.decision ? (
-                          <span className={`px-2 py-0.5 text-[11px] font-bold rounded ${
-                            item.decision.toUpperCase().startsWith('INC')
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                              : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
-                          }`}>
-                            {item.decision} {item.exclusion_code ? `(${item.exclusion_code})` : ''}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-[11px]">Evaluated</span>
-                        )}
-                      </div>
+                <div className="max-h-56 overflow-y-auto divide-y divide-border text-xs">
+                  {filteredLogResults.length === 0 ? (
+                    <div className="p-4 text-center text-muted-foreground text-xs">
+                      No records match the active filter ({logFilter}).
                     </div>
-                  ))}
+                  ) : (
+                    filteredLogResults.map((item, idx) => {
+                      const isFailed = isMockupResultFailed(item, selectedPool);
+                      const isSelected = isPaperSelected(item.paper_id);
+                      return (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            if (!progressState.isRunning) {
+                              togglePaperSelection(item.paper_id);
+                            }
+                          }}
+                          className={`p-3 flex items-center justify-between gap-3 transition-colors cursor-pointer ${
+                            isSelected 
+                              ? 'bg-primary/10 hover:bg-primary/15 border-l-4 border-l-primary' 
+                              : 'hover:bg-muted/20'
+                          }`}
+                        >
+                          {/* Selection Checkbox */}
+                          <div 
+                            className="shrink-0 flex items-center"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!progressState.isRunning) {
+                                togglePaperSelection(item.paper_id);
+                              }
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={progressState.isRunning}
+                              onChange={() => togglePaperSelection(item.paper_id)}
+                              className="w-4 h-4 rounded text-primary border-border focus:ring-primary/20 cursor-pointer disabled:opacity-50"
+                            />
+                          </div>
+
+                          <div className="truncate flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-muted-foreground">{item.paper_id}</span>
+                              <span className="text-foreground font-medium truncate">{item.title}</span>
+                            </div>
+                            {isFailed && (
+                              <p className="text-[11px] text-rose-500 font-mono mt-0.5 truncate" title={item.error || item.rationale}>
+                                ⚠️ {item.error || item.rationale || 'Evaluation failed'}
+                              </p>
+                            )}
+                          </div>
+                          <div className="shrink-0 flex items-center gap-2 font-mono">
+                            {isFailed ? (
+                              <span className="px-2 py-0.5 text-[11px] font-bold rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" /> FAILED
+                              </span>
+                            ) : item.decision ? (
+                              <span className={`px-2 py-0.5 text-[11px] font-bold rounded ${
+                                String(item.decision).toUpperCase().startsWith('INC')
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                              }`}>
+                                {item.decision} {item.exclusion_code ? `(${item.exclusion_code})` : ''}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-[11px]">Evaluated</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               )}
             </div>
@@ -412,6 +730,11 @@ export default function MockupReviewModal({
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-muted-foreground" />
                 <span>Target Pool Calibration Papers ({papers.length} papers assigned)</span>
+                {selectedCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded bg-primary/20 text-primary font-mono text-[10px]">
+                    {selectedCount} selected
+                  </span>
+                )}
               </div>
               {showPaperList ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
@@ -422,18 +745,71 @@ export default function MockupReviewModal({
                     No papers currently assigned to {selectedPool.toUpperCase()}. Assign papers in the Assign view first.
                   </div>
                 ) : (
-                  papers.map((p: any) => (
-                    <div key={p.Paper_ID} className="p-3 hover:bg-muted/20 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold text-primary">{p.Paper_ID}</span>
-                        <span className="text-[11px] text-muted-foreground font-mono">{p.Year || 'N/A'}</span>
+                  papers.map((p: any) => {
+                    const hasPdf = Boolean(p.Local_PDF_Path && p.Local_PDF_Status !== 'MISSING');
+                    const isSelected = isPaperSelected(p.Paper_ID);
+                    return (
+                      <div 
+                        key={p.Paper_ID} 
+                        onClick={() => {
+                          if (!progressState.isRunning) {
+                            togglePaperSelection(p.Paper_ID);
+                          }
+                        }}
+                        className={`p-3 flex items-start gap-3 transition-colors cursor-pointer ${
+                          isSelected 
+                            ? 'bg-primary/10 hover:bg-primary/15 border-l-4 border-l-primary' 
+                            : 'hover:bg-muted/20'
+                        }`}
+                      >
+                        {/* Checkbox */}
+                        <div 
+                          className="pt-0.5 shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!progressState.isRunning) {
+                              togglePaperSelection(p.Paper_ID);
+                            }
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            disabled={progressState.isRunning}
+                            onChange={() => togglePaperSelection(p.Paper_ID)}
+                            className="w-4 h-4 rounded text-primary border-border focus:ring-primary/20 cursor-pointer disabled:opacity-50"
+                          />
+                        </div>
+
+                        <div className="flex-1 space-y-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-primary">{p.Paper_ID}</span>
+                              <span className="text-[11px] text-muted-foreground font-mono">{p.Year || 'N/A'}</span>
+                            </div>
+                            {/* PDF Status Pill */}
+                            {selectedPool === 'pool_a' ? (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                                Title &amp; Abstract Ready
+                              </span>
+                            ) : hasPdf ? (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                                <FileText className="w-3 h-3" /> PDF Ready
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center gap-1 font-mono">
+                                <AlertTriangle className="w-3 h-3" /> PDF Missing
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-semibold text-foreground truncate">{p.Title}</div>
+                          {p.Abstract && (
+                            <p className="text-muted-foreground line-clamp-2 text-[11px]">{p.Abstract}</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="font-semibold text-foreground truncate">{p.Title}</div>
-                      {p.Abstract && (
-                        <p className="text-muted-foreground line-clamp-2 text-[11px]">{p.Abstract}</p>
-                      )}
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -444,7 +820,25 @@ export default function MockupReviewModal({
         <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/30">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="w-3.5 h-3.5" />
-            <span>PRISMA-isolated mock review</span>
+            {selectedCount > 0 ? (
+              isSelectedPdfBlocked ? (
+                <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  Rerun blocked: {selectedMissingPdfs.length} selected paper(s) missing PDF
+                </span>
+              ) : (
+                <span className="text-primary font-semibold">
+                  {selectedCount} paper(s) selected for targeted rerun
+                </span>
+              )
+            ) : isPdfBlocked ? (
+              <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                Full run blocked: {missingPdfCount} papers missing PDF file
+              </span>
+            ) : (
+              <span>PRISMA-isolated mock review</span>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -457,40 +851,87 @@ export default function MockupReviewModal({
               Close
             </button>
 
-            {cacheInfo?.cached && !progressState.isRunning ? (
+            {/* If user has manually selected papers, present the prominent "Rerun Selected" button */}
+            {selectedCount > 0 && (
               <>
+                {cacheInfo?.cached && !progressState.isRunning && (
+                  <button
+                    type="button"
+                    onClick={() => handleRedownload()}
+                    className="px-4 py-2 text-sm font-semibold rounded-xl border border-border bg-background text-foreground hover:bg-muted flex items-center gap-2 transition-colors"
+                  >
+                    <Download className="w-4 h-4" /> Redownload (.slr)
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={handleRerun}
-                  className="px-4 py-2 text-sm font-semibold rounded-xl border border-border bg-background text-foreground hover:bg-muted flex items-center gap-2 transition-colors"
+                  disabled={progressState.isRunning || isSelectedPdfBlocked}
+                  onClick={() => handleRerunSelected()}
+                  className="px-5 py-2 text-sm font-bold rounded-xl bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm transition-all hover:scale-105 active:scale-95"
+                  title={isSelectedPdfBlocked ? `${selectedMissingPdfs.length} selected paper(s) lack a local PDF` : undefined}
                 >
-                  <RefreshCw className="w-4 h-4" /> Rerun & Regenerate
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRedownload}
-                  className="px-5 py-2 text-sm font-bold rounded-xl bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-2 shadow-sm transition-all"
-                >
-                  <Download className="w-4 h-4" /> Redownload (.slr)
+                  {progressState.isRunning ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Rerunning ({progressState.current}/{progressState.total})...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4" /> Rerun Selected ({selectedCount})
+                    </>
+                  )}
                 </button>
               </>
-            ) : (
-              <button
-                type="button"
-                disabled={progressState.isRunning || papers.length === 0}
-                onClick={handleGenerate}
-                className="px-5 py-2 text-sm font-bold rounded-xl bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
-              >
-                {progressState.isRunning ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" /> Generating...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-current" /> Generate Mockup Review
-                  </>
-                )}
-              </button>
+            )}
+
+            {/* Standard buttons when no subset is selected */}
+            {selectedCount === 0 && (
+              cacheInfo?.cached && !progressState.isRunning ? (
+                <>
+                  {hasFailedPapers && (
+                    <button
+                      type="button"
+                      disabled={isPdfBlocked}
+                      onClick={handleRetryFailed}
+                      className="px-4 py-2 text-sm font-bold rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white flex items-center gap-2 shadow-sm transition-all hover:scale-105 active:scale-95"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Retry Failed Only ({failedCount})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={isPdfBlocked}
+                    onClick={handleRerun}
+                    className="px-4 py-2 text-sm font-semibold rounded-xl border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Rerun All &amp; Regenerate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRedownload()}
+                    className="px-5 py-2 text-sm font-bold rounded-xl bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-2 shadow-sm transition-all"
+                  >
+                    <Download className="w-4 h-4" /> Redownload (.slr)
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={progressState.isRunning || papers.length === 0 || isPdfBlocked}
+                  onClick={handleGenerate}
+                  className="px-5 py-2 text-sm font-bold rounded-xl bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={isPdfBlocked ? `Execution blocked: ${missingPdfCount} papers missing local PDF files` : undefined}
+                >
+                  {progressState.isRunning ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-current" /> Generate Mockup Review
+                    </>
+                  )}
+                </button>
+              )
             )}
           </div>
         </div>
@@ -498,3 +939,4 @@ export default function MockupReviewModal({
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import fs from 'fs';
 import db, { getConfig, getVaultKey } from '@/lib/db';
 import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
@@ -8,8 +9,10 @@ import {
   evaluateMockupPaperScreening,
   evaluateMockupPaperPoolC,
   buildMockupSlrFile,
+  isMockupResultFailed,
   MockupPaperResult
 } from '@/lib/services/mockup-generator';
+import { compressSlrServer, decompressSlrServer } from '@/lib/slr-compression';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +32,7 @@ export async function GET(req: NextRequest) {
     const pool = searchParams.get('pool') || 'pool_a';
     const projectId = searchParams.get('projectId') || getConfig('ACTIVE_PROJECT_ID', '');
     const isDownload = searchParams.get('download') === 'true';
+    const reviewerNameParam = searchParams.get('reviewerName') || searchParams.get('reviewer_name');
 
     const dbPool = (pool === 'pool_b' || pool === 'CAL_Pool_B') 
       ? 'pool_b' 
@@ -54,9 +58,35 @@ export async function GET(req: NextRequest) {
     `).get(projectId, projectId, dbPool) as any;
 
     if (isDownload && cacheRow && cacheRow.slr_blob) {
-      const buffer = Buffer.from(cacheRow.slr_blob);
-      const filename = `${project.folder_name || 'project'}_${dbPool}_mockup_${cacheRow.reviewer_name || 'review'}.slr`;
-      return new Response(new Uint8Array(buffer), {
+      const requestedReviewer = (reviewerNameParam || '').trim();
+      const targetReviewer = requestedReviewer || cacheRow.reviewer_name || 'review';
+
+      let outputBuffer: Buffer;
+
+      // If a specific reviewer identifier is requested and differs from cache, update .slr metadata and cache row
+      if (requestedReviewer && requestedReviewer !== cacheRow.reviewer_name) {
+        try {
+          const payload = decompressSlrServer(cacheRow.slr_blob);
+          if (payload && payload.metadata) {
+            payload.metadata.reviewer_name = targetReviewer;
+          }
+          outputBuffer = compressSlrServer(payload);
+
+          db.prepare(`
+            UPDATE mockup_cache 
+            SET reviewer_name = ?, slr_blob = ?, updated_at = datetime('now')
+            WHERE id = ?
+          `).run(targetReviewer, outputBuffer, cacheRow.id);
+        } catch (syncErr) {
+          console.warn('Could not update reviewer_name inside .slr binary, falling back to original blob:', syncErr);
+          outputBuffer = Buffer.from(cacheRow.slr_blob);
+        }
+      } else {
+        outputBuffer = Buffer.from(cacheRow.slr_blob);
+      }
+
+      const filename = `${project.folder_name || 'project'}_${dbPool}_mockup_${targetReviewer}.slr`;
+      return new Response(new Uint8Array(outputBuffer), {
         headers: {
           'Content-Type': 'application/octet-stream',
           'Content-Disposition': `attachment; filename="${filename}"`
@@ -81,6 +111,12 @@ export async function GET(req: NextRequest) {
       ORDER BY Paper_ID ASC
     `).all(projectId, projectId, dbPool) as any[];
 
+    // Calculate missing PDF count for Pool B and Pool C
+    let missingPdfCount = 0;
+    if (dbPool === 'pool_b' || dbPool === 'pool_c') {
+      missingPdfCount = calPapers.filter(p => !p.Local_PDF_Path || !fs.existsSync(p.Local_PDF_Path)).length;
+    }
+
     // Check prompt hash diff for UI badge
     let currentPromptHash: string | null = null;
     if (dbPool === 'pool_c') {
@@ -88,7 +124,7 @@ export async function GET(req: NextRequest) {
       const minPrompt = resolveMockupStagePrompt(projectId, 'miner');
       if (sciPrompt || minPrompt) {
         currentPromptHash = crypto.createHash('sha256')
-          .update((sciPrompt?.system_instruction || '') + (sciPrompt?.user_template || '') + (minPrompt?.system_instruction || '') + (minPrompt?.user_template || ''))
+          .update((sciPrompt?.system_instruction || sciPrompt?.system_prompt || '') + (sciPrompt?.user_template || sciPrompt?.user_prompt_template || '') + (minPrompt?.system_instruction || minPrompt?.system_prompt || '') + (minPrompt?.user_template || minPrompt?.user_prompt_template || ''))
           .digest('hex');
       }
     } else {
@@ -96,12 +132,25 @@ export async function GET(req: NextRequest) {
       const promptTpl = resolveMockupStagePrompt(projectId, promptType);
       if (promptTpl) {
         currentPromptHash = crypto.createHash('sha256')
-          .update((promptTpl.system_instruction || '') + (promptTpl.user_template || ''))
+          .update((promptTpl.system_instruction || promptTpl.system_prompt || '') + (promptTpl.user_template || promptTpl.user_prompt_template || ''))
           .digest('hex');
       }
     }
 
     const promptChanged = Boolean(cacheRow?.prompt_hash && currentPromptHash && cacheRow.prompt_hash !== currentPromptHash);
+    const parsedResults = cacheRow?.paper_results ? safeJsonParse(cacheRow.paper_results, []) : [];
+    
+    let failedCount = 0;
+    let succeededCount = 0;
+    if (Array.isArray(parsedResults)) {
+      parsedResults.forEach((r: any) => {
+        if (isMockupResultFailed(r, dbPool)) {
+          failedCount++;
+        } else {
+          succeededCount++;
+        }
+      });
+    }
 
     return NextResponse.json({
       cached: Boolean(cacheRow),
@@ -111,10 +160,16 @@ export async function GET(req: NextRequest) {
       total_cost_usd: cacheRow?.total_cost_usd || 0.0,
       total_tokens: cacheRow?.total_tokens || 0,
       model_id: cacheRow?.model_id || null,
-      paper_results: cacheRow?.paper_results ? JSON.parse(cacheRow.paper_results) : null,
+      paper_results: parsedResults,
+      failed_count: failedCount,
+      succeeded_count: succeededCount,
+      has_failures: failedCount > 0,
+      missing_pdf_count: missingPdfCount,
+      has_missing_pdfs: missingPdfCount > 0,
       prompt_hash: cacheRow?.prompt_hash || currentPromptHash,
       prompt_changed: promptChanged,
       created_at: cacheRow?.created_at || null,
+      updated_at: cacheRow?.updated_at || null,
       occupied_slots: occupiedSlots,
       papers_count: calPapers.length,
       papers_preview: calPapers
@@ -128,7 +183,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { projectId, pool, reviewerName } = body;
+    const { projectId, pool, reviewerName, failedOnly, paperIds } = body;
 
     const dbPool: 'pool_a' | 'pool_b' | 'pool_c' = (pool === 'pool_b' || pool === 'CAL_Pool_B') 
       ? 'pool_b' 
@@ -139,8 +194,6 @@ export async function POST(req: NextRequest) {
     if (!projectId) {
       return NextResponse.json({ error: 'Missing projectId' }, { status: 400 });
     }
-
-    const cleanReviewerName = (reviewerName || `rev_${Math.floor(0x1000 + Math.random() * 0xF000).toString(16)}`).trim();
 
     // Check and decrypt Gemini API key
     if (!hasSessionMasterPassword()) {
@@ -173,16 +226,81 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch Calibration Papers for target pool
-    const papers = db.prepare(`
+    const allPoolPapers = db.prepare(`
       SELECT * FROM calibration_papers 
       WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = ?
       ORDER BY Paper_ID ASC
     `).all(projectId, projectId, dbPool) as any[];
 
-    if (!papers || papers.length === 0) {
+    if (!allPoolPapers || allPoolPapers.length === 0) {
       return NextResponse.json({
         error: `No papers found in ${dbPool.toUpperCase()} for this project. Please assign calibration papers first.`
       }, { status: 400 });
+    }
+
+    // Check existing cache for partial execution
+    const existingCache = db.prepare(`
+      SELECT * FROM mockup_cache 
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND pool = ?
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `).get(projectId, projectId, dbPool) as any;
+
+    const isPartialRun = Boolean(failedOnly || (Array.isArray(paperIds) && paperIds.length > 0));
+
+    if (isPartialRun && !existingCache) {
+      return NextResponse.json({
+        error: 'No finished execution cache found to run partial retry on. Please run a full mockup generation first.'
+      }, { status: 400 });
+    }
+
+    const cleanReviewerName = (reviewerName || existingCache?.reviewer_name || `rev_${Math.floor(0x1000 + Math.random() * 0xF000).toString(16)}`).trim();
+
+    // Determine target subset of papers to evaluate
+    let targetPapers = allPoolPapers;
+    const existingResultsMap = new Map<string, MockupPaperResult>();
+
+    if (existingCache && existingCache.paper_results) {
+      const parsed = safeJsonParse(existingCache.paper_results, []);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((r: any) => {
+          if (r && r.paper_id) {
+            existingResultsMap.set(r.paper_id, r);
+          }
+        });
+      }
+    }
+
+    if (isPartialRun) {
+      if (failedOnly) {
+        targetPapers = allPoolPapers.filter(paper => {
+          const prevRes = existingResultsMap.get(paper.Paper_ID);
+          return !prevRes || isMockupResultFailed(prevRes, dbPool);
+        });
+      } else if (Array.isArray(paperIds) && paperIds.length > 0) {
+        const idSet = new Set(paperIds.map(id => String(id)));
+        targetPapers = allPoolPapers.filter(paper => idSet.has(String(paper.Paper_ID)));
+      }
+
+      if (targetPapers.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: failedOnly
+            ? 'All papers in this pool have already succeeded. Zero failed papers to retry.'
+            : 'No matching papers found for selective rerun.'
+        });
+      }
+    }
+
+    // Enforce mandatory local PDF validation for Pool B and Pool C
+    if (dbPool === 'pool_b' || dbPool === 'pool_c') {
+      const missingPdfPapers = targetPapers.filter(p => !p.Local_PDF_Path || !fs.existsSync(p.Local_PDF_Path));
+      if (missingPdfPapers.length > 0) {
+        const missingIds = missingPdfPapers.slice(0, 5).map(p => p.Paper_ID).join(', ') + (missingPdfPapers.length > 5 ? ` (+${missingPdfPapers.length - 5} more)` : '');
+        return NextResponse.json({
+          error: `Execution rejected: ${missingPdfPapers.length} paper(s) in ${dbPool.toUpperCase()} do not have a verified local full-text PDF file on disk (${missingIds}). Pool B and Pool C require local PDFs. Please acquire or match PDFs before running.`
+        }, { status: 400 });
+      }
     }
 
     // Resolve Prompt Templates
@@ -205,7 +323,7 @@ export async function POST(req: NextRequest) {
       const sciCfg = safeJsonParse(scientistPrompt.llm_config, {});
       primaryModelId = sciCfg.model_id || 'gemini-2.5-flash';
       combinedPromptHash = crypto.createHash('sha256')
-        .update((scientistPrompt.system_instruction || '') + (scientistPrompt.user_template || '') + (minerPrompt.system_instruction || '') + (minerPrompt.user_template || ''))
+        .update((scientistPrompt.system_instruction || scientistPrompt.system_prompt || '') + (scientistPrompt.user_template || scientistPrompt.user_prompt_template || '') + (minerPrompt.system_instruction || minerPrompt.system_prompt || '') + (minerPrompt.user_template || minerPrompt.user_prompt_template || ''))
         .digest('hex');
     } else {
       const promptType = dbPool === 'pool_b' ? 'gatekeeper' : 'fast_filter';
@@ -220,7 +338,7 @@ export async function POST(req: NextRequest) {
       const tplCfg = safeJsonParse(promptTemplateAorB.llm_config, {});
       primaryModelId = tplCfg.model_id || 'gemini-2.5-flash';
       combinedPromptHash = crypto.createHash('sha256')
-        .update((promptTemplateAorB.system_instruction || '') + (promptTemplateAorB.user_template || ''))
+        .update((promptTemplateAorB.system_instruction || promptTemplateAorB.system_prompt || '') + (promptTemplateAorB.user_template || promptTemplateAorB.user_prompt_template || ''))
         .digest('hex');
     }
 
@@ -257,19 +375,32 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
         };
 
-        const resultsMap = new Map<string, MockupPaperResult>();
-        const resultsList: MockupPaperResult[] = [];
+        // Initialize resultsMap: if partial run, seed with existing results
+        const resultsMap = new Map<string, MockupPaperResult>(existingResultsMap);
+        
+        // Calculate starting baseline costs and tokens from existing successful non-retried items
         let totalCostSoFar = 0;
         let totalTokensSoFar = 0;
-        const totalPapers = papers.length;
+        
+        if (isPartialRun) {
+          const targetIdsSet = new Set(targetPapers.map(p => String(p.Paper_ID)));
+          for (const [pId, r] of resultsMap.entries()) {
+            if (!targetIdsSet.has(String(pId)) && !isMockupResultFailed(r, dbPool)) {
+              totalCostSoFar += Number(r.cost_usd || 0);
+              totalTokensSoFar += Number(r.tokens || 0);
+            }
+          }
+        }
+
+        const totalTargetPapers = targetPapers.length;
 
         try {
-          for (let i = 0; i < totalPapers; i++) {
+          for (let i = 0; i < totalTargetPapers; i++) {
             if (i > 0 && delayMs > 0) {
               await new Promise(resolve => setTimeout(resolve, delayMs));
             }
 
-            const paper = papers[i];
+            const paper = targetPapers[i];
             let result: MockupPaperResult;
 
             if (dbPool === 'pool_c') {
@@ -296,34 +427,56 @@ export async function POST(req: NextRequest) {
             }
 
             resultsMap.set(paper.Paper_ID, result);
-            resultsList.push(result);
-            totalCostSoFar += result.cost_usd;
-            totalTokensSoFar += result.tokens;
+            totalCostSoFar += Number(result.cost_usd || 0);
+            totalTokensSoFar += Number(result.tokens || 0);
 
             // Stream progress
             sendEvent({
               type: 'progress',
               current: i + 1,
-              total: totalPapers,
+              total: totalTargetPapers,
+              totalCohortPapers: allPoolPapers.length,
               paperId: paper.Paper_ID,
               paperTitle: paper.Title,
               decision: result.decision || (result.qa_scores ? 'QA/EXTRACTED' : 'EVALUATED'),
               exclusionCode: result.exclusion_code,
+              error: result.error,
+              isFailed: isMockupResultFailed(result, dbPool),
               costSoFar: totalCostSoFar,
-              tokensSoFar: totalTokensSoFar
+              tokensSoFar: totalTokensSoFar,
+              isPartialRetry: isPartialRun
             });
           }
 
-          // Build final .slr compressed binary
+          // Build final .slr compressed binary with ALL pool papers merged
           const slrBuffer = buildMockupSlrFile(
             project,
             dbPool,
             cleanReviewerName,
-            papers,
+            allPoolPapers,
             resultsMap
           );
 
-          // Atomic SQLite Cache Write (delete previous project+pool cache, insert fresh)
+          // Build final combined results array in original paper order
+          const fullResultsList: MockupPaperResult[] = allPoolPapers.map(paper => {
+            const res = resultsMap.get(paper.Paper_ID);
+            if (res) return res;
+            return {
+              paper_id: paper.Paper_ID,
+              title: paper.Title,
+              decision: 'EXCLUDE',
+              exclusion_code: 'ERROR',
+              rationale: 'Not evaluated',
+              error: 'Not evaluated',
+              tokens: 0,
+              cost_usd: 0,
+              latency_ms: 0
+            };
+          });
+
+          // Recalculate true cumulative cost & tokens
+          const finalTotalCost = fullResultsList.reduce((acc, r) => acc + Number(r.cost_usd || 0), 0);
+          const finalTotalTokens = fullResultsList.reduce((acc, r) => acc + Number(r.tokens || 0), 0);
           const nowIso = new Date().toISOString();
           let cacheId = 0;
 
@@ -346,11 +499,11 @@ export async function POST(req: NextRequest) {
               combinedPromptHash,
               primaryModelId,
               slrBuffer,
-              totalPapers,
-              totalCostSoFar,
-              totalTokensSoFar,
-              JSON.stringify(resultsList),
-              nowIso,
+              allPoolPapers.length,
+              finalTotalCost,
+              finalTotalTokens,
+              JSON.stringify(fullResultsList),
+              existingCache?.created_at || nowIso,
               nowIso
             );
 
@@ -361,10 +514,12 @@ export async function POST(req: NextRequest) {
             type: 'complete',
             cacheId,
             reviewerName: cleanReviewerName,
-            totalPapers,
-            totalCost: totalCostSoFar,
-            totalTokens: totalTokensSoFar,
-            downloadUrl: `/api/mockup/generate?projectId=${encodeURIComponent(projectId)}&pool=${dbPool}&download=true`
+            totalPapers: allPoolPapers.length,
+            targetPapersEvaluated: totalTargetPapers,
+            totalCost: finalTotalCost,
+            totalTokens: finalTotalTokens,
+            isPartialRetry: isPartialRun,
+            downloadUrl: `/api/mockup/generate?projectId=${encodeURIComponent(projectId)}&pool=${dbPool}&reviewerName=${encodeURIComponent(cleanReviewerName)}&download=true`
           });
 
           controller.close();

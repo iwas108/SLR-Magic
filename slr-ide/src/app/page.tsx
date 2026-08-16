@@ -96,7 +96,8 @@ export default function DashboardPage() {
     loadPapers,
     loadProjects,
     showToast,
-    activeTab
+    activeTab,
+    activeProjectId
   });
 
   // Instantiating hook: Manual Screening
@@ -243,14 +244,26 @@ export default function DashboardPage() {
     };
   }, [activeProject, openProjectSettings]);
 
+  const lastLoadedProjectRef = useRef<any>(null);
+
   // Multi-Tab Synchronization: Automatically update the active form data if modified in another tab
   useEffect(() => {
     if (editingProject && showEditProjectModal) {
       const updatedProj = projects.find((p: any) => String(p.id) === String(editingProject.id));
-      if (updatedProj && JSON.stringify(updatedProj) !== JSON.stringify(editingProject)) {
-        setEditingProject(updatedProj);
-        showToast('Project settings were updated in another session. Form data refreshed.', 'info');
+      if (updatedProj) {
+        const isNewProject = !lastLoadedProjectRef.current || String(lastLoadedProjectRef.current.id) !== String(updatedProj.id);
+        const dbChanged = lastLoadedProjectRef.current && JSON.stringify(lastLoadedProjectRef.current) !== JSON.stringify(updatedProj);
+        lastLoadedProjectRef.current = updatedProj;
+
+        if ((isNewProject || dbChanged) && JSON.stringify(updatedProj) !== JSON.stringify(editingProject)) {
+          setEditingProject(updatedProj);
+          if (dbChanged && !isNewProject) {
+            showToast('Project settings were updated in another session. Form data refreshed.', 'info');
+          }
+        }
       }
+    } else {
+      lastLoadedProjectRef.current = null;
     }
   }, [projects, editingProject, showEditProjectModal, showToast]);
 
@@ -455,6 +468,7 @@ export default function DashboardPage() {
               showToast={showToast}
               papers={papersHook.papers}
               loadPapers={loadPapers}
+              activeProjectId={activeProjectId}
             />
           ) : (
             <PaperDatabaseView

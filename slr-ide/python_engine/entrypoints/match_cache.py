@@ -366,8 +366,8 @@ def run_matcher():
                     cursor.execute("""
                         UPDATE papers
                         SET Local_PDF_Status = ?, Local_PDF_Path = ?
-                        WHERE Paper_ID = ? AND Project_ID = ?
-                    """, (file_found_status, file_found_path, paper_id, active_proj_id))
+                        WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+                    """, (file_found_status, file_found_path, paper_id, active_proj_id, active_proj_id))
                     conn.commit()
                     print(json.dumps({
                         "event": "log",
@@ -398,8 +398,8 @@ def run_matcher():
                 cursor.execute("""
                     UPDATE papers
                     SET Local_PDF_Status = 'MISSING', Local_PDF_Path = NULL
-                    WHERE Paper_ID = ? AND Project_ID = ?
-                """, (paper_id, active_proj_id))
+                    WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+                """, (paper_id, active_proj_id, active_proj_id))
                 conn.commit()
                 local_pdf_status = 'MISSING'
                 local_pdf_path = None
@@ -419,8 +419,8 @@ def run_matcher():
                 cursor.execute("""
                     UPDATE papers
                     SET Local_PDF_Status = 'MATCHED', Local_PDF_Path = ?
-                    WHERE Paper_ID = ? AND Project_ID = ?
-                """, (f"pdf_library/raw/{paper_id}.pdf", paper_id, active_proj_id))
+                    WHERE Paper_ID = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+                """, (f"pdf_library/raw/{paper_id}.pdf", paper_id, active_proj_id, active_proj_id))
                 conn.commit()
                 matched_count += 1
                 print(json.dumps({

@@ -74,6 +74,43 @@ export async function GET(req: Request) {
 
     const stageMeta = STAGE_CONFIG[stageNum] || STAGE_CONFIG[1];
 
+    // Fetch pool papers to compute availability and PDF presence
+    const poolPapers = db.prepare(`
+      SELECT 
+        COALESCE(cp.Paper_ID, p.Paper_ID) as Paper_ID,
+        COALESCE(cp.Title, p.Title) as Title,
+        COALESCE(cp.Local_PDF_Path, p.Local_PDF_Path) as Local_PDF_Path,
+        COALESCE(cp.Local_PDF_Status, p.Local_PDF_Status) as Local_PDF_Status
+      FROM calibration_commit_ledger latest_ccl
+      JOIN (
+        SELECT paper_id, project_id, MAX(timestamp) as max_ts
+        FROM calibration_commit_ledger
+        WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+        GROUP BY paper_id, project_id
+      ) latest ON latest_ccl.paper_id = latest.paper_id 
+              AND CAST(latest.project_id AS TEXT) = CAST(latest_ccl.project_id AS TEXT) 
+              AND latest_ccl.timestamp = latest.max_ts
+      LEFT JOIN calibration_papers cp ON latest_ccl.paper_id = cp.Paper_ID AND CAST(cp.Project_ID AS TEXT) = CAST(latest_ccl.project_id AS TEXT)
+      LEFT JOIN papers p ON latest_ccl.paper_id = p.Paper_ID AND CAST(p.Project_ID AS TEXT) = CAST(latest_ccl.project_id AS TEXT)
+      WHERE CAST(latest_ccl.project_id AS TEXT) = CAST(? AS TEXT)
+        AND (
+          UPPER(latest_ccl.pool) = UPPER(?) 
+          OR UPPER(COALESCE(cp.calibration_tag, '')) = UPPER(?) 
+          OR UPPER(COALESCE(cp.calibration_pool, '')) = UPPER(?)
+          OR UPPER(COALESCE(p.calibration_tag, '')) = UPPER(?) 
+          OR UPPER(COALESCE(p.calibration_pool, '')) = UPPER(?)
+        )
+      ORDER BY latest_ccl.paper_id ASC
+    `).all(projectId, projectId, stageMeta.pool, stageMeta.pool, stageMeta.pool, stageMeta.pool, stageMeta.pool) as any[];
+
+    const totalPoolPapers = poolPapers.length;
+    const missingPdfPapers = poolPapers.filter(paper => {
+      const resolvedPdfPath = paper.Local_PDF_Path 
+        ? (path.isAbsolute(paper.Local_PDF_Path) ? paper.Local_PDF_Path : path.resolve(process.cwd(), paper.Local_PDF_Path))
+        : null;
+      return !resolvedPdfPath || !fs.existsSync(resolvedPdfPath) || paper.Local_PDF_Status === 'MISSING' || paper.Local_PDF_Status === 'FAILED';
+    });
+
     // Fetch latest benchmark run for this stage
     const latestRun = db.prepare(`
       SELECT * FROM prompt_benchmark_runs 
@@ -99,6 +136,9 @@ export async function GET(req: Request) {
       stage_num: stageNum,
       stage_name: stageMeta.name,
       pool: stageMeta.pool,
+      pool_papers_count: totalPoolPapers,
+      missing_pdf_count: missingPdfPapers.length,
+      missing_pdf_papers: missingPdfPapers.map(p => ({ paper_id: p.Paper_ID, title: p.Title })),
       latest_run: latestRun ? {
         ...latestRun,
         summary_metrics: safeJsonParse(latestRun.summary_metrics, {}),
@@ -174,6 +214,7 @@ export async function POST(req: Request) {
         COALESCE(cp.Year, p.Year) as Year,
         COALESCE(cp.DOI, p.DOI) as DOI,
         COALESCE(cp.Local_PDF_Path, p.Local_PDF_Path) as Local_PDF_Path,
+        COALESCE(cp.Local_PDF_Status, p.Local_PDF_Status) as Local_PDF_Status,
         COALESCE(cp.PDF_Link, p.PDF_Link) as PDF_Link,
         COALESCE(cp.Source, p.Source) as Source,
         latest_ccl.resolved_decision as gold_decision,
@@ -209,6 +250,24 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
+    // PDF Mandatory Guard for Quest 03, Quest 04, Quest 05 (Stage 2 Gatekeeper, Stage 3 Scientist, Stage 4 Miner)
+    if (stageNum >= 2) {
+      const missingPdfPapers = papersWithGold.filter(paper => {
+        const resolvedPdfPath = paper.Local_PDF_Path 
+          ? (path.isAbsolute(paper.Local_PDF_Path) ? paper.Local_PDF_Path : path.resolve(process.cwd(), paper.Local_PDF_Path))
+          : null;
+        return !resolvedPdfPath || !fs.existsSync(resolvedPdfPath) || paper.Local_PDF_Status === 'MISSING' || paper.Local_PDF_Status === 'FAILED';
+      });
+
+      if (missingPdfPapers.length > 0) {
+        const sample = missingPdfPapers.slice(0, 3).map(p => `"${p.Paper_ID}: ${p.Title || 'Untitled'}"`).join(', ');
+        const extra = missingPdfPapers.length > 3 ? ` and ${missingPdfPapers.length - 3} more` : '';
+        return NextResponse.json({
+          error: `Quest 0${stageNum + 1} (${stageMeta.name}) requires a local PDF file for every paper in ${stageMeta.pool}. Found ${missingPdfPapers.length} paper(s) with missing or unset PDFs (${sample}${extra}). Please acquire or upload all PDF files before running this benchmark.`
+        }, { status: 400 });
+      }
+    }
+
     // 3. Resolve Active Stage Prompt Template
     const stagePrompt = resolveStagePrompt(projectId, stageMeta.type);
     if (!stagePrompt) {
@@ -217,15 +276,15 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    // 4. Dynamic LLM Config Parsing (zero hardcoding)
+    // 4. Dynamic LLM Config Parsing (100% adherence to prompt template settings)
     const promptConfig = safeJsonParse(stagePrompt.llm_config, {});
     const modelId = promptConfig.model_id || 'gemini-2.5-flash';
     const cleanModelName = modelId.replace(/^models\//, '');
     const temperature = typeof promptConfig.temperature === 'number' ? promptConfig.temperature : 0.0;
-    const maxTokens = promptConfig.max_tokens || 4000;
-    const topP = typeof promptConfig.top_p === 'number' ? promptConfig.top_p : undefined;
-    const topK = typeof promptConfig.top_k === 'number' ? promptConfig.top_k : undefined;
-    const timeoutSeconds = promptConfig.timeout_seconds || 900;
+    const maxTokens = promptConfig.max_tokens ?? promptConfig.max_output_tokens ?? 4000;
+    const topP = typeof promptConfig.top_p === 'number' ? promptConfig.top_p : (promptConfig.top_p !== undefined ? Number(promptConfig.top_p) : undefined);
+    const topK = typeof promptConfig.top_k === 'number' ? promptConfig.top_k : (promptConfig.top_k !== undefined ? Number(promptConfig.top_k) : undefined);
+    const timeoutSeconds = promptConfig.timeout_seconds ? Number(promptConfig.timeout_seconds) : 900;
     const speedMode = (promptConfig.execution_mode || 'STANDARD').toUpperCase();
     const concurrency = Math.max(1, Number(promptConfig.concurrency ?? 2));
     const rawDelay = promptConfig.request_delay;
@@ -305,13 +364,18 @@ export async function POST(req: Request) {
       const generationConfig: Record<string, any> = {
         temperature,
         maxOutputTokens: maxTokens,
-        topP,
-        topK,
         responseMimeType: 'application/json',
         responseSchema: parsedResponseSchema
       };
 
-      if (promptConfig.thinking_level) {
+      if (topP !== undefined && !isNaN(topP)) {
+        generationConfig.topP = topP;
+      }
+      if (topK !== undefined && !isNaN(topK)) {
+        generationConfig.topK = topK;
+      }
+
+      if (promptConfig.thinking_level !== undefined && promptConfig.thinking_level !== null) {
         const level = String(promptConfig.thinking_level).toLowerCase();
         const budgetMap: Record<string, number> = {
           minimal: 1024,
@@ -321,14 +385,41 @@ export async function POST(req: Request) {
           none: 0,
           off: 0
         };
-        const budget = budgetMap[level] ?? (typeof promptConfig.thinking_budget === 'number' ? promptConfig.thinking_budget : 0);
-        if (budget > 0) {
-          generationConfig.thinkingConfig = { thinkingBudget: budget };
+        const budget = budgetMap[level] ?? (typeof promptConfig.thinking_budget === 'number' ? promptConfig.thinking_budget : (level === 'none' || level === 'off' ? 0 : 2048));
+        generationConfig.thinkingConfig = { thinkingBudget: budget };
+      }
+
+      const parts: any[] = [];
+
+      // Check if PDF should be attached inline for full-text stages (< 19.5MB inline limit)
+      if (paper.Local_PDF_Path) {
+        const resolvedPath = path.isAbsolute(paper.Local_PDF_Path) 
+          ? paper.Local_PDF_Path 
+          : path.resolve(process.cwd(), paper.Local_PDF_Path);
+        if (fs.existsSync(resolvedPath)) {
+          try {
+            const stat = fs.statSync(resolvedPath);
+            if (stat.size <= 19.5 * 1024 * 1024) {
+              const pdfBuffer = fs.readFileSync(resolvedPath);
+              parts.push({
+                inlineData: {
+                  mimeType: 'application/pdf',
+                  data: pdfBuffer.toString('base64')
+                }
+              });
+            } else {
+              console.warn(`PDF file ${resolvedPath} is too large (${(stat.size / 1024 / 1024).toFixed(1)}MB) for inline attachment.`);
+            }
+          } catch (pdfErr) {
+            console.warn(`Could not read PDF from ${resolvedPath}:`, pdfErr);
+          }
         }
       }
 
+      parts.push({ text: hydratedUserPrompt });
+
       const apiPayload = {
-        contents: [{ role: 'user', parts: [{ text: hydratedUserPrompt }] }],
+        contents: [{ role: 'user', parts }],
         systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
         generationConfig
       };

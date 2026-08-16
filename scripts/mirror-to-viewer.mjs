@@ -122,5 +122,9 @@ copyFile(
   path.join(ideDir, 'src/components/features/pre-calibration/PoolMetricsPanel.tsx'),
   path.join(viewerDir, 'src/components/scientific-rigor/PoolMetricsPanel.tsx')
 );
+copyFile(
+  path.join(ideDir, 'src/components/features/pre-calibration/BlindedAdjudicationPanel.tsx'),
+  path.join(viewerDir, 'src/components/scientific-rigor/BlindedAdjudicationPanel.tsx')
+);
 
 console.log('\n✨ Code Mirroring Complete! All shared components and services are synchronized.\n');

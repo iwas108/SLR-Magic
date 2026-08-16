@@ -9,11 +9,483 @@ import {
   calculateSchemaExactness
 } from '@/lib/inter-rater/adjudication-calculations';
 
+export function computePoolABStats(activeProjectId: string, pool: 'pool_a' | 'pool_b') {
+  // Query distinct reviewers for this pool
+  const reviewerRows = db.prepare(`
+    SELECT DISTINCT reviewer_name 
+    FROM reviewer_decisions 
+    WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND pool = ?
+    ORDER BY reviewer_name ASC
+  `).all(activeProjectId, activeProjectId, pool) as { reviewer_name: string }[];
+
+  const reviewers = reviewerRows.map(r => r.reviewer_name);
+  const total_reviewers = reviewers.length;
+
+  if (total_reviewers < 2) {
+    return {
+      pool,
+      title: pool === 'pool_a' ? 'Pool A (Fast Filter)' : 'Pool B (Gatekeeper)',
+      stageName: pool === 'pool_a' ? 'Stage 1: Fast Filter' : 'Stage 2: Gatekeeper',
+      isCalibrated: false,
+      message: 'Awaiting second reviewer data',
+      reviewers,
+      total_reviewers,
+      total_intersection: 0,
+      agree_include: 0,
+      agree_exclude: 0,
+      r1_inc_r2_exc: 0,
+      r1_exc_r2_inc: 0,
+      cohens_kappa: 0,
+      kappa_label: 'N/A',
+      raw_agreement_pct: 0,
+      expected_agreement_pct: 0,
+      kappa_warning: false,
+      r1_precision: 0,
+      r2_precision: 0,
+      precision_warning: false,
+      total_discrepancies: 0,
+      resolved_discrepancies: 0,
+      pending_discrepancies: 0,
+      resolution_pct: 0,
+      passes: false,
+      discrepancies: []
+    };
+  }
+
+  const r1 = reviewers[0];
+  const r2 = reviewers[1];
+
+  const pairedDecisions = db.prepare(`
+    SELECT rd.paper_id,
+           p.Title as title,
+           p.Abstract as abstract,
+           p.Local_PDF_Path as local_pdf_path,
+           p.Authors as authors,
+           p.Year as year,
+           p.DOI as doi,
+           p.Source as source,
+           p.PDF_Link as pdf_link,
+           p.Publisher as publisher,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.decision END) as r1_decision,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.decision END) as r2_decision,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.rationale END) as r1_rationale,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.rationale END) as r2_rationale,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.ec_trigger END) as r1_ec,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.ec_trigger END) as r2_ec
+    FROM reviewer_decisions rd
+    JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND (rd.project_id = p.Project_ID OR CAST(rd.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+    WHERE (rd.project_id = ? OR CAST(rd.project_id AS TEXT) = CAST(? AS TEXT)) AND rd.pool = ?
+    GROUP BY rd.paper_id
+    HAVING COUNT(DISTINCT rd.reviewer_name) = 2
+  `).all(r1, r2, r1, r2, r1, r2, activeProjectId, activeProjectId, pool) as any[];
+
+  let agree_include = 0;
+  let agree_exclude = 0;
+  let r1_inc_r2_exc = 0;
+  let r1_exc_r2_inc = 0;
+
+  const discrepancies: any[] = [];
+  const total_intersection = pairedDecisions.length;
+
+  const resolvedPaperIds = new Set(
+    db.prepare(`
+      SELECT l.paper_id 
+      FROM calibration_commit_ledger l
+      JOIN (
+        SELECT paper_id, MAX(id) as max_id
+        FROM calibration_commit_ledger
+        WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND pool = ?
+        GROUP BY paper_id
+      ) latest ON l.id = latest.max_id
+      WHERE (l.project_id = ? OR CAST(l.project_id AS TEXT) = CAST(? AS TEXT)) 
+        AND l.pool = ? 
+        AND l.adjudicator NOT LIKE 'IMPORT:%'
+    `).all(activeProjectId, activeProjectId, pool, activeProjectId, activeProjectId, pool).map((r: any) => r.paper_id)
+  );
+
+  for (const row of pairedDecisions) {
+    const dec1 = (row.r1_decision || '').trim().toLowerCase();
+    const dec2 = (row.r2_decision || '').trim().toLowerCase();
+
+    const isInc1 = dec1 === 'include';
+    const isInc2 = dec2 === 'include';
+    const isExc1 = dec1 === 'exclude';
+    const isExc2 = dec2 === 'exclude';
+
+    if (isInc1 && isInc2) {
+      agree_include++;
+    } else if (isExc1 && isExc2) {
+      agree_exclude++;
+    } else if (isInc1 && isExc2) {
+      r1_inc_r2_exc++;
+    } else if (isExc1 && isInc2) {
+      r1_exc_r2_inc++;
+    }
+
+    if (dec1 !== dec2) {
+      discrepancies.push({
+        paper_id: row.paper_id,
+        title: row.title,
+        abstract: row.abstract,
+        local_pdf_path: row.local_pdf_path,
+        authors: row.authors,
+        year: row.year,
+        doi: row.doi,
+        source: row.source,
+        pdf_link: row.pdf_link,
+        publisher: row.publisher,
+        r1_decision: row.r1_decision,
+        r2_decision: row.r2_decision,
+        r1_rationale: row.r1_rationale,
+        r2_rationale: row.r2_rationale,
+        r1_ec: row.r1_ec,
+        r2_ec: row.r2_ec,
+        is_resolved: resolvedPaperIds.has(row.paper_id)
+      });
+    }
+  }
+
+  // Cohen's Kappa
+  const kappaMetrics = calculateCohensKappa(total_intersection, agree_include, agree_exclude, r1_inc_r2_exc, r1_exc_r2_inc);
+
+  // Precision calculation for Pool B
+  let r1_precision = 0;
+  let r2_precision = 0;
+  let precision_warning = false;
+  if (pool === 'pool_b') {
+    const precMetrics = calculatePoolBPrecision(agree_include, r1_exc_r2_inc, r1_inc_r2_exc);
+    r1_precision = precMetrics.r1_precision;
+    r2_precision = precMetrics.r2_precision;
+    precision_warning = precMetrics.precision_warning;
+  }
+
+  const total_discrepancies = discrepancies.length;
+  const resolved_discrepancies = discrepancies.filter(d => d.is_resolved).length;
+  const pending_discrepancies = total_discrepancies - resolved_discrepancies;
+  const resolution_pct = total_discrepancies > 0 ? Math.round((resolved_discrepancies / total_discrepancies) * 100) : 100;
+
+  const passes = pool === 'pool_a'
+    ? (kappaMetrics.cohens_kappa >= 0.80 || kappaMetrics.raw_agreement_pct === 100) && pending_discrepancies === 0
+    : kappaMetrics.cohens_kappa >= 0.80 && r1_precision >= 85 && r2_precision >= 85 && pending_discrepancies === 0;
+
+  return {
+    pool,
+    title: pool === 'pool_a' ? 'Pool A (Fast Filter)' : 'Pool B (Gatekeeper)',
+    stageName: pool === 'pool_a' ? 'Stage 1: Fast Filter' : 'Stage 2: Gatekeeper',
+    isCalibrated: true,
+    reviewers,
+    total_reviewers,
+    agree_include,
+    agree_exclude,
+    r1_inc_r2_exc,
+    r1_exc_r2_inc,
+    total_intersection,
+    cohens_kappa: kappaMetrics.cohens_kappa,
+    kappa_label: kappaMetrics.kappa_label,
+    raw_agreement_pct: kappaMetrics.raw_agreement_pct,
+    expected_agreement_pct: kappaMetrics.expected_agreement_pct,
+    kappa_warning: kappaMetrics.kappa_warning,
+    r1_precision,
+    r2_precision,
+    precision_warning,
+    total_discrepancies,
+    resolved_discrepancies,
+    pending_discrepancies,
+    resolution_pct,
+    passes,
+    discrepancies
+  };
+}
+
+export function computePoolCStats(activeProjectId: string) {
+  const reviewerRows = db.prepare(`
+    SELECT DISTINCT reviewer_name 
+    FROM reviewer_decisions 
+    WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND pool = 'pool_c'
+    ORDER BY reviewer_name ASC
+  `).all(activeProjectId, activeProjectId) as { reviewer_name: string }[];
+
+  const reviewers = reviewerRows.map(r => r.reviewer_name);
+  const total_reviewers = reviewers.length;
+
+  if (total_reviewers < 2) {
+    return {
+      pool: 'pool_c',
+      title: 'Pool C (Scientist & Miner)',
+      stageName: 'Stage 3 & 4: QA & Miner',
+      isCalibrated: false,
+      message: 'Awaiting second reviewer data',
+      reviewers,
+      total_reviewers,
+      total_intersection: 0,
+      weighted_kappa: 0,
+      kappa_label: 'N/A',
+      raw_agreement_pct: 0,
+      expected_agreement_pct: 0,
+      kappa_warning: false,
+      agree_include: 0,
+      agree_exclude: 0,
+      r1_include_count: 0,
+      r2_include_count: 0,
+      missing_keys_pct: 0,
+      type_match_pct: 0,
+      total_discrepancies: 0,
+      resolved_discrepancies: 0,
+      pending_discrepancies: 0,
+      resolution_pct: 0,
+      passes: false,
+      discrepancies: []
+    };
+  }
+
+  const r1 = reviewers[0];
+  const r2 = reviewers[1];
+
+  const project = db.prepare('SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(activeProjectId, activeProjectId) as any;
+  let qaRules: any[] = [];
+  let extractionRules: any[] = [];
+  if (project) {
+    if (project.pool_c_qa_rules) {
+      try {
+        qaRules = typeof project.pool_c_qa_rules === 'string' ? JSON.parse(project.pool_c_qa_rules) : project.pool_c_qa_rules;
+      } catch {}
+    }
+    if (project.pool_c_extraction_rules) {
+      try {
+        extractionRules = typeof project.pool_c_extraction_rules === 'string' ? JSON.parse(project.pool_c_extraction_rules) : project.pool_c_extraction_rules;
+      } catch {}
+    }
+  }
+
+  const pairedDecisions = db.prepare(`
+    SELECT rd.paper_id,
+           p.Title as title,
+           p.Abstract as abstract,
+           p.Local_PDF_Path as local_pdf_path,
+           p.Authors as authors,
+           p.Year as year,
+           p.DOI as doi,
+           p.Source as source,
+           p.PDF_Link as pdf_link,
+           p.Publisher as publisher,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.qa_scores END) as r1_qa_scores,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.qa_scores END) as r2_qa_scores,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r1_extracted_data,
+           MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r2_extracted_data
+    FROM reviewer_decisions rd
+    JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND (rd.project_id = p.Project_ID OR CAST(rd.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+    WHERE (rd.project_id = ? OR CAST(rd.project_id AS TEXT) = CAST(? AS TEXT)) AND rd.pool = 'pool_c'
+    GROUP BY rd.paper_id
+    HAVING COUNT(DISTINCT rd.reviewer_name) = 2
+  `).all(r1, r2, r1, r2, activeProjectId, activeProjectId) as any[];
+
+  const discrepancies: any[] = [];
+  const total_intersection = pairedDecisions.length;
+
+  const resolvedPaperIds = new Set(
+    db.prepare(`
+      SELECT l.paper_id 
+      FROM calibration_commit_ledger l
+      JOIN (
+        SELECT paper_id, MAX(id) as max_id
+        FROM calibration_commit_ledger
+        WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND pool = 'pool_c'
+        GROUP BY paper_id
+      ) latest ON l.id = latest.max_id
+      WHERE (l.project_id = ? OR CAST(l.project_id AS TEXT) = CAST(? AS TEXT)) 
+        AND l.pool = 'pool_c' 
+        AND l.adjudicator NOT LIKE 'IMPORT:%'
+    `).all(activeProjectId, activeProjectId, activeProjectId, activeProjectId).map((r: any) => r.paper_id)
+  );
+
+  const O = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  let totalRatings = 0;
+  let r1_include_count = 0;
+  let r2_include_count = 0;
+  let agree_include = 0;
+  let agree_exclude = 0;
+
+  let missingKeysCount = 0;
+  let typeMatchesCount = 0;
+
+  const getQaItem = (qaObj: any, ruleCode: string) => {
+    if (!qaObj) return undefined;
+    if (qaObj[ruleCode] !== undefined) return qaObj[ruleCode];
+    const codeLower = ruleCode.toLowerCase();
+    const codeClean = codeLower.replace(/[^a-z0-9]/g, '');
+    const matchKey = Object.keys(qaObj).find(k => {
+      const kClean = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return kClean === codeClean || kClean.startsWith(codeClean);
+    });
+    return matchKey ? qaObj[matchKey] : undefined;
+  };
+
+  const getExtractedItem = (extObj: any, jsonKey: string) => {
+    if (!extObj) return undefined;
+    if (extObj[jsonKey] !== undefined) return extObj[jsonKey];
+    const keyLower = jsonKey.toLowerCase();
+    const keyClean = keyLower.replace(/[^a-z0-9]/g, '');
+    const matchKey = Object.keys(extObj).find(k => {
+      const kLower = k.toLowerCase();
+      return kLower === keyLower || kLower.replace(/[^a-z0-9]/g, '') === keyClean;
+    });
+    return matchKey ? extObj[matchKey] : undefined;
+  };
+
+  const getExtractedVal = (item: any): string => {
+    if (item === undefined || item === null) return '';
+    if (typeof item === 'object') {
+      return String(item.value ?? item.val ?? item.text ?? '').trim();
+    }
+    return String(item).trim();
+  };
+
+  for (const row of pairedDecisions) {
+    const r1_qa = JSON.parse(row.r1_qa_scores || '{}');
+    const r2_qa = JSON.parse(row.r2_qa_scores || '{}');
+    const r1_ext = JSON.parse(row.r1_extracted_data || '{}');
+    const r2_ext = JSON.parse(row.r2_extracted_data || '{}');
+
+    for (const rule of qaRules) {
+      const item1 = getQaItem(r1_qa, rule.code);
+      const item2 = getQaItem(r2_qa, rule.code);
+      const idx1 = getScoreIndex(item1);
+      const idx2 = getScoreIndex(item2);
+      O[idx1][idx2]++;
+      totalRatings++;
+    }
+
+    const d1 = calculatePoolCDecision(r1_qa, qaRules);
+    const d2 = calculatePoolCDecision(r2_qa, qaRules);
+
+    if (d1.decision === 'Include') r1_include_count++;
+    if (d2.decision === 'Include') r2_include_count++;
+    if (d1.decision === 'Include' && d2.decision === 'Include') agree_include++;
+    if (d1.decision === 'Exclude' && d2.decision === 'Exclude') agree_exclude++;
+
+    for (const rule of extractionRules) {
+      const item1 = getExtractedItem(r1_ext, rule.json_key);
+      const item2 = getExtractedItem(r2_ext, rule.json_key);
+
+      if (item1 === undefined) {
+        missingKeysCount++;
+      } else {
+        const val1 = getExtractedVal(item1);
+        if (typeof val1 === 'string') typeMatchesCount++;
+      }
+
+      if (item2 === undefined) {
+        missingKeysCount++;
+      } else {
+        const val2 = getExtractedVal(item2);
+        if (typeof val2 === 'string') typeMatchesCount++;
+      }
+    }
+
+    let hasConflict = false;
+    for (const rule of qaRules) {
+      const item1 = getQaItem(r1_qa, rule.code);
+      const item2 = getQaItem(r2_qa, rule.code);
+      const v1 = typeof item1 === 'object' ? (item1?.value ?? item1?.score) : item1;
+      const v2 = typeof item2 === 'object' ? (item2?.value ?? item2?.score) : item2;
+      if (v1 !== v2) {
+        hasConflict = true;
+        break;
+      }
+    }
+    if (!hasConflict) {
+      for (const rule of extractionRules) {
+        const item1 = getExtractedItem(r1_ext, rule.json_key);
+        const item2 = getExtractedItem(r2_ext, rule.json_key);
+        const v1 = getExtractedVal(item1).replace(/\s+/g, ' ');
+        const v2 = getExtractedVal(item2).replace(/\s+/g, ' ');
+        if (v1 !== v2) {
+          hasConflict = true;
+          break;
+        }
+      }
+    }
+
+    if (hasConflict) {
+      discrepancies.push({
+        paper_id: row.paper_id,
+        title: row.title,
+        abstract: row.abstract,
+        local_pdf_path: row.local_pdf_path,
+        authors: row.authors,
+        year: row.year,
+        doi: row.doi,
+        source: row.source,
+        pdf_link: row.pdf_link,
+        publisher: row.publisher,
+        r1_qa_scores: row.r1_qa_scores,
+        r2_qa_scores: row.r2_qa_scores,
+        r1_extracted_data: row.r1_extracted_data,
+        r2_extracted_data: row.r2_extracted_data,
+        is_resolved: resolvedPaperIds.has(row.paper_id)
+      });
+    }
+  }
+
+  const kappaMetrics = calculateWeightedKappa(O, totalRatings);
+  const schemaMetrics = calculateSchemaExactness(total_intersection, extractionRules.length, missingKeysCount, typeMatchesCount);
+
+  const total_discrepancies = discrepancies.length;
+  const resolved_discrepancies = discrepancies.filter(d => d.is_resolved).length;
+  const pending_discrepancies = total_discrepancies - resolved_discrepancies;
+  const resolution_pct = total_discrepancies > 0 ? Math.round((resolved_discrepancies / total_discrepancies) * 100) : 100;
+
+  const passes = (kappaMetrics.weighted_kappa || 0) >= 0.65 && schemaMetrics.missing_keys_pct === 0 && schemaMetrics.type_match_pct === 100 && pending_discrepancies === 0;
+
+  return {
+    pool: 'pool_c',
+    title: 'Pool C (Scientist & Miner)',
+    stageName: 'Stage 3 & 4: QA & Miner',
+    isCalibrated: true,
+    reviewers,
+    total_reviewers,
+    total_intersection,
+    weighted_kappa: kappaMetrics.weighted_kappa,
+    kappa_label: kappaMetrics.kappa_label,
+    raw_agreement_pct: kappaMetrics.raw_agreement_pct,
+    expected_agreement_pct: kappaMetrics.expected_agreement_pct,
+    kappa_warning: kappaMetrics.kappa_warning,
+    agree_include,
+    agree_exclude,
+    r1_include_count,
+    r2_include_count,
+    missing_keys_pct: schemaMetrics.missing_keys_pct,
+    type_match_pct: schemaMetrics.type_match_pct,
+    total_discrepancies,
+    resolved_discrepancies,
+    pending_discrepancies,
+    resolution_pct,
+    passes,
+    discrepancies
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode');
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const paramProjectId = searchParams.get('projectId');
+    const activeProjectId = paramProjectId || getConfig('ACTIVE_PROJECT_ID', '');
+
+    if (mode === 'all_pools' || mode === 'blinded_adjudication') {
+      const poolA = computePoolABStats(activeProjectId, 'pool_a');
+      const poolB = computePoolABStats(activeProjectId, 'pool_b');
+      const poolC = computePoolCStats(activeProjectId);
+
+      return NextResponse.json({
+        pools: {
+          pool_a: poolA,
+          pool_b: poolB,
+          pool_c: poolC
+        },
+        poolList: [poolA, poolB, poolC]
+      });
+    }
 
     if (mode === 'stage_comparison') {
       // Fetch only the latest adjudicated state for each paper from calibration_commit_ledger
@@ -24,11 +496,11 @@ export async function GET(request: Request) {
         JOIN (
           SELECT paper_id, project_id, MAX(timestamp) as max_ts
           FROM calibration_commit_ledger
-          WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+          WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
           GROUP BY paper_id, project_id
-        ) latest ON l.paper_id = latest.paper_id AND CAST(latest.project_id AS TEXT) = CAST(l.project_id AS TEXT) AND l.timestamp = latest.max_ts
-        WHERE CAST(l.project_id AS TEXT) = CAST(? AS TEXT)
-      `).all(activeProjectId, activeProjectId) as { paper_id: string; pool: string; adjudicated_decision: string; resolved_qa_scores: string; resolved_extracted_data: string }[];
+        ) latest ON l.paper_id = latest.paper_id AND (latest.project_id = l.project_id OR CAST(latest.project_id AS TEXT) = CAST(l.project_id AS TEXT)) AND l.timestamp = latest.max_ts
+        WHERE (l.project_id = ? OR CAST(l.project_id AS TEXT) = CAST(? AS TEXT))
+      `).all(activeProjectId, activeProjectId, activeProjectId, activeProjectId) as { paper_id: string; pool: string; adjudicated_decision: string; resolved_qa_scores: string; resolved_extracted_data: string }[];
 
       // Query project rules to parse fatal flaws and keys
       const project = db.prepare('SELECT * FROM projects WHERE (id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))').get(activeProjectId, activeProjectId) as any;
@@ -51,19 +523,16 @@ export async function GET(request: Request) {
       // Pool A (Fast Filter, Stage 1)
       // Pool B (Gatekeeper, Stage 2)
       // Pool C (Scientist, Stage 3)
-      // Pool C (Miner, Stage 4 - represented in pool C but separately calculated for schemas or decisions)
+      // Pool C (Miner, Stage 4)
       
       const computeStatsForPool = (targetPool: string, stageNum: number) => {
         const poolEntries = ledgerEntries.filter(e => e.pool === targetPool);
         
         if (stageNum === 3) {
-          // Scientist Stage: Calculate Weighted Cohen's Kappa of QA scores
-          // comparing gold resolved_qa_scores vs AI structured_output.qa_scores
           const O = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
           let totalRatings = 0;
           let evaluatedCount = 0;
 
-          // Track deviation count categories
           let rawAgreementCount = 0;
           let minorDeviationCount = 0;
           let criticalMissCount = 0;
@@ -83,9 +552,9 @@ export async function GET(request: Request) {
               const auditRow = db.prepare(`
                 SELECT structured_output 
                 FROM llm_audit_log 
-                WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'scientist' AND status = 'SUCCESS'
+                WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND paper_id = ? AND task_type = 'scientist' AND status = 'SUCCESS'
                 ORDER BY created_at DESC LIMIT 1
-              `).get(activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
+              `).get(activeProjectId, activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
               structuredOutput = auditRow?.structured_output;
             }
 
@@ -125,7 +594,6 @@ export async function GET(request: Request) {
                   O[idx1][idx2]++;
                   totalRatings++;
 
-                  // Track granular deviation bands
                   totalRatingComparisons++;
                   const scoreDiff = Math.abs(idx1 - idx2);
                   if (scoreDiff === 0) {
@@ -159,14 +627,12 @@ export async function GET(request: Request) {
         }
 
         if (stageNum === 4) {
-          // Miner Stage: Schema Match (Missing keys %, Type match %) and Literal Exact Value Match
           let evaluatedCount = 0;
           let totalKeysEvaluated = 0;
           let missingKeysCount = 0;
           let typeMatchesCount = 0;
           let exactMatchesCount = 0;
 
-          // Helper to normalize values (handling arrays, whitespaces and casing)
           const normalizeVal = (val: any): string => {
             if (Array.isArray(val)) {
               return val.map(v => String(v).trim().toLowerCase()).sort().join(', ');
@@ -177,7 +643,6 @@ export async function GET(request: Request) {
             return String(val || '').trim().toLowerCase().replace(/\s+/g, ' ');
           };
 
-          // Helper to parse strings/arrays into lists of words/tokens for fuzzy matching
           const getTokens = (val: any): string[] => {
             if (Array.isArray(val)) {
               return val.flatMap(v => getTokens(v));
@@ -185,12 +650,11 @@ export async function GET(request: Request) {
             if (val && typeof val === 'object' && val.value !== undefined) {
               return getTokens(val.value);
             }
-            // Split by punctuation, comma, space, slash, etc.
             return String(val || '')
               .toLowerCase()
               .split(/[\s,;|\/\(\)\[\]\-]+/)
               .map(t => t.trim())
-              .filter(t => t.length > 1); // Ignore single characters
+              .filter(t => t.length > 1);
           };
 
           const checkFuzzyMatch = (gold: any, ai: any): boolean => {
@@ -198,18 +662,16 @@ export async function GET(request: Request) {
             const aNorm = normalizeVal(ai);
             if (gNorm === aNorm) return true;
 
-            // Compute Token Intersection / Jaccard Similarity
             const gTokens = getTokens(gold);
             const aTokens = getTokens(ai);
             if (gTokens.length === 0 || aTokens.length === 0) {
-              return gNorm === aNorm; // Fallback to raw match
+              return gNorm === aNorm;
             }
 
             const intersection = gTokens.filter(t => aTokens.includes(t));
             const union = Array.from(new Set([...gTokens, ...aTokens]));
             const jaccard = intersection.length / union.length;
 
-            // If they share more than 40% of key tokens, or if one list is a complete subset of the other
             const isSubset = gTokens.every(t => aTokens.includes(t)) || aTokens.every(t => gTokens.includes(t));
             
             return jaccard >= 0.4 || isSubset;
@@ -229,9 +691,9 @@ export async function GET(request: Request) {
               const auditRow = db.prepare(`
                 SELECT structured_output 
                 FROM llm_audit_log 
-                WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = 'miner' AND status = 'SUCCESS'
+                WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND paper_id = ? AND task_type = 'miner' AND status = 'SUCCESS'
                 ORDER BY created_at DESC LIMIT 1
-              `).get(activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
+              `).get(activeProjectId, activeProjectId, entry.paper_id) as { structured_output: string } | undefined;
               structuredOutput = auditRow?.structured_output;
             }
 
@@ -253,13 +715,10 @@ export async function GET(request: Request) {
                   const goldItem = goldExt[rule.json_key];
                   const aiItem = aiExt[rule.json_key];
 
-                  // Schema matches: check presence and type
                   if (aiItem === undefined) {
                     missingKeysCount++;
                   } else {
-                    typeMatchesCount++; // Keys exist in JSON schema context
-                    
-                    // Exact value match check: compare normalized values or fuzzy tokens
+                    typeMatchesCount++;
                     if (checkFuzzyMatch(goldItem, aiItem)) {
                       exactMatchesCount++;
                     }
@@ -293,7 +752,6 @@ export async function GET(request: Request) {
         for (const entry of poolEntries) {
           const goldDec = (entry.adjudicated_decision || '').toUpperCase();
 
-          // Query the screening record for this paper at this stage
           const screeningRow = db.prepare(`
             SELECT decision, structured_output
             FROM llm_screening_records
@@ -307,9 +765,9 @@ export async function GET(request: Request) {
             const auditRow = db.prepare(`
               SELECT structured_output 
               FROM llm_audit_log 
-              WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND paper_id = ? AND task_type = ? AND status = 'SUCCESS'
+              WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND paper_id = ? AND task_type = ? AND status = 'SUCCESS'
               ORDER BY created_at DESC LIMIT 1
-            `).get(activeProjectId, entry.paper_id, stageNum === 1 ? 'fast_filter' : 'gatekeeper') as { structured_output: string } | undefined;
+            `).get(activeProjectId, activeProjectId, entry.paper_id, stageNum === 1 ? 'fast_filter' : 'gatekeeper') as { structured_output: string } | undefined;
 
             if (auditRow?.structured_output) {
               try {
@@ -403,360 +861,12 @@ export async function GET(request: Request) {
       ? 'pool_c' 
       : 'pool_a';
 
-    // 1. Query distinct reviewers for this pool
-    const reviewerRows = db.prepare(`
-      SELECT DISTINCT reviewer_name 
-      FROM reviewer_decisions 
-      WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ?
-      ORDER BY reviewer_name ASC
-    `).all(activeProjectId, dbPool) as { reviewer_name: string }[];
-
-    const reviewers = reviewerRows.map(r => r.reviewer_name);
-    const total_reviewers = reviewers.length;
-
-    // 2. NaN guard if < 2 reviewers
-    if (total_reviewers < 2) {
-      return NextResponse.json({
-        isCalibrated: false,
-        message: 'Awaiting second reviewer data',
-        reviewers,
-        total_reviewers
-      });
-    }
-
-    const r1 = reviewers[0];
-    const r2 = reviewers[1];
-
     if (dbPool === 'pool_c') {
-      // Query project rules to parse fatal flaws and keys
-      const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(activeProjectId) as any;
-      let qaRules: any[] = [];
-      let extractionRules: any[] = [];
-      if (project) {
-        if (project.pool_c_qa_rules) {
-          try {
-            qaRules = typeof project.pool_c_qa_rules === 'string' ? JSON.parse(project.pool_c_qa_rules) : project.pool_c_qa_rules;
-          } catch {}
-        }
-        if (project.pool_c_extraction_rules) {
-          try {
-            extractionRules = typeof project.pool_c_extraction_rules === 'string' ? JSON.parse(project.pool_c_extraction_rules) : project.pool_c_extraction_rules;
-          } catch {}
-        }
-      }
-
-      // Query paired decisions for Pool C
-      const pairedDecisions = db.prepare(`
-        SELECT rd.paper_id,
-               p.Title as title,
-               p.Abstract as abstract,
-               p.Local_PDF_Path as local_pdf_path,
-               p.Authors as authors,
-               p.Year as year,
-               p.DOI as doi,
-               p.Source as source,
-               p.PDF_Link as pdf_link,
-               p.Publisher as publisher,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.qa_scores END) as r1_qa_scores,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.qa_scores END) as r2_qa_scores,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r1_extracted_data,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r2_extracted_data
-        FROM reviewer_decisions rd
-        JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND CAST(rd.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
-        WHERE CAST(rd.project_id AS TEXT) = CAST(? AS TEXT) AND rd.pool = 'pool_c'
-        GROUP BY rd.paper_id
-        HAVING COUNT(DISTINCT rd.reviewer_name) = 2
-      `).all(r1, r2, r1, r2, activeProjectId) as any[];
-
-      const discrepancies: any[] = [];
-      const total_intersection = pairedDecisions.length;
-
-      // 3x3 Confusion Matrix for QA scores: [0.0, 0.5, 1.0]
-      const O = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
-
-      let totalRatings = 0;
-      let r1_include_count = 0;
-      let r2_include_count = 0;
-      let agree_include = 0;
-      let agree_exclude = 0;
-
-      let missingKeysCount = 0;
-      let typeMatchesCount = 0;
-
-      // Helper to fetch QA score item flexibly (e.g. 'QA-1' vs 'QA1')
-      const getQaItem = (qaObj: any, ruleCode: string) => {
-        if (!qaObj) return undefined;
-        if (qaObj[ruleCode] !== undefined) return qaObj[ruleCode];
-        const codeLower = ruleCode.toLowerCase();
-        const codeClean = codeLower.replace(/[^a-z0-9]/g, '');
-        const matchKey = Object.keys(qaObj).find(k => {
-          const kClean = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-          return kClean === codeClean || kClean.startsWith(codeClean);
-        });
-        return matchKey ? qaObj[matchKey] : undefined;
-      };
-
-      // Helper to fetch extracted value string flexibly
-      const getExtractedItem = (extObj: any, jsonKey: string) => {
-        if (!extObj) return undefined;
-        if (extObj[jsonKey] !== undefined) return extObj[jsonKey];
-        const keyLower = jsonKey.toLowerCase();
-        const keyClean = keyLower.replace(/[^a-z0-9]/g, '');
-        const matchKey = Object.keys(extObj).find(k => {
-          const kLower = k.toLowerCase();
-          return kLower === keyLower || kLower.replace(/[^a-z0-9]/g, '') === keyClean;
-        });
-        return matchKey ? extObj[matchKey] : undefined;
-      };
-
-      const getExtractedVal = (item: any): string => {
-        if (item === undefined || item === null) return '';
-        if (typeof item === 'object') {
-          return String(item.value ?? item.val ?? item.text ?? '').trim();
-        }
-        return String(item).trim();
-      };
-
-      for (const row of pairedDecisions) {
-        const r1_qa = JSON.parse(row.r1_qa_scores || '{}');
-        const r2_qa = JSON.parse(row.r2_qa_scores || '{}');
-        const r1_ext = JSON.parse(row.r1_extracted_data || '{}');
-        const r2_ext = JSON.parse(row.r2_extracted_data || '{}');
-
-        // Compile Kappa Ratings
-        for (const rule of qaRules) {
-          const item1 = getQaItem(r1_qa, rule.code);
-          const item2 = getQaItem(r2_qa, rule.code);
-          const idx1 = getScoreIndex(item1);
-          const idx2 = getScoreIndex(item2);
-          O[idx1][idx2]++;
-          totalRatings++;
-        }
-
-        // Calculate dynamic decisions for rates
-        const d1 = calculatePoolCDecision(r1_qa, qaRules);
-        const d2 = calculatePoolCDecision(r2_qa, qaRules);
-
-        if (d1.decision === 'Include') r1_include_count++;
-        if (d2.decision === 'Include') r2_include_count++;
-        if (d1.decision === 'Include' && d2.decision === 'Include') agree_include++;
-        if (d1.decision === 'Exclude' && d2.decision === 'Exclude') agree_exclude++;
-
-        // Calculate Schema Exactness
-        for (const rule of extractionRules) {
-          const item1 = getExtractedItem(r1_ext, rule.json_key);
-          const item2 = getExtractedItem(r2_ext, rule.json_key);
-
-          if (item1 === undefined) {
-            missingKeysCount++;
-          } else {
-            const val1 = getExtractedVal(item1);
-            if (typeof val1 === 'string') typeMatchesCount++;
-          }
-
-          if (item2 === undefined) {
-            missingKeysCount++;
-          } else {
-            const val2 = getExtractedVal(item2);
-            if (typeof val2 === 'string') typeMatchesCount++;
-          }
-        }
-
-        // Conflict check
-        let hasConflict = false;
-        for (const rule of qaRules) {
-          const item1 = getQaItem(r1_qa, rule.code);
-          const item2 = getQaItem(r2_qa, rule.code);
-          const v1 = typeof item1 === 'object' ? (item1?.value ?? item1?.score) : item1;
-          const v2 = typeof item2 === 'object' ? (item2?.value ?? item2?.score) : item2;
-          if (v1 !== v2) {
-            hasConflict = true;
-            break;
-          }
-        }
-        if (!hasConflict) {
-          for (const rule of extractionRules) {
-            const item1 = getExtractedItem(r1_ext, rule.json_key);
-            const item2 = getExtractedItem(r2_ext, rule.json_key);
-            const v1 = getExtractedVal(item1).replace(/\s+/g, ' ');
-            const v2 = getExtractedVal(item2).replace(/\s+/g, ' ');
-            if (v1 !== v2) {
-              hasConflict = true;
-              break;
-            }
-          }
-        }
-
-      const resolvedPaperIds = new Set(
-        db.prepare(`
-          SELECT DISTINCT paper_id 
-          FROM calibration_commit_ledger 
-          WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ? AND (adjudicator NOT LIKE 'IMPORT:%' OR commit_message LIKE '%Adjudicat%' OR commit_message LIKE '%Resolve%')
-        `).all(activeProjectId, dbPool).map((r: any) => r.paper_id)
-      );
-
-      if (hasConflict) {
-        discrepancies.push({
-          paper_id: row.paper_id,
-          title: row.title,
-          abstract: row.abstract,
-          local_pdf_path: row.local_pdf_path,
-          authors: row.authors,
-          year: row.year,
-          doi: row.doi,
-          source: row.source,
-          pdf_link: row.pdf_link,
-          publisher: row.publisher,
-          r1_qa_scores: row.r1_qa_scores,
-          r2_qa_scores: row.r2_qa_scores,
-          r1_extracted_data: row.r1_extracted_data,
-          r2_extracted_data: row.r2_extracted_data,
-          is_resolved: resolvedPaperIds.has(row.paper_id)
-        });
-      }
-      }
-
-      // Linear Weighted Kappa Calculation
-      const kappaMetrics = calculateWeightedKappa(O, totalRatings);
-      // Schema metrics
-      const schemaMetrics = calculateSchemaExactness(total_intersection, extractionRules.length, missingKeysCount, typeMatchesCount);
-
-      return NextResponse.json({
-        isCalibrated: true,
-        reviewers,
-        total_reviewers,
-        total_intersection,
-        weighted_kappa: kappaMetrics.weighted_kappa,
-        kappa_label: kappaMetrics.kappa_label,
-        raw_agreement_pct: kappaMetrics.raw_agreement_pct,
-        expected_agreement_pct: kappaMetrics.expected_agreement_pct,
-        kappa_warning: kappaMetrics.kappa_warning,
-        agree_include,
-        agree_exclude,
-        r1_include_count,
-        r2_include_count,
-        missing_keys_pct: schemaMetrics.missing_keys_pct,
-        type_match_pct: schemaMetrics.type_match_pct,
-        discrepancies
-      });
-
+      const stats = computePoolCStats(activeProjectId);
+      return NextResponse.json(stats);
     } else {
-      // Pool A & Pool B Standard Stats
-      const pairedDecisions = db.prepare(`
-        SELECT rd.paper_id,
-               p.Title as title,
-               p.Abstract as abstract,
-               p.Local_PDF_Path as local_pdf_path,
-               p.Authors as authors,
-               p.Year as year,
-               p.DOI as doi,
-               p.Source as source,
-               p.PDF_Link as pdf_link,
-               p.Publisher as publisher,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.decision END) as r1_decision,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.decision END) as r2_decision,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.rationale END) as r1_rationale,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.rationale END) as r2_rationale,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.ec_trigger END) as r1_ec,
-               MAX(CASE WHEN rd.reviewer_name = ? THEN rd.ec_trigger END) as r2_ec
-        FROM reviewer_decisions rd
-        JOIN calibration_papers p ON rd.paper_id = p.Paper_ID AND CAST(rd.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)
-        WHERE CAST(rd.project_id AS TEXT) = CAST(? AS TEXT) AND rd.pool = ?
-        GROUP BY rd.paper_id
-        HAVING COUNT(DISTINCT rd.reviewer_name) = 2
-      `).all(r1, r2, r1, r2, r1, r2, activeProjectId, dbPool) as any[];
-
-      let agree_include = 0;
-      let agree_exclude = 0;
-      let r1_inc_r2_exc = 0;
-      let r1_exc_r2_inc = 0;
-
-      const discrepancies: any[] = [];
-      const total_intersection = pairedDecisions.length;
-
-      const resolvedPaperIds = new Set(
-        db.prepare(`
-          SELECT DISTINCT paper_id 
-          FROM calibration_commit_ledger 
-          WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) AND pool = ? AND (adjudicator NOT LIKE 'IMPORT:%' OR commit_message LIKE '%Adjudicat%' OR commit_message LIKE '%Resolve%')
-        `).all(activeProjectId, dbPool).map((r: any) => r.paper_id)
-      );
-
-      for (const row of pairedDecisions) {
-        const dec1 = (row.r1_decision || '').trim().toLowerCase();
-        const dec2 = (row.r2_decision || '').trim().toLowerCase();
-
-        const isInc1 = dec1 === 'include';
-        const isInc2 = dec2 === 'include';
-        const isExc1 = dec1 === 'exclude';
-        const isExc2 = dec2 === 'exclude';
-
-        if (isInc1 && isInc2) {
-          agree_include++;
-        } else if (isExc1 && isExc2) {
-          agree_exclude++;
-        } else if (isInc1 && isExc2) {
-          r1_inc_r2_exc++;
-        } else if (isExc1 && isInc2) {
-          r1_exc_r2_inc++;
-        }
-
-        if (dec1 !== dec2) {
-          discrepancies.push({
-            paper_id: row.paper_id,
-            title: row.title,
-            abstract: row.abstract,
-            local_pdf_path: row.local_pdf_path,
-            authors: row.authors,
-            year: row.year,
-            doi: row.doi,
-            source: row.source,
-            pdf_link: row.pdf_link,
-            publisher: row.publisher,
-            r1_decision: row.r1_decision,
-            r2_decision: row.r2_decision,
-            r1_rationale: row.r1_rationale,
-            r2_rationale: row.r2_rationale,
-            r1_ec: row.r1_ec,
-            r2_ec: row.r2_ec,
-            is_resolved: resolvedPaperIds.has(row.paper_id)
-          });
-        }
-      }
-
-      // Cohen's Kappa
-      const kappaMetrics = calculateCohensKappa(total_intersection, agree_include, agree_exclude, r1_inc_r2_exc, r1_exc_r2_inc);
-
-      // Precision calculation for Pool B
-      let r1_precision = 0;
-      let r2_precision = 0;
-      let precision_warning = false;
-      if (dbPool === 'pool_b') {
-        const precMetrics = calculatePoolBPrecision(agree_include, r1_exc_r2_inc, r1_inc_r2_exc);
-        r1_precision = precMetrics.r1_precision;
-        r2_precision = precMetrics.r2_precision;
-        precision_warning = precMetrics.precision_warning;
-      }
-
-      return NextResponse.json({
-        isCalibrated: true,
-        reviewers,
-        total_reviewers,
-        agree_include,
-        agree_exclude,
-        r1_inc_r2_exc,
-        r1_exc_r2_inc,
-        total_intersection,
-        cohens_kappa: kappaMetrics.cohens_kappa,
-        kappa_label: kappaMetrics.kappa_label,
-        raw_agreement_pct: kappaMetrics.raw_agreement_pct,
-        expected_agreement_pct: kappaMetrics.expected_agreement_pct,
-        kappa_warning: kappaMetrics.kappa_warning,
-        r1_precision,
-        r2_precision,
-        precision_warning,
-        discrepancies
-      });
+      const stats = computePoolABStats(activeProjectId, dbPool as 'pool_a' | 'pool_b');
+      return NextResponse.json(stats);
     }
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Failed to calculate statistics' }, { status: 500 });

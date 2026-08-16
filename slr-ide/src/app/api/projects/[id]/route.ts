@@ -21,12 +21,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 1 THEN 1 ELSE 0 END) as screened,
         SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status IN ('MATCHED', 'DOWNLOADED', 'SYNCED') THEN 1 ELSE 0 END) as acquired,
         SUM(CASE WHEN (is_duplicate IS NULL OR is_duplicate = 0) AND Local_PDF_Status = 'SYNCED' THEN 1 ELSE 0 END) as synced,
-        (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_a' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_a_count,
-        (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_b' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_b_count,
-        (SELECT COUNT(*) FROM calibration_papers WHERE Project_ID = ? AND calibration_pool = 'pool_c' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_c_count,
+        (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = 'pool_a' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_a_count,
+        (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = 'pool_b' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_b_count,
+        (SELECT COUNT(*) FROM calibration_papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND calibration_pool = 'pool_c' AND (is_duplicate IS NULL OR is_duplicate = 0)) as pool_c_count,
         SUM(CASE WHEN is_duplicate = 1 THEN 1 ELSE 0 END) as duplicates
-      FROM papers WHERE Project_ID = ?
-    `).get(projectId, projectId, projectId, projectId) as any;
+      FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+    `).get(projectId, projectId, projectId, projectId, projectId, projectId, projectId, projectId) as any;
 
     project.stats = stats ? { ...stats } : { total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0, duplicates: 0 };
 

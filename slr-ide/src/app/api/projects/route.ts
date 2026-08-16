@@ -349,18 +349,18 @@ export async function GET() {
       const processedMinerPapers = db.prepare(`
         SELECT Paper_ID, manual_stage, ai_stage, manual_extracted_data, ai_extracted_data
         FROM papers
-        WHERE Project_ID = ? AND (is_duplicate IS NULL OR is_duplicate = 0)
+        WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (is_duplicate IS NULL OR is_duplicate = 0)
           AND (
             manual_stage = 4
             OR ai_stage = 4
             OR EXISTS (
-              SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
+              SELECT 1 FROM llm_audit_log WHERE paper_id = papers.Paper_ID AND (project_id = papers.Project_ID OR CAST(project_id AS TEXT) = CAST(papers.Project_ID AS TEXT)) AND task_type = 'miner' AND status = 'SUCCESS' AND json_valid(structured_output) = 1
             )
             OR EXISTS (
-              SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND project_id = papers.Project_ID AND manual_stage = 'miner'
+              SELECT 1 FROM manual_audit_log WHERE paper_id = papers.Paper_ID AND (project_id = papers.Project_ID OR CAST(project_id AS TEXT) = CAST(papers.Project_ID AS TEXT)) AND manual_stage = 'miner'
             )
           )
-      `).all(proj.id) as { Paper_ID: string; manual_stage: number; ai_stage: number; manual_extracted_data: string | null; ai_extracted_data: string | null; }[];
+      `).all(proj.id, proj.id) as { Paper_ID: string; manual_stage: number; ai_stage: number; manual_extracted_data: string | null; ai_extracted_data: string | null; }[];
 
       const notStatedCounts: Record<string, number> = {};
       const isNotStated = (val: any): boolean => {

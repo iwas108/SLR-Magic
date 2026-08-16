@@ -10,6 +10,7 @@ interface UseCalibrationProps {
   loadProjects: () => void;
   showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   activeTab: string;
+  activeProjectId?: string;
 }
 
 export function useCalibration({
@@ -17,7 +18,8 @@ export function useCalibration({
   loadPapers,
   loadProjects,
   showToast,
-  activeTab
+  activeTab,
+  activeProjectId
 }: UseCalibrationProps) {
   // Calibration view states
   const [calActivePool, setCalActivePool] = useState<'pool_a' | 'pool_b' | 'pool_c'>('pool_a');
@@ -52,7 +54,7 @@ export function useCalibration({
   const loadStageStats = useCallback(async () => {
     setStageStatsLoading(true);
     try {
-      const res = await fetch('/api/adjudicate/stats?mode=stage_comparison');
+      const res = await fetch(`/api/adjudicate/stats?mode=stage_comparison${activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : ''}`);
       if (res.ok) {
         const data = await res.json();
         setStageStats(data.poolStats || []);
@@ -62,7 +64,25 @@ export function useCalibration({
     } finally {
       setStageStatsLoading(false);
     }
-  }, []);
+  }, [activeProjectId]);
+
+  const [blindedStats, setBlindedStats] = useState<any>(null);
+  const [blindedStatsLoading, setBlindedStatsLoading] = useState(false);
+
+  const loadBlindedStats = useCallback(async () => {
+    setBlindedStatsLoading(true);
+    try {
+      const res = await fetch(`/api/adjudicate/stats?mode=all_pools${activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : ''}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBlindedStats(data);
+      }
+    } catch (err) {
+      console.error('Error fetching blinded adjudication stats:', err);
+    } finally {
+      setBlindedStatsLoading(false);
+    }
+  }, [activeProjectId]);
 
   // Assignment modal states
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -116,6 +136,7 @@ export function useCalibration({
   const [assignProgress, setAssignProgress] = useState(0);
   const [assignWaitingLogin, setAssignWaitingLogin] = useState(false);
   const [assignSearchTime, setAssignSearchTime] = useState<number | null>(null);
+  const currentRunningPaperIdRef = useRef<string | null>(null);
 
   const { connect: connectNdjson, cancelStream: cancelSinglePipeline, abortControllerRef } = useNdjsonStream({
     onEvent: (parsed) => {
@@ -152,18 +173,25 @@ export function useCalibration({
       }
     },
     onComplete: async () => {
-      if (assignSelectedPaper) {
-        const paperId = assignSelectedPaper.Paper_ID;
-        const paperRes = await fetch(`/api/papers/${paperId}`);
-        if (paperRes.ok) {
-          const updatedPaper = await paperRes.json();
-          setAssignSelectedPaper(updatedPaper);
-          setAssignPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
-          setCalPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
+      const targetPaperId = currentRunningPaperIdRef.current || assignSelectedPaper?.Paper_ID;
+      const projId = assignSelectedPaper?.Project_ID || activeProjectId || '';
+      if (targetPaperId) {
+        try {
+          const paperRes = await fetch(`/api/papers/${encodeURIComponent(targetPaperId)}?projectId=${encodeURIComponent(projId)}`);
+          if (paperRes.ok) {
+            const updatedPaper = await paperRes.json();
+            setAssignSelectedPaper((prev: any) => prev && prev.Paper_ID === targetPaperId ? { ...prev, ...updatedPaper } : prev);
+            setAssignPapers(prev => prev.map(p => p.Paper_ID === targetPaperId ? { ...p, ...updatedPaper } : p));
+            setCalPapers(prev => prev.map(p => p.Paper_ID === targetPaperId ? { ...p, ...updatedPaper } : p));
+          }
+        } catch (e) {
+          console.error('Failed to re-fetch paper details after acquisition:', e);
         }
 
         await loadProjects();
         loadPapers();
+        broadcastSync('SYNC_PAPERS');
+        broadcastSync('SYNC_PROJECTS');
       }
       setAssignIsRunning(false);
     },
@@ -218,6 +246,7 @@ export function useCalibration({
       params.append('sortOrder', calSortOrder);
       params.append('page', String(calPage));
       params.append('limit', String(calLimit));
+      if (activeProjectId) params.append('projectId', activeProjectId);
 
       const res = await fetch(`/api/papers?${params.toString()}`);
       if (res.ok) {
@@ -228,7 +257,7 @@ export function useCalibration({
       }
 
       // Fetch all active pool papers to compute consensus scorecard metrics (bypassing pagination)
-      const statsRes = await fetch(`/api/papers?calibrationPool=${calActivePool}&limit=1000`);
+      const statsRes = await fetch(`/api/papers?calibrationPool=${calActivePool}&limit=1000${activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : ''}`);
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         const poolPapers = statsData.papers || [];
@@ -259,7 +288,7 @@ export function useCalibration({
     } finally {
       setCalLoading(false);
     }
-  }, [calActivePool, calSearchTerm, calStatusFilter, calPdfFilter, calTagFilter, calSortBy, calSortOrder, calPage, calLimit]);
+  }, [calActivePool, calSearchTerm, calStatusFilter, calPdfFilter, calTagFilter, calSortBy, calSortOrder, calPage, calLimit, activeProjectId]);
 
   // Fetch papers for pool assignment
   const loadAssignPapers = useCallback(async () => {
@@ -287,7 +316,8 @@ export function useCalibration({
             k: 1000,
             mode: 'papers',
             excludeReviews: assignExcludeReviews,
-            publisher: assignPublisherFilter
+            publisher: assignPublisherFilter,
+            projectId: activeProjectId
           })
         });
 
@@ -363,10 +393,10 @@ export function useCalibration({
             results = results.filter((p: Paper) => {
               const mEC = p.manual_exclusion_code || '';
               const aEC = p.ai_exclusion_code || '';
-              const getEffectiveStage = (p: Paper) => Math.max(p.manual_stage || 0, p.ai_stage || 0);
-              const stageNum = parseInt(assignPipelineStageFilter, 10);
-              const stageMatch = isNaN(stageNum) || getEffectiveStage(p) === stageNum;
-              return stageMatch && (
+              if (assignEcTriggerFilter === 'Unspecified') {
+                return !mEC && !aEC;
+              }
+              return (
                 mEC.toUpperCase().includes(assignEcTriggerFilter.toUpperCase()) ||
                 aEC.toUpperCase().includes(assignEcTriggerFilter.toUpperCase())
               );
@@ -435,6 +465,7 @@ export function useCalibration({
         params.append('sortOrder', assignSortOrder);
         params.append('page', String(assignPage));
         params.append('limit', String(assignLimit));
+        if (activeProjectId) params.append('projectId', activeProjectId);
 
         const res = await fetch(`/api/papers?${params.toString()}`, {
           signal: controller.signal
@@ -457,7 +488,7 @@ export function useCalibration({
         setAssignLoading(false);
       }
     }
-  }, [assignSearchMode, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignSortBy, assignSortOrder, assignExcludeReviews, assignPublisherFilter, assignPdfFilter, assignSourceFilter, assignDoiStatusFilter, assignPdfLinkFilter, assignPipelineStageFilter, assignPipelineStatusFilter, assignEcTriggerFilter]);
+  }, [assignSearchMode, activeSemanticQuery, debouncedKeywordSearch, assignPoolFilter, assignPage, assignLimit, assignSortBy, assignSortOrder, assignExcludeReviews, assignPublisherFilter, assignPdfFilter, assignSourceFilter, assignDoiStatusFilter, assignPdfLinkFilter, assignPipelineStageFilter, assignPipelineStatusFilter, assignEcTriggerFilter, activeProjectId]);
 
   const triggerSemanticSearch = useCallback(() => {
     setActiveSemanticQuery(assignSearch);
@@ -548,6 +579,7 @@ export function useCalibration({
       return;
     }
 
+    currentRunningPaperIdRef.current = paperId;
     setAssignIsRunning(true);
     setAssignLogs([]);
     setAssignProgress(0);
@@ -558,7 +590,10 @@ export function useCalibration({
       await connectNdjson('/api/pdf/single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paperId })
+        body: JSON.stringify({ 
+          paperId,
+          projectId: assignSelectedPaper?.Project_ID || activeProjectId || ''
+        })
       });
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -568,7 +603,7 @@ export function useCalibration({
       }
       setAssignIsRunning(false);
     }
-  }, [assignIsRunning, showToast, loadProjects, loadPapers, assignSelectedPaper, connectNdjson]);
+  }, [assignIsRunning, showToast, connectNdjson]);
 
   const handleCalSort = useCallback((field: string) => {
     if (calSortBy === field) {
@@ -585,8 +620,9 @@ export function useCalibration({
     if (activeTab?.startsWith('pre-calibration')) {
       loadCalPapers();
       loadStageStats();
+      loadBlindedStats();
     }
-  }, [calActivePool, calSearchTerm, calStatusFilter, calPdfFilter, calTagFilter, calSortBy, calSortOrder, calPage, calLimit, activeTab, loadCalPapers, loadStageStats]);
+  }, [calActivePool, calSearchTerm, calStatusFilter, calPdfFilter, calTagFilter, calSortBy, calSortOrder, calPage, calLimit, activeTab, loadCalPapers, loadStageStats, loadBlindedStats]);
 
   // Fetch vector status
   const loadVectorStatus = useCallback(async () => {
@@ -674,6 +710,7 @@ export function useCalibration({
   const loadProjectsRef = useRef(loadProjects);
   const loadVectorStatusRef = useRef(loadVectorStatus);
   const loadStageStatsRef = useRef(loadStageStats);
+  const loadBlindedStatsRef = useRef(loadBlindedStats);
  
   useEffect(() => {
     loadCalPapersRef.current = loadCalPapers;
@@ -682,6 +719,7 @@ export function useCalibration({
     loadProjectsRef.current = loadProjects;
     loadVectorStatusRef.current = loadVectorStatus;
     loadStageStatsRef.current = loadStageStats;
+    loadBlindedStatsRef.current = loadBlindedStats;
   });
  
   const assignSelectedPaperRef = useRef(assignSelectedPaper);
@@ -693,15 +731,22 @@ export function useCalibration({
     const selected = assignSelectedPaperRef.current;
     if (!selected) return;
     try {
-      const res = await fetch(`/api/papers/${selected.Paper_ID}`);
+      const projId = selected.Project_ID || activeProjectId || '';
+      const res = await fetch(`/api/papers/${encodeURIComponent(selected.Paper_ID)}?projectId=${encodeURIComponent(projId)}`);
       if (res.ok) {
         const updated = await res.json();
+        // Guard against active state downgrade
+        const activeHasPdf = !!selected.Local_PDF_Path && selected.Local_PDF_Status !== 'MISSING';
+        const updatedHasNoPdf = !updated.Local_PDF_Path || updated.Local_PDF_Status === 'MISSING';
+        if (activeHasPdf && updatedHasNoPdf) {
+          return;
+        }
         setAssignSelectedPaper(updated);
       }
     } catch (err) {
       console.error('Error rehydrating selected paper:', err);
     }
-  }, [setAssignSelectedPaper]);
+  }, [setAssignSelectedPaper, activeProjectId]);
  
   const rehydrateSelectedPaperRef = useRef(rehydrateSelectedPaper);
   useEffect(() => {
@@ -714,13 +759,15 @@ export function useCalibration({
         loadProjectsRef.current();
         if (activeTab?.startsWith('pre-calibration')) {
           loadStageStatsRef.current();
+          loadBlindedStatsRef.current();
         }
       }
-      if (type === 'SYNC_PAPERS') {
+      if (type === 'SYNC_PAPERS' || type === 'SYNC_ADJUDICATION') {
         loadPapersRef.current();
         if (activeTab?.startsWith('pre-calibration')) {
           loadCalPapersRef.current();
           loadStageStatsRef.current();
+          loadBlindedStatsRef.current();
         }
         if (showAssignModal) {
           loadAssignPapersRef.current();
@@ -751,6 +798,9 @@ export function useCalibration({
     stageStats, setStageStats,
     stageStatsLoading,
     loadStageStats,
+    blindedStats,
+    blindedStatsLoading,
+    loadBlindedStats,
     calSearchTerm, setCalSearchTerm,
     calStatusFilter, setCalStatusFilter,
     calPdfFilter, setCalPdfFilter,

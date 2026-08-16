@@ -3,9 +3,11 @@ import path from 'path';
 import { PROJECT_ROOT, getConfig } from '@/lib/db';
 import { getPythonExecutablePath } from '@/lib/services/python-path';
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const { searchParams } = new URL(req.url);
+    const body = await req.json().catch(() => ({}));
+    const activeProjectId = body.projectId || body.project_id || searchParams.get('projectId') || getConfig('ACTIVE_PROJECT_ID', '');
     const pythonExe = getPythonExecutablePath();
     const pythonModule = 'python_engine.entrypoints.match_cache';
 

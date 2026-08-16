@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ExternalLink, Hash, Clock, Globe, GitCommit, FileText, Database, ShieldAlert, Cpu, UserCheck, ChevronDown, ChevronRight } from 'lucide-react';
+import { ExternalLink, Hash, Clock, Globe, GitCommit, FileText, Database, ShieldAlert, Cpu, UserCheck, ChevronDown, ChevronRight, Play, RefreshCw } from 'lucide-react';
 import JSONViewer from '@/components/ui/JSONViewer';
 import ScreeningSummaryPanel from './ScreeningSummaryPanel';
 
@@ -10,6 +10,8 @@ interface PaperMetadataViewProps {
   setPaperModal: React.Dispatch<React.SetStateAction<any>>;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   activeProject?: Project | null;
+  onTriggerPdfAcquisition?: () => void;
+  isPdfRunning?: boolean;
 }
 
 const Section = ({ title, icon: Icon, children }: { title: string, icon: any, children: React.ReactNode }) => (
@@ -39,7 +41,9 @@ export default function PaperMetadataView({
   paper,
   setPaperModal,
   showToast,
-  activeProject
+  activeProject,
+  onTriggerPdfAcquisition,
+  isPdfRunning = false
 }: PaperMetadataViewProps) {
   const [proxyBaseUrl, setProxyBaseUrl] = useState('');
   const [screeningRecords, setScreeningRecords] = useState<any[]>([]);
@@ -198,7 +202,7 @@ export default function PaperMetadataView({
             </div>
             <div className="flex items-center gap-3">
               <span className="text-[10px] uppercase font-bold text-muted-foreground w-24">PDF Status</span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${
                   paper.Local_PDF_Status === 'SYNCED' ? 'bg-emerald-500' :
                   paper.Local_PDF_Status === 'DOWNLOADED' || paper.Local_PDF_Status === 'MATCHED' ? 'bg-amber-500' :
@@ -207,7 +211,19 @@ export default function PaperMetadataView({
                   paper.Local_PDF_Status === 'IGNORED' ? 'bg-muted-foreground/50' :
                   'bg-destructive/60'
                 }`} />
-                <span className="text-xs font-bold uppercase tracking-wider">{paper.Local_PDF_Status}</span>
+                <span className="text-xs font-bold uppercase tracking-wider">{paper.Local_PDF_Status || 'MISSING'}</span>
+                {(!paper.Local_PDF_Path || ['MISSING', 'FAILED', 'IGNORED'].includes(paper.Local_PDF_Status as string) || !paper.Local_PDF_Status) && onTriggerPdfAcquisition && (
+                  <button
+                    type="button"
+                    onClick={onTriggerPdfAcquisition}
+                    disabled={isPdfRunning}
+                    className="ml-2 px-2 py-0.5 bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold rounded border border-primary/20 transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="Acquire PDF via Cache Matching & Web Scraping"
+                  >
+                    {isPdfRunning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
+                    <span>{isPdfRunning ? 'Acquiring...' : 'Acquire PDF'}</span>
+                  </button>
+                )}
               </div>
             </div>
             {paper.PDF_Link && (

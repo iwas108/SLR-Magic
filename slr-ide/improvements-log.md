@@ -1,3 +1,167 @@
+## #414 - Quest 03, 04, 05 Mandatory PDF File Presence Guard & 100% Prompt Library LLM Parameter Enforcement (2026-08-16)
+- **Goal**: Resolve two critical bugs in the Interactive Staging & Benchmark Optimization HUD: (1) Prevent Quest 03 (Gatekeeper - Pool B), Quest 04 (Scientist - Pool C), and Quest 05 (Miner - Pool C) from running if any paper in the target calibration pool has a missing or unset local PDF file on disk, and (2) Ensure every LLM execution across calibration, benchmarking, audit, prompt optimization, and queue screening 100% strictly extracts and applies all parameters configured in the selected Prompt Library template.
+- **Architectural Implementation**:
+  1. **Stage-Specific PDF Presence Guard (`/api/calibration/benchmark` & `/api/calibration/payload-preview`)**:
+     - In `GET /api/calibration/benchmark`: Queries target pool papers (`poolPapers`) against the latest adjudication ledger, checks physical file existence on disk (`fs.existsSync(resolvedPath)`), and computes `pool_papers_count`, `missing_pdf_count`, and `missing_pdf_papers`.
+     - In `POST /api/calibration/benchmark`: For `stageNum >= 2` (Quests 03, 04, 05), strictly validates that 100% of the papers in `papersWithGold` possess valid, existing local PDF files on disk (`Local_PDF_Status !== 'MISSING' && Local_PDF_Status !== 'FAILED'`). If any paper is missing a PDF, immediately rejects with HTTP 400 Bad Request detailing missing paper IDs and titles.
+     - In `POST /api/calibration/payload-preview`: Enforces identical PDF presence preflight validation for `stage_benchmark` when `stageNum >= 2`, blocking preview and execution if any pool papers lack PDFs.
+     - In `benchmark/route.ts` `evaluatePaper`: For full-text stages (`stageNum >= 2`), reads local PDF files on disk (`<= 19.5MB`) and attaches `{ inlineData: { mimeType: 'application/pdf', data: base64Pdf } }` to the Gemini API `contents.parts` payload for genuine full-text screening, appraisal, and extraction.
+  2. **100% Prompt Library LLM Parameter Synchronization**:
+     - Standardized parameter extraction across `benchmark/route.ts`, `stage-audit/route.ts`, `prompt-optimize/route.ts`, `payload-preview/route.ts`, and `python_engine/llm/main.py`:
+       - `model_id`: Strips `'models/'` prefix for clean REST endpoint routing.
+       - `temperature`: Passes exact float value (`typeof temperature === 'number' ? temperature : 0.0`).
+       - `max_tokens` / `max_output_tokens`: Supports both aliases with graceful fallback (`config.max_tokens ?? config.max_output_tokens ?? default`).
+       - `top_p` & `top_k`: Strictly passes numeric values to `generationConfig.topP` / `generationConfig.topK` without dropping defined options.
+       - `thinking_level` & `thinking_budget`: Maps levels (`minimal`=1024, `low`=2048, `medium`=4096, `high`=8192) and explicitly sets `{ thinkingBudget: 0 }` for `none` or `off` so thinking tokens are disabled for reasoning models.
+       - `timeout_seconds`: Connects `AbortController` signal timeout (`timeoutSeconds * 1000`) and Python `HttpOptions` timeout.
+       - `concurrency` & `request_delay`: Dynamically configures batch concurrency and inter-request delay.
+       - `execution_mode` / `speed_mode`: Applies `FLEX` vs `STANDARD` discount rates to token cost computations.
+  3. **UI HUD Feedback & Interaction Locks (`StageBenchmarkCard.tsx` & `usePromptStaging.ts`)**:
+     - Updated `BenchmarkRunState` to track `pool_papers_count`, `missing_pdf_count`, and `missing_pdf_papers`.
+     - In `StageBenchmarkCard.tsx`: When `stageNum >= 2` and `missing_pdf_count > 0`, displays an amber warning badge (`PDF Missing (N)`), a detailed alert callout explaining that Quest 03/04/05 requires 100% PDF coverage, and disables the "Run Benchmark" button (`PDF Required (N Missing)`).
+     - In `usePromptStaging.ts`: Added proactive PDF preflight guards in `openBenchmarkConfirmation` and `runStageBenchmark` to block opening modals or triggering runs if PDFs are missing for Quests 03, 04, or 05.
+  4. **Automated Verification (`scripts/test-quest-pdf-llm-guard.mjs`)**:
+     - Built automated unit test suite verifying: (1) Pool paper counts and disk PDF existence validation, (2) Quest 03, 04, 05 execution rejection when PDFs are missing, (3) Quest 02 (Stage 1) execution allowance without PDFs, (4) 100% Prompt Library LLM parameter parsing and synchronization.
+- **Verification**: Zero TypeScript compile errors (`npx tsc --noEmit`); all test suites passed (`test-quest-pdf-llm-guard.mjs` [5/5], `test-prompt-library.mjs` [9/9]).
+
+## #413 - Blinded Review & Adjudication Results Panel with Multi-Pool Statistics & SLR-Viewer Parity (2026-08-16)
+- **Goal**: Add a comprehensive 3-card panel section to display the results of double-blind review agreement and discrepancy adjudication across all pre-calibration pools (Pool A: Fast Filter, Pool B: Gatekeeper, Pool C: Scientist & Miner) complete with rich hover tooltips, and copy-paste this section into the Scientific Rigor panel under Pre-Calibration Filling Status in both `slr-ide` and the standalone submodule `slr-viewer`, including `.slr-viewer` snapshot export/import parity.
+- **Architectural Implementation**:
+  1. **Multi-Pool Statistics Endpoint (`slr-ide/src/app/api/adjudicate/stats/route.ts`)**:
+     - Added `mode=all_pools` and `mode=blinded_adjudication` computing agreement metrics and discrepancy resolution progress across Pool A, Pool B, and Pool C in a unified payload `{ pools: { pool_a, pool_b, pool_c }, poolList: [...] }`.
+     - Modularized pure calculation routines `computePoolABStats()` and `computePoolCStats()` with strict type-agnostic project matching `(project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))`.
+  2. **Blinded Adjudication Panel (`slr-ide/src/components/features/pre-calibration/BlindedAdjudicationPanel.tsx`)**:
+     - Built a 3-card grid component rendering Pool A (Cohen's $\kappa$, $P_o$, $P_e$), Pool B (Cohen's $\kappa$, $P_o$, Alpha/Beta Precision), and Pool C (Weighted $\kappa_w$, Dual-Gate Cutoff concordance, Miner Schema Match % & Missing Keys %).
+     - Included status badges (`CALIBRATED`, `PENDING ARBITRATION`, `AWAITING 2ND REVIEWER`), paired intersection counts, decision concordance mini-grids (Agreed INC, Agreed EXC, Conflicts), and adjudication progress bars ($N/M$ resolved) with educational hover tooltips for all metrics.
+  3. **State Integration & Synchronization (`slr-ide/src/hooks/useCalibration.ts` & `PreCalibrationView.tsx`)**:
+     - Added `blindedStats`, `blindedStatsLoading`, and `loadBlindedStats()` to `useCalibration.ts`.
+     - Integrated `BlindedAdjudicationPanel` into `PreCalibrationView.tsx` directly above "Gold Standard vs AI Stage Comparisons".
+     - Connected cross-tab synchronization listeners (`SYNC_ADJUDICATION`, `SYNC_PAPERS`, `SYNC_PROJECTS`) to keep the panel up to date.
+  4. **Scientific Rigor & Submodule Parity (`ScientificRigorPanel.tsx` in `slr-ide` & `slr-viewer`)**:
+     - Embedded `BlindedAdjudicationPanel` into `ScientificRigorPanel.tsx` in `slr-ide` right under "Pre-Calibration Filling Status".
+     - Updated `export/slr-viewer/route.ts` to compute and embed `blinded_adjudication_stats` inside the `scientific_rigor` object of exported `.slr-viewer` snapshot archives.
+     - Updated `slr-viewer/src/utils/schemaValidator.ts` to sanitize and preserve `blinded_adjudication_stats`.
+     - Mirrored `BlindedAdjudicationPanel.tsx` to `slr-viewer/src/components/scientific-rigor/` via `scripts/mirror-to-viewer.mjs`.
+     - Updated `slr-viewer/src/components/scientific-rigor/ScientificRigorPanel.tsx` to render `BlindedAdjudicationPanel` from imported `.slr-viewer` snapshots.
+- **Verification**: Zero TypeScript compile errors (`npx tsc --noEmit` in both `slr-ide` and `slr-viewer`); successful production bundle build in `slr-viewer` (`npm run build`).
+
+## #412 - Fix False 'Resolved' State for Unadjudicated Calibration Discrepancies (2026-08-16)
+- **Goal**: Fix the bug in the Inter-Rater Dashboard where unadjudicated calibration discrepancies (e.g., in Pool B, Pool A, or Pool C) incorrectly displayed `Action: Resolved` with a green checkmark before the reviewer conducted manual adjudication.
+- **Root Cause Analysis**:
+  - In `src/app/api/adjudicate/stats/route.ts`, the SQL query previously identified resolved papers using `WHERE ... AND (adjudicator NOT LIKE 'IMPORT:%' OR commit_message LIKE '%Adjudicat%' OR commit_message LIKE '%Resolve%')`.
+  - When blinded review `.slr` files were imported via `/api/import/inter-rater`, audit ledger entries were automatically generated with `commit_message = 'Auto-adjudication status on import from ' + reviewerName`.
+  - Because `commit_message` contained the substring `'adjudicat'`, the `OR commit_message LIKE '%Adjudicat%'` condition evaluated to `TRUE` for all imported papers, causing every discrepancy to be falsely categorized as resolved before any human adjudication took place.
+- **Architectural Implementation**:
+  1. **Authoritative Latest Non-Import Commit Resolution (`src/app/api/adjudicate/stats/route.ts`)**:
+     - Refactored `resolvedPaperIds` across Pool A, Pool B, and Pool C to join `calibration_commit_ledger` against each paper's latest commit ID (`MAX(id)` per paper in that project and pool) and enforce `l.adjudicator NOT LIKE 'IMPORT:%'`.
+     - Ensures that a discrepancy is marked `is_resolved: true` if and only if the most recent committed state on the ledger is an explicit human adjudication (`ADJUDICATOR`), reverting cleanly to `is_resolved: false` if a subsequent reviewer `.slr` re-upload occurs.
+     - Hoisted `resolvedPaperIds` out of the inner loop in Pool C for O(1) set lookup performance.
+  2. **Multi-Project Isolation & Explicit Parameter Precedence (`agents.md` §3.8)**:
+     - Upgraded `GET /api/adjudicate/stats` to prioritize explicit `projectId` parameter from `searchParams` with fallback to `getConfig('ACTIVE_PROJECT_ID')`.
+     - Standardized project ID lookups with type-agnostic `(id = ? OR CAST(id AS TEXT) = CAST(? AS TEXT))` and `(project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))`.
+  3. **Automated Verification (`scripts/test-adjudication-discrepancies.mjs`)**:
+     - Created standalone automated test suite verifying pre-adjudication false states, post-adjudication resolution transitions, re-import reversion guards, and project isolation.
+- **Verification**: Zero TypeScript compile errors (`npx tsc --noEmit`); 100% pass across test suites (`test-adjudication-discrepancies.mjs` [4/4], `test-mockup-review.mjs` [37/37], `test-prompt-library.mjs` [9/9], `test-visualizer-anti-regression.mjs` [15/15], `test-llm-screening-records.mjs` [7/7], `test-archive-service.mjs` [2/2]).
+
+## #411 - Manual Paper Selection for Multi-Pool Mockup Review Targeted Rerun & Reviewer Identifier Redownload (2026-08-16)
+- **Goal**: Allow users to manually select one or more papers within the Multi-Pool Mockup Review Generator modal (`MockupReviewModal`, CTRL+M) in `slr-ide` and execute targeted reruns on the selected subset, preserving all previously evaluated results for unselected papers, reducing unnecessary LLM API costs, and automatically merging and rebuilding the downloadable `.slr` file; and ensure that redownloading cached reviews strictly applies the active "Reviewer Identifier" across file metadata, database cache, and downloaded filenames.
+- **Architectural Implementation**:
+  1. **Reactive State & Selection Hooks (`useMockupReview.ts`)**:
+     - Added `selectedPaperIds` state and comprehensive helper methods: `togglePaperSelection(paperId)`, `selectAllPapers()`, `deselectAllPapers()`, `selectFailedPapers()`, `selectSucceededPapers()`, `isPaperSelected(paperId)`, and `handleRerunSelected(targetIds?)`.
+     - Automatically resets `selectedPaperIds` upon pool switching (`handlePoolChange`) and accurately computes initial baseline costs/tokens for selective execution.
+     - Upgraded `handleRedownload` to pass the active `reviewerName` via query parameters (`&reviewerName=...`) and re-hydrate cache data if the identifier was modified.
+  2. **Multi-View Interactive UI & Selection Controls (`MockupReviewModal.tsx`)**:
+     - Added row-level checkboxes to each record in both the **Evaluation Stream Log** and the **Target Pool Calibration Papers** preview accordion, synchronizing selections seamlessly across views.
+     - Added a top **Quick Selection Toolbar** featuring master select/deselect toggles, 1-click filter chips (*All*, *Select Failed*, *Select Succeeded*, *Clear*), and a live selection counter.
+     - Added a dedicated **Targeted Paper Selection Active HUD Banner** displaying estimated paper savings and quick-action rerun buttons.
+     - Implemented scoped PDF verification for Pool B and Pool C: execution is validated strictly against the *selected* rerun subset, allowing users to rerun PDF-ready papers even if other unselected papers lack local PDFs.
+     - Upgraded the modal footer action bar with a prominent, high-visibility **"Rerun Selected (N)"** button when papers are active, and preserved **"Redownload (.slr)"** availability during selection.
+  3. **Type-Safe API Subset Resolution & Reviewer Identifier Redownload Synchronization (`/api/mockup/generate/route.ts`)**:
+     - Hardened `paperIds` array resolution using `Set` string lookups (`const idSet = new Set(paperIds.map(String))`) preventing string/number casting discrepancies.
+     - In `GET /api/mockup/generate` when `download=true`, dynamically applies the requested `reviewerName` parameter: decompresses the cached `.slr` blob, updates `metadata.reviewer_name`, re-compresses with maximum level 9 compression, updates `mockup_cache` in SQLite, and serves the `.slr` attachment with the customized filename (`${project}_${pool}_mockup_${reviewerName}.slr`).
+  4. **Automated Verification (`test-mockup-review.mjs`)**:
+     - Added automated unit tests covering manual paper selection subset filtering, selective cache merging, cumulative cost/token recalculation, scoped PDF preflight checks, and Reviewer Identifier redownload payload & filename updates (37/37 tests passing).
+- **Verification**: Zero TypeScript compile errors (`npx tsc --noEmit`); 100% pass across all test suites (`test-mockup-review.mjs` [37/37], `test-prompt-library.mjs` [9/9], `test-visualizer-anti-regression.mjs` [15/15], `test-llm-screening-records.mjs` [7/7], `test-archive-service.mjs` [2/2]).
+
+## #410 - Fix Paper Details & Pre-Calibration Papers PDF Acquisition Persistence Bug (2026-08-16)
+- **Goal**: Fix the bug in SLR-IDE where acquiring a PDF inside the Paper Details modal (`ViewEditPaperModal`) or pre-calibration workspace displayed `Local_PDF_Status: 'MISSING'` in the Pre-Calibration Papers table upon closing/reopening the modal or refreshing datasets.
+- **Architectural Implementation**:
+  1. **SQLite Triggers & Cross-Table Synchronization (`db-init.ts`)**:
+     - Added bidirectional SQLite triggers (`trg_papers_pdf_sync_cal`, `trg_cal_papers_pdf_sync`, and `trg_papers_metadata_sync_cal`) keeping `Local_PDF_Status`, `Local_PDF_Path`, and metadata 100% in lockstep between `papers` and `calibration_papers`.
+     - Added on-startup self-healing routine `syncExistingPdfStatusesAndDisks(db)` that repairs divergent PDF statuses between tables and scans `pdf_library/raw` on disk to heal status from `MISSING`/`IGNORED`/`FAILED` to `MATCHED`.
+  2. **Papers & Calibration API Query Hardening (`/api/papers/route.ts`, `/api/papers/[id]/route.ts`, `/api/pdf/single/route.ts`)**:
+     - Upgraded `GET /api/papers` when querying `calibration_papers` to `COALESCE` `Local_PDF_Status` and `Local_PDF_Path` from the main `papers` table, guaranteeing that calibration views always reflect live PDF availability.
+     - Added real-time on-demand disk self-healing in `/api/papers/route.ts`, `/api/papers/[id]/route.ts`, and `/api/pdf/single/route.ts` across both `papers` and `calibration_papers`.
+     - Implemented **Safe Project ID Discovery Fallback** in accordance with `agents.md` Section 3.8: if a paper is not found under the active project config, discover the record by `Paper_ID` directly.
+  3. **Authoritative On-Open Rehydration in `ViewEditPaperModal.tsx`**:
+     - Added an authoritative on-open server re-fetch effect: when `paperModal.isOpen` becomes true or `paperModal.paper.Paper_ID` changes, fetch `/api/papers/${encodeURIComponent(paperId)}?projectId=${projId}` to hydrate the modal with the freshest database state.
+     - In `onComplete` and multi-tab `BroadcastChannel` listener, passed explicit `projectId` and updated `paperModal.paper` and `editPdfStatus`.
+     - In `handleSavePaper`, passed explicit `projectId` in body and URL query params.
+  4. **Calibration Hook Parameter Binding (`useCalibration.ts`, `PreCalibrationView.tsx`)**:
+     - Bound `projectId: activeProjectId` into `loadCalPapers` and `loadAssignPapers` query parameters and semantic search payload.
+     - In `PreCalibrationView.tsx`, rendered status with fallback `p.Local_PDF_Status || 'MISSING'`.
+- **Verification**: TypeScript compilation check passed (`npx tsc --noEmit` exited with code 0).
+
+## #409 - Iterative Fullstack Deep Code Audit & Complete Rule Hardening (2026-08-16)
+- **Goal**: Perform an exhaustive, iterative deep code analysis across the entire fullstack codebase (React hooks, Next.js API routes, Python CGI engines, and directory indices) to identify and eradicate all remaining edge-case bugs, missing parameters, and untracked files against all directives in `agents.md`.
+- **Architectural Implementation**:
+  1. **Calibration & Assignment Pipeline Parameter Hardening (`useCalibration.ts`, `page.tsx`)**:
+     - Added `activeProjectId` prop to `UseCalibrationProps` and passed it from `page.tsx`.
+     - Explicitly bound `projectId: assignSelectedPaper?.Project_ID || activeProjectId || ''` to single-paper acquisition payload in `runSinglePaperPipeline`.
+     - Added Active State Downgrade Prevention Guard in `rehydrateSelectedPaper` to prevent background rehydration from clearing active PDF paths.
+  2. **Multi-Tab Sync Normalization (`useRollingBatch.ts`)**:
+     - Replaced raw `new BroadcastChannel('slr-magic-sync')` with unified `subscribeSyncChannel` from `@/lib/sync-utils`.
+     - Maintained full TypeScript signature compatibility for `importReviewerSlr(file: File)` and `resetBatch(mode: 'active' | 'all')`.
+  3. **SQL Subquery & Batch Pipeline Project ID Type-Casting (`api/projects/route.ts`, `api/papers/route.ts`, `python_engine/llm/main.py`, `python_engine/llm/queue_handler.py`)**:
+     - Fixed un-cast `Project_ID = ?` in miner aggregation queries (`api/projects/route.ts`), subqueries in `api/papers/route.ts`, and batch query selection filters in `python_engine/llm/main.py`.
+     - Enforced `(project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))` in `queue_handler.py` downstream record pruning and chained interaction lookups.
+  4. **Directory Index Parity (`slr-ide/files.md`)**:
+     - Cataloged all previously missing endpoints (`api/events`, `api/llm/audit`, `api/llm/count`, `api/llm/pricing/refresh`, `api/pipeline-lock`, and all `api/vault/*` endpoints) adhering to the standard Markdown table schema.
+- **Verification**: Zero TypeScript compilation errors (`npx tsc --noEmit`); all Python engine scripts compiled (`python -m compileall`); 100% pass across all 5 standalone test suites (`test-mockup-review.mjs` [24/24], `test-prompt-library.mjs` [9/9], `test-visualizer-anti-regression.mjs` [15/15], `test-llm-screening-records.mjs` [7/7], `test-archive-service.mjs` [2/2]).
+
+## #408 - Eradication of Active State Rehydration Race Conditions & Strict Multi-Project Isolation (2026-08-16)
+- **Goal**: Completely eradicate "Active State Rehydration Race Condition" bugs (where background list re-renders overwrite higher-fidelity active selections or newly acquired PDF states) and "Explicit Project ID Resolution" bugs (where un-scoped queries or un-cast SQLite project ID matching cause data cross-talk or query failures across projects), and establish permanent future-proofing architectural rules in `agents.md`.
+- **Architectural Implementation**:
+  1. **Active State Rehydration Guards & Immutable State Preservation (`usePapers.ts`, `useManualScreening.ts`, `page.tsx`)**:
+     - Added rehydration downgrade guards preventing active modal selections with newly acquired PDF paths from being clobbered or reset by outdated background list states.
+     - Protected form rehydration in `page.tsx` using `lastLoadedProjectRef` so local form states are preserved unless multi-tab modifications actually occur.
+     - Added `currentRunningPaperIdRef` mutable refs in `useManualScreening.ts`, `AdjudicationWorkspaceModal.tsx`, and `RollingBatchAdjudicationModal.tsx` to eliminate closure-captured target ID race conditions in NDJSON streaming pipelines.
+  2. **Symmetric Multi-Tab Synchronization & Universal Sync Subscriptions (`useManualScreening.ts`, `useIngestion.ts`, `AdjudicationWorkspaceModal.tsx`, `RollingBatchAdjudicationModal.tsx`)**:
+     - Added `subscribeSyncChannel` listeners across `useManualScreening.ts` and `useIngestion.ts` to automatically re-fetch datasets upon receiving `SYNC_PAPERS` or `SYNC_PROJECTS`.
+     - Integrated `broadcastSync('SYNC_PAPERS')` and `broadcastSync('SYNC_PROJECTS')` upon completion of single PDF acquisition and batch pipeline actions in all workspace modals.
+  3. **Explicit Project ID Parameter Precedence & Discovery Fallback (`/api/duplicates`, `/api/duplicates/scan`, `/api/papers/[id]/screening`, `/api/papers/manual-screening`, `/api/papers`, `/api/pdf/scan`, `/api/pdf/download`, `/api/pdf/batch`, `/api/rolling-batch/status`, `/api/rolling-batch/stats`, `/api/llm/audit`)**:
+     - Upgraded all API routes to prioritize explicit `projectId` (from `searchParams` or request JSON body) before falling back to `getConfig('ACTIVE_PROJECT_ID')`.
+     - Implemented single-item fallback discovery in `/api/papers/[id]/screening` and `/api/pdf/single` that queries `Project_ID` from the database `papers` record when not explicitly passed.
+  4. **Mandatory Type-Agnostic Project ID Query Casting across TypeScript & Python**:
+     - Applied `(Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))` across all SQL queries, subqueries, and deletion routines in `src/app/api/papers/route.ts`, `projects/[id]/route.ts`, `purge-check/route.ts`, `purge/route.ts`, `llm/audit/route.ts`, `rolling-batch/status/route.ts`, `rolling-batch/stats/route.ts`.
+     - Updated Python entrypoints (`find_traps.py`, `map_publisher.py`, `vector_worker.py`) to support `--project` CLI argument and execute type-agnostic project matching.
+  5. **Future-Proofing Architectural Rules in `agents.md`**:
+     - Updated Section 3.3 (Multi-Tab Synchronization Protocol) with explicit rules on Active State Downgrade Prevention Guards, Stream Completion Symmetry, and Universal Sync Channel Subscription.
+     - Updated Section 3.8 (Strict Multi-Project Separation & Isolation Policy) with mandatory rules for Explicit Project ID Parameter Precedence, Safe Project ID Discovery Fallback, and Mandatory Type-Agnostic Project ID Matching.
+- **Verification**: Zero TypeScript compile errors (`npx tsc --noEmit`); Python entrypoints compiled cleanly (`python -m py_compile`).
+
+## #407 - Multi-Pool Mockup Review Generator LLM Parameter Compliance, Partial Execution & Mandatory PDF Enforcement for Pool B/C (2026-08-16)
+- **Goal**: Ensure 100% strict adherence to all LLM parameters configured in "Edit Prompt Template" -> LLM Parameters (`timeout_seconds`, `model_id`, `execution_mode`, `thinking_level`, `temperature`, `top_p`, `top_k`, `max_tokens`, `concurrency`, `request_delay`, `interaction_chaining`, `discount`) during Multi-Pool Mockup Review execution to prevent API call errors, timeouts, and behavioral divergences; implement targeted partial execution for finished executions to retry failed papers only; and enforce mandatory local full-text PDF files on disk for Pool B (Gatekeeper) and Pool C (Scientist + Miner), blocking executions without PDFs and flagging non-PDF results as invalid/requiring rerun.
+- **Architectural Implementation**:
+  1. **Strict LLM Parameter Adherence & API Guardrails (`mockup-generator.ts`)**:
+     - Enforced `timeout_seconds` using `AbortController` and `setTimeout`, producing an informative `Request timed out after ${timeoutSeconds} seconds` error upon cancellation.
+     - Enforced `thinking_level` on Gemini 2.5 series models (`gemini-2.5-flash`, `gemini-2.5-pro`): mapped `none`/`off` to `thinkingBudget: 0` to shut off dynamic reasoning token consumption, and mapped `minimal`, `low`, `medium`, `high` to their respective token budgets.
+     - Added robust validation for `temperature` (clamped 0.0–2.0), `top_p` (clamped 0.0–1.0), `top_k` (clamped 1–100), `max_tokens` (clamped 1–64000), and PDF inline attachment size limits (<19.5MB to stay within Google GenAI limits).
+     - Added multi-turn `interaction_chaining` context passing from Scientist QA scoring to Miner data extraction in Pool C.
+  2. **Mandatory Full-Text PDF Enforcement for Pool B & Pool C (`mockup-generator.ts`, `/api/mockup/generate/route.ts`)**:
+     - In `mockup-generator.ts`, strictly checks local PDF existence on disk for Pool B (`evaluateMockupPaperScreening` Stage 2) and Pool C (`evaluateMockupPaperPoolC`). Papers without valid PDFs immediately return `{ decision: 'EXCLUDE', exclusion_code: 'ERROR', error: 'Missing local full-text PDF file (required for Pool B/C)' }` and are flagged by `isMockupResultFailed(res, pool)` as needing rerun.
+     - In `POST /api/mockup/generate`, added a preflight guard strictly rejecting execution requests for Pool B or Pool C (HTTP 400) if any queued paper lacks a verified local PDF file on disk.
+     - In `GET /api/mockup/generate`, added `missing_pdf_count` and `has_missing_pdfs` telemetry for calibration papers.
+  3. **Targeted Partial Execution for Failed Papers (`/api/mockup/generate/route.ts`)**:
+     - Enhanced `GET /api/mockup/generate` to return failure telemetry (`failed_count`, `succeeded_count`, `has_failures`).
+     - Enhanced `POST /api/mockup/generate` to accept `failedOnly: true` (or `paperIds: string[]`), which inspects existing cache, filters to only target papers that failed in previous runs (`isMockupResultFailed`), preserves already succeeded evaluations, executes LLM calls only on the failed subset, and re-compresses the merged `.slr` bundle with updated cumulative costs.
+  4. **Reactive Frontend State & Partial Execution HUD (`useMockupReview.ts`, `MockupReviewModal.tsx`)**:
+     - Upgraded `useMockupReview` hook with failure tracking (`failedCount`, `succeededCount`, `hasFailedPapers`), missing PDF tracking (`missingPdfCount`, `hasMissingPdfs`), and `handleRetryFailed()` SSE execution.
+     - Added a prominent **Partial Execution Alert Banner** in `MockupReviewModal` explaining cost savings and providing 1-click **"Retry Failed Papers Only (N)"**.
+     - Added a prominent **Missing PDF Alert Banner** when Pool B or C contains papers lacking PDFs, rendered per-paper PDF status badges (`PDF Ready` vs `PDF Missing`), and disabled execution buttons with descriptive blocking tooltips until PDFs are matched or acquired.
+     - Enhanced Evaluation Stream Log with filter tabs (`All`, `Succeeded`, `Failed`) and granular error rationale tooltips.
+- **Verification**: Verified zero TypeScript errors (`npx tsc --noEmit`); ran automated test suite `scripts/test-mockup-review.mjs` (24/24 tests passed).
+
 ## #406 - Light Theme UI Refactoring & Tailwind v4 Dark Variant Alignment (2026-08-16)
 - **Goal**: Refactor the `slr-ide` desktop application UI for light theme, eliminating visual clashes caused by Tailwind CSS v4's default media-query dark variant evaluation and overhauling the Pre-Calibration Interactive Staging & Benchmark Optimization HUD for crisp, high-contrast, professional scientific presentation.
 - **Architectural Implementation**:
@@ -2378,7 +2542,9 @@
 | #233 | 2026-08-13 | Feature / Bug Fix | Added 10 top scientific journal palette theme presets (`ACS`, `PNAS`, `Oxford`, `Wiley`, `Taylor & Francis`, `PLOS ONE`, `Frontiers`, `BMC`, `MDPI`, `RSC`). Added `Show Title` and `Show Subtitle` checkboxes to enable hiding figure titles. Resolved React duplicate child key warning (`Encountered two children with the same key, 'Scopus' / 'Manual Search'`) in Breakdown Table by compounding parent name and row index into table row keys. | 10 New Journal Palettes, Title Visibility Toggles & React Duplicate Key Fix |
 | #234 | 2026-08-13 | Feature / Bug Fix | Expanded Font Family select to 6 choices (`Inter`, `Times New Roman`, `Computer Modern LaTeX`, `Arial`, `Roboto`, `Fira Code Monospace`). Fixed figure title visibility hiding when `Show Title` is unchecked (`show: false`). Added per-level Label Text Color pickers (`color`), Word Wrap & Edge Overflow modes (`break`, `truncate`, `none`), and Max Label Width sliders (`40px`-`160px`) to prevent edge text cropping on radial outer labels. | 6 Publication Font Families, Title Hide Fix, Per-Level Label Color & Auto Word Wrap |
 | #235 | 2026-08-13 | Bug Fix | Fixed `generateChartOption` `useCallback` missing 14 Sunburst state dependencies (`sunburstLevelConfigs`, `sunburstSort`, `sunburstNodeClick`, `sunburstEmphasisFocus`, `showChartTitle`, `showChartSubtitle`, `customCategoryMap`, etc.) causing level property and ring radius changes to not reflect in the chart. Fixed tangential label rotation being discarded for outside labels. Fixed overflow `'none'` being skipped entirely instead of being passed as ECharts unclipped mode. Enabled overflow/width for inside labels. Added slash-break formatter (`Energy/Power` → `Energy/\nPower`). Extended Max Label Width slider range to 20px–200px. | useCallback Dependency Fix, Tangential Rotate Fix, Inside Label Overflow & Slash Wrapping |
-| #236 | 2026-08-13 | Feature | Added Chart Scale zoom slider (30%–150%) to shrink/expand the Sunburst within the canvas, preventing outer label cropping. Added Sunburst Legend with user-selectable level (Level 1, 2, 3...), three label formats (Name Only, Name + Count, Name + Percent), and 6-position placement (Top-Left/Center/Right, Bottom-Left/Center/Right). All new state variables added to `generateChartOption` dependency array. | Chart Scale Zoom Slider & Customizable Sunburst Legend |
+| #238 | 2026-08-16 | Bug Fix | Resolved PDF persistence loss in Paper Details modal (`ViewEditPaperModal.tsx` / `usePapers.ts`): (1) Fixed Active State Rehydration in `usePapers.ts` which previously overwrote newly acquired `paperModal.paper` with stale list objects before `loadPapers()` resolved, (2) Added `subscribeSyncChannel` listener in `usePapers.ts` to reload papers on `SYNC_PAPERS` broadcasts, (3) Updated `PUT /api/papers/[id]` to properly receive, persist, and return `Local_PDF_Path` and updated paper data, (4) Enhanced `/api/pdf/single/route.ts` with explicit `projectId` request payload consumption and fallback ID resolution. Verified cleanly with `npx tsc --noEmit`. | Fix Paper Details PDF Persistence & Active Rehydration Guard |
+
+
 
 
 

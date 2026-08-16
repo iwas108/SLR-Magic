@@ -2,6 +2,7 @@ import React from 'react';
 import { useViewerData } from '@/context/ViewerContext';
 import PrismaFlowDiagram from './PrismaFlowDiagram';
 import PoolMetricsPanel from './PoolMetricsPanel';
+import BlindedAdjudicationPanel from './BlindedAdjudicationPanel';
 import StageComparisonPanel from './StageComparisonPanel';
 import RollingBatchPanel from './RollingBatchPanel';
 import { AlertCircle } from 'lucide-react';
@@ -33,6 +34,7 @@ export default function ScientificRigorPanel() {
   const prismaData = rigorData.prisma || null;
   const stageStats = rigorData.stage_comparisons || [];
   const poolMetrics = rigorData.pool_metrics || null;
+  const blindedAdjudicationStats = rigorData.blinded_adjudication_stats || rigorData.blinded_review_adjudication || null;
   const rollingBatchQC = rigorData.rolling_batch_qc || null;
   const projectConfig = rawData.project || null;
 
@@ -54,6 +56,12 @@ export default function ScientificRigorPanel() {
           projects={projectConfig ? [projectConfig] : []}
           activeProjectId={projectConfig?.id}
         />
+      </div>
+
+      {/* 1.5 Blinded Review & Adjudication Results */}
+      <div>
+        <h3 className="text-sm font-semibold mb-3 text-foreground">Blinded Review &amp; Adjudication Results</h3>
+        <BlindedAdjudicationPanel stats={blindedAdjudicationStats} loading={false} />
       </div>
 
       {/* 2. Stage Comparison */}

@@ -17,6 +17,7 @@ export interface MockupPaperResult {
   tokens: number;
   cost_usd: number;
   latency_ms: number;
+  error?: string;
 }
 
 export interface MockupProgressUpdate {
@@ -26,12 +27,14 @@ export interface MockupProgressUpdate {
   paperId?: string;
   paperTitle?: string;
   decision?: string;
+  exclusionCode?: string | null;
   costSoFar?: number;
   totalCost?: number;
   totalTokens?: number;
   cacheId?: number;
   reviewerName?: string;
   error?: string;
+  isPartialRetry?: boolean;
 }
 
 function safeJsonParse(val: any, fallback: any = {}): any {
@@ -42,6 +45,27 @@ function safeJsonParse(val: any, fallback: any = {}): any {
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Checks if a mockup paper execution failed (e.g. timeout, rate limit, API error, or missing PDF for Pool B/C)
+ */
+export function isMockupResultFailed(res: any, pool?: string): boolean {
+  if (!res || typeof res !== 'object') return true;
+  if (res.error && String(res.error).trim().length > 0) return true;
+  if (res.exclusion_code === 'ERROR') return true;
+  if (res.decision === 'ERROR') return true;
+  if (res.rationale && typeof res.rationale === 'string') {
+    if (
+      res.rationale.startsWith('LLM Call Failed') ||
+      res.rationale.includes('LLM Call Failed') ||
+      res.rationale.includes('Request timed out') ||
+      res.rationale.includes('Missing local full-text PDF')
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -94,7 +118,7 @@ export function calculateMockupCost(
   const outputPrice = pricingRow ? Number(pricingRow.output_token_price) : 0.30;
   const defaultBatchDiscount = pricingRow?.batch_discount !== undefined ? Number(pricingRow.batch_discount) : 0.5;
   
-  const discountRate = customDiscount > 0 ? customDiscount : (speedMode === 'FLEX' ? defaultBatchDiscount : 0.0);
+  const discountRate = customDiscount > 0 ? customDiscount : (speedMode.toUpperCase() === 'FLEX' ? defaultBatchDiscount : 0.0);
   const billableInputTokens = Math.max(0, inputTokens - cachedTokens);
   
   const rawCost = ((billableInputTokens / 1_000_000.0) * inputPrice * (1.0 - discountRate)) +
@@ -176,7 +200,7 @@ export function logMockupAuditInteraction(params: {
 }
 
 /**
- * Direct Gemini REST API Call
+ * Direct Gemini REST API Call with 100% LLM Parameters Compliance
  */
 async function callGeminiApi(
   hydratedUserPrompt: string,
@@ -188,54 +212,92 @@ async function callGeminiApi(
 ): Promise<any> {
   const modelId = modelConfig.model_id || 'gemini-2.5-flash';
   const cleanModelName = modelId.replace(/^models\//, '');
-  const temperature = typeof modelConfig.temperature === 'number' ? modelConfig.temperature : 0.0;
-  const maxTokens = modelConfig.max_tokens || modelConfig.max_output_tokens || 4000;
-  const topP = typeof modelConfig.top_p === 'number' ? modelConfig.top_p : undefined;
-  const topK = typeof modelConfig.top_k === 'number' ? modelConfig.top_k : undefined;
-  const timeoutSeconds = modelConfig.timeout_seconds || 900;
+  
+  // 1. Temperature (0.0 to 2.0)
+  const rawTemp = modelConfig.temperature;
+  const temperature = (typeof rawTemp === 'number' && Number.isFinite(rawTemp)) 
+    ? Math.max(0.0, Math.min(2.0, rawTemp))
+    : (rawTemp !== undefined && !isNaN(Number(rawTemp)) ? Math.max(0.0, Math.min(2.0, Number(rawTemp))) : 0.0);
+
+  // 2. Max Tokens (1 to 64000)
+  const rawMaxTokens = modelConfig.max_tokens || modelConfig.max_output_tokens;
+  const maxTokens = (typeof rawMaxTokens === 'number' && rawMaxTokens > 0)
+    ? Math.min(64000, Math.max(1, rawMaxTokens))
+    : (Number(rawMaxTokens) > 0 ? Math.min(64000, Math.max(1, Number(rawMaxTokens))) : 4000);
+
+  // 3. Top-P (0.0 to 1.0)
+  const rawTopP = modelConfig.top_p;
+  const topP = (typeof rawTopP === 'number' && Number.isFinite(rawTopP) && rawTopP >= 0 && rawTopP <= 1)
+    ? rawTopP
+    : (rawTopP !== undefined && !isNaN(Number(rawTopP)) && Number(rawTopP) >= 0 && Number(rawTopP) <= 1 ? Number(rawTopP) : undefined);
+
+  // 4. Top-K (1 to 100)
+  const rawTopK = modelConfig.top_k;
+  const topK = (typeof rawTopK === 'number' && Number.isInteger(rawTopK) && rawTopK >= 1)
+    ? Math.min(100, rawTopK)
+    : (rawTopK !== undefined && !isNaN(parseInt(rawTopK, 10)) && parseInt(rawTopK, 10) >= 1 ? Math.min(100, parseInt(rawTopK, 10)) : undefined);
+
+  // 5. Timeout Seconds (30 to 3600s, default 900)
+  const rawTimeout = modelConfig.timeout_seconds;
+  const timeoutSeconds = (typeof rawTimeout === 'number' && rawTimeout >= 5)
+    ? Math.min(3600, rawTimeout)
+    : (Number(rawTimeout) >= 5 ? Math.min(3600, Number(rawTimeout)) : 900);
 
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelName}:generateContent?key=${geminiApiKey}`;
   
   const generationConfig: Record<string, any> = {
     temperature,
     maxOutputTokens: maxTokens,
-    topP,
-    topK,
     responseMimeType: 'application/json',
-    responseSchema: responseSchema || undefined
+    responseSchema: (responseSchema && typeof responseSchema === 'object' && Object.keys(responseSchema).length > 0) ? responseSchema : undefined
   };
 
-  if (modelConfig.thinking_level) {
-    const level = String(modelConfig.thinking_level).toLowerCase();
+  if (topP !== undefined) generationConfig.topP = topP;
+  if (topK !== undefined) generationConfig.topK = topK;
+
+  // 6. Thinking level (Gemini 2.5 models)
+  const isThinkingCapable = cleanModelName.includes('2.5') || cleanModelName.includes('gemini-2.');
+  if (isThinkingCapable) {
+    const level = String(modelConfig.thinking_level || 'none').toLowerCase();
     const budgetMap: Record<string, number> = {
+      none: 0,
+      off: 0,
       minimal: 1024,
       low: 2048,
       medium: 4096,
-      high: 8192,
-      none: 0,
-      off: 0
+      high: 8192
     };
-    const budget = budgetMap[level] ?? (typeof modelConfig.thinking_budget === 'number' ? modelConfig.thinking_budget : 0);
-    if (budget > 0) {
-      generationConfig.thinkingConfig = { thinkingBudget: budget };
+    let budget = budgetMap[level];
+    if (budget === undefined && typeof modelConfig.thinking_budget === 'number') {
+      budget = modelConfig.thinking_budget;
     }
+    if (budget === undefined) budget = 0;
+    
+    // Explicitly configure thinkingBudget to ensure 'none' shuts off reasoning tokens
+    generationConfig.thinkingConfig = { thinkingBudget: budget };
   }
 
   const parts: any[] = [];
 
-  // Check if PDF should be attached inline for full-text stages
+  // Check if PDF should be attached inline for full-text stages (< 20MB inline limit)
   if (localPdfPath) {
     const fullPath = path.isAbsolute(localPdfPath) ? localPdfPath : path.join(PROJECT_ROOT, localPdfPath);
     if (fs.existsSync(fullPath)) {
       try {
-        const pdfBuffer = fs.readFileSync(fullPath);
-        const base64Pdf = pdfBuffer.toString('base64');
-        parts.push({
-          inlineData: {
-            mimeType: 'application/pdf',
-            data: base64Pdf
-          }
-        });
+        const stat = fs.statSync(fullPath);
+        // 19.5 MB limit to stay safely below Google GenAI 20MB limit
+        if (stat.size <= 19.5 * 1024 * 1024) {
+          const pdfBuffer = fs.readFileSync(fullPath);
+          const base64Pdf = pdfBuffer.toString('base64');
+          parts.push({
+            inlineData: {
+              mimeType: 'application/pdf',
+              data: base64Pdf
+            }
+          });
+        } else {
+          console.warn(`PDF file ${fullPath} is too large (${(stat.size / 1024 / 1024).toFixed(1)}MB) for inline attachment. Relying on metadata prompt.`);
+        }
       } catch (pdfErr) {
         console.warn(`Could not read PDF from ${fullPath}, falling back to text prompt:`, pdfErr);
       }
@@ -246,13 +308,17 @@ async function callGeminiApi(
 
   const apiPayload = {
     contents: [{ role: 'user', parts }],
-    systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+    systemInstruction: (systemInstruction && systemInstruction.trim()) ? { parts: [{ text: systemInstruction.trim() }] } : undefined,
     generationConfig
   };
 
   const startTime = Date.now();
   const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), timeoutSeconds * 1000);
+  let isTimedOut = false;
+  const timeoutId = setTimeout(() => {
+    isTimedOut = true;
+    abortController.abort();
+  }, timeoutSeconds * 1000);
 
   try {
     const res = await fetch(apiUrl, {
@@ -267,7 +333,9 @@ async function callGeminiApi(
 
     if (!res.ok) {
       const errBody = await res.text();
-      throw new Error(`Gemini API Error (${res.status}): ${errBody}`);
+      // Sanitize API key from error output
+      const cleanErr = errBody.replace(/key=[^&\s"]+/gi, 'key=***');
+      throw new Error(`Gemini API Error (${res.status}): ${cleanErr}`);
     }
 
     const resJson = await res.json();
@@ -297,9 +365,14 @@ async function callGeminiApi(
   } catch (err: any) {
     clearTimeout(timeoutId);
     const latencyMs = Date.now() - startTime;
+    const isAborted = isTimedOut || err.name === 'AbortError' || abortController.signal.aborted;
+    const cleanErrorMsg = isAborted
+      ? `Request timed out after ${timeoutSeconds} seconds`
+      : (err.message ? String(err.message).replace(/key=[^&\s"]+/gi, 'key=***') : 'Unknown LLM error');
+
     return {
       success: false,
-      error: err.message,
+      error: cleanErrorMsg,
       latencyMs,
       cleanModelName
     };
@@ -371,10 +444,29 @@ export async function evaluateMockupPaperScreening(
     }
   };
 
-  const hydratedUserPrompt = hydrateTemplate(promptTemplate.user_template, hydrationContext);
-  const systemInstruction = promptTemplate.system_instruction || '';
+  const userTemplate = promptTemplate.user_template || promptTemplate.user_prompt_template || '';
+  const systemInstruction = promptTemplate.system_instruction || promptTemplate.system_prompt || '';
 
+  const hydratedUserPrompt = hydrateTemplate(userTemplate, hydrationContext);
   const localPdfPath = stageNum === 2 ? paper.Local_PDF_Path : null;
+
+  // Enforce mandatory local PDF check for Pool B (Gatekeeper Stage 2)
+  if (stageNum === 2 || taskType === 'mockup_pool_b') {
+    const hasValidPdf = Boolean(paper.Local_PDF_Path && fs.existsSync(paper.Local_PDF_Path));
+    if (!hasValidPdf) {
+      return {
+        paper_id: paper.Paper_ID,
+        title: paper.Title,
+        decision: 'EXCLUDE',
+        exclusion_code: 'ERROR',
+        rationale: 'Missing local full-text PDF file. Pool B Gatekeeper screening requires a verified local PDF file on disk.',
+        error: 'Missing local full-text PDF file (required for Pool B)',
+        tokens: 0,
+        cost_usd: 0,
+        latency_ms: 0
+      };
+    }
+  }
 
   const apiRes = await callGeminiApi(
     hydratedUserPrompt,
@@ -414,6 +506,7 @@ export async function evaluateMockupPaperScreening(
       decision: 'EXCLUDE',
       exclusion_code: 'ERROR',
       rationale: `LLM Call Failed: ${apiRes.error}`,
+      error: apiRes.error,
       tokens: 0,
       cost_usd: 0,
       latency_ms: apiRes.latencyMs
@@ -501,10 +594,31 @@ export async function evaluateMockupPaperPoolC(
     }
   };
 
-  const sciPrompt = hydrateTemplate(scientistPrompt.user_template, sciHydrationContext);
+  const sciUserTemplate = scientistPrompt.user_template || scientistPrompt.user_prompt_template || '';
+  const sciSysInstruction = scientistPrompt.system_instruction || scientistPrompt.system_prompt || '';
+
+  // Enforce mandatory local PDF check for Pool C (Scientist QA + Miner Extraction)
+  const hasValidPdf = Boolean(paper.Local_PDF_Path && fs.existsSync(paper.Local_PDF_Path));
+  if (!hasValidPdf) {
+    return {
+      paper_id: paper.Paper_ID,
+      title: paper.Title,
+      decision: 'EXCLUDE',
+      exclusion_code: 'ERROR',
+      rationale: 'Missing local full-text PDF file. Pool C Scientist + Miner evaluation requires a verified local PDF file on disk.',
+      error: 'Missing local full-text PDF file (required for Pool C)',
+      qa_scores: {},
+      extracted_data: {},
+      tokens: 0,
+      cost_usd: 0,
+      latency_ms: 0
+    };
+  }
+
+  const sciPrompt = hydrateTemplate(sciUserTemplate, sciHydrationContext);
   const sciRes = await callGeminiApi(
     sciPrompt,
-    scientistPrompt.system_instruction || '',
+    sciSysInstruction,
     sciSchema,
     sciConfig,
     geminiApiKey,
@@ -515,45 +629,76 @@ export async function evaluateMockupPaperPoolC(
   let sciTokens = 0;
   let rawQAScores: any = {};
 
-  if (sciRes.success) {
-    const parsedSci = safeJsonParse(sciRes.outputText, {});
-    rawQAScores = parsedSci.qa_scores || parsedSci;
-    const calc = calculateMockupCost(
-      sciRes.cleanModelName,
-      sciRes.inputTokens,
-      sciRes.outputTokens,
-      sciRes.cachedTokens,
-      sciConfig.execution_mode || 'FLEX',
-      Number(sciConfig.discount || 0),
-      taxRate
-    );
-    sciCost = calc.costUsd;
-    sciTokens = calc.totalTokens;
-
+  if (!sciRes.success) {
     logMockupAuditInteraction({
       paperId: paper.Paper_ID,
       projectId: String(project.id),
       taskType: 'mockup_pool_c',
-      modelId: sciRes.cleanModelName,
-      inputTokens: sciRes.inputTokens,
-      outputTokens: sciRes.outputTokens,
-      thinkingTokens: sciRes.thinkingTokens,
-      cachedTokens: sciRes.cachedTokens,
-      costUsd: sciCost,
+      modelId: sciRes.cleanModelName || 'gemini-2.5-flash',
+      inputTokens: 0,
+      outputTokens: 0,
+      thinkingTokens: 0,
+      cachedTokens: 0,
+      costUsd: 0,
       rawPrompt: sciPrompt,
-      rawResponse: sciRes.rawResponse,
+      rawResponse: '',
       responseSchemaName: sciSchema?.name || 'scientist_schema',
-      structuredOutput: sciRes.outputText,
-      status: 'SUCCESS',
+      structuredOutput: '',
+      status: 'ERROR',
+      errorMessage: sciRes.error,
       latencyMs: sciRes.latencyMs
     });
+
+    return {
+      paper_id: paper.Paper_ID,
+      title: paper.Title,
+      exclusion_code: 'ERROR',
+      rationale: `LLM Call Failed (Scientist QA): ${sciRes.error}`,
+      error: `Scientist QA Failed: ${sciRes.error}`,
+      tokens: 0,
+      cost_usd: 0,
+      latency_ms: sciRes.latencyMs
+    };
   }
 
-  // --- Step 2: Miner (Data Extraction) ---
+  const parsedSci = safeJsonParse(sciRes.outputText, {});
+  rawQAScores = parsedSci.qa_scores || parsedSci;
+  const sciCalc = calculateMockupCost(
+    sciRes.cleanModelName,
+    sciRes.inputTokens,
+    sciRes.outputTokens,
+    sciRes.cachedTokens,
+    sciConfig.execution_mode || 'FLEX',
+    Number(sciConfig.discount || 0),
+    taxRate
+  );
+  sciCost = sciCalc.costUsd;
+  sciTokens = sciCalc.totalTokens;
+
+  logMockupAuditInteraction({
+    paperId: paper.Paper_ID,
+    projectId: String(project.id),
+    taskType: 'mockup_pool_c',
+    modelId: sciRes.cleanModelName,
+    inputTokens: sciRes.inputTokens,
+    outputTokens: sciRes.outputTokens,
+    thinkingTokens: sciRes.thinkingTokens,
+    cachedTokens: sciRes.cachedTokens,
+    costUsd: sciCost,
+    rawPrompt: sciPrompt,
+    rawResponse: sciRes.rawResponse,
+    responseSchemaName: sciSchema?.name || 'scientist_schema',
+    structuredOutput: sciRes.outputText,
+    status: 'SUCCESS',
+    latencyMs: sciRes.latencyMs
+  });
+
+  // --- Step 2: Miner (Data Extraction) with Interaction Chaining Support ---
   const minerConfig = safeJsonParse(minerPrompt.llm_config, {});
   const minerSchema = safeJsonParse(minerPrompt.response_schema, DEFAULT_STAGE_SCHEMAS.miner);
+  const isChaining = minerConfig.interaction_chaining !== false;
 
-  const minerHydrationContext = {
+  const minerHydrationContext: any = {
     project: {
       name: project.name || '',
       objective: project.objective || '',
@@ -573,10 +718,21 @@ export async function evaluateMockupPaperPoolC(
     }
   };
 
-  const minerPromptText = hydrateTemplate(minerPrompt.user_template, minerHydrationContext);
+  if (isChaining) {
+    minerHydrationContext.custom = {
+      scientist_qa_scores: rawQAScores,
+      qa_scores: rawQAScores,
+      qa_summary: sciRes.outputText
+    };
+  }
+
+  const minerUserTemplate = minerPrompt.user_template || minerPrompt.user_prompt_template || '';
+  const minerSysInstruction = minerPrompt.system_instruction || minerPrompt.system_prompt || '';
+
+  const minerPromptText = hydrateTemplate(minerUserTemplate, minerHydrationContext);
   const minerRes = await callGeminiApi(
     minerPromptText,
-    minerPrompt.system_instruction || '',
+    minerSysInstruction,
     minerSchema,
     minerConfig,
     geminiApiKey,
@@ -587,39 +743,69 @@ export async function evaluateMockupPaperPoolC(
   let minerTokens = 0;
   let rawExtractedData: any = {};
 
-  if (minerRes.success) {
-    const parsedMiner = safeJsonParse(minerRes.outputText, {});
-    rawExtractedData = parsedMiner.extracted_data || parsedMiner;
-    const calc = calculateMockupCost(
-      minerRes.cleanModelName,
-      minerRes.inputTokens,
-      minerRes.outputTokens,
-      minerRes.cachedTokens,
-      minerConfig.execution_mode || 'FLEX',
-      Number(minerConfig.discount || 0),
-      taxRate
-    );
-    minerCost = calc.costUsd;
-    minerTokens = calc.totalTokens;
-
+  if (!minerRes.success) {
     logMockupAuditInteraction({
       paperId: paper.Paper_ID,
       projectId: String(project.id),
       taskType: 'mockup_pool_c',
-      modelId: minerRes.cleanModelName,
-      inputTokens: minerRes.inputTokens,
-      outputTokens: minerRes.outputTokens,
-      thinkingTokens: minerRes.thinkingTokens,
-      cachedTokens: minerRes.cachedTokens,
-      costUsd: minerCost,
+      modelId: minerRes.cleanModelName || 'gemini-2.5-flash',
+      inputTokens: 0,
+      outputTokens: 0,
+      thinkingTokens: 0,
+      cachedTokens: 0,
+      costUsd: 0,
       rawPrompt: minerPromptText,
-      rawResponse: minerRes.rawResponse,
+      rawResponse: '',
       responseSchemaName: minerSchema?.name || 'miner_schema',
-      structuredOutput: minerRes.outputText,
-      status: 'SUCCESS',
+      structuredOutput: '',
+      status: 'ERROR',
+      errorMessage: minerRes.error,
       latencyMs: minerRes.latencyMs
     });
+
+    return {
+      paper_id: paper.Paper_ID,
+      title: paper.Title,
+      exclusion_code: 'ERROR',
+      rationale: `LLM Call Failed (Miner Extraction): ${minerRes.error}`,
+      error: `Miner Extraction Failed: ${minerRes.error}`,
+      tokens: sciTokens,
+      cost_usd: sciCost,
+      latency_ms: (sciRes.latencyMs || 0) + (minerRes.latencyMs || 0)
+    };
   }
+
+  const parsedMiner = safeJsonParse(minerRes.outputText, {});
+  rawExtractedData = parsedMiner.extracted_data || parsedMiner;
+  const minerCalc = calculateMockupCost(
+    minerRes.cleanModelName,
+    minerRes.inputTokens,
+    minerRes.outputTokens,
+    minerRes.cachedTokens,
+    minerConfig.execution_mode || 'FLEX',
+    Number(minerConfig.discount || 0),
+    taxRate
+  );
+  minerCost = minerCalc.costUsd;
+  minerTokens = minerCalc.totalTokens;
+
+  logMockupAuditInteraction({
+    paperId: paper.Paper_ID,
+    projectId: String(project.id),
+    taskType: 'mockup_pool_c',
+    modelId: minerRes.cleanModelName,
+    inputTokens: minerRes.inputTokens,
+    outputTokens: minerRes.outputTokens,
+    thinkingTokens: minerRes.thinkingTokens,
+    cachedTokens: minerRes.cachedTokens,
+    costUsd: minerCost,
+    rawPrompt: minerPromptText,
+    rawResponse: minerRes.rawResponse,
+    responseSchemaName: minerSchema?.name || 'miner_schema',
+    structuredOutput: minerRes.outputText,
+    status: 'SUCCESS',
+    latencyMs: minerRes.latencyMs
+  });
 
   // Normalize QA Scores
   const normalizedQA: Record<string, { value: number | null; evidence: string }> = {};

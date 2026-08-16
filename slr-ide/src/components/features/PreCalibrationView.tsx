@@ -10,6 +10,7 @@ import {
 
 import { broadcastSync } from '@/lib/sync-utils';
 import PoolMetricsPanel from './pre-calibration/PoolMetricsPanel';
+import BlindedAdjudicationPanel from './pre-calibration/BlindedAdjudicationPanel';
 import StageComparisonPanel from './pre-calibration/StageComparisonPanel';
 import PromptStagingQuestPanel from './pre-calibration/PromptStagingQuestPanel';
 
@@ -29,6 +30,8 @@ interface PreCalibrationViewProps {
     setCalActivePool: React.Dispatch<React.SetStateAction<'pool_a' | 'pool_b' | 'pool_c'>>;
     stageStats: any[];
     stageStatsLoading: boolean;
+    blindedStats?: any;
+    blindedStatsLoading?: boolean;
     calPapers: any[];
     calLoading: boolean;
     calSearchTerm: string;
@@ -82,6 +85,8 @@ export default function PreCalibrationView({
     setCalActivePool,
     stageStats,
     stageStatsLoading,
+    blindedStats,
+    blindedStatsLoading,
     calPapers,
     calLoading,
     calSearchTerm,
@@ -179,6 +184,15 @@ export default function PreCalibrationView({
               projects={projects}
               activeProjectId={activeProjectId}
             />
+
+            {/* Blinded Review & Discrepancy Adjudication Results (All Pools) */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Blinded Review &amp; Adjudication Results</h3>
+              <BlindedAdjudicationPanel
+                stats={blindedStats}
+                loading={blindedStatsLoading}
+              />
+            </div>
 
             {/* Stage comparison gold standard vs screening cards */}
             <div className="space-y-3">
@@ -420,7 +434,7 @@ export default function PreCalibrationView({
                                   'bg-transparent border border-muted-foreground'
                                 }`} />
                                 <span className="text-[10px] font-bold tracking-wider uppercase truncate">
-                                  {p.Local_PDF_Status}
+                                  {p.Local_PDF_Status || 'MISSING'}
                                 </span>
                                 {p.PDF_Link && p.PDF_Link.startsWith('http') && (
                                   <a

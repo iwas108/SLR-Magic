@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Paper } from '@/types';
-import { broadcastSync } from '@/lib/sync-utils';
+import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 import { useNdjsonStream } from './useNdjsonStream';
 
 export function useManualScreening(
@@ -70,7 +70,7 @@ export function useManualScreening(
     const fetchEcTriggers = async () => {
       setLoadingEcTriggers(true);
       try {
-        const res = await fetch(`/api/papers?getEcTriggers=true&pipelineStage=${pipelineStageFilter}`);
+        const res = await fetch(`/api/papers?getEcTriggers=true&pipelineStage=${pipelineStageFilter}${activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : ''}`);
         if (res.ok) {
           const data = await res.json();
           setEcTriggers(data || []);
@@ -82,7 +82,7 @@ export function useManualScreening(
       }
     };
     fetchEcTriggers();
-  }, [pipelineStageFilter]);
+  }, [pipelineStageFilter, activeProjectId]);
   
   // Project-wide stats state
   const [screeningStats, setScreeningStats] = useState<{
@@ -119,6 +119,7 @@ export function useManualScreening(
   const [manualPdfStatusText, setManualPdfStatusText] = useState('');
   const [manualPdfProgress, setManualPdfProgress] = useState(0);
   const [manualPdfWaitingLogin, setManualPdfWaitingLogin] = useState(false);
+  const currentRunningPaperIdRef = useRef<string | null>(null);
 
   const { connect: connectNdjson, cancelStream: cancelSinglePaperPipeline, abortControllerRef: singlePipelineAbortControllerRef } = useNdjsonStream({
     onEvent: (parsed) => {
@@ -155,21 +156,29 @@ export function useManualScreening(
       }
     },
     onComplete: async () => {
-      if (screeningSelectedPaper) {
-        const paperId = screeningSelectedPaper.Paper_ID;
-        const paperRes = await fetch(`/api/papers/${paperId}`);
-        if (paperRes.ok) {
-          const updatedPaper = await paperRes.json();
-          setScreeningSelectedPaper(updatedPaper);
-          setScreeningPapers(prev => prev.map(p => p.Paper_ID === paperId ? { ...p, ...updatedPaper } : p));
+      const targetPaperId = currentRunningPaperIdRef.current || screeningSelectedPaper?.Paper_ID;
+      if (targetPaperId) {
+        try {
+          const paperRes = await fetch(`/api/papers/${encodeURIComponent(targetPaperId)}`);
+          if (paperRes.ok) {
+            const updatedPaper = await paperRes.json();
+            setScreeningSelectedPaper(updatedPaper);
+            setScreeningPapers(prev => prev.map(p => p.Paper_ID === targetPaperId ? { ...p, ...updatedPaper } : p));
+          }
+        } catch (e) {
+          console.error('Failed to re-fetch paper in manual screening:', e);
         }
         loadScreeningStats();
+        broadcastSync('SYNC_PAPERS');
+        broadcastSync('SYNC_PROJECTS');
       }
       setManualPdfIsRunning(false);
+      setManualPdfWaitingLogin(false);
     },
     onError: (err) => {
       showToast(`Pipeline execution failed: ${err.message}`, 'error');
       setManualPdfIsRunning(false);
+      setManualPdfWaitingLogin(false);
     }
   });
 
@@ -179,6 +188,7 @@ export function useManualScreening(
       return;
     }
 
+    currentRunningPaperIdRef.current = paperId;
     setManualPdfIsRunning(true);
     setManualPdfLogs([]);
     setManualPdfProgress(0);
@@ -189,7 +199,7 @@ export function useManualScreening(
       await connectNdjson('/api/pdf/single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paperId })
+        body: JSON.stringify({ paperId, projectId: activeProjectId || screeningSelectedPaper?.Project_ID || '' })
       });
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -199,7 +209,7 @@ export function useManualScreening(
       }
       setManualPdfIsRunning(false);
     }
-  }, [manualPdfIsRunning, showToast, connectNdjson]);
+  }, [manualPdfIsRunning, showToast, connectNdjson, activeProjectId, screeningSelectedPaper]);
 
   // Setup form states when paper selection changes
   const lastLoadedPaperRef = useRef<Paper | null>(null);
@@ -279,8 +289,16 @@ export function useManualScreening(
   useEffect(() => {
     if (screeningSelectedPaper && screeningPapers.length > 0) {
       const updated = screeningPapers.find(p => p.Paper_ID === screeningSelectedPaper.Paper_ID);
-      if (updated && JSON.stringify(updated) !== JSON.stringify(screeningSelectedPaper)) {
-        setScreeningSelectedPaper(updated);
+      if (updated) {
+        // Guard: Don't downgrade if active selection has newly acquired PDF
+        const activeHasPdf = !!screeningSelectedPaper.Local_PDF_Path && screeningSelectedPaper.Local_PDF_Status !== 'MISSING';
+        const listHasNoPdf = !updated.Local_PDF_Path || updated.Local_PDF_Status === 'MISSING';
+        if (activeHasPdf && listHasNoPdf) {
+          return;
+        }
+        if (JSON.stringify(updated) !== JSON.stringify(screeningSelectedPaper)) {
+          setScreeningSelectedPaper(updated);
+        }
       }
     }
   }, [screeningPapers, screeningSelectedPaper]);
@@ -288,7 +306,7 @@ export function useManualScreening(
   // Load project stats
   const loadScreeningStats = useCallback(async () => {
     try {
-      const res = await fetch(`/api/papers/manual-screening?getStats=true`);
+      const res = await fetch(`/api/papers/manual-screening?getStats=true${activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : ''}`);
       if (res.ok) {
         const data = await res.json();
         setScreeningStats(data);
@@ -309,6 +327,7 @@ export function useManualScreening(
     setScreeningLoading(true);
     try {
       const params = new URLSearchParams();
+      if (activeProjectId) params.append('projectId', activeProjectId);
       if (screeningSearch) params.append('search', screeningSearch);
       if (screeningStageFilter) params.append('manualStage', screeningStageFilter);
       if (screeningDecisionFilter) params.append('manualDecision', screeningDecisionFilter);
@@ -345,8 +364,19 @@ export function useManualScreening(
     screeningSearch, screeningStageFilter, screeningDecisionFilter,
     pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter,
     pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter,
-    screeningSearchMode, showToast
+    screeningSearchMode, showToast, activeProjectId
   ]);
+
+  // Multi-tab sync subscription per agents.md §3.3
+  useEffect(() => {
+    const unsub = subscribeSyncChannel((syncType) => {
+      if (syncType === 'SYNC_PAPERS' || syncType === 'SYNC_PROJECTS') {
+        loadScreeningPapers();
+        loadScreeningStats();
+      }
+    });
+    return unsub;
+  }, [loadScreeningPapers, loadScreeningStats]);
 
   // Trigger semantic (vector) search
   const triggerSemanticSearch = useCallback(async () => {

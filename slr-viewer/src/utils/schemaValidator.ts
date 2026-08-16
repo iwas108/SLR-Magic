@@ -145,6 +145,7 @@ export function validateViewerSnapshot(rawPayload: any): any {
       },
       stage_comparisons: scientificRigor.stage_comparisons || [],
       pool_metrics: scientificRigor.pool_metrics || {},
+      blinded_adjudication_stats: scientificRigor.blinded_adjudication_stats || scientificRigor.blinded_review_adjudication || null,
       rolling_batch_qc: scientificRigor.rolling_batch_qc || {},
     },
     final_cohort: {

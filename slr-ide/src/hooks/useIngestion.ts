@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { broadcastSync } from '@/lib/sync-utils';
+import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 
-export function useIngestion(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void, papers: any[] = [], loadPapers?: () => void) {
+export function useIngestion(
+  showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void,
+  papers: any[] = [],
+  loadPapers?: () => void,
+  activeProjectId?: string
+) {
   // Ingestion states
   const [csvSource, setCsvSource] = useState('');
   const [csvSourceSelect, setCsvSourceSelect] = useState('IEEE Xplore');
@@ -39,9 +44,10 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
   const [loadingPurgeCheck, setLoadingPurgeCheck] = useState(false);
 
   // We load existing hashes when the ingestion view mounts or active project changes
-  const loadHashes = async () => {
+  const loadHashes = useCallback(async () => {
     try {
-      const res = await fetch('/api/papers?onlyHashes=true');
+      const url = `/api/papers?onlyHashes=true${activeProjectId ? `&projectId=${encodeURIComponent(activeProjectId)}` : ''}`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setExistingHashes(data);
@@ -49,11 +55,21 @@ export function useIngestion(showToast: (msg: string, type: 'success' | 'error' 
     } catch (err) {
       console.error('Error loading paper hashes for duplicate check:', err);
     }
-  };
+  }, [activeProjectId]);
 
   useEffect(() => {
     loadHashes();
-  }, []);
+  }, [loadHashes]);
+
+  // Multi-tab sync subscription
+  useEffect(() => {
+    const unsub = subscribeSyncChannel((syncType) => {
+      if (syncType === 'SYNC_PAPERS' || syncType === 'SYNC_PROJECTS') {
+        loadHashes();
+      }
+    });
+    return unsub;
+  }, [loadHashes]);
 
   // Filter parent paper suggestions via database query
   useEffect(() => {

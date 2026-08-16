@@ -132,8 +132,10 @@ export async function POST(req: Request) {
     const modelId = optLlmConfig.model_id || 'gemini-2.5-pro';
     const cleanModelName = modelId.replace(/^models\//, '');
     const temperature = typeof optLlmConfig.temperature === 'number' ? optLlmConfig.temperature : 0.0;
-    const maxTokens = optLlmConfig.max_tokens || 6000;
-    const timeoutSeconds = optLlmConfig.timeout_seconds || 900;
+    const maxTokens = optLlmConfig.max_tokens ?? optLlmConfig.max_output_tokens ?? 6000;
+    const topP = typeof optLlmConfig.top_p === 'number' ? optLlmConfig.top_p : (optLlmConfig.top_p !== undefined ? Number(optLlmConfig.top_p) : undefined);
+    const topK = typeof optLlmConfig.top_k === 'number' ? optLlmConfig.top_k : (optLlmConfig.top_k !== undefined ? Number(optLlmConfig.top_k) : undefined);
+    const timeoutSeconds = optLlmConfig.timeout_seconds ? Number(optLlmConfig.timeout_seconds) : 900;
     const speedMode = (optLlmConfig.execution_mode || 'STANDARD').toUpperCase();
 
     // 4. Fetch 70% Training Discrepancies from Latest Benchmark Run
@@ -259,7 +261,14 @@ export async function POST(req: Request) {
       responseSchema: parsedResponseSchema
     };
 
-    if (optLlmConfig.thinking_level) {
+    if (topP !== undefined && !isNaN(topP)) {
+      generationConfig.topP = topP;
+    }
+    if (topK !== undefined && !isNaN(topK)) {
+      generationConfig.topK = topK;
+    }
+
+    if (optLlmConfig.thinking_level !== undefined && optLlmConfig.thinking_level !== null) {
       const level = String(optLlmConfig.thinking_level).toLowerCase();
       const budgetMap: Record<string, number> = {
         minimal: 1024,
@@ -269,10 +278,8 @@ export async function POST(req: Request) {
         none: 0,
         off: 0
       };
-      const budget = budgetMap[level] ?? (typeof optLlmConfig.thinking_budget === 'number' ? optLlmConfig.thinking_budget : 0);
-      if (budget > 0) {
-        generationConfig.thinkingConfig = { thinkingBudget: budget };
-      }
+      const budget = budgetMap[level] ?? (typeof optLlmConfig.thinking_budget === 'number' ? optLlmConfig.thinking_budget : (level === 'none' || level === 'off' ? 0 : 2048));
+      generationConfig.thinkingConfig = { thinkingBudget: budget };
     }
 
     const apiPayload = {

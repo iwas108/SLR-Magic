@@ -4,6 +4,17 @@ All notable changes, refactoring milestones, and feature additions to `slr-viewe
 
 ---
 
+## [2026-08-16] - Blinded Review & Adjudication Results Panel Parity and Snapshot Schema Support
+
+### Added
+- **Blinded Review & Adjudication Results (`BlindedAdjudicationPanel.tsx`)**:
+  - Mirrored `BlindedAdjudicationPanel.tsx` from `slr-ide` into `slr-viewer/src/components/scientific-rigor/`.
+  - Integrated into `ScientificRigorPanel.tsx` directly under **Pre-Calibration Filling Status** and above **Gold Standard vs AI Stage Comparisons**.
+  - Displays Cohen's Kappa, Observed Agreement, Expected Chance Agreement, Precision, Weighted Kappa, Schema Match %, and Adjudication Resolution progress complete with rich hover tooltips across all 3 pools.
+- **Snapshot Export/Import Parity (`schemaValidator.ts`)**:
+  - Updated `slr-viewer/src/utils/schemaValidator.ts` to recognize and preserve `scientific_rigor.blinded_adjudication_stats`.
+  - Added support for `.slr-viewer` exported bundles containing pre-computed blinded review statistics and adjudication resolutions.
+
 ## [2026-08-15] - Granular & Bulk Copy Functionality for Project Governance (1.1) and Frozen Prompts (2.4)
 
 ### Added
