@@ -217,6 +217,10 @@ export default function DuplicateReviewModal({ isOpen, onClose, showToast, loadP
       if (data.suggested_primary_id) {
         setPrimaryOverride(data.suggested_primary_id);
       }
+
+      broadcastSync('SYNC_PROJECTS');
+      broadcastSync('SYNC_PAPERS');
+      broadcastSync('SYNC_DUPLICATES');
     } catch (e: any) {
       setAiError(e.message);
       showToast(e.message, 'error');

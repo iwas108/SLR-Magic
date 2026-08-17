@@ -191,7 +191,7 @@ export async function POST(req: Request) {
           SELECT SUM(cost_usd) FROM (
             SELECT cost_usd FROM llm_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
             UNION ALL
-            SELECT cost_usd FROM prompt_audit_ledger WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+            SELECT cost_usd FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
           )
         ), p.project_current_spend, 0.0) as current_spend
         FROM projects p
@@ -361,6 +361,41 @@ export async function POST(req: Request) {
       finalCostUsd,
       now
     );
+
+    // 12. Persist to immutable llm_audit_log
+    const promptHash = crypto.createHash('sha256').update((auditTemplate.system_instruction || '') + (hydratedUserPrompt || '')).digest('hex');
+    const latencyMs = Date.now() - startTime;
+    try {
+      db.prepare(`
+        INSERT INTO llm_audit_log (
+          project_id, paper_id, job_id, interaction_id, model_id, task_type,
+          input_tokens, output_tokens, thinking_tokens, total_tokens,
+          cost_usd, flex_discount, speed_mode, prompt_hash, raw_prompt, raw_response,
+          response_schema_name, structured_output, status, latency_ms, api_version, created_at
+        ) VALUES (?, ?, ?, ?, ?, 'consolidation_audit', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'consolidation_audit_schema', ?, ?, ?, 'google-genai-2.5-rest', ?)
+      `).run(
+        projectId,
+        null,
+        auditId,
+        `audit-int-${crypto.randomBytes(4).toString('hex')}`,
+        cleanModelName,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        finalCostUsd,
+        discountRate,
+        speedMode,
+        promptHash,
+        hydratedUserPrompt,
+        outputText,
+        JSON.stringify(structuredAudit),
+        overallStatus === 'FAILED' ? 'ERROR' : 'SUCCESS',
+        latencyMs,
+        now
+      );
+    } catch (auditErr) {
+      console.error('Failed to log stage-audit interaction to llm_audit_log:', auditErr);
+    }
 
     // Update project current spend
     try {

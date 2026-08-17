@@ -1,3 +1,43 @@
+## #421 - Complete LLM API Cost Recording & Unified Accounting Dashboard (2026-08-17)
+- **Goal**: Achieve 100% accounting and audit parity across all LLM API interactions in `slr-ide`, ensuring prompt optimizer calls, inter-stage consolidation audits, and benchmark sandbox runs are immutably logged to `llm_audit_log`, dynamically aggregated in the project dashboard and accounting endpoints, and rendered with dedicated cards and comprehensive filter options in the Accounting Panel.
+- **Architectural Implementation**:
+  1. **Prompt Optimizer Cost Recording (`src/app/api/calibration/prompt-optimize/route.ts`)**:
+     - Added token pricing calculation using `llm_pricing` rates, flex/custom discount, and project tax rate.
+     - Persisted immutable record into `llm_audit_log` with `task_type = 'prompt_optimizer'`, `cost_usd`, `input_tokens`, `output_tokens`, `model_id`, `prompt_hash`, `raw_prompt`, `raw_response`, and `structured_output`.
+     - Atomically updated `projects.project_current_spend`.
+  2. **Inter-Stage Consolidation Audit Parity (`src/app/api/calibration/stage-audit/route.ts`)**:
+     - Aligned pre-flight budget limit checks to query `(SELECT cost_usd FROM llm_audit_log UNION ALL SELECT cost_usd FROM umbrellanizer_results)`.
+     - Logged audit execution directly to `llm_audit_log` with `task_type = 'consolidation_audit'`, `cost_usd`, `model_id`, `input_tokens`, and `output_tokens`.
+  3. **Prompt Benchmark Sandbox Runs Parity (`src/app/api/calibration/benchmark/route.ts`)**:
+     - Added pre-flight budget limit enforcement before benchmark batch execution.
+     - Logged each evaluated paper to `llm_audit_log` with `task_type = 'prompt_benchmark'`, `cost_usd`, `paper_id`, `input_tokens`, and `output_tokens`.
+  4. **Accounting Panel Auxiliary Cards & Dynamic Filters (`src/components/features/insight-export/AccountingPanel.tsx`)**:
+     - Expanded `STAGE_CONFIGS` with badges and color tokens for `mockup_pool_a`, `mockup_pool_b`, `mockup_pool_c`, `duplicate_review`, `consolidation_audit`, `prompt_benchmark`, and `prompt_optimizer`.
+     - Built dynamic **Auxiliary & Calibration Operations** card grid rendering Min, Avg, Max costs and token metrics for any active auxiliary tasks.
+     - Enhanced task filter select with dynamic option resolution and explicit entries for all operation types.
+- **Verification**: Verified TypeScript compilation with `npx tsc --noEmit` (Exit Code 0); ran `test-mockup-review.mjs` (66/66 passed) and `test-benchmark-improvements.mjs` (passed).
+
+## #420 - In-Memory Test Isolation & Mock Data Database Purge (2026-08-17)
+- **Goal**: Resolve test data pollution in `slr.db` (where `MOCK-P1`, `MOCK-P2`, `MOCK-P3` "AI in Systematic Reviews 1/2/3" were persisted into active user projects) by purging lingering mock records from the SQLite database and refactoring `test-mockup-review.mjs` to run in a 100% isolated in-memory SQLite database (`:memory:`).
+- **Architectural Implementation**:
+  1. **Production Database Purge**:
+     - Scanned and deleted test artifacts from `papers`, `calibration_papers`, `reviewer_decisions`, `mockup_cache`, and `llm_audit_log` in `slr.db` matching `MOCK-P*` and `"AI in Systematic Reviews"`. Verified 0 lingering mock records.
+  2. **In-Memory SQLite Isolation (`scripts/test-mockup-review.mjs`)**:
+     - Refactored `test-mockup-review.mjs` from connecting to `../db/slr.db` to instantiating `new Database(':memory:')`.
+     - Added comprehensive in-memory schema DDL initialization (`projects`, `papers`, `calibration_papers`, `mockup_cache`, `llm_audit_log`, `prompt_templates`, `reviewer_decisions`) to ensure full test coverage with zero disk side-effects.
+- **Verification**: Executed `node scripts/test-mockup-review.mjs` (all 66 assertions passed with 0 failures); verified `slr.db` contains 0 mock records; `npx tsc --noEmit` exited with 0 errors.
+
+## #419 - Smart Content-Aware Automatic Versioning System (2026-08-17)
+- **Goal**: Implement deterministic, content-hash-based smart versioning across all modules (`slr-ide`, `inter-rater`, `slr-viewer`), ensuring that rebuilding on another machine or running `npm run build` without code changes preserves the existing version number, and only increments the patch version when actual source code changes are detected.
+- **Architectural Implementation**:
+  1. **Source Hash Calculation Engine (`scripts/bump-version.js`)**:
+     - Upgraded `bump-version.js` across `slr-ide`, `inter-rater`, and `slr-viewer` to compute a deterministic SHA-256 hash across all active source directories (`src/`, `public/`, `python_engine/`, configs), with recursive directory traversal and fast O(1) exclusion sets (`node_modules`, `.next`, `dist`, `db`, `venv`, `cached_pdf`, `pdf_repo`, `.git`).
+  2. **Smart Delta Detection & Hash Persistence**:
+     - Compares the calculated source hash against `.last-build-hash`.
+     - If no source files were modified, preserves `package.json` version and updates only the compilation timestamp in `index.html`.
+     - If source modifications are detected (or when `--force` is supplied), increments the patch version, updates `package.json`, writes the new hash to `.last-build-hash`, and syncs root `index.html` metadata.
+- **Verification**: Verified zero version bumps on rebuilds without source changes; verified automatic version increment upon source modifications; `npm run build:all` passed with Exit Code 0 across all 3 modules.
+
 ## #418 - File-Based Configuration for Network Interface & Port Listening (2026-08-17)
 - **Goal**: Provide unified file-based configuration (`slr-magic.config.json` and `.env` / `.env.local`) allowing users to bind SLR-IDE, Inter-Rater, SLR-Viewer, and Worker Server to all network interfaces (`0.0.0.0`) or custom host/ports, facilitating LAN collaboration and remote worker connectivity.
 - **Architectural Implementation**:

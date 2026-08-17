@@ -148,8 +148,12 @@ export function getNetworkConfig(): NetworkConfig {
     }
   }
 
-  const host = process.env.HOSTNAME || process.env.HOST || mergedEnv.HOSTNAME || mergedEnv.HOST || '0.0.0.0';
+  const rawHost = process.env.HOSTNAME || process.env.HOST || mergedEnv.HOSTNAME || mergedEnv.HOST || '0.0.0.0';
+  const host = rawHost.toLowerCase() === 'localhost' ? '127.0.0.1' : rawHost;
   const port = Number(process.env.PORT || mergedEnv.PORT || 3000);
+
+  const slrIdeHost = (process.env.SLR_IDE_HOST || mergedEnv.SLR_IDE_HOST || host);
+  const normalizedSlrIdeHost = slrIdeHost.toLowerCase() === 'localhost' ? '127.0.0.1' : slrIdeHost;
 
   return {
     server: {
@@ -159,7 +163,7 @@ export function getNetworkConfig(): NetworkConfig {
     },
     modules: {
       slr_ide: {
-        host: process.env.SLR_IDE_HOST || mergedEnv.SLR_IDE_HOST || host,
+        host: normalizedSlrIdeHost,
         port: Number(process.env.SLR_IDE_PORT || mergedEnv.SLR_IDE_PORT || port),
       },
       inter_rater: {

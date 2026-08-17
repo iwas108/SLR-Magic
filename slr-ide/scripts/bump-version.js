@@ -1,29 +1,93 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
-const pkgPath = path.resolve(__dirname, '../package.json');
-const indexHtmlPath = path.resolve(__dirname, '../../index.html');
+const slrIdeDir = path.resolve(__dirname, '..');
+const pkgPath = path.resolve(slrIdeDir, 'package.json');
+const indexHtmlPath = path.resolve(slrIdeDir, '../index.html');
+const lastHashPath = path.resolve(slrIdeDir, '.last-build-hash');
 
-try {
-  // --- 1. Bump slr-ide/package.json patch version ---
-  const pkgData = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-  const currentVersion = pkgData.version || '0.1.0';
-  const parts = currentVersion.split('.').map(Number);
+const IGNORED_DIRS = new Set([
+  'node_modules', '.next', 'dist', 'db', 'venv', '.venv',
+  '__pycache__', 'cached_pdf', 'pdf_repo', 'downloaded_pdf', '.git'
+]);
 
-  if (parts.length === 3 && parts.every(n => !isNaN(n))) {
-    parts[2] += 1;
-    pkgData.version = parts.join('.');
-  } else {
-    pkgData.version = '0.1.1';
+const IGNORED_FILES = new Set([
+  '.last-build-hash', '.DS_Store', 'Thumbs.db', 'package.json', 'package-lock.json', 'slr.db'
+]);
+
+function computeSourceHash() {
+  const hash = crypto.createHash('sha256');
+  const sourceTargets = [
+    path.join(slrIdeDir, 'src'),
+    path.join(slrIdeDir, 'public'),
+    path.join(slrIdeDir, 'python_engine'),
+    path.join(slrIdeDir, 'next.config.mjs'),
+  ];
+
+  function walk(currentDir) {
+    if (!fs.existsSync(currentDir)) return;
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (!IGNORED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
+          walk(path.join(currentDir, entry.name));
+        }
+      } else if (entry.isFile()) {
+        if (!IGNORED_FILES.has(entry.name) && !entry.name.endsWith('.pyc') && !entry.name.endsWith('.log')) {
+          const fullPath = path.join(currentDir, entry.name);
+          const rel = path.relative(slrIdeDir, fullPath).replace(/\\/g, '/');
+          hash.update(rel);
+          hash.update(fs.readFileSync(fullPath));
+        }
+      }
+    }
   }
 
-  fs.writeFileSync(pkgPath, JSON.stringify(pkgData, null, 2) + '\n', 'utf8');
-  console.log(`[slr-ide] Version bumped from ${currentVersion} to ${pkgData.version}`);
+  for (const target of sourceTargets) {
+    if (!fs.existsSync(target)) continue;
+    const stat = fs.statSync(target);
+    if (stat.isFile()) {
+      hash.update(path.relative(slrIdeDir, target).replace(/\\/g, '/'));
+      hash.update(fs.readFileSync(target));
+    } else if (stat.isDirectory()) {
+      walk(target);
+    }
+  }
 
-  // --- 2. Sync new version & build time into root index.html ---
-  if (!fs.existsSync(indexHtmlPath)) {
-    console.warn('[slr-ide] index.html not found at root, skipping sync.');
+  return hash.digest('hex');
+}
+
+try {
+  const pkgData = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  const currentVersion = pkgData.version || '0.1.0';
+  const currentHash = computeSourceHash();
+  const previousHash = fs.existsSync(lastHashPath) ? fs.readFileSync(lastHashPath, 'utf8').trim() : '';
+
+  const forceBump = process.argv.includes('--force');
+  const hasChanges = forceBump || !previousHash || currentHash !== previousHash;
+
+  let activeVersion = currentVersion;
+
+  if (hasChanges) {
+    const parts = currentVersion.split('.').map(Number);
+    if (parts.length === 3 && parts.every(n => !isNaN(n))) {
+      parts[2] += 1;
+      activeVersion = parts.join('.');
+    } else {
+      activeVersion = '0.1.1';
+    }
+
+    pkgData.version = activeVersion;
+    fs.writeFileSync(pkgPath, JSON.stringify(pkgData, null, 2) + '\n', 'utf8');
+    fs.writeFileSync(lastHashPath, currentHash, 'utf8');
+    console.log(`[slr-ide] Source changes detected. Version bumped from ${currentVersion} to ${activeVersion}`);
   } else {
+    console.log(`[slr-ide] No source code changes detected. Preserving version v${currentVersion}`);
+  }
+
+  // Sync version & build time into root index.html
+  if (fs.existsSync(indexHtmlPath)) {
     const buildTime = new Date().toLocaleString('en-US', {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -32,19 +96,16 @@ try {
 
     let html = fs.readFileSync(indexHtmlPath, 'utf8');
 
-    // Replace the content of the version badge (id="platform-version-badge")
     html = html.replace(
       /(<span[^>]+id="platform-version-badge"[^>]*>)[^<]*(<\/span>)/,
-      `$1v${pkgData.version}$2`
+      `$1v${activeVersion}$2`
     );
 
-    // Update the title tooltip with build time
     html = html.replace(
       /(<span[^>]+id="platform-version-badge"[^>]*)title="[^"]*"([^>]*>)/,
       `$1title="Compiled on: ${buildTime}"$2`
     );
 
-    // If no title attribute yet, inject it
     if (!html.includes('title="Compiled on:')) {
       html = html.replace(
         /(<span[^>]+id="platform-version-badge")([^>]*>)/,
@@ -53,8 +114,8 @@ try {
     }
 
     fs.writeFileSync(indexHtmlPath, html, 'utf8');
-    console.log(`[slr-ide] index.html synced → v${pkgData.version} (${buildTime})`);
+    console.log(`[slr-ide] index.html synced → v${activeVersion} (${buildTime})`);
   }
 } catch (err) {
-  console.error('[slr-ide] Failed to bump version:', err);
+  console.error('[slr-ide] Failed in smart versioning check:', err);
 }

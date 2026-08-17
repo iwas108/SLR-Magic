@@ -321,7 +321,62 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Failed to parse structured optimizer JSON: ${e.message}` }, { status: 500 });
     }
 
-    // 8. Determine if full-text PDFs are requested by LLM
+    // 8. Pricing & Audit Logging
+    const pricingRow = db.prepare('SELECT * FROM llm_pricing WHERE model_id = ?').get(cleanModelName) as any;
+    const inputPrice = pricingRow ? Number(pricingRow.input_token_price) : 0.075;
+    const outputPrice = pricingRow ? Number(pricingRow.output_token_price) : 0.30;
+    const defaultBatchDiscount = pricingRow?.batch_discount !== undefined ? Number(pricingRow.batch_discount) : 0.5;
+    const discountRate = typeof optLlmConfig.discount === 'number' ? optLlmConfig.discount : (speedMode === 'FLEX' ? defaultBatchDiscount : 0.0);
+    const projectTax = Number(project?.project_tax || 0.0);
+
+    const totalTokens = inputTokens + outputTokens;
+    const rawCost = ((inputTokens / 1_000_000) * inputPrice) + ((outputTokens / 1_000_000) * outputPrice);
+    const costAfterDiscount = rawCost * (1 - discountRate);
+    const finalCostUsd = costAfterDiscount * (1 + projectTax);
+    const latencyMs = Date.now() - startTime;
+    const nowIso = new Date().toISOString();
+    const promptHash = crypto.createHash('sha256').update((systemInstruction || '') + (userPromptText || '')).digest('hex');
+
+    try {
+      db.prepare(`
+        INSERT INTO llm_audit_log (
+          project_id, paper_id, job_id, interaction_id, model_id, task_type,
+          input_tokens, output_tokens, thinking_tokens, total_tokens,
+          cost_usd, flex_discount, speed_mode, prompt_hash, raw_prompt, raw_response,
+          response_schema_name, structured_output, status, latency_ms, api_version, created_at
+        ) VALUES (?, ?, ?, ?, ?, 'prompt_optimizer', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 'prompt_optimizer_schema', ?, 'SUCCESS', ?, 'google-genai-2.5-rest', ?)
+      `).run(
+        projectId,
+        null,
+        `opt-${Date.now()}`,
+        `opt-int-${crypto.randomBytes(4).toString('hex')}`,
+        cleanModelName,
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        finalCostUsd,
+        discountRate,
+        speedMode,
+        promptHash,
+        userPromptText,
+        outputText,
+        outputText,
+        latencyMs,
+        nowIso
+      );
+    } catch (auditErr) {
+      console.error('Failed to log prompt optimizer interaction to llm_audit_log:', auditErr);
+    }
+
+    try {
+      db.prepare(`
+        UPDATE projects 
+        SET project_current_spend = COALESCE(project_current_spend, 0.0) + ? 
+        WHERE CAST(id AS TEXT) = CAST(? AS TEXT)
+      `).run(finalCostUsd, projectId);
+    } catch (e) {}
+
+    // 9. Determine if full-text PDFs are requested by LLM
     const requestedPdfs = Array.isArray(structuredOpt.needs_full_text) ? structuredOpt.needs_full_text : [];
     const hasPdfRequests = action === 'diagnose' && requestedPdfs.length > 0;
 

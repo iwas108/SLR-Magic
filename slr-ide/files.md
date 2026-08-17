@@ -212,6 +212,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/PipelineExecutionView.tsx`| View Component | Interface for launching, monitoring, and controlling automated PDF acquisition, OCR indexing, and cloud sync batch pipelines. |
 | `components/features/PreCalibrationView.tsx` | View Component | View interface for managing pre-calibration workflows, tagging specific screening cohorts, cohort tag filtering, and analyzing screening consistency. |
 | `components/features/InsightExportView.tsx` | View Component | View interface hosting granular accounting reports, scientific rigor comparisons, final dataset cohort lists, and FAIR-compliant cloud exporting options. |
+| `components/features/insight-export/AccountingPanel.tsx` | UI Component | Renders comprehensive LLM financial accounting, pipeline breakdown cards, auxiliary calibration operation cards, and interactive audit call tables with sorting and task filtering. |
 | `components/features/insight-export/FinalCohortPanel.tsx` | UI Component | Renders the final cohort papers table with deep metadata, QA, and extraction filters. |
 | `components/features/insight-export/ScientificRigorPanel.tsx` | UI Component | Renders the scientific rigor panel with pre-calibration metrics, stage comparisons, and rolling batch validation. |
 | `components/features/insight-export/PrismaFlowDiagram.tsx` | UI Component | Canvas-rendered interactive PRISMA 2020 Flow Diagram with PNG download support. |

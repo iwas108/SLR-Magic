@@ -65,8 +65,10 @@ function loadConfig() {
     }
   }
 
+  const finalHost = (envHost && envHost.toLowerCase() === 'localhost') ? '127.0.0.1' : (envHost || '0.0.0.0');
+
   return {
-    host: envHost || '0.0.0.0',
+    host: finalHost,
     port: Number(envPort || 3000),
     source: envSource,
   };
@@ -106,7 +108,7 @@ if (config.host === '0.0.0.0') {
 }
 console.log('\x1b[36m%s\x1b[0m\n', '====================================================================');
 
-const cmdStr = `npx next dev -H ${config.host} -p ${config.port}`;
+const cmdStr = `npx next dev --webpack -H ${config.host} -p ${config.port}`;
 
 const child = spawn(cmdStr, {
   cwd: slrIdeDir,

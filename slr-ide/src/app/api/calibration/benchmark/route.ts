@@ -413,6 +413,29 @@ export async function POST(req: Request) {
     trainPapers.forEach(p => partitionMap.set(p.Paper_ID, 'train'));
     holdoutPapers.forEach(p => partitionMap.set(p.Paper_ID, 'holdout'));
 
+    // 5.1 Pre-flight check: Project Budget Limit
+    const budgetLimit = Number(project.project_budget_limit || 0);
+    if (budgetLimit > 0) {
+      const currentSpendRow = db.prepare(`
+        SELECT COALESCE((
+          SELECT SUM(cost_usd) FROM (
+            SELECT cost_usd FROM llm_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+            UNION ALL
+            SELECT cost_usd FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
+          )
+        ), p.project_current_spend, 0.0) as current_spend
+        FROM projects p
+        WHERE CAST(p.id AS TEXT) = CAST(? AS TEXT)
+      `).get(projectId, projectId, projectId) as { current_spend: number } | undefined;
+
+      const currentSpend = Number(currentSpendRow?.current_spend || 0);
+      if (currentSpend >= budgetLimit) {
+        return NextResponse.json({
+          error: `Project budget limit exceeded. Current Spend: $${currentSpend.toFixed(4)}, Limit: $${budgetLimit.toFixed(4)}`
+        }, { status: 400 });
+      }
+    }
+
     // 6. Create Benchmark Run Record
     const runId = `run-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
     const promptHash = crypto.createHash('sha256').update((stagePrompt.system_instruction || '') + (stagePrompt.user_template || '')).digest('hex');
@@ -527,6 +550,10 @@ export async function POST(req: Request) {
       const abortController = new AbortController();
       const timeoutId = setTimeout(() => abortController.abort(), timeoutSeconds * 1000);
 
+      const paperStartTime = Date.now();
+      let paperInpTokens = 0;
+      let paperOutTokens = 0;
+      let paperCostItem = 0.0;
       let rawResponseObj: any = null;
       let outputText = '';
       let isMatch = 0;
@@ -555,11 +582,14 @@ export async function POST(req: Request) {
           const usage = resJson.usageMetadata || {};
           const inp = usage.promptTokenCount || 0;
           const outp = usage.candidatesTokenCount || 0;
+          paperInpTokens = inp;
+          paperOutTokens = outp;
           totalInputTokens += inp;
           totalOutputTokens += outp;
 
           const rawCost = ((inp / 1_000_000) * inputPrice) + ((outp / 1_000_000) * outputPrice);
           const costItem = rawCost * (1 - discountRate) * (1 + projectTax);
+          paperCostItem = costItem;
           totalCostUsd += costItem;
 
           const parsed = JSON.parse(outputText);
@@ -675,6 +705,43 @@ export async function POST(req: Request) {
         rawResponseObj ? JSON.stringify(rawResponseObj) : null,
         new Date().toISOString()
       );
+
+      // Persist to immutable llm_audit_log
+      try {
+        const paperLatencyMs = Date.now() - paperStartTime;
+        const paperPromptHash = crypto.createHash('sha256').update((stagePrompt.system_instruction || '') + (hydratedUserPrompt || '')).digest('hex');
+        const totalPaperTokens = paperInpTokens + paperOutTokens;
+        db.prepare(`
+          INSERT INTO llm_audit_log (
+            project_id, paper_id, job_id, interaction_id, model_id, task_type,
+            input_tokens, output_tokens, thinking_tokens, total_tokens,
+            cost_usd, flex_discount, speed_mode, prompt_hash, raw_prompt, raw_response,
+            response_schema_name, structured_output, status, latency_ms, api_version, created_at
+          ) VALUES (?, ?, ?, ?, ?, 'prompt_benchmark', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'google-genai-2.5-rest', ?)
+        `).run(
+          projectId,
+          paper.Paper_ID,
+          runId,
+          `bm-int-${crypto.randomBytes(4).toString('hex')}`,
+          cleanModelName,
+          paperInpTokens,
+          paperOutTokens,
+          totalPaperTokens,
+          paperCostItem,
+          discountRate,
+          speedMode,
+          paperPromptHash,
+          hydratedUserPrompt,
+          outputText,
+          `${stageMeta.type}_schema`,
+          outputText,
+          rawResponseObj && !discrepancyDetails?.type?.includes('ERROR') ? 'SUCCESS' : 'ERROR',
+          paperLatencyMs,
+          new Date().toISOString()
+        );
+      } catch (auditErr) {
+        console.error('Failed to log benchmark paper interaction to llm_audit_log:', auditErr);
+      }
 
       evaluatedCount++;
       resultsAccumulator.push({

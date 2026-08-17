@@ -63,6 +63,12 @@ export default function DashboardView({
 
   const [projectSearchTerm, setProjectSearchTerm] = useState('');
 
+  React.useEffect(() => {
+    if (projectsHook?.loadProjects) {
+      projectsHook.loadProjects();
+    }
+  }, []);
+
   const activeProj = projects.find((p: any) => String(p.id) === String(activeProjectId)) || activeProject;
 
   // Active Project Metric Calculations
@@ -178,7 +184,9 @@ export default function DashboardView({
 
           <div className="bg-secondary/15 p-3 rounded-xl border border-border/50">
             <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Budget Spent</span>
-            <div className="text-lg font-mono font-bold text-foreground">${currentSpend.toFixed(2)}</div>
+            <div className="text-lg font-mono font-bold text-foreground" title={`$${currentSpend.toFixed(4)}`}>
+              ${currentSpend < 1 && currentSpend > 0 ? currentSpend.toFixed(4) : currentSpend.toFixed(2)}
+            </div>
             <span className="text-[9px] text-muted-foreground">of ${budgetLimit.toFixed(2)} limit ({spendPct}%)</span>
           </div>
         </div>
@@ -361,8 +369,8 @@ export default function DashboardView({
 
                       <td className="py-3.5 px-3 text-center">
                         <div className="inline-flex flex-col items-center gap-1.5 min-w-[100px]">
-                          <div className="text-[11px] font-mono font-bold text-foreground">
-                            ${pCurrentSpend.toFixed(2)} <span className="text-muted-foreground font-normal">/ ${pBudgetLimit.toFixed(2)}</span>
+                          <div className="text-[11px] font-mono font-bold text-foreground" title={`$${pCurrentSpend.toFixed(4)}`}>
+                            ${pCurrentSpend < 1 && pCurrentSpend > 0 ? pCurrentSpend.toFixed(4) : pCurrentSpend.toFixed(2)} <span className="text-muted-foreground font-normal">/ ${pBudgetLimit.toFixed(2)}</span>
                           </div>
                           <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${pSpendPct > 90 ? 'text-red-500 bg-red-500/10' : 'text-indigo-500 bg-indigo-500/10'}`}>
                             {pSpendPct}% spent

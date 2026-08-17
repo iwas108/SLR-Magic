@@ -64,8 +64,10 @@ function loadConfig() {
     }
   }
 
+  const finalHost = (envHost && envHost.toLowerCase() === 'localhost') ? '127.0.0.1' : (envHost || '0.0.0.0');
+
   return {
-    host: envHost || '0.0.0.0',
+    host: finalHost,
     port: Number(envPort || 3000),
     source: envSource,
   };

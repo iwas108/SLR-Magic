@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Project } from '@/types';
-import { broadcastSync } from '@/lib/sync-utils';
+import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 
 export function useProjects(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -33,9 +33,30 @@ export function useProjects(showToast: (msg: string, type: 'success' | 'error' |
     return null;
   }, [showToast]);
 
-  // Load projects on mount
+  // Load projects on mount and subscribe to cross-tab / background sync events
   useEffect(() => {
     loadProjects();
+
+    const unsubSync = subscribeSyncChannel((type) => {
+      if (
+        type === 'SYNC_PROJECTS' ||
+        type === 'SYNC_LLM_JOB' ||
+        type === 'SYNC_PAPERS' ||
+        type === 'SYNC_DUPLICATES'
+      ) {
+        loadProjects();
+      }
+    });
+
+    const handleFocus = () => {
+      loadProjects();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      unsubSync();
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [loadProjects]);
 
   const activateProject = useCallback(async (id: string, onActiveCallback?: () => void) => {

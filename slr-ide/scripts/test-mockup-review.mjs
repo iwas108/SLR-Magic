@@ -6,11 +6,124 @@ import zlib from 'zlib';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const dbPath = path.resolve(__dirname, '../db/slr.db');
 
 console.log('--- RUNNING MULTI-POOL MOCKUP REVIEW TEST SUITE ---');
 
-const db = new Database(dbPath);
+// Use isolated in-memory SQLite database to prevent polluting production/local slr.db
+const db = new Database(':memory:');
+
+// Initialize minimal required schema
+db.exec(`
+  CREATE TABLE projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    folder_name TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE papers (
+    Paper_ID TEXT PRIMARY KEY,
+    Project_ID TEXT NOT NULL,
+    Title TEXT,
+    Abstract TEXT,
+    Authors TEXT,
+    Year INTEGER,
+    Import_Date TEXT,
+    Import_Source TEXT,
+    Local_PDF_Status TEXT DEFAULT 'IGNORED',
+    Local_PDF_Path TEXT,
+    ai_stage INTEGER DEFAULT 0,
+    ai_decision TEXT,
+    ai_exclusion_code TEXT,
+    ai_rationale TEXT,
+    ai_quality_assessment TEXT,
+    ai_extracted_data TEXT,
+    manual_stage INTEGER DEFAULT 0,
+    manual_decision TEXT,
+    manual_rationale TEXT,
+    manual_quality_assessment TEXT,
+    manual_extracted_data TEXT
+  );
+
+  CREATE TABLE calibration_papers (
+    Paper_ID TEXT PRIMARY KEY,
+    Project_ID TEXT NOT NULL,
+    Title TEXT,
+    Abstract TEXT,
+    Authors TEXT,
+    Year INTEGER,
+    calibration_pool TEXT,
+    Import_Date TEXT,
+    Import_Source TEXT,
+    Local_PDF_Status TEXT DEFAULT 'IGNORED',
+    Local_PDF_Path TEXT,
+    manual_stage INTEGER DEFAULT 0,
+    manual_decision TEXT,
+    manual_rationale TEXT,
+    manual_quality_assessment TEXT,
+    manual_extracted_data TEXT
+  );
+
+  CREATE TABLE mockup_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id TEXT NOT NULL,
+    pool TEXT NOT NULL,
+    reviewer_name TEXT NOT NULL,
+    prompt_hash TEXT,
+    model_id TEXT,
+    slr_blob BLOB NOT NULL,
+    total_papers INTEGER NOT NULL,
+    total_cost_usd REAL NOT NULL,
+    total_tokens INTEGER NOT NULL,
+    paper_results TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE llm_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id TEXT,
+    project_id TEXT,
+    model_id TEXT,
+    task_type TEXT,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    total_tokens INTEGER,
+    cost_usd REAL,
+    status TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE prompt_templates (
+    id TEXT PRIMARY KEY,
+    project_id TEXT,
+    name TEXT NOT NULL,
+    prompt_type TEXT,
+    system_prompt TEXT,
+    system_instruction TEXT,
+    user_prompt_template TEXT,
+    response_schema TEXT,
+    llm_config TEXT DEFAULT '{}',
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE reviewer_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    pool TEXT,
+    reviewer_name TEXT NOT NULL,
+    decision TEXT,
+    ec_trigger TEXT,
+    rationale TEXT,
+    qa_scores TEXT,
+    extracted_data TEXT,
+    imported_at TEXT NOT NULL
+  );
+`);
 
 function runTests() {
   let passed = 0;
@@ -31,14 +144,11 @@ function runTests() {
     const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='mockup_cache'").get();
     assert(!!tableInfo, 'mockup_cache table exists in SQLite schema');
 
-    // 2. Fetch or create a test project
-    let project = db.prepare("SELECT * FROM projects LIMIT 1").get();
-    if (!project) {
-      db.prepare("INSERT INTO projects (id, name, folder_name, created_at, updated_at) VALUES ('proj-mock-test', 'Mock Test Project', 'mock_test', datetime('now'), datetime('now'))").run();
-      project = db.prepare("SELECT * FROM projects WHERE id = 'proj-mock-test'").get();
-    }
+    // 2. Create isolated test project in memory
+    db.prepare("INSERT INTO projects (id, name, folder_name, created_at, updated_at) VALUES ('proj-mock-test', 'Mock Test Project', 'mock_test', datetime('now'), datetime('now'))").run();
+    const project = db.prepare("SELECT * FROM projects WHERE id = 'proj-mock-test'").get();
     const projectId = String(project.id);
-    console.log(`Testing with project: ${project.name} (${projectId})`);
+    console.log(`Testing with isolated in-memory project: ${project.name} (${projectId})`);
 
     // 3. Ensure test calibration papers and papers exist
     const ensurePaper = (paperId, title) => {
