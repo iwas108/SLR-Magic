@@ -102,7 +102,7 @@ export function extractMappingReasoning(
 }
 
 /**
- * Extracts evidence quote string for a given extracted field key
+ * Extracts evidence quote string for a given extracted field key or QA item
  */
 export function extractEvidenceQuote(
   key: string,
@@ -123,13 +123,107 @@ export function extractEvidenceQuote(
     if ('text' in valObj && valObj.text) {
       return String(valObj.text).trim();
     }
+    if ('rationale' in valObj && valObj.rationale) {
+      return String(valObj.rationale).trim();
+    }
+    if ('reasoning' in valObj && valObj.reasoning) {
+      return String(valObj.reasoning).trim();
+    }
     if ('logic_trace' in valObj && valObj.logic_trace && typeof valObj.logic_trace === 'object') {
       const lt = valObj.logic_trace;
       if (lt.evidence) return String(lt.evidence).trim();
       if (lt.exact_quote) return String(lt.exact_quote).trim();
       if (lt.quote) return String(lt.quote).trim();
+      if (lt.rationale) return String(lt.rationale).trim();
+      if (lt.reasoning) return String(lt.reasoning).trim();
     }
   }
 
   return '';
 }
+
+/**
+ * Normalizes a QA key token (e.g. 'QA-1' -> 'qa1', 'qa1_aims' -> 'qa1aims', 'qa_1' -> 'qa1')
+ */
+export function normalizeQaKey(key: string): string {
+  if (!key || typeof key !== 'string') return '';
+  return key.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Finds the matching key in candidateKeys for a given QA rule code
+ * 
+ * Supports exact match, alphanumeric normalized match, prefix match, and optional index fallback.
+ */
+export function matchQaRuleKey(
+  ruleCode: string,
+  candidateKeys: string[],
+  ruleIndex?: number
+): string | undefined {
+  if (!ruleCode && ruleIndex === undefined) return undefined;
+  const cleanCode = normalizeQaKey(ruleCode);
+
+  // 1. Direct or normalized match (e.g. "qa1" matches "QA-1", "QA1", "qa1_aims", "qa1")
+  const match = candidateKeys.find(k => {
+    const cleanK = normalizeQaKey(k);
+    return cleanK === cleanCode || cleanK.startsWith(cleanCode) || cleanCode.startsWith(cleanK);
+  });
+  if (match) return match;
+
+  // 2. Direct key inclusion fallback
+  if (candidateKeys.includes(ruleCode)) return ruleCode;
+
+  // 3. Positional fallback by index if available
+  if (ruleIndex !== undefined && candidateKeys[ruleIndex]) {
+    return candidateKeys[ruleIndex];
+  }
+
+  return undefined;
+}
+
+/**
+ * Finds the matching key in candidateKeys for a given extraction rule json_key
+ */
+export function matchExtractionKey(
+  jsonKey: string,
+  candidateKeys: string[],
+  ruleIndex?: number
+): string | undefined {
+  if (!jsonKey && ruleIndex === undefined) return undefined;
+  const cleanKey = normalizeKeyToken(jsonKey);
+  const normRaw = jsonKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // 1. Direct or normalized token match
+  const match = candidateKeys.find(k => {
+    const cleanK = normalizeKeyToken(k);
+    const rawK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return rawK === normRaw || (cleanK && (cleanK === cleanKey || cleanK.startsWith(cleanKey) || cleanKey.startsWith(cleanK)));
+  });
+  if (match) return match;
+
+  // 2. Direct key inclusion fallback
+  if (candidateKeys.includes(jsonKey)) return jsonKey;
+
+  // 3. Positional fallback by index
+  if (ruleIndex !== undefined && candidateKeys[ruleIndex]) {
+    return candidateKeys[ruleIndex];
+  }
+
+  return undefined;
+}
+
+/**
+ * Safely extracts a numeric QA score from any item representation (object or primitive)
+ */
+export function extractScoreValue(item: any): number | null {
+  if (item === undefined || item === null) return null;
+  if (typeof item === 'object') {
+    const raw = item.score ?? item.value ?? item.val ?? item.numeric_score ?? null;
+    if (raw === null || raw === undefined) return null;
+    const parsed = parseFloat(String(raw));
+    return isNaN(parsed) ? null : parsed;
+  }
+  const parsed = parseFloat(String(item));
+  return isNaN(parsed) ? null : parsed;
+}
+

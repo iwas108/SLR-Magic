@@ -179,5 +179,19 @@ To support smart PDF vector-matching and advanced semantic discovery within the 
     *   *Side-by-Side Diff & Copy-on-Write*: Displays an interactive colorized diff with direct template editing and handles Copy-on-Write forking for global templates (`project_id = activeProjectId`, `parent_prompt_id = originalId`).
 *   **Strict LLM Config Adherence**: All LLM calls dynamically extract pacing (`concurrency`, `request_delay`), model specs (`model_id`, `temperature`, `max_tokens`, `top_p`, `top_k`, `thinking_level`, `execution_mode`), and timeout settings directly from the prompt template's `llm_config`.
 
+### 2.10 File-Based Network Configuration & Multi-Interface Listening Architecture
+*   **Purpose**: Enable seamless host interface binding (`0.0.0.0` for all LAN/Wi-Fi network interfaces or `127.0.0.1` for local isolation) and custom port management across SLR-IDE, Inter-Rater, SLR-Viewer, and Worker Server.
+*   **Configuration Hierarchy**:
+    1. `slr-magic.config.json` / `slr.config.json` in workspace root.
+    2. `.env.local` / `.env` in root or `slr-ide`.
+    3. System Environment Variables (`HOSTNAME`, `PORT`, `SLR_IDE_HOST`, `SLR_IDE_PORT`, `INTER_RATER_HOST`, `INTER_RATER_PORT`, `SLR_VIEWER_HOST`, `SLR_VIEWER_PORT`, `WORKER_SERVER_HOST`, `WORKER_SERVER_PORT`).
+    4. Safe Default: `host: "0.0.0.0"`, `port: 3000` (SLR-IDE), `3001` (Inter-Rater), `3002` (SLR-Viewer), `7291` (Worker Server).
+*   **Components & Integration**:
+    - `src/lib/network-config.ts`: Universal loader and IPv4 discovery engine.
+    - `scripts/dev.mjs` & `scripts/start.mjs`: Startup launchers passing `--hostname` and `--port` to Next.js CLI with formatted LAN URL output.
+    - `GET / POST /api/network-info`: REST endpoints for live network inspection and configuration updates.
+    - `NetworkSettingsTab.tsx` in `SettingsModal.tsx`: Visual interface for interface toggle, LAN URL discovery with one-click copy, and port allocation controls.
+
+
 
 

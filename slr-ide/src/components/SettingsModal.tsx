@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Cloud, Sliders, Loader } from 'lucide-react';
+import { X, Cloud, Sliders, Loader, Globe } from 'lucide-react';
 import RcloneSettingsTab from './features/settings/RcloneSettingsTab';
 import ScraperSettingsTab from './features/settings/ScraperSettingsTab';
+import NetworkSettingsTab from './features/settings/NetworkSettingsTab';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -11,7 +12,7 @@ interface SettingsModalProps {
   showToast?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   activeProject?: any;
   preSelectedPaperIds?: string[];
-  initialTab?: 'rclone' | 'scraper';
+  initialTab?: 'rclone' | 'scraper' | 'network';
 }
 
 export default function SettingsModal({ 
@@ -23,7 +24,7 @@ export default function SettingsModal({
   initialTab 
 }: SettingsModalProps) {
   const [showPathsHelp, setShowPathsHelp] = useState(false);
-  const [activeTab, setActiveTab] = useState<'rclone' | 'scraper'>('rclone');
+  const [activeTab, setActiveTab] = useState<'rclone' | 'scraper' | 'network'>('network');
   const [configs, setConfigs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -141,7 +142,7 @@ export default function SettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-opacity duration-300">
-      <div className="w-full max-w-2xl bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col h-[600px] animate-in fade-in zoom-in-95 duration-200">
+      <div className="w-full max-w-3xl bg-card border border-border rounded-xl shadow-2xl overflow-hidden flex flex-col h-[640px] animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border bg-secondary/35">
@@ -157,8 +158,17 @@ export default function SettingsModal({
         {/* Tab Headers */}
         <div className="flex border-b border-border bg-secondary/10 px-4">
           <button
+            onClick={() => setActiveTab('network')}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+              activeTab === 'network' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            Network & Interfaces
+          </button>
+          <button
             onClick={() => setActiveTab('rclone')}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
               activeTab === 'rclone' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -167,7 +177,7 @@ export default function SettingsModal({
           </button>
           <button
             onClick={() => setActiveTab('scraper')}
-            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
               activeTab === 'scraper' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -183,6 +193,8 @@ export default function SettingsModal({
               <Loader className="w-6 h-6 animate-spin text-primary" />
               <span className="text-xs font-medium">Loading settings...</span>
             </div>
+          ) : activeTab === 'network' ? (
+            <NetworkSettingsTab showToast={showToast} />
           ) : activeTab === 'rclone' ? (
             <RcloneSettingsTab
               configs={configs}
@@ -208,19 +220,21 @@ export default function SettingsModal({
           <button
             onClick={onClose}
             type="button"
-            className="px-4 py-2 border border-border text-xs font-semibold rounded-lg hover:bg-secondary text-foreground transition-colors"
+            className="px-4 py-2 border border-border text-xs font-semibold rounded-lg hover:bg-secondary text-foreground transition-colors cursor-pointer"
           >
-            Cancel
+            Close
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            type="button"
-            className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5"
-          >
-            {saving && <Loader className="w-3 h-3 animate-spin text-primary-foreground" />}
-            Save Configurations
-          </button>
+          {activeTab !== 'network' && (
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              type="button"
+              className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold rounded-lg shadow-md hover:shadow-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              {saving && <Loader className="w-3 h-3 animate-spin text-primary-foreground" />}
+              Save Configurations
+            </button>
+          )}
         </div>
 
       </div>

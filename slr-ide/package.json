@@ -1,12 +1,14 @@
 {
   "name": "slr-ide",
-  "version": "0.1.3",
+  "version": "0.1.6",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:next": "next dev",
     "prebuild": "node scripts/bump-version.js",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/start.mjs",
+    "start:next": "next start",
     "lint": "eslint"
   },
   "dependencies": {

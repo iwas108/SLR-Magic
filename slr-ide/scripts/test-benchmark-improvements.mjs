@@ -4,7 +4,8 @@ import assert from 'assert';
 
 console.log('--- Starting Benchmark Improvements Test Suite ---');
 
-const dbPath = path.resolve(process.cwd(), 'db/slr.db');
+const rootDir = process.cwd().endsWith('slr-ide') ? process.cwd() : path.join(process.cwd(), 'slr-ide');
+const dbPath = path.resolve(rootDir, 'db/slr.db');
 const db = new Database(dbPath);
 
 function safeJsonParse(val, fallback = {}) {

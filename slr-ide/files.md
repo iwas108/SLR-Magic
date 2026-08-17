@@ -414,3 +414,10 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `api/rolling-batch/decisions/route.ts` | REST Endpoint | Handles GET requests to fetch paper details, reviewer inputs, and audit ledger for a batch. |
 | `api/rolling-batch/stats/route.ts` | REST Endpoint | Handles GET requests to compute cumulative quality control metrics (Kappa, CI lower bounds, Critical Miss, Semantic Agreement). |
 | `api/mockup/generate/route.ts` | REST Endpoint | Handles GET (status/cache download), POST (SSE live streaming mockup evaluation execution), and DELETE (cache invalidation) for PRISMA-isolated blinded .slr mockup reviews. |
+| `api/network-info/route.ts` | REST Endpoint | Handles GET (inspecting active host/port, LAN IPv4 addresses, access URLs) and POST (saving network configuration to `slr-magic.config.json`). |
+| `lib/network-config.ts` | Library / Service | Universal TypeScript network configuration loader and local IPv4 network interface discovery engine. |
+| `components/features/settings/NetworkSettingsTab.tsx` | View Component | Dedicated network and port configuration interface in SettingsModal featuring all-interfaces toggle (`0.0.0.0`), LAN URLs copy cards, port grid, and firewall tips. |
+| `scripts/dev.mjs` | Launcher Script | Node.js development server launcher that resolves host/port from file-based configuration and starts `next dev` with formatted LAN URLs. |
+| `scripts/start.mjs` | Launcher Script | Node.js production server launcher that resolves host/port from file-based configuration and starts `next start`. |
+| `scripts/test-network-config.mjs` | Test Script | Automated test suite verifying file-based configuration discovery, JSON parsing, `.env` fallback, and IPv4 interface detection. |
+

@@ -72,6 +72,46 @@ IS_RUNNING = True
 ACTIVE_PROJECT_ID = None
 WORKER_ID = "REMOTE"
 
+WORKER_HOST = "0.0.0.0"
+WORKER_PORT = 7291
+
+def load_file_based_network_config():
+    global WORKER_HOST, WORKER_PORT, IDE_HOST
+    # Search upwards for slr-magic.config.json, slr.config.json, or .env
+    curr = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(4):
+        json_candidates = [
+            os.path.join(curr, 'slr-magic.config.json'),
+            os.path.join(curr, 'slr.config.json')
+        ]
+        for jpath in json_candidates:
+            if os.path.exists(jpath):
+                try:
+                    with open(jpath, 'r', encoding='utf-8') as f:
+                        cfg = json.load(f)
+                        mod_w = cfg.get('modules', {}).get('worker_server', {})
+                        mod_ide = cfg.get('modules', {}).get('slr_ide', {})
+                        if mod_w.get('host'): WORKER_HOST = str(mod_w['host'])
+                        if mod_w.get('port'): WORKER_PORT = int(mod_w['port'])
+                        if not IDE_HOST and mod_ide.get('port'):
+                            ide_h = mod_ide.get('host', 'localhost')
+                            if ide_h == '0.0.0.0': ide_h = 'localhost'
+                            IDE_HOST = f"http://{ide_h}:{mod_ide['port']}"
+                        return
+                except Exception:
+                    pass
+        parent = os.path.dirname(curr)
+        if parent == curr: break
+        curr = parent
+
+    # Fallback to environment variables
+    env_w_host = os.environ.get('WORKER_SERVER_HOST') or os.environ.get('HOSTNAME')
+    env_w_port = os.environ.get('WORKER_SERVER_PORT')
+    if env_w_host: WORKER_HOST = env_w_host
+    if env_w_port and env_w_port.isdigit(): WORKER_PORT = int(env_w_port)
+
+load_file_based_network_config()
+
 def load_config():
     global IDE_HOST, PAIRING_CODE, SESSION_TOKEN, WORKER_ID
     if os.path.exists(CONFIG_FILE):
@@ -1152,8 +1192,8 @@ if __name__ == '__main__':
     print(f" >> PAIRING CODE: {PAIRING_CODE} <<")
     print("="*60)
     print("1. Go to the SLR Magic IDE -> Remote Workers tab.")
-    print(f"2. Add a new worker with host: http://<this-computers-ip>:7291")
+    print(f"2. Add a new worker with host: http://<this-computers-ip>:{WORKER_PORT}")
     print("3. Enter the 6-digit code above to securely pair.")
     print("="*60 + "\n")
     
-    app.run(host='0.0.0.0', port=7291, threaded=True)
+    app.run(host=WORKER_HOST, port=WORKER_PORT, threaded=True)

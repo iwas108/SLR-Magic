@@ -89,3 +89,20 @@ Literature reference data exchanges are synchronized using localized file-based 
 4. **FAIR Database Ingestion**:
    - The completed database cohort is exported from `slr-ide` as a standard `.csv` file.
    - The user uploads this `.csv` file into the `app-script` Google Sheet workspace to populate the master `00_Raw_Harvest` and `05_Synthesis` sheets for FAIR storage compliance.
+
+---
+
+## 4. File-Based Network & Multi-Interface Listening Protocol
+
+To enable seamless multi-device collaboration on local area networks (LAN / Wi-Fi) and allow remote worker PDF scraping nodes to connect, SLR Magic implements unified file-based network configuration:
+
+1. **Configuration Hierarchy**:
+   - `slr-magic.config.json` / `slr.config.json` (Workspace root)
+   - `.env.local` / `.env`
+   - System Environment Variables (`HOSTNAME`, `PORT`, `SLR_IDE_HOST`, `SLR_IDE_PORT`, `INTER_RATER_HOST`, `INTER_RATER_PORT`, `SLR_VIEWER_HOST`, `SLR_VIEWER_PORT`, `WORKER_SERVER_HOST`, `WORKER_SERVER_PORT`)
+   - Default: `0.0.0.0` (All Network Interfaces) across ports `3000` (SLR-IDE), `3001` (Inter-Rater), `3002` (SLR-Viewer), `7291` (Worker Server).
+
+2. **Network Discovery & UI Management**:
+   - The Next.js backend detects available LAN IPv4 addresses using `os.networkInterfaces()` and serves them via `GET /api/network-info`.
+   - The Global Settings Modal provides an interactive **Network & Interfaces** tab to switch between **All Interfaces (`0.0.0.0`)** and **Localhost Only (`127.0.0.1`)**, view one-click copyable LAN access URLs (e.g. `http://192.168.1.50:3000`), and customize port allocations.
+

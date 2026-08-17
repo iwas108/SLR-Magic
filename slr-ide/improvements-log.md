@@ -1,3 +1,26 @@
+## #418 - File-Based Configuration for Network Interface & Port Listening (2026-08-17)
+- **Goal**: Provide unified file-based configuration (`slr-magic.config.json` and `.env` / `.env.local`) allowing users to bind SLR-IDE, Inter-Rater, SLR-Viewer, and Worker Server to all network interfaces (`0.0.0.0`) or custom host/ports, facilitating LAN collaboration and remote worker connectivity.
+- **Architectural Implementation**:
+  1. **Universal Network Configuration Loader (`src/lib/network-config.ts`)**:
+     - Built cross-module configuration loader discovering and parsing `slr-magic.config.json` / `slr.config.json` with fallback to `.env.local`, `.env`, and environment variables (`HOSTNAME`, `PORT`, `SLR_IDE_HOST`, `SLR_IDE_PORT`, `INTER_RATER_HOST`, `INTER_RATER_PORT`, `SLR_VIEWER_HOST`, `SLR_VIEWER_PORT`, `WORKER_SERVER_HOST`, `WORKER_SERVER_PORT`).
+     - Integrated Node.js `os.networkInterfaces()` discovery engine in `getLocalNetworkAddresses()` and `getLanUrls()` to dynamically resolve active LAN IPv4 addresses (Wi-Fi, Ethernet, Tailscale).
+  2. **Launcher Scripts & Submodule Integration (`scripts/dev.mjs`, `scripts/start.mjs`, `vite.config.js`, `vite.config.ts`, `worker_server.py`)**:
+     - Created `scripts/dev.mjs` and `scripts/start.mjs` in `slr-ide` passing `--hostname` and `--port` to Next.js CLI and outputting formatted LAN URLs on startup.
+     - Updated `inter-rater/vite.config.js` and `slr-viewer/vite.config.ts` to dynamically resolve `server.host` and `server.port` from `slr-magic.config.json` / `.env`.
+     - Updated `worker_server.py` to parse `slr-magic.config.json` and bind Flask worker server to configured `WORKER_HOST` and `WORKER_PORT`.
+  3. **Network Information API (`src/app/api/network-info/route.ts`)**:
+     - Implemented `GET /api/network-info` returning active binding host, port, listening status (`0.0.0.0` vs `127.0.0.1`), local network interface list, and accessible LAN URLs.
+     - Implemented `POST /api/network-info` enabling users to save customized network configuration directly to `slr-magic.config.json`.
+  4. **Global Network Settings UI (`src/components/features/settings/NetworkSettingsTab.tsx` & `SettingsModal.tsx`)**:
+     - Added dedicated **Network & Interfaces** tab in Global SettingsModal with:
+       - Toggle between **All Network Interfaces (`0.0.0.0`)** and **Localhost Only (`127.0.0.1`)**.
+       - Interactive LAN URL cards with one-click clipboard copy.
+       - Module port allocations grid for SLR-IDE, Inter-Rater, SLR-Viewer, and Worker Server.
+       - Live configuration file source inspection and persistence triggers.
+  5. **Automated Verification (`scripts/test-network-config.mjs`)**:
+     - Created comprehensive test suite verifying template files, JSON configuration parsing, environment variable fallbacks, IPv4 address resolution, launcher scripts, Vite submodule configurations, and Python worker integration.
+- **Verification**: Zero TypeScript compile errors (`npx tsc --noEmit`); all 24 tests in `test-network-config.mjs` passed with 100% success; all existing test suites passed without regression.
+
 ## #417 - Benchmark Historical Comparison & Improvement Metrics HUD in StageBenchmarkCard (2026-08-16)
 - **Goal**: Enable comparative analysis between the latest sandbox benchmark run and immediately preceding benchmark runs for each pre-calibration quest stage (Pool A Fast Filter, Pool B Gatekeeper, Pool C Scientist, Pool C Miner), displaying comprehensive delta improvement metrics (Accuracy/Schema Integrity, Recall, Precision, F1-Score, Cohen's/Weighted Kappa, and 30% Holdout validation) across the UI.
 - **Architectural Implementation**:

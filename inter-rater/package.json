@@ -1,10 +1,10 @@
 {
   "name": "inter-rater",
   "private": true,
-  "version": "0.0.4",
+  "version": "0.0.6",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite",
     "prebuild": "node scripts/bump-version.js",
     "build": "vite build",
     "lint": "eslint .",
