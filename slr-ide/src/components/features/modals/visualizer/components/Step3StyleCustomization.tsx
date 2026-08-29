@@ -100,7 +100,17 @@ export function Step3StyleCustomization() {
     pieLineHeight,
     setPieLineHeight,
     legendDistance,
-    setLegendDistance
+    setLegendDistance,
+    legendWidth,
+    setLegendWidth,
+    legendLineHeight,
+    setLegendLineHeight,
+    legendItemGap,
+    setLegendItemGap,
+    legendFontSize,
+    setLegendFontSize,
+    legendOverflow,
+    setLegendOverflow
   } = config;
 
   const {
@@ -415,18 +425,39 @@ export function Step3StyleCustomization() {
                 onChange={(e) => style.setDefaultLabelFormat(e.target.value as any)}
                 className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
               >
-                <option value="ratio_percent">Ratio + Coarse % — n = 11/18, ~61% (Recommended)</option>
-                <option value="name_ratio_percent">Name + Ratio + Coarse % — Domain (n = 11/18, ~61%)</option>
-                <option value="percent_ratio">Coarse % + Ratio — ~61% (n = 11/18)</option>
-                <option value="ratio_only">Ratio Only — n = 11/18</option>
-                <option value="name_ratio">Name + Ratio — Domain (n = 11/18)</option>
-                <option value="count_percent">Count + Coarse % — n = 11 (~61%)</option>
-                <option value="percent_only">Percentage Only — ~61%</option>
-                <option value="count_only">Count Only — n = 11</option>
-                <option value="name_count">Name + Count — Domain (n = 11)</option>
-                <option value="name_percent">Name + Coarse % — Domain (~61%)</option>
-                <option value="name_count_percent">Name + Count + % — Domain (n = 11, ~61%)</option>
-                <option value="name_only">Name Only — Domain</option>
+                <optgroup label="Standard (Follows Chart Metric)">
+                  <option value="ratio_percent">Ratio + Coarse % — n = 11/18, ~61% (Recommended)</option>
+                  <option value="name_ratio_percent">Name + Ratio + Coarse % — Domain (n = 11/18, ~61%)</option>
+                  <option value="percent_ratio">Coarse % + Ratio — ~61% (n = 11/18)</option>
+                  <option value="ratio_only">Ratio Only — n = 11/18</option>
+                  <option value="name_ratio">Name + Ratio — Domain (n = 11/18)</option>
+                  <option value="count_percent">Count + Coarse % — n = 11 (~61%)</option>
+                  <option value="percent_only">Percentage Only — ~61%</option>
+                  <option value="count_only">Count Only — n = 11</option>
+                  <option value="name_count">Name + Count — Domain (n = 11)</option>
+                  <option value="name_percent">Name + Coarse % — Domain (~61%)</option>
+                  <option value="name_count_percent">Name + Count + % — Domain (n = 11, ~61%)</option>
+                  <option value="name_only">Name Only — Domain</option>
+                </optgroup>
+                <optgroup label="Explicit Tag Share (Denominator = Total Extracted Tags)">
+                  <option value="tag_share_ratio_percent">Tag Share Ratio + % — n = 18/54, ~33%</option>
+                  <option value="name_tag_share_ratio_percent">Name + Tag Share Ratio + % — Domain (n = 18/54, ~33%)</option>
+                  <option value="tag_share_percent_ratio">Tag Share % + Ratio — ~33% (n = 18/54)</option>
+                  <option value="tag_share_percent_only">Tag Share % Only — ~33%</option>
+                  <option value="tag_share_ratio_only">Tag Share Ratio Only — n = 18/54</option>
+                  <option value="tag_share_count_percent">Tag Count + % — n = 18 (~33%)</option>
+                  <option value="name_tag_share_percent">Name + Tag Share % — Domain (~33%)</option>
+                  <option value="name_tag_share_count_percent">Name + Tag Count + % — Domain (n = 18, ~33%)</option>
+                </optgroup>
+                <optgroup label="Explicit Paper Prevalence (Denominator = Total Cohort Papers)">
+                  <option value="prevalence_ratio_percent">Prevalence Ratio + % — n = 18/46, ~39%</option>
+                  <option value="name_prevalence_ratio_percent">Name + Prevalence Ratio + % — Domain (n = 18/46, ~39%)</option>
+                  <option value="prevalence_percent_only">Prevalence % Only — ~39%</option>
+                  <option value="prevalence_ratio_only">Prevalence Ratio Only — n = 18/46</option>
+                </optgroup>
+                <optgroup label="Dual / Combined Multi-Metric">
+                  <option value="dual_prevalence_tag_share">Dual: n = 18/46 (~39%) | Tags: 18/54 (~33%)</option>
+                </optgroup>
               </select>
             </div>
 
@@ -437,13 +468,27 @@ export function Step3StyleCustomization() {
                 onChange={(e) => style.setDefaultLegendFormat(e.target.value as any)}
                 className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
               >
-                <option value="name_only">Name Only — Domain (Standard)</option>
-                <option value="name_ratio_percent">Name + Ratio + Coarse % — Domain (n = 11/18, ~61%)</option>
-                <option value="name_ratio">Name + Ratio — Domain (n = 11/18)</option>
-                <option value="name_count">Name + Count — Domain (n = 11)</option>
-                <option value="name_percent">Name + Coarse % — Domain (~61%)</option>
-                <option value="name_count_percent">Name + Count + % — Domain (n = 11, ~61%)</option>
-                <option value="ratio_percent">Ratio + Coarse % — n = 11/18, ~61%</option>
+                <optgroup label="Standard (Follows Chart Metric)">
+                  <option value="name_only">Name Only — Domain (Standard)</option>
+                  <option value="name_ratio_percent">Name + Ratio + Coarse % — Domain (n = 11/18, ~61%)</option>
+                  <option value="name_ratio">Name + Ratio — Domain (n = 11/18)</option>
+                  <option value="name_count">Name + Count — Domain (n = 11)</option>
+                  <option value="name_percent">Name + Coarse % — Domain (~61%)</option>
+                  <option value="name_count_percent">Name + Count + % — Domain (n = 11, ~61%)</option>
+                  <option value="ratio_percent">Ratio + Coarse % — n = 11/18, ~61%</option>
+                </optgroup>
+                <optgroup label="Explicit Tag Share (Denominator = Total Extracted Tags)">
+                  <option value="name_tag_share_ratio_percent">Name + Tag Share Ratio + % — Domain (n = 18/54, ~33%)</option>
+                  <option value="name_tag_share_percent">Name + Tag Share % — Domain (~33%)</option>
+                  <option value="name_tag_share_count_percent">Name + Tag Count + % — Domain (n = 18, ~33%)</option>
+                  <option value="tag_share_ratio_percent">Tag Share Ratio + % — n = 18/54, ~33%</option>
+                  <option value="tag_share_percent_only">Tag Share % Only — ~33%</option>
+                </optgroup>
+                <optgroup label="Explicit Paper Prevalence (Denominator = Total Cohort Papers)">
+                  <option value="name_prevalence_ratio_percent">Name + Prevalence Ratio + % — Domain (n = 18/46, ~39%)</option>
+                  <option value="prevalence_ratio_percent">Prevalence Ratio + % — n = 18/46, ~39%</option>
+                  <option value="prevalence_percent_only">Prevalence % Only — ~39%</option>
+                </optgroup>
               </select>
             </div>
           </div>
@@ -532,13 +577,27 @@ export function Step3StyleCustomization() {
                   onChange={(e) => setLegendFormat(e.target.value as any)}
                   className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-semibold"
                 >
-                  <option value="name_only">Category Name Only</option>
-                  <option value="name_ratio_percent">Name + Ratio + Coarse % (n=x/N, ~P%)</option>
-                  <option value="name_ratio">Name + Ratio (n=x/N)</option>
-                  <option value="name_count">Name + Count (n=X)</option>
-                  <option value="name_percent">Name + Percent (~P%)</option>
-                  <option value="name_count_percent">Name + Count + Percent (n=X, ~P%)</option>
-                  <option value="ratio_percent">Ratio + Percent (n=x/N, ~P%)</option>
+                  <optgroup label="Standard (Follows Chart Metric)">
+                    <option value="name_only">Category Name Only</option>
+                    <option value="name_ratio_percent">Name + Ratio + Coarse % (n=x/N, ~P%)</option>
+                    <option value="name_ratio">Name + Ratio (n=x/N)</option>
+                    <option value="name_count">Name + Count (n=X)</option>
+                    <option value="name_percent">Name + Percent (~P%)</option>
+                    <option value="name_count_percent">Name + Count + Percent (n=X, ~P%)</option>
+                    <option value="ratio_percent">Ratio + Percent (n=x/N, ~P%)</option>
+                  </optgroup>
+                  <optgroup label="Explicit Tag Share (Total Extracted Tags Denominator)">
+                    <option value="name_tag_share_ratio_percent">Name + Tag Share Ratio + % (n=x/TotalTags, ~P%)</option>
+                    <option value="name_tag_share_percent">Name + Tag Share % (~P%)</option>
+                    <option value="name_tag_share_count_percent">Name + Tag Count + % (n=x, ~P%)</option>
+                    <option value="tag_share_ratio_percent">Tag Share Ratio + % (n=x/TotalTags, ~P%)</option>
+                    <option value="tag_share_percent_only">Tag Share % Only (~P%)</option>
+                  </optgroup>
+                  <optgroup label="Explicit Paper Prevalence (Total Cohort Denominator)">
+                    <option value="name_prevalence_ratio_percent">Name + Prevalence Ratio + % (n=x/CohortN, ~P%)</option>
+                    <option value="prevalence_ratio_percent">Prevalence Ratio + % (n=x/CohortN, ~P%)</option>
+                    <option value="prevalence_percent_only">Prevalence % Only (~P%)</option>
+                  </optgroup>
                 </select>
               </div>
             )}
@@ -561,13 +620,33 @@ export function Step3StyleCustomization() {
                     onChange={(e) => config.setLabelFormat(e.target.value as any)}
                     className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-semibold"
                   >
-                    <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
-                    <option value="name_ratio_percent">Name + Ratio + % (Domain, n = x/N, ~P%)</option>
-                    <option value="percent_ratio">Coarse % + Ratio (~P%, n = x/N)</option>
-                    <option value="ratio_only">Ratio Only (n = x/N)</option>
-                    <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
-                    <option value="percent_only">Percentage Only (~P%)</option>
-                    <option value="count_only">Count Only (n = x)</option>
+                    <optgroup label="Standard (Follows Chart Metric)">
+                      <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
+                      <option value="name_ratio_percent">Name + Ratio + % (Domain, n = x/N, ~P%)</option>
+                      <option value="percent_ratio">Coarse % + Ratio (~P%, n = x/N)</option>
+                      <option value="ratio_only">Ratio Only (n = x/N)</option>
+                      <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
+                      <option value="percent_only">Percentage Only (~P%)</option>
+                      <option value="count_only">Count Only (n = x)</option>
+                    </optgroup>
+                    <optgroup label="Explicit Tag Share (Total Extracted Tags Denominator)">
+                      <option value="tag_share_ratio_percent">Tag Share Ratio + % (n = x/TotalTags, ~P%)</option>
+                      <option value="name_tag_share_ratio_percent">Name + Tag Share Ratio + %</option>
+                      <option value="tag_share_percent_ratio">Tag Share % + Ratio (~P%, n = x/TotalTags)</option>
+                      <option value="tag_share_percent_only">Tag Share % Only (~P%)</option>
+                      <option value="tag_share_ratio_only">Tag Share Ratio Only (n = x/TotalTags)</option>
+                      <option value="tag_share_count_percent">Tag Count + % (n = x, ~P%)</option>
+                      <option value="name_tag_share_percent">Name + Tag Share %</option>
+                    </optgroup>
+                    <optgroup label="Explicit Paper Prevalence (Total Cohort Denominator)">
+                      <option value="prevalence_ratio_percent">Prevalence Ratio + % (n = x/CohortN, ~P%)</option>
+                      <option value="name_prevalence_ratio_percent">Name + Prevalence Ratio + %</option>
+                      <option value="prevalence_percent_only">Prevalence % Only (~P%)</option>
+                      <option value="prevalence_ratio_only">Prevalence Ratio Only (n = x/CohortN)</option>
+                    </optgroup>
+                    <optgroup label="Dual / Combined Multi-Metric">
+                      <option value="dual_prevalence_tag_share">Dual: Prev (n=x/N) | Tags (n=x/Total)</option>
+                    </optgroup>
                   </select>
                 </div>
               )}
@@ -589,7 +668,7 @@ export function Step3StyleCustomization() {
               </div>
             )}
             {showLegend && (
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5 sm:col-span-3 pt-2 border-t border-border/40">
                 <div className="flex items-center justify-between text-xs font-bold text-foreground">
                   <label>Legend Distance to Main Chart ({legendDistance ?? 20}px)</label>
                 </div>
@@ -626,6 +705,171 @@ export function Step3StyleCustomization() {
             )}
           </div>
 
+          {/* Advanced Legend Typography & Text Wrapping Controls */}
+          {showLegend && (
+            <div className="p-3.5 bg-card/60 border border-border/80 rounded-xl space-y-3 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                  <span>📐 Legend Typography, Width & Multi-line Wrapping</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  Width: {legendWidth ? `${legendWidth}px` : 'Auto'} | Line Height: {legendLineHeight ?? 15}px | Gap: {legendItemGap ?? 12}px
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                {/* 1. Legend Text Width */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                    <label>Legend Text Width ({legendWidth ? `${legendWidth}px` : 'Auto / Natural'})</label>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={400}
+                    step={10}
+                    value={legendWidth || 0}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setLegendWidth(v > 0 ? v : undefined);
+                    }}
+                    className="w-full accent-primary cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1 pt-0.5 flex-wrap">
+                    {[
+                      { label: 'Auto', val: undefined },
+                      { label: '140px', val: 140 },
+                      { label: '180px', val: 180 },
+                      { label: '220px', val: 220 },
+                      { label: '280px', val: 280 },
+                      { label: '340px', val: 340 }
+                    ].map(preset => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setLegendWidth(preset.val)}
+                        className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold border transition-colors ${
+                          legendWidth === preset.val 
+                            ? 'bg-primary text-primary-foreground border-primary' 
+                            : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Legend Line Height */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                    <label>Legend Line Height ({legendLineHeight ?? 15}px)</label>
+                  </div>
+                  <input
+                    type="range"
+                    min={10}
+                    max={32}
+                    value={legendLineHeight ?? 15}
+                    onChange={(e) => setLegendLineHeight(Number(e.target.value))}
+                    className="w-full accent-primary cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1 pt-0.5 flex-wrap">
+                    {[
+                      { label: 'Tight', val: 12 },
+                      { label: 'Standard', val: 15 },
+                      { label: 'Relaxed', val: 18 },
+                      { label: 'Spaced', val: 22 }
+                    ].map(preset => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setLegendLineHeight(preset.val)}
+                        className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold border transition-colors ${
+                          (legendLineHeight ?? 15) === preset.val 
+                            ? 'bg-primary text-primary-foreground border-primary' 
+                            : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Legend Item Gap */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                    <label>Item Spacing / Gap ({legendItemGap ?? 12}px)</label>
+                  </div>
+                  <input
+                    type="range"
+                    min={2}
+                    max={36}
+                    value={legendItemGap ?? 12}
+                    onChange={(e) => setLegendItemGap(Number(e.target.value))}
+                    className="w-full accent-primary cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1 pt-0.5 flex-wrap">
+                    {[
+                      { label: 'Compact', val: 6 },
+                      { label: 'Standard', val: 12 },
+                      { label: 'Spaced', val: 18 },
+                      { label: 'Wide', val: 26 }
+                    ].map(preset => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setLegendItemGap(preset.val)}
+                        className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold border transition-colors ${
+                          (legendItemGap ?? 12) === preset.val 
+                            ? 'bg-primary text-primary-foreground border-primary' 
+                            : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Legend Text Overflow Mode</label>
+                  <select
+                    value={legendOverflow || 'break'}
+                    onChange={(e) => setLegendOverflow(e.target.value as any)}
+                    className="w-full bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-semibold"
+                  >
+                    <option value="break">Break Words (Multi-line text wrapping)</option>
+                    <option value="truncate">Truncate with Ellipsis (...)</option>
+                    <option value="none">Single Line (No wrapping / No overflow)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Legend Font Size</label>
+                  <select
+                    value={legendFontSize !== undefined ? legendFontSize : -1}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setLegendFontSize(v === -1 ? undefined : v);
+                    }}
+                    className="w-full bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-semibold"
+                  >
+                    <option value={-1}>Inherit Base Font Size ({Math.max(9, fontSize - 1)}px)</option>
+                    <option value={9}>9px — Fine Small</option>
+                    <option value={10}>10px — Compact</option>
+                    <option value={11}>11px — Standard Academic</option>
+                    <option value={12}>12px — Medium</option>
+                    <option value={13}>13px — Prominent</option>
+                    <option value={14}>14px — Large</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Sunburst-specific legend controls */}
           {chartType === 'sunburst' && showLegend && (
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2 border-t border-border/40">
@@ -638,7 +882,7 @@ export function Step3StyleCustomization() {
                 >
                   {sankeyFields.map((fKey: string, lIdx: number) => (
                     <option key={lIdx} value={lIdx}>
-                      Level {lIdx + 1} ({fKey === CUSTOM_GROUPING_KEY ? 'Custom Grouping' : fKey.startsWith('ext:') ? fKey.substring(4) : fKey})
+                      Level {lIdx + 1} ({fKey === CUSTOM_GROUPING_KEY ? 'Custom Grouping' : fKey.startsWith('raw:ext:') ? `${fKey.substring(8)} (Raw)` : fKey.startsWith('ext:') ? fKey.substring(4) : fKey})
                     </option>
                   ))}
                 </select>
@@ -1079,7 +1323,7 @@ export function Step3StyleCustomization() {
                     return (
                       <div key={idx} className="flex items-center justify-between p-2 bg-secondary/40 border border-border rounded-lg">
                         <span className="text-xs font-semibold text-foreground truncate max-w-[110px]" title={fieldVal}>
-                          L{idx + 1}: {fieldVal.startsWith('ext:') ? fieldVal.substring(4) : fieldVal}
+                          L{idx + 1}: {fieldVal.startsWith('raw:ext:') ? `${fieldVal.substring(8)} (Raw)` : fieldVal.startsWith('ext:') ? fieldVal.substring(4) : fieldVal}
                         </span>
                         <div className="flex items-center gap-1 bg-card border border-border rounded-md p-0.5 shrink-0">
                           <button

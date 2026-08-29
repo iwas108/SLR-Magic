@@ -1,5 +1,45 @@
 import { useState, useEffect, useRef } from 'react';
-import { Project } from '@/types';
+import { Project, SearchQuery } from '@/types';
+
+function parseInitialSearchQueries(initialData?: any): SearchQuery[] {
+  if (!initialData) return [];
+  if (initialData.search_queries) {
+    try {
+      const parsed = typeof initialData.search_queries === 'string'
+        ? JSON.parse(initialData.search_queries)
+        : initialData.search_queries;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item: any, idx: number) => ({
+          id: item.id || `sq-${idx + 1}-${Date.now()}`,
+          source: item.source || 'Scopus',
+          query: item.query || item.search_string || '',
+          description: item.description || ''
+        }));
+      }
+    } catch (e) {
+      console.error('Error parsing search_queries', e);
+    }
+  }
+
+  const queries: SearchQuery[] = [];
+  if (initialData.scopus_search_string) {
+    queries.push({
+      id: 'sq-scopus',
+      source: 'Scopus',
+      query: initialData.scopus_search_string,
+      description: 'Primary Scopus database search string'
+    });
+  }
+  if (initialData.manual_search_string) {
+    queries.push({
+      id: 'sq-manual',
+      source: 'Google Scholar',
+      query: initialData.manual_search_string,
+      description: 'Manual / Google Scholar exploratory search string'
+    });
+  }
+  return queries;
+}
 
 export function useProjectForm(initialData?: any) {
   const [name, setName] = useState(initialData?.name || '');
@@ -32,6 +72,7 @@ export function useProjectForm(initialData?: any) {
   const [exclusionCriteria, setExclusionCriteria] = useState(initialData?.exclusion_criteria || '');
   const [scopusSearchString, setScopusSearchString] = useState(initialData?.scopus_search_string || '');
   const [manualSearchString, setManualSearchString] = useState(initialData?.manual_search_string || '');
+  const [searchQueries, setSearchQueries] = useState<SearchQuery[]>(() => parseInitialSearchQueries(initialData));
   const [poolA, setPoolA] = useState(initialData?.pool_a_size !== undefined ? String(initialData?.pool_a_size) : '50');
   const [poolB, setPoolB] = useState(initialData?.pool_b_size !== undefined ? String(initialData?.pool_b_size) : '30');
   const [poolC, setPoolC] = useState(initialData?.pool_c_size !== undefined ? String(initialData?.pool_c_size) : '20');
@@ -72,6 +113,7 @@ export function useProjectForm(initialData?: any) {
         lastLoadedProjectRef.current.exclusion_criteria !== initialData.exclusion_criteria ||
         lastLoadedProjectRef.current.scopus_search_string !== initialData.scopus_search_string ||
         lastLoadedProjectRef.current.manual_search_string !== initialData.manual_search_string ||
+        JSON.stringify(lastLoadedProjectRef.current.search_queries) !== JSON.stringify(initialData.search_queries) ||
         String(lastLoadedProjectRef.current.pool_a_size) !== String(initialData.pool_a_size) ||
         String(lastLoadedProjectRef.current.pool_b_size) !== String(initialData.pool_b_size) ||
         String(lastLoadedProjectRef.current.pool_c_size) !== String(initialData.pool_c_size) ||
@@ -88,7 +130,8 @@ export function useProjectForm(initialData?: any) {
         JSON.stringify(lastLoadedProjectRef.current.pool_b_ec_rules) !== JSON.stringify(initialData.pool_b_ec_rules) ||
         JSON.stringify(lastLoadedProjectRef.current.pool_b_reasoning_template) !== JSON.stringify(initialData.pool_b_reasoning_template) ||
         JSON.stringify(lastLoadedProjectRef.current.pool_c_qa_rules) !== JSON.stringify(initialData.pool_c_qa_rules) ||
-        JSON.stringify(lastLoadedProjectRef.current.pool_c_extraction_rules) !== JSON.stringify(initialData.pool_c_extraction_rules)
+        JSON.stringify(lastLoadedProjectRef.current.pool_c_extraction_rules) !== JSON.stringify(initialData.pool_c_extraction_rules) ||
+        JSON.stringify(lastLoadedProjectRef.current.llm_config) !== JSON.stringify(initialData.llm_config)
       );
 
       lastLoadedProjectRef.current = initialData;
@@ -102,6 +145,7 @@ export function useProjectForm(initialData?: any) {
         setExclusionCriteria(initialData.exclusion_criteria || '');
         setScopusSearchString(initialData.scopus_search_string || '');
         setManualSearchString(initialData.manual_search_string || '');
+        setSearchQueries(parseInitialSearchQueries(initialData));
         setPoolA(initialData.pool_a_size !== undefined ? String(initialData.pool_a_size) : '50');
         setPoolB(initialData.pool_b_size !== undefined ? String(initialData.pool_b_size) : '30');
         setPoolC(initialData.pool_c_size !== undefined ? String(initialData.pool_c_size) : '20');
@@ -335,6 +379,32 @@ export function useProjectForm(initialData?: any) {
     });
   };
 
+  const handleAddSearchQuery = (source?: string) => {
+    setSearchQueries((prev) => [
+      ...prev,
+      {
+        id: `sq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        source: source || 'Scopus',
+        query: '',
+        description: ''
+      }
+    ]);
+  };
+
+  const handleUpdateSearchQuery = (idx: number, field: keyof SearchQuery, val: string) => {
+    setSearchQueries((prev) => {
+      const next = [...prev];
+      if (next[idx]) {
+        next[idx] = { ...next[idx], [field]: val };
+      }
+      return next;
+    });
+  };
+
+  const handleRemoveSearchQuery = (idx: number) => {
+    setSearchQueries((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const resetForm = () => {
     isSlugCustomizedRef.current = false;
     setName('');
@@ -345,6 +415,8 @@ export function useProjectForm(initialData?: any) {
     setQaDefinition('');
     setExclusionCriteria('');
     setScopusSearchString('');
+    setManualSearchString('');
+    setSearchQueries([]);
     setPoolA('50');
     setPoolB('30');
     setPoolC('20');
@@ -360,6 +432,7 @@ export function useProjectForm(initialData?: any) {
     setPoolBReasoningTemplate([]);
     setPoolCQaRules([]);
     setPoolCExtractionRules([]);
+    setResearchQuestionDescriptions({});
   };
 
   const populateForm = (proj: any) => {
@@ -372,6 +445,7 @@ export function useProjectForm(initialData?: any) {
     setExclusionCriteria(proj.exclusion_criteria || '');
     setScopusSearchString(proj.scopus_search_string || '');
     setManualSearchString(proj.manual_search_string || '');
+    setSearchQueries(parseInitialSearchQueries(proj));
     setPoolA(proj.pool_a_size !== undefined ? String(proj.pool_a_size) : '50');
     setPoolB(proj.pool_b_size !== undefined ? String(proj.pool_b_size) : '30');
     setPoolC(proj.pool_c_size !== undefined ? String(proj.pool_c_size) : '20');
@@ -381,6 +455,16 @@ export function useProjectForm(initialData?: any) {
     setCloudProvider(proj.cloud_provider || 'gdrive');
     setRemoteName(proj.rclone_remote_name || '');
     
+    let parsedLlmConfig: any = {};
+    if (proj.llm_config) {
+      try {
+        parsedLlmConfig = typeof proj.llm_config === 'string' ? JSON.parse(proj.llm_config) : proj.llm_config;
+      } catch (e) {
+        console.error("Error parsing llm_config in populateForm", e);
+      }
+    }
+    setResearchQuestionDescriptions(parsedLlmConfig.research_question_descriptions || {});
+
     let parsedTags = { pool_a: [] as any[], pool_b: [] as any[], pool_c: [] as any[] };
     if (proj.pool_tags) {
       try {
@@ -466,6 +550,8 @@ export function useProjectForm(initialData?: any) {
     exclusionCriteria, setExclusionCriteria,
     scopusSearchString, setScopusSearchString,
     manualSearchString, setManualSearchString,
+    searchQueries, setSearchQueries,
+    handleAddSearchQuery, handleUpdateSearchQuery, handleRemoveSearchQuery,
     poolA, setPoolA,
     poolB, setPoolB,
     poolC, setPoolC,

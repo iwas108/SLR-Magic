@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { normalizeExtractedTokens } from '@/lib/services/taxonomy-resolver';
+import { extractEvidenceQuote, extractMappingReasoning } from '@/lib/services/trace-normalizer';
 
 export interface UmbrellanizerResult {
   id: number;
@@ -20,6 +22,14 @@ export interface MinerPaper {
   Year?: number;
   extracted_data: Record<string, any>;
   logic_trace?: Record<string, any>;
+}
+
+export interface UniqueTokenWithContext {
+  token: string;
+  count: number;
+  papers: { id: string; title: string }[];
+  evidence_quotes: { paper_id: string; quote: string }[];
+  logic_traces: { paper_id: string; trace: string }[];
 }
 
 export function useUmbrellanizer(
@@ -68,44 +78,67 @@ export function useUmbrellanizer(
   const getExtractedKeys = useCallback(() => {
     const keys = new Set<string>();
     minerPapers.forEach((paper) => {
-      if (paper.extracted_data) {
-        Object.keys(paper.extracted_data).forEach((key) => keys.add(key));
+      if (paper.extracted_data && typeof paper.extracted_data === 'object') {
+        Object.keys(paper.extracted_data).forEach((key) => {
+          if (!key.startsWith('_') && key !== 'logic_trace' && key !== 'logicTrace' && key !== '_scientist_logic_trace' && key !== 'qa_scores') {
+            keys.add(key);
+          }
+        });
       }
     });
     return Array.from(keys);
   }, [minerPapers]);
 
-  // Get unique tokens and their occurrence counts for a specific key
-  const getUniqueTokens = useCallback((key: string) => {
-    const counts: Record<string, { count: number; papers: { id: string; title: string }[] }> = {};
+  // Get unique tokens and their occurrence counts, evidence quotes, and logic traces for a specific key
+  const getUniqueTokens = useCallback((key: string): UniqueTokenWithContext[] => {
+    const tokenMap: Record<string, {
+      count: number;
+      papers: { id: string; title: string }[];
+      evidence_quotes: { paper_id: string; quote: string }[];
+      logic_traces: { paper_id: string; trace: string }[];
+    }> = {};
+
     minerPapers.forEach((paper) => {
       const data = paper.extracted_data[key];
-      if (!data) return;
+      if (data === undefined || data === null || data === '') return;
 
-      const rawVal = data.value;
-      const rawEvidence = data.evidence || '';
-      
-      const addToken = (token: string) => {
+      const rawTokens = normalizeExtractedTokens(data, key);
+      if (rawTokens.length === 0) return;
+
+      const rawEvidence = extractEvidenceQuote(key, data);
+      const logicTrace = paper.logic_trace || {};
+      const locateMapping = logicTrace.extraction_mapping || logicTrace || {};
+      const logicTraceText = extractMappingReasoning(key, locateMapping, data);
+
+      rawTokens.forEach((token) => {
         const t = String(token).trim();
-        if (!t || t === 'NOT_STATED') return;
-        if (!counts[t]) {
-          counts[t] = { count: 0, papers: [] };
+        if (!t || t.toUpperCase() === 'NOT_STATED') return;
+        if (!tokenMap[t]) {
+          tokenMap[t] = { count: 0, papers: [], evidence_quotes: [], logic_traces: [] };
         }
-        counts[t].count += 1;
-        counts[t].papers.push({ id: paper.Paper_ID, title: paper.Title });
-      };
+        tokenMap[t].count += 1;
+        tokenMap[t].papers.push({ id: paper.Paper_ID, title: paper.Title });
 
-      if (Array.isArray(rawVal)) {
-        rawVal.forEach((val) => addToken(val));
-      } else if (typeof rawVal === 'string') {
-        addToken(rawVal);
-      }
+        if (rawEvidence && rawEvidence.toUpperCase() !== 'NOT_STATED') {
+          if (!tokenMap[t].evidence_quotes.some(eq => eq.paper_id === paper.Paper_ID && eq.quote === rawEvidence)) {
+            tokenMap[t].evidence_quotes.push({ paper_id: paper.Paper_ID, quote: rawEvidence });
+          }
+        }
+
+        if (logicTraceText && logicTraceText !== 'No trace mapping logged.' && logicTraceText.trim() !== '') {
+          if (!tokenMap[t].logic_traces.some(lt => lt.paper_id === paper.Paper_ID && lt.trace === logicTraceText)) {
+            tokenMap[t].logic_traces.push({ paper_id: paper.Paper_ID, trace: logicTraceText });
+          }
+        }
+      });
     });
 
-    return Object.entries(counts).map(([token, info]) => ({
+    return Object.entries(tokenMap).map(([token, info]) => ({
       token,
       count: info.count,
-      papers: info.papers
+      papers: info.papers,
+      evidence_quotes: info.evidence_quotes,
+      logic_traces: info.logic_traces
     })).sort((a, b) => b.count - a.count);
   }, [minerPapers]);
 
@@ -113,7 +146,8 @@ export function useUmbrellanizer(
     key: string,
     templateId: string,
     targetVariableName: string,
-    rawTokens: string[]
+    rawTokens: string[],
+    richTokens?: UniqueTokenWithContext[]
   ) => {
     setIsRunning(true);
     setRunError(null);
@@ -142,6 +176,7 @@ export function useUmbrellanizer(
           key,
           templateId,
           rawTokens,
+          richTokens: richTokens || [],
           targetVariableName,
           targetResearchQuestion: targetVariableName,
           targetResearchQuestionDescription: targetDesc,
@@ -201,6 +236,29 @@ export function useUmbrellanizer(
     }, 2000);
   };
 
+  const dropUmbrellanizerKey = async (key: string): Promise<boolean> => {
+    if (!projectId || !key) return false;
+    try {
+      const res = await fetch(`/api/umbrellanizer?project_id=${encodeURIComponent(projectId)}&key=${encodeURIComponent(key)}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to drop umbrellanizer result');
+      }
+      showToast(`Dropped Umbrellanizer taxonomy mapping for "${key}"`, 'success');
+      await loadData();
+      // Broadcast synchronization event to other tabs per agents.md §3.3
+      const { broadcastSync } = await import('@/lib/sync-utils');
+      broadcastSync('SYNC_PAPERS');
+      return true;
+    } catch (err: any) {
+      console.error('Failed to drop umbrellanizer mapping:', err);
+      showToast(err.message || 'Failed to drop umbrellanizer mapping', 'error');
+      return false;
+    }
+  };
+
   return {
     minerPapers,
     umbrellaResults,
@@ -213,6 +271,7 @@ export function useUmbrellanizer(
     getExtractedKeys,
     getUniqueTokens,
     runUmbrellanizer,
+    dropUmbrellanizerKey,
     loadData
   };
 }

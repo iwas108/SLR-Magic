@@ -62,6 +62,7 @@ export interface BuildChartOptionParams {
   sankeyFields: string[];
   sankeyLabelPositions: Record<number, 'left' | 'right'>;
   sankeyMaxNodes: Record<number, number>;
+  tailLabelStyle?: 'comma_list' | 'other_count' | 'other_items' | 'plain_other';
   limitCategories: boolean;
   maxCategoriesCount: number;
   numFieldX: string;
@@ -150,7 +151,56 @@ export interface BuildChartOptionParams {
   pieLineHeight?: number;
   barLabelDistance?: number;
   legendDistance?: number;
+  legendWidth?: number;
+  legendLineHeight?: number;
+  legendItemGap?: number;
+  legendFontSize?: number;
+  legendOverflow?: 'break' | 'truncate' | 'none';
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   umbrellanizerMap?: Record<string, Record<string, string>>;
+  lineWidth?: number;
+  showLineMarkers?: boolean;
+  lineMarkerSize?: number;
+  lineAreaOpacity?: number;
+  lineStepMode?: 'none' | 'start' | 'middle' | 'end';
+  roseType?: 'none' | 'radius' | 'area';
+  piePadAngle?: number;
+  pieCornerRadius?: number;
+  treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
+  treemapVisibleDepth?: number;
+  treemapGapWidth?: number;
+  treemapBorderWidth?: number;
+  heatmapCellRadius?: number;
+  heatmapColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
+  radarShape?: 'polygon' | 'circle';
+  radarAreaOpacity?: number;
+  radarLineWidth?: number;
+  radarSplitNumber?: number;
+  funnelAlign?: 'center' | 'left' | 'right';
+  funnelGap?: number;
+  funnelNeckWidth?: number;
+  funnelNeckHeight?: number;
+  boxplotBoxWidth?: number;
+  boxplotShowScatter?: boolean;
+  boxplotOrientation?: 'vertical' | 'horizontal';
+  scatterPointSize?: number;
+  scatterPointOpacity?: number;
+  scatterShowRegression?: boolean;
+  scatterRegressionType?: 'linear' | 'mean';
+  graphRepulsion?: number;
+  graphEdgeLength?: number;
+  graphGravity?: number;
+  graphCurveness?: number;
+  graphShowLinkWeights?: boolean;
+  gaugeStartAngle?: number;
+  gaugeEndAngle?: number;
+  gaugePointerWidth?: number;
+  gaugeDialWidth?: number;
+  calendarCellSize?: number;
+  calendarYear?: string;
+  stackedNormalized?: boolean;
 }
 
 export function buildChartOption(params: BuildChartOptionParams): echarts.EChartsOption {
@@ -167,6 +217,11 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
     showLegend,
     legendPosition,
     legendDistance = 20,
+    legendWidth,
+    legendLineHeight,
+    legendItemGap,
+    legendFontSize,
+    legendOverflow = 'break',
     metricMode
   } = params;
 
@@ -183,6 +238,11 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
     subtextStyle: { fontFamily: font, fontSize: Math.max(10, fontSize - 2), color: palette.subtext }
   };
 
+  const effectiveLegendFontSize = legendFontSize !== undefined ? legendFontSize : Math.max(9, fontSize - 1);
+  const effectiveLegendLineHeight = legendLineHeight !== undefined ? legendLineHeight : 15;
+  const effectiveLegendItemGap = legendItemGap !== undefined ? legendItemGap : 12;
+  const effectiveLegendWidth = (legendWidth !== undefined && legendWidth > 0) ? legendWidth : undefined;
+
   const baseLegend = {
     show: showLegend,
     type: 'scroll' as const,
@@ -191,7 +251,15 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
     top: legendPosition === 'top' ? 65 : legendPosition === 'bottom' ? undefined : 'center',
     bottom: legendPosition === 'bottom' ? legendDistance : undefined,
     orient: (legendPosition === 'left' || legendPosition === 'right') ? 'vertical' as const : 'horizontal' as const,
-    textStyle: { fontFamily: font, fontSize: fontSize - 1, color: palette.text }
+    itemGap: effectiveLegendItemGap,
+    textStyle: {
+      fontFamily: font,
+      fontSize: effectiveLegendFontSize,
+      color: palette.text,
+      width: effectiveLegendWidth,
+      overflow: legendOverflow,
+      lineHeight: effectiveLegendLineHeight
+    }
   };
 
   const baseTooltip = {

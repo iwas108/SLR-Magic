@@ -1,5 +1,5 @@
 import type * as echarts from 'echarts';
-import { getFieldValue, limitCategoryMap } from '../utils/dataExtractor';
+import { getFieldValue, getMappedFieldValue, limitCategoryMap } from '../utils/dataExtractor';
 import type { ChartGeneratorContext } from './types';
 
 export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
@@ -20,20 +20,29 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
     labelRotation,
     showLegend,
     showDataLabels,
+    customCategoryMap,
+    levelCustomGroupLinks,
     umbrellanizerMap
   } = ctx;
 
-  const fieldOpts = { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty };
+  const fieldOpts = { 
+    useUmbrellanizer, 
+    umbrellanizerMap, 
+    splitMultiValues, 
+    excludeEmpty,
+    customCategoryMap,
+    levelCustomGroupLinks
+  };
 
   const countsP = new Map<string, any[]>();
   const countsS = new Map<string, any[]>();
 
   papers.forEach(p => {
-    getFieldValue(p, primaryField, fieldOpts).forEach(v => {
+    getMappedFieldValue(p, primaryField, { ...fieldOpts, primaryField, subFieldKey: secondaryField }).forEach(v => {
       if (!countsP.has(v)) countsP.set(v, []);
       countsP.get(v)!.push(p);
     });
-    getFieldValue(p, secondaryField, fieldOpts).forEach(v => {
+    getMappedFieldValue(p, secondaryField, { ...fieldOpts, primaryField: secondaryField }).forEach(v => {
       if (!countsS.has(v)) countsS.set(v, []);
       countsS.get(v)!.push(p);
     });
@@ -47,8 +56,8 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
   const matrixMap = new Map<string, Map<string, number>>();
 
   papers.forEach(p => {
-    const rawP = getFieldValue(p, primaryField, fieldOpts);
-    const rawS = getFieldValue(p, secondaryField, fieldOpts);
+    const rawP = getMappedFieldValue(p, primaryField, { ...fieldOpts, primaryField, subFieldKey: secondaryField });
+    const rawS = getMappedFieldValue(p, secondaryField, { ...fieldOpts, primaryField: secondaryField });
 
     const primVals = Array.from(new Set(rawP.map(v => activeCountsP.has(v) ? v : 'Other')));
     const secVals = Array.from(new Set(rawS.map(v => activeCountsS.has(v) ? v : 'Other')));
@@ -76,15 +85,46 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
     });
   });
 
+  const colorMapPresets: Record<string, string[]> = {
+    academic: [palette.bg, palette.colors[2] || '#3b82f6', palette.colors[0] || '#0f172a'],
+    viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
+    plasma: ['#0d0887', '#6a00a8', '#b12a90', '#e16462', '#fca636', '#f0f921'],
+    thermal: ['#0508b8', '#1e90ff', '#00ff7f', '#ffff00', '#ff4500', '#b22222'],
+    coolwarm: ['#3b4cc0', '#8cb2e9', '#f2f2f2', '#f49a7b', '#b40426']
+  };
+  const activeColorMap = colorMapPresets[ctx.heatmapColorPreset || 'academic'] || colorMapPresets.academic;
+
   return {
     backgroundColor: palette.bg,
     title: baseTitle,
     tooltip: { ...baseTooltip, formatter: (p: any) => `${xData[p.data[0]]} × ${yData[p.data[1]]}: ${p.data[2]} papers` },
-    grid: { left: '12%', right: '12%', top: showLegend ? 110 : 80, bottom: '15%', containLabel: true },
+    grid: { 
+      left: Math.max(20, 60 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetX ?? 0)), 
+      right: Math.max(20, 60 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)), 
+      top: Math.max(20, (showLegend ? 100 : 70) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetY ?? 0)), 
+      bottom: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)), 
+      containLabel: true 
+    },
     xAxis: { type: 'category', data: xData, axisLabel: { fontFamily: font, fontSize: fontSize - 1, color: palette.text, rotate: labelRotation } },
     yAxis: { type: 'category', data: yData, axisLabel: { fontFamily: font, fontSize: fontSize - 1, color: palette.text } },
-    visualMap: { min: 0, max: maxVal, calculable: true, orient: 'horizontal', left: 'center', bottom: '2%', inRange: { color: [palette.bg, palette.colors[2] || '#3b82f6', palette.colors[0] || '#0f172a'] }, textStyle: { fontFamily: font, color: palette.text } },
-    series: [{ type: 'heatmap', data: heatData, label: { show: showDataLabels, fontFamily: font, fontSize: fontSize - 2, color: palette.text } }]
+    visualMap: { 
+      min: 0, 
+      max: maxVal, 
+      calculable: true, 
+      orient: 'horizontal', 
+      left: 'center', 
+      bottom: '2%', 
+      inRange: { color: activeColorMap }, 
+      textStyle: { fontFamily: font, color: palette.text } 
+    },
+    series: [{ 
+      type: 'heatmap', 
+      data: heatData, 
+      itemStyle: {
+        borderRadius: ctx.heatmapCellRadius ?? 0
+      },
+      label: { show: showDataLabels, fontFamily: font, fontSize: fontSize - 2, color: palette.text } 
+    }]
   };
 }
 
@@ -119,6 +159,10 @@ export function generateCalendarOption(ctx: ChartGeneratorContext): echarts.ECha
     maxYear = years[years.length - 1];
   }
 
+  const effectiveRange = (ctx.calendarYear && ctx.calendarYear !== 'auto') 
+    ? ctx.calendarYear 
+    : (minYear === maxYear ? minYear : [minYear, maxYear]);
+
   const maxVal = Math.max(...calendarData.map(d => Number(d[1])), 5);
 
   return {
@@ -139,8 +183,8 @@ export function generateCalendarOption(ctx: ChartGeneratorContext): echarts.ECha
       top: showLegend ? 110 : 80,
       left: 60,
       right: 40,
-      cellSize: ['auto', 14],
-      range: minYear === maxYear ? minYear : [minYear, maxYear],
+      cellSize: ['auto', ctx.calendarCellSize ?? 14],
+      range: effectiveRange,
       itemStyle: { borderWidth: 1, borderColor: palette.border },
       yearLabel: { show: true, color: palette.text, fontFamily: font },
       dayLabel: { color: palette.text, fontFamily: font },

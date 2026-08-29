@@ -236,7 +236,7 @@ export function useManualScreening(
         setManualRationale(screeningSelectedPaper.manual_rationale || '');
         
         const numToStageMap: Record<number, string> = {
-          0: 'unscreened',
+          0: 'fast_filter',
           1: 'fast_filter',
           2: 'gatekeeper',
           3: 'scientist',

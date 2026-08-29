@@ -110,6 +110,9 @@ export function useVisualizerConfig(params: {
   const sankeyMaxNodes = currentSlotConfig.sankeyMaxNodes;
   const setSankeyMaxNodes = useCallback((v: Record<number, number>) => updateActiveSlot({ sankeyMaxNodes: v }), [updateActiveSlot]);
 
+  const tailLabelStyle = currentSlotConfig.tailLabelStyle || 'comma_list';
+  const setTailLabelStyle = useCallback((v: 'comma_list' | 'other_count' | 'other_items' | 'plain_other') => updateActiveSlot({ tailLabelStyle: v }), [updateActiveSlot]);
+
   const limitCategories = currentSlotConfig.limitCategories;
   const setLimitCategories = useCallback((v: boolean) => updateActiveSlot({ limitCategories: v }), [updateActiveSlot]);
 
@@ -321,6 +324,21 @@ export function useVisualizerConfig(params: {
   const legendDistance = currentSlotConfig.legendDistance ?? 20;
   const setLegendDistance = useCallback((v: number) => updateActiveSlot({ legendDistance: v }), [updateActiveSlot]);
 
+  const legendWidth = currentSlotConfig.legendWidth;
+  const setLegendWidth = useCallback((v?: number) => updateActiveSlot({ legendWidth: v }), [updateActiveSlot]);
+
+  const legendLineHeight = currentSlotConfig.legendLineHeight ?? 15;
+  const setLegendLineHeight = useCallback((v: number) => updateActiveSlot({ legendLineHeight: v }), [updateActiveSlot]);
+
+  const legendItemGap = currentSlotConfig.legendItemGap ?? 12;
+  const setLegendItemGap = useCallback((v: number) => updateActiveSlot({ legendItemGap: v }), [updateActiveSlot]);
+
+  const legendFontSize = currentSlotConfig.legendFontSize;
+  const setLegendFontSize = useCallback((v?: number) => updateActiveSlot({ legendFontSize: v }), [updateActiveSlot]);
+
+  const legendOverflow = currentSlotConfig.legendOverflow || 'break';
+  const setLegendOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ legendOverflow: v }), [updateActiveSlot]);
+
   const customCategoryMap = currentSlotConfig.customCategoryMap || {};
   const setCustomCategoryMap = useCallback((v: Record<string, Record<string, string>>) => updateActiveSlot({ customCategoryMap: v }), [updateActiveSlot]);
 
@@ -329,6 +347,130 @@ export function useVisualizerConfig(params: {
 
   const customSliceColors = currentSlotConfig.customSliceColors || {};
   const setCustomSliceColors = useCallback((v: Record<string, string>) => updateActiveSlot({ customSliceColors: v }), [updateActiveSlot]);
+
+  // Enhanced Scientific Customization Setters
+  const lineWidth = currentSlotConfig.lineWidth ?? 2.5;
+  const setLineWidth = useCallback((v: number) => updateActiveSlot({ lineWidth: v }), [updateActiveSlot]);
+
+  const showLineMarkers = currentSlotConfig.showLineMarkers ?? true;
+  const setShowLineMarkers = useCallback((v: boolean) => updateActiveSlot({ showLineMarkers: v }), [updateActiveSlot]);
+
+  const lineMarkerSize = currentSlotConfig.lineMarkerSize ?? 8;
+  const setLineMarkerSize = useCallback((v: number) => updateActiveSlot({ lineMarkerSize: v }), [updateActiveSlot]);
+
+  const lineAreaOpacity = currentSlotConfig.lineAreaOpacity ?? 15;
+  const setLineAreaOpacity = useCallback((v: number) => updateActiveSlot({ lineAreaOpacity: v }), [updateActiveSlot]);
+
+  const lineStepMode = currentSlotConfig.lineStepMode || 'none';
+  const setLineStepMode = useCallback((v: 'none' | 'start' | 'middle' | 'end') => updateActiveSlot({ lineStepMode: v }), [updateActiveSlot]);
+
+  const roseType = currentSlotConfig.roseType || 'none';
+  const setRoseType = useCallback((v: 'none' | 'radius' | 'area') => updateActiveSlot({ roseType: v }), [updateActiveSlot]);
+
+  const piePadAngle = currentSlotConfig.piePadAngle ?? 2;
+  const setPiePadAngle = useCallback((v: number) => updateActiveSlot({ piePadAngle: v }), [updateActiveSlot]);
+
+  const pieCornerRadius = currentSlotConfig.pieCornerRadius ?? 4;
+  const setPieCornerRadius = useCallback((v: number) => updateActiveSlot({ pieCornerRadius: v }), [updateActiveSlot]);
+
+  const treemapAlgorithm = currentSlotConfig.treemapAlgorithm || 'squarified';
+  const setTreemapAlgorithm = useCallback((v: 'squarified' | 'sliceAndDice' | 'binary') => updateActiveSlot({ treemapAlgorithm: v }), [updateActiveSlot]);
+
+  const treemapVisibleDepth = currentSlotConfig.treemapVisibleDepth ?? 2;
+  const setTreemapVisibleDepth = useCallback((v: number) => updateActiveSlot({ treemapVisibleDepth: v }), [updateActiveSlot]);
+
+  const treemapGapWidth = currentSlotConfig.treemapGapWidth ?? 2;
+  const setTreemapGapWidth = useCallback((v: number) => updateActiveSlot({ treemapGapWidth: v }), [updateActiveSlot]);
+
+  const treemapBorderWidth = currentSlotConfig.treemapBorderWidth ?? 2;
+  const setTreemapBorderWidth = useCallback((v: number) => updateActiveSlot({ treemapBorderWidth: v }), [updateActiveSlot]);
+
+  const heatmapCellRadius = currentSlotConfig.heatmapCellRadius ?? 0;
+  const setHeatmapCellRadius = useCallback((v: number) => updateActiveSlot({ heatmapCellRadius: v }), [updateActiveSlot]);
+
+  const heatmapColorPreset = currentSlotConfig.heatmapColorPreset || 'academic';
+  const setHeatmapColorPreset = useCallback((v: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm') => updateActiveSlot({ heatmapColorPreset: v }), [updateActiveSlot]);
+
+  const radarShape = currentSlotConfig.radarShape || 'polygon';
+  const setRadarShape = useCallback((v: 'polygon' | 'circle') => updateActiveSlot({ radarShape: v }), [updateActiveSlot]);
+
+  const radarAreaOpacity = currentSlotConfig.radarAreaOpacity ?? 25;
+  const setRadarAreaOpacity = useCallback((v: number) => updateActiveSlot({ radarAreaOpacity: v }), [updateActiveSlot]);
+
+  const radarLineWidth = currentSlotConfig.radarLineWidth ?? 2;
+  const setRadarLineWidth = useCallback((v: number) => updateActiveSlot({ radarLineWidth: v }), [updateActiveSlot]);
+
+  const radarSplitNumber = currentSlotConfig.radarSplitNumber ?? 5;
+  const setRadarSplitNumber = useCallback((v: number) => updateActiveSlot({ radarSplitNumber: v }), [updateActiveSlot]);
+
+  const funnelAlign = currentSlotConfig.funnelAlign || 'center';
+  const setFunnelAlign = useCallback((v: 'center' | 'left' | 'right') => updateActiveSlot({ funnelAlign: v }), [updateActiveSlot]);
+
+  const funnelGap = currentSlotConfig.funnelGap ?? 2;
+  const setFunnelGap = useCallback((v: number) => updateActiveSlot({ funnelGap: v }), [updateActiveSlot]);
+
+  const funnelNeckWidth = currentSlotConfig.funnelNeckWidth ?? 30;
+  const setFunnelNeckWidth = useCallback((v: number) => updateActiveSlot({ funnelNeckWidth: v }), [updateActiveSlot]);
+
+  const funnelNeckHeight = currentSlotConfig.funnelNeckHeight ?? 25;
+  const setFunnelNeckHeight = useCallback((v: number) => updateActiveSlot({ funnelNeckHeight: v }), [updateActiveSlot]);
+
+  const boxplotBoxWidth = currentSlotConfig.boxplotBoxWidth ?? 30;
+  const setBoxplotBoxWidth = useCallback((v: number) => updateActiveSlot({ boxplotBoxWidth: v }), [updateActiveSlot]);
+
+  const boxplotShowScatter = currentSlotConfig.boxplotShowScatter ?? false;
+  const setBoxplotShowScatter = useCallback((v: boolean) => updateActiveSlot({ boxplotShowScatter: v }), [updateActiveSlot]);
+
+  const boxplotOrientation = currentSlotConfig.boxplotOrientation || 'vertical';
+  const setBoxplotOrientation = useCallback((v: 'vertical' | 'horizontal') => updateActiveSlot({ boxplotOrientation: v }), [updateActiveSlot]);
+
+  const scatterPointSize = currentSlotConfig.scatterPointSize ?? 10;
+  const setScatterPointSize = useCallback((v: number) => updateActiveSlot({ scatterPointSize: v }), [updateActiveSlot]);
+
+  const scatterPointOpacity = currentSlotConfig.scatterPointOpacity ?? 80;
+  const setScatterPointOpacity = useCallback((v: number) => updateActiveSlot({ scatterPointOpacity: v }), [updateActiveSlot]);
+
+  const scatterShowRegression = currentSlotConfig.scatterShowRegression ?? false;
+  const setScatterShowRegression = useCallback((v: boolean) => updateActiveSlot({ scatterShowRegression: v }), [updateActiveSlot]);
+
+  const scatterRegressionType = currentSlotConfig.scatterRegressionType || 'linear';
+  const setScatterRegressionType = useCallback((v: 'linear' | 'mean') => updateActiveSlot({ scatterRegressionType: v }), [updateActiveSlot]);
+
+  const graphRepulsion = currentSlotConfig.graphRepulsion ?? 120;
+  const setGraphRepulsion = useCallback((v: number) => updateActiveSlot({ graphRepulsion: v }), [updateActiveSlot]);
+
+  const graphEdgeLength = currentSlotConfig.graphEdgeLength ?? 90;
+  const setGraphEdgeLength = useCallback((v: number) => updateActiveSlot({ graphEdgeLength: v }), [updateActiveSlot]);
+
+  const graphGravity = currentSlotConfig.graphGravity ?? 0.1;
+  const setGraphGravity = useCallback((v: number) => updateActiveSlot({ graphGravity: v }), [updateActiveSlot]);
+
+  const graphCurveness = currentSlotConfig.graphCurveness ?? 0.2;
+  const setGraphCurveness = useCallback((v: number) => updateActiveSlot({ graphCurveness: v }), [updateActiveSlot]);
+
+  const graphShowLinkWeights = currentSlotConfig.graphShowLinkWeights ?? true;
+  const setGraphShowLinkWeights = useCallback((v: boolean) => updateActiveSlot({ graphShowLinkWeights: v }), [updateActiveSlot]);
+
+  const gaugeStartAngle = currentSlotConfig.gaugeStartAngle ?? 225;
+  const setGaugeStartAngle = useCallback((v: number) => updateActiveSlot({ gaugeStartAngle: v }), [updateActiveSlot]);
+
+  const gaugeEndAngle = currentSlotConfig.gaugeEndAngle ?? -45;
+  const setGaugeEndAngle = useCallback((v: number) => updateActiveSlot({ gaugeEndAngle: v }), [updateActiveSlot]);
+
+  const gaugePointerWidth = currentSlotConfig.gaugePointerWidth ?? 6;
+  const setGaugePointerWidth = useCallback((v: number) => updateActiveSlot({ gaugePointerWidth: v }), [updateActiveSlot]);
+
+  const gaugeDialWidth = currentSlotConfig.gaugeDialWidth ?? 14;
+  const setGaugeDialWidth = useCallback((v: number) => updateActiveSlot({ gaugeDialWidth: v }), [updateActiveSlot]);
+
+  const calendarCellSize = currentSlotConfig.calendarCellSize ?? 14;
+  const setCalendarCellSize = useCallback((v: number) => updateActiveSlot({ calendarCellSize: v }), [updateActiveSlot]);
+
+  const calendarYear = currentSlotConfig.calendarYear || 'auto';
+  const setCalendarYear = useCallback((v: string) => updateActiveSlot({ calendarYear: v }), [updateActiveSlot]);
+
+  const stackedNormalized = currentSlotConfig.stackedNormalized ?? false;
+  const setStackedNormalized = useCallback((v: boolean) => updateActiveSlot({ stackedNormalized: v }), [updateActiveSlot]);
 
   return {
     currentStep,
@@ -359,6 +501,8 @@ export function useVisualizerConfig(params: {
     setSankeyLabelPositions,
     sankeyMaxNodes,
     setSankeyMaxNodes,
+    tailLabelStyle,
+    setTailLabelStyle,
     limitCategories,
     setLimitCategories,
     maxCategoriesCount,
@@ -499,11 +643,103 @@ export function useVisualizerConfig(params: {
     setBarLabelDistance,
     legendDistance,
     setLegendDistance,
+    legendWidth,
+    setLegendWidth,
+    legendLineHeight,
+    setLegendLineHeight,
+    legendItemGap,
+    setLegendItemGap,
+    legendFontSize,
+    setLegendFontSize,
+    legendOverflow,
+    setLegendOverflow,
     customCategoryMap,
     setCustomCategoryMap,
     levelCustomGroupLinks,
     setLevelCustomGroupLinks,
     customSliceColors,
-    setCustomSliceColors
+    setCustomSliceColors,
+    lineWidth,
+    setLineWidth,
+    showLineMarkers,
+    setShowLineMarkers,
+    lineMarkerSize,
+    setLineMarkerSize,
+    lineAreaOpacity,
+    setLineAreaOpacity,
+    lineStepMode,
+    setLineStepMode,
+    roseType,
+    setRoseType,
+    piePadAngle,
+    setPiePadAngle,
+    pieCornerRadius,
+    setPieCornerRadius,
+    treemapAlgorithm,
+    setTreemapAlgorithm,
+    treemapVisibleDepth,
+    setTreemapVisibleDepth,
+    treemapGapWidth,
+    setTreemapGapWidth,
+    treemapBorderWidth,
+    setTreemapBorderWidth,
+    heatmapCellRadius,
+    setHeatmapCellRadius,
+    heatmapColorPreset,
+    setHeatmapColorPreset,
+    radarShape,
+    setRadarShape,
+    radarAreaOpacity,
+    setRadarAreaOpacity,
+    radarLineWidth,
+    setRadarLineWidth,
+    radarSplitNumber,
+    setRadarSplitNumber,
+    funnelAlign,
+    setFunnelAlign,
+    funnelGap,
+    setFunnelGap,
+    funnelNeckWidth,
+    setFunnelNeckWidth,
+    funnelNeckHeight,
+    setFunnelNeckHeight,
+    boxplotBoxWidth,
+    setBoxplotBoxWidth,
+    boxplotShowScatter,
+    setBoxplotShowScatter,
+    boxplotOrientation,
+    setBoxplotOrientation,
+    scatterPointSize,
+    setScatterPointSize,
+    scatterPointOpacity,
+    setScatterPointOpacity,
+    scatterShowRegression,
+    setScatterShowRegression,
+    scatterRegressionType,
+    setScatterRegressionType,
+    graphRepulsion,
+    setGraphRepulsion,
+    graphEdgeLength,
+    setGraphEdgeLength,
+    graphGravity,
+    setGraphGravity,
+    graphCurveness,
+    setGraphCurveness,
+    graphShowLinkWeights,
+    setGraphShowLinkWeights,
+    gaugeStartAngle,
+    setGaugeStartAngle,
+    gaugeEndAngle,
+    setGaugeEndAngle,
+    gaugePointerWidth,
+    setGaugePointerWidth,
+    gaugeDialWidth,
+    setGaugeDialWidth,
+    calendarCellSize,
+    setCalendarCellSize,
+    calendarYear,
+    setCalendarYear,
+    stackedNormalized,
+    setStackedNormalized
   };
 }

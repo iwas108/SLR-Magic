@@ -282,10 +282,17 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
     return () => unsub();
   }, []);
 
+  // Global task running state across Quest Panel
+  const isAnyTaskRunning = loadingAudit || runningBenchmarkStage !== null || optimizationState.isLoading || confirmationState.isLoading;
+
   // 3. Trigger Inter-Stage Consolidation Audit (Card 1)
   const runConsolidationAudit = async () => {
     if (!projectId) {
       showToast?.('No active project selected.', 'error');
+      return;
+    }
+    if (loadingAudit || runningBenchmarkStage !== null || optimizationState.isLoading) {
+      showToast?.('Another calibration task is already running. Please wait for it to complete.', 'warning');
       return;
     }
     setLoadingAudit(true);
@@ -316,6 +323,10 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
   const runStageBenchmark = async (stageNum: number) => {
     if (!projectId) {
       showToast?.('No active project selected.', 'error');
+      return;
+    }
+    if (loadingAudit || runningBenchmarkStage !== null || optimizationState.isLoading) {
+      showToast?.('Another calibration task is already running. Please wait for it to complete.', 'warning');
       return;
     }
 
@@ -355,6 +366,10 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
   // 5. Trigger Prompt Optimization Magic (Turn 1: Diagnose)
   const startPromptOptimization = async (stageNum: number, stageName: string) => {
     if (!projectId) return;
+    if (loadingAudit || runningBenchmarkStage !== null || optimizationState.isLoading) {
+      showToast?.('Another benchmark or optimization task is currently running. Please wait for it to complete.', 'warning');
+      return;
+    }
     setOptimizationState(prev => ({
       ...prev,
       isOpen: true,
@@ -446,7 +461,8 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
     proposedUserTemplate: string,
     actionMode: 'apply_active' | 'fork_new',
     setAsDefault = true,
-    customName?: string
+    customName?: string,
+    proposedResponseSchema?: any
   ) => {
     if (!projectId) return;
     setOptimizationState(prev => ({ ...prev, isSaving: true }));
@@ -460,6 +476,7 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
           stage_num: optimizationState.stageNum,
           proposed_system_instruction: proposedSystemInstruction,
           proposed_user_template: proposedUserTemplate,
+          proposed_response_schema: proposedResponseSchema,
           action_mode: actionMode,
           set_as_default: setAsDefault,
           custom_name: customName
@@ -490,6 +507,10 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
   const openAuditConfirmation = async () => {
     if (!projectId) {
       showToast?.('No active project selected.', 'error');
+      return;
+    }
+    if (isAnyTaskRunning) {
+      showToast?.('Another calibration task is currently running. Please wait for it to complete.', 'warning');
       return;
     }
     setConfirmationState({
@@ -527,6 +548,10 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
   const openBenchmarkConfirmation = async (stageNum: number, stageName?: string, poolName?: string) => {
     if (!projectId) {
       showToast?.('No active project selected.', 'error');
+      return;
+    }
+    if (isAnyTaskRunning) {
+      showToast?.('Another calibration task is currently running. Please wait for it to complete.', 'warning');
       return;
     }
 
@@ -596,6 +621,7 @@ export function usePromptStaging(projectId: string, showToast?: (msg: string, ty
     runningBenchmarkStage,
     confirmationState,
     optimizationState,
+    isAnyTaskRunning,
     openAuditConfirmation,
     openBenchmarkConfirmation,
     confirmPayloadExecution,

@@ -161,7 +161,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       let groupPapers: any[] = [];
       if (cat === 'Other') {
         limitedPrimMap.get('Other')?.forEach(p => {
-          const secVals = getMappedFieldValue(p, secondaryField, mappedOpts);
+          const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
           if (secVals.includes(seriesKey)) {
             groupPapers.push(p);
           }
@@ -310,18 +310,40 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
   const legendOrient = (barLegendPosition === 'left' || barLegendPosition === 'right') ? 'vertical' : 'horizontal';
 
   // 5. Grid Layout Calculations
+  const isLabelOutside = showDataLabels && (!barLabelPosition || (barLabelPosition as string) === 'right' || (barLabelPosition as string) === 'top' || !barLabelPosition.startsWith('inside'));
+  let maxLabelLength = 0;
+  seriesObjects.forEach(s => {
+    (s.data || []).forEach((d: any) => {
+      const len = String(d?.formattedLabel || '').length;
+      if (len > maxLabelLength) maxLabelLength = len;
+    });
+  });
+  const headroomFactor = isHorizontal 
+    ? (maxLabelLength >= 40 ? 1.60 : maxLabelLength >= 25 ? 1.42 : maxLabelLength >= 14 ? 1.25 : 1.15)
+    : 1.18;
+
   const yWidth = barYAxisWidth || 140;
   let gridTop = 45;
   let gridBottom = isHorizontal ? 35 : 45;
   let gridLeft = isHorizontal ? Math.max(90, Math.min(240, yWidth + 16)) : 60;
-  let gridRight = 65;
+  let gridRight = (isHorizontal && isLabelOutside) ? Math.max(80, Math.min(160, Math.round(maxLabelLength * 2.6))) : 65;
 
+  const customLegW = ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : 120;
   if (showLegend) {
     if (barLegendPosition.startsWith('top')) gridTop = 85;
     else if (barLegendPosition.startsWith('bottom')) gridBottom = 55;
-    else if (barLegendPosition.includes('right')) gridRight = 140;
-    else if (barLegendPosition.includes('left')) gridLeft += 120;
+    else if (barLegendPosition.includes('right')) gridRight = Math.max(gridRight, customLegW + legDist + 15);
+    else if (barLegendPosition.includes('left')) gridLeft += Math.max(60, customLegW + legDist + 10);
   }
+
+  const cPad = ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0;
+  const offX = ctx.fitOffsetX ?? 0;
+  const offY = ctx.fitOffsetY ?? 0;
+
+  gridTop = Math.max(15, gridTop + cPad - offY);
+  gridBottom = Math.max(15, gridBottom + cPad + offY);
+  gridLeft = Math.max(20, gridLeft + cPad - offX);
+  gridRight = Math.max(20, gridRight + cPad + offX);
 
   // 6. Metric Unit and Axis Titles
   const metricLabel = metricMode === 'paper_prevalence' 
@@ -398,6 +420,13 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
 
   const valueAxisConfig = {
     type: axisScaleType === 'log' ? ('log' as const) : ('value' as const),
+    max: isLabelOutside
+      ? (val: any) => {
+          if (!val || val.max === 0) return 10;
+          const ceiling = Math.ceil(val.max * headroomFactor);
+          return barBenchmarkLine ? Math.max(ceiling, Math.ceil(barBenchmarkValue * 1.15)) : ceiling;
+        }
+      : (barBenchmarkLine ? (val: any) => Math.max(val.max, Math.ceil(barBenchmarkValue * 1.15)) : undefined),
     axisLabel: {
       fontFamily: font,
       fontSize: Math.max(9, fontSize - 1),
@@ -464,10 +493,18 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       ...effectiveLegendPos,
       orient: legendOrient,
       z: 20,
-      textStyle: { color: palette.text, fontFamily: font, fontSize: Math.max(9, fontSize - 3), fontWeight: 'bold' },
+      textStyle: { 
+        color: palette.text, 
+        fontFamily: font, 
+        fontSize: ctx.legendFontSize ?? Math.max(9, fontSize - 3), 
+        fontWeight: 'bold',
+        width: ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : undefined,
+        lineHeight: ctx.legendLineHeight ?? 14,
+        overflow: ctx.legendOverflow || 'break'
+      },
       itemWidth: 14,
       itemHeight: 10,
-      itemGap: 10,
+      itemGap: ctx.legendItemGap ?? 10,
       pageIconColor: palette.text,
       pageTextStyle: { color: palette.text }
     } : { show: false },

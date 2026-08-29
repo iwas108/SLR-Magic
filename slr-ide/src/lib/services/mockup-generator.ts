@@ -255,6 +255,18 @@ export function getMockupPromptConfigs(projectId: string, pool: 'pool_a' | 'pool
 }
 
 /**
+ * Returns array of active prompt configurations for Rolling Batch Validation (Scientist QA + Miner Extraction)
+ */
+export function getRollingBatchPromptConfigs(projectId: string): MockupPromptConfig[] {
+  const sciPrompt = resolveMockupStagePrompt(projectId, 'scientist');
+  const minPrompt = resolveMockupStagePrompt(projectId, 'miner');
+  return [
+    extractMockupPromptConfig(sciPrompt, 3, 'Stage 3: Scientist (QA Scoring)', 'scientist', projectId),
+    extractMockupPromptConfig(minPrompt, 4, 'Stage 4: Miner (Data Extraction)', 'miner', projectId)
+  ];
+}
+
+/**
  * Calculates actual cost based on model pricing table and project discount/tax
  */
 export function calculateMockupCost(
@@ -705,7 +717,8 @@ export async function evaluateMockupPaperPoolC(
   minerPrompt: any,
   geminiApiKey: string,
   qaRules: any[],
-  extractionRules: any[]
+  extractionRules: any[],
+  taskType: string = 'mockup_pool_c'
 ): Promise<MockupPaperResult> {
   const taxRate = Number(project.project_tax || 0);
 
@@ -788,7 +801,7 @@ export async function evaluateMockupPaperPoolC(
     logMockupAuditInteraction({
       paperId: paper.Paper_ID,
       projectId: String(project.id),
-      taskType: 'mockup_pool_c',
+      taskType,
       modelId: sciRes.cleanModelName || 'gemini-2.5-flash',
       inputTokens: 0,
       outputTokens: 0,
@@ -833,7 +846,7 @@ export async function evaluateMockupPaperPoolC(
   logMockupAuditInteraction({
     paperId: paper.Paper_ID,
     projectId: String(project.id),
-    taskType: 'mockup_pool_c',
+    taskType,
     modelId: sciRes.cleanModelName,
     inputTokens: sciRes.inputTokens,
     outputTokens: sciRes.outputTokens,
@@ -902,7 +915,7 @@ export async function evaluateMockupPaperPoolC(
     logMockupAuditInteraction({
       paperId: paper.Paper_ID,
       projectId: String(project.id),
-      taskType: 'mockup_pool_c',
+      taskType,
       modelId: minerRes.cleanModelName || 'gemini-2.5-flash',
       inputTokens: 0,
       outputTokens: 0,
@@ -947,7 +960,7 @@ export async function evaluateMockupPaperPoolC(
   logMockupAuditInteraction({
     paperId: paper.Paper_ID,
     projectId: String(project.id),
-    taskType: 'mockup_pool_c',
+    taskType,
     modelId: minerRes.cleanModelName,
     inputTokens: minerRes.inputTokens,
     outputTokens: minerRes.outputTokens,
@@ -1159,3 +1172,86 @@ export function buildMockupSlrFile(
 
   return compressSlrServer(payload);
 }
+
+/**
+ * Assembles the full .slr payload for a Rolling Batch (QC_Batch) and compresses it to GZIP Buffer
+ */
+export function buildRollingBatchMockupSlrFile(
+  project: any,
+  activeBatch: any,
+  reviewerName: string,
+  papers: any[],
+  resultsMap: Map<string, MockupPaperResult>
+): Buffer {
+  let qaRules = [];
+  let extractionRules = [];
+
+  const rawQa = project.pool_c_qa_rules || project.qa_rules;
+  if (rawQa) {
+    try {
+      qaRules = typeof rawQa === 'string' ? JSON.parse(rawQa) : rawQa;
+    } catch {}
+  }
+  const rawExt = project.pool_c_extraction_rules || project.extraction_rules;
+  if (rawExt) {
+    try {
+      extractionRules = typeof rawExt === 'string' ? JSON.parse(rawExt) : rawExt;
+    } catch {}
+  }
+
+  const blindedPapers = papers.map(paper => {
+    const res = resultsMap.get(paper.Paper_ID);
+    const base = {
+      Paper_ID: paper.Paper_ID || '',
+      Title: paper.Title || '',
+      Year: paper.Year !== null ? String(paper.Year) : '',
+      Authors: paper.Authors || '',
+      Abstract: paper.Abstract || '',
+      DOI: paper.DOI || '',
+      Publisher: paper.Publisher || '',
+      PDF_Link: paper.PDF_Link || '',
+      Local_PDF_Status: paper.Local_PDF_Status || 'IGNORED',
+      PDF_Base64: null // Kept lightweight for database health and high performance
+    };
+
+    return {
+      ...base,
+      Human_QA_Scores: res?.qa_scores || {},
+      Human_Extracted_Data: res?.extracted_data || {}
+    };
+  });
+
+  let reasoningTemplate = [];
+  const reasoningField = project.pool_c_reasoning_template || project.reasoning_template;
+  if (reasoningField) {
+    try {
+      reasoningTemplate = typeof reasoningField === 'string' ? JSON.parse(reasoningField) : reasoningField;
+    } catch {}
+  }
+
+  const metadata: any = {
+    project_id: String(project.id),
+    project_name: project.name || 'Unnamed Project',
+    reviewer_name: reviewerName.trim(),
+    research_manifesto: project.manifesto || '',
+    research_objective: project.objective || '',
+    research_questions: project.questions || '',
+    quality_assurance_definition: project.qa_definition || '',
+    exclusion_criteria: project.exclusion_criteria || '',
+    pool_type: 'QC_Batch',
+    batch_id: activeBatch.id,
+    batch_number: activeBatch.batch_number,
+    export_date: new Date().toISOString(),
+    qa_rules: qaRules,
+    extraction_rules: extractionRules,
+    reasoning_template: reasoningTemplate
+  };
+
+  const payload = {
+    metadata,
+    papers: blindedPapers
+  };
+
+  return compressSlrServer(payload);
+}
+

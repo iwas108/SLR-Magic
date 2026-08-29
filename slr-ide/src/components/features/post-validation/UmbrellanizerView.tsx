@@ -1,9 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Play, Loader2, HelpCircle, RotateCw, Copy, Check, X, BarChart3 } from 'lucide-react';
+import { Play, Loader2, HelpCircle, RotateCw, Copy, Check, X, BarChart3, Trash2, AlertTriangle } from 'lucide-react';
 import { useUmbrellanizer } from '@/hooks/useUmbrellanizer';
-import { extractMappingReasoning } from '@/lib/services/trace-normalizer';
+import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
+import {
+  resolveUmbrellanizerValue,
+  getUmbrellanizerJustification,
+  normalizeForLookup
+} from '@/lib/services/taxonomy-resolver';
 import UmbrellanizerWizard from './UmbrellanizerWizard';
 import QuickOverviewModal from './QuickOverviewModal';
 
@@ -20,6 +25,9 @@ interface TooltipState {
 
 export default function UmbrellanizerView({ projectId, showToast }: UmbrellanizerViewProps) {
   const [showQuickOverview, setShowQuickOverview] = useState(false);
+  const [keyToDrop, setKeyToDrop] = useState<string | null>(null);
+  const [isDropping, setIsDropping] = useState(false);
+
   const {
     minerPapers,
     umbrellaResults,
@@ -31,6 +39,7 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
     getExtractedKeys,
     getUniqueTokens,
     runUmbrellanizer,
+    dropUmbrellanizerKey,
     loadData,
     activeJobId
   } = useUmbrellanizer(projectId, showToast);
@@ -82,6 +91,7 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
 
   const getUmbrellaValue = (key: string, rawVal: any) => {
     const isNotStated = (v: any): boolean => {
+      if (v === undefined || v === null || v === '') return true;
       if (typeof v === 'string') return v.trim().toUpperCase() === 'NOT_STATED';
       if (Array.isArray(v)) return v.some(item => typeof item === 'string' && item.trim().toUpperCase() === 'NOT_STATED');
       return false;
@@ -99,11 +109,18 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
 
     const resolve = (val: string) => {
       const v = String(val).trim();
-      if (v.toUpperCase() === 'NOT_STATED') {
+      if (!v || v.toUpperCase() === 'NOT_STATED') {
         return { value: 'NOT_STATED', justification: 'Default mapped.' };
       }
-      const mapped = keyMap[v];
-      return mapped ? { value: mapped.umbrella_category, justification: mapped.justification } : null;
+      const category = resolveUmbrellanizerValue(v, key, true, mappingsByKey);
+      const justification = getUmbrellanizerJustification(v, key, undefined, mappingsByKey);
+
+      // Check if a mapping entry existed for this token
+      const vNorm = normalizeForLookup(v);
+      const hasMapping = Object.keys(keyMap).some(k => normalizeForLookup(k) === vNorm);
+      if (!hasMapping && category === v) return null;
+
+      return { value: category || v, justification: justification || 'Default mapped.' };
     };
 
     if (Array.isArray(rawVal)) {
@@ -154,8 +171,12 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
     // Check extracted data values & mapped umbrella terms
     for (const key of extractedKeys) {
       const fieldData = paper.extracted_data[key];
-      if (fieldData) {
-        const rawVal = fieldData.value;
+      if (fieldData !== undefined && fieldData !== null) {
+        let rawVal = fieldData;
+        if (typeof fieldData === 'object' && !Array.isArray(fieldData) && 'value' in fieldData) {
+          rawVal = fieldData.value;
+        }
+
         if (Array.isArray(rawVal)) {
           if (rawVal.some(v => String(v).toLowerCase().includes(query))) return true;
         } else if (rawVal && String(rawVal).toLowerCase().includes(query)) {
@@ -251,11 +272,42 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
                 <thead className="bg-secondary/90 border-b-2 border-border/80 text-[10px] uppercase tracking-wider text-muted-foreground sticky top-0 z-10 select-none backdrop-blur-md shadow-sm">
                   <tr>
                     <th className="p-3 border-r border-b-2 border-border min-w-[200px] bg-secondary/90 font-extrabold text-foreground tracking-widest text-[9px] border-b-2" rowSpan={2}>Paper Reference</th>
-                    {extractedKeys.map((key) => (
-                      <th key={key} className="p-2.5 border-r border-border text-center bg-secondary/70 text-foreground font-black tracking-widest text-[9px]" colSpan={3}>
-                        {key.replace('rq', 'RQ').replace(/_/g, ' ')}
-                      </th>
-                    ))}
+                    {extractedKeys.map((key) => {
+                      const hasMapping = !!mappingsByKey[key] || umbrellaResults.some(r => r.extracted_data_key === key && r.status === 'SUCCESS');
+                      const isPending = umbrellaResults.some(r => r.extracted_data_key === key && r.status === 'PENDING');
+                      return (
+                        <th key={key} className="p-2 border-r border-border text-center bg-secondary/70 text-foreground font-black tracking-widest text-[9px]" colSpan={3}>
+                          <div className="flex items-center justify-between gap-2 px-1">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="truncate">{key.replace('rq', 'RQ').replace(/_/g, ' ')}</span>
+                              {hasMapping && (
+                                <span className="px-1.5 py-0.2 text-[8px] bg-primary/20 text-primary border border-primary/30 rounded font-mono font-bold">
+                                  Mapped
+                                </span>
+                              )}
+                              {isPending && (
+                                <span className="px-1.5 py-0.2 text-[8px] bg-amber-500/20 text-amber-500 border border-amber-500/30 rounded font-mono font-bold animate-pulse">
+                                  Running
+                                </span>
+                              )}
+                            </div>
+                            {hasMapping && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setKeyToDrop(key);
+                                }}
+                                title={`Drop Umbrellanizer taxonomy for ${key}`}
+                                className="p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-colors cursor-pointer shrink-0"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                   <tr className="border-b border-border bg-secondary/40 text-[8px] font-extrabold tracking-wide">
                     {extractedKeys.map((key) => (
@@ -276,14 +328,18 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
                       </td>
                       {extractedKeys.map((key) => {
                         const data = paper.extracted_data[key];
-                        const rawVal = data?.value;
-                        const rawEvidence = data?.evidence;
-                        const hasRawVal = rawVal && rawVal !== 'NOT_STATED';
+                        let rawVal = data;
+                        if (data && typeof data === 'object' && !Array.isArray(data) && 'value' in data) {
+                          rawVal = data.value;
+                        }
+                        const isNotStatedVal = rawVal === undefined || rawVal === null || rawVal === '' || (typeof rawVal === 'string' && rawVal.trim().toUpperCase() === 'NOT_STATED');
+                        const hasRawVal = !isNotStatedVal;
                         
                         // Resolve logic_trace.extraction_mapping for hover mapping tooltip using Centralized Trace Normalizer Utility
                         const logicTrace = paper.logic_trace || {};
                         const locateMapping = logicTrace.extraction_mapping || logicTrace || {};
                         const logicTraceText = extractMappingReasoning(key, locateMapping, data) || 'No trace mapping logged.';
+                        const rawEvidence = extractEvidenceQuote(key, data);
 
                         // Resolve umbrella terms mapping (Rule Q12)
                         const umbrellaInfo = getUmbrellaValue(key, rawVal);
@@ -427,6 +483,8 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
           extractedKeys={extractedKeys}
           getUniqueTokens={getUniqueTokens}
           runUmbrellanizer={runUmbrellanizer}
+          dropUmbrellanizerKey={dropUmbrellanizerKey}
+          mappingsByKey={mappingsByKey}
           isRunning={isRunning}
           runError={runError}
           activeJobId={activeJobId}
@@ -443,8 +501,75 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
           papers={minerPapers}
           extractedKeys={extractedKeys}
           mappingsByKey={mappingsByKey}
+          onDropKey={dropUmbrellanizerKey}
           onClose={() => setShowQuickOverview(false)}
         />
+      )}
+
+      {/* Drop Key Confirmation Modal */}
+      {keyToDrop && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-destructive/10">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                <h3 className="font-bold text-sm text-foreground">Drop Umbrellanizer Taxonomy</h3>
+              </div>
+              <button 
+                onClick={() => !isDropping && setKeyToDrop(null)} 
+                disabled={isDropping}
+                className="p-1 text-muted-foreground hover:text-foreground rounded-lg disabled:opacity-40"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-foreground leading-relaxed">
+                Are you sure you want to drop the Umbrellanizer taxonomy mapping for variable <strong className="text-primary font-mono">{keyToDrop}</strong>?
+              </p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                This will permanently delete the mapped umbrella categories, justifications, and cached taxonomy grouping for this key. All papers will revert to their unmapped state for this variable until re-run.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-border bg-secondary/10">
+              <button
+                type="button"
+                disabled={isDropping}
+                onClick={() => setKeyToDrop(null)}
+                className="px-4 py-2 bg-secondary text-foreground hover:bg-secondary/80 border border-border font-semibold rounded-lg text-xs disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDropping}
+                onClick={async () => {
+                  if (!keyToDrop) return;
+                  setIsDropping(true);
+                  try {
+                    await dropUmbrellanizerKey(keyToDrop);
+                    setKeyToDrop(null);
+                  } finally {
+                    setIsDropping(false);
+                  }
+                }}
+                className="px-4 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-md shadow-destructive/20 transition-all disabled:opacity-40 cursor-pointer"
+              >
+                {isDropping ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Dropping...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Drop Mapping
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Global Tooltip Portal Container */}

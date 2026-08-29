@@ -24,6 +24,9 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     useUmbrellanizer,
     splitMultiValues,
     excludeEmpty,
+    customCategoryMap,
+    levelCustomGroupLinks,
+    sankeyFields,
     umbrellanizerMap
   } = ctx;
 
@@ -67,10 +70,19 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
   const indicators = keysList.map(k => ({ name: k, max: 1.0 }));
 
   const countsMap = new Map<string, any[]>();
-  const fieldOpts = { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty };
+  const mappedOpts = { 
+    useUmbrellanizer, 
+    umbrellanizerMap, 
+    splitMultiValues, 
+    excludeEmpty,
+    customCategoryMap,
+    levelCustomGroupLinks,
+    sankeyFields,
+    primaryField
+  };
 
   papers.forEach(p => {
-    const vals = getFieldValue(p, primaryField, fieldOpts);
+    const vals = getMappedFieldValue(p, primaryField, mappedOpts);
     vals.forEach(v => {
       if (!countsMap.has(v)) countsMap.set(v, []);
       countsMap.get(v)!.push(p);
@@ -97,9 +109,10 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     tooltip: baseTooltip,
     radar: {
       indicator: indicators,
-      center: ['50%', '55%'],
-      radius: '65%',
-      shape: 'polygon',
+      center: [`${50 + (ctx.fitOffsetX ?? 0)}%`, `${55 + (ctx.fitOffsetY ?? 0)}%`],
+      radius: `${Math.max(25, 65 - Math.round(((ctx.containerPadding ?? 12) - 12) * 0.4))}%`,
+      shape: ctx.radarShape || 'polygon',
+      splitNumber: ctx.radarSplitNumber ?? 5,
       axisName: { fontFamily: font, fontSize: fontSize - 1, color: palette.text },
       splitArea: { areaStyle: { color: [palette.bg, palette.border] } }
     },
@@ -107,7 +120,8 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
       type: 'radar',
       data: seriesData,
       symbolSize: 6,
-      areaStyle: { opacity: 0.25 }
+      lineStyle: { width: ctx.radarLineWidth ?? 2 },
+      areaStyle: { opacity: (ctx.radarAreaOpacity ?? 25) / 100 }
     }]
   };
 }
@@ -211,7 +225,11 @@ export function generateFunnelOption(ctx: ChartGeneratorContext): echarts.EChart
       top: showLegend ? 90 : 70,
       bottom: '10%',
       sort: 'descending',
-      gap: 2,
+      funnelAlign: ctx.funnelAlign || 'center',
+      gap: ctx.funnelGap ?? 2,
+      width: `${100 - (ctx.funnelNeckWidth ? 100 - ctx.funnelNeckWidth : 30)}%`,
+      minSize: `${ctx.funnelNeckWidth ?? 30}%`,
+      maxSize: '100%',
       label: { show: showDataLabels, position: 'inside', fontFamily: font, fontSize: fontSize - 1, color: '#ffffff' },
       data: funnelData
     }]
@@ -249,22 +267,26 @@ export function generateGaugeOption(ctx: ChartGeneratorContext): echarts.ECharts
     gaugeTitle = `PDF Download Ratio (${downloaded}/${papers.length})`;
   }
 
+  const dialW = ctx.gaugeDialWidth ?? 14;
+
   return {
     backgroundColor: palette.bg,
     color: palette.colors,
     title: baseTitle,
     series: [{
       type: 'gauge',
-      center: ['50%', '60%'],
-      radius: '75%',
+      center: [`${50 + (ctx.fitOffsetX ?? 0)}%`, `${60 + (ctx.fitOffsetY ?? 0)}%`],
+      radius: `${Math.max(30, 75 - Math.round(((ctx.containerPadding ?? 12) - 12) * 0.4))}%`,
+      startAngle: ctx.gaugeStartAngle ?? 225,
+      endAngle: ctx.gaugeEndAngle ?? -45,
       min: 0,
       max: maxTarget,
-      progress: { show: true, width: 14 },
-      axisLine: { lineStyle: { width: 14, color: [[1, palette.border]] } },
+      progress: { show: true, width: dialW },
+      axisLine: { lineStyle: { width: dialW, color: [[1, palette.border]] } },
       axisTick: { show: false },
       splitLine: { length: 8, lineStyle: { width: 2, color: palette.text } },
       axisLabel: { fontFamily: font, fontSize: fontSize - 2, color: palette.text, distance: 15 },
-      pointer: { width: 6 },
+      pointer: { width: ctx.gaugePointerWidth ?? 6 },
       title: { show: true, offsetCenter: [0, '70%'], fontFamily: font, fontSize: fontSize, color: palette.text },
       detail: { valueAnimation: true, formatter: '{value}%', offsetCenter: [0, '40%'], fontFamily: font, fontSize: fontSize + 6, fontWeight: 'bold', color: palette.text },
       data: [{ value: metricValue, name: gaugeTitle }]
@@ -289,20 +311,29 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
     showLegend,
     showDataLabels,
     baseTooltip,
+    customCategoryMap,
+    levelCustomGroupLinks,
     umbrellanizerMap
   } = ctx;
 
-  const fieldOpts = { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty };
+  const mappedOpts = { 
+    useUmbrellanizer, 
+    umbrellanizerMap, 
+    splitMultiValues, 
+    excludeEmpty,
+    customCategoryMap,
+    levelCustomGroupLinks
+  };
 
   const countsP = new Map<string, any[]>();
   const countsS = new Map<string, any[]>();
 
   papers.forEach(p => {
-    getFieldValue(p, primaryField, fieldOpts).forEach(v => {
+    getMappedFieldValue(p, primaryField, { ...mappedOpts, primaryField, subFieldKey: secondaryField }).forEach(v => {
       if (!countsP.has(v)) countsP.set(v, []);
       countsP.get(v)!.push(p);
     });
-    getFieldValue(p, secondaryField, fieldOpts).forEach(v => {
+    getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField }).forEach(v => {
       if (!countsS.has(v)) countsS.set(v, []);
       countsS.get(v)!.push(p);
     });
@@ -315,8 +346,8 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
   const linksMap = new Map<string, number>();
 
   papers.forEach(p => {
-    const rawP = getFieldValue(p, primaryField, fieldOpts);
-    const rawS = getFieldValue(p, secondaryField, fieldOpts);
+    const rawP = getMappedFieldValue(p, primaryField, { ...mappedOpts, primaryField, subFieldKey: secondaryField });
+    const rawS = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
 
     const mappedP = Array.from(new Set(rawP.map(v => activeCountsP.has(v) ? v : 'Other')));
     const mappedS = Array.from(new Set(rawS.map(v => activeCountsS.has(v) ? v : 'Other')));
@@ -359,13 +390,17 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
     series: [{
       type: 'graph',
       layout: 'force',
-      force: { repulsion: 120, edgeLength: 90 },
+      force: { 
+        repulsion: ctx.graphRepulsion ?? 120, 
+        edgeLength: ctx.graphEdgeLength ?? 90,
+        gravity: ctx.graphGravity ?? 0.1
+      },
       roam: true,
       label: { show: showDataLabels, fontFamily: font, fontSize: fontSize - 2, color: palette.text, position: 'right' },
       categories: [{ name: primaryField }, { name: secondaryField }],
       data: graphNodes,
       links: graphLinks,
-      lineStyle: { color: 'source', curveness: 0.2 }
+      lineStyle: { color: 'source', curveness: ctx.graphCurveness ?? 0.2 }
     }]
   };
 }

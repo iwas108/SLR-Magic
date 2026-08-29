@@ -17,6 +17,7 @@ interface StageBenchmarkCardProps {
   lockReason?: string;
   benchmarkState: BenchmarkRunState | null;
   isRunning: boolean;
+  isAnyTaskRunning?: boolean;
   onRunBenchmark: () => void;
   onOptimizePrompt: () => void;
 }
@@ -29,6 +30,7 @@ export default function StageBenchmarkCard({
   lockReason,
   benchmarkState,
   isRunning,
+  isAnyTaskRunning = false,
   onRunBenchmark,
   onOptimizePrompt
 }: StageBenchmarkCardProps) {
@@ -44,7 +46,7 @@ export default function StageBenchmarkCard({
   const gatePassed = metrics?.prisma_gate_passed;
   const hasMissingPdfs = stageNum >= 2 && Boolean(benchmarkState?.missing_pdf_count && benchmarkState.missing_pdf_count > 0);
   const hasZeroPoolPapers = benchmarkState?.pool_papers_count === 0;
-  const isRunDisabled = !isUnlocked || isRunning || hasMissingPdfs || hasZeroPoolPapers;
+  const isRunDisabled = !isUnlocked || isRunning || hasMissingPdfs || hasZeroPoolPapers || (isAnyTaskRunning && !isRunning);
 
   return (
     <div className={`relative overflow-hidden rounded-2xl border p-5 transition-all duration-300 bg-card shadow-xs ${
@@ -178,7 +180,12 @@ export default function StageBenchmarkCard({
           {isCompleted && discrepancies.length > 0 && (
             <button
               onClick={onOptimizePrompt}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold font-mono tracking-wide transition-all bg-secondary text-foreground hover:bg-secondary/80 border border-border active:scale-98 shadow-xs"
+              disabled={isAnyTaskRunning}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold font-mono tracking-wide transition-all shadow-xs ${
+                isAnyTaskRunning
+                  ? 'bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-60'
+                  : 'bg-secondary text-foreground hover:bg-secondary/80 border border-border active:scale-98'
+              }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-primary" />
               <span>Prompt Optimization</span>

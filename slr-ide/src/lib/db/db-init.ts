@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { migrateProjectIds } from './migrate-project-ids';
 import { DEFAULT_STAGE_SCHEMAS } from '../services/prompt-validator';
+import { CANONICAL_STAGE_PROMPTS } from '../services/prompt-defaults';
 
 const PROJECT_ROOT = process.cwd().endsWith('slr-ide') 
   ? process.cwd() 
@@ -87,6 +88,7 @@ export function initializeDatabase(db: Database.Database): void {
       goldmine_dest_path TEXT,
       scopus_search_string TEXT,
       manual_search_string TEXT,
+      search_queries TEXT,
       llm_config TEXT DEFAULT '{}',
       rolling_batch_size INTEGER DEFAULT 20,
       created_at TEXT NOT NULL
@@ -1078,6 +1080,7 @@ export function initializeDatabase(db: Database.Database): void {
 
     safeAddColumn('projects', 'scopus_search_string', 'TEXT');
     safeAddColumn('projects', 'manual_search_string', 'TEXT');
+    safeAddColumn('projects', 'search_queries', 'TEXT');
     safeAddColumn('projects', 'goldmine_dest_path', 'TEXT');
     safeAddColumn('projects', 'llm_config', "TEXT DEFAULT '{}'");
     safeAddColumn('projects', 'rolling_batch_size', 'INTEGER DEFAULT 20');
@@ -1242,246 +1245,121 @@ export function initializeDatabase(db: Database.Database): void {
     console.error("Failed to clean up deprecated default prompts:", e);
   }
 
-  // Seed default duplicate_review prompt template if none exists
+  // Seed and synchronize all 8 canonical global baseline prompt templates in prompt_templates
   try {
-    const dupPromptCount = db.prepare("SELECT COUNT(*) as count FROM prompt_templates WHERE prompt_type = 'duplicate_review'").get() as { count: number };
-    if (dupPromptCount.count === 0) {
-      const defaultDupSchema = JSON.stringify({
-        type: "object",
-        properties: {
-          verdict: {
-            type: "string",
-            enum: [
-              "CONFIRMED DUPLICATE",
-              "STRUCTURAL OVERLAP",
-              "COMPANION PAPERS",
-              "FALSE FLAG"
-            ]
-          },
-          primary_action: {
-            type: "string"
-          },
-          technical_breakdown: {
-            type: "object",
-            properties: {
-              mathematical_algorithmic_shift: { type: "string" },
-              topology_scope_change: { type: "string" },
-              data_implementation_footprint: { type: "string" }
-            },
-            required: [
-              "mathematical_algorithmic_shift",
-              "topology_scope_change",
-              "data_implementation_footprint"
-            ]
-          },
-          database_execution: {
-            type: "object",
-            properties: {
-              recommended_primary_paper_id: { type: "string" },
-              paper1_status: {
-                type: "string",
-                enum: ["PENDING", "EXCLUDED_DUPLICATE", "EXCLUDED_CONTAINER", "RETAINED_PRIMARY", "RETAINED_COMPANION", "RETAINED_DISTINCT"]
-              },
-              paper2_status: {
-                type: "string",
-                enum: ["PENDING", "EXCLUDED_DUPLICATE", "EXCLUDED_CONTAINER", "RETAINED_PRIMARY", "RETAINED_COMPANION", "RETAINED_DISTINCT"]
-              },
-              lineage_actions: { type: "string" }
-            },
-            required: [
-              "recommended_primary_paper_id",
-              "paper1_status",
-              "paper2_status",
-              "lineage_actions"
-            ]
-          }
-        },
-        required: [
-          "verdict",
-          "primary_action",
-          "technical_breakdown",
-          "database_execution"
-        ]
-      }, null, 2);
+    const now = new Date().toISOString();
+    const existingTemplates = db.prepare("SELECT id, prompt_type, system_instruction, user_template, response_schema, llm_config FROM prompt_templates WHERE project_id IS NULL").all() as any[];
+    const existingById = new Map<string, any>(existingTemplates.map(t => [t.id, t]));
+    const existingByType = new Map<string, any>(existingTemplates.map(t => [t.prompt_type, t]));
 
-      const defaultSystemPrompt = `You are an expert Systematic Literature Review (SLR) Data Ingestion & Deduplication Specialist. Your role is to act as a high-precision adjudication engine for an automated screening pipeline. You specialize in analyzing highly similar pairs of academic papers—often emerging from the same research lab—and making a definitive database execution choice.
+    const insertStmt = db.prepare(`
+      INSERT INTO prompt_templates (id, project_id, name, description, prompt_type, system_instruction, user_template, response_schema, llm_config, is_active, created_at, updated_at)
+      VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `);
 
-When the user provides a pair of papers containing Title, DOI, Year, Authors, and Abstract, your job is to output a direct, unambiguous decision adhering to the structured JSON schema.
+    const updateGlobalStmt = db.prepare(`
+      UPDATE prompt_templates
+      SET name = ?,
+          description = ?,
+          system_instruction = ?,
+          user_template = ?,
+          response_schema = ?,
+          llm_config = ?,
+          updated_at = ?
+      WHERE id = ? AND (project_id IS NULL OR id LIKE 'default-%')
+    `);
 
-### 1. The Decision Taxonomy
-You must classify the pair into exactly one of these four categories:
-1. CONFIRMED DUPLICATE (Conference-to-Journal Progression): Retain Journal as Primary record; mark Conference paper for exclusion.
-2. STRUCTURAL OVERLAP (Parent Book Container vs. Child Chapter): Retain Child Chapter; mark Parent Book Volume for exclusion.
-3. COMPANION PAPERS (Multipart Study): Retain BOTH papers. Note shared study cluster lineage.
-4. FALSE FLAG / DISTINCT PRIMARY STUDIES (Parallel Lab Tracks): Retain BOTH papers as active, independent primary studies.
+    const updateCustomStmt = db.prepare(`
+      UPDATE prompt_templates
+      SET name = COALESCE(NULLIF(name, ''), ?),
+          description = COALESCE(NULLIF(description, ''), ?),
+          system_instruction = CASE WHEN system_instruction IS NULL OR system_instruction = '' THEN ? ELSE system_instruction END,
+          user_template = CASE WHEN user_template IS NULL OR user_template = '' THEN ? ELSE user_template END,
+          response_schema = CASE WHEN response_schema IS NULL OR response_schema = '' THEN ? ELSE response_schema END,
+          llm_config = CASE WHEN llm_config IS NULL OR llm_config = '' OR llm_config = '{}' THEN ? ELSE llm_config END,
+          updated_at = ?
+      WHERE id = ?
+    `);
 
-### 2. Guardrails & Traps to Watch For
-* The Reverse Sequence Trap: Do not assume lower publication year means conference stub. Verify computational cores.
-* The Vocabulary Echo: Papers sharing vocabulary but fundamentally different architectures/methods (e.g. QMIX vs Offline DRL cGAN) are distinct branches. Do not merge them.`;
+    for (const [promptType, canonical] of Object.entries(CANONICAL_STAGE_PROMPTS)) {
+      const existing = existingById.get(canonical.id) || existingByType.get(promptType);
+      const schemaStr = JSON.stringify(canonical.response_schema, null, 2);
+      const configStr = JSON.stringify(canonical.llm_config);
 
-      const defaultUserTemplate = `Analyze the following candidate duplicate paper pair:
-
-### Paper 1 (ID: {{paper1_id}})
-- Title: {{paper1_title}}
-- DOI: {{paper1_doi}}
-- Year: {{paper1_year}}
-- Authors: {{paper1_authors}}
-- Abstract: {{paper1_abstract}}
-
-### Paper 2 (ID: {{paper2_id}})
-- Title: {{paper2_title}}
-- DOI: {{paper2_doi}}
-- Year: {{paper2_year}}
-- Authors: {{paper2_authors}}
-- Abstract: {{paper2_abstract}}`;
-
-      const defaultLlmConfig = JSON.stringify({
-        model_id: 'gemini-2.5-flash',
-        temperature: 0.0,
-        max_tokens: 2000,
-        execution_mode: 'flex'
-      });
-
-      const now = new Date().toISOString();
-      db.prepare(`
-        INSERT INTO prompt_templates (id, project_id, name, description, prompt_type, system_instruction, user_template, response_schema, llm_config, is_active, created_at, updated_at)
-        VALUES ('default-duplicate-review', NULL, 'Default Duplicate Review Prompt', 'Automated Duplicate & Structural Overlap Screening Specialist for Candidate Paper Pairs', 'duplicate_review', ?, ?, ?, ?, 1, ?, ?)
-      `).run(defaultSystemPrompt, defaultUserTemplate, defaultDupSchema, defaultLlmConfig, now, now);
+      if (!existing) {
+        insertStmt.run(
+          canonical.id,
+          canonical.name,
+          canonical.description,
+          canonical.prompt_type,
+          canonical.system_instruction,
+          canonical.user_template,
+          schemaStr,
+          configStr,
+          now,
+          now
+        );
+      } else if (existing.project_id === null || existing.project_id === undefined || existing.id.startsWith('default-')) {
+        // Keep global canonical default template in lockstep with latest codebase improvements
+        updateGlobalStmt.run(
+          canonical.name,
+          canonical.description,
+          canonical.system_instruction,
+          canonical.user_template,
+          schemaStr,
+          configStr,
+          now,
+          existing.id
+        );
+      } else {
+        // Self-heal missing/empty fields on existing custom template without overriding user edits
+        updateCustomStmt.run(
+          canonical.name,
+          canonical.description,
+          canonical.system_instruction,
+          canonical.user_template,
+          schemaStr,
+          configStr,
+          now,
+          existing.id
+        );
+      }
     }
   } catch (e) {
-    console.error("Failed to seed default duplicate_review prompt:", e);
+    console.error("Failed to seed canonical baseline prompt templates:", e);
   }
 
-  // Seed default consolidation_audit prompt template if none exists
+  // Auto-heal missing default_prompts mappings in existing projects
   try {
-    const auditPromptCount = db.prepare("SELECT COUNT(*) as count FROM prompt_templates WHERE prompt_type = 'consolidation_audit'").get() as { count: number };
-    if (auditPromptCount.count === 0) {
-      const defaultAuditSchema = JSON.stringify(DEFAULT_STAGE_SCHEMAS.consolidation_audit, null, 2);
+    const projects = db.prepare("SELECT id, llm_config FROM projects").all() as { id: string; llm_config: string | null }[];
+    const updateProjectConfig = db.prepare("UPDATE projects SET llm_config = ? WHERE id = ?");
 
-      const defaultAuditSystem = `You are the Lead Systematic Literature Review (SLR) Methodology & Quality Assurance Auditor. Your mission is to conduct a strict, objective, and adversarial evaluation of the 4-stage LLM pipeline prompts (Stage 1: Fast Filter, Stage 2: Gatekeeper, Stage 3: Scientist, Stage 4: Miner) against the project's research manifesto, objective, research questions (RQs), and exclusion criteria.
+    for (const p of projects) {
+      let cfg: Record<string, any> = {};
+      try {
+        cfg = JSON.parse(p.llm_config || '{}');
+      } catch (_) {
+        cfg = {};
+      }
 
-Your audit consists of three core evaluation dimensions:
-1. AVAILABILITY AUDIT: Check that all 4 stage prompts are configured and contain valid instructions, user templates, and variables.
-2. SEMANTIC ALIGNMENT AUDIT: Evaluate whether each stage's prompt accurately reflects the research domain, boundary conditions, and criteria defined in the project research context. Flag any hallucinated rules, missing constraints, or semantic drift.
-3. INTER-STAGE CONSISTENCY & CHAINABILITY: Verify that data flowing between stages is logically coherent:
-   - S1 (Fast Filter) -> S2 (Gatekeeper): S1 must only filter obvious noise (EC-1..3), handing off potential candidates to S2 for full-text inspection (EC-4..9). Exclusion codes must be strictly orthogonal.
-   - S2 (Gatekeeper) -> S3 (Scientist): Papers passing S2 must possess physical hardware testbeds/experimental data for S3 Quality Appraisal.
-   - S3 (Scientist) -> S4 (Miner): Only methodologically sound studies meeting QA criteria flow into S4 for detailed data extraction.
+      if (!cfg.default_prompts || typeof cfg.default_prompts !== 'object') {
+        cfg.default_prompts = {};
+      }
 
-You must output your findings strictly adhering to the structured JSON schema with concrete, actionable recommendations.`;
+      let modified = false;
+      for (const [pType, canonical] of Object.entries(CANONICAL_STAGE_PROMPTS)) {
+        if (!cfg.default_prompts[pType]) {
+          cfg.default_prompts[pType] = canonical.id;
+          modified = true;
+        }
+      }
 
-      const defaultAuditUser = `Conduct an inter-stage prompt consolidation and consistency audit on the following project context and 4-stage pipeline prompts:
-
-### PROJECT RESEARCH CONTEXT
-- Project Name: {{project_name}}
-- Research Objective: {{project_objective}}
-- Research Manifesto / Scope: {{project_manifesto}}
-- Research Questions (RQs): {{project_questions}}
-- Quality Assessment Rules: {{project_qa_rules}}
-- Exclusion Criteria: {{project_ec_rules}}
-
-### 4-STAGE PIPELINE CONFIGURATION
----
-#### STAGE 1: FAST FILTER (Metadata Screening)
-- System Instruction:
-{{s1_system_instruction}}
-- User Template:
-{{s1_user_template}}
-
----
-#### STAGE 2: GATEKEEPER (Domain & Full-Text Screening)
-- System Instruction:
-{{s2_system_instruction}}
-- User Template:
-{{s2_user_template}}
-
----
-#### STAGE 3: SCIENTIST (Quality Appraisal)
-- System Instruction:
-{{s3_system_instruction}}
-- User Template:
-{{s3_user_template}}
-
----
-#### STAGE 4: MINER (Data Extraction)
-- System Instruction:
-{{s4_system_instruction}}
-- User Template:
-{{s4_user_template}}`;
-
-      const defaultAuditLlmConfig = JSON.stringify({
-        model_id: 'gemini-2.5-flash',
-        temperature: 0.0,
-        max_tokens: 4000,
-        execution_mode: 'flex'
-      });
-
-      const now = new Date().toISOString();
-      db.prepare(`
-        INSERT INTO prompt_templates (id, project_id, name, description, prompt_type, system_instruction, user_template, response_schema, llm_config, is_active, created_at, updated_at)
-        VALUES ('default-prompt-consolidation-audit', NULL, 'Default Inter-Stage Consolidation Auditor', 'Zero-temperature adversarial prompt auditor for evaluating 4-stage pipeline chainability and semantic integrity', 'consolidation_audit', ?, ?, ?, ?, 1, ?, ?)
-      `).run(defaultAuditSystem, defaultAuditUser, defaultAuditSchema, defaultAuditLlmConfig, now, now);
+      if (modified) {
+        updateProjectConfig.run(JSON.stringify(cfg), p.id);
+      }
     }
   } catch (e) {
-    console.error("Failed to seed default consolidation_audit prompt:", e);
-  }
-
-  // Seed default prompt_optimizer template if none exists
-  try {
-    const optPromptCount = db.prepare("SELECT COUNT(*) as count FROM prompt_templates WHERE prompt_type = 'prompt_optimizer'").get() as { count: number };
-    if (optPromptCount.count === 0) {
-      const defaultOptSchema = JSON.stringify(DEFAULT_STAGE_SCHEMAS.prompt_optimizer, null, 2);
-
-      const defaultOptSystem = `You are a World-Class Systematic Literature Review (SLR) Prompt Engineering & Optimization Specialist.
-Your goal is to analyze discrepancies between automated LLM screening predictions and human double-blind adjudicated consensus (Gold Standard), diagnose root causes (e.g. prompt ambiguity, boundary over-strictness, missed hardware synonyms, missing logic trace gates), and generate surgical, non-regressive prompt revisions.
-
-Key Optimization Directives:
-1. SURGICAL PRECISION: Do not rewrite working prompts completely. Make targeted adjustments to system instructions and logic trace guidance to address identified failure modes.
-2. PRESERVE RECALL & PREVENT REGRESSION: PRISMA standards require 100% Recall on Stage 1 (0 false negatives). Ensure changes that fix false positives do not cause previously included papers to be falsely excluded.
-3. SELECTIVE FULL-TEXT PDF REQUESTS: If a discrepancy hinges on subtle empirical methodology that cannot be resolved from the abstract alone, populate the 'needs_full_text' array with the paper ID and technical rationale so the researcher can approve attaching the full document.
-4. PROMPT DIFFS: Provide complete, ready-to-run proposed System Instruction and User Template strings adhering to the target stage's structured schema.`;
-
-      const defaultOptUser = `Optimize the prompt for {{stage_name}} based on the following calibration discrepancy dataset:
-
-### TARGET PIPELINE STAGE
-Stage: {{stage_name}} (Stage {{stage_num}})
-
-### PROJECT CONTEXT
-- Research Objective: {{project_objective}}
-- Scope Manifesto: {{project_manifesto}}
-- Relevant Rules: {{project_rules}}
-
-### CURRENT PROMPT UNDER EVALUATION
-#### Current System Instruction:
-{{current_system_instruction}}
-
-#### Current User Template:
-{{current_user_template}}
-
-### CALIBRATION DISCREPANCY ANALYSIS (AI vs Gold Standard Consensus)
-{{discrepancies_json}}
-
-### SIBLING PIPELINE PROMPTS (For Inter-Stage Boundary Alignment)
-{{sibling_prompts_summary}}
-
-Analyze the error patterns, identify edge cases, determine if any full PDFs are required, and output the optimized prompt revision.`;
-
-      const defaultOptLlmConfig = JSON.stringify({
-        model_id: 'gemini-2.5-pro',
-        temperature: 0.0,
-        max_tokens: 6000,
-        execution_mode: 'standard',
-        interaction_chaining: true
-      });
-
-      const now = new Date().toISOString();
-      db.prepare(`
-        INSERT INTO prompt_templates (id, project_id, name, description, prompt_type, system_instruction, user_template, response_schema, llm_config, is_active, created_at, updated_at)
-        VALUES ('default-prompt-optimizer', NULL, 'Default Prompt Optimizer Specialist', 'High-reasoning prompt optimizer specializing in calibration error pattern diagnosis, selective PDF retrieval, and non-regressive prompt synthesis', 'prompt_optimizer', ?, ?, ?, ?, 1, ?, ?)
-      `).run(defaultOptSystem, defaultOptUser, defaultOptSchema, defaultOptLlmConfig, now, now);
-    }
-  } catch (e) {
-    console.error("Failed to seed default prompt_optimizer template:", e);
+    console.error("Failed to auto-heal project default_prompts:", e);
   }
 
   // Ensure ACTIVE_PROJECT_ID config key exists

@@ -37,6 +37,8 @@ export type SubfigureLabelStyle =
   | 'fig_prefix'  // Fig. 1a, Fig. 1b
   | 'none';
 
+export type ExportFormat = 'png' | 'svg' | 'pdf';
+
 export type CanvasBackdrop = 'dark' | 'white' | 'checkerboard' | 'slate';
 
 export type AspectRatioPreset = 
@@ -50,6 +52,17 @@ export type AspectRatioPreset =
   | 'custom'; // Custom Width x Height
 
 export type DimensionUnit = 'mm' | 'in' | 'px';
+
+export type FittingAnchor = 
+  | 'top-left'
+  | 'top'
+  | 'top-right'
+  | 'left'
+  | 'center'
+  | 'right'
+  | 'bottom-left'
+  | 'bottom'
+  | 'bottom-right';
 
 export type PieLabelPlacement = 'outside' | 'inside' | 'legend_only' | 'edge_aligned';
 
@@ -70,6 +83,19 @@ export type DisplayFormatTemplate =
   | 'name_count'           // Name (n = 1)
   | 'name_percent'         // Name (~6%)
   | 'name_count_percent'   // Name (n = 1, ~6%)
+  | 'tag_share_ratio_percent'       // Explicit Tag Share: n = 18/54, ~33%
+  | 'name_tag_share_ratio_percent'  // Name (n = 18/54, ~33%)
+  | 'tag_share_percent_ratio'       // ~33% (n = 18/54)
+  | 'tag_share_percent_only'        // ~33%
+  | 'tag_share_ratio_only'          // n = 18/54
+  | 'tag_share_count_percent'       // n = 18 (~33%)
+  | 'name_tag_share_percent'        // Name (~33%)
+  | 'name_tag_share_count_percent'  // Name (n = 18, ~33%)
+  | 'prevalence_ratio_percent'      // Explicit Prevalence: n = 18/46, ~39%
+  | 'name_prevalence_ratio_percent' // Name (n = 18/46, ~39%)
+  | 'prevalence_percent_only'       // ~39%
+  | 'prevalence_ratio_only'         // n = 18/46
+  | 'dual_prevalence_tag_share'     // Dual: n = 18/46 (~39%) | Tags: 18/54 (~33%)
   | 'name'                 // Legacy alias for name_only
   | 'value'                // Legacy alias for count_only
   | 'value_pct'            // Legacy alias for count_percent
@@ -236,6 +262,7 @@ export interface SlotConfig {
   sankeyFields: string[];
   sankeyLabelPositions: Record<number, 'left' | 'right'>;
   sankeyMaxNodes: Record<number, number>;
+  tailLabelStyle?: 'comma_list' | 'other_count' | 'other_items' | 'plain_other';
   limitCategories: boolean;
   maxCategoriesCount: number;
   numFieldX: string;
@@ -312,6 +339,56 @@ export interface SlotConfig {
   pieLineHeight?: number;
   barLabelDistance?: number;
   legendDistance?: number;
+  legendWidth?: number;
+  legendLineHeight?: number;
+  legendItemGap?: number;
+  legendFontSize?: number;
+  legendOverflow?: 'break' | 'truncate' | 'none';
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
+  // Enhanced Scientific Customization Properties
+  lineWidth?: number;
+  showLineMarkers?: boolean;
+  lineMarkerSize?: number;
+  lineAreaOpacity?: number;
+  lineStepMode?: 'none' | 'start' | 'middle' | 'end';
+  roseType?: 'none' | 'radius' | 'area';
+  piePadAngle?: number;
+  pieCornerRadius?: number;
+  treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
+  treemapVisibleDepth?: number;
+  treemapGapWidth?: number;
+  treemapBorderWidth?: number;
+  heatmapCellRadius?: number;
+  heatmapColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
+  radarShape?: 'polygon' | 'circle';
+  radarAreaOpacity?: number;
+  radarLineWidth?: number;
+  radarSplitNumber?: number;
+  funnelAlign?: 'center' | 'left' | 'right';
+  funnelGap?: number;
+  funnelNeckWidth?: number;
+  funnelNeckHeight?: number;
+  boxplotBoxWidth?: number;
+  boxplotShowScatter?: boolean;
+  boxplotOrientation?: 'vertical' | 'horizontal';
+  scatterPointSize?: number;
+  scatterPointOpacity?: number;
+  scatterShowRegression?: boolean;
+  scatterRegressionType?: 'linear' | 'mean';
+  graphRepulsion?: number;
+  graphEdgeLength?: number;
+  graphGravity?: number;
+  graphCurveness?: number;
+  graphShowLinkWeights?: boolean;
+  gaugeStartAngle?: number;
+  gaugeEndAngle?: number;
+  gaugePointerWidth?: number;
+  gaugeDialWidth?: number;
+  calendarCellSize?: number;
+  calendarYear?: string;
+  stackedNormalized?: boolean;
 }
 
 export interface GlobalStyleConfig {
@@ -336,6 +413,10 @@ export interface GlobalStyleConfig {
   forceCohortDenominator: boolean;
   defaultLabelFormat: DisplayFormatTemplate;
   defaultLegendFormat: DisplayFormatTemplate;
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
+  showSafeGuides?: boolean;
 }
 
 export interface VisualizerPresetPayload {
@@ -352,6 +433,7 @@ export interface VisualizerPresetPayload {
   sankeyFields?: string[];
   sankeyLabelPositions?: Record<number, 'left' | 'right'>;
   sankeyMaxNodes?: Record<number, number>;
+  tailLabelStyle?: 'comma_list' | 'other_count' | 'other_items' | 'plain_other';
   limitCategories?: boolean;
   maxCategoriesCount?: number;
   numFieldX?: string;
@@ -429,8 +511,23 @@ export interface VisualizerPresetPayload {
   pieLabelPlacement?: PieLabelPlacement;
   pieRadiusRatio?: number;
   pieLabelWidth?: number;
+  pieLeaderLineLength?: number;
+  pieLeaderLineLength2?: number;
+  pieLabelDistance?: number;
+  pieLineHeight?: number;
+  barLabelDistance?: number;
+  legendDistance?: number;
+  legendWidth?: number;
+  legendLineHeight?: number;
+  legendItemGap?: number;
+  legendFontSize?: number;
+  legendOverflow?: 'break' | 'truncate' | 'none';
   aspectRatio?: AspectRatioPreset;
   customWidth?: number;
   customHeight?: number;
   dimensionUnit?: DimensionUnit;
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
+  showSafeGuides?: boolean;
 }

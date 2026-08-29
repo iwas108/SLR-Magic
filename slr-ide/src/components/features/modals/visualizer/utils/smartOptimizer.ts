@@ -57,19 +57,6 @@ export function optimizeSlotConfig(
   const highestCount = sortedEntries[0]?.[1] || 0;
   const dominanceRatio = totalExtractedTags > 0 ? highestCount / totalExtractedTags : 0;
 
-  // Small Sample Cohort Thresholding (Reviewer Compliance Rule)
-  // If cohort size N <= 30, use coarse rounding (0 decimals, ~ prefix, n/N ratio display)
-  if (papers.length <= 30) {
-    config.decimalPrecision = 0;
-    config.useTildeForCoarse = true;
-    config.ratioStyle = 'n_over_N';
-    config.labelFormat = 'ratio_percent';
-  } else {
-    config.decimalPrecision = 1;
-    config.useTildeForCoarse = false;
-    config.ratioStyle = 'fraction';
-  }
-
   // 2. Chart-Specific Intelligent Tuning
   switch (chartType) {
     case 'pie_donut': {
@@ -79,6 +66,24 @@ export function optimizeSlotConfig(
       config.pieLeaderLineLength2 = 14;
       config.pieLabelDistance = 6;
       config.pieLineHeight = 15;
+
+      // Intelligent Legend Typography & Width
+      if (maxLabelLength > 25) {
+        config.legendWidth = 220;
+        config.legendLineHeight = 15;
+        config.legendItemGap = 12;
+        config.legendOverflow = 'break';
+      } else if (maxLabelLength > 15) {
+        config.legendWidth = 180;
+        config.legendLineHeight = 14;
+        config.legendItemGap = 10;
+        config.legendOverflow = 'break';
+      } else {
+        config.legendWidth = 150;
+        config.legendLineHeight = 14;
+        config.legendItemGap = 10;
+        config.legendOverflow = 'break';
+      }
 
       if (uniqueCategoryCount <= 5) {
         config.legendPosition = 'right';

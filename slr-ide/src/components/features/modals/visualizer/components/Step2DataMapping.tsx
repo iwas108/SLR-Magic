@@ -1,11 +1,54 @@
 import React from 'react';
 import { ArrowLeft, ArrowRight, Zap, Database } from 'lucide-react';
 import { CHART_TYPES_INFO } from '../constants/chartTypes';
+import { CUSTOM_GROUPING_KEY } from '../constants/defaultConfigs';
 import { useVisualizerContext } from '../context/VisualizerContext';
 import { SlotSwitcherBar } from './subcomponents/SlotSwitcherBar';
 import { CustomGroupingManager } from './subcomponents/CustomGroupingManager';
 import { BreakdownTablePanel } from './subcomponents/BreakdownTablePanel';
 import { LiveSplitPreview } from './subcomponents/LiveSplitPreview';
+
+function formatFieldLabel(f: string): string {
+  if (f === CUSTOM_GROUPING_KEY) return '✨ [Custom Grouping Layer]';
+  if (f.startsWith('ext:macro:')) return `Extracted: ${f.substring(10)} [Level 1: Macro Domain]`;
+  if (f.startsWith('ext:sub:')) return `Extracted: ${f.substring(8)} [Level 2: Sub-Category]`;
+  if (f.startsWith('raw:leaf:ext:') || f.startsWith('raw:tail:ext:')) return `Extracted: ${f.substring(13)} [Level 3: Raw Leaf Token (Tail after ':')]`;
+  if (f.startsWith('raw:ext:')) return `Extracted: ${f.substring(8)} [Level 3: Raw Tokens (Full String)]`;
+  if (f.startsWith('ext:')) return `Extracted: ${f.substring(4)} [Full Taxonomy String]`;
+  return f;
+}
+
+function renderFieldOptions(availableFields: string[]) {
+  const customGroupFields = availableFields.filter(f => f === CUSTOM_GROUPING_KEY);
+  const metadataFields = availableFields.filter(f => !f.startsWith('ext:') && !f.startsWith('raw:ext:') && !f.startsWith('raw:leaf:') && f !== CUSTOM_GROUPING_KEY);
+  const extractedFields = availableFields.filter(f => f.startsWith('ext:') || f.startsWith('raw:ext:') || f.startsWith('raw:leaf:'));
+
+  return (
+    <>
+      {customGroupFields.length > 0 && (
+        <optgroup label="✨ Custom Grouping Layer">
+          {customGroupFields.map(f => (
+            <option key={f} value={f}>{formatFieldLabel(f)}</option>
+          ))}
+        </optgroup>
+      )}
+      {extractedFields.length > 0 && (
+        <optgroup label="✨ Extracted Variables (3-Tier Taxonomy: Macro / Subcategory / Raw Leaf)">
+          {extractedFields.map(f => (
+            <option key={f} value={f}>{formatFieldLabel(f)}</option>
+          ))}
+        </optgroup>
+      )}
+      {metadataFields.length > 0 && (
+        <optgroup label="Standard Metadata Fields">
+          {metadataFields.map(f => (
+            <option key={f} value={f}>{formatFieldLabel(f)}</option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+}
 
 export function Step2DataMapping() {
   const { props, layout, config, data, workspace } = useVisualizerContext();
@@ -25,6 +68,8 @@ export function Step2DataMapping() {
     setSankeyFields,
     sankeyMaxNodes,
     setSankeyMaxNodes,
+    tailLabelStyle,
+    setTailLabelStyle,
     limitCategories,
     setLimitCategories,
     maxCategoriesCount,
@@ -90,9 +135,7 @@ export function Step2DataMapping() {
                 onChange={(e) => setPrimaryField(e.target.value)}
                 className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
               >
-                {availableFields.map((f: string) => (
-                  <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                ))}
+                {renderFieldOptions(availableFields)}
               </select>
             </div>
 
@@ -126,9 +169,7 @@ export function Step2DataMapping() {
                   onChange={(e) => setPrimaryField(e.target.value)}
                   className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
                 >
-                  {availableFields.map((f: string) => (
-                    <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                  ))}
+                  {renderFieldOptions(availableFields)}
                 </select>
               </div>
 
@@ -139,9 +180,7 @@ export function Step2DataMapping() {
                   onChange={(e) => setSecondaryField(e.target.value)}
                   className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
                 >
-                  {availableFields.map((f: string) => (
-                    <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                  ))}
+                  {renderFieldOptions(availableFields)}
                 </select>
               </div>
             </div>
@@ -175,9 +214,7 @@ export function Step2DataMapping() {
                 onChange={(e) => setPrimaryField(e.target.value)}
                 className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
               >
-                {availableFields.map((f: string) => (
-                  <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                ))}
+                {renderFieldOptions(availableFields)}
               </select>
             </div>
 
@@ -208,9 +245,7 @@ export function Step2DataMapping() {
                 onChange={(e) => setPrimaryField(e.target.value)}
                 className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
               >
-                {availableFields.map((f: string) => (
-                  <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                ))}
+                {renderFieldOptions(availableFields)}
               </select>
             </div>
 
@@ -242,9 +277,7 @@ export function Step2DataMapping() {
                   onChange={(e) => setPrimaryField(e.target.value)}
                   className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
                 >
-                  {availableFields.map((f: string) => (
-                    <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                  ))}
+                  {renderFieldOptions(availableFields)}
                 </select>
               ) : (
                 <select
@@ -319,9 +352,7 @@ export function Step2DataMapping() {
                   onChange={(e) => setPrimaryField(e.target.value)}
                   className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
                 >
-                  {availableFields.map((f: string) => (
-                    <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                  ))}
+                  {renderFieldOptions(availableFields)}
                 </select>
               </div>
 
@@ -332,9 +363,7 @@ export function Step2DataMapping() {
                   onChange={(e) => setSecondaryField(e.target.value)}
                   className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
                 >
-                  {availableFields.map((f: string) => (
-                    <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                  ))}
+                  {renderFieldOptions(availableFields)}
                 </select>
               </div>
             </div>
@@ -344,26 +373,61 @@ export function Step2DataMapping() {
         {/* 8. Dynamic Multi-Level Depth (Sankey Flow, Sunburst Ring & Treemap) */}
         {['sankey', 'sunburst', 'treemap'].includes(chartType) && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-xl">
+            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl">
               <span className="text-xs font-bold text-foreground">
                 {chartType === 'sankey' ? 'Sankey Flow' : chartType === 'sunburst' ? 'Sunburst Ring' : 'Treemap Tile'} Depth Levels
               </span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">Levels ({sankeyFields.length}):</span>
-                <button
-                  disabled={sankeyFields.length <= 2}
-                  onClick={() => setSankeyFields(sankeyFields.slice(0, sankeyFields.length - 1))}
-                  className="w-7 h-7 rounded-lg bg-secondary border border-border font-bold text-xs flex items-center justify-center disabled:opacity-40 hover:bg-secondary/80"
-                >
-                  -
-                </button>
-                <button
-                  disabled={sankeyFields.length >= 6}
-                  onClick={() => setSankeyFields([...sankeyFields, availableFields[0] || 'Unspecified'])}
-                  className="w-7 h-7 rounded-lg bg-secondary border border-border font-bold text-xs flex items-center justify-center disabled:opacity-40 hover:bg-secondary/80"
-                >
-                  +
-                </button>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* 1-Click Auto-Expand 3-Tier Hierarchy Preset */}
+                {availableFields.some(f => f.startsWith('ext:macro:')) && (
+                  <div className="flex items-center gap-1.5 bg-card border border-amber-500/30 rounded-lg px-2 py-1 shadow-sm">
+                    <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
+                    <span className="text-[10.5px] font-bold text-amber-600 dark:text-amber-400">⚡ Auto-Expand 3-Tier Hierarchy:</span>
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const k = e.target.value;
+                          setSankeyFields([
+                            `ext:macro:${k}`,
+                            `ext:sub:${k}`,
+                            `raw:leaf:ext:${k}`
+                          ]);
+                          e.target.value = '';
+                        }
+                      }}
+                      className="bg-secondary/40 border border-border rounded px-1.5 py-0.5 text-[11px] font-extrabold text-foreground focus:outline-none focus:border-primary"
+                    >
+                      <option value="" disabled>Select Extracted Variable...</option>
+                      {Array.from(new Set(
+                        availableFields
+                          .filter(f => f.startsWith('ext:macro:'))
+                          .map(f => f.substring(10))
+                      )).map(k => (
+                        <option key={k} value={k}>{k}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Levels ({sankeyFields.length}):</span>
+                  <button
+                    disabled={sankeyFields.length <= 2}
+                    onClick={() => setSankeyFields(sankeyFields.slice(0, sankeyFields.length - 1))}
+                    className="w-7 h-7 rounded-lg bg-secondary border border-border font-bold text-xs flex items-center justify-center disabled:opacity-40 hover:bg-secondary/80"
+                  >
+                    -
+                  </button>
+                  <button
+                    disabled={sankeyFields.length >= 6}
+                    onClick={() => setSankeyFields([...sankeyFields, availableFields[0] || 'Unspecified'])}
+                    className="w-7 h-7 rounded-lg bg-secondary border border-border font-bold text-xs flex items-center justify-center disabled:opacity-40 hover:bg-secondary/80"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -382,27 +446,45 @@ export function Step2DataMapping() {
                     }}
                     className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
                   >
-                    {availableFields.map((f: string) => (
-                      <option key={f} value={f}>{f.startsWith('ext:') ? `Extracted: ${f.substring(4)}` : f}</option>
-                    ))}
+                    {renderFieldOptions(availableFields)}
                   </select>
 
-                  <div className="flex items-center justify-between pt-1">
-                    <label className="text-[10px] font-bold text-muted-foreground">
-                      Max Nodes (Top N):
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={50}
-                      placeholder="Unlimited"
-                      value={sankeyMaxNodes[idx] || ''}
-                      onChange={(e) => {
-                        const val = e.target.value ? Math.max(0, Number(e.target.value)) : 0;
-                        setSankeyMaxNodes({ ...sankeyMaxNodes, [idx]: val });
-                      }}
-                      className="w-24 bg-card border border-border rounded-md px-2 py-0.5 text-[11px] font-bold text-foreground text-right focus:outline-none focus:border-primary"
-                    />
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-muted-foreground">
+                        Max Nodes (Top N):
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={50}
+                        placeholder="Unlimited"
+                        value={sankeyMaxNodes[idx] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value ? Math.max(0, Number(e.target.value)) : 0;
+                          setSankeyMaxNodes({ ...sankeyMaxNodes, [idx]: val });
+                        }}
+                        className="w-24 bg-card border border-border rounded-md px-2 py-0.5 text-[11px] font-bold text-foreground text-right focus:outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    {Number(sankeyMaxNodes[idx]) >= 2 && (
+                      <div className="flex items-center justify-between pt-0.5">
+                        <label className="text-[10px] font-bold text-muted-foreground">
+                          Tail Label Style:
+                        </label>
+                        <select
+                          value={tailLabelStyle || 'comma_list'}
+                          onChange={(e) => setTailLabelStyle(e.target.value as any)}
+                          className="bg-card border border-border rounded-md px-1.5 py-0.5 text-[10px] font-bold text-foreground focus:outline-none focus:border-primary max-w-[130px]"
+                        >
+                          <option value="comma_list">Comma List (A, B)</option>
+                          <option value="other_count">Other (K items)</option>
+                          <option value="other_items">Other: Items...</option>
+                          <option value="plain_other">Plain "Other"</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -467,24 +549,14 @@ export function Step2DataMapping() {
         {/* Dynamic Real Data Breakdown Table Component */}
         <BreakdownTablePanel />
 
-        {/* Cell Value & Extraction Controls */}
-        <div className="p-4 bg-secondary/20 border border-border/80 rounded-xl space-y-3 pt-3">
-          <span className="text-[10px] font-extrabold uppercase text-primary block">
-            Cell & Extraction Value Treatment
+        {/* Streamlined Extraction & Cell Treatment Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-secondary/20 border border-border/80 rounded-xl">
+          <span className="text-xs font-bold text-foreground">
+            Data Processing Options
           </span>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
-              <input
-                type="checkbox"
-                checked={useUmbrellanizer}
-                onChange={(e) => setUseUmbrellanizer(e.target.checked)}
-                className="rounded border-border text-primary"
-              />
-              Umbrellanizer Taxonomy
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground hover:text-primary">
               <input
                 type="checkbox"
                 checked={splitMultiValues}
@@ -494,7 +566,7 @@ export function Step2DataMapping() {
               Split Multi-Value Cells
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground hover:text-primary">
               <input
                 type="checkbox"
                 checked={excludeEmpty}

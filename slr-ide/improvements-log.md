@@ -1,3 +1,387 @@
+## #440 - Drop Umbrellanizer Taxonomy Mapping on Specific Key & Interactive UI (2026-08-24)
+- **Goal**: Implement backend API and intuitive user interface in `slr-ide` to drop, clear, and delete the Post-Pipeline Token Umbrellanizer taxonomy mapping for any specific extracted variable key, ensuring strict multi-project database isolation (`agents.md` §3.8), multi-tab synchronization (`agents.md` §3.3), and seamless UI integration across table headers, setup wizards, and quick overview modals.
+- **Architectural Implementation**:
+  1. **Isolated Deletion Endpoint (`src/app/api/umbrellanizer/route.ts`)**:
+     - Added `DELETE` method handler accepting `projectId` / `project_id` and `key` / `extracted_data_key` via query parameters and JSON body fallback.
+     - Enforces type-agnostic multi-project scoping: `DELETE FROM umbrellanizer_results WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT)) AND extracted_data_key = ?`.
+  2. **Custom Hook State Management (`src/hooks/useUmbrellanizer.ts`)**:
+     - Implemented `dropUmbrellanizerKey(key: string)`: invokes `DELETE /api/umbrellanizer`, reloads data via `loadData()`, broadcasts multi-tab sync (`broadcastSync('SYNC_PAPERS')`), and provides toast feedback.
+  3. **Interactive Main Table UI & Confirmation Modal (`UmbrellanizerView.tsx`)**:
+     - Added dynamic `Mapped` / `Running` badges to each extracted key column header in `UmbrellanizerView`.
+     - Integrated a dedicated "Drop Mapping" action button (`Trash2`) on mapped keys that triggers a standalone confirmation modal detailing the exact effects before performing deletion.
+  4. **Wizard & Quick Overview Integration (`UmbrellanizerWizard.tsx`, `QuickOverviewModal.tsx`)**:
+     - In `UmbrellanizerWizard` Step 1: added active taxonomy mapping status banner with an inline "Drop Existing Mapping" action when selecting an already mapped key.
+     - In `QuickOverviewModal`: added a drop button next to category count in accordion headers, allowing users to reset mappings directly from the overview modal.
+  5. **Automated Verification Suite (`scripts/test-umbrellanizer-drop.mjs`)**:
+     - Built test suite verifying single-key deletion, multi-project isolation (ensuring other projects' keys are untouched), and clean re-execution lifecycle.
+- **Verification**: Executed `node scripts/test-umbrellanizer-drop.mjs` (100% passed); executed `node scripts/test-umbrellanizer-trace.mjs` (100% passed); executed `node scripts/test-mockup-review.mjs` (66/66 passed); verified TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #439 - LLM Context Builder Checkbox State Consistency & Dynamic Token Recalculation (2026-08-24)
+- **Goal**: Fix state inconsistency in the **LLM Context Builder** modal within `slr-ide` where toggling off "Baked Statistics & Ground-Truth Directives" left child directives enabled in the generated JSON, auto-disable all child checkboxes when Baked Statistics is disabled and restore defaults when enabled, enable child-to-parent synchronization, dynamically adapt `schema_legend` to active components, and guarantee real-time Est. Tokens recalculation across every checkbox toggle.
+- **Architectural Implementation**:
+  1. **Master Toggle & Parent-Child Auto-Synchronization (`LlmContextBuilderModal.tsx`)**:
+     - Implemented `handleToggleBakedStats(checked)`: when toggled off (`false`), automatically sets all 6 child options (`includeLlmDirectives`, `includeCohortStats`, `includeVariableDistributions`, `includeCategoryPaperMappings`, `includeNotStatedMetrics`, `includeRawTokenFrequencies`) to `false`. When toggled on (`true`), restores default active child states.
+     - Implemented `handleChildToggle(id, checked)`: cascading sub-child deactivation when `variableDistributions` is turned off, and bi-directional auto-sync (if all child options are unchecked, parent turns off; if any child is checked, parent turns on).
+  2. **UI Disabled Rendering & Visual Accessibility (`LlmContextBuilderModal.tsx`)**:
+     - Maintained persistent rendering of child checkboxes in the DOM with `disabled={isDisabled}`, styled with `opacity-50 cursor-not-allowed` when parent is off or when sub-options are disabled.
+     - Disabled Decimal Precision controls and example badges when `!includeBakedStats`.
+  3. **Strict Payload Guarding & Dynamic Schema Legend (`LlmContextBuilderModal.tsx`)**:
+     - Guarded `payload.llm_directives` and `payload.baked_statistics` with `if (includeBakedStats && ...)`.
+     - Completely omitted excluded keys (`citation`, `quality_assessment`, `extracted_data`) from every item in `payload.papers` when unchecked.
+     - Dynamically generated `payload.system_context.schema_legend` including the top-level `papers` array definition (`Array of individual paper records in the cohort containing bibliographic details, quality appraisal scores, and extracted variables`), `paper_id`, `citation`, `quality_assessment`, `extracted_data` (with sub-components), `baked_statistics`, and `llm_directives` strictly reflecting active components.
+     - Reactive `payloadStats` (`estimatedTokens` and `sizeKb`) updates instantly across the preview bar and modal footer upon every checkbox change.
+  4. **Automated Unit & Anti-Regression Testing (`scripts/test-llm-context-state.mjs`)**:
+     - Built test suite verifying parent toggle deactivation, defense-in-depth output guarding, sub-child cascading, dynamic Est. Tokens variation across all checkbox groups, and dynamic schema legend fidelity with `papers` key definition.
+- **Verification**: Executed `node scripts/test-llm-context-state.mjs` (5/5 tests passed with 100% success); executed `node scripts/test-llm-context-decimal.mjs` (4/4 passed); verified TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #438 - Total Refactor: Unified Scientific Visualization Studio & Rich Chart Customization Suite (2026-08-24)
+- **Goal**: Total architectural overhaul of the Final Cohort Visualizer in `slr-ide`, removing all redundant wizard steps and UI friction in favor of a unified **Live Scientific Visualization Studio** with direct center-stage canvas preview, a 5-tab integrated inspector dock (`[📊 Data & Fields]`, `[📐 Layout & Type]`, `[🔬 Fine-Tuning]`, `[🎨 Style & Reviewer]`, `[💾 Export & Proofing]`), full interactive parameter controls for all 18 scientific chart types (Line, Treemap, Heatmap, Radar, Funnel, Boxplot, Scatter & Bubble, Graph, Gauge, Calendar, Vertical Bar, Stacked Bar, Pie/Donut, etc.), strict compliance with `agents.md` Section 3.10 Cohort Metrics Protocol (Paper Prevalence vs Tag Share, Hare-Hamilton largest remainder quota balancing), and comprehensive tree-shaking.
+- **Architectural Implementation**:
+  1. **Unified Reactive Workbench Architecture (`VisualizerStudio.tsx`, `VisualizerModal.tsx`, `VisualizerHeader.tsx`)**:
+     - Eliminated the disjoint 4-step wizard stepper (`Step1ChartSelector`, `Step2DataMapping`, `Step3StyleCustomization`, `Step4PreviewStage`) in favor of a single high-productivity IDE workspace.
+     - Center Stage hosts the real-time ECharts multi-panel canvas with print-safe margin guides, interactive canvas zoom/fit toolbar, and aspect-ratio mathematical frame constraints.
+     - Side Inspector Dock organizes full customization across 5 dedicated tabs with zero-latency live updates on every control input.
+  2. **Comprehensive Chart Parameter Generators & Controls Expansion (`generators/`, `ChartConfigPanels.tsx`, `types.ts`, `useVisualizerConfig.ts`)**:
+     - **Line & Trend Plots**: Added cubic spline interpolation toggle, line stroke width slider ($1\text{px}-6\text{px}$), point marker visibility & size ($4\text{px}-16\text{px}$), area fill opacity ($0\%-60\%$), and step line transitions (`none`, `start`, `middle`, `end`).
+     - **Pie & Donut Plots**: Added Nightingale Rose modes (`none`, `radius`, `area`), pad angles ($0^\circ-8^\circ$), slice corner radii ($0\text{px}-12\text{px}$), donut hole ratio ($0\%-80\%$), outer radius ratio ($30\%-85\%$), and leader line length adjustments.
+     - **Treemap Hierarchy**: Added layout algorithms (`squarified`, `sliceAndDice`, `binary`), visible hierarchy depth limits, tile border width, and inter-tile gap width.
+     - **Heatmap Density**: Added 5 scientific color palettes (`academic`, `viridis`, `plasma`, `thermal`, `coolwarm`) and cell corner radius controls.
+     - **Radar & Spider QA**: Added geometry options (`polygon` multi-axis vs `circle` concentric rings), concentric split ring count ($3-8$), polygon area opacity ($5\%-60\%$), and stroke width.
+     - **Funnel Attrition**: Added alignment (`center`, `left`, `right`), inter-stage spacing gap, base neck width ($10\%-60\%$), and neck height ($10\%-50\%$).
+     - **Boxplot Quartile Dispersion**: Added orientation (`vertical` vs `horizontal`), box width ($15\text{px}-60\text{px}$), and transparent jittered scatter overlay plotting individual study data points.
+     - **Scatter & Bubble**: Added point size ($4\text{px}-24\text{px}$), bubble scale multiplier, point opacity ($20\%-100\%$), and statistical trend overlay models (Linear Ordinary Least Squares OLS Fit vs Cohort Horizontal Mean Reference).
+     - **Network Graph**: Added force physics controls including repulsion force ($40-300$), link edge distance ($40\text{px}-200\text{px}$), center gravity ($0.01-0.5$), and edge curveness ($0.0-0.5$).
+     - **Gauge Dial**: Added scale maximum targets, start/end angles ($180^\circ-270^\circ$ to $-90^\circ-0^\circ$), pointer width ($2\text{px}-12\text{px}$), and dial thickness ($6\text{px}-28\text{px}$).
+     - **Calendar Grid**: Added cell size ($10\text{px}-24\text{px}$) and annual year range filter.
+     - **Stacked Bar**: Added $100\%$ Normalized Stack Share mode dynamically scaling all category stacks to $100\%$ height for proportion comparison.
+  3. **Strict Scientific Data Visualization Correctness (`agents.md` §3.10)**:
+     - Preserved exact mathematical distinctions between **Unique Paper Prevalence** ($n/N_{cohort}$) and **Tag Share Distribution** ($k/\text{TotalTags}$ with Hare-Hamilton largest remainder quota balancing).
+     - Standardized canonical taxonomy normalization to prevent substring token collisions.
+     - Enforced stage-awareness and multi-project data isolation.
+  4. **Extensive Tree Shaking & Optimization**:
+     - Removed redundant subcomponent boilerplate, cleaned up orphaned props and imports, unified context bindings, and enhanced keyboard ergonomics.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 tests passed with 100% success); executed `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed); verified Next.js production build (`npm run build`) and TypeScript type integrity (`npx tsc --noEmit`).
+
+## #437 - Publication Visualizer Journal Aspect Ratio & Chart Fitting Point Refactor (2026-08-24)
+- **Goal**: Refactor Step 4 ("Visualize & Export") in the SLR Cohort Visualizer to strictly adhere to Journal Column Aspect Ratios (16:9 Double Column 190mm, 16:10 140mm Academic, 4:3 Single Column 90mm, 3:2 Standard, 1:1 Square Panel 90mm, 21:9 Ultra-Wide, Custom mm/in/px) inside the preview container without CSS stretching distortion, and empower researchers to dynamically adjust the chart fitting center point, focal offsets, safe margins, and print-safe boundary guides.
+- **Architectural Implementation**:
+  1. **Dynamic Container-Contained Aspect Ratio Geometry Engine (`Step4PreviewStage.tsx`, `exportUtils.ts`)**:
+     - Replaced brittle CSS aspect ratio classes (`w-full max-h-full`) with a mathematical container fitting engine measured dynamically via `ResizeObserver`.
+     - Computes exact pixel dimensions $(W_{fit}, H_{fit})$ fitting $100\%$ within the stage viewport based on target aspect ratio $R = W_{target} / H_{target}$ without viewport overflow or flex distortion.
+  2. **Interactive 9-Point Focal Anchor Target Pad & Nudge Controls (`useVisualizerCamera.ts`, `ExportPanel.tsx`, `CameraControlsOverlay.tsx`)**:
+     - Introduced `FittingAnchor` union (`top-left`, `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right`) and `setFittingAnchor(anchor)`.
+     - Built an interactive 3x3 clickable anchor grid in the Export Panel and a floating on-canvas Placement Pad in `CameraControlsOverlay`.
+     - Added continuous precision sliders for Focal Center Offset X ($-50\%$ to $+50\%$), Focal Center Offset Y ($-50\%$ to $+50\%$), and Container Safe Inset ($0\text{px}$ to $40\text{px}$).
+     - Applied clean slot-level chart zoom (`transform: scale(...)` on the chart slot wrapper) so Zoom In/Out scales the chart cleanly within its publication frame without altering generator formulas.
+  3. **Universal Chart Generator Center & Bounds Inset Fitting (`generators/`)**:
+     - Maintained pristine standard mathematical formulas across all chart generators (`hierarchicalGenerators.ts`, `proportionsGenerators.ts`, `categoricalBarGenerators.ts`, `clusteredBarGenerators.ts`, `trendLineGenerators.ts`, `matrixGenerators.ts`, `correlationGenerators.ts`, `kpiNetworkGenerators.ts`), applying `fitOffsetX`, `fitOffsetY`, and `containerPadding` directly to focal centers and grid boundaries.
+  4. **Publication Print-Safe Guides & 1-Click Smart Auto-Fit (`Step4PreviewStage.tsx`, `ExportPanel.tsx`, `CameraControlsOverlay.tsx`)**:
+     - Added visual print-safe margin guide overlays (dashed bounding boxes) showing printable safe areas with live resolution readouts.
+     - Integrated 1-click Smart Auto-Fit that automatically computes optimal scale, legend offsets, and focal centering based on active chart geometry.
+  5. **Preset Serialization & Vector PDF/SVG Export Pipeline Parity (`useVisualizerPresets.ts`, `exportUtils.ts`, `useChartCanvas.ts`)**:
+     - Enhanced preset JSON schema v3.0 export and import hydration with `fitOffsetX`, `fitOffsetY`, and `containerPadding`.
+     - Standardized native off-screen multi-panel composite exporter to apply custom container padding and fitting coordinates across PNG, SVG, and PDF exports.
+  6. **Anti-Regression Testing (`scripts/test-visualizer-anti-regression.mjs`)**:
+     - Added Test 19 verifying journal aspect ratio geometry math, 9-point anchor mappings, container-contained dimension calculations, and preset round-trip fidelity.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 tests passed with 100% success); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #436 - Configurable Reporting Decimal Precision in LLM Context Builder (2026-08-23)
+- **Goal**: Allow reviewers to dynamically adjust the reporting decimal number (0, 1, 2, 3, or 4 decimal places, defaulting to 2) for all statistical metrics (tag share percentages, unique paper prevalences, QA compliance pass rates, year/author/publisher distributions, and not-stated rates) in the **LLM Context Builder** modal within `slr-ide`, with Hare-Hamilton Largest Remainder 100% quota balancing and persistent `localStorage` preference retention.
+- **Architectural Implementation**:
+  1. **Dynamic Decimal Hare-Hamilton Quota Balancing (`src/lib/services/cohort-metrics.ts`)**:
+     - Upgraded `calculateHareHamiltonPercentages(counts, targetSum, decimals)` to accept dynamic precision $D \in [0, 4]$, scaling by $10^D$ and unit step $10^{-D}$ to guarantee exact 100% quota sum balancing without floating-point accumulation errors.
+     - Upgraded `calculateCohortVariableMetrics` to support `decimalPrecision` option.
+  2. **Reactive Precision State & Persistent Local Storage (`src/components/features/modals/LlmContextBuilderModal.tsx`)**:
+     - Added `decimalPrecision` state initialized from `localStorage.getItem('slr_llm_context_decimal_precision')` (falling back to `2`).
+     - Added `handleDecimalPrecisionChange` syncing updates to `localStorage`.
+     - Implemented `formatPct(count, total, decimals)` helper for consistent statistical rate rounding across cohort summary, QA criteria compliance, author/publisher prevalences, category prevalence, and not-stated metrics.
+  3. **Polished Modal UI Controls & Live Preview**:
+     - Added compact segmented pill buttons `[0, 1, 2, 3, 4]` inside the **Baked Statistics & Ground-Truth Directives** section.
+     - Added dynamic example preview badge (e.g., `Example: 45.25%`, `Example: 45.250%`) rendering live formatted sample output.
+     - Updated bottom status bar with active precision counter (`Enabled (X decs)`).
+  4. **Automated Unit & Anti-Regression Testing (`scripts/test-llm-context-decimal.mjs`)**:
+     - Built test suite verifying Hare-Hamilton quota balancing across 0, 1, 2, 3, 4 decimal places, precision formatting, and JSON payload synthesis.
+- **Verification**: Executed `node scripts/test-llm-context-decimal.mjs` (4/4 tests passed with 100% success); executed `node scripts/test-umbrellanizer-trace.mjs` (100% passed); executed `node scripts/test-scientific-rigor-export.mjs` (5/5 passed); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #435 - PRISMA 2020 Flowchart & Visualizer Multi-Panel Vector SVG & PDF Publication Exporters (2026-08-23)
+- **Goal**: Implement publication-grade, high-fidelity **Vector SVG** and **Vector PDF** export capabilities alongside **PNG** for both the **PRISMA 2020 Flowchart** in the Scientific Rigor panel and all **Visualizer & Multi-Panel Figures**, empowering researchers to download lossless, camera-ready vector graphics with selectable text and infinite zoom for Scopus Q1, IEEE, ACM, and Elsevier journal submissions.
+- **Architectural Implementation**:
+  1. **Dedicated PRISMA Vector SVG Generator (`src/lib/services/prisma-svg-generator.ts`)**:
+     - Built a pure TypeScript vector SVG generator that computes identical dynamic layout coordinates, text wrapping, rounded card rectangles, theme styling (App Theme vs Journal Monochrome), and directional arrow connectors.
+     - Preserves clean PRISMA 2020 standard top-left padding flow, exact coordinate margins (`leftPhaseLabelX = 80`), and centered title case headers (`Identification of studies via databases and registers` & `Identification of studies via other methods`).
+     - Generates valid, standalone XML strings directly editable in Adobe Illustrator and embeddable in LaTeX documents (`\includesvg`).
+  2. **Vector PDF Export Engine (`src/lib/services/pdf-export-service.ts`)**:
+     - Integrated `jspdf` (`^2.5.2`) and `svg2pdf.js` (`^2.2.4`) to convert pure SVG DOM structures into vector PDF streams with selectable text and infinite zoom fidelity.
+     - Applied exact zero-margin borderless *Fit-to-Figure* page aspect ratio matching (`marginMm = 0`) for tight camera-ready PDF document bounding boxes.
+  3. **Interactive Multi-Format UI Controls in PRISMA Flowchart (`PrismaFlowDiagram.tsx`)**:
+     - Upgraded the top header action bar with a unified export dropdown allowing instant 1-click downloads for **PNG** (high-resolution raster), **SVG** (vector LaTeX), and **PDF** (camera-ready document).
+  4. **Visualizer & Multi-Panel Chart Exporter Expansion (`exportUtils.ts`, `ExportPanel.tsx`, `useChartCanvas.ts`, `types.ts`)**:
+     - Added `'pdf'` to the `ExportFormat` union type (`'png' | 'svg' | 'pdf'`).
+     - Enhanced `exportFigure` (single subfigures) and `exportMultiPanelFigure` (multi-panel composites) with vector PDF output pipelines.
+     - Added a 3-column format selector in the Visualizer Export Panel (`PNG`, `SVG`, `PDF`).
+- **Verification**: Verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #434 - Scope Scientific Rigor Prompt Templates to Project Active Defaults (2026-08-22)
+- **Goal**: Scope `prompt_optimization_data.prompt_templates` in the SLR-IDE Scientific Rigor dataset export (`/api/insight/scientific-rigor`) to strictly include only the active default prompt template for each stage in the current project, filtering out unselected and unused global default templates.
+- **Architectural Implementation**:
+  1. **Strict Active Default Template Resolution (`src/app/api/insight/scientific-rigor/route.ts`)**:
+     - Replaced the broad SQL query (`WHERE project_id = ? OR project_id IS NULL`) with deterministic resolution across all 8 pipeline prompt types (`fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`, `prompt_optimizer`, `consolidation_audit`, `duplicate_review`).
+     - For each prompt type, resolves the active template via: (1) project-mapped default in `project.llm_config.default_prompts`, (2) active custom project prompt, (3) active global baseline template, or (4) canonical codebase fallback.
+     - Guarantees exactly 1 active default template per prompt type in `prompt_optimization_data.prompt_templates`.
+  2. **Anti-Regression Testing (`scripts/test-scientific-rigor-export.mjs`)**:
+     - Added Test 5 asserting that `prompt_optimization_data.prompt_templates` contains exactly 8 active default templates, correctly resolves custom project defaults without leaking unused global records, and preserves unique prompt type coverage.
+- **Verification**: Executed `node scripts/test-scientific-rigor-export.mjs` (5/5 passed with 100% success); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #433 - Dynamic Real Temperatures, Thinking Levels & Reasoning in Scientific Rigor Export (2026-08-22)
+- **Goal**: Replace outdated hardcoded deterministic temperature text in the SLR-IDE Scientific Rigor dataset export (`/api/insight/scientific-rigor`) with dynamic per-stage real temperatures, reasoning thinking levels, active model identifiers, interaction chaining flags, and ideal reasoning state rationale mapped from project and global prompt library specifications.
+- **Architectural Implementation**:
+  1. **Dynamic Model, Temperature & Thinking Level Resolution (`src/app/api/insight/scientific-rigor/route.ts`)**:
+     - Updated `llmNarrativeGuidelines.ai_technical_disclosure_directives.disclosure_instructions[0]` to dynamically resolve and format active model identifiers, real operating temperatures, thinking levels, and chaining settings across Stage 1 Fast Filter, Stage 2 Gatekeeper, Stage 3 Scientist, Stage 4 Miner, and Stage 5 Umbrellanizer from resolved prompt specifications.
+     - Replaced the static `"Emphasize deterministic temperature (T = 0.0)"` text with generic rationale explaining that operating temperatures and thinking levels were configured according to recommended prompt specifications to ensure the model operates in its ideal reasoning state while maintaining reproducible evaluation and high extraction fidelity.
+     - Added cross-reference to the full technical specifications appendix table for auxiliary engines (deduplication, prompt optimization, consolidation audit).
+  2. **Anti-Regression Testing (`scripts/test-scientific-rigor-export.mjs`)**:
+     - Added Test 4 verifying dynamic LLM narrative guidelines generation, ensuring obsolete hardcoded strings are purged and that custom/canonical prompt hyperparameters and reasoning rationales are faithfully mapped.
+- **Verification**: Executed `node scripts/test-scientific-rigor-export.mjs` (4/4 passed with 100% success); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #432 - Publication Visualizer Legend Width, Line Height & Visual Refinement Controls (2026-08-20)
+- **Goal**: Empower researchers to refine visual typography and geometry across all publication charts in SLR-IDE by introducing fine-grained controls for Legend Text Width, Legend Line Height, Legend Item Spacing / Gap, Independent Legend Font Size, Text Overflow Wrapping Modes, and Dynamic Centering Geometry.
+- **Architectural Implementation**:
+  1. **Config & Types Expansion (`types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`)**:
+     - Added `legendWidth?: number;`, `legendLineHeight?: number;`, `legendItemGap?: number;`, `legendFontSize?: number;`, and `legendOverflow?: 'break' | 'truncate' | 'none';` to `SlotConfig` and `VisualizerPresetPayload`.
+     - Initialized default values in `createDefaultSlotConfig` and exposed reactive hooks and setters in `useVisualizerConfig`.
+  2. **Option Generation & Typography Engine (`generators/index.ts`, `generators/types.ts`, `VisualizerProvider.tsx`)**:
+     - Updated `buildChartOption` to configure `baseLegend` with `itemGap`, `textStyle.width`, `textStyle.lineHeight`, `textStyle.fontSize`, and `textStyle.overflow`.
+     - Routed all slot-specific and global configurations through `VisualizerProvider.tsx`.
+  3. **Collision-Free Geometry & Dynamic Centering (`generators/proportionsGenerators.ts`, `generators/clusteredBarGenerators.ts`, `generators/hierarchicalGenerators.ts`)**:
+     - Enhanced `generatePieDonutOption` to dynamically adjust `centerX` and outer radius according to `legendWidth` and `legendPosition`, preventing slice collisions on wide multi-line legends.
+     - Enhanced `generateClusteredBarOption` and `generateSunburstOption` to dynamically calculate grid margins and center coordinates.
+  4. **Smart Auto-Optimizer & Preset Compatibility (`utils/smartOptimizer.ts`, `useVisualizerPresets.ts`)**:
+     - Updated `optimizeSlotConfig` to automatically configure appropriate `legendWidth`, `legendLineHeight`, `legendItemGap`, and `legendOverflow` according to category text length (`maxLabelLength`).
+     - Added full preset serialization and backward-compatible hydration in `useVisualizerPresets.ts`.
+  5. **Polished UI Controls (`components/Step3StyleCustomization.tsx`)**:
+     - Added dedicated **Legend Typography, Width & Multi-line Wrapping** control card featuring quick preset buttons for Width (`Auto`, `140px`, `180px`, `220px`, `280px`, `340px`), Line Height (`Tight 12px`, `Standard 15px`, `Relaxed 18px`, `Spaced 22px`), Item Spacing (`Compact 6px`, `Standard 12px`, `Spaced 18px`, `Wide 26px`), Font Size, and Overflow Mode.
+  6. **Anti-Regression Testing (`scripts/test-visualizer-anti-regression.mjs`)**:
+     - Added Test 17 verifying legend width, line height, item gap, font size, and overflow configurations in ECharts options and preset serialization roundtrip.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (17/17 passed with 100% success); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #431 - Fix Final Cohort Visualization Decimal Precision & Statistical Granularity Propagation (2026-08-19)
+- **Goal**: Fix the bug in SLR-IDE Final Cohort Visualization where user changes to "Decimal Precision" (e.g. changing from 1 decimal to 0 decimals or 2 decimals) in Step 3 Style Customization were ignored by the charts and rendered with hardcoded 1 decimal place.
+- **Root Cause**:
+  1. `smartOptimizer.ts` (`optimizeSlotConfig`) unconditionally assigned `config.decimalPrecision = 1` (or `0`), `config.useTildeForCoarse = false`, and `config.ratioStyle = 'fraction'` directly onto `SlotConfig` in `slotsConfig[slotId]`.
+  2. In `VisualizerProvider.tsx`, `generateSlotOption` evaluated `slotConfig.decimalPrecision !== undefined ? slotConfig.decimalPrecision : style.decimalPrecision`. Because `slotConfig.decimalPrecision` was permanently populated with `1`, `VisualizerProvider` completely shadowed and ignored the global `style.decimalPrecision` set by the user in Step 3.
+  3. Trend Line generator lacked `formattedLabel` computation, preventing line charts from consistently reflecting precision controls when data labels were enabled.
+- **Architectural Implementation**:
+  1. **Decouple Global Statistical Granularity from Slot Configuration (`src/components/features/modals/visualizer/utils/smartOptimizer.ts`)**:
+     - Removed slot-level hardcoding of `config.decimalPrecision`, `config.useTildeForCoarse`, and `config.ratioStyle` from `optimizeSlotConfig`, preserving them as `undefined` on `SlotConfig` to inherit figure-wide reviewer standards from `style`.
+  2. **Single Source of Truth in Option Generator (`src/components/features/modals/visualizer/context/VisualizerProvider.tsx`)**:
+     - Updated `generateSlotOption` to route `decimalPrecision: style.decimalPrecision`, `useTildeForCoarse: style.useTildeForCoarse`, `ratioStyle: style.ratioStyle`, and `forceCohortDenominator: style.forceCohortDenominator` directly from `style`.
+  3. **Trend Line Formatted Label Parity (`src/components/features/modals/visualizer/generators/trendLineGenerators.ts`)**:
+     - Integrated `formatMetricDisplay` into `generateLineOption` data mapping and bound `label.formatter: (params) => params.data?.formattedLabel ?? params.value`.
+  4. **Automated Unit Testing (`scripts/test-visualizer-anti-regression.mjs`)**:
+     - Added Test 16 verifying that switching Decimal Precision across 0, 1, and 2 decimals in `style` is strictly propagated and formatted across all visualizer options and templates.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (16/16 passed with 100% success); executed `npx tsc --noEmit` (Exit Code 0).
+
+## #430 - Fix Umbrellanizer spawn ENAMETOOLONG via File-Based Token Payload Dispatch (2026-08-19)
+- **Goal**: Fix the `spawn ENAMETOOLONG` crash when launching the Post-Pipeline Token Umbrellanizer LLM run on datasets with extensive tokens, verbatim manuscript quotes, and extraction logic traces.
+- **Root Cause**: On Windows systems, `child_process.spawn()` enforces the OS command line length limit (max 32,767 characters). Passing hundreds of rich token objects with full verbatim manuscript quotes directly as serialized CLI arguments (`--rich-tokens "..."` and `--raw-tokens "..."`) exceeded the command line buffer limit.
+- **Architectural Implementation**:
+  1. **Temporary JSON Payload Serialization (`src/app/api/umbrellanizer/route.ts`)**:
+     - Route now writes `{ rawTokens, richTokens }` into a temporary JSON file (`.tmp/umbrellanizer_payload_${jobId}.json`) and passes `--payload-file <filePath>` to `main.py`.
+     - Automatically cleans up the temporary file on child process completion via `child.on('close')`.
+  2. **Python Engine Payload File Ingestion (`python_engine/llm/main.py`, `python_engine/llm/umbrellanizer.py`)**:
+     - Added `--payload-file` argument to both `main.py` and `umbrellanizer.py`.
+     - Added support for loading from file paths across `--payload-file`, `--rich-tokens`, and `--raw-tokens` arguments.
+  3. **Verification (`scripts/test-umbrellanizer-trace.mjs`)**:
+     - Added automated unit test verifying payload file serialization, deserialization, and cleanup under Windows filesystem boundaries.
+
+## #429 - Umbrellanizer Rich Evidence & Extraction Logic Trace Context Enhancement (2026-08-19)
+- **Goal**: Significantly boost the precision, accuracy, and semantic grounding of the Post-Pipeline Token Umbrellanizer LLM API call by bundling verbatim paper evidence quotes and Miner extraction logic traces alongside each raw token, update Jinja2 placeholders with dual backward compatibility, auto-update canonical and project default prompts, add stage-aware Available Jinja2 Context Variables helper with token documentation in Prompt Library, and harden dynamic token harvesting across Python and TypeScript runtimes.
+- **Architectural Implementation**:
+  1. **Canonical Stage Prompts & Auto-Update Protocol (`src/lib/services/prompt-defaults.ts`, `src/lib/db/db-init.ts`)**:
+     - Updated `CANONICAL_STAGE_PROMPTS.umbrellanizer` with explicit instructions on analyzing verbatim evidence quotes and extraction logic traces to disambiguate domain-specific terms into canonical umbrella families.
+     - Updated canonical template to use `{{ raw_tokens_with_context }}` (while documenting `{{ raw_tokens }}`).
+     - Updated `initializeDatabase()` in `db-init.ts` to automatically synchronize global canonical default templates (`default-umbrellanizer`) with codebase definitions on startup while safely preserving custom user prompts.
+  2. **Rich Token Harvesting & Aggregation (`src/hooks/useUmbrellanizer.ts`)**:
+     - Exported `UniqueTokenWithContext` interface.
+     - Updated `getUniqueTokens(key)` to extract and deduplicate `evidence_quotes` (using `extractEvidenceQuote` from `@/lib/services/trace-normalizer`) and `logic_traces` (using `extractMappingReasoning` from `@/lib/services/trace-normalizer`) across all cohort papers.
+     - Updated `runUmbrellanizer` to pass `richTokens` to `/api/umbrellanizer`.
+  3. **Backend API & Python Execution Engine Hardening (`src/app/api/umbrellanizer/route.ts`, `python_engine/llm/main.py`, `python_engine/llm/umbrellanizer.py`, `prompt-hydrator.ts`)**:
+     - Updated Next.js route to accept `richTokens` in POST payload and forward `--rich-tokens` to Python executor.
+     - Added `--rich-tokens` CLI parsing in `main.py` and `umbrellanizer.py`.
+     - Hardened dynamic fallback harvesting in `umbrellanizer.py` and `main.py` to query both `papers` and `llm_screening_records` to construct rich token objects with evidence quotes and logic traces when invoked via CLI without precomputed tokens.
+     - Implemented `format_rich_tokens_markdown` in `umbrellanizer.py` to structure unique tokens, occurrences, paper citations, verbatim quotes, and logic traces into a clean hierarchical Markdown outline.
+     - Implemented dual-placeholder Jinja2 hydration supporting `raw_tokens_with_context`, `umbrellanizer_rich_tokens_context`, `rich_tokens_context`, `raw_tokens`, `umbrellanizer_raw_tokens_array`, and `raw_tokens_array`.
+     - Added umbrellanizer context variable aliases to TypeScript `buildHydrationDictionary` in `prompt-hydrator.ts`.
+  4. **Available Jinja2 Context Variables UI & Wizard Inspection (`src/components/features/PromptLibraryView.tsx`, `UmbrellanizerWizard.tsx`, `TokenOccurrenceTable.tsx`, `ProjectMetadataSettings.tsx`)**:
+     - Upgraded the **Available Jinja2 Context Variables** helper in `PromptLibraryView` to be stage-aware, detailing `{{ raw_tokens_with_context }}` (Markdown outline), `{{ target_variable }}`, `{{ target_variable_description }}`, and `{{ raw_tokens }}` when editing an Umbrellanizer template.
+     - Enhanced `TokenOccurrenceTable` with context badges (evidence count and logic trace count) and interactive expandable accordions showing all verbatim quotes and logic trace mappings.
+     - Upgraded Step 2 in `UmbrellanizerWizard` with real-time preview of the formatted Markdown outline, copy-to-clipboard button, and collapsible inspector card for Jinja2 placeholders.
+  5. **Automated Verification (`scripts/test-umbrellanizer-trace.mjs`)**:
+     - Expanded test suite to verify rich token context harvesting, Markdown outline formatting, and dual-placeholder Jinja2 template hydration.
+- **Verification**: Executed `node scripts/test-umbrellanizer-trace.mjs` (100% passed); executed `node scripts/test-scientific-rigor-export.mjs` (3/3 passed); executed `node scripts/test-mockup-review.mjs` (66/66 passed); executed `node scripts/test-visualizer-anti-regression.mjs` (15/15 passed); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #428 - Fix Extraction Logic Trace Loading & Centralized Normalizer Protocol in Umbrellanizer (2026-08-19)
+- **Goal**: Fix the bug in Post-Pipeline Token Umbrellanizer where the "extraction logic trace" was not loaded or displayed, ensure Stage 4 Miner logic traces are accurately retrieved and merged from `llm_screening_records`, and enforce strict compliance with Centralized Trace Normalizer and Taxonomy Resolver protocols (`agents.md` §3.9 and §3.10).
+- **Root Causes**:
+  1. **Database Query Disconnect (`/api/umbrellanizer/papers`)**: The endpoint selected from `papers` without `LEFT JOIN llm_screening_records lsr_min ON lsr_min.paper_id = p.Paper_ID ... AND lsr_min.stage = 4`. Because SQLite triggers only sync `extracted_data` into `papers.ai_extracted_data` while `logic_trace` (containing `extraction_mapping`) is stored exclusively in `llm_screening_records.logic_trace`, `paper.logic_trace` returned empty `{}`.
+  2. **Decoupled Token Extraction (`useUmbrellanizer.ts`)**: `getUniqueTokens` accessed `data.value` directly, which evaluated to `undefined` when extracted data was stored as a raw string or array rather than an object with a `.value` property.
+  3. **Decoupled Evidence & Trace Resolution (`UmbrellanizerView.tsx`)**: The UI accessed `data?.evidence` directly instead of using the centralized `extractEvidenceQuote` from `@/lib/services/trace-normalizer`, and performed non-canonical dictionary lookups instead of using `resolveUmbrellanizerValue` and `getUmbrellanizerJustification` from `@/lib/services/taxonomy-resolver`.
+- **Architectural Implementation**:
+  1. **Backend Stage-Dominant Join & Logic Trace Merging (`src/app/api/umbrellanizer/papers/route.ts`)**:
+     - Updated SQL query to `LEFT JOIN llm_screening_records lsr_min ON lsr_min.paper_id = p.Paper_ID AND (lsr_min.project_id = p.Project_ID OR CAST(lsr_min.project_id AS TEXT) = CAST(p.Project_ID AS TEXT)) AND lsr_min.stage = 4`.
+     - Selected `COALESCE(lsr_min.extracted_data, p.ai_extracted_data) as ai_extracted_data` and `lsr_min.logic_trace as miner_logic_trace`.
+     - Parsed and merged `miner_logic_trace` into the paper payload's `logic_trace` structure (including `extraction_mapping`), stripped internal metadata keys (`logic_trace`, `_scientist_logic_trace`, `qa_scores`), and followed Stage Dominance policy.
+  2. **Hook Centralized Token Extraction (`src/hooks/useUmbrellanizer.ts`)**:
+     - Updated `getUniqueTokens` to use the centralized `normalizeExtractedTokens(data, key)` from `@/lib/services/taxonomy-resolver`, properly handling primitives, arrays, comma-delimited strings, and object wrappers.
+     - Updated `getExtractedKeys` to filter out internal metadata keys.
+  3. **Frontend Trace Normalizer & Canonical Taxonomy Resolution (`src/components/features/post-validation/UmbrellanizerView.tsx`)**:
+     - Integrated centralized `extractMappingReasoning` and `extractEvidenceQuote` from `@/lib/services/trace-normalizer` to resolve hover/click trace popups and verbatim evidence quotes.
+     - Integrated `resolveUmbrellanizerValue`, `getUmbrellanizerJustification`, and `normalizeForLookup` from `@/lib/services/taxonomy-resolver` in `getUmbrellaValue` to guarantee exact dash/case-normalized token equality and prevent substring collisions on compound technical terms.
+     - Safely extracted `rawVal` across primitive and object shapes and enhanced search filtering.
+  4. **Automated Unit Testing (`scripts/test-umbrellanizer-trace.mjs`)**:
+     - Created standalone unit test suite verifying database query join, logic trace merging, `extractMappingReasoning`, `extractEvidenceQuote`, `normalizeExtractedTokens`, and canonical taxonomy resolution.
+- **Verification**: Executed `node scripts/test-umbrellanizer-trace.mjs` (100% passed); executed `node scripts/test-scientific-rigor-export.mjs` (3/3 passed); executed `node scripts/test-mockup-review.mjs` (66/66 passed); executed `node scripts/test-visualizer-anti-regression.mjs` (15/15 passed); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #427 - Fix Manual Screening Stage Initialization and Exclusion Criteria Warning (2026-08-19)
+- **Goal**: Fix critical bug in the Manual Screening pipeline where selecting an unscreened paper (`manual_stage === 0` or `null`) displayed an erroneous warning: *"Project Settings does not have any Exclusion Criteria Rules (Pool B) defined. You must configure rules before submitting an EXCLUDE decision."*, blocking users from submitting exclude decisions even when Fast Filter (Pool A) exclusion criteria rules were fully configured in Project Settings.
+- **Root Causes**:
+  1. **State Initialization Disconnect**: In `useManualScreening.ts`, `numToStageMap[0]` set `manualStage` to `'unscreened'`.
+  2. **Dropdown Option Mismatch**: In `ManualScreeningDetailView.tsx`, the `<select>` stage dropdown only had options for `fast_filter`, `gatekeeper`, `scientist`, and `miner`. When `value="unscreened"`, the browser displayed the first option visually (`Fast Filter (Title-Abstract)`), but the underlying React state remained `'unscreened'`.
+  3. **Rule Resolver Fallthrough**: `getEcRules()` checked `if (manualStage === 'fast_filter')`, which failed on `'unscreened'`, falling through to return an empty array (`[]`).
+  4. **Warning Template Fallthrough**: In warning banner and validation checks, the ternary `manualStage === 'fast_filter' ? 'Pool A' : 'Pool B'` evaluated to `'Pool B'` when `manualStage` was `'unscreened'`.
+  5. **Project Resolution**: `activeProj` lookup did not resolve `selectedPaper.Project_ID` with fallback to `activeProjectId` per `agents.md` §3.8.
+- **Architectural Implementation**:
+  1. **Stage Mapping Standardization (`src/hooks/useManualScreening.ts`)**:
+     - Updated `numToStageMap` to map `0` (and `null`) to `'fast_filter'` so unscreened papers open with active form stage `'fast_filter'`.
+  2. **Detail View Rule & Project Resolution (`src/components/features/manual-screening/ManualScreeningDetailView.tsx`)**:
+     - Upgraded `activeProj` resolution to discover `selectedPaper.Project_ID || activeProjectId` before falling back to `activeProjectId` (Strict Multi-Project Isolation compliance).
+     - Refactored `getEcRules()` so that `fast_filter` or any empty/fallback stage gracefully resolves to `activeProj.ec_rules` (Pool A).
+     - Aligned `numToStageMap` in `hasChanges` memo to map `0` to `'fast_filter'` to prevent false change deltas on pristine unscreened papers.
+     - Fixed pool label resolution in both warning banner and validation messages: `manualStage === 'gatekeeper' ? 'Pool B' : 'Pool A'`.
+  3. **Automated Unit Testing (`scripts/test-manual-screening-stage-init.mjs`)**:
+     - Created standalone test suite verifying `numToStageMap` mapping, `getEcRules` resolution across Pools A, B, and C, warning pool label evaluation, and `hasChanges` evaluation.
+- **Verification**: Executed `node scripts/test-manual-screening-stage-init.mjs` (4/4 tests passed); executed `node scripts/test-llm-screening-records.mjs` (7/7 passed); executed `node scripts/test-scientific-rigor-export.mjs` (3/3 passed); executed `node scripts/test-mockup-review.mjs` (66/66 passed); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #426 - Robust Prompt Sourcing from Default Library for Scientific Rigor & LLM Narrative Directives (2026-08-19)
+- **Goal**: Fix root causes where "Scientific Rigor & AI Specifications Extractor" exported empty system instructions or user prompt templates and failed to respect active stage default prompts configured in the Prompt Library (`project.llm_config.default_prompts`).
+- **Architectural Implementation**:
+  1. **Canonical Baseline Prompt Service (`src/lib/services/prompt-defaults.ts`)**:
+     - Created a single source of truth for canonical prompt definitions across all 8 pipeline engines: `fast_filter`, `gatekeeper`, `scientist`, `miner`, `umbrellanizer`, `duplicate_review`, `consolidation_audit`, and `prompt_optimizer`.
+     - Standardized full domain system instructions, variable-rich Jinja2 user templates, native Gemini JSON response schemas, hyperparameter baselines (`temperature = 0.0`), and deterministic SHA-256 hash calculation (`computePromptHash`).
+  2. **Database Initialization & Auto-Healing Migration (`src/lib/db/db-init.ts`)**:
+     - Updated `initializeDatabase()` to loop through all 8 canonical engines and idempotently insert/update missing global default templates in `prompt_templates`.
+     - Added automatic project self-healing to populate missing `default_prompts` stage mappings in existing SQLite `projects.llm_config`.
+  3. **Strict Resolution Hierarchy in Scientific Rigor (`src/app/api/insight/scientific-rigor/route.ts`)**:
+     - Refactored `resolveEngineSpec` to prioritize:
+       1. Project-mapped explicit default template (`project.llm_config.default_prompts[promptType]`).
+       2. Active project-specific custom template.
+       3. Active global default template.
+       4. Canonical codebase baseline from `prompt-defaults.ts`.
+     - Implemented empty field fallback protection so that `system_instruction` and `user_prompt_template` are guaranteed non-empty in exported JSON.
+     - Dynamically interpolated active model identifiers into `llm_narrative_guidelines.ai_technical_disclosure_directives.disclosure_instructions`.
+  4. **Automated Unit Testing (`scripts/test-scientific-rigor-export.mjs`)**:
+     - Updated standalone unit test verifying all 8 engines resolve with complete system instructions, response schemas, dynamic hyperparameters, and SHA-256 hashes.
+- **Verification**: Executed `node scripts/test-scientific-rigor-export.mjs` (3/3 test suites passed with 0 failures); executed `node scripts/test-prompt-library.mjs` (9/9 passed); executed `node scripts/test-adjudication-discrepancies.mjs` (4/4 passed); verified clean TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #425 - AI Screening Technical Specifications & Journal Reviewer Disclosure (2026-08-18)
+- **Goal**: Enable 100% publication-grade algorithmic transparency and satisfy strict journal reviewer demands for automated AI screening disclosure by exporting comprehensive, structured technical specifications across all 8 pipeline engines (Prompt Optimizer, Stage 1 Fast Filter, Stage 2 Gatekeeper, Stage 3 Scientist, Stage 4 Miner, Stage 5 Umbrellanizer, Consolidation Auditor, Duplicate Specialist) and adding a dedicated toggle to the Scientific Rigor LLM Context Extractor modal.
+- **Architectural Implementation**:
+  1. **Comprehensive AI Engine Specification Resolver (`src/app/api/insight/scientific-rigor/route.ts`)**:
+     - Built `resolveEngineSpec` with dynamic prompt provenance resolution (Active Project Template $\rightarrow$ Active Global Default $\rightarrow$ Codebase Default Seed).
+     - Compiled complete technical disclosures for all 8 AI engines:
+       - **Prompt Optimizer** (`prompt_optimizer`): Difference-engine calibration optimizer with error pattern diagnosis.
+       - **Stage 1 Fast Filter** (`fast_filter`): 3-gate hierarchical logic trace for title/abstract screening.
+       - **Stage 2 Gatekeeper** (`gatekeeper`): 6-gate full-text structural verification trace.
+       - **Stage 3 Scientist** (`scientist`): 8-criterion ordinal quality appraisal (0.0/0.5/1.0) with Fatal Flaw & Cumulative gates.
+       - **Stage 4 Miner** (`miner`): Typed key-value extraction with verbatim quote grounding.
+       - **Stage 5 Umbrellanizer** (`umbrellanizer`): Exact semantic normalization and cross-study ontology alignment.
+       - **Consolidation Auditor** (`consolidation_audit`): Zero-temperature adversarial inter-stage chainability auditor.
+       - **Duplicate Specialist** (`duplicate_review`): 4-verdict pairwise conference-journal deduplication.
+     - Included full system prompts, user templates with semantic variable placeholder dictionaries, native Google Gemini JSON response schemas (`generationConfig.responseSchema`), complete hyperparameter grids (`model_id`, `temperature = 0.0`, `max_output_tokens`, `top_p`, `top_k`, `thinking_level`, `execution_mode`, `interaction_chaining`), and SHA-256 prompt provenance hashes.
+     - Updated `llm_narrative_guidelines` with `ai_technical_disclosure_directives` instructing downstream LLMs (Gemini, GPT-4o, Claude) on citing model versions, deterministic temperature controls, logic traces, and quote grounding in manuscript Methodology and AI Disclosure sections.
+  2. **Interactive Modal 7-Section Selector (`src/components/features/modals/ScientificRigorLlmModal.tsx`)**:
+     - Added dedicated 6th toggle card for **"AI Screening Technical Specifications"** (`includeAiSpecs`).
+     - Updated section selection counters (`X of 7 active`), live payload preview filtering, token count estimation, and instant copy/download actions.
+- **Verification**: Built and executed automated unit test `scripts/test-scientific-rigor-export.mjs` verifying specification resolution, prompt hashes, and schema validity (all passed); verified `test-mockup-review.mjs` (66/66 passed); verified TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #424 - PRISMA 2020 Other Methods Identification Source Breakdown & Mirrored Top-Right Layout (2026-08-18)
+- **Goal**: Implement a publication-grade source breakdown box for non-database identification methods (*Identification of studies via other methods*) in the PRISMA 2020 flowchart, displaying granular counts for Manual Search (Google Scholar), Forward Snowballing, Backward Snowballing, and custom sources with a side-by-side mirrored layout and complete API export parity.
+- **Architectural Implementation**:
+  1. **Canonical Source Aggregation & API Parity**:
+     - Updated `src/app/api/insight/prisma/route.ts`, `src/app/api/insight/scientific-rigor/route.ts`, and `src/app/api/export/slr-viewer/route.ts` to aggregate non-database identification sources into `otherMethodsSources` (`other_methods_sources`) and `totalOtherRecordsIdentified` (`total_records_identified_other_methods`).
+     - Added `formatOtherSourceName` helper mapping known ingestion scopes to clean academic labels (`Manual search (Google Scholar)`, `Forward Snowballing`, `Backward Snowballing`) while preserving custom source names verbatim.
+  2. **Mirrored Top-Right Canvas Architecture (`src/components/features/insight-export/PrismaFlowDiagram.tsx`)**:
+     - **Layout Refactor**: Mirrored the left column two-box design under *"Identification of studies via other methods"*:
+       - **Box 13 (Left, x=1300, w=500)**: `Records identified from:` rendering individual other methods sources with counts (`n = X`), or `"No records identified"` when empty.
+       - **Box 14 (Right, x=1840, w=500)**: `Records removed before screening:` rendering duplicate and automation tool removal counts.
+     - **Dynamic Row 1 Height Pre-Calculation**: Computed `row1MaxTextHeight = Math.max(box1TextHeight, box2TextHeight, isCollapsed ? 0 : Math.max(box13TextHeight, box14TextHeight))` across all four Row 1 boxes to prevent visual text overflow or clipping.
+     - **Flow Arrows**: Added horizontal connector arrow from Box 13 (`x=1800`) to Box 14 (`x=1840`) and vertical connector arrow from Box 13 bottom center (`x=1550`) down to Box 16 (`Reports sought for retrieval`).
+     - **Adaptive Auto-Collapse**: Updated `otherMethodsTotal` calculation to include `totalOtherRecordsIdentified`, preserving automated column collapsing when zero other-methods records exist.
+- **Verification**: Zero TypeScript compilation errors (`npx tsc --noEmit`); verified unit test suites (`node scripts/test-scientific-rigor-export.mjs`); confirmed canvas rendering across academic monochrome and app theme styles.
+
+## #423 - Rolling Batch Validation (Sequential QC) Mockup Review Generator (CTRL+M) (2026-08-18)
+- **Goal**: Adopt the "Multi-Pool Mockup Review Generator" into "Rolling Batch Validation (Sequential QC)" within `slr-ide`, allowing researchers to generate LLM-driven blinded `.slr` review packages for active Rolling Batches (`QC_Batch`) using project default Scientist (Stage 3 QA) and Miner (Stage 4 Data Extraction) prompts from the Prompt Library, with 100% `.slr` import compatibility, slot occupancy tracking, interactive paper selection, partial rerun execution for failed papers, and hidden `CTRL+M` shortcut activation in **Scientific Rigor**.
+- **Architectural Implementation**:
+  1. **Rolling Batch Service & Payload Assembler (`src/lib/services/mockup-generator.ts`)**:
+     - Implemented `getRollingBatchPromptConfigs(projectId)` extracting Stage 3 (Scientist QA Scoring) and Stage 4 (Miner Data Extraction) active prompt template essential configurations.
+     - Implemented `buildRollingBatchMockupSlrFile(project, activeBatch, reviewerName, papers, resultsMap)` generating GZIP-compressed `.slr` review files containing `pool_type: 'QC_Batch'`, `batch_id`, `batch_number`, `qa_rules`, `extraction_rules`, `reasoning_template`, and paper records populated with `Human_QA_Scores` and `Human_Extracted_Data`.
+     - Updated `evaluateMockupPaperPoolC` to accept `taskType: string = 'mockup_pool_c'` and log `task_type = 'mockup_rolling_batch'` during sequential QC executions.
+  2. **Streaming REST API Route (`src/app/api/rolling-batch/mockup/route.ts`)**:
+     - **`GET`**: Returns active batch status, papers preview, missing PDF count, prompt configuration metadata, prompt hash diffs, slot occupancy (max 2 reviewers), failure metrics (`failed_count`, `succeeded_count`), and serves cached `.slr` downloads with customized reviewer identifiers (`download=true`).
+     - **`POST`**: Executes SSE live streaming mockup review evaluation on active batch papers with:
+       - Mandatory local full-text PDF validation (rejects HTTP 400 if any target paper lacks a verified local PDF file on disk).
+       - 100% strict LLM parameter adherence (`model_id`, `temperature`, `max_tokens`, `top_p`, `top_k`, `thinking_level`, `timeout_seconds`, `request_delay`, `execution_mode`).
+       - Interaction chaining support (passing Scientist QA summary into Miner extraction).
+       - Targeted partial execution for failed papers (`failedOnly: true`) and selective rerun (`paperIds: string[]`).
+       - PRISMA-isolated LLM audit interactions (`task_type: 'mockup_rolling_batch'`).
+       - Persistent SQLite caching in `mockup_cache` with `pool = 'rb_' + activeBatch.id` and active batch ID.
+     - **`DELETE`**: Clears mockup cache for the active rolling batch.
+  3. **Reactive Custom Hook (`src/hooks/useRollingBatchMockup.ts`)**:
+     - Built `useRollingBatchMockup` managing active batch synchronization, reviewer ID randomization (`rev_xxxx`), SSE stream reading, token/cost counters, latency metrics, paper selection checklists, targeted rerun execution, partial retries, and multi-tab synchronization (`subscribeSyncChannel`).
+  4. **Rich UI Modal (`src/components/features/modals/RollingBatchMockupModal.tsx`)**:
+     - Built `RollingBatchMockupModal` featuring:
+       - Active Batch status header with batch number, ID, paper count, and cached readiness badges.
+       - Active Prompt & Model Configuration HUD with multi-stage tabs for Stage 3 (Scientist QA) and Stage 4 (Miner Extraction), essential parameters grid, and collapsible prompt previews with copy buttons.
+       - Reviewer Identifier field with randomizer and slot occupancy alert (2 reviewer slots max).
+       - Partial Execution Alert Banner with 1-click "Retry Failed Papers Only (N)".
+       - Mandatory Full-Text PDF Guard Banner.
+       - Interactive Paper Selection Toolbar & Checklist (Select All, Deselect All, Select Failed, Select Succeeded, Rerun Selected Only).
+       - Live Progress Ticker & Stream Log with status filters (All, Succeeded, Failed).
+       - Contextual Action Buttons ("Generate Review", "Redownload (.slr)", "Retry Failed Papers Only", "Rerun Selected", "Rerun & Regenerate").
+  5. **View Integration & Hidden Shortcut**:
+     - Bound hidden `CTRL+M` / `CMD+M` keyboard shortcut listener and `<RollingBatchMockupModal />` specifically to the **Rolling Batch** view workspace ([`RollingBatchView.tsx`](file:///c:/Users/Aditya%20Suranata/Downloads/github/SLR-Magic/slr-ide/src/components/features/post-validation/RollingBatchView.tsx)) when active, removing it from `ScientificRigorPanel.tsx` and preventing shortcut bleeding during `reportingOnly` embedding.
+  7. **Deep Scientific Data Audit & Inconsistency Fixes**:
+     - **Stage 2 Exclusion Descriptions Resolution**: Resolved `"description": "No description provided"` in `db_reports_excluded_stage2` and `other_reports_excluded_stage2` by parsing both `project.ec_rules` (Stage 1) and `project.pool_b_ec_rules` (Stage 2) in both `src/app/api/insight/scientific-rigor/route.ts` and `src/app/api/insight/prisma/route.ts`. Added structured `exclusion_criteria_definitions` breaking down `stage_1_fast_filter`, `stage_2_gatekeeper`, and unified `all_criteria`.
+     - **PRISMA 2020 Study Counting Separation**: Separated database included studies (`db_studies_included`) from other methods snowballing studies (`other_studies_included`), properly computing `total_studies_included = db_studies_included + other_studies_included` in compliance with PRISMA 2020 boxes [**12] and [**20].
+     - **Stage 4 Miner Object/String Normalization**: Built `getNormalizedExtractedString` helper to parse object records (`{ value: "...", evidence: "..." }`) and primitives without string-coercion bugs (`"[object Object]"`).
+     - **Stage 3 Scientist Pass Criteria Alignment**: Corrected pass check to require both `critical_miss_rate === 0.0%` and `weighted_kappa >= 0.65`.
+- **Verification**: Zero TypeScript compilation errors (`npx tsc --noEmit`); ran `scripts/test-rolling-batch-mockup.mjs` (23/23 tests passed with 0 failures); ran `scripts/test-scientific-rigor-export.mjs` (5/5 tests passed including Stage 2 EC description assertions); ran `scripts/test-mockup-review.mjs` (66/66 passed).
+
+## #422 - Comprehensive Scientific Rigor & LLM Narrative Context Extractor (2026-08-18)
+- **Goal**: Implement a publication-grade Scientific Rigor & LLM Context Extractor within `slr-ide` under **Insight Export-Rigor -> Scientific Rigor** (`ScientificRigorPanel`), allowing researchers to extract, configure, preview, and download structured JSON context containing all 5 critical methodological dimensions of the systematic literature review: all PRISMA data, pre-calibration data, prompt optimization data, gold standard vs AI stage comparison data, and rolling batch validation data.
+- **Architectural Implementation**:
+  1. **Comprehensive Rigor Context API (`src/app/api/insight/scientific-rigor/route.ts`)**:
+     - Built unified GET endpoint aggregating:
+       - **PRISMA 2020 Flow Dataset**: Database source breakdown, deduplication metrics, Stage 1 abstract screening exclusions mapped by exclusion code, PDF retrieval and inaccessibility statistics, Stage 2 structural eligibility exclusions, Stage 3 dual-gate quality cutoffs (Fatal Flaw vs Cumulative), final included cohort counts, and other-methods snowballing data.
+       - **Pre-Calibration Reliability**: Decoupled test pool target vs filled paper counts (Pool A, Pool B, Pool C), double-blind inter-rater metrics (Cohen's Kappa, Weighted Cohen's Kappa, Pool B precision, Pool C schema exactness, expected and raw agreement percentages), discrepancy counts, and consensus commit ledger.
+       - **Prompt Optimization & Audits**: Active prompt templates metadata, inter-stage consolidation audit reports (availability, semantic alignment, chainability scores), meta-prompt optimization lineages, and 70/30 train-holdout benchmark runs.
+       - **Empirical Gold Standard vs AI Stage Comparisons**: Stage 1 Fast Filter (Recall/F1), Stage 2 Gatekeeper (Precision/Recall), Stage 3 Scientist (Weighted Kappa/Critical Miss Rate), and Stage 4 Miner (Schema Integrity Rate/Pre-normalization Yield) evaluated against methodology exit targets.
+       - **Sequential Rolling Batch Validation**: Sequential estimation audit (n=20/batch), Fleiss-Cohen asymptotic standard error (SE), 95% Confidence Interval lower bounds (`CI_lower`), Stage 3 ordinal proximity agreement, Stage 4 schema integrity, stopping rule satisfaction (`auditPassed`), and historical batch breakdown.
+       - **Master LLM Narrative Guidelines**: Authoritative instructions and mathematical thresholds for downstream LLMs (Gemini 3.1 Pro / GPT-4o / Claude 3.5 Sonnet) to construct publication-ready SLR Methodology and Quality Assurance sections.
+     - Implemented `?download=true` attachment parameter for instant 1-click browser file downloads.
+     - Strictly enforced multi-tenant project isolation via `(Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`.
+     - Preserved 100% PRISMA 2020 Flow calculation and schema parity with `src/app/api/insight/prisma/route.ts` and `PrismaFlowDiagram.tsx`.
+  2. **Interactive Scientific Rigor LLM Modal (`src/components/features/modals/ScientificRigorLlmModal.tsx`)**:
+     - Developed full-featured standalone modal featuring:
+       - Granular section selector cards with Select All / Clear All controls.
+       - Formatting toggle for pretty-printed (2-space indent) vs compact JSON.
+       - Collapsible Live JSON Payload Preview with dark code editor styling, size metrics (KB), and token estimator (~X tokens).
+       - One-click clipboard copy with checkmark feedback.
+       - Download JSON action generating `scientific_rigor_context_<project>_<date>.json`.
+  3. **Scientific Rigor Panel Header Integration (`src/components/features/insight-export/ScientificRigorPanel.tsx`)**:
+     - Added top executive header banner with PRISMA 2020 validated badge, direct "Download Rigor JSON" action, and "Extract LLM Context" modal trigger.
+- **Verification**: Built and executed automated unit test `scripts/test-scientific-rigor-export.mjs` verifying multi-project isolation, Stage 2 exclusion resolution with 0 missing descriptions, and calculation of all 5 data modules (all passed); verified `test-mockup-review.mjs` (66/66 passed); verified TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
 ## #421 - Complete LLM API Cost Recording & Unified Accounting Dashboard (2026-08-17)
 - **Goal**: Achieve 100% accounting and audit parity across all LLM API interactions in `slr-ide`, ensuring prompt optimizer calls, inter-stage consolidation audits, and benchmark sandbox runs are immutably logged to `llm_audit_log`, dynamically aggregated in the project dashboard and accounting endpoints, and rendered with dedicated cards and comprehensive filter options in the Accounting Panel.
 - **Architectural Implementation**:
@@ -2692,6 +3076,25 @@
 | #239 | 2026-08-16 | Feature | Upgraded Paper Database CSV Export (`/api/export` & `PaperDatabaseView.tsx`) with a dedicated `ExportCsvModal.tsx` popup: (1) Added selective paper export support (exporting only checked papers or entire project cohort), (2) Added Ingestion Hub compatibility preset (14 standard `00_Raw_Harvest` columns with UTF-8 BOM encoding for seamless roundtrip import into Ingestion Hub or Google Sheets), (3) Added granular column picker with categorized tabs, search filters, and presets (All Columns, Minimal Bibliographic, Screening Decisions), and (4) Upgraded `/api/export` route to support both GET and POST with strict project scoping and stage dominance decision resolution. | Paper Database Selective & Ingestion Hub Compatible CSV Export |
 | #240 | 2026-08-16 | Feature | Implemented seamless Cross-Project Transfer for Manual Ingest & Snowballing papers: (1) Added `scope=snowballing` in `/api/export` and `ExportCsvModal.tsx` with live snowballing paper counts, (2) Added "Include Referenced Seed Parent Papers" bundling toggle to export complete parent-child reference chains (`Parent_Paper_ID`), (3) Added `Parent_Paper_ID` auto-mapping and "Preserve from CSV" source preservation mode in Ingestion Hub (`useIngestion.ts` & `IngestionHubView.tsx`), (4) Added 1-click "Export Snowballing CSV" toolbar in Ingestion Hub Manual Ingest panel, and (5) Enhanced Paper Details view to gracefully show referenced parent provenance and non-blocking toast alerts when parent papers are from an origin project. | Cross-Project Manual Ingest (Snowballing) Seamless Transfer |
 | #241 | 2026-08-16 | Bug Fix | Fixed SQLite "Too few parameter values were provided" error in `POST /api/papers` during CSV ingestion: (1) Corrected prepared statement parameter count for `findByDoiStmt.get()`, `findByTitleStmt.get()`, `updateCitationStmt.run()`, and `updateCitationAndDoiStmt.run()` to supply both required parameter bindings for project isolation clause `(Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))`, (2) Explicitly passed `projectId: activeProjectId` in `useIngestion.ts` POST payload. Verified cleanly with `npx tsc --noEmit`. | Fix SQLite Parameter Count in Ingestion Hub Paper Import |
+| #242 | 2026-08-19 | Feature | Added Cost Discount Rate (`discount`) input field and live percentage indicator to the Edit Prompt Template modal under the LLM Parameters tab in `PromptLibraryView.tsx`. Also added a Discount metric badge to the inline expandable LLM Config preview drawer. Verified build stability cleanly (`npx tsc --noEmit`). | Add Cost Discount Rate Input to Prompt Template LLM Parameters |
+| #243 | 2026-08-19 | Bug Fix / Rigor | Fixed Scientific Rigor and AI Technical Specifications prompt sourcing from the default prompt library: (1) Created canonical baseline prompt service (`prompt-defaults.ts`) defining full system instructions, user templates, JSON response schemas, and hyperparameters for all 8 engines, (2) Updated `db-init.ts` to idempotently seed all 8 canonical global baseline prompt templates and auto-heal existing projects missing `default_prompts` mappings, (3) Refactored `resolveEngineSpec` in `/api/insight/scientific-rigor/route.ts` to prioritize project-mapped default prompts (`project.llm_config.default_prompts`) with graceful fallback to active project custom, global default, and canonical codebase templates, (4) Dynamically injected active model identifiers into LLM Narrative Directives, (5) Updated standalone unit test `scripts/test-scientific-rigor-export.mjs` verifying all 8 engines resolve with complete system instructions, response schemas, and SHA-256 hashes. Verified clean TypeScript build (`npx tsc --noEmit`). | Fix Scientific Rigor Prompt Sourcing from Default Prompt Library |
+| #244 | 2026-08-19 | Feature / UI | Refactored Scopus database and Manual Google Scholar fields in Project Settings -> Systematic Search Queries (`ProjectMetadataSettings.tsx`, `useProjectForm.ts`, `ProjectSettingsModal.tsx`, `projects/route.ts`, `slr-viewer/route.ts`) into a dynamic multi-field search query builder. Enabled researchers to document multiple database queries (Scopus, Web of Science, IEEE Xplore, PubMed, ACM Digital Library, Google Scholar, ScienceDirect, SpringerLink, Dimensions, and Custom) with monospace syntax editors, individual copy-to-clipboard actions, documentation notes/dates, quick-add preset chips, and automatic backward compatibility migration. Created unit test `scripts/test-search-queries.mjs`. Verified clean TypeScript build (`npx tsc --noEmit`). | Dynamic Multi-Field Systematic Search Query Builder |
+| #246 | 2026-08-24 | Feature / UI | Added 1-click automated colon-delimited (':') macro-category prefix parsing in Final Cohort Visualizer (`CustomGroupingManager.tsx`): (1) Added "Auto-Parse ':' Prefixes" action button to the Level Custom Grouping Layer header with live colon-separated item counter badge, (2) Expanded sub-field token discovery to scan all cohort papers (`papers`) instead of a 200-sample slice, (3) Discovered distinct prefix macro-categories before ':' and mapped all items with standalone fallback ("Other / Standalone"), (4) Preserved full sub-item label fidelity for hierarchy visualization, (5) Added standalone unit test `scripts/test-visualizer-colon-autoparse.mjs`. Verified clean TypeScript compilation (`npx tsc --noEmit`). | Automated Colon-Delimited (':') Macro-Category Prefix Parsing in Visualizer |
+| #247 | 2026-08-24 | Feature / UI | Implemented child-level parent prefix stripping and per-level raw vs umbrellanized extracted token selection: (1) Added `stripParentPrefix()` to eliminate redundant parent category names on child nodes and CustomGroupingManager pill badges (e.g. `Application/Middleware: Web Services` -> `Web Services`), (2) Added `raw:ext:*` field keys to `availableFields` enabling researchers to map any level (such as the outer Sunburst/Treemap/Sankey ring) to raw extracted tokens while higher levels use Umbrellanizer taxonomy or Custom Groupings, (3) Added `formatFieldLabel()` to format raw/umbrellanized extracted field names across all dropdowns. Verified clean TypeScript build (`npx tsc --noEmit`). | Child Parent-Prefix Stripping & Per-Level Raw Token Selection |
+| #248 | 2026-08-24 | Feature / UI | Implemented Strict Parent-Branch Token Scoping, Target Source Selector in Custom Grouping Layer, and Hierarchical Breadcrumb Tooltips: (1) Added explicit Sub-Items Target Source selector in `CustomGroupingManager.tsx` allowing researchers to switch discovery field between extracted and raw tokens, (2) Implemented `ParentContext` and `filterValuesForParent()` across Sunburst, Treemap, and Sankey generators (`hierarchicalGenerators.ts`) to prevent multi-protocol papers from leaking unrelated child tokens across sibling branches (Level 1 macro-group strictly scopes Level 2 sub-categories, Level 2 sub-category strictly scopes Level 3 raw tokens via `resolveUmbrellanizerValue`), (3) Added breadcrumb path formatting in Sunburst and Treemap tooltips (`Parent > Subcategory > RawToken: Count (XX%)`), (4) Synchronized strict scoping in `realDataBreakdown` in `useVisualizerData.ts`, (5) Added comprehensive unit test in `scripts/test-visualizer-colon-autoparse.mjs`. Verified clean TypeScript compilation (`npx tsc --noEmit`). | Strict Parent-Branch Token Scoping & 3-Level Hierarchical Visualization |
+| #249 | 2026-08-24 | Feature / UI | Implemented Native 3-Tier Taxonomy Extraction (`ext:macro:*`, `ext:sub:*`, `raw:ext:*`, `ext:*`), 1-Click Auto-Expand Hierarchy Preset, Optgroup Dropdown Organization, and Streamlined Extraction Options: (1) Added native prefix/suffix/raw extraction in `taxonomy-resolver.ts` enabling zero-configuration 3-tier taxonomy decomposition (Level 1 Macro Domain -> Level 2 Sub-Category -> Level 3 Raw Tokens), (2) Added 1-Click "⚡ Auto-Expand 3-Tier Hierarchy" dropdown in Sunburst/Treemap/Sankey depth levels for instant hierarchical configuration, (3) Organized all field selectors with `<optgroup>` groupings (Custom Grouping Layer, 3-Tier Extracted Variables, Standard Metadata), (4) Enhanced `filterValuesForParent` in `hierarchicalGenerators.ts` for native 3-tier branch scoping, (5) Streamlined extraction controls in `Step2DataMapping.tsx` by removing redundant global Umbrellanizer toggle and consolidating options into a sleek inline bar, (6) Added comprehensive unit test suite in `scripts/test-visualizer-colon-autoparse.mjs`. Verified clean TypeScript build (`npx tsc --noEmit`). | Native 3-Tier Taxonomy Hierarchy & Streamlined Visualizer |
+| #250 | 2026-08-24 | Feature / UI | Added Raw Leaf Token Extraction (`raw:leaf:ext:*`) for colon-formatted raw literature strings: (1) Added `raw:leaf:ext:*` extraction mode in `taxonomy-resolver.ts` that extracts only the last right-hand token after the last ':' delimiter (e.g. `"Application/Middleware: Web Services: REST"` -> `"REST"`), (2) Added `raw:leaf:ext:*` to `availableFields` in `useVisualizerData.ts` and updated `formatFieldLabel()` to distinguish Raw Leaf Tokens from Full Raw Strings, (3) Set `raw:leaf:ext:*` as default Level 3 target in the 1-Click Auto-Expand 3-Tier Hierarchy preset in `Step2DataMapping.tsx`, (4) Extended `filterValuesForParent` in `hierarchicalGenerators.ts` and updated unit tests in `scripts/test-visualizer-colon-autoparse.mjs`. Verified clean TypeScript build (`npx tsc --noEmit`). | Raw Leaf Token (Tail after ':') Extraction Mode |
+| #251 | 2026-08-24 | Bug Fix | Fixed live chart preview rendering for Raw Leaf Tokens (`raw:leaf:ext:*`): (1) Resolved bug in `filterValuesForParent()` where unclassified leaf tokens without exact dictionary entries were inadvertently rejected by strict equality check, (2) Implemented robust fallback allowing raw leaf tokens from papers matching the parent node branch to render reliably on the outer ring, (3) Fixed `useVisualizerData.ts` breakdown table scoping for `raw:leaf:ext:*` field keys. Verified clean TypeScript build (`npx tsc --noEmit`). | Raw Leaf Token Live Chart Preview Bug Fix |
+| #252 | 2026-08-24 | Feature / UI | Implemented Per-Branch Local Top-N Node Grouping with Configurable Tail Label Styles and Rich Tooltips: (1) Upgraded node limiting in Sunburst and Treemap (`hierarchicalGenerators.ts`) to compute Top-N locally within each parent node branch, eliminating global branch starvation, (2) Added `formatTailLabel()` supporting 4 distinct tail label formatting styles: Comma-Separated List (e.g. `AMQP, CoAP`), Count-Context Other (e.g. `Other (3 items)`), Prefixed List (e.g. `Other: AMQP, CoAP`), and Plain `Other`, (3) Implemented rich hover tooltips on grouped tail nodes displaying the complete list of collapsed items and individual paper counts, (4) Added Tail Label Style dropdown selector to Step 2 Data Mapping when Max Nodes >= 2, (5) Added unit tests in `scripts/test-visualizer-colon-autoparse.mjs`. Verified clean TypeScript compilation (`npx tsc --noEmit`). | Per-Branch Local Top-N & Comma-Separated Tail Label Styles |
+| #253 | 2026-08-24 | Bug Fix / Hardening | Deep Code Audit & Multi-Label Cross-Branch Leakage Resolution: (1) Fixed `realDataBreakdown` in `useVisualizerData.ts` by delegating child level scoping directly to `filterValuesForParent()`, eliminating phantom cross-category child rows in the data breakdown table, (2) Hardened `filterValuesForParent()` Case 2 in `hierarchicalGenerators.ts` with `belongsToAnotherPrefix` check to prevent multi-domain literature tokens from leaking under unrelated macro categories, (3) Updated `generateHeatmapOption` in `matrixGenerators.ts` to use `getMappedFieldValue()` with custom category and group layer mappings. Verified clean TypeScript build (`npx tsc --noEmit`) and all test suites passed. | Deep Code Audit & Cross-Branch Scoping Hardening |
+| #254 | 2026-08-24 | Bug Fix / Hardening | Full Pipeline Deep Iterative Code Audit & Chart Generator Harmonization: (1) Upgraded `extractPaperFieldValues()` in `taxonomy-resolver.ts` to isolate subcategories across 3-tier colon delimiters cleanly without string bleed, (2) Hardened `stripParentPrefix()` to strip compound prefix paths up to any matched colon segment, (3) Fixed `generateStackedBarOption` in `categoricalBarGenerators.ts` to use `getMappedFieldValue()` and compute normalized metric values for tail 'Other' slices, (4) Fixed `generateLineOption` in `trendLineGenerators.ts` to use `getMappedFieldValue()` with custom mapping support, (5) Fixed secondaryField extraction in `clusteredBarGenerators.ts` for tail 'Other' series. Verified clean TypeScript build (`npx tsc --noEmit`). | Full Pipeline Deep Iterative Audit & Generator Harmonization |
+| #255 | 2026-08-24 | Bug Fix / Hardening | KPI/Network & Preset Serialization Audit: (1) Upgraded `generateRadarOption` and `generateGraphOption` in `kpiNetworkGenerators.ts` to use `getMappedFieldValue()` with complete `customCategoryMap` and `levelCustomGroupLinks` support, (2) Fixed preset deserialization in `useVisualizerPresets.ts` to preserve `tailLabelStyle` across legacy migrations, (3) Verified `computeGroupStatistics()` in `statisticalUtils.ts` for single-paper group sample variance ($N-1$) invariance. Verified clean TypeScript build (`npx tsc --noEmit`) and all tests passed. | KPI/Network & Preset Serialization Audit |
+
+
+
+
+
+
 
 
 

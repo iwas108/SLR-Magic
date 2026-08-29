@@ -23,6 +23,7 @@ export interface ChartGeneratorContext {
   sankeyFields: string[];
   sankeyLabelPositions: Record<number, 'left' | 'right'>;
   sankeyMaxNodes: Record<number, number>;
+  tailLabelStyle?: 'comma_list' | 'other_count' | 'other_items' | 'plain_other';
   limitCategories: boolean;
   maxCategoriesCount: number;
   numFieldX: string;
@@ -104,7 +105,57 @@ export interface ChartGeneratorContext {
   pieLineHeight?: number;
   barLabelDistance?: number;
   legendDistance?: number;
+  legendWidth?: number;
+  legendLineHeight?: number;
+  legendItemGap?: number;
+  legendFontSize?: number;
+  legendOverflow?: 'break' | 'truncate' | 'none';
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   umbrellanizerMap?: Record<string, Record<string, string>>;
+  // Rich chart customization parameters
+  lineWidth?: number;
+  showLineMarkers?: boolean;
+  lineMarkerSize?: number;
+  lineAreaOpacity?: number;
+  lineStepMode?: 'none' | 'start' | 'middle' | 'end';
+  roseType?: 'none' | 'radius' | 'area';
+  piePadAngle?: number;
+  pieCornerRadius?: number;
+  treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
+  treemapVisibleDepth?: number;
+  treemapGapWidth?: number;
+  treemapBorderWidth?: number;
+  heatmapCellRadius?: number;
+  heatmapColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
+  radarShape?: 'polygon' | 'circle';
+  radarAreaOpacity?: number;
+  radarLineWidth?: number;
+  radarSplitNumber?: number;
+  funnelAlign?: 'center' | 'left' | 'right';
+  funnelGap?: number;
+  funnelNeckWidth?: number;
+  funnelNeckHeight?: number;
+  boxplotBoxWidth?: number;
+  boxplotShowScatter?: boolean;
+  boxplotOrientation?: 'vertical' | 'horizontal';
+  scatterPointSize?: number;
+  scatterPointOpacity?: number;
+  scatterShowRegression?: boolean;
+  scatterRegressionType?: 'linear' | 'mean';
+  graphRepulsion?: number;
+  graphEdgeLength?: number;
+  graphGravity?: number;
+  graphCurveness?: number;
+  graphShowLinkWeights?: boolean;
+  gaugeStartAngle?: number;
+  gaugeEndAngle?: number;
+  gaugePointerWidth?: number;
+  gaugeDialWidth?: number;
+  calendarCellSize?: number;
+  calendarYear?: string;
+  stackedNormalized?: boolean;
 }
 
 export function formatLegendLabel(

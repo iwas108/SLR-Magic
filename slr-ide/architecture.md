@@ -192,6 +192,13 @@ To support smart PDF vector-matching and advanced semantic discovery within the 
     - `GET / POST /api/network-info`: REST endpoints for live network inspection and configuration updates.
     - `NetworkSettingsTab.tsx` in `SettingsModal.tsx`: Visual interface for interface toggle, LAN URL discovery with one-click copy, and port allocation controls.
 
-
-
+### 2.11 Multi-Format Vector SVG & PDF Publication Exporters
+*   **Purpose**: Enable publication-grade, high-resolution graphic exports for both the PRISMA 2020 Flowchart and Visualizer & Multi-Panel figures across Raster (PNG up to 4x/300+ DPI), Vector SVG (lossless for LaTeX `\includesvg` and Adobe Illustrator), and Camera-Ready Vector PDF (infinite zoom with selectable text).
+*   **PRISMA Vector SVG Generator (`src/lib/services/prisma-svg-generator.ts`)**:
+    - Pure TypeScript geometry and XML engine that constructs valid SVG documents containing dynamic box coordinates, text wrapping (`<tspan>`), rounded card rectangles, theme styling (App Theme vs Journal Monochrome), and directional arrow connectors with arrowheads.
+*   **Vector PDF Engine (`src/lib/services/pdf-export-service.ts`)**:
+    - Leverages `jspdf` and `svg2pdf.js` to render vector SVG structures directly into vector PDF documents.
+    - Applies tight *Fit-to-Figure* page aspect ratio matching with clean standard margins.
+*   **Visualizer & Multi-Panel Pipeline (`src/components/features/modals/visualizer/utils/exportUtils.ts`)**:
+    - Supports `PNG`, `SVG`, and `PDF` for both single subfigures and multi-panel composites.
 

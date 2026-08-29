@@ -92,17 +92,23 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
       tagCount,
       prevalencePct,
       tagPct,
-      itemStyle: { color, borderRadius: 4, borderColor: palette.bg, borderWidth: 2 }
+      itemStyle: { 
+        color, 
+        borderRadius: ctx.pieCornerRadius ?? 4, 
+        borderColor: palette.bg, 
+        borderWidth: 2 
+      }
     };
   }).filter(d => d.value > 0);
 
   const pieDataMap = new Map(pieData.map(d => [d.name, d]));
 
   // Dynamic collision-free geometry & centering calculation
-  let centerX = '50%';
-  let centerY = '50%';
+  let defaultCenterX = 50;
+  let defaultCenterY = 50;
   const configuredRadius = pieRadiusRatio || 64;
-  let maxOuterRadius = Math.min(88, Math.max(15, configuredRadius));
+  const padDeduction = Math.round(((ctx.containerPadding ?? 12) - 12) * 0.4);
+  let maxOuterRadius = Math.max(15, Math.min(88, configuredRadius - padDeduction));
 
   const isInside = pieLabelPlacement === 'inside';
   const isLegendOnly = pieLabelPlacement === 'legend_only';
@@ -110,24 +116,31 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
 
   if (showLegend) {
     if (legendPosition === 'top') {
-      centerY = '56%';
-      maxOuterRadius = Math.min(80, configuredRadius);
+      defaultCenterY = 56;
+      maxOuterRadius = Math.min(80, maxOuterRadius);
     } else if (legendPosition === 'bottom') {
-      centerY = '44%';
-      maxOuterRadius = Math.min(80, configuredRadius);
+      defaultCenterY = 44;
+      maxOuterRadius = Math.min(80, maxOuterRadius);
     } else if (legendPosition === 'left') {
-      centerX = (isInside || isLegendOnly) ? '54%' : '56%';
-      centerY = '50%';
-      maxOuterRadius = Math.min(85, configuredRadius);
+      const isWideLegend = (ctx.legendWidth && ctx.legendWidth > 180);
+      defaultCenterX = (isInside || isLegendOnly) ? (isWideLegend ? 58 : 54) : (isWideLegend ? 60 : 56);
+      defaultCenterY = 50;
+      maxOuterRadius = Math.min(isWideLegend ? 78 : 85, maxOuterRadius);
     } else if (legendPosition === 'right') {
-      centerX = (isInside || isLegendOnly) ? '46%' : '44%';
-      centerY = '50%';
-      maxOuterRadius = Math.min(85, configuredRadius);
+      const isWideLegend = (ctx.legendWidth && ctx.legendWidth > 180);
+      defaultCenterX = (isInside || isLegendOnly) ? (isWideLegend ? 42 : 46) : (isWideLegend ? 40 : 44);
+      defaultCenterY = 50;
+      maxOuterRadius = Math.min(isWideLegend ? 78 : 85, maxOuterRadius);
     }
   } else {
-    centerY = '50%';
-    maxOuterRadius = Math.min(88, configuredRadius);
+    defaultCenterY = 50;
+    maxOuterRadius = Math.min(88, maxOuterRadius);
   }
+
+  const effectiveFitOffsetX = ctx.fitOffsetX ?? 0;
+  const effectiveFitOffsetY = ctx.fitOffsetY ?? 0;
+  const centerX = `${defaultCenterX + effectiveFitOffsetX}%`;
+  const centerY = `${defaultCenterY + effectiveFitOffsetY}%`;
 
   const innerRadiusPct = donutRatio > 0 ? Math.round(maxOuterRadius * (donutRatio / 100)) : 0;
   const radiusRange: [string, string] = [`${innerRadiusPct}%`, `${maxOuterRadius}%`];
@@ -228,6 +241,8 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
     series: [{
       name: primaryField,
       type: 'pie',
+      roseType: (ctx.roseType && ctx.roseType !== 'none') ? ctx.roseType : undefined,
+      padAngle: ctx.piePadAngle ?? 2,
       radius: radiusRange,
       center: [centerX, centerY],
       data: pieData,

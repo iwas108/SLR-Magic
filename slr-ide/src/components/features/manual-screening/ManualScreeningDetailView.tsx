@@ -76,7 +76,8 @@ export default function ManualScreeningDetailView({
   singlePipelineAbortControllerRef,
   isMainPipelineRunning
 }: ManualScreeningDetailViewProps) {
-  const activeProj = projects.find(p => String(p.id) === String(activeProjectId));
+  const resolvedProjectId = selectedPaper?.Project_ID || activeProjectId;
+  const activeProj = projects.find(p => String(p.id) === String(resolvedProjectId)) || projects.find(p => String(p.id) === String(activeProjectId));
   const [activeDetailTab, setActiveDetailTab] = useState<'metadata' | 'pdf'>('metadata');
 
   const logEndRef = useRef<HTMLDivElement | null>(null);
@@ -91,16 +92,6 @@ export default function ManualScreeningDetailView({
   // Load criteria configs from project schema
   const getEcRules = () => {
     if (!activeProj) return [];
-    
-    if (manualStage === 'fast_filter') {
-      const field = activeProj.ec_rules;
-      if (!field) return [];
-      try {
-        return typeof field === 'string' ? JSON.parse(field) : field;
-      } catch {
-        return [];
-      }
-    }
     
     if (manualStage === 'gatekeeper') {
       const field = activeProj.pool_b_ec_rules;
@@ -131,7 +122,14 @@ export default function ManualScreeningDetailView({
       }
     }
     
-    return [];
+    // Default to Stage 1: Fast Filter (Pool A)
+    const field = activeProj.ec_rules;
+    if (!field) return [];
+    try {
+      return typeof field === 'string' ? JSON.parse(field) : field;
+    } catch {
+      return [];
+    }
   };
 
   const getQaRules = () => {
@@ -257,7 +255,7 @@ export default function ManualScreeningDetailView({
     const rationaleChanged = (manualRationale || '') !== (selectedPaper.manual_rationale || '');
     
     const numToStageMap: Record<number, string> = {
-      0: 'unscreened',
+      0: 'fast_filter',
       1: 'fast_filter',
       2: 'gatekeeper',
       3: 'scientist',
@@ -304,7 +302,7 @@ export default function ManualScreeningDetailView({
         errors.push('Human Decision Override is required.');
       } else if (manualDecision === 'EXCLUDE') {
         if (ecRules.length === 0) {
-          errors.push(`Cannot submit EXCLUDE decision: No Exclusion Criteria Rules (${manualStage === 'fast_filter' ? 'Pool A' : 'Pool B'}) configured in Project Settings.`);
+          errors.push(`Cannot submit EXCLUDE decision: No Exclusion Criteria Rules (${manualStage === 'gatekeeper' ? 'Pool B' : 'Pool A'}) configured in Project Settings.`);
         } else if (!manualEcTrigger) {
           errors.push('Exclusion Criterion Triggered is required.');
         }
@@ -732,7 +730,7 @@ export default function ManualScreeningDetailView({
                           <span>No Exclusion Criteria Rules Configured</span>
                         </div>
                         <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          Project Settings does not have any Exclusion Criteria Rules ({manualStage === 'fast_filter' ? 'Pool A' : 'Pool B'}) defined. You must configure rules before submitting an EXCLUDE decision.
+                          Project Settings does not have any Exclusion Criteria Rules ({manualStage === 'gatekeeper' ? 'Pool B' : 'Pool A'}) defined. You must configure rules before submitting an EXCLUDE decision.
                         </p>
                         <button
                           type="button"

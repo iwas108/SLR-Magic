@@ -5,7 +5,7 @@ import path from 'path';
 import db, { getVaultKey } from '@/lib/db';
 import { getSessionMasterPassword, hasSessionMasterPassword, clearSessionMasterPassword, sanitizeApiKey } from '@/lib/session';
 import { decryptKey } from '@/lib/vault';
-import { validatePromptSchema, PromptType, DEFAULT_STAGE_SCHEMAS } from '@/lib/services/prompt-validator';
+import { validatePromptSchema, PromptType, DEFAULT_STAGE_SCHEMAS, applySchemaDescriptionRefinement } from '@/lib/services/prompt-validator';
 import { hydrateTemplate } from '@/lib/services/prompt-hydrator';
 import { pipelineLock } from '@/lib/services/pipeline-lock';
 import { resolveGeminiThinkingConfig } from '@/lib/gemini-thinking-specs';
@@ -20,6 +20,20 @@ function safeJsonParse(val: any, fallback: any = {}): any {
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Safely strips any accidental markdown JSON schemas or format boilerplate
+ * that the LLM might have embedded inside proposed prompt text.
+ */
+function sanitizeOptimizedPrompt(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+  let cleaned = text.trim();
+  // Strip Markdown ```json ... ``` blocks if they represent output schemas/templates
+  cleaned = cleaned.replace(/###\s*(?:Target\s*)?(?:Structured\s*)?(?:Response\s*)?(?:JSON\s*)?Schema[\s\S]*?```(?:json)?[\s\S]*?```/gi, '');
+  cleaned = cleaned.replace(/###\s*Output\s*Format[\s\S]*?```(?:json)?[\s\S]*?```/gi, '');
+  cleaned = cleaned.replace(/```json\s*\{\s*"(?:type|logic_trace|final_evaluation|qa_scores|extracted_data)"[\s\S]*?```/gi, '');
+  return cleaned.trim();
 }
 
 const STAGE_CONFIG: Record<number, { name: string; type: PromptType; pool: string }> = {
@@ -187,6 +201,12 @@ export async function POST(req: Request) {
 - Miner (S4): ${s4 ? s4.name : 'Not configured'}
 `;
 
+    // Target Stage Response Schema (for JSON schema description refinement and template hydration)
+    const targetStageResponseSchema = stagePrompt.response_schema 
+      ? (typeof stagePrompt.response_schema === 'string' ? safeJsonParse(stagePrompt.response_schema, DEFAULT_STAGE_SCHEMAS[stageMeta.type]) : stagePrompt.response_schema)
+      : DEFAULT_STAGE_SCHEMAS[stageMeta.type];
+    const targetSchemaJsonStr = JSON.stringify(targetStageResponseSchema, null, 2);
+
     // 6. Handle Action: 'diagnose' vs 'continue_with_pdf'
     let userPromptText = '';
     if (action === 'continue_with_pdf' && cached_context) {
@@ -240,12 +260,19 @@ export async function POST(req: Request) {
           stage_num: stageNum,
           current_system_instruction: stagePrompt.system_instruction || '',
           current_user_template: stagePrompt.user_template || '',
+          current_response_schema: targetSchemaJsonStr,
+          target_response_schema: targetSchemaJsonStr,
           discrepancies_json: JSON.stringify(formattedDiscrepancies, null, 2),
           sibling_prompts_summary: siblingSummary
         }
       };
 
-      userPromptText = hydrateTemplate(optTemplate.user_template, hydrationContext);
+      let userTemplateToHydrate = optTemplate.user_template || '';
+      if (!userTemplateToHydrate.includes('{{current_response_schema}}') && !userTemplateToHydrate.includes('{{target_response_schema}}')) {
+        userTemplateToHydrate += `\n\n### TARGET STRUCTURED RESPONSE JSON SCHEMA (IMMUTABLE):\n\`\`\`json\n{{current_response_schema}}\n\`\`\`\n\nCRITICAL DIRECTIVE: The target stage's structured output JSON schema is fixed above. Your proposed system instruction and user template MUST strictly conform to and guide the LLM according to this exact schema structure. Do not invent new fields or modify output structures.`;
+      }
+
+      userPromptText = hydrateTemplate(userTemplateToHydrate, hydrationContext);
     }
 
     const systemInstruction = optTemplate.system_instruction || '';
@@ -319,6 +346,25 @@ export async function POST(req: Request) {
       structuredOpt = JSON.parse(outputText);
     } catch (e: any) {
       return NextResponse.json({ error: `Failed to parse structured optimizer JSON: ${e.message}` }, { status: 500 });
+    }
+
+    if (structuredOpt) {
+      if (structuredOpt.proposed_system_instruction) {
+        structuredOpt.proposed_system_instruction = sanitizeOptimizedPrompt(structuredOpt.proposed_system_instruction);
+      }
+      if (structuredOpt.proposed_user_template) {
+        structuredOpt.proposed_user_template = sanitizeOptimizedPrompt(structuredOpt.proposed_user_template);
+      }
+
+      // Strictly allow description-only improvements in schema while preserving 100% of key structure
+      if (structuredOpt.proposed_response_schema) {
+        structuredOpt.proposed_response_schema = applySchemaDescriptionRefinement(
+          targetStageResponseSchema,
+          structuredOpt.proposed_response_schema
+        );
+      } else {
+        structuredOpt.proposed_response_schema = targetStageResponseSchema;
+      }
     }
 
     // 8. Pricing & Audit Logging
@@ -404,7 +450,8 @@ export async function POST(req: Request) {
         id: stagePrompt.id,
         name: stagePrompt.name,
         system_instruction: stagePrompt.system_instruction,
-        user_template: stagePrompt.user_template
+        user_template: stagePrompt.user_template,
+        response_schema: targetStageResponseSchema
       },
       has_pdf_requests: hasPdfRequests,
       requested_pdfs: enrichedRequestedPdfs,
@@ -432,6 +479,7 @@ export async function PUT(req: Request) {
       target_prompt_id: reqTargetPromptId,
       proposed_system_instruction,
       proposed_user_template,
+      proposed_response_schema,
       action_mode = 'apply_active', // 'apply_active' | 'fork_new'
       set_as_default = true,
       custom_name = null
@@ -453,8 +501,18 @@ export async function PUT(req: Request) {
     const now = new Date().toISOString();
     let finalPromptId = activePrompt?.id;
 
-    const newHash = crypto.createHash('sha256').update((proposed_system_instruction || '') + (proposed_user_template || '')).digest('hex');
-    const parentHash = activePrompt ? crypto.createHash('sha256').update((activePrompt.system_instruction || '') + (activePrompt.user_template || '')).digest('hex') : null;
+    // Resolve base schema and apply description-only modifications
+    const baseSchema = activePrompt?.response_schema
+      ? (typeof activePrompt.response_schema === 'string' ? safeJsonParse(activePrompt.response_schema, DEFAULT_STAGE_SCHEMAS[stageMeta.type]) : activePrompt.response_schema)
+      : DEFAULT_STAGE_SCHEMAS[stageMeta.type];
+    
+    const finalSchemaObj = proposed_response_schema 
+      ? applySchemaDescriptionRefinement(baseSchema, typeof proposed_response_schema === 'string' ? safeJsonParse(proposed_response_schema, baseSchema) : proposed_response_schema)
+      : baseSchema;
+    const finalSchemaStr = JSON.stringify(finalSchemaObj, null, 2);
+
+    const newHash = crypto.createHash('sha256').update((proposed_system_instruction || '') + (proposed_user_template || '') + finalSchemaStr).digest('hex');
+    const parentHash = activePrompt ? crypto.createHash('sha256').update((activePrompt.system_instruction || '') + (activePrompt.user_template || '') + (activePrompt.response_schema || '')).digest('hex') : null;
 
     if (action_mode === 'fork_new' || !activePrompt || activePrompt.project_id === null) {
       // Copy-on-Write: Create new project-scoped prompt
@@ -474,7 +532,7 @@ export async function PUT(req: Request) {
         stageMeta.type,
         proposed_system_instruction,
         proposed_user_template,
-        activePrompt?.response_schema || JSON.stringify(DEFAULT_STAGE_SCHEMAS[stageMeta.type]),
+        finalSchemaStr,
         activePrompt?.llm_config || '{}',
         now,
         now
@@ -483,9 +541,9 @@ export async function PUT(req: Request) {
       // Update existing project-scoped prompt
       db.prepare(`
         UPDATE prompt_templates 
-        SET system_instruction = ?, user_template = ?, updated_at = ?
+        SET system_instruction = ?, user_template = ?, response_schema = ?, updated_at = ?
         WHERE id = ? AND CAST(project_id AS TEXT) = CAST(? AS TEXT)
-      `).run(proposed_system_instruction, proposed_user_template, now, activePrompt.id, projectId);
+      `).run(proposed_system_instruction, proposed_user_template, finalSchemaStr, now, activePrompt.id, projectId);
       finalPromptId = activePrompt.id;
     }
 

@@ -1,4 +1,5 @@
 export * from './VisualizerHeader';
+export * from './VisualizerStudio';
 export * from './Step1ChartSelector';
 export * from './Step2DataMapping';
 export * from './Step3StyleCustomization';
@@ -15,3 +16,4 @@ export * from './subcomponents/ScientificAxisConfigPanel';
 export * from './subcomponents/CrossTabMatrixPanel';
 export * from './subcomponents/CameraControlsOverlay';
 export * from './subcomponents/ExportPanel';
+

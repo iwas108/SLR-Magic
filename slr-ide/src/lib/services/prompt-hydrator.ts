@@ -72,7 +72,15 @@ export function buildHydrationDictionary(context: HydrationContext): Record<stri
     }
   }
 
-  // 3. Process Custom or Sibling Stage Context
+  // 3. Process Umbrellanizer Context
+  if (context.raw_tokens_with_context || context.umbrellanizer_rich_tokens_context || context.raw_tokens || context.target_variable) {
+    setAlias(['raw_tokens_with_context', 'umbrellanizer_rich_tokens_context', 'rich_tokens_context'], context.raw_tokens_with_context || context.umbrellanizer_rich_tokens_context);
+    setAlias(['raw_tokens', 'umbrellanizer_raw_tokens_array', 'raw_tokens_array'], context.raw_tokens || context.umbrellanizer_raw_tokens_array);
+    setAlias(['target_variable', 'umbrellanizer_target_research_question', 'target_variable_name'], context.target_variable || context.umbrellanizer_target_research_question);
+    setAlias(['target_variable_description', 'umbrellanizer_target_research_question_description'], context.target_variable_description || context.umbrellanizer_target_research_question_description);
+  }
+
+  // 4. Process Custom or Sibling Stage Context
   const custom = context.custom || {};
   if (custom && typeof custom === 'object') {
     for (const [k, v] of Object.entries(custom)) {
@@ -80,7 +88,7 @@ export function buildHydrationDictionary(context: HydrationContext): Record<stri
     }
   }
 
-  // 4. Direct top-level context properties
+  // 5. Direct top-level context properties
   for (const [k, v] of Object.entries(context)) {
     if (k !== 'project' && k !== 'paper' && k !== 'custom') {
       setAlias([k], v);

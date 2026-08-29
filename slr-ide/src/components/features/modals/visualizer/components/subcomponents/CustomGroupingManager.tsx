@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Sparkles, Plus, Trash2 } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Zap } from 'lucide-react';
 import { useVisualizerContext } from '../../context/VisualizerContext';
 import { CUSTOM_GROUPING_KEY } from '../../constants/defaultConfigs';
-import { getFieldValue } from '../../utils/dataExtractor';
+import { getFieldValue, stripParentPrefix } from '../../utils/dataExtractor';
 
 export function CustomGroupingManager() {
   const { props, config, data } = useVisualizerContext();
@@ -15,7 +15,9 @@ export function CustomGroupingManager() {
     setLevelCustomGroupLinks
   } = data;
 
+  const { availableFields } = data;
   const [levelNewGroupName, setLevelNewGroupName] = useState<Record<number, string>>({});
+  const [levelTargetField, setLevelTargetField] = useState<Record<number, string>>({});
 
   const activeCustomLevelIndices = ['sunburst', 'treemap', 'sankey'].includes(chartType)
     ? sankeyFields.map((f, idx) => (f === CUSTOM_GROUPING_KEY ? idx : -1)).filter(idx => idx !== -1)
@@ -39,6 +41,49 @@ export function CustomGroupingManager() {
     excludeEmpty
   };
 
+  const handleAutoParseColon = (lIdx: number, subValues: string[]) => {
+    if (!subValues || subValues.length === 0) return;
+
+    const newGroupsSet = new Set<string>();
+    const newLinks: Record<string, string> = {};
+    let hasStandalone = false;
+
+    subValues.forEach(val => {
+      if (!val || val === '[object Object]' || val === 'Unspecified') return;
+      const colonIdx = val.indexOf(':');
+      if (colonIdx !== -1) {
+        const prefix = val.substring(0, colonIdx).trim();
+        if (prefix) {
+          newGroupsSet.add(prefix);
+          newLinks[val] = prefix;
+        } else {
+          hasStandalone = true;
+          newLinks[val] = 'Other / Standalone';
+        }
+      } else {
+        hasStandalone = true;
+        newLinks[val] = 'Other / Standalone';
+      }
+    });
+
+    const sortedGroups = Array.from(newGroupsSet).sort();
+    if (hasStandalone) {
+      sortedGroups.push('Other / Standalone');
+    }
+
+    if (sortedGroups.length === 0) return;
+
+    setLevelCustomGroups((prev: Record<number, string[]>) => ({
+      ...prev,
+      [lIdx]: sortedGroups
+    }));
+
+    setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({
+      ...prev,
+      [lIdx]: newLinks
+    }));
+  };
+
   return (
     <div className="space-y-4">
       {activeCustomLevelIndices.map(lIdx => {
@@ -46,30 +91,57 @@ export function CustomGroupingManager() {
         const currentLevelLinks = levelCustomGroupLinks[lIdx] || {};
         const currentNewName = levelNewGroupName[lIdx] || '';
 
-        const subFieldKey = sankeyFields.find((f, i) => f !== CUSTOM_GROUPING_KEY && i > lIdx) || sankeyFields.find(f => f !== CUSTOM_GROUPING_KEY) || primaryField;
-        const samplePapers = papers.slice(0, 200);
-        const allSubValues = Array.from(new Set(samplePapers.flatMap(p => getFieldValue(p, subFieldKey, extractOpts))))
+        const defaultSubFieldKey = sankeyFields.find((f, i) => f !== CUSTOM_GROUPING_KEY && i > lIdx) || sankeyFields.find(f => f !== CUSTOM_GROUPING_KEY) || primaryField;
+        const subFieldKey = levelTargetField[lIdx] || defaultSubFieldKey;
+        const allSubValues = Array.from(new Set((papers || []).flatMap(p => getFieldValue(p, subFieldKey, extractOpts))))
           .filter(Boolean)
           .filter(v => v !== '[object Object]' && v !== 'Unspecified')
           .sort();
 
+        const colonItemsCount = allSubValues.filter(v => v.includes(':')).length;
+        const formatSubLabel = (k: string) => {
+          if (k.startsWith('ext:macro:')) return `Extracted: ${k.substring(10)} [Level 1: Macro Domain]`;
+          if (k.startsWith('ext:sub:')) return `Extracted: ${k.substring(8)} [Level 2: Sub-Category]`;
+          if (k.startsWith('raw:ext:')) return `Extracted: ${k.substring(8)} [Level 3: Raw Tokens]`;
+          if (k.startsWith('ext:')) return `Extracted: ${k.substring(4)} [Full Taxonomy String]`;
+          return k;
+        };
+        const subFieldLabel = formatSubLabel(subFieldKey);
+
         return (
           <div key={lIdx} className="p-4 bg-secondary/20 border border-border/80 rounded-xl space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
                 <span className="text-xs font-extrabold text-foreground">
                   Level {lIdx + 1} Custom Grouping Layer Configuration
                 </span>
               </div>
-              <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                Active at Level {lIdx + 1}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleAutoParseColon(lIdx, allSubValues)}
+                  disabled={allSubValues.length === 0}
+                  className="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-lg text-[11px] font-extrabold flex items-center gap-1.5 transition-all shadow-sm hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                  title="Automatically discover macro-categories from ':' prefixes (e.g. 'Application/Middleware: Web Services' -> 'Application/Middleware') and map all items"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
+                  Auto-Parse &apos;:&apos; Prefixes
+                  {colonItemsCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-[10px] font-bold">
+                      {colonItemsCount}
+                    </span>
+                  )}
+                </button>
+                <span className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  Active at Level {lIdx + 1}
+                </span>
+              </div>
             </div>
 
             <div className="pt-2 space-y-4 border-t border-border/60">
               <p className="text-[11px] text-muted-foreground">
-                Create custom macro-domain categories for <span className="font-bold text-primary">Level {lIdx + 1}</span> and link sub-field items (<span className="font-bold text-foreground">{subFieldKey.startsWith('ext:') ? subFieldKey.substring(4) : subFieldKey}</span>) to them.
+                Create custom macro-domain categories for <span className="font-bold text-primary">Level {lIdx + 1}</span> and link sub-field items (<span className="font-bold text-foreground">{subFieldLabel}</span>) to them manually or automatically using the <span className="font-bold text-amber-600 dark:text-amber-400">Auto-Parse &apos;:&apos; Prefixes</span> button.
               </p>
 
               {/* Inline Add New Custom Group Bar */}
@@ -111,9 +183,25 @@ export function CustomGroupingManager() {
 
               {/* Sub-Level Field Items Linker */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-primary block">
-                    Sub-Items Target Source: <span className="font-extrabold text-foreground">{subFieldKey.startsWith('ext:') ? subFieldKey.substring(4) : subFieldKey}</span> ({allSubValues.length} unique items)
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-primary block">
+                      Sub-Items Target Source:
+                    </span>
+                    <select
+                      value={subFieldKey}
+                      onChange={(e) => setLevelTargetField(prev => ({ ...prev, [lIdx]: e.target.value }))}
+                      className="bg-card border border-border rounded-lg px-2.5 py-1 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+                    >
+                      {availableFields.filter((f: string) => f !== CUSTOM_GROUPING_KEY).map((f: string) => (
+                        <option key={f} value={f}>
+                          {formatSubLabel(f)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-[11px] font-bold text-muted-foreground">
+                    ({allSubValues.length} unique items discovered)
                   </span>
                 </div>
 
@@ -154,25 +242,28 @@ export function CustomGroupingManager() {
 
                           {/* Assigned Sub-Item Pills */}
                           <div className="flex flex-wrap gap-1.5 pt-2 min-h-[36px]">
-                            {assignedItems.length > 0 ? assignedItems.map(item => (
-                              <span key={item} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 text-[11px] font-bold">
-                                {item}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => {
-                                      const copy = { ...(prev[lIdx] || {}) };
-                                      delete copy[item];
-                                      return { ...prev, [lIdx]: copy };
-                                    });
-                                  }}
-                                  className="hover:text-red-500 font-extrabold ml-0.5"
-                                  title="Unlink sub-item"
-                                >
-                                  ×
-                                </button>
-                              </span>
-                            )) : (
+                            {assignedItems.length > 0 ? assignedItems.map(item => {
+                              const displayLabel = stripParentPrefix(item, groupName);
+                              return (
+                                <span key={item} title={item} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 text-[11px] font-bold">
+                                  {displayLabel}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => {
+                                        const copy = { ...(prev[lIdx] || {}) };
+                                        delete copy[item];
+                                        return { ...prev, [lIdx]: copy };
+                                      });
+                                    }}
+                                    className="hover:text-red-500 font-extrabold ml-0.5"
+                                    title={`Unlink ${item}`}
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              );
+                            }) : (
                               <span className="text-[10.5px] italic text-muted-foreground">No sub-items linked yet</span>
                             )}
                           </div>
@@ -196,9 +287,12 @@ export function CustomGroupingManager() {
                               className="w-full bg-secondary/40 border border-border rounded-lg px-2 py-1 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary"
                             >
                               <option value="" disabled>+ Link sub-item to {groupName}...</option>
-                              {unassignedItems.map(u => (
-                                <option key={u} value={u}>{u}</option>
-                              ))}
+                              {unassignedItems.map(u => {
+                                const uDisplay = stripParentPrefix(u, groupName);
+                                return (
+                                  <option key={u} value={u}>{uDisplay !== u ? `${uDisplay} (${u})` : u}</option>
+                                );
+                              })}
                             </select>
                           </div>
                         )}

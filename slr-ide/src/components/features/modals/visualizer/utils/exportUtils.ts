@@ -2,6 +2,7 @@ import * as echarts from 'echarts';
 import { THEME_PALETTES } from '../constants/themePalettes';
 import { resolveFontFamilyCss } from '../constants/fontFamilies';
 import { formatSubfigureLabel } from '../constants/layoutPresets';
+import { exportSvgToPdf } from '@/lib/services/pdf-export-service';
 import type { 
   ChartType, 
   ThemePreset, 
@@ -11,18 +12,22 @@ import type {
   SlotConfig, 
   SubfigureLabelStyle,
   AspectRatioPreset,
-  DimensionUnit
+  DimensionUnit,
+  ExportFormat
 } from '../types';
 
 export interface ExportChartOptions {
   chartInstance: echarts.ECharts | null;
   chartType: ChartType;
-  exportFormat: 'png' | 'svg';
+  exportFormat: ExportFormat;
   exportScale: number;
   themePreset: ThemePreset;
   chartScale?: number;
   panX?: number;
   panY?: number;
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   tiltAngle: number;
   rotationAngle: number;
   subTitle?: string;
@@ -33,7 +38,7 @@ export interface ExportMultiPanelOptions {
   activeSlotsList: SlotId[];
   chartInstances: Record<SlotId, echarts.ECharts | null>;
   slotsConfig: Record<SlotId, SlotConfig>;
-  exportFormat: 'png' | 'svg';
+  exportFormat: ExportFormat;
   exportScale: number;
   themePreset: ThemePreset;
   fontFamily: FontFamily;
@@ -52,6 +57,9 @@ export interface ExportMultiPanelOptions {
   chartScale?: number;
   panX?: number;
   panY?: number;
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   tiltAngle: number;
   rotationAngle: number;
   generateSlotOption?: (slotId: SlotId) => echarts.EChartsOption;
@@ -115,7 +123,7 @@ export function resolveTargetDimensions(
 }
 
 // Single Subfigure Export
-export function exportFigure(options: ExportChartOptions): void {
+export async function exportFigure(options: ExportChartOptions): Promise<void> {
   const {
     chartInstance,
     chartType,
@@ -135,8 +143,9 @@ export function exportFigure(options: ExportChartOptions): void {
   const bg = THEME_PALETTES[themePreset]?.bg || '#ffffff';
   const normScale = chartScale > 10 ? chartScale / 100 : (chartScale || 1.0);
   const hasTransform = normScale !== 1.0 || panX !== 0 || panY !== 0 || tiltAngle !== 0 || rotationAngle !== 0;
+  const cleanTitle = (subTitle || chartType).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-  if (exportFormat === 'svg') {
+  if (exportFormat === 'svg' || exportFormat === 'pdf') {
     const svgData = chartInstance.renderToSVGString();
     let finalSvg = svgData;
     if (hasTransform) {
@@ -146,11 +155,19 @@ export function exportFigure(options: ExportChartOptions): void {
       const transformStr = `rotate(${rotationAngle}) scale(${scaleX}, ${scaleY})`;
       finalSvg = svgData.replace(/<g>/, `<g transform="${transformStr}">`);
     }
+
+    if (exportFormat === 'pdf') {
+      await exportSvgToPdf(finalSvg, {
+        filename: `slr_figure_${cleanTitle}_${Date.now()}.pdf`,
+        marginMm: 0
+      });
+      return;
+    }
+
     const blob = new Blob([finalSvg], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const cleanTitle = (subTitle || chartType).replace(/[^a-zA-Z0-9_-]/g, '_');
     a.download = `slr_figure_${cleanTitle}_${Date.now()}.svg`;
     document.body.appendChild(a);
     a.click();
@@ -302,7 +319,7 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
 
   const hasMainHeader = (showChartTitle && chartTitle) || (showChartSubtitle && chartSubtitle);
   const headerHeight = hasMainHeader ? 70 : 0;
-  const outerPadding = 20;
+  const outerPadding = typeof options.containerPadding === 'number' ? options.containerPadding : 20;
 
   const stageWidth = baseWidth - outerPadding * 2;
   const stageHeight = baseHeight - outerPadding * 2 - headerHeight;
@@ -581,11 +598,20 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
       svgContent += `</svg>`;
     }
 
+    const cleanTitle = (chartTitle || 'composite_figure').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    if (exportFormat === 'pdf') {
+      await exportSvgToPdf(svgContent, {
+        filename: `slr_figure_${cleanTitle}_${aspectRatio}_${Date.now()}.pdf`,
+        marginMm: 0
+      });
+      return;
+    }
+
     const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const cleanTitle = (chartTitle || 'composite_figure').replace(/[^a-zA-Z0-9_-]/g, '_');
     a.download = `slr_figure_${cleanTitle}_${aspectRatio}_${Date.now()}.svg`;
     document.body.appendChild(a);
     a.click();

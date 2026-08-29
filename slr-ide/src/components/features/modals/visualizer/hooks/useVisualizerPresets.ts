@@ -33,6 +33,12 @@ export function useVisualizerPresets(params: {
     setTiltAngle: (v: number) => void;
     rotationAngle: number;
     setRotationAngle: (v: number) => void;
+    fitOffsetX?: number;
+    setFitOffsetX?: (v: number) => void;
+    fitOffsetY?: number;
+    setFitOffsetY?: (v: number) => void;
+    containerPadding?: number;
+    setContainerPadding?: (v: number) => void;
   };
 }) {
   const { layout, config, style, camera } = params;
@@ -50,7 +56,10 @@ export function useVisualizerPresets(params: {
       panX: camera.panX,
       panY: camera.panY,
       tiltAngle: camera.tiltAngle,
-      rotationAngle: camera.rotationAngle
+      rotationAngle: camera.rotationAngle,
+      fitOffsetX: camera.fitOffsetX,
+      fitOffsetY: camera.fitOffsetY,
+      containerPadding: camera.containerPadding
     };
 
     const jsonStr = JSON.stringify(presetObj, null, 2);
@@ -113,6 +122,7 @@ export function useVisualizerPresets(params: {
             sankeyFields: parsed.sankeyFields || ['Year', 'Import_Source', 'Local_PDF_Status'],
             sankeyLabelPositions: parsed.sankeyLabelPositions || {},
             sankeyMaxNodes: parsed.sankeyMaxNodes || {},
+            tailLabelStyle: parsed.tailLabelStyle || 'comma_list',
             limitCategories: parsed.limitCategories ?? false,
             maxCategoriesCount: parsed.maxCategoriesCount ?? 10,
             numFieldX: parsed.numFieldX || 'Overall_QA',
@@ -163,7 +173,19 @@ export function useVisualizerPresets(params: {
             manualCategoryValues: parsed.manualCategoryValues || {},
             customSliceColors: parsed.customSliceColors || {},
             pieLabelPlacement: parsed.pieLabelPlacement || 'outside',
-            pieRadiusRatio: parsed.pieRadiusRatio || 52
+            pieRadiusRatio: parsed.pieRadiusRatio || 52,
+            pieLabelWidth: parsed.pieLabelWidth ?? 140,
+            pieLeaderLineLength: parsed.pieLeaderLineLength ?? 12,
+            pieLeaderLineLength2: parsed.pieLeaderLineLength2 ?? 14,
+            pieLabelDistance: parsed.pieLabelDistance ?? 6,
+            pieLineHeight: parsed.pieLineHeight ?? 15,
+            barLabelDistance: parsed.barLabelDistance ?? 5,
+            legendDistance: parsed.legendDistance ?? 20,
+            legendWidth: parsed.legendWidth,
+            legendLineHeight: parsed.legendLineHeight ?? 15,
+            legendItemGap: parsed.legendItemGap ?? 12,
+            legendFontSize: parsed.legendFontSize,
+            legendOverflow: parsed.legendOverflow || 'break'
           };
 
           config.setAllSlotsConfig({
@@ -177,6 +199,9 @@ export function useVisualizerPresets(params: {
         if (typeof parsed.panY === 'number') camera.setPanY(parsed.panY);
         if (typeof parsed.tiltAngle === 'number') camera.setTiltAngle(parsed.tiltAngle);
         if (typeof parsed.rotationAngle === 'number') camera.setRotationAngle(parsed.rotationAngle);
+        if (typeof parsed.fitOffsetX === 'number' && camera.setFitOffsetX) camera.setFitOffsetX(parsed.fitOffsetX);
+        if (typeof parsed.fitOffsetY === 'number' && camera.setFitOffsetY) camera.setFitOffsetY(parsed.fitOffsetY);
+        if (typeof parsed.containerPadding === 'number' && camera.setContainerPadding) camera.setContainerPadding(parsed.containerPadding);
       } catch (err) {
         alert('Invalid preset JSON file format.');
       }

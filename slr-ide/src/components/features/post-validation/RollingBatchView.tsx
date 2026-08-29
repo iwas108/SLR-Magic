@@ -7,6 +7,7 @@ import RollingBatchAdjudicationModal from './RollingBatchAdjudicationModal';
 import RollingBatchResetModal from './RollingBatchResetModal';
 import { ImportBatchStandbyModal } from './ImportBatchStandbyModal';
 import { BatchFailureBreakdownModal } from './BatchFailureBreakdownModal';
+import RollingBatchMockupModal from '../modals/RollingBatchMockupModal';
 import DiscrepancyTable from '@/components/features/inter-rater/DiscrepancyTable';
 import AuditLedger from '@/components/features/inter-rater/AuditLedger';
 import { renderPoolCReviewerSummary } from '@/lib/inter-rater/adjudication-calculations';
@@ -25,7 +26,25 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
   const [isUploadingSlot2, setIsUploadingSlot2] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showStandbyImportModal, setShowStandbyImportModal] = useState(false);
+  const [showMockupModal, setShowMockupModal] = useState(false);
   const [selectedFailureBatch, setSelectedFailureBatch] = useState<{ batchNumber: number | null; finalizedAt?: string | null; stats: any | null } | null>(null);
+
+  // Hidden Keyboard Shortcut CTRL+M / CMD+M for Rolling Batch Mockup Review Generator (Active in Rolling Batch workspace)
+  useEffect(() => {
+    if (reportingOnly) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        setShowMockupModal(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [reportingOnly]);
 
   // Fetch detailed decisions and ledger for the active batch
   const fetchBatchDecisions = async () => {
@@ -555,6 +574,18 @@ export default function RollingBatchView({ projectId, showToast, reportingOnly =
         finalizedAt={selectedFailureBatch?.finalizedAt}
         stats={selectedFailureBatch?.stats ?? null}
       />
+
+      {/* Rolling Batch Mockup Review Generator Modal (CTRL+M) */}
+      {!reportingOnly && (
+        <RollingBatchMockupModal
+          isOpen={showMockupModal}
+          onClose={() => setShowMockupModal(false)}
+          activeProjectId={projectId}
+          activeProject={projRules}
+          batchId={rb.currentBatch?.id}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 }

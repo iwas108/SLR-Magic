@@ -125,6 +125,21 @@ export async function GET(request: Request) {
     let dbStage3FatalFlaw = 0;
     let dbStage3Cumulative = 0;
 
+    // Format canonical name for other methods
+    const formatOtherSourceName = (rawSource: string): string => {
+      const norm = (rawSource || '').trim().toLowerCase();
+      if (norm === 'manual search' || norm === 'manual ingestion') {
+        return 'Manual search (Google Scholar)';
+      }
+      if (norm === 'forward snowball' || norm === 'forward snowballing') {
+        return 'Forward Snowballing';
+      }
+      if (norm === 'backward snowball' || norm === 'backward snowballing') {
+        return 'Backward Snowballing';
+      }
+      return rawSource || 'Other Source';
+    };
+
     // Manual screening override metrics tracking
     let dbManualStage1Excluded = 0;
     let dbManualStage2Excluded = 0;
@@ -132,6 +147,7 @@ export async function GET(request: Request) {
     let dbManualTotalExcluded = 0;
 
     // Right column (Other Methods)
+    const otherSourcesMap: Record<string, number> = {};
     let otherDuplicatesRemoved = 0;
     let otherReportsSought = 0;
     let otherReportsNotRetrieved = 0;
@@ -223,6 +239,10 @@ export async function GET(request: Request) {
         }
       } else {
         // Right Column: Other Methods
+        const rawSource = paper.Source || paper.Import_Source || 'Manual Search';
+        const canonicalSource = formatOtherSourceName(rawSource);
+        otherSourcesMap[canonicalSource] = (otherSourcesMap[canonicalSource] || 0) + 1;
+
         if (isDuplicate) {
           otherDuplicatesRemoved++;
           continue;
@@ -269,6 +289,12 @@ export async function GET(request: Request) {
       count
     }));
 
+    const otherMethodsSources = Object.entries(otherSourcesMap).map(([source, count]) => ({
+      source,
+      count
+    }));
+    const totalOtherRecordsIdentified = Object.values(otherSourcesMap).reduce((a, b) => a + b, 0);
+
     const formatECList = (map: Record<string, { total: number; aiCount: number; manualCount: number }>) => {
       return Object.entries(map).map(([code, item]) => ({
         code,
@@ -301,6 +327,8 @@ export async function GET(request: Request) {
       dbManualStage3Excluded,
       dbManualTotalExcluded,
 
+      otherMethodsSources,
+      totalOtherRecordsIdentified,
       otherDuplicatesRemoved,
       otherReportsSought,
       otherReportsNotRetrieved,
@@ -1447,6 +1475,7 @@ export async function GET(request: Request) {
         quality_assurance_definition: project.qa_definition || project.quality_assurance_definition || '',
         scopus_search_string: project.scopus_search_string || '',
         manual_search_string: project.manual_search_string || '',
+        search_queries: project.search_queries ? (typeof project.search_queries === 'string' ? JSON.parse(project.search_queries || '[]') : project.search_queries) : [],
         search_string: project.scopus_search_string || '',
         manifesto: project.manifesto || project.research_manifesto || '',
         objective: project.objective || project.research_objective || '',

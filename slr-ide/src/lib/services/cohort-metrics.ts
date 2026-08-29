@@ -31,23 +31,32 @@ export interface CohortVariableMetrics {
 
 /**
  * Largest Remainder Method (Hare-Hamilton Quota) for exact 100.00% quota balancing.
+ * Supports configurable decimal precision (0, 1, 2, 3, 4 decimal places).
  */
-export function calculateHareHamiltonPercentages(counts: number[], targetSum: number = 100.00): number[] {
+export function calculateHareHamiltonPercentages(
+  counts: number[],
+  targetSum: number = 100.00,
+  decimals: number = 2
+): number[] {
   const total = counts.reduce((a, b) => a + (b || 0), 0);
   if (total === 0) return counts.map(() => 0);
 
+  const precision = Math.max(0, decimals);
+  const factor = Math.pow(10, precision);
+  const step = 1 / factor;
+
   const exactPcts = counts.map(c => ((c || 0) / total) * targetSum);
-  const floorPcts = exactPcts.map(p => Math.floor(p * 100) / 100);
+  const floorPcts = exactPcts.map(p => Math.floor(p * factor) / factor);
   const remainders = exactPcts.map((p, idx) => ({ remainder: p - floorPcts[idx], index: idx }));
 
-  const currentSum = Math.round(floorPcts.reduce((a, b) => a + b, 0) * 100);
-  const diffCent = Math.round(targetSum * 100) - currentSum; // remaining 0.01% units
+  const currentSum = Math.round(floorPcts.reduce((a, b) => a + b, 0) * factor);
+  const diffUnits = Math.round(targetSum * factor) - currentSum; // remaining unit increments
 
   remainders.sort((a, b) => b.remainder - a.remainder);
   const result = [...floorPcts];
-  for (let i = 0; i < diffCent && i < remainders.length; i++) {
+  for (let i = 0; i < diffUnits && i < remainders.length; i++) {
     const idx = remainders[i].index;
-    result[idx] = Math.round((result[idx] + 0.01) * 100) / 100;
+    result[idx] = Math.round((result[idx] + step) * factor) / factor;
   }
   return result;
 }
@@ -59,14 +68,15 @@ export function calculateHareHamiltonPercentages(counts: number[], targetSum: nu
 export function calculateCohortVariableMetrics(
   papers: any[],
   fieldKey: string,
-  options: TaxonomyOptions & { customCategoryMap?: Record<string, Record<string, string>> } = {}
+  options: TaxonomyOptions & { customCategoryMap?: Record<string, Record<string, string>>; decimalPrecision?: number } = {}
 ): CohortVariableMetrics {
   const {
     useUmbrellanizer = true,
     umbrellanizerMap = {},
     splitMultiValues = true,
     excludeEmpty = true,
-    customCategoryMap = {}
+    customCategoryMap = {},
+    decimalPrecision = 2
   } = options;
 
   const totalCohortPapers = papers.length;
@@ -121,13 +131,13 @@ export function calculateCohortVariableMetrics(
   });
 
   const tagCounts = sortedCategories.map(c => c[1]);
-  const tagSharePercentages = calculateHareHamiltonPercentages(tagCounts, 100.00);
+  const tagSharePercentages = calculateHareHamiltonPercentages(tagCounts, 100.00, decimalPrecision);
 
   const categories: CategoryDistributionItem[] = sortedCategories.map(([category, tagCount], idx) => {
     const paperIds = Array.from(categoryPaperIdsMap.get(category) || []).sort();
     const paperCount = paperIds.length;
     const paperPrevalencePct = totalCohortPapers > 0
-      ? parseFloat(((paperCount / totalCohortPapers) * 100).toFixed(2))
+      ? parseFloat(((paperCount / totalCohortPapers) * 100).toFixed(decimalPrecision))
       : 0;
 
     return {
@@ -142,7 +152,7 @@ export function calculateCohortVariableMetrics(
 
   const totalPapersWithData = Math.max(0, totalCohortPapers - notStatedCount);
   const notStatedPct = totalCohortPapers > 0
-    ? parseFloat(((notStatedCount / totalCohortPapers) * 100).toFixed(2))
+    ? parseFloat(((notStatedCount / totalCohortPapers) * 100).toFixed(decimalPrecision))
     : 0;
 
   return {

@@ -144,6 +144,7 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
     },
     yAxis: {
       type: 'value',
+      max: showDataLabels ? (val: any) => (!val || val.max === 0 ? 10 : Math.ceil(val.max * 1.18)) : undefined,
       axisLabel: {
         fontFamily: font,
         fontSize: fontSize - 1,
@@ -388,18 +389,31 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
     data: [{ xAxis: barBenchmarkValue }]
   } : undefined;
 
+  const isLabelOutside = showDataLabels && (!barLabelPosition || (barLabelPosition as string) === 'right' || (barLabelPosition as string) === 'outside' || !barLabelPosition.startsWith('inside'));
+  const maxLabelLength = valuesData.reduce((max, d) => Math.max(max, String(d.formattedLabel || '').length), 0);
+  const headroomFactor = maxLabelLength >= 40 ? 1.60 : maxLabelLength >= 25 ? 1.42 : maxLabelLength >= 14 ? 1.25 : 1.15;
+
   const yWidth = barYAxisWidth || 140;
   let gridTop = 40;
   let gridBottom = 35;
   let gridLeft = Math.max(90, Math.min(220, yWidth + 16));
-  let gridRight = 65;
+  let gridRight = isLabelOutside ? Math.max(80, Math.min(160, Math.round(maxLabelLength * 2.6))) : 65;
 
   if (showLegend) {
     if (barLegendPosition.startsWith('top')) gridTop = 85;
     else if (barLegendPosition.startsWith('bottom')) gridBottom = 55;
-    else if (barLegendPosition.includes('right')) gridRight = 140;
+    else if (barLegendPosition.includes('right')) gridRight = Math.max(gridRight, 140);
     else if (barLegendPosition.includes('left')) gridLeft += 120;
   }
+
+  const cPad = ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0;
+  const offX = ctx.fitOffsetX ?? 0;
+  const offY = ctx.fitOffsetY ?? 0;
+
+  gridTop = Math.max(15, gridTop + cPad - offY);
+  gridBottom = Math.max(15, gridBottom + cPad + offY);
+  gridLeft = Math.max(20, gridLeft + cPad - offX);
+  gridRight = Math.max(20, gridRight + cPad + offX);
 
   return {
     backgroundColor: palette.bg,
@@ -437,6 +451,13 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
     },
     xAxis: {
       type: 'value',
+      max: isLabelOutside
+        ? (val: any) => {
+            if (!val || val.max === 0) return 10;
+            const ceiling = Math.ceil(val.max * headroomFactor);
+            return barBenchmarkLine ? Math.max(ceiling, Math.ceil(barBenchmarkValue * 1.15)) : ceiling;
+          }
+        : (barBenchmarkLine ? (val: any) => Math.max(val.max, Math.ceil(barBenchmarkValue * 1.15)) : undefined),
       axisLabel: {
         fontFamily: font,
         fontSize: Math.max(9, fontSize - 1),
@@ -531,6 +552,9 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
     useUmbrellanizer,
     splitMultiValues,
     excludeEmpty,
+    customCategoryMap,
+    levelCustomGroupLinks,
+    sankeyFields,
     showLegend,
     labelRotation,
     showDataLabels,
@@ -540,16 +564,27 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
   const catSet = new Set<string>();
   const stackSet = new Set<string>();
   const rawMatrixMap = new Map<string, Map<string, any[]>>();
+  let totalExtractedTags = 0;
 
-  const fieldOpts = { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty };
+  const mappedOpts = { 
+    useUmbrellanizer, 
+    umbrellanizerMap, 
+    splitMultiValues, 
+    excludeEmpty,
+    customCategoryMap,
+    levelCustomGroupLinks,
+    sankeyFields,
+    primaryField
+  };
 
   papers.forEach(p => {
-    const primVals = getFieldValue(p, primaryField, fieldOpts);
-    const secVals = getFieldValue(p, secondaryField, fieldOpts);
+    const primVals = getMappedFieldValue(p, primaryField, mappedOpts);
+    const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
 
     primVals.forEach(pv => {
       catSet.add(pv);
       secVals.forEach(sv => {
+        totalExtractedTags++;
         stackSet.add(sv);
         if (!rawMatrixMap.has(pv)) rawMatrixMap.set(pv, new Map());
         if (!rawMatrixMap.get(pv)!.has(sv)) rawMatrixMap.get(pv)!.set(sv, []);
@@ -569,28 +604,65 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
     primPapersMap,
     limitCategories,
     maxCategoriesCount,
-    (list) => computeMetricValue(list, metricMode, papers.length)
+    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
   );
 
   const categories = Array.from(limitedPrimMap.keys()).sort((a, b) => (a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b)));
   const stacks = Array.from(stackSet).sort();
+
+  // Compute category totals for normalized mode
+  const catTotals = new Map<string, number>();
+  if (ctx.stackedNormalized) {
+    categories.forEach(cat => {
+      let sum = 0;
+      stacks.forEach(stk => {
+        if (cat === 'Other') {
+          const otherPapers: any[] = [];
+          limitedPrimMap.get('Other')?.forEach(p => {
+            const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+            if (secVals.includes(stk)) otherPapers.push(p);
+          });
+          sum += computeMetricValue(otherPapers, metricMode, papers.length, totalExtractedTags);
+        } else {
+          sum += computeMetricValue(rawMatrixMap.get(cat)?.get(stk) || [], metricMode, papers.length, totalExtractedTags);
+        }
+      });
+      catTotals.set(cat, sum);
+    });
+  }
 
   const seriesList = stacks.map((stk) => ({
     name: stk,
     type: 'bar' as const,
     stack: 'total',
     data: categories.map(cat => {
+      let rawVal = 0;
       if (cat === 'Other') {
-        let otherSum = 0;
+        const otherPapers: any[] = [];
         limitedPrimMap.get('Other')?.forEach(p => {
-          const secVals = getFieldValue(p, secondaryField, fieldOpts);
-          if (secVals.includes(stk)) otherSum++;
+          const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+          if (secVals.includes(stk)) {
+            otherPapers.push(p);
+          }
         });
-        return otherSum;
+        rawVal = computeMetricValue(otherPapers, metricMode, papers.length, totalExtractedTags);
+      } else {
+        rawVal = computeMetricValue(rawMatrixMap.get(cat)?.get(stk) || [], metricMode, papers.length, totalExtractedTags);
       }
-      return computeMetricValue(rawMatrixMap.get(cat)?.get(stk) || [], metricMode, papers.length);
+
+      if (ctx.stackedNormalized) {
+        const tot = catTotals.get(cat) || 0;
+        return tot > 0 ? parseFloat(((rawVal / tot) * 100).toFixed(2)) : 0;
+      }
+      return rawVal;
     }),
-    label: { show: showDataLabels, fontFamily: font, fontSize: fontSize - 3, color: '#ffffff' }
+    label: { 
+      show: showDataLabels, 
+      fontFamily: font, 
+      fontSize: fontSize - 3, 
+      color: '#ffffff',
+      formatter: ctx.stackedNormalized ? '{c}%' : '{c}'
+    }
   }));
 
   return {
@@ -598,10 +670,38 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
     color: palette.colors,
     title: baseTitle,
     legend: baseLegend,
-    tooltip: { ...baseTooltip, trigger: 'axis', axisPointer: { type: 'shadow' } },
+    tooltip: { 
+      ...baseTooltip, 
+      trigger: 'axis', 
+      axisPointer: { type: 'shadow' },
+      formatter: (params: any) => {
+        if (!Array.isArray(params) || params.length === 0) return '';
+        const cat = params[0].name;
+        let rows = params.map((p: any) => {
+          return `<div style="display:flex;justify-content:space-between;gap:12px;margin:2px 0;">
+            <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${p.color};margin-right:4px;"></span>${p.seriesName}:</span>
+            <strong>${p.value}${ctx.stackedNormalized ? '%' : ''}</strong>
+          </div>`;
+        }).join('');
+        return `<div style="font-family:${font};font-size:12px;padding:2px;">
+          <strong>${cat}</strong>
+          ${rows}
+        </div>`;
+      }
+    },
     grid: { left: '8%', right: '8%', top: showLegend ? 110 : 80, bottom: '15%', containLabel: true },
     xAxis: { type: 'category', data: categories, axisLabel: { fontFamily: font, fontSize: fontSize - 1, color: palette.text, rotate: labelRotation } },
-    yAxis: { type: 'value', axisLabel: { fontFamily: font, fontSize: fontSize - 1, color: palette.text }, splitLine: { lineStyle: { color: palette.border, type: 'dashed' } } },
+    yAxis: { 
+      type: 'value', 
+      max: ctx.stackedNormalized ? 100 : undefined,
+      axisLabel: { 
+        fontFamily: font, 
+        fontSize: fontSize - 1, 
+        color: palette.text,
+        formatter: ctx.stackedNormalized ? '{value}%' : '{value}'
+      }, 
+      splitLine: { lineStyle: { color: palette.border, type: 'dashed' } } 
+    },
     series: seriesList
   };
 }

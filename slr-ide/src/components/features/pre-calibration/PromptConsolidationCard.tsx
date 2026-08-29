@@ -12,6 +12,7 @@ interface PromptConsolidationCardProps {
   auditScores: any;
   auditReport: AuditReport | null;
   loadingAudit: boolean;
+  isAnyTaskRunning?: boolean;
   onRunAudit: () => void;
 }
 
@@ -20,6 +21,7 @@ export default function PromptConsolidationCard({
   auditScores,
   auditReport,
   loadingAudit,
+  isAnyTaskRunning = false,
   onRunAudit
 }: PromptConsolidationCardProps) {
   const [expandedConsole, setExpandedConsole] = useState(false);
@@ -32,6 +34,8 @@ export default function PromptConsolidationCard({
   const availabilityCount = promptAvailability.total_available;
   const semanticCount = auditScores?.semantic_passed_count ?? (isPassed ? 4 : (isWarning ? 3 : 0));
   const chainabilityCount = auditScores?.chainability_passed_count ?? (isPassed ? 5 : (isWarning ? 4 : 0));
+
+  const isAuditDisabled = loadingAudit || !isReady || (isAnyTaskRunning && !loadingAudit);
 
   return (
     <div className={`relative overflow-hidden rounded-2xl border p-5 transition-all duration-300 bg-card shadow-xs ${
@@ -83,9 +87,9 @@ export default function PromptConsolidationCard({
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={onRunAudit}
-            disabled={loadingAudit || !isReady}
+            disabled={isAuditDisabled}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold font-mono tracking-wide transition-all shadow-xs ${
-              loadingAudit || !isReady
+              isAuditDisabled
                 ? 'bg-muted text-muted-foreground border border-border cursor-not-allowed opacity-60'
                 : 'bg-primary text-primary-foreground hover:bg-primary/90 active:scale-98 shadow-sm'
             }`}

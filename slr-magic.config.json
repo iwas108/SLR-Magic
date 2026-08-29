@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 3000,
+    "cors": true
+  },
+  "modules": {
+    "slr_ide": {
+      "host": "0.0.0.0",
+      "port": 3000
+    },
+    "inter_rater": {
+      "host": "0.0.0.0",
+      "port": 3001
+    },
+    "slr_viewer": {
+      "host": "0.0.0.0",
+      "port": 3002
+    },
+    "worker_server": {
+      "host": "0.0.0.0",
+      "port": 7291
+    }
+  }
+}

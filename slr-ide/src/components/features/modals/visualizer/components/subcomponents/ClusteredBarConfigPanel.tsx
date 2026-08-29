@@ -156,13 +156,32 @@ export function ClusteredBarConfigPanel() {
             onChange={(e) => setBarLabelFormat(e.target.value as any)}
             className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs text-foreground font-bold"
           >
-            <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
-            <option value="name_ratio_percent">Name + Ratio + Coarse %</option>
-            <option value="percent_ratio">Coarse % + Ratio (~P%, n = x/N)</option>
-            <option value="ratio_only">Ratio Only (n = x/N)</option>
-            <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
-            <option value="percent_only">Percentage Only (~P%)</option>
-            <option value="count_only">Count Only (n = x)</option>
+            <optgroup label="Standard (Follows Chart Metric)">
+              <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
+              <option value="name_ratio_percent">Name + Ratio + Coarse %</option>
+              <option value="percent_ratio">Coarse % + Ratio (~P%, n = x/N)</option>
+              <option value="ratio_only">Ratio Only (n = x/N)</option>
+              <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
+              <option value="percent_only">Percentage Only (~P%)</option>
+              <option value="count_only">Count Only (n = x)</option>
+            </optgroup>
+            <optgroup label="Explicit Tag Share (Total Extracted Tags Denominator)">
+              <option value="tag_share_ratio_percent">Tag Share Ratio + % (n = x/TotalTags, ~P%)</option>
+              <option value="name_tag_share_ratio_percent">Name + Tag Share Ratio + %</option>
+              <option value="tag_share_percent_ratio">Tag Share % + Ratio (~P%, n = x/TotalTags)</option>
+              <option value="tag_share_percent_only">Tag Share % Only (~P%)</option>
+              <option value="tag_share_ratio_only">Tag Share Ratio Only (n = x/TotalTags)</option>
+              <option value="tag_share_count_percent">Tag Count + % (n = x, ~P%)</option>
+            </optgroup>
+            <optgroup label="Explicit Paper Prevalence (Total Cohort Denominator)">
+              <option value="prevalence_ratio_percent">Prevalence Ratio + % (n = x/CohortN, ~P%)</option>
+              <option value="name_prevalence_ratio_percent">Name + Prevalence Ratio + %</option>
+              <option value="prevalence_percent_only">Prevalence % Only (~P%)</option>
+              <option value="prevalence_ratio_only">Prevalence Ratio Only (n = x/CohortN)</option>
+            </optgroup>
+            <optgroup label="Dual / Combined Multi-Metric">
+              <option value="dual_prevalence_tag_share">Dual: Prev (n=x/N) | Tags (n=x/Total)</option>
+            </optgroup>
           </select>
         </div>
       </div>

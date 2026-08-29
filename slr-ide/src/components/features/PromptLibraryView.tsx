@@ -13,6 +13,7 @@ import {
   DEFAULT_STAGE_SCHEMAS, 
   validatePromptSchema 
 } from '@/lib/services/prompt-validator';
+import { CANONICAL_STAGE_PROMPTS } from '@/lib/services/prompt-defaults';
 import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 
 export interface ModelPricing {
@@ -1122,6 +1123,10 @@ export default function PromptLibraryView({
                                       <span className="text-[9px] text-muted-foreground font-bold uppercase block">Timeout</span>
                                       <span className="font-mono font-bold text-foreground">{parsedConfig.timeout_seconds ?? 900}s</span>
                                     </div>
+                                    <div className="p-2.5 bg-background/60 border border-border/60 rounded-xl">
+                                      <span className="text-[9px] text-muted-foreground font-bold uppercase block">Discount</span>
+                                      <span className="font-mono font-bold text-foreground">{parsedConfig.discount !== undefined ? `${Math.round(parsedConfig.discount * 100)}% (${parsedConfig.discount})` : '0% (0.0)'}</span>
+                                    </div>
                                   </div>
 
                                   {/* Interaction Chaining Summary Bar */}
@@ -1339,21 +1344,75 @@ export default function PromptLibraryView({
                   </div>
 
                   {/* Jinja2 Context Variables Helper */}
-                  <details className="bg-secondary/20 border border-border/60 rounded-xl p-3 text-[10px] text-muted-foreground">
+                  <details className="bg-secondary/20 border border-border/60 rounded-xl p-3 text-[10px] text-muted-foreground" open={editingPrompt.prompt_type === 'umbrellanizer'}>
                     <summary className="font-bold text-foreground cursor-pointer select-none flex items-center justify-between">
-                      <span>Available Jinja2 Context Variables</span>
-                      <span className="text-primary text-[9px]">Expand Details</span>
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        Available Jinja2 Context Variables ({editingPrompt.prompt_type === 'umbrellanizer' ? 'Umbrellanizer Stage 5' : editingPrompt.prompt_type || 'General'})
+                      </span>
+                      <span className="text-primary text-[9px]">Toggle Details</span>
                     </summary>
-                    <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border/40 font-mono">
-                      <div><strong className="text-foreground">{'{{ Title }}'}</strong>: Paper Title</div>
-                      <div><strong className="text-foreground">{'{{ Abstract }}'}</strong>: Paper Abstract</div>
-                      <div><strong className="text-foreground">{'{{ Authors }}'}</strong>: Author List</div>
-                      <div><strong className="text-foreground">{'{{ Year }}'}</strong>: Publication Year</div>
-                      <div><strong className="text-foreground">{'{{ DOI }}'}</strong>: Digital Object Identifier</div>
-                      <div><strong className="text-foreground">{'{{ Source }}'}</strong>: Ingestion Source (Scopus/PubMed)</div>
-                      <div><strong className="text-foreground">{'{{ PDF_Link }}'}</strong>: PDF Download URL</div>
-                      <div><strong className="text-foreground">{'{{ citation_count }}'}</strong>: Citation Count</div>
-                    </div>
+                    
+                    {editingPrompt.prompt_type === 'umbrellanizer' ? (
+                      <div className="space-y-2 mt-2 pt-2 border-t border-border/40 font-mono text-[10px]">
+                        <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                          <strong className="text-emerald-500 font-bold block mb-0.5">{'{{ raw_tokens_with_context }}'}</strong>
+                          <span className="text-foreground font-sans block leading-relaxed">
+                            <strong>(Recommended)</strong> Deduplicated list of raw extracted tokens with verbatim paper evidence quotes, Miner extraction logic traces, and paper occurrence citations formatted as a structured Markdown outline.
+                          </span>
+                          <span className="text-muted-foreground font-mono text-[9px] block mt-1">Alias: <code>{'{{ umbrellanizer_rich_tokens_context }}'}</code></span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="p-2 bg-secondary/30 border border-border/50 rounded-lg">
+                            <strong className="text-primary font-bold block mb-0.5">{'{{ target_variable }}'}</strong>
+                            <span className="text-foreground font-sans block leading-tight">
+                              Target SLR extraction variable or Research Question dimension (e.g., RQ3a Hardware).
+                            </span>
+                            <span className="text-muted-foreground font-mono text-[9px] block mt-0.5">Alias: <code>{'{{ umbrellanizer_target_research_question }}'}</code></span>
+                          </div>
+                          <div className="p-2 bg-secondary/30 border border-border/50 rounded-lg">
+                            <strong className="text-primary font-bold block mb-0.5">{'{{ target_variable_description }}'}</strong>
+                            <span className="text-foreground font-sans block leading-tight">
+                              Taxonomic description and family grouping guidelines configured in Project Settings.
+                            </span>
+                            <span className="text-muted-foreground font-mono text-[9px] block mt-0.5">Alias: <code>{'{{ umbrellanizer_target_research_question_description }}'}</code></span>
+                          </div>
+                          <div className="p-2 bg-secondary/30 border border-border/50 rounded-lg md:col-span-2">
+                            <strong className="text-zinc-400 font-bold block mb-0.5">{'{{ raw_tokens }}'}</strong>
+                            <span className="text-muted-foreground font-sans block leading-tight">
+                              (Legacy) JSON array of deduplicated raw tokens extracted across Miner-passed papers without quote context (e.g. <code>[&quot;Raspberry Pi 4&quot;, &quot;Jetson Nano&quot;]</code>).
+                            </span>
+                            <span className="text-muted-foreground font-mono text-[9px] block mt-0.5">Alias: <code>{'{{ umbrellanizer_raw_tokens_array }}'}</code></span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 mt-2 pt-2 border-t border-border/40 font-mono text-[10px]">
+                        {editingPrompt.prompt_type && CANONICAL_STAGE_PROMPTS[editingPrompt.prompt_type as keyof typeof CANONICAL_STAGE_PROMPTS]?.variable_dict ? (
+                          <div className="space-y-1 mb-2">
+                            <span className="font-bold uppercase tracking-wider text-[9px] text-primary block">Stage-Specific Placeholders:</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                              {Object.entries(CANONICAL_STAGE_PROMPTS[editingPrompt.prompt_type as keyof typeof CANONICAL_STAGE_PROMPTS].variable_dict).map(([varTag, desc]) => (
+                                <div key={varTag} className="p-1.5 bg-secondary/30 rounded border border-border/50">
+                                  <strong className="text-primary">{varTag}</strong>: <span className="text-foreground font-sans">{desc}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        <span className="font-bold uppercase tracking-wider text-[9px] text-muted-foreground block">Paper Metadata &amp; Manuscript Placeholders:</span>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div><strong className="text-foreground">{'{{ Title }}'}</strong>: Paper Title</div>
+                          <div><strong className="text-foreground">{'{{ Abstract }}'}</strong>: Paper Abstract</div>
+                          <div><strong className="text-foreground">{'{{ Authors }}'}</strong>: Author List</div>
+                          <div><strong className="text-foreground">{'{{ Year }}'}</strong>: Publication Year</div>
+                          <div><strong className="text-foreground">{'{{ DOI }}'}</strong>: Digital Object Identifier</div>
+                          <div><strong className="text-foreground">{'{{ Source }}'}</strong>: Ingestion Source (Scopus/PubMed)</div>
+                          <div><strong className="text-foreground">{'{{ PDF_Link }}'}</strong>: PDF Download URL</div>
+                          <div><strong className="text-foreground">{'{{ citation_count }}'}</strong>: Citation Count</div>
+                        </div>
+                      </div>
+                    )}
                   </details>
                 </div>
               )}
@@ -1540,7 +1599,7 @@ export default function PromptLibraryView({
                   </div>
 
                   {/* 3. Runtime Concurrency, Pacing & Timeouts */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="space-y-1">
                       <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Concurrency Limit</label>
                       <input
@@ -1575,6 +1634,23 @@ export default function PromptLibraryView({
                         value={editingPrompt.timeout_seconds ?? 900}
                         onChange={(e) => setEditingPrompt(prev => ({ ...prev, timeout_seconds: Number(e.target.value) }))}
                         className="w-full bg-secondary/40 border border-border/80 focus:border-primary/80 rounded-xl px-3 py-1.5 text-xs text-foreground font-mono outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Cost Discount Rate</label>
+                        <span className="text-[10px] font-mono text-primary font-bold">{Math.round((editingPrompt.discount ?? 0.0) * 100)}%</span>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={editingPrompt.discount ?? 0.0}
+                        onChange={(e) => setEditingPrompt(prev => ({ ...prev, discount: Math.min(1.0, Math.max(0.0, Number(e.target.value))) }))}
+                        className="w-full bg-secondary/40 border border-border/80 focus:border-primary/80 rounded-xl px-3 py-1.5 text-xs text-foreground font-mono outline-none"
+                        placeholder="0.0 - 1.0"
                       />
                     </div>
                   </div>

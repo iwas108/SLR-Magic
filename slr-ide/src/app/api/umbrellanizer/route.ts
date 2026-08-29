@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { projectId, key, templateId, rawTokens, targetVariableName, jobId } = body;
+    const { projectId, key, templateId, rawTokens, richTokens, targetVariableName, jobId } = body;
 
     if (!projectId || !key || !templateId || !rawTokens || !targetVariableName || !jobId) {
       return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
@@ -78,6 +78,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Main LLM script not found at ${mainScript}` }, { status: 500 });
     }
 
+    // Save tokens payload to a temporary JSON file to avoid ENAMETOOLONG / command line length limits on Windows
+    const tempDir = path.join(PROJECT_ROOT, '.tmp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    const payloadFile = path.join(tempDir, `umbrellanizer_payload_${jobId}.json`);
+    fs.writeFileSync(payloadFile, JSON.stringify({
+      rawTokens,
+      richTokens: richTokens || []
+    }), 'utf-8');
+
     const args = [
       mainScript,
       '--project-id', projectId,
@@ -85,7 +96,7 @@ export async function POST(req: NextRequest) {
       '--task-type', 'umbrellanizer',
       '--key', key,
       '--template-id', templateId,
-      '--raw-tokens', JSON.stringify(rawTokens),
+      '--payload-file', payloadFile,
       '--target-research-question', targetResearchQuestion,
       '--target-research-question-description', targetResearchQuestionDescription
     ];
@@ -106,6 +117,17 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    // Clean up temporary payload file on child process completion
+    child.on('close', () => {
+      try {
+        if (fs.existsSync(payloadFile)) {
+          fs.unlinkSync(payloadFile);
+        }
+      } catch (err) {
+        console.warn('Failed to clean up umbrellanizer payload file:', err);
+      }
+    });
+
     const { operationsManager } = await import('@/lib/llm-operations');
     operationsManager.registerJob(jobId, projectId, child);
 
@@ -117,6 +139,42 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Umbrellanizer API execution failed:', error);
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    let projectId = searchParams.get('project_id') || searchParams.get('projectId');
+    let key = searchParams.get('key') || searchParams.get('extracted_data_key');
+
+    if (!projectId || !key) {
+      try {
+        const body = await req.json();
+        projectId = projectId || body.projectId || body.project_id;
+        key = key || body.key || body.extracted_data_key;
+      } catch (_) {}
+    }
+
+    if (!projectId || !key) {
+      return NextResponse.json({ error: 'Missing required parameters: projectId and key' }, { status: 400 });
+    }
+
+    const stmt = db.prepare(`
+      DELETE FROM umbrellanizer_results 
+      WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+        AND extracted_data_key = ?
+    `);
+    const info = stmt.run(projectId, projectId, key);
+
+    return NextResponse.json({
+      success: true,
+      droppedKey: key,
+      changes: info.changes
+    });
+  } catch (error: any) {
+    console.error('Failed to drop umbrellanizer result:', error);
     return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -4,10 +4,11 @@ import {
   safeString,
   resolveUmbrellanizerValue,
   extractPaperFieldValues,
+  stripParentPrefix,
   TaxonomyOptions
 } from '@/lib/services/taxonomy-resolver';
 
-export { safeString, resolveUmbrellanizerValue };
+export { safeString, resolveUmbrellanizerValue, stripParentPrefix };
 
 export function getFieldValue(
   paper: any, 
@@ -23,6 +24,7 @@ export function getMappedFieldValue(
   options: {
     subFieldKey?: string;
     levelIdx?: number;
+    parentName?: string;
     useUmbrellanizer?: boolean;
     umbrellanizerMap?: Record<string, Record<string, string>>;
     splitMultiValues?: boolean;
@@ -36,6 +38,7 @@ export function getMappedFieldValue(
   const {
     subFieldKey,
     levelIdx = 0,
+    parentName,
     useUmbrellanizer = true,
     umbrellanizerMap = {},
     splitMultiValues = true,
@@ -59,8 +62,11 @@ export function getMappedFieldValue(
 
   const rawVals = getFieldValue(paper, fieldKey, extractOpts).map(safeString).filter(v => Boolean(v) && v !== '[object Object]');
   const mapObj = customCategoryMap[fieldKey];
-  if (!mapObj || Object.keys(mapObj).length === 0) return rawVals;
-  return rawVals.map(v => safeString(mapObj[v] || v));
+  const mappedList = (!mapObj || Object.keys(mapObj).length === 0) ? rawVals : rawVals.map(v => safeString(mapObj[v] || v));
+  if (parentName) {
+    return mappedList.map(v => stripParentPrefix(v, parentName));
+  }
+  return mappedList;
 }
 
 export function extractNumericalValue(paper: any, numKey: string): number {

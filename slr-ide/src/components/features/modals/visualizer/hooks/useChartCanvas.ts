@@ -9,7 +9,8 @@ import type {
   SlotConfig, 
   SubfigureLabelStyle,
   AspectRatioPreset,
-  DimensionUnit
+  DimensionUnit,
+  ExportFormat
 } from '../types';
 
 export function useChartCanvas(params: {
@@ -38,6 +39,9 @@ export function useChartCanvas(params: {
   panY: number;
   tiltAngle: number;
   rotationAngle: number;
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   inspectedSlot?: SlotId | null;
   generateSlotOption: (slotId: SlotId) => echarts.EChartsOption;
 }) {
@@ -67,6 +71,9 @@ export function useChartCanvas(params: {
     panY = 0,
     tiltAngle,
     rotationAngle,
+    fitOffsetX = 0,
+    fitOffsetY = 0,
+    containerPadding = 12,
     inspectedSlot = null,
     generateSlotOption
   } = params;
@@ -86,7 +93,7 @@ export function useChartCanvas(params: {
   });
 
   // Step 4 State: Export Settings
-  const [exportFormat, setExportFormat] = useState<'png' | 'svg'>('png');
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('png');
   const [exportScale, setExportScale] = useState<number>(3);
 
   // Synchronize a specific slot's ECharts instance with its DOM node
@@ -111,7 +118,7 @@ export function useChartCanvas(params: {
 
     if (!instance) {
       instance = echarts.init(dom, undefined, {
-        renderer: exportFormat === 'svg' ? 'svg' : 'canvas'
+        renderer: exportFormat === 'svg' || exportFormat === 'pdf' ? 'svg' : 'canvas'
       });
       chartInstancesRef.current[slotId] = instance;
     }
@@ -129,17 +136,17 @@ export function useChartCanvas(params: {
     const prevEl = slotDomRefs.current[slotId];
     slotDomRefs.current[slotId] = el;
 
-    if (el && el !== prevEl && isOpen && currentStep === 4) {
+    if (el && el !== prevEl && isOpen) {
       // Defer slightly to ensure layout calculation is finished
       requestAnimationFrame(() => {
         syncSlotInstance(slotId);
       });
     }
-  }, [isOpen, currentStep, syncSlotInstance]);
+  }, [isOpen, syncSlotInstance]);
 
   // Initialize and update ECharts instances for all active slots
   useEffect(() => {
-    if (!isOpen || currentStep !== 4) return;
+    if (!isOpen) return;
 
     // 1. Dispose instances for inactive slots to prevent memory leaks
     const allKnownSlots: SlotId[] = ['slot_a', 'slot_b', 'slot_c', 'slot_d'];
@@ -227,6 +234,9 @@ export function useChartCanvas(params: {
       chartScale,
       panX,
       panY,
+      fitOffsetX,
+      fitOffsetY,
+      containerPadding,
       tiltAngle,
       rotationAngle,
       generateSlotOption
@@ -254,6 +264,9 @@ export function useChartCanvas(params: {
     chartScale,
     panX,
     panY,
+    fitOffsetX,
+    fitOffsetY,
+    containerPadding,
     tiltAngle,
     rotationAngle,
     generateSlotOption
@@ -274,11 +287,14 @@ export function useChartCanvas(params: {
       chartScale,
       panX,
       panY,
+      fitOffsetX,
+      fitOffsetY,
+      containerPadding,
       tiltAngle,
       rotationAngle,
       subTitle: cfg.subTitle || activeSlot
     });
-  }, [activeSlot, slotsConfig, exportFormat, exportScale, themePreset, chartScale, panX, panY, tiltAngle, rotationAngle]);
+  }, [activeSlot, slotsConfig, exportFormat, exportScale, themePreset, chartScale, panX, panY, fitOffsetX, fitOffsetY, containerPadding, tiltAngle, rotationAngle]);
 
   return {
     setSlotDomRef,

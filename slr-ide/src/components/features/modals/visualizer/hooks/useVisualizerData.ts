@@ -8,8 +8,11 @@ import {
   safeString, 
   getFieldValue, 
   getMappedFieldValue, 
-  extractDetectedCategories 
+  extractDetectedCategories,
+  stripParentPrefix,
+  resolveUmbrellanizerValue
 } from '../utils/dataExtractor';
+import { filterValuesForParent } from '../generators/hierarchicalGenerators';
 import { balanceQuotasToHundred } from '../utils/quotaBalancer';
 import type { 
   SlotId,
@@ -103,6 +106,10 @@ export function useVisualizerData(params: {
           const extObj = parsed.extracted_data || parsed;
           Object.keys(extObj).forEach(k => {
             if (!k.startsWith('_') && k !== 'logic_trace' && k !== '_scientist_logic_trace') {
+              fieldsSet.add(`ext:macro:${k}`);
+              fieldsSet.add(`ext:sub:${k}`);
+              fieldsSet.add(`raw:leaf:ext:${k}`);
+              fieldsSet.add(`raw:ext:${k}`);
               fieldsSet.add(`ext:${k}`);
             }
           });
@@ -110,7 +117,39 @@ export function useVisualizerData(params: {
       }
     });
 
-    return [CUSTOM_GROUPING_KEY, ...Array.from(fieldsSet).sort()];
+    const rankType = (s: string): number => {
+      if (s.startsWith('ext:macro:')) return 1;
+      if (s.startsWith('ext:sub:')) return 2;
+      if (s.startsWith('raw:leaf:ext:') || s.startsWith('raw:tail:ext:')) return 3;
+      if (s.startsWith('raw:ext:')) return 4;
+      if (s.startsWith('ext:')) return 5;
+      return 0;
+    };
+
+    const getBase = (s: string): string => {
+      if (s.startsWith('ext:macro:')) return s.substring(10);
+      if (s.startsWith('ext:sub:')) return s.substring(8);
+      if (s.startsWith('raw:leaf:ext:') || s.startsWith('raw:tail:ext:')) return s.substring(13);
+      if (s.startsWith('raw:ext:')) return s.substring(8);
+      if (s.startsWith('ext:')) return s.substring(4);
+      return s;
+    };
+
+    const sorted = Array.from(fieldsSet).sort((a, b) => {
+      const isExtA = a.startsWith('ext:') || a.startsWith('raw:ext:') || a.startsWith('raw:leaf:ext:');
+      const isExtB = b.startsWith('ext:') || b.startsWith('raw:ext:') || b.startsWith('raw:leaf:ext:');
+      if (isExtA !== isExtB) {
+        return isExtA ? 1 : -1; // Standard metadata fields first
+      }
+      const baseA = getBase(a);
+      const baseB = getBase(b);
+      if (baseA === baseB) {
+        return rankType(a) - rankType(b);
+      }
+      return baseA.localeCompare(baseB);
+    });
+
+    return [CUSTOM_GROUPING_KEY, ...sorted];
   }, [papers]);
 
   const numericalFields = useMemo(() => {
@@ -160,14 +199,15 @@ export function useVisualizerData(params: {
 
           rawSubVals.forEach(v2 => {
             const v1 = safeString(linksMap[v2] || 'Unassigned / Other');
+            const cleanChild = stripParentPrefix(v2, v1);
             totalItems++;
             parentTagCounts.set(v1, (parentTagCounts.get(v1) || 0) + 1);
             if (!parentPaperIds.has(v1)) parentPaperIds.set(v1, new Set());
             parentPaperIds.get(v1)!.add(paperId);
 
-            const childKey = `${v1}||${v2}`;
+            const childKey = `${v1}||${cleanChild}`;
             if (!childTagCounts.has(childKey)) {
-              childTagCounts.set(childKey, { count: 0, parentName: v1, childName: v2 });
+              childTagCounts.set(childKey, { count: 0, parentName: v1, childName: cleanChild });
             }
             childTagCounts.get(childKey)!.count += 1;
 
@@ -176,7 +216,7 @@ export function useVisualizerData(params: {
           });
         } else {
           const v1List = getMappedFieldValue(p, f1, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, subFieldKey: f2 || undefined, levelIdx: 0 });
-          const v2List = f2 ? getMappedFieldValue(p, f2, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, levelIdx: 1 }) : [];
+          const rawV2List = f2 ? getMappedFieldValue(p, f2, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, levelIdx: 1 }) : [];
 
           v1List.forEach(rawV1 => {
             const v1 = safeString(rawV1);
@@ -186,12 +226,23 @@ export function useVisualizerData(params: {
             if (!parentPaperIds.has(v1)) parentPaperIds.set(v1, new Set());
             parentPaperIds.get(v1)!.add(paperId);
 
-            v2List.forEach(rawV2 => {
+            const scopedV2List = f2
+              ? filterValuesForParent(rawV2List, f2, {
+                  fieldKey: f1,
+                  levelIdx: 0,
+                  rawName: v1,
+                  displayName: v1,
+                  path: [v1]
+                }, { levelCustomGroupLinks, umbrellanizerMap })
+              : rawV2List;
+
+            scopedV2List.forEach(rawV2 => {
               const v2 = safeString(rawV2);
               if (!v2 || v2 === '[object Object]') return;
-              const childKey = `${v1}||${v2}`;
+              const cleanChild = stripParentPrefix(v2, v1);
+              const childKey = `${v1}||${cleanChild}`;
               if (!childTagCounts.has(childKey)) {
-                childTagCounts.set(childKey, { count: 0, parentName: v1, childName: v2 });
+                childTagCounts.set(childKey, { count: 0, parentName: v1, childName: cleanChild });
               }
               childTagCounts.get(childKey)!.count += 1;
 

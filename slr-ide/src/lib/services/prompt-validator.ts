@@ -432,6 +432,10 @@ export const DEFAULT_STAGE_SCHEMAS: Record<PromptType, object> = {
       key_modifications: {
         type: "array",
         items: { type: "string" }
+      },
+      proposed_response_schema: {
+        type: "object",
+        description: "Optionally refined response schema for the target stage where ONLY property 'description' fields are improved. The key names, hierarchy, data types, enum arrays, and required arrays must remain 100% identical to the target stage schema."
       }
     },
     required: [
@@ -616,4 +620,40 @@ export function validatePromptSchema(promptType: PromptType | string | null | un
   }
 
   return { isValid: true, error: null };
+}
+
+/**
+ * Recursively applies description-only refinements from proposedSchema into baseSchema,
+ * strictly guaranteeing that key names, hierarchy, data types, enum options, and required arrays
+ * are 100% immutable and cannot be altered.
+ */
+export function applySchemaDescriptionRefinement(baseSchema: any, proposedSchema: any): any {
+  if (!baseSchema || typeof baseSchema !== 'object') return baseSchema;
+  if (!proposedSchema || typeof proposedSchema !== 'object') return baseSchema;
+
+  const result = Array.isArray(baseSchema) ? [...baseSchema] : { ...baseSchema };
+
+  // If proposedSchema has a non-empty string description, update it
+  if (typeof proposedSchema.description === 'string' && proposedSchema.description.trim()) {
+    result.description = proposedSchema.description.trim();
+  }
+
+  // Traverse properties recursively
+  if (baseSchema.properties && typeof baseSchema.properties === 'object') {
+    result.properties = { ...baseSchema.properties };
+    const propProps = proposedSchema.properties && typeof proposedSchema.properties === 'object' ? proposedSchema.properties : {};
+
+    for (const key of Object.keys(baseSchema.properties)) {
+      if (propProps[key]) {
+        result.properties[key] = applySchemaDescriptionRefinement(baseSchema.properties[key], propProps[key]);
+      }
+    }
+  }
+
+  // Traverse items recursively if array
+  if (baseSchema.items && typeof baseSchema.items === 'object') {
+    result.items = applySchemaDescriptionRefinement(baseSchema.items, proposedSchema.items);
+  }
+
+  return result;
 }

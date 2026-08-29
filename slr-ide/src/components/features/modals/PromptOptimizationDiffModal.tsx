@@ -16,7 +16,8 @@ interface PromptOptimizationDiffModalProps {
     proposedUserTemplate: string,
     actionMode: 'apply_active' | 'fork_new',
     setAsDefault: boolean,
-    customName?: string
+    customName?: string,
+    proposedResponseSchema?: any
   ) => void;
 }
 
@@ -38,10 +39,11 @@ export default function PromptOptimizationDiffModal({
     isSaving
   } = optimizationState;
 
-  const [activeTab, setActiveTab] = useState<'system' | 'user'>('system');
+  const [activeTab, setActiveTab] = useState<'system' | 'user' | 'schema'>('system');
   const [selectedPdfIds, setSelectedPdfIds] = useState<string[]>([]);
   const [editedSystemPrompt, setEditedSystemPrompt] = useState('');
   const [editedUserTemplate, setEditedUserTemplate] = useState('');
+  const [editedResponseSchema, setEditedResponseSchema] = useState('');
   const [setAsDefault, setSetAsDefault] = useState(true);
   const [forkName, setForkName] = useState('');
   const [showForkInput, setShowForkInput] = useState(false);
@@ -57,6 +59,9 @@ export default function PromptOptimizationDiffModal({
     if (optimizationResult) {
       setEditedSystemPrompt(optimizationResult.proposed_system_instruction || currentPrompt?.system_instruction || '');
       setEditedUserTemplate(optimizationResult.proposed_user_template || currentPrompt?.user_template || '');
+      const baseSchema = currentPrompt?.response_schema || {};
+      const initialSchema = optimizationResult.proposed_response_schema || baseSchema;
+      setEditedResponseSchema(typeof initialSchema === 'string' ? initialSchema : JSON.stringify(initialSchema, null, 2));
       setForkName(`${stageName} (Optimized v${Date.now().toString().slice(-4)})`);
     }
   }, [optimizationResult, currentPrompt, stageName]);
@@ -258,7 +263,7 @@ export default function PromptOptimizationDiffModal({
 
               {/* Side-by-Side Diff Section */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between border-b border-border pb-2">
+                <div className="flex items-center justify-between border-b border-border pb-2 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setActiveTab('system')}
@@ -280,20 +285,30 @@ export default function PromptOptimizationDiffModal({
                     >
                       User Template Diff
                     </button>
+                    <button
+                      onClick={() => setActiveTab('schema')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all ${
+                        activeTab === 'schema'
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                      }`}
+                    >
+                      Response Schema (Descriptions)
+                    </button>
                   </div>
 
                   <span className="text-[11px] font-mono text-muted-foreground">
-                    Editable right panel for fine-tuning
+                    {activeTab === 'schema' ? 'Refined property descriptions (Keys & structure locked)' : 'Editable right panel for fine-tuning'}
                   </span>
                 </div>
 
                 {/* Side-by-Side Editor Panels */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Left Panel: Current Active Prompt */}
+                  {/* Left Panel: Current Active Prompt / Schema */}
                   <div className="flex flex-col rounded-xl border border-border bg-slate-50 dark:bg-slate-950/60 overflow-hidden shadow-sm">
                     <div className="px-3.5 py-2 bg-slate-100 dark:bg-slate-900/80 border-b border-border flex items-center justify-between">
                       <span className="text-xs font-mono text-muted-foreground font-semibold">
-                        Current Active Prompt (Base)
+                        {activeTab === 'schema' ? 'Current Response Schema (Base)' : 'Current Active Prompt (Base)'}
                       </span>
                       <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-secondary text-secondary-foreground">
                         {currentPrompt?.id || 'Active'}
@@ -301,23 +316,37 @@ export default function PromptOptimizationDiffModal({
                     </div>
                     <textarea
                       readOnly
-                      value={activeTab === 'system' ? (currentPrompt?.system_instruction || '') : (currentPrompt?.user_template || '')}
+                      value={
+                        activeTab === 'system'
+                          ? (currentPrompt?.system_instruction || '')
+                          : activeTab === 'user'
+                          ? (currentPrompt?.user_template || '')
+                          : (typeof currentPrompt?.response_schema === 'string'
+                              ? currentPrompt.response_schema
+                              : JSON.stringify(currentPrompt?.response_schema || {}, null, 2))
+                      }
                       rows={14}
                       className="w-full flex-1 p-3 bg-transparent text-xs font-mono text-slate-700 dark:text-slate-300 resize-none focus:outline-none opacity-80"
                     />
                   </div>
 
-                  {/* Right Panel: Proposed Optimized Prompt */}
+                  {/* Right Panel: Proposed Optimized Prompt / Schema */}
                   <div className="flex flex-col rounded-xl border border-purple-400 dark:border-purple-500/40 bg-purple-50/50 dark:bg-purple-950/10 shadow-sm overflow-hidden">
                     <div className="px-3.5 py-2 bg-purple-100/90 dark:bg-purple-950/60 border-b border-purple-300 dark:border-purple-500/30 flex items-center justify-between">
                       <span className="text-xs font-mono text-purple-800 dark:text-purple-300 font-semibold flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-pink-500 dark:text-pink-300" />
-                        <span>Proposed Optimized Prompt (Revisions)</span>
+                        <span>
+                          {activeTab === 'schema' ? 'Proposed Response Schema (Enhanced Descriptions)' : 'Proposed Optimized Prompt (Revisions)'}
+                        </span>
                       </span>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={async () => {
-                            const text = activeTab === 'system' ? editedSystemPrompt : editedUserTemplate;
+                            const text = activeTab === 'system' 
+                              ? editedSystemPrompt 
+                              : activeTab === 'user' 
+                              ? editedUserTemplate 
+                              : editedResponseSchema;
                             if (!text) return;
                             try {
                               if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -344,10 +373,11 @@ export default function PromptOptimizationDiffModal({
                       </div>
                     </div>
                     <textarea
-                      value={activeTab === 'system' ? editedSystemPrompt : editedUserTemplate}
+                      value={activeTab === 'system' ? editedSystemPrompt : activeTab === 'user' ? editedUserTemplate : editedResponseSchema}
                       onChange={(e) => {
                         if (activeTab === 'system') setEditedSystemPrompt(e.target.value);
-                        else setEditedUserTemplate(e.target.value);
+                        else if (activeTab === 'user') setEditedUserTemplate(e.target.value);
+                        else setEditedResponseSchema(e.target.value);
                       }}
                       rows={14}
                       className="w-full flex-1 p-3 bg-transparent text-xs font-mono text-foreground resize-none focus:outline-none border-0"
@@ -403,7 +433,7 @@ export default function PromptOptimizationDiffModal({
                   if (!showForkInput) {
                     setShowForkInput(true);
                   } else {
-                    onApplyPrompt(editedSystemPrompt, editedUserTemplate, 'fork_new', setAsDefault, forkName);
+                    onApplyPrompt(editedSystemPrompt, editedUserTemplate, 'fork_new', setAsDefault, forkName, editedResponseSchema);
                   }
                 }}
                 disabled={isSaving}
@@ -414,7 +444,7 @@ export default function PromptOptimizationDiffModal({
               </button>
 
               <button
-                onClick={() => onApplyPrompt(editedSystemPrompt, editedUserTemplate, 'apply_active', setAsDefault)}
+                onClick={() => onApplyPrompt(editedSystemPrompt, editedUserTemplate, 'apply_active', setAsDefault, undefined, editedResponseSchema)}
                 disabled={isSaving}
                 className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-xs font-mono font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md shadow-purple-900/20 border border-purple-400/30 transition-all active:scale-98"
               >

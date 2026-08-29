@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { 
   AlertTriangle, 
   Settings2, 
@@ -11,10 +11,13 @@ import {
   Zap,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
+  Square,
+  Crosshair
 } from 'lucide-react';
 import { CHART_TYPES_INFO } from '../constants/chartTypes';
 import { formatSubfigureLabel, SLOT_METADATA } from '../constants/layoutPresets';
+import { resolveTargetDimensions } from '../utils/exportUtils';
 import { useVisualizerContext } from '../context/VisualizerContext';
 import { CameraControlsOverlay } from './subcomponents/CameraControlsOverlay';
 import { ExportPanel } from './subcomponents/ExportPanel';
@@ -35,9 +38,19 @@ export function Step4PreviewStage() {
     showPanelBorders,
     aspectRatio,
     customWidth,
-    customHeight
+    customHeight,
+    dimensionUnit
   } = style;
-  const { chartScale, panX, panY, tiltAngle, rotationAngle } = camera;
+  const {
+    chartScale,
+    panX,
+    panY,
+    tiltAngle,
+    rotationAngle,
+    containerPadding,
+    showSafeGuides,
+    setShowSafeGuides
+  } = camera;
   const { setSlotDomRef, chartInstancesRef } = canvas;
   const {
     isZenMode,
@@ -46,6 +59,39 @@ export function Step4PreviewStage() {
     inspectedSlot,
     setInspectedSlot
   } = workspace;
+
+  const stageWrapperRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({ width: 800, height: 500 });
+
+  // Measure stage container via ResizeObserver to dynamically compute exact container-contained aspect-ratio box
+  useEffect(() => {
+    const el = stageWrapperRef.current;
+    if (!el) return;
+
+    const handleResize = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w > 0 && h > 0) {
+        setContainerSize({ width: w, height: h });
+      }
+    };
+
+    handleResize();
+
+    const observer = new ResizeObserver(() => {
+      handleResize();
+      // Trigger ECharts resize
+      activeSlotsList.forEach((slotId) => {
+        chartInstancesRef.current[slotId]?.resize();
+      });
+    });
+
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [activeSlotsList, chartInstancesRef]);
 
   // Trigger resize across all active ECharts instances when inspectedSlot, zen mode, or aspect ratio changes
   useEffect(() => {
@@ -56,7 +102,48 @@ export function Step4PreviewStage() {
     }, 60);
 
     return () => clearTimeout(timer);
-  }, [inspectedSlot, isZenMode, aspectRatio, customWidth, customHeight, activeSlotsList, chartInstancesRef]);
+  }, [inspectedSlot, isZenMode, aspectRatio, customWidth, customHeight, containerPadding, activeSlotsList, chartInstancesRef]);
+
+  // Resolve target publication aspect ratio geometry
+  const { targetWidth, targetHeight, aspectLabel } = resolveTargetDimensions(
+    aspectRatio,
+    customWidth,
+    customHeight,
+    dimensionUnit,
+    1200
+  );
+
+  const targetRatio = targetWidth / targetHeight;
+
+  // Compute mathematically exact Stage Frame Dimensions that fit 100% inside container without distortion or clipping
+  const fittedStageStyle = useMemo(() => {
+    if (inspectedSlot) {
+      return { width: '100%', height: '100%' };
+    }
+
+    const padH = 36;
+    const padV = 36;
+    const availW = Math.max(120, containerSize.width - padH);
+    const availH = Math.max(120, containerSize.height - padV);
+
+    let fitW: number;
+    let fitH: number;
+
+    if (availW / availH > targetRatio) {
+      fitH = availH;
+      fitW = Math.round(availH * targetRatio);
+    } else {
+      fitW = availW;
+      fitH = Math.round(availW / targetRatio);
+    }
+
+    return {
+      width: `${fitW}px`,
+      height: `${fitH}px`,
+      maxWidth: '100%',
+      maxHeight: '100%'
+    };
+  }, [inspectedSlot, containerSize, targetRatio]);
 
   // Helper to resolve CSS grid classes based on layout mode
   const getGridContainerClasses = () => {
@@ -97,34 +184,6 @@ export function Step4PreviewStage() {
     }
   };
 
-  // Aspect Ratio Locked Frame Container Styling
-  const getAspectRatioClasses = () => {
-    if (inspectedSlot) return 'w-full h-full';
-    switch (aspectRatio) {
-      case '16:9':
-        return 'aspect-video w-full max-h-full';
-      case '16:10':
-        return 'aspect-[16/10] w-full max-h-full';
-      case '4:3':
-        return 'aspect-[4/3] w-full max-h-full';
-      case '3:2':
-        return 'aspect-[3/2] w-full max-h-full';
-      case '1:1':
-        return 'aspect-square w-full max-h-full';
-      case '21:9':
-        return 'aspect-[21/9] w-full max-h-full';
-      case 'custom':
-        return 'w-full max-h-full';
-      case 'auto':
-      default:
-        return 'w-full h-full';
-    }
-  };
-
-  const customAspectRatioStyle = (!inspectedSlot && aspectRatio === 'custom' && customWidth > 0 && customHeight > 0)
-    ? { aspectRatio: `${customWidth} / ${customHeight}` }
-    : undefined;
-
   return (
     <div className="flex-1 flex overflow-hidden relative">
       {/* Main Canvas Stage View */}
@@ -158,7 +217,7 @@ export function Step4PreviewStage() {
               ({papers.length} source records)
             </span>
             {!inspectedSlot && (
-              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-secondary text-muted-foreground border border-border">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-secondary text-muted-foreground border border-border" title={aspectLabel}>
                 <Maximize className="w-2.5 h-2.5 text-primary" /> Frame: {aspectRatio.toUpperCase()}
               </span>
             )}
@@ -198,15 +257,37 @@ export function Step4PreviewStage() {
               )}
             </div>
 
+            {/* Print Safe Guides Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowSafeGuides(!showSafeGuides)}
+              className={`px-2.5 py-1.5 border rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all ${
+                showSafeGuides 
+                  ? 'bg-primary/20 text-primary border-primary/50 ring-1 ring-primary/40' 
+                  : 'bg-secondary text-muted-foreground hover:text-foreground border-border'
+              }`}
+              title="Toggle printable safe margins boundary guides"
+            >
+              <Crosshair className="w-3.5 h-3.5 text-primary" />
+              <span className="hidden md:inline">Safe Guides</span>
+            </button>
+
             {!inspectedSlot && (
               <button
                 type="button"
-                onClick={() => config.autoOptimizeAllSlots(papers, props.umbrellanizerMap)}
+                onClick={() => {
+                  camera.handleAutoFit({
+                    chartType: slotsConfig.slot_a?.chartType,
+                    hasLegend: slotsConfig.slot_a?.showLegend,
+                    legendPos: slotsConfig.slot_a?.sunburstLegendPosition || slotsConfig.slot_a?.barLegendPosition
+                  });
+                  config.autoOptimizeAllSlots(papers, props.umbrellanizerMap);
+                }}
                 className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
-                title="Automatically optimize layout, margins, label formats, and parameters based on cohort dataset"
+                title="Automatically fit chart into container and optimize parameters based on cohort dataset"
               >
                 <Zap className="w-3.5 h-3.5 text-primary animate-pulse" />
-                Smart Auto-Optimize
+                Smart Auto-Fit
               </button>
             )}
 
@@ -245,24 +326,44 @@ export function Step4PreviewStage() {
           </div>
         </div>
 
-        {/* Multi-Panel Stage Canvas Container with 3D and Aspect Ratio Parity */}
-        <div className={`flex-1 border border-border rounded-2xl p-4 shadow-sm relative overflow-hidden flex items-center justify-center transition-colors duration-200 ${getBackdropClasses()}`}>
-          
+        {/* Multi-Panel Stage Canvas Container with 3D and Strict Aspect Ratio Geometry */}
+        <div 
+          ref={stageWrapperRef}
+          className={`flex-1 border border-border rounded-2xl p-4 shadow-sm relative overflow-hidden flex items-center justify-center transition-colors duration-200 ${getBackdropClasses()}`}
+        >
           {/* 3D Transform Wrapper Container */}
           <div 
-            className="w-full h-full flex items-center justify-center transition-transform duration-150 ease-out overflow-hidden"
+            className="w-full h-full flex items-center justify-center transition-transform duration-150 ease-out overflow-hidden relative"
             style={{
-              transform: `perspective(1200px) translate(${panX}%, ${panY}%) scale(${chartScale > 10 ? chartScale / 100 : (chartScale || 1.0)}) rotateX(${tiltAngle}deg) rotateZ(${rotationAngle}deg)`,
+              transform: `perspective(1200px) translate(${panX}%, ${panY}%) rotateX(${tiltAngle}deg) rotateZ(${rotationAngle}deg)`,
               transformOrigin: 'center center'
             }}
           >
-            {/* Unified Aspect-Ratio Synchronized Stage Frame */}
+            {/* Unified Mathematically Exact Aspect-Ratio Synchronized Stage Frame */}
             <div 
-              className={`transition-all duration-200 ${getAspectRatioClasses()} flex flex-col p-3 rounded-xl border border-border/80 relative shadow-sm ${getBackdropClasses()}`}
+              className={`transition-all duration-200 flex flex-col rounded-xl border border-border/80 relative shadow-sm ${getBackdropClasses()}`}
               style={{
-                ...customAspectRatioStyle
+                ...fittedStageStyle,
+                padding: `${containerPadding}px`
               }}
             >
+              {/* Optional Print Safe Area Dashed Guideline Overlay */}
+              {showSafeGuides && (
+                <div 
+                  className="absolute inset-2 border-2 border-dashed border-primary/40 rounded-lg pointer-events-none z-10 select-none flex flex-col justify-between p-1.5"
+                  title="Print Safe Area (5mm Margin Inset)"
+                >
+                  <div className="flex justify-between text-[9px] font-mono font-bold text-primary/70">
+                    <span>┌ Print Safe Margin ({containerPadding}px)</span>
+                    <span>{aspectLabel} ┐</span>
+                  </div>
+                  <div className="flex justify-between text-[9px] font-mono font-bold text-primary/70">
+                    <span>└ W: {targetWidth}px</span>
+                    <span>H: {targetHeight}px ┘</span>
+                  </div>
+                </div>
+              )}
+
               {/* Main Figure Header (inside the aspect ratio frame) */}
               {!inspectedSlot && (showChartTitle || showChartSubtitle) && (
                 <div className="w-full text-center pb-2 mb-2 border-b border-border/40 shrink-0 select-none">
@@ -360,10 +461,14 @@ export function Step4PreviewStage() {
                       ) : null}
 
                       {/* Chart Div Ref Container */}
-                      <div className="flex-1 w-full h-full min-h-0 relative">
+                      <div className="flex-1 w-full h-full min-h-0 relative overflow-hidden flex items-center justify-center">
                         <div
                           ref={setSlotDomRef(slotId)}
-                          className="w-full h-full min-h-0"
+                          className="w-full h-full min-h-0 transition-transform duration-150 ease-out"
+                          style={{
+                            transform: `scale(${chartScale > 10 ? chartScale / 100 : (chartScale || 1.0)})`,
+                            transformOrigin: 'center center'
+                          }}
                         />
                       </div>
                     </div>

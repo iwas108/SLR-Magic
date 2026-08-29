@@ -118,7 +118,7 @@ export function SunburstLevelConfigPanel() {
         <div className="flex flex-wrap items-center gap-2 border-b border-border/60 pb-2">
           <span className="text-xs font-extrabold text-foreground mr-2">Level Settings:</span>
           {sankeyFields.map((fKey, lIdx) => {
-            const labelText = `Level ${lIdx + 1} (${fKey === CUSTOM_GROUPING_KEY ? 'Custom Grouping' : fKey.startsWith('ext:') ? fKey.substring(4) : fKey})`;
+            const labelText = `Level ${lIdx + 1} (${fKey === CUSTOM_GROUPING_KEY ? 'Custom Grouping' : fKey.startsWith('raw:ext:') ? `${fKey.substring(8)} (Raw)` : fKey.startsWith('ext:') ? fKey.substring(4) : fKey})`;
             const isActive = activeSunburstLevelTab === lIdx;
             return (
               <button

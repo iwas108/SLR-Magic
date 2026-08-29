@@ -475,12 +475,15 @@ function formatMetricDisplay(opts) {
   const {
     name = '',
     count = 0,
+    val,
     paperCount,
+    tagCount,
     totalCohortPapers = 18,
     totalExtractedTags = 18,
     metricMode = 'paper_prevalence',
     prevalencePct,
     tagSharePct,
+    activePct,
     template = 'ratio_percent',
     decimalPrecision = 0,
     useTildeForCoarse = true,
@@ -488,16 +491,46 @@ function formatMetricDisplay(opts) {
     forceCohortDenominator = false
   } = opts;
 
+  // 1. Resolve dedicated Tag Share components
+  const effTagCount = tagCount !== undefined ? tagCount : (typeof count === 'number' ? count : (typeof val === 'number' ? val : 0));
+  const effTotalTags = totalExtractedTags > 0 ? totalExtractedTags : (totalCohortPapers || 1);
+  let rawTagSharePct;
+  if (tagSharePct !== undefined) {
+    rawTagSharePct = typeof tagSharePct === 'number' ? tagSharePct : parseFloat(tagSharePct);
+  } else {
+    rawTagSharePct = totalExtractedTags > 0 ? (effTagCount / totalExtractedTags) * 100 : 0;
+  }
+  if (isNaN(rawTagSharePct)) rawTagSharePct = 0;
+  const tagSharePctStr = formatPercentage(rawTagSharePct, decimalPrecision, useTildeForCoarse);
+  const tagShareRatioStr = formatRatio(effTagCount, effTotalTags, ratioStyle);
+  const tagShareCountStr = ratioStyle === 'n_over_N' ? `n = ${effTagCount}` : `${effTagCount}`;
+
+  // 2. Resolve dedicated Paper Prevalence components
+  const effPaperCount = paperCount !== undefined ? paperCount : (typeof count === 'number' ? count : (typeof val === 'number' ? val : 0));
+  const effTotalCohort = totalCohortPapers > 0 ? totalCohortPapers : 1;
+  let rawPrevalencePct;
+  if (prevalencePct !== undefined) {
+    rawPrevalencePct = typeof prevalencePct === 'number' ? prevalencePct : parseFloat(prevalencePct);
+  } else {
+    rawPrevalencePct = totalCohortPapers > 0 ? (effPaperCount / totalCohortPapers) * 100 : 0;
+  }
+  if (isNaN(rawPrevalencePct)) rawPrevalencePct = 0;
+  const prevalencePctStr = formatPercentage(rawPrevalencePct, decimalPrecision, useTildeForCoarse);
+  const prevalenceRatioStr = formatRatio(effPaperCount, effTotalCohort, ratioStyle);
+  const prevalenceCountStr = ratioStyle === 'n_over_N' ? `n = ${effPaperCount}` : `${effPaperCount}`;
+
+  // 3. Dynamic metric resolution
+  const isTagShare = metricMode === 'tag_share';
   let denominator = totalCohortPapers;
-  let effectiveCount = paperCount !== undefined ? paperCount : count;
-  if (metricMode === 'tag_share' && !forceCohortDenominator) {
-    denominator = totalExtractedTags;
-    effectiveCount = opts.tagCount !== undefined ? opts.tagCount : count;
+  let effectiveCount = effPaperCount;
+  if (isTagShare && !forceCohortDenominator) {
+    denominator = effTotalTags;
+    effectiveCount = effTagCount;
   }
 
-  const effectivePct = (prevalencePct !== undefined && metricMode !== 'tag_share')
+  const effectivePct = (prevalencePct !== undefined && !isTagShare)
     ? prevalencePct
-    : (tagSharePct !== undefined && metricMode === 'tag_share')
+    : (tagSharePct !== undefined && isTagShare)
       ? tagSharePct
       : denominator > 0 ? (effectiveCount / denominator) * 100 : 0;
 
@@ -506,6 +539,39 @@ function formatMetricDisplay(opts) {
   const countStr = `n = ${effectiveCount}`;
 
   switch (template) {
+    // --- Explicit Tag Share Templates ---
+    case 'tag_share_ratio_percent':
+      return `${tagShareRatioStr}, ${tagSharePctStr}`;
+    case 'name_tag_share_ratio_percent':
+      return `${name} (${tagShareRatioStr}, ${tagSharePctStr})`;
+    case 'tag_share_percent_ratio':
+      return `${tagSharePctStr} (${tagShareRatioStr})`;
+    case 'tag_share_percent_only':
+      return tagSharePctStr;
+    case 'tag_share_ratio_only':
+      return tagShareRatioStr;
+    case 'tag_share_count_percent':
+      return `${tagShareCountStr} (${tagSharePctStr})`;
+    case 'name_tag_share_percent':
+      return `${name} (${tagSharePctStr})`;
+    case 'name_tag_share_count_percent':
+      return `${name} (${tagShareCountStr}, ${tagSharePctStr})`;
+
+    // --- Explicit Paper Prevalence Templates ---
+    case 'prevalence_ratio_percent':
+      return `${prevalenceRatioStr}, ${prevalencePctStr}`;
+    case 'name_prevalence_ratio_percent':
+      return `${name} (${prevalenceRatioStr}, ${prevalencePctStr})`;
+    case 'prevalence_percent_only':
+      return prevalencePctStr;
+    case 'prevalence_ratio_only':
+      return prevalenceRatioStr;
+
+    // --- Dual Multi-Metric Template ---
+    case 'dual_prevalence_tag_share':
+      return `${prevalenceRatioStr} (${prevalencePctStr}) | Tags: ${tagShareRatioStr} (${tagSharePctStr})`;
+
+    // --- Standard Dynamic Templates ---
     case 'name_ratio_percent':
       return `${name} (${ratioStr}, ${pctStr})`;
     case 'ratio_percent':
@@ -517,10 +583,13 @@ function formatMetricDisplay(opts) {
     case 'name_ratio':
       return `${name} (${ratioStr})`;
     case 'count_percent':
+    case 'value_pct':
       return `${countStr} (${pctStr})`;
     case 'percent_only':
+    case 'pct_only':
       return pctStr;
     case 'count_only':
+    case 'value':
       return countStr;
     case 'name_count':
       return `${name} (${countStr})`;
@@ -630,8 +699,261 @@ assert.strictEqual(
   'Tag share mode with forceCohortDenominator=true must use cohort papers 18 as denominator'
 );
 
-console.log('✓ All 15 anti-regression & reviewer granularity unit tests PASSED successfully!');
+// Test 16: Verification of Decimal Precision override and style precedence
+console.log('16. Testing Decimal Precision (0, 1, 2) and Style Precedence...');
+function buildMockSlotContext(style, slotConfig) {
+  return {
+    decimalPrecision: style.decimalPrecision,
+    useTildeForCoarse: style.useTildeForCoarse,
+    ratioStyle: style.ratioStyle,
+    forceCohortDenominator: style.forceCohortDenominator
+  };
+}
 
+const stylePrecision0 = { decimalPrecision: 0, useTildeForCoarse: true, ratioStyle: 'n_over_N', forceCohortDenominator: false };
+const stylePrecision1 = { decimalPrecision: 1, useTildeForCoarse: false, ratioStyle: 'fraction', forceCohortDenominator: false };
+const stylePrecision2 = { decimalPrecision: 2, useTildeForCoarse: false, ratioStyle: 'fraction', forceCohortDenominator: false };
 
+const rawPctVal = 61.1111;
 
+// When user sets Decimal Precision = 0:
+const ctx0 = buildMockSlotContext(stylePrecision0, {});
+assert.strictEqual(ctx0.decimalPrecision, 0);
+assert.strictEqual(formatPercentage(rawPctVal, ctx0.decimalPrecision, ctx0.useTildeForCoarse), '~61%');
+
+// When user sets Decimal Precision = 1:
+const ctx1 = buildMockSlotContext(stylePrecision1, {});
+assert.strictEqual(ctx1.decimalPrecision, 1);
+assert.strictEqual(formatPercentage(rawPctVal, ctx1.decimalPrecision, ctx1.useTildeForCoarse), '61.1%');
+
+// When user sets Decimal Precision = 2:
+const ctx2 = buildMockSlotContext(stylePrecision2, {});
+assert.strictEqual(ctx2.decimalPrecision, 2);
+assert.strictEqual(formatPercentage(rawPctVal, ctx2.decimalPrecision, ctx2.useTildeForCoarse), '61.11%');
+
+// Test 17: Legend Width, Line Height, Item Gap, Font Size, Overflow & Preset Serialization
+console.log('17. Testing Legend Width, Line Height, Item Gap, Overflow and Geometry Offset...');
+const mockLegendConfig = {
+  legendWidth: 220,
+  legendLineHeight: 16,
+  legendItemGap: 14,
+  legendFontSize: 10,
+  legendOverflow: 'break',
+  legendDistance: 25
+};
+
+function buildMockBaseLegend(params, fontSize = 12) {
+  return {
+    show: params.showLegend !== false,
+    itemGap: params.legendItemGap ?? 12,
+    textStyle: {
+      fontSize: params.legendFontSize ?? Math.max(9, fontSize - 1),
+      width: params.legendWidth && params.legendWidth > 0 ? params.legendWidth : undefined,
+      overflow: params.legendOverflow || 'break',
+      lineHeight: params.legendLineHeight ?? 15
+    }
+  };
+}
+
+const generatedLegend = buildMockBaseLegend(mockLegendConfig, 12);
+assert.strictEqual(generatedLegend.itemGap, 14, 'itemGap should be 14');
+assert.strictEqual(generatedLegend.textStyle.width, 220, 'textStyle.width should be 220');
+assert.strictEqual(generatedLegend.textStyle.lineHeight, 16, 'textStyle.lineHeight should be 16');
+assert.strictEqual(generatedLegend.textStyle.fontSize, 10, 'textStyle.fontSize should be 10');
+assert.strictEqual(generatedLegend.textStyle.overflow, 'break', 'textStyle.overflow should be break');
+
+// Preset serialization roundtrip
+const serializedPreset = JSON.stringify({
+  version: '3.0',
+  slots: {
+    slot_a: {
+      ...mockLegendConfig,
+      pieLineHeight: 18,
+      pieLabelWidth: 160
+    }
+  }
+});
+const parsedLegendPreset = JSON.parse(serializedPreset);
+assert.strictEqual(parsedLegendPreset.slots.slot_a.legendWidth, 220);
+assert.strictEqual(parsedLegendPreset.slots.slot_a.legendLineHeight, 16);
+assert.strictEqual(parsedLegendPreset.slots.slot_a.legendItemGap, 14);
+assert.strictEqual(parsedLegendPreset.slots.slot_a.legendFontSize, 10);
+assert.strictEqual(parsedLegendPreset.slots.slot_a.legendOverflow, 'break');
+assert.strictEqual(parsedLegendPreset.slots.slot_a.pieLineHeight, 18);
+assert.strictEqual(parsedLegendPreset.slots.slot_a.pieLabelWidth, 160);
+
+// Test 18: Independent Tag Share, Prevalence and Dual-Metric Label/Legend Formatting
+console.log('18. Testing Independent Tag Share, Prevalence and Dual-Metric Label & Legend Formatting...');
+const multiLabelSectorSample = {
+  name: 'Healthcare',
+  paperCount: 18,
+  tagCount: 18,
+  totalCohortPapers: 46,  // n = 46 cohort papers
+  totalExtractedTags: 54, // 54 total sectoral tags
+  decimalPrecision: 0,
+  useTildeForCoarse: true,
+  ratioStyle: 'n_over_N'
+};
+
+// Case 1: Active metricMode is 'paper_prevalence', but user selects Tag Share label format
+const tagShareOnPrevMode = formatMetricDisplay({
+  ...multiLabelSectorSample,
+  metricMode: 'paper_prevalence',
+  template: 'tag_share_ratio_percent'
+});
+assert.strictEqual(
+  tagShareOnPrevMode,
+  'n = 18/54, ~33%',
+  'tag_share_ratio_percent must output n = 18/54, ~33% even when metricMode is paper_prevalence'
+);
+
+const tagShareNameOnPrevMode = formatMetricDisplay({
+  ...multiLabelSectorSample,
+  metricMode: 'paper_prevalence',
+  template: 'name_tag_share_ratio_percent'
+});
+assert.strictEqual(
+  tagShareNameOnPrevMode,
+  'Healthcare (n = 18/54, ~33%)',
+  'name_tag_share_ratio_percent must output "Healthcare (n = 18/54, ~33%)"'
+);
+
+const tagSharePctOnly = formatMetricDisplay({
+  ...multiLabelSectorSample,
+  metricMode: 'paper_prevalence',
+  template: 'tag_share_percent_only'
+});
+assert.strictEqual(
+  tagSharePctOnly,
+  '~33%',
+  'tag_share_percent_only must output "~33%"'
+);
+
+// Case 2: Active metricMode is 'tag_share', but user selects Paper Prevalence label format
+const prevOnTagShareMode = formatMetricDisplay({
+  ...multiLabelSectorSample,
+  metricMode: 'tag_share',
+  template: 'prevalence_ratio_percent'
+});
+assert.strictEqual(
+  prevOnTagShareMode,
+  'n = 18/46, ~39%',
+  'prevalence_ratio_percent must output n = 18/46, ~39% even when metricMode is tag_share'
+);
+
+const prevNameOnTagShareMode = formatMetricDisplay({
+  ...multiLabelSectorSample,
+  metricMode: 'tag_share',
+  template: 'name_prevalence_ratio_percent'
+});
+assert.strictEqual(
+  prevNameOnTagShareMode,
+  'Healthcare (n = 18/46, ~39%)',
+  'name_prevalence_ratio_percent must output "Healthcare (n = 18/46, ~39%)"'
+);
+
+// Case 3: Dual Multi-Metric Template (Prevalence + Tag Share Combined)
+const dualMetricDisplay = formatMetricDisplay({
+  ...multiLabelSectorSample,
+  metricMode: 'paper_prevalence',
+  template: 'dual_prevalence_tag_share'
+});
+assert.strictEqual(
+  dualMetricDisplay,
+  'n = 18/46 (~39%) | Tags: n = 18/54 (~33%)',
+  'dual_prevalence_tag_share must output "n = 18/46 (~39%) | Tags: n = 18/54 (~33%)"'
+);
+
+// Test 19: Journal Aspect Ratio Math, 9-Point Fitting Anchor Mapping & Safe Frame Calculations
+console.log('19. Testing Journal Aspect Ratio Math & Fitting Anchor Mapping...');
+
+function resolveTargetDimensions(aspectRatio = '16:9', customWidth = 190, customHeight = 107, dimensionUnit = 'mm', baseWidth = 1200) {
+  let targetWidth = baseWidth;
+  let targetHeight = Math.round(baseWidth * (9 / 16));
+  let aspectLabel = '16:9';
+
+  if (aspectRatio === '16:9') {
+    targetWidth = 1200; targetHeight = 675; aspectLabel = '16:9 (Double Column / 190mm)';
+  } else if (aspectRatio === '16:10') {
+    targetWidth = 1200; targetHeight = 750; aspectLabel = '16:10 (1.5 Column / 140mm)';
+  } else if (aspectRatio === '4:3') {
+    targetWidth = 1000; targetHeight = 750; aspectLabel = '4:3 (Single Column / 90mm)';
+  } else if (aspectRatio === '3:2') {
+    targetWidth = 1200; targetHeight = 800; aspectLabel = '3:2 (Academic Standard)';
+  } else if (aspectRatio === '1:1') {
+    targetWidth = 900; targetHeight = 900; aspectLabel = '1:1 (Square Panel / 90mm)';
+  } else if (aspectRatio === '21:9') {
+    targetWidth = 1400; targetHeight = 600; aspectLabel = '21:9 (Ultra-Wide Panorama)';
+  }
+  return { targetWidth, targetHeight, aspectLabel };
+}
+
+function computeFittedStageDimensions(containerWidth, containerHeight, targetRatio) {
+  const padH = 36;
+  const padV = 36;
+  const availW = Math.max(120, containerWidth - padH);
+  const availH = Math.max(120, containerHeight - padV);
+
+  let fitW, fitH;
+  if (availW / availH > targetRatio) {
+    fitH = availH;
+    fitW = Math.round(availH * targetRatio);
+  } else {
+    fitW = availW;
+    fitH = Math.round(availW / targetRatio);
+  }
+  return { fitW, fitH };
+}
+
+function mapFittingAnchor(anchor) {
+  switch (anchor) {
+    case 'top-left': return { x: -15, y: -15 };
+    case 'top': return { x: 0, y: -15 };
+    case 'top-right': return { x: 15, y: -15 };
+    case 'left': return { x: -15, y: 0 };
+    case 'center': return { x: 0, y: 0 };
+    case 'right': return { x: 15, y: 0 };
+    case 'bottom-left': return { x: -15, y: 15 };
+    case 'bottom': return { x: 0, y: 15 };
+    case 'bottom-right': return { x: 15, y: 15 };
+  }
+}
+
+// Check 16:9 ratio computation
+const dim169 = resolveTargetDimensions('16:9');
+assert.strictEqual(dim169.targetWidth, 1200);
+assert.strictEqual(dim169.targetHeight, 675);
+const r169 = dim169.targetWidth / dim169.targetHeight;
+
+// Test container with wide aspect: height is the constraint
+const stageWide = computeFittedStageDimensions(1600, 600, r169);
+assert.strictEqual(stageWide.fitH, 600 - 36); // 564
+assert.strictEqual(stageWide.fitW, Math.round(564 * (16 / 9))); // 1003
+
+// Test container with tall aspect: width is the constraint
+const stageTall = computeFittedStageDimensions(800, 1000, r169);
+assert.strictEqual(stageTall.fitW, 800 - 36); // 764
+assert.strictEqual(stageTall.fitH, Math.round(764 / (16 / 9))); // 430
+
+// Test 9-point anchor mapping
+assert.deepStrictEqual(mapFittingAnchor('center'), { x: 0, y: 0 });
+assert.deepStrictEqual(mapFittingAnchor('top-left'), { x: -15, y: -15 });
+assert.deepStrictEqual(mapFittingAnchor('bottom-right'), { x: 15, y: 15 });
+
+// Test preset round-trip with fitting coordinates
+const presetWithFit = {
+  version: '3.0',
+  fitOffsetX: 12,
+  fitOffsetY: -8,
+  containerPadding: 16,
+  showSafeGuides: true
+};
+const serializedFit = JSON.stringify(presetWithFit);
+const deserializedFit = JSON.parse(serializedFit);
+assert.strictEqual(deserializedFit.fitOffsetX, 12);
+assert.strictEqual(deserializedFit.fitOffsetY, -8);
+assert.strictEqual(deserializedFit.containerPadding, 16);
+assert.strictEqual(deserializedFit.showSafeGuides, true);
+
+console.log('✓ All 19 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
 

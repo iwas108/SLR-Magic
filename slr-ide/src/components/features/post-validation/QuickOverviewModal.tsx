@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, ChevronDown, ChevronUp, BarChart3, Download, HelpCircle, Printer } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, BarChart3, Download, HelpCircle, Printer, Trash2 } from 'lucide-react';
 import { MinerPaper } from '@/hooks/useUmbrellanizer';
 import {
   resolveUmbrellanizerValue,
@@ -16,6 +16,7 @@ interface QuickOverviewModalProps {
   papers: MinerPaper[];
   extractedKeys: string[];
   mappingsByKey: Record<string, Record<string, { umbrella_category: string; justification: string }>>;
+  onDropKey?: (key: string) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -31,6 +32,7 @@ export default function QuickOverviewModal({
   papers,
   extractedKeys,
   mappingsByKey,
+  onDropKey,
   onClose
 }: QuickOverviewModalProps) {
   const [projectQuestions, setProjectQuestions] = useState('');
@@ -221,22 +223,45 @@ export default function QuickOverviewModal({
               return (
                 <div key={key} className="border border-border rounded-xl overflow-hidden bg-secondary/5">
                 {/* Accordion Header */}
-                <button
-                  onClick={() => setExpandedKey(expandedKey === key ? null : key)}
-                  className="w-full px-4 py-3 flex items-center justify-between bg-secondary/10 hover:bg-secondary/20 transition-colors text-left"
-                >
-                  <span className="font-bold text-xs text-foreground tracking-wide line-clamp-1">{label}</span>
-                  <div className="flex items-center gap-3">
+                <div className="w-full px-4 py-3 flex items-center justify-between bg-secondary/10 hover:bg-secondary/20 transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedKey(expandedKey === key ? null : key)}
+                    className="flex-1 text-left flex items-center font-bold text-xs text-foreground tracking-wide line-clamp-1 cursor-pointer"
+                  >
+                    {label}
+                  </button>
+                  <div className="flex items-center gap-2.5 shrink-0">
                     <span className="text-[10px] text-muted-foreground font-mono bg-card border border-border px-1.5 py-0.5 rounded font-bold">
                       {categoryStats.length} categories
                     </span>
-                    {isExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-muted-foreground print:hidden" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground print:hidden" />
+                    {mappingsByKey[key] && onDropKey && (
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!confirm(`Are you sure you want to drop the Umbrellanizer taxonomy for "${key}"?`)) return;
+                          await onDropKey(key);
+                        }}
+                        title={`Drop taxonomy mapping for ${key}`}
+                        className="p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-colors cursor-pointer print:hidden"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedKey(expandedKey === key ? null : key)}
+                      className="p-1 text-muted-foreground hover:text-foreground cursor-pointer print:hidden"
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
-                </button>
+                </div>
 
                 {/* Accordion Body */}
                 {isExpanded && (

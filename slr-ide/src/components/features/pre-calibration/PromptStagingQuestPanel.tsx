@@ -28,6 +28,7 @@ export default function PromptStagingQuestPanel({
     runningBenchmarkStage,
     confirmationState,
     optimizationState,
+    isAnyTaskRunning,
     openAuditConfirmation,
     openBenchmarkConfirmation,
     confirmPayloadExecution,
@@ -141,6 +142,7 @@ export default function PromptStagingQuestPanel({
         auditScores={auditScores}
         auditReport={auditReport}
         loadingAudit={loadingAudit}
+        isAnyTaskRunning={isAnyTaskRunning}
         onRunAudit={openAuditConfirmation}
       />
 
@@ -158,6 +160,7 @@ export default function PromptStagingQuestPanel({
         lockReason="Complete Quest 1 (Inter-Stage Consolidation Audit) to unlock Stage 1 Fast Filter Benchmark."
         benchmarkState={benchmarkRuns[1]}
         isRunning={runningBenchmarkStage === 1}
+        isAnyTaskRunning={isAnyTaskRunning}
         onRunBenchmark={() => openBenchmarkConfirmation(1, 'Fast Filter (Metadata Screening)', 'Pool A')}
         onOptimizePrompt={() => startPromptOptimization(1, 'Fast Filter (Metadata Screening)')}
       />
@@ -176,6 +179,7 @@ export default function PromptStagingQuestPanel({
         lockReason="Run Stage 1 Benchmark to unlock Stage 2 Gatekeeper Benchmark."
         benchmarkState={benchmarkRuns[2]}
         isRunning={runningBenchmarkStage === 2}
+        isAnyTaskRunning={isAnyTaskRunning}
         onRunBenchmark={() => openBenchmarkConfirmation(2, 'Gatekeeper (Domain & Full-Text Screening)', 'Pool B')}
         onOptimizePrompt={() => startPromptOptimization(2, 'Gatekeeper (Domain & Full-Text Screening)')}
       />
@@ -194,6 +198,7 @@ export default function PromptStagingQuestPanel({
         lockReason="Run Stage 2 Benchmark to unlock Stage 3 Scientist Benchmark."
         benchmarkState={benchmarkRuns[3]}
         isRunning={runningBenchmarkStage === 3}
+        isAnyTaskRunning={isAnyTaskRunning}
         onRunBenchmark={() => openBenchmarkConfirmation(3, 'Scientist (Quality Appraisal)', 'Pool C')}
         onOptimizePrompt={() => startPromptOptimization(3, 'Scientist (Quality Appraisal)')}
       />
@@ -212,6 +217,7 @@ export default function PromptStagingQuestPanel({
         lockReason="Run Stage 3 Benchmark to unlock Stage 4 Miner Benchmark."
         benchmarkState={benchmarkRuns[4]}
         isRunning={runningBenchmarkStage === 4}
+        isAnyTaskRunning={isAnyTaskRunning}
         onRunBenchmark={() => openBenchmarkConfirmation(4, 'Miner (Data Extraction)', 'Pool C')}
         onOptimizePrompt={() => startPromptOptimization(4, 'Miner (Data Extraction)')}
       />

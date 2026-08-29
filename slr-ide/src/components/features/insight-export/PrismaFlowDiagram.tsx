@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Download, Loader2, Settings, Sparkles } from 'lucide-react';
+import { Download, Loader2, Settings, Sparkles, ChevronDown, FileCode, FileText, Image as ImageIcon } from 'lucide-react';
 import PrismaConfigModal, { PrismaConfig } from '@/components/features/modals/PrismaConfigModal';
+import { generatePrismaSvg } from '@/lib/services/prisma-svg-generator';
+import { exportSvgToPdf } from '@/lib/services/pdf-export-service';
 
 export interface PrismaFlowDiagramProps {
   projectId?: string;
@@ -27,6 +29,20 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
   const [data, setData] = useState<any>(null);
   const [config, setConfig] = useState<PrismaConfig>(DEFAULT_CONFIG);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Load configuration from localStorage
   useEffect(() => {
@@ -83,14 +99,14 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     if (!ctx) return;
 
     // "Other Methods" total calculation
-    const otherMethodsTotal = (data.otherReportsSought || 0) + (data.otherDuplicatesRemoved || 0);
+    const otherMethodsTotal = (data.totalOtherRecordsIdentified || 0) + (data.otherReportsSought || 0) + (data.otherDuplicatesRemoved || 0);
     const isCollapsed = config.collapseEmptyColumn && otherMethodsTotal === 0;
 
     // Define base coordinates mapping
     const startX = isCollapsed ? 500 : 200;
     const boxWidth = isCollapsed ? 650 : 500;
     const gap = isCollapsed ? 750 : 540; // distance from main flow to exclusion flow
-    const leftPhaseLabelX = isCollapsed ? 300 : 50;
+    const leftPhaseLabelX = isCollapsed ? 300 : 80;
 
     const mainFlowCenter = startX + boxWidth / 2;
     const mainFlowRight = startX + boxWidth;
@@ -284,7 +300,7 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
 
     // Row 1: Identification & Deduplication (Y = 130)
     // Box 1
-    const dbSourcesText = data.databaseSources
+    const dbSourcesText = (data.databaseSources || [])
       .map((s: any) => `${s.source} (n = ${s.count})`)
       .join('\n');
     let yMeas = 0;
@@ -296,42 +312,54 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     yMeas = 0;
     yMeas = wrapText('Records removed before screening:', 0, yMeas, boxWidth - 2 * padding, lhBold, 'bold', undefined, true);
     yMeas = wrapText(
-      `Duplicate records removed (n = ${data.dbDuplicatesRemoved})\n` +
+      `Duplicate records removed (n = ${data.dbDuplicatesRemoved || 0})\n` +
       `Records marked as ineligible by automation tools (n = 0)\n` +
       `Records removed for other reasons (n = 0)`,
       0, yMeas + 5, boxWidth - 2 * padding, lhNormal, undefined, undefined, true
     );
     const box2TextHeight = yMeas;
 
-    // Box 13 (Other methods removed before screening)
+    // Box 13 (Other methods identified)
     let box13TextHeight = 0;
+    if (!isCollapsed) {
+      const otherSourcesText = (data.otherMethodsSources || [])
+        .map((s: any) => `${s.source} (n = ${s.count})`)
+        .join('\n');
+      yMeas = 0;
+      yMeas = wrapText('Records identified from:', 0, yMeas, 500 - 2 * padding, lhBold, 'bold', undefined, true);
+      yMeas = wrapText(otherSourcesText || 'No records identified', 0, yMeas + 5, 500 - 2 * padding, lhNormal, undefined, undefined, true);
+      box13TextHeight = yMeas;
+    }
+
+    // Box 14 (Other methods removed before screening)
+    let box14TextHeight = 0;
     if (!isCollapsed) {
       yMeas = 0;
       yMeas = wrapText('Records removed before screening:', 0, yMeas, 500 - 2 * padding, lhBold, 'bold', undefined, true);
       yMeas = wrapText(
-        `Duplicate records removed (n = ${data.otherDuplicatesRemoved})\n` +
+        `Duplicate records removed (n = ${data.otherDuplicatesRemoved || 0})\n` +
         `Records marked as ineligible by automation tools (n = 0)\n` +
         `Records removed for other reasons (n = 0)`,
         0, yMeas + 5, 500 - 2 * padding, lhNormal, undefined, undefined, true
       );
-      box13TextHeight = yMeas;
+      box14TextHeight = yMeas;
     }
 
-    const row1MaxTextHeight = Math.max(box1TextHeight, box2TextHeight, isCollapsed ? 0 : box13TextHeight);
+    const row1MaxTextHeight = Math.max(box1TextHeight, box2TextHeight, isCollapsed ? 0 : Math.max(box13TextHeight, box14TextHeight));
     const hRow1 = row1MaxTextHeight + padding * 2;
 
     // Row 2: Screening & Stage 1 Exclusions (Y = 470)
     // Box 5
     yMeas = 0;
-    yMeas = wrapText(`Records screened (n = ${data.dbRecordsScreened})`, 0, yMeas, boxWidth - 2 * padding, lhBold, 'bold', undefined, true);
+    yMeas = wrapText(`Records screened (n = ${data.dbRecordsScreened || 0})`, 0, yMeas, boxWidth - 2 * padding, lhBold, 'bold', undefined, true);
     const box5TextHeight = yMeas;
 
     // Box 6
-    const s1ExclusionsText = data.dbStage1ExcludedByEC
+    const s1ExclusionsText = (data.dbStage1ExcludedByEC || [])
       .map((ec: any) => `${ec.code} (n = ${ec.count})`)
       .join(', ');
     yMeas = 0;
-    wrapText(`Records excluded (n = ${data.dbStage1Excluded})`, 0, yMeas, boxWidth - 2 * padding, lhBold, 'bold', undefined, true);
+    wrapText(`Records excluded (n = ${data.dbStage1Excluded || 0})`, 0, yMeas, boxWidth - 2 * padding, lhBold, 'bold', undefined, true);
     yMeas = wrapText(s1ExclusionsText || 'No exclusions', 0, yMeas + lhBold, boxWidth - 2 * padding, lhNormal, 'normal', undefined, true);
     const box6TextHeight = yMeas;
 
@@ -342,13 +370,13 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     // Box 8
     yMeas = 0;
     wrapText('Reports sought for retrieval', 0, yMeas, boxWidth - 2 * padding, lhBold, 'bold', undefined, true);
-    yMeas = wrapText(`(n = ${data.dbReportsSought})`, 0, yMeas + lhBold, boxWidth - 2 * padding, lhNormal, undefined, undefined, true);
+    yMeas = wrapText(`(n = ${data.dbReportsSought || 0})`, 0, yMeas + lhBold, boxWidth - 2 * padding, lhNormal, undefined, undefined, true);
     const box8TextHeight = yMeas;
 
     // Box 9
     yMeas = 0;
     wrapText('Reports not retrieved', 0, yMeas, boxWidth - 2 * padding, lhBold, 'bold', undefined, true);
-    yMeas = wrapText(`(n = ${data.dbReportsNotRetrieved})`, 0, yMeas + lhBold, boxWidth - 2 * padding, lhNormal, undefined, undefined, true);
+    yMeas = wrapText(`(n = ${data.dbReportsNotRetrieved || 0})`, 0, yMeas + lhBold, boxWidth - 2 * padding, lhNormal, undefined, undefined, true);
     const box9TextHeight = yMeas;
 
     // Box 16 (if not collapsed)
@@ -356,7 +384,7 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     if (!isCollapsed) {
       yMeas = 0;
       wrapText('Reports sought for retrieval', 0, yMeas, 500 - 2 * padding, lhBold, 'bold', undefined, true);
-      box16TextHeight = wrapText(`(n = ${data.otherReportsSought})`, 0, yMeas + lhBold, 500 - 2 * padding, lhNormal, undefined, undefined, true);
+      box16TextHeight = wrapText(`(n = ${data.otherReportsSought || 0})`, 0, yMeas + lhBold, 500 - 2 * padding, lhNormal, undefined, undefined, true);
     }
 
     // Box 17 (if not collapsed)
@@ -364,7 +392,7 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     if (!isCollapsed) {
       yMeas = 0;
       wrapText('Reports not retrieved', 0, yMeas, 500 - 2 * padding, lhBold, 'bold', undefined, true);
-      box17TextHeight = wrapText(`(n = ${data.otherReportsNotRetrieved})`, 0, yMeas + lhBold, 500 - 2 * padding, lhNormal, undefined, undefined, true);
+      box17TextHeight = wrapText(`(n = ${data.otherReportsNotRetrieved || 0})`, 0, yMeas + lhBold, 500 - 2 * padding, lhNormal, undefined, undefined, true);
     }
 
     const row3MaxTextHeight = Math.max(
@@ -379,17 +407,17 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     // Box 10
     yMeas = 0;
     wrapText('Reports assessed for eligibility', 0, yMeas, boxWidth - 2 * padding, lhBold, 'bold', undefined, true);
-    yMeas = wrapText(`(n = ${data.dbReportsAssessed})`, 0, yMeas + lhBold, boxWidth - 2 * padding, lhNormal, undefined, undefined, true);
+    yMeas = wrapText(`(n = ${data.dbReportsAssessed || 0})`, 0, yMeas + lhBold, boxWidth - 2 * padding, lhNormal, undefined, undefined, true);
     const box10TextHeight = yMeas;
 
     // Box 11
     let dbExcludedLines: string[] = [];
-    data.dbReportsExcludedStage2.forEach((ec: any) => {
-      const desc = data.ecLabels[ec.code.toUpperCase()] || '';
+    (data.dbReportsExcludedStage2 || []).forEach((ec: any) => {
+      const desc = data.ecLabels?.[ec.code?.toUpperCase()] || '';
       const label = desc ? `${ec.code}: ${desc}` : ec.code;
       dbExcludedLines.push(`${label} (n = ${ec.count})`);
     });
-    data.dbReportsExcludedStage3.forEach((g: any) => {
+    (data.dbReportsExcludedStage3 || []).forEach((g: any) => {
       if (g.count > 0) {
         dbExcludedLines.push(`${g.gate} (n = ${g.count})`);
       }
@@ -404,17 +432,17 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     if (!isCollapsed) {
       yMeas = 0;
       wrapText('Reports assessed for eligibility', 0, yMeas, 500 - 2 * padding, lhBold, 'bold', undefined, true);
-      box18TextHeight = wrapText(`(n = ${data.otherReportsAssessed})`, 0, yMeas + lhBold, 500 - 2 * padding, lhNormal, undefined, undefined, true);
+      box18TextHeight = wrapText(`(n = ${data.otherReportsAssessed || 0})`, 0, yMeas + lhBold, 500 - 2 * padding, lhNormal, undefined, undefined, true);
     }
 
     // Box 19 (if not collapsed)
     let otherExcludedLines: string[] = [];
-    data.otherReportsExcludedStage2.forEach((ec: any) => {
-      const desc = data.ecLabels[ec.code.toUpperCase()] || '';
+    (data.otherReportsExcludedStage2 || []).forEach((ec: any) => {
+      const desc = data.ecLabels?.[ec.code?.toUpperCase()] || '';
       const label = desc ? `${ec.code}: ${desc}` : ec.code;
       otherExcludedLines.push(`${label} (n = ${ec.count})`);
     });
-    data.otherReportsExcludedStage3.forEach((g: any) => {
+    (data.otherReportsExcludedStage3 || []).forEach((g: any) => {
       if (g.count > 0) {
         otherExcludedLines.push(`${g.gate} (n = ${g.count})`);
       }
@@ -437,10 +465,11 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     // Phase 3: Included Box (Y = 1350)
     yMeas = 0;
     const nextYIncMeas = wrapText('Studies included in review', 0, yMeas, headerWidth - 2 * padding, lhBold, 'bold', undefined, true);
-    const nextYIncCountMeas = wrapText(`(n = ${data.dbStudiesIncluded})`, 0, nextYIncMeas + 5, headerWidth - 2 * padding, lhNormal, undefined, undefined, true);
+    const nextYIncCountMeas = wrapText(`(n = ${data.dbStudiesIncluded || 0})`, 0, nextYIncMeas + 5, headerWidth - 2 * padding, lhNormal, undefined, undefined, true);
     const nextYInc2Meas = wrapText('Reports of included studies', 0, nextYIncCountMeas + 15, headerWidth - 2 * padding, lhBold, 'bold', undefined, true);
-    const endYIncMeas = wrapText(`(n = ${data.otherStudiesIncluded})`, 0, nextYInc2Meas + 5, headerWidth - 2 * padding, lhNormal, undefined, undefined, true);
-    const hInc = endYIncMeas + padding * 2;
+    const endYIncMeas = wrapText(`(n = ${data.otherStudiesIncluded || 0})`, 0, nextYInc2Meas + 5, headerWidth - 2 * padding, lhNormal, undefined, undefined, true);
+    const boxIncTextHeight = endYIncMeas;
+    const hInc = boxIncTextHeight + padding * 2;
 
     // Calculate Dynamic Row coordinates (Y-Axis Accumulation)
     const headerY = 40;
@@ -507,21 +536,29 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     drawRoundRect(exclusionFlowLeft, row1Y, boxWidth, hRow1, config.boxBorderRadius, cardBg, border);
     const nextY2 = wrapText('Records removed before screening:', exclusionFlowLeft + padding, row1Y + padding + Math.round(config.baseFontSize * 0.8), boxWidth - 2 * padding, lhBold, 'bold');
     wrapText(
-      `Duplicate records removed (n = ${data.dbDuplicatesRemoved})\n` +
+      `Duplicate records removed (n = ${data.dbDuplicatesRemoved || 0})\n` +
       `Records marked as ineligible by automation tools (n = 0)\n` +
       `Records removed for other reasons (n = 0)`,
       exclusionFlowLeft + padding, nextY2 + 5, boxWidth - 2 * padding, lhNormal
     );
 
-    // Box [**13]: Removed before screening (other methods - only if not collapsed)
+    // Box [**13]: Records identified from (other methods - only if not collapsed)
     if (!isCollapsed) {
+      const otherSourcesText = (data.otherMethodsSources || [])
+        .map((s: any) => `${s.source} (n = ${s.count})`)
+        .join('\n');
       drawRoundRect(1300, row1Y, 500, hRow1, config.boxBorderRadius, cardBg, border);
-      const nextY13 = wrapText('Records removed before screening:', 1300 + padding, row1Y + padding + Math.round(config.baseFontSize * 0.8), 500 - 2 * padding, lhBold, 'bold');
+      const nextY13 = wrapText('Records identified from:', 1300 + padding, row1Y + padding + Math.round(config.baseFontSize * 0.8), 500 - 2 * padding, lhBold, 'bold');
+      wrapText(otherSourcesText || 'No records identified', 1300 + padding, nextY13 + 5, 500 - 2 * padding, lhNormal);
+
+      // Box [**14]: Removed before screening (other methods - only if not collapsed)
+      drawRoundRect(1840, row1Y, 500, hRow1, config.boxBorderRadius, cardBg, border);
+      const nextY14 = wrapText('Records removed before screening:', 1840 + padding, row1Y + padding + Math.round(config.baseFontSize * 0.8), 500 - 2 * padding, lhBold, 'bold');
       wrapText(
-        `Duplicate records removed (n = ${data.otherDuplicatesRemoved})\n` +
+        `Duplicate records removed (n = ${data.otherDuplicatesRemoved || 0})\n` +
         `Records marked as ineligible by automation tools (n = 0)\n` +
         `Records removed for other reasons (n = 0)`,
-        1300 + padding, nextY13 + 5, 500 - 2 * padding, lhNormal
+        1840 + padding, nextY14 + 5, 500 - 2 * padding, lhNormal
       );
     }
 
@@ -531,31 +568,31 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
 
     // Box [**5]: Records screened
     drawRoundRect(startX, row2Y, boxWidth, hRow2, config.boxBorderRadius, cardBg, border);
-    wrapText(`Records screened (n = ${data.dbRecordsScreened})`, startX + padding, row2Y + padding + Math.round(config.baseFontSize * 0.8), boxWidth - 2 * padding, lhBold, 'bold');
+    wrapText(`Records screened (n = ${data.dbRecordsScreened || 0})`, startX + padding, row2Y + padding + Math.round(config.baseFontSize * 0.8), boxWidth - 2 * padding, lhBold, 'bold');
 
     // Box [**6] & [**7]: Records excluded (Stage 1)
     drawRoundRect(exclusionFlowLeft, row2Y, boxWidth, hRow2, config.boxBorderRadius, cardBg, border);
     const startY6 = row2Y + padding + Math.round(config.baseFontSize * 0.8);
-    wrapText(`Records excluded (n = ${data.dbStage1Excluded})`, exclusionFlowLeft + padding, startY6, boxWidth - 2 * padding, lhBold, 'bold');
+    wrapText(`Records excluded (n = ${data.dbStage1Excluded || 0})`, exclusionFlowLeft + padding, startY6, boxWidth - 2 * padding, lhBold, 'bold');
     wrapText(s1ExclusionsText || 'No exclusions', exclusionFlowLeft + padding, startY6 + lhBold, boxWidth - 2 * padding, lhNormal, 'normal', textMuted);
 
     // Box [**8]: Reports sought for retrieval
     drawRoundRect(startX, row3Y, boxWidth, hRow3, config.boxBorderRadius, cardBg, border);
     const startY8 = row3Y + padding + Math.round(config.baseFontSize * 0.8);
     wrapText('Reports sought for retrieval', startX + padding, startY8, boxWidth - 2 * padding, lhBold, 'bold');
-    wrapText(`(n = ${data.dbReportsSought})`, startX + padding, startY8 + lhBold, boxWidth - 2 * padding, lhNormal);
+    wrapText(`(n = ${data.dbReportsSought || 0})`, startX + padding, startY8 + lhBold, boxWidth - 2 * padding, lhNormal);
 
     // Box [**9]: Reports not retrieved
     drawRoundRect(exclusionFlowLeft, row3Y, boxWidth, hRow3, config.boxBorderRadius, cardBg, border);
     const startY9 = row3Y + padding + Math.round(config.baseFontSize * 0.8);
     wrapText('Reports not retrieved', exclusionFlowLeft + padding, startY9, boxWidth - 2 * padding, lhBold, 'bold');
-    wrapText(`(n = ${data.dbReportsNotRetrieved})`, exclusionFlowLeft + padding, startY9 + lhBold, boxWidth - 2 * padding, lhNormal);
+    wrapText(`(n = ${data.dbReportsNotRetrieved || 0})`, exclusionFlowLeft + padding, startY9 + lhBold, boxWidth - 2 * padding, lhNormal);
 
     // Box [**10]: Reports assessed for eligibility
     drawRoundRect(startX, row4Y, boxWidth, hRow4, config.boxBorderRadius, cardBg, border);
     const startY10 = row4Y + padding + Math.round(config.baseFontSize * 0.8);
     wrapText('Reports assessed for eligibility', startX + padding, startY10, boxWidth - 2 * padding, lhBold, 'bold');
-    wrapText(`(n = ${data.dbReportsAssessed})`, startX + padding, startY10 + lhBold, boxWidth - 2 * padding, lhNormal);
+    wrapText(`(n = ${data.dbReportsAssessed || 0})`, startX + padding, startY10 + lhBold, boxWidth - 2 * padding, lhNormal);
 
     // Box [**11]: Reports excluded (large block)
     drawRoundRect(exclusionFlowLeft, row4Y, boxWidth, hRow4, config.boxBorderRadius, cardBg, border);
@@ -569,19 +606,19 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
       drawRoundRect(1300, row3Y, 500, hRow3, config.boxBorderRadius, cardBg, border);
       const startY16 = row3Y + padding + Math.round(config.baseFontSize * 0.8);
       wrapText('Reports sought for retrieval', 1300 + padding, startY16, 500 - 2 * padding, lhBold, 'bold');
-      wrapText(`(n = ${data.otherReportsSought})`, 1300 + padding, startY16 + lhBold, 500 - 2 * padding, lhNormal);
+      wrapText(`(n = ${data.otherReportsSought || 0})`, 1300 + padding, startY16 + lhBold, 500 - 2 * padding, lhNormal);
 
       // Box [**17]: Reports not retrieved
       drawRoundRect(1840, row3Y, 500, hRow3, config.boxBorderRadius, cardBg, border);
       const startY17 = row3Y + padding + Math.round(config.baseFontSize * 0.8);
-      wrapText('Reports not retrieved', 1840 + padding, startY17, 500 - 2 * padding, lhBold, 'bold');
-      wrapText(`(n = ${data.otherReportsNotRetrieved})`, 1840 + padding, startY17 + lhBold, 500 - 2 * padding, lhNormal);
+      wrapText('Reports not retrieved', 1840 + padding, startY17, 500 - 2 * padding, lhNormal);
+      wrapText(`(n = ${data.otherReportsNotRetrieved || 0})`, 1840 + padding, startY17 + lhBold, 500 - 2 * padding, lhNormal);
 
       // Box [**18]: Reports assessed for eligibility
       drawRoundRect(1300, row4Y, 500, hRow4, config.boxBorderRadius, cardBg, border);
       const startY18 = row4Y + padding + Math.round(config.baseFontSize * 0.8);
       wrapText('Reports assessed for eligibility', 1300 + padding, startY18, 500 - 2 * padding, lhBold, 'bold');
-      wrapText(`(n = ${data.otherReportsAssessed})`, 1300 + padding, startY18 + lhBold, 500 - 2 * padding, lhNormal);
+      wrapText(`(n = ${data.otherReportsAssessed || 0})`, 1300 + padding, startY18 + lhBold, 500 - 2 * padding, lhNormal);
 
       // Box [**19]: Reports excluded (large block)
       drawRoundRect(1840, row4Y, 500, hRow4, config.boxBorderRadius, cardBg, border);
@@ -598,10 +635,10 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     drawRoundRect(startX, row5Y, headerWidth, hInc, config.boxBorderRadius, cardBg, border);
     const startYInc = row5Y + padding + Math.round(config.baseFontSize * 0.8);
     const nextYInc = wrapText('Studies included in review', startX + padding, startYInc, headerWidth - 2 * padding, lhBold, 'bold');
-    const nextYIncCount = wrapText(`(n = ${data.dbStudiesIncluded})`, startX + padding, nextYInc + 5, headerWidth - 2 * padding, lhNormal);
+    const nextYIncCount = wrapText(`(n = ${data.dbStudiesIncluded || 0})`, startX + padding, nextYInc + 5, headerWidth - 2 * padding, lhNormal);
     
     const nextYInc2 = wrapText('Reports of included studies', startX + padding, nextYIncCount + 15, headerWidth - 2 * padding, lhBold, 'bold');
-    wrapText(`(n = ${data.otherStudiesIncluded})`, startX + padding, nextYInc2 + 5, headerWidth - 2 * padding, lhNormal);
+    wrapText(`(n = ${data.otherStudiesIncluded || 0})`, startX + padding, nextYInc2 + 5, headerWidth - 2 * padding, lhNormal);
 
     // ----------------------------------------------------
     // CONNECTOR ARROWS
@@ -624,6 +661,9 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
 
     // RIGHT Column: Identification & Screening (only if not collapsed)
     if (!isCollapsed) {
+      // Box 13 right to Box 14
+      drawArrow(1800, row1Y + hRow1 / 2, 1840, row1Y + hRow1 / 2, arrowCol);
+
       // Box 13 down to Box 16
       drawArrow(1550, row1Y + hRow1, 1550, row3Y, arrowCol);
 
@@ -657,19 +697,68 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     }
   }, [data, config]);
 
-  const handleDownload = () => {
+  const getSafeProjectName = () => {
+    return data?.projectName ? data.projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'project';
+  };
+
+  const handleDownloadPng = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
-    
-    // Save to file
     const link = document.createElement('a');
     const dateStr = new Date().toISOString().split('T')[0];
-    const safeProjName = data?.projectName ? data.projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'project';
+    const safeProjName = getSafeProjectName();
     
     link.download = `PRISMA_${safeProjName}_${dateStr}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
-    if (showToast) showToast('PRISMA Flowchart downloaded successfully', 'success');
+    setIsExportMenuOpen(false);
+    if (showToast) showToast('PRISMA Flowchart (PNG) downloaded successfully', 'success');
+  };
+
+  const handleDownloadSvg = () => {
+    if (!data) return;
+    try {
+      const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+      const svgString = generatePrismaSvg(data, config, { isDark });
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStr = new Date().toISOString().split('T')[0];
+      const safeProjName = getSafeProjectName();
+
+      link.download = `PRISMA_${safeProjName}_${dateStr}.svg`;
+      link.href = url;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setIsExportMenuOpen(false);
+      if (showToast) showToast('PRISMA Flowchart (Vector SVG) downloaded successfully', 'success');
+    } catch (err: any) {
+      console.error('Error generating SVG:', err);
+      if (showToast) showToast(err.message || 'Error generating SVG', 'error');
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!data) return;
+    setIsExportingPdf(true);
+    try {
+      const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+      const svgString = generatePrismaSvg(data, config, { isDark });
+      const dateStr = new Date().toISOString().split('T')[0];
+      const safeProjName = getSafeProjectName();
+      const filename = `PRISMA_${safeProjName}_${dateStr}.pdf`;
+
+      await exportSvgToPdf(svgString, { filename, marginMm: 0 });
+      setIsExportMenuOpen(false);
+      if (showToast) showToast('PRISMA Flowchart (Vector PDF) downloaded successfully', 'success');
+    } catch (err: any) {
+      console.error('Error generating PDF:', err);
+      if (showToast) showToast(err.message || 'Error generating PDF', 'error');
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   if (loading) {
@@ -689,7 +778,7 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     );
   }
 
-  const otherMethodsTotal = (data.otherReportsSought || 0) + (data.otherDuplicatesRemoved || 0);
+  const otherMethodsTotal = (data.totalOtherRecordsIdentified || 0) + (data.otherReportsSought || 0) + (data.otherDuplicatesRemoved || 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -706,21 +795,84 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsConfigModalOpen(true)}
-            className="flex items-center gap-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border text-xs font-semibold py-2 px-3 rounded-lg shadow-sm transition-all"
+            className="flex items-center gap-1.5 bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border text-xs font-semibold py-2 px-3 rounded-lg shadow-sm transition-all cursor-pointer"
             title="Configure Diagram"
           >
             <Settings className="w-4 h-4" />
             Configure Diagram
           </button>
 
-          <button
-            onClick={handleDownload}
-            className="flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold py-2 px-4 rounded-lg shadow-sm transition-all"
-            title="Download PNG"
-          >
-            <Download className="w-4 h-4" />
-            Download PNG
-          </button>
+          {/* Unified Multi-Format Export Dropdown */}
+          <div className="relative" ref={exportMenuRef}>
+            <div className="inline-flex rounded-lg shadow-sm">
+              <button
+                type="button"
+                onClick={handleDownloadPng}
+                className="flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold py-2 px-3.5 rounded-l-lg transition-all cursor-pointer"
+                title="Download PNG (Raster)"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download PNG</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                className="bg-primary/90 text-primary-foreground hover:bg-primary border-l border-primary-foreground/20 px-2 py-2 rounded-r-lg transition-all cursor-pointer flex items-center justify-center"
+                title="Export Formats (PNG, SVG, PDF)"
+              >
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+
+            {isExportMenuOpen && (
+              <div className="absolute right-0 mt-1.5 w-52 bg-card border border-border rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-3 py-1.5 border-b border-border/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Export Options
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadPng}
+                  className="w-full px-3 py-2 text-left text-xs text-foreground hover:bg-secondary/70 flex items-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <div>
+                    <div className="font-semibold">PNG Image</div>
+                    <div className="text-[10px] text-muted-foreground">High-resolution raster ({config.exportScale}x scale)</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadSvg}
+                  className="w-full px-3 py-2 text-left text-xs text-foreground hover:bg-secondary/70 flex items-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <FileCode className="w-4 h-4 text-blue-500 shrink-0" />
+                  <div>
+                    <div className="font-semibold">Vector SVG</div>
+                    <div className="text-[10px] text-muted-foreground">Lossless vector for LaTeX / Illustrator</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={isExportingPdf}
+                  className="w-full px-3 py-2 text-left text-xs text-foreground hover:bg-secondary/70 flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isExportingPdf ? (
+                    <Loader2 className="w-4 h-4 text-amber-500 animate-spin shrink-0" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-amber-500 shrink-0" />
+                  )}
+                  <div>
+                    <div className="font-semibold">Publication PDF</div>
+                    <div className="text-[10px] text-muted-foreground">Camera-ready vector PDF document</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -744,4 +896,3 @@ export default function PrismaFlowDiagram({ projectId, showToast, prismaData, pr
     </div>
   );
 }
-

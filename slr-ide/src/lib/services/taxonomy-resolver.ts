@@ -267,6 +267,26 @@ export function getStageDominantExtractedDataStr(paper: any): string {
 }
 
 /**
+ * Strips the parent group prefix (e.g. "Parent: Child" -> "Child") when the prefix matches the parent name.
+ */
+export function stripParentPrefix(val: string, parentName?: string): string {
+  if (!parentName || !val) return val;
+  const pNorm = canonicalizeString(parentName).toLowerCase();
+  if (val.includes(':')) {
+    const parts = val.split(':').map(s => s.trim());
+    for (let i = 0; i < parts.length - 1; i++) {
+      const candidatePrefix = parts.slice(0, i + 1).join(':').toLowerCase();
+      const singlePart = parts[i].toLowerCase();
+      if (candidatePrefix === pNorm || singlePart === pNorm) {
+        const rest = parts.slice(i + 1).join(': ').trim();
+        return rest || val;
+      }
+    }
+  }
+  return val;
+}
+
+/**
  * Extracts normalized, taxonomy-mapped field values for any paper record.
  */
 export function extractPaperFieldValues(
@@ -283,8 +303,25 @@ export function extractPaperFieldValues(
 
   if (!paper) return excludeEmpty ? [] : ['Unspecified'];
 
-  if (fieldKey.startsWith('ext:')) {
-    const realKey = fieldKey.substring(4);
+  const isMacro = fieldKey.startsWith('ext:macro:') || fieldKey.startsWith('macro:ext:');
+  const isSub = fieldKey.startsWith('ext:sub:') || fieldKey.startsWith('sub:ext:');
+  const isLeafRaw = fieldKey.startsWith('raw:leaf:ext:') || fieldKey.startsWith('raw:tail:ext:');
+  const isExplicitRaw = isLeafRaw || fieldKey.startsWith('raw:ext:') || fieldKey.startsWith('raw:');
+  
+  let realKey = '';
+  if (isMacro) {
+    realKey = fieldKey.startsWith('ext:macro:') ? fieldKey.substring(10) : fieldKey.substring(10);
+  } else if (isSub) {
+    realKey = fieldKey.startsWith('ext:sub:') ? fieldKey.substring(8) : fieldKey.substring(8);
+  } else if (isLeafRaw) {
+    realKey = fieldKey.startsWith('raw:leaf:ext:') ? fieldKey.substring(13) : fieldKey.substring(13);
+  } else if (isExplicitRaw) {
+    realKey = fieldKey.startsWith('raw:ext:') ? fieldKey.substring(8) : fieldKey.substring(4);
+  } else if (fieldKey.startsWith('ext:')) {
+    realKey = fieldKey.substring(4);
+  }
+
+  if (realKey) {
     const extStr = getStageDominantExtractedDataStr(paper);
     if (!extStr) return excludeEmpty ? [] : ['Unspecified'];
 
@@ -306,14 +343,35 @@ export function extractPaperFieldValues(
         return excludeEmpty ? [] : ['Unspecified'];
       }
 
+      const transformToken = (t: string): string => {
+        if (isExplicitRaw) {
+          if (isLeafRaw) {
+            const lastColonIdx = t.lastIndexOf(':');
+            return lastColonIdx !== -1 ? t.substring(lastColonIdx + 1).trim() : t;
+          }
+          return t;
+        }
+        const resolved = resolveUmbrellanizerValue(t, realKey, useUmbrellanizer, umbrellanizerMap);
+        if (!resolved) return t;
+        if (isMacro) {
+          const colonIdx = resolved.indexOf(':');
+          return colonIdx !== -1 ? resolved.substring(0, colonIdx).trim() : resolved;
+        }
+        if (isSub) {
+          const parts = resolved.split(':').map(s => s.trim()).filter(Boolean);
+          return parts.length >= 2 ? parts[1] : (parts[0] || resolved);
+        }
+        return resolved;
+      };
+
       if (splitMultiValues) {
         const mappedList = tokens
-          .map(t => resolveUmbrellanizerValue(t, realKey, useUmbrellanizer, umbrellanizerMap))
+          .map(transformToken)
           .filter(v => Boolean(v) && v !== '[object Object]');
         return mappedList.length > 0 ? mappedList : (excludeEmpty ? [] : ['Unspecified']);
       } else {
         const mappedJoined = tokens
-          .map(t => resolveUmbrellanizerValue(t, realKey, useUmbrellanizer, umbrellanizerMap))
+          .map(transformToken)
           .filter(v => Boolean(v) && v !== '[object Object]')
           .join(', ');
         return mappedJoined ? [mappedJoined] : (excludeEmpty ? [] : ['Unspecified']);

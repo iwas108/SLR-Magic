@@ -44,7 +44,55 @@ def fail_job(job_id, project_id, error_message, key, input_tokens=0, output_toke
     }), flush=True)
     sys.exit(1)
 
-def run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens_list, target_var, target_desc=""):
+def format_rich_tokens_markdown(rich_tokens_list, raw_tokens_list):
+    if rich_tokens_list and isinstance(rich_tokens_list, list) and len(rich_tokens_list) > 0:
+        blocks = []
+        for item in rich_tokens_list:
+            if not isinstance(item, dict):
+                continue
+            token = item.get("token") or item.get("raw_token") or ""
+            if not token:
+                continue
+            count = item.get("count", 1)
+            papers = item.get("papers", [])
+            paper_ids = [p.get("id") if isinstance(p, dict) else str(p) for p in papers]
+            paper_ids_str = ", ".join(paper_ids) if paper_ids else f"{count} papers"
+
+            block = [f'### Extracted Token: "{token}" (Occurrences: {count} paper{"s" if count != 1 else ""} [{paper_ids_str}])']
+            
+            ev_quotes = item.get("evidence_quotes", [])
+            if ev_quotes:
+                block.append("- **Verbatim Evidence Quotes**:")
+                for eq in ev_quotes:
+                    if isinstance(eq, dict):
+                        p_id = eq.get("paper_id", "")
+                        q_txt = eq.get("quote", "")
+                        block.append(f'  * [{p_id}]: "{q_txt}"')
+                    else:
+                        block.append(f'  * "{eq}"')
+            else:
+                block.append("- **Verbatim Evidence Quotes**: None extracted.")
+
+            l_traces = item.get("logic_traces", [])
+            if l_traces:
+                block.append("- **Extraction Logic Traces**:")
+                for lt in l_traces:
+                    if isinstance(lt, dict):
+                        p_id = lt.get("paper_id", "")
+                        t_txt = lt.get("trace", "")
+                        block.append(f'  * [{p_id}]: {t_txt}')
+                    else:
+                        block.append(f'  * {lt}')
+            else:
+                block.append("- **Extraction Logic Traces**: None logged.")
+
+            blocks.append("\n".join(block))
+        return "\n\n".join(blocks)
+    
+    # Fallback to simple bulleted list if rich_tokens is not provided
+    return "\n".join([f'- "{t}"' for t in raw_tokens_list])
+
+def run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens_list, target_var, target_desc="", rich_tokens_list=None):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         fail_job(job_id, project_id, "Gemini API Key is missing. Unlock the vault first.", key)
@@ -92,12 +140,19 @@ def run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens
         fail_job(job_id, project_id, f"Failed to initialize GeminiClient: {init_err}", key)
 
     # 4. Hydrate prompt templates using Jinja2 with new & legacy placeholders
+    rich_tokens_markdown = format_rich_tokens_markdown(rich_tokens_list, raw_tokens_list)
     json_raw_tokens = json.dumps(raw_tokens_list)
     context_dict = {
+        "target_variable": target_var,
+        "target_variable_description": target_desc or "",
+        "raw_tokens_with_context": rich_tokens_markdown,
+        "umbrellanizer_rich_tokens_context": rich_tokens_markdown,
+        "rich_tokens_context": rich_tokens_markdown,
         "umbrellanizer_target_research_question": target_var,
         "umbrellanizer_target_research_question_description": target_desc or "",
         "umbrellanizer_raw_tokens_array": json_raw_tokens,
         "target_variable_name": target_var,
+        "raw_tokens": json_raw_tokens,
         "raw_tokens_array": json_raw_tokens
     }
 
@@ -107,10 +162,16 @@ def run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens
     except Exception as j2_err:
         logger.warning(f"Jinja2 render fallback to literal replace: {j2_err}")
         user_prompt = (user_template
+                       .replace("{{ target_variable }}", target_var)
+                       .replace("{{ target_variable_description }}", target_desc or "")
+                       .replace("{{ raw_tokens_with_context }}", rich_tokens_markdown)
+                       .replace("{{ umbrellanizer_rich_tokens_context }}", rich_tokens_markdown)
+                       .replace("{{ rich_tokens_context }}", rich_tokens_markdown)
                        .replace("{{ umbrellanizer_target_research_question }}", target_var)
                        .replace("{{ umbrellanizer_target_research_question_description }}", target_desc or "")
                        .replace("{{ umbrellanizer_raw_tokens_array }}", json_raw_tokens)
                        .replace("{{ target_variable_name }}", target_var)
+                       .replace("{{ raw_tokens }}", json_raw_tokens)
                        .replace("{{ raw_tokens_array }}", json_raw_tokens))
 
     print(json.dumps({
@@ -237,6 +298,8 @@ def main():
     parser.add_argument('--key', required=True, help="extracted_data key to process")
     parser.add_argument('--template-id', required=True)
     parser.add_argument('--raw-tokens', default='', help="JSON encoded array of unique raw tokens")
+    parser.add_argument('--rich-tokens', default='', help="JSON encoded array of rich token objects with evidence and traces")
+    parser.add_argument('--payload-file', default='', help="Path to JSON payload file containing tokens and metadata")
     parser.add_argument('--target-variable-name', default='', help="Legacy argument for target research question")
     parser.add_argument('--target-research-question', default='', help="Target research question variable name")
     parser.add_argument('--target-research-question-description', default='', help="Detailed description of target research question")
@@ -250,24 +313,64 @@ def main():
     target_desc = args.target_research_question_description or ""
 
     raw_tokens_list = []
-    if args.raw_tokens:
+    rich_tokens_list = []
+
+    if getattr(args, 'payload_file', None) and os.path.isfile(args.payload_file):
         try:
-            raw_tokens_list = json.loads(args.raw_tokens)
+            with open(args.payload_file, 'r', encoding='utf-8') as f:
+                payload_data = json.load(f)
+                if isinstance(payload_data, dict):
+                    raw_tokens_list = payload_data.get('rawTokens') or payload_data.get('raw_tokens') or []
+                    rich_tokens_list = payload_data.get('richTokens') or payload_data.get('rich_tokens') or []
+                elif isinstance(payload_data, list):
+                    raw_tokens_list = payload_data
+        except Exception as pe:
+            logger.warning(f"Failed to read payload file {args.payload_file}: {pe}")
+
+    if not raw_tokens_list and args.raw_tokens:
+        try:
+            if os.path.isfile(args.raw_tokens):
+                with open(args.raw_tokens, 'r', encoding='utf-8') as f:
+                    raw_tokens_list = json.load(f)
+            else:
+                raw_tokens_list = json.loads(args.raw_tokens)
         except Exception as e:
             fail_job(job_id, project_id, f"Failed to parse raw-tokens argument: {e}", key)
 
+    if not rich_tokens_list and args.rich_tokens:
+        try:
+            if os.path.isfile(args.rich_tokens):
+                with open(args.rich_tokens, 'r', encoding='utf-8') as f:
+                    rich_tokens_list = json.load(f)
+            else:
+                rich_tokens_list = json.loads(args.rich_tokens)
+        except Exception as e:
+            logger.warning(f"Failed to parse rich-tokens: {e}")
+
+    if not raw_tokens_list and rich_tokens_list:
+        raw_tokens_list = [item.get("token") or item.get("raw_token") for item in rich_tokens_list if isinstance(item, dict) and (item.get("token") or item.get("raw_token"))]
+
     if not raw_tokens_list:
-        # Dynamically extract unique raw tokens from Miner-passed papers for key
+        # Dynamically extract unique raw tokens and rich context from Miner-passed papers for key
         papers = execute_read(
             """
-            SELECT ai_extracted_data, manual_extracted_data 
-            FROM papers 
-            WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT)) AND (MAX(IFNULL(manual_stage, 0), IFNULL(ai_stage, 0)) >= 4 OR ai_extracted_data IS NOT NULL OR manual_extracted_data IS NOT NULL)
+            SELECT p.Paper_ID, p.Title,
+                   p.ai_extracted_data, p.manual_extracted_data,
+                   lsr.logic_trace as miner_logic_trace
+            FROM papers p
+            LEFT JOIN llm_screening_records lsr 
+              ON lsr.paper_id = p.Paper_ID 
+             AND (lsr.project_id = p.Project_ID OR CAST(lsr.project_id AS TEXT) = CAST(p.Project_ID AS TEXT))
+             AND lsr.stage = 4
+            WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT)) 
+              AND (MAX(IFNULL(p.manual_stage, 0), IFNULL(p.ai_stage, 0)) >= 4 OR p.ai_extracted_data IS NOT NULL OR p.manual_extracted_data IS NOT NULL)
             """,
             (project_id, project_id)
         )
-        tokens_set = set()
+        token_map = {}
         for p in papers:
+            p_id = p.get("Paper_ID") or ""
+            p_title = p.get("Title") or ""
             ext = p.get("manual_extracted_data") or p.get("ai_extracted_data")
             if not ext:
                 continue
@@ -276,20 +379,59 @@ def main():
                 if isinstance(parsed, dict) and key in parsed:
                     val_obj = parsed[key]
                     val = val_obj.get("value") if isinstance(val_obj, dict) else val_obj
+                    
+                    evidence_quote = ""
+                    if isinstance(val_obj, dict):
+                        evidence_quote = val_obj.get("evidence") or val_obj.get("exact_quote") or val_obj.get("quote") or ""
+                    
+                    logic_trace_text = ""
+                    miner_lt = p.get("miner_logic_trace")
+                    if miner_lt:
+                        try:
+                            parsed_lt = json.loads(miner_lt) if isinstance(miner_lt, str) else miner_lt
+                            em = parsed_lt.get("extraction_mapping") or parsed_lt
+                            logic_trace_text = em.get(f"locate_{key}") or em.get(key) or ""
+                        except Exception:
+                            pass
+                    if not logic_trace_text and isinstance(val_obj, dict):
+                        logic_trace_text = val_obj.get("reasoning") or val_obj.get("justification") or ""
+
+                    tokens = []
                     if isinstance(val, list):
-                        for item in val:
-                            t = str(item).strip()
-                            if t and t.upper() != 'NOT_STATED':
-                                tokens_set.add(t)
+                        tokens = [str(item).strip() for item in val if str(item).strip() and str(item).strip().upper() != 'NOT_STATED']
                     elif isinstance(val, str):
-                        t = val.strip()
-                        if t and t.upper() != 'NOT_STATED':
-                            tokens_set.add(t)
+                        t_str = val.strip()
+                        if t_str and t_str.upper() != 'NOT_STATED':
+                            if ',' in t_str and not key.startswith('rq1a'):
+                                tokens = [sub.strip() for sub in t_str.split(',') if sub.strip() and sub.strip().upper() != 'NOT_STATED']
+                            else:
+                                tokens = [t_str]
+                    
+                    for t in tokens:
+                        if t not in token_map:
+                            token_map[t] = {
+                                "token": t,
+                                "count": 0,
+                                "papers": [],
+                                "evidence_quotes": [],
+                                "logic_traces": []
+                            }
+                        token_map[t]["count"] += 1
+                        token_map[t]["papers"].append({"id": p_id, "title": p_title})
+                        if evidence_quote and evidence_quote.upper() != 'NOT_STATED':
+                            if not any(eq.get("quote") == evidence_quote for eq in token_map[t]["evidence_quotes"]):
+                                token_map[t]["evidence_quotes"].append({"paper_id": p_id, "quote": evidence_quote})
+                        if logic_trace_text and logic_trace_text.strip():
+                            if not any(lt.get("trace") == logic_trace_text for lt in token_map[t]["logic_traces"]):
+                                token_map[t]["logic_traces"].append({"paper_id": p_id, "trace": logic_trace_text})
             except Exception:
                 pass
-        raw_tokens_list = sorted(list(tokens_set))
+        
+        raw_tokens_list = sorted(list(token_map.keys()))
+        if not rich_tokens_list and token_map:
+            rich_tokens_list = sorted(list(token_map.values()), key=lambda x: x["count"], reverse=True)
 
-    run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens_list, target_var, target_desc)
+    run_umbrellanizer_execution(project_id, job_id, key, template_id, raw_tokens_list, target_var, target_desc, rich_tokens_list=rich_tokens_list)
 
 if __name__ == '__main__':
     main()

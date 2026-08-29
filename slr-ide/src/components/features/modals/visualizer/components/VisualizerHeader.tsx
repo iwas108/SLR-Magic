@@ -1,28 +1,26 @@
 import React from 'react';
 import { 
   BarChart2, 
-  Check, 
   X, 
   AlertTriangle, 
   Maximize2, 
   Minimize2, 
-  Eye, 
-  EyeOff, 
-  PanelRightClose, 
+  Sparkles,
+  Keyboard,
+  PanelRightClose,
   PanelRightOpen,
-  Keyboard
+  Wand2
 } from 'lucide-react';
 import { useVisualizerContext } from '../context/VisualizerContext';
 
 export function VisualizerHeader() {
-  const { props, config, workspace } = useVisualizerContext();
-  const { papers, totalUnfilteredCount, isFiltered, onClose } = props;
-  const { currentStep, setCurrentStep } = config;
+  const { props, layout, config, workspace } = useVisualizerContext();
+  const { papers, totalUnfilteredCount, isFiltered, onClose, umbrellanizerMap } = props;
+  const { layoutMode } = layout;
+  const { handleAutoOptimizeActiveSlot, autoOptimizeAllSlots } = config;
   const {
     isFullscreen,
     toggleFullscreen,
-    showLivePreview,
-    toggleLivePreview,
     isZenMode,
     toggleZenMode,
     showShortcutsModal,
@@ -30,87 +28,73 @@ export function VisualizerHeader() {
   } = workspace;
 
   return (
-    <div className="h-16 px-6 border-b border-border bg-secondary/30 flex items-center justify-between shrink-0 relative">
+    <div className="h-14 px-4 sm:px-6 border-b border-border bg-secondary/30 flex items-center justify-between shrink-0 relative z-30">
+      {/* Studio Brand & Cohort Badge */}
       <div className="flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20">
+        <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-xs">
           <BarChart2 className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-foreground tracking-tight flex items-center gap-2">
-            SLR Cohort Visualizer Wizard
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-foreground tracking-tight">
+              Scientific Visualization Studio
+            </h2>
+            <span className="px-2 py-0.2 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-black uppercase tracking-wider">
+              Live
+            </span>
+          </div>
           <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-2">
-            <span>Step-by-step scientific figure generation ({papers.length} papers in source table)</span>
+            <span>Cohort: {papers.length} unique papers</span>
             {isFiltered && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] font-bold">
-                <AlertTriangle className="w-3 h-3 text-amber-500" />
-                Filtered: {papers.length} / {totalUnfilteredCount || papers.length} papers
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] font-bold">
+                <AlertTriangle className="w-2.5 h-2.5 text-amber-500" />
+                Filtered from {totalUnfilteredCount || papers.length}
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Stepper Progress Indicator */}
-      <div className="flex items-center gap-2 bg-secondary/40 border border-border rounded-xl p-1">
-        {[
-          { num: 1, title: '1. Select Type' },
-          { num: 2, title: '2. Map Data' },
-          { num: 3, title: '3. Customize Style' },
-          { num: 4, title: '4. Visualize & Export' }
-        ].map(step => (
-          <button
-            key={step.num}
-            onClick={() => setCurrentStep(step.num as any)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-              currentStep === step.num
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : currentStep > step.num
-                ? 'bg-card text-foreground hover:bg-secondary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {currentStep > step.num ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : null}
-            {step.title}
-          </button>
-        ))}
-      </div>
-
-      {/* Workspace Action Toolbar */}
+      {/* Global Actions: Auto-Optimize, Zen, Shortcuts, Fullscreen, Close */}
       <div className="flex items-center gap-2">
-        {/* Step 2 & 3: Live Preview Toggle */}
-        {(currentStep === 2 || currentStep === 3) && (
+        {/* Auto Optimize Active Slot */}
+        <button
+          type="button"
+          onClick={() => handleAutoOptimizeActiveSlot(papers, umbrellanizerMap)}
+          className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
+          title="Auto-detect best chart type, variables, and color palette based on data cardinality"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Auto-Optimize</span>
+        </button>
+
+        {layoutMode !== 'single' && (
           <button
             type="button"
-            onClick={toggleLivePreview}
-            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-colors flex items-center gap-1.5 ${
-              showLivePreview
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'bg-card border-border hover:bg-secondary text-muted-foreground'
-            }`}
-            title={`Toggle Live Preview split panel (Shortcut: P)`}
+            onClick={() => autoOptimizeAllSlots(papers, umbrellanizerMap)}
+            className="px-2.5 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground border border-border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hidden md:flex"
+            title="Auto-optimize all subfigure slots simultaneously"
           >
-            {showLivePreview ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            <span className="hidden sm:inline">{showLivePreview ? 'Live Preview' : 'Preview Off'}</span>
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>Optimize All Slots</span>
           </button>
         )}
 
-        {/* Step 4: Zen / Theater Mode Toggle */}
-        {currentStep === 4 && (
-          <button
-            type="button"
-            onClick={toggleZenMode}
-            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-colors flex items-center gap-1.5 ${
-              isZenMode
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'bg-card border-border hover:bg-secondary text-muted-foreground'
-            }`}
-            title={`Toggle Zen Stage Mode (Shortcut: Z)`}
-          >
-            {isZenMode ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}
-            <span className="hidden sm:inline">{isZenMode ? 'Exit Zen' : 'Zen Stage'}</span>
-          </button>
-        )}
+        <div className="w-[1px] h-4 bg-border mx-1" />
+
+        {/* Zen / Theater Mode Toggle */}
+        <button
+          type="button"
+          onClick={toggleZenMode}
+          className={`p-2 rounded-xl border text-xs font-bold transition-colors ${
+            isZenMode
+              ? 'bg-primary/10 border-primary/30 text-primary'
+              : 'bg-card border-border hover:bg-secondary text-muted-foreground hover:text-foreground'
+          }`}
+          title="Toggle Zen Theater Mode (Shortcut: Z)"
+        >
+          {isZenMode ? <PanelRightOpen className="w-4 h-4" /> : <PanelRightClose className="w-4 h-4" />}
+        </button>
 
         {/* Keyboard Shortcuts Help Button */}
         <button
@@ -145,7 +129,7 @@ export function VisualizerHeader() {
 
       {/* Keyboard Shortcuts Popover Modal */}
       {showShortcutsModal && (
-        <div className="absolute top-16 right-6 z-50 w-80 bg-card border border-border shadow-2xl rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute top-14 right-6 z-50 w-80 bg-card border border-border shadow-2xl rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center justify-between pb-2 border-b border-border/60">
             <span className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
               <Keyboard className="w-4 h-4 text-primary" /> Keyboard Ergonomics
@@ -164,19 +148,15 @@ export function VisualizerHeader() {
               <kbd className="px-2 py-0.5 bg-secondary border border-border rounded text-[10px] font-mono font-bold text-foreground">Shift + F</kbd>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Live Split Preview (Steps 2 & 3)</span>
-              <kbd className="px-2 py-0.5 bg-secondary border border-border rounded text-[10px] font-mono font-bold text-foreground">P</kbd>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Zen Theater Mode (Step 4)</span>
+              <span className="text-muted-foreground">Zen Theater Mode</span>
               <kbd className="px-2 py-0.5 bg-secondary border border-border rounded text-[10px] font-mono font-bold text-foreground">Z</kbd>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Jump to Step 1, 2, 3, 4</span>
-              <kbd className="px-2 py-0.5 bg-secondary border border-border rounded text-[10px] font-mono font-bold text-foreground">1, 2, 3, 4</kbd>
+              <span className="text-muted-foreground">Toggle Safe Guides</span>
+              <kbd className="px-2 py-0.5 bg-secondary border border-border rounded text-[10px] font-mono font-bold text-foreground">G</kbd>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Exit Zoom / Zen / Close</span>
+              <span className="text-muted-foreground">Close Visualizer</span>
               <kbd className="px-2 py-0.5 bg-secondary border border-border rounded text-[10px] font-mono font-bold text-foreground">Esc</kbd>
             </div>
           </div>

@@ -487,6 +487,7 @@ export async function POST(request: Request) {
       project_tax,
       scopus_search_string,
       manual_search_string,
+      search_queries,
       llm_config,
       rolling_batch_size
     } = body;
@@ -527,13 +528,46 @@ export async function POST(request: Request) {
     const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
     const taxRate = project_tax !== undefined ? parseFloat(project_tax) : 0.0;
     const rollingBatchSize = rolling_batch_size !== undefined ? parseInt(rolling_batch_size, 10) : 20;
-    const scopusSearchString = scopus_search_string ? String(scopus_search_string).trim() : '';
-    const manualSearchString = manual_search_string ? String(manual_search_string).trim() : '';
+    let scopusSearchString = scopus_search_string ? String(scopus_search_string).trim() : '';
+    let manualSearchString = manual_search_string ? String(manual_search_string).trim() : '';
+    let searchQueriesStr = '[]';
+
+    if (search_queries !== undefined) {
+      if (typeof search_queries === 'string') {
+        searchQueriesStr = search_queries;
+        try {
+          const parsed = JSON.parse(search_queries);
+          if (Array.isArray(parsed)) {
+            const scopusMatch = parsed.find((q: any) => q && q.source && String(q.source).toLowerCase().includes('scopus'));
+            if (scopusMatch && scopusMatch.query) scopusSearchString = String(scopusMatch.query).trim();
+            const manualMatch = parsed.find((q: any) => q && q.source && (String(q.source).toLowerCase().includes('scholar') || String(q.source).toLowerCase().includes('manual')));
+            if (manualMatch && manualMatch.query) manualSearchString = String(manualMatch.query).trim();
+          }
+        } catch (_) {}
+      } else {
+        searchQueriesStr = JSON.stringify(search_queries);
+        if (Array.isArray(search_queries)) {
+          const scopusMatch = search_queries.find((q: any) => q && q.source && String(q.source).toLowerCase().includes('scopus'));
+          if (scopusMatch && scopusMatch.query) scopusSearchString = String(scopusMatch.query).trim();
+          const manualMatch = search_queries.find((q: any) => q && q.source && (String(q.source).toLowerCase().includes('scholar') || String(q.source).toLowerCase().includes('manual')));
+          if (manualMatch && manualMatch.query) manualSearchString = String(manualMatch.query).trim();
+        }
+      }
+    } else if (scopusSearchString || manualSearchString) {
+      const fallbackList: any[] = [];
+      if (scopusSearchString) {
+        fallbackList.push({ id: 'sq-scopus', source: 'Scopus', query: scopusSearchString, description: '' });
+      }
+      if (manualSearchString) {
+        fallbackList.push({ id: 'sq-manual', source: 'Google Scholar', query: manualSearchString, description: '' });
+      }
+      searchQueriesStr = JSON.stringify(fallbackList);
+    }
 
     db.prepare(`
       INSERT INTO projects (
-        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, goldmine_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, project_tax, scopus_search_string, manual_search_string, llm_config, rolling_batch_size, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, folder_name, manifesto, objective, questions, qa_definition, exclusion_criteria, pool_a_size, pool_b_size, pool_c_size, gdrive_dest_path, goldmine_dest_path, cloud_provider, rclone_remote_name, pool_tags, ec_rules, reasoning_template, pool_b_ec_rules, pool_b_reasoning_template, pool_c_qa_rules, pool_c_extraction_rules, project_budget_limit, project_tax, scopus_search_string, manual_search_string, search_queries, llm_config, rolling_batch_size, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       name.trim(),
@@ -561,6 +595,7 @@ export async function POST(request: Request) {
       taxRate,
       scopusSearchString,
       manualSearchString,
+      searchQueriesStr,
       llmConfigStr,
       rollingBatchSize,
       new Date().toISOString()
@@ -601,6 +636,7 @@ export async function PUT(request: Request) {
       project_tax,
       scopus_search_string,
       manual_search_string,
+      search_queries,
       llm_config,
       rolling_batch_size
     } = body;
@@ -631,8 +667,41 @@ export async function PUT(request: Request) {
     const llmConfigStr = llm_config ? (typeof llm_config === 'string' ? llm_config : JSON.stringify(llm_config)) : '{}';
     const taxRate = project_tax !== undefined ? parseFloat(project_tax) : 0.0;
     const rollingBatchSize = rolling_batch_size !== undefined ? parseInt(rolling_batch_size, 10) : 20;
-    const scopusSearchString = scopus_search_string ? String(scopus_search_string).trim() : '';
-    const manualSearchString = manual_search_string ? String(manual_search_string).trim() : '';
+    let scopusSearchString = scopus_search_string ? String(scopus_search_string).trim() : '';
+    let manualSearchString = manual_search_string ? String(manual_search_string).trim() : '';
+    let searchQueriesStr = '[]';
+
+    if (search_queries !== undefined) {
+      if (typeof search_queries === 'string') {
+        searchQueriesStr = search_queries;
+        try {
+          const parsed = JSON.parse(search_queries);
+          if (Array.isArray(parsed)) {
+            const scopusMatch = parsed.find((q: any) => q && q.source && String(q.source).toLowerCase().includes('scopus'));
+            if (scopusMatch && scopusMatch.query) scopusSearchString = String(scopusMatch.query).trim();
+            const manualMatch = parsed.find((q: any) => q && q.source && (String(q.source).toLowerCase().includes('scholar') || String(q.source).toLowerCase().includes('manual')));
+            if (manualMatch && manualMatch.query) manualSearchString = String(manualMatch.query).trim();
+          }
+        } catch (_) {}
+      } else {
+        searchQueriesStr = JSON.stringify(search_queries);
+        if (Array.isArray(search_queries)) {
+          const scopusMatch = search_queries.find((q: any) => q && q.source && String(q.source).toLowerCase().includes('scopus'));
+          if (scopusMatch && scopusMatch.query) scopusSearchString = String(scopusMatch.query).trim();
+          const manualMatch = search_queries.find((q: any) => q && q.source && (String(q.source).toLowerCase().includes('scholar') || String(q.source).toLowerCase().includes('manual')));
+          if (manualMatch && manualMatch.query) manualSearchString = String(manualMatch.query).trim();
+        }
+      }
+    } else if (scopusSearchString || manualSearchString) {
+      const fallbackList: any[] = [];
+      if (scopusSearchString) {
+        fallbackList.push({ id: 'sq-scopus', source: 'Scopus', query: scopusSearchString, description: '' });
+      }
+      if (manualSearchString) {
+        fallbackList.push({ id: 'sq-manual', source: 'Google Scholar', query: manualSearchString, description: '' });
+      }
+      searchQueriesStr = JSON.stringify(fallbackList);
+    }
 
     db.prepare(`
       UPDATE projects
@@ -660,6 +729,7 @@ export async function PUT(request: Request) {
           project_tax = ?,
           scopus_search_string = ?,
           manual_search_string = ?,
+          search_queries = ?,
           llm_config = ?,
           rolling_batch_size = ?
       WHERE id = ?
@@ -688,6 +758,7 @@ export async function PUT(request: Request) {
       taxRate,
       scopusSearchString,
       manualSearchString,
+      searchQueriesStr,
       llmConfigStr,
       rollingBatchSize,
       id
