@@ -96,9 +96,9 @@ export const CHART_TYPES_INFO: Record<ChartType, ChartTypeMeta> = {
   },
   radar: {
     name: 'Radar / Spider Chart',
-    category: 'Multi-Dimensional QA',
-    description: 'Compares multiple quality assessment criteria scores simultaneously across groups.',
-    slrUseCase: 'Ideal for plotting average scores across QA dimensions (QA1 to QA8) per publisher or year.',
+    category: 'Benchmark Gap & Multi-Variable',
+    description: 'Plots multi-axis variable reporting frequencies against benchmark requirements or QA dimensions.',
+    slrUseCase: 'Ideal for Boundary Reporting Paradox analysis (empirical cohort baseline vs. target requirements) and QA profiling.',
     icon: Target
   },
   funnel: {

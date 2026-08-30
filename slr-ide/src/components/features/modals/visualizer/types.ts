@@ -159,7 +159,35 @@ export type ThemePreset =
   | 'mdpi_vermilion'
   | 'rsc_ultramarine'
   | 'dark_modern'
-  | 'slr_light';
+  | 'slr_light'
+  | 'cell_amethyst'
+  | 'lancet_crimson'
+  | 'nejm_navy'
+  | 'springer_forest'
+  | 'jama_cardinal'
+  | 'iop_cyan'
+  | 'aps_amber'
+  | 'aaas_scarlet'
+  | 'cambridge_cobalt'
+  | 'elife_sage'
+  | 'bmj_azure'
+  | 'mit_monochrome'
+  | 'harvard_crimson'
+  | 'frontiers_oceanic'
+  | 'cell_genomics_magenta'
+  | 'dark_neon_science'
+  | 'degrade_emerald'
+  | 'degrade_crimson'
+  | 'degrade_amber'
+  | 'degrade_violet'
+  | 'degrade_teal'
+  | 'degrade_indigo'
+  | 'degrade_rose'
+  | 'degrade_orange'
+  | 'degrade_cyan'
+  | 'degrade_lime'
+  | 'degrade_plum'
+  | 'degrade_slate';
 
 export type FontFamily = 
   | 'serif' 
@@ -281,6 +309,33 @@ export interface SlotConfig {
   sankeyNodeGap: number;
   sankeyLeftPadding: number;
   sankeyRightPadding: number;
+  sankeyTopPadding?: number;
+  sankeyBottomPadding?: number;
+  sankeyOrient?: 'horizontal' | 'vertical';
+  sankeyNodeAlign?: 'justify' | 'left' | 'right';
+  sankeyCurveness?: number;
+  sankeyLinkColorMode?: 'gradient' | 'source' | 'target';
+  sankeyLinkOpacity?: number;
+  sankeyNodeBorderRadius?: number;
+  sankeyNodeBorderWidth?: number;
+  sankeyLayoutIterations?: number;
+  sankeyDraggable?: boolean;
+  sankeyLabelPosition?: 'auto' | 'left' | 'right' | 'inside' | 'top' | 'bottom';
+  sankeyLabelDistance?: number;
+  sankeyLabelOverflow?: 'break' | 'truncate' | 'none';
+  sankeyMaxLabelWidth?: number;
+  sankeyLabelFontSize?: number;
+  sankeyLabelRotate?: number;
+  sankeyEmphasisFocus?: 'adjacency' | 'trajectory' | 'series' | 'none';
+  sankeyLevelLabelFormats?: Record<number, DisplayFormatTemplate>;
+  sankeyLevelNodeGaps?: Record<number, number>;
+  sankeyLevelLabelDistances?: Record<number, number>;
+  sankeyLevelNodeWidths?: Record<number, number>;
+  sankeyLevelPathFilters?: Record<number, string>;
+  sankeySort?: 'desc' | 'asc' | 'alpha' | 'none';
+  sankeyLabelLineHeight?: number;
+  sankeyLabelFontWeight?: 'normal' | 'bold' | '500' | '600' | '700' | '800';
+  sankeyLabelColor?: string;
   bubbleScale: number;
   gaugeMaxScale: number;
   sunburstLevelConfigs: Record<number, SunburstLevelConfig>;
@@ -366,6 +421,35 @@ export interface SlotConfig {
   radarAreaOpacity?: number;
   radarLineWidth?: number;
   radarSplitNumber?: number;
+  radarRadius?: number;
+  radarAxisLine?: boolean;
+  radarSplitLine?: boolean;
+  radarSplitArea?: boolean;
+  radarAxisNameMargin?: number;
+  radarAxisNameWidth?: number;
+  radarAxisNameOverflow?: 'break' | 'truncate' | 'none';
+  radarAxisNameLineHeight?: number;
+  radarShowDataLabels?: boolean;
+  radarDataLabelPosition?: 'top' | 'bottom' | 'inside' | 'outside' | 'auto';
+  radarBaselineLineStyle?: 'solid' | 'dashed' | 'dotted';
+  radarBaselineSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarBaselineSymbolSize?: number;
+  radarMode?: 'multi_variable' | 'qa_breakdown';
+  radarVariables?: string[];
+  radarVariableAliases?: Record<string, string>;
+  radarVariableTargets?: Record<string, number>;
+  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'name_only';
+  radarShowTarget?: boolean;
+  radarTargetName?: string;
+  radarTargetValue?: number;
+  radarTargetLineStyle?: 'dashed' | 'solid' | 'dotted';
+  radarTargetLineWidth?: number;
+  radarTargetColor?: string;
+  radarTargetAreaOpacity?: number;
+  radarTargetSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarTargetSymbolSize?: number;
+  radarBaselineName?: string;
+  radarBaselineColor?: string;
   funnelAlign?: 'center' | 'left' | 'right';
   funnelGap?: number;
   funnelNeckWidth?: number;
@@ -459,6 +543,33 @@ export interface VisualizerPresetPayload {
   sankeyNodeGap?: number;
   sankeyLeftPadding?: number;
   sankeyRightPadding?: number;
+  sankeyTopPadding?: number;
+  sankeyBottomPadding?: number;
+  sankeyOrient?: 'horizontal' | 'vertical';
+  sankeyNodeAlign?: 'justify' | 'left' | 'right';
+  sankeyCurveness?: number;
+  sankeyLinkColorMode?: 'gradient' | 'source' | 'target';
+  sankeyLinkOpacity?: number;
+  sankeyNodeBorderRadius?: number;
+  sankeyNodeBorderWidth?: number;
+  sankeyLayoutIterations?: number;
+  sankeyDraggable?: boolean;
+  sankeyLabelPosition?: 'auto' | 'left' | 'right' | 'inside' | 'top' | 'bottom';
+  sankeyLabelDistance?: number;
+  sankeyLabelOverflow?: 'break' | 'truncate' | 'none';
+  sankeyMaxLabelWidth?: number;
+  sankeyLabelFontSize?: number;
+  sankeyLabelRotate?: number;
+  sankeyEmphasisFocus?: 'adjacency' | 'trajectory' | 'series' | 'none';
+  sankeyLevelLabelFormats?: Record<number, DisplayFormatTemplate>;
+  sankeyLevelNodeGaps?: Record<number, number>;
+  sankeyLevelLabelDistances?: Record<number, number>;
+  sankeyLevelNodeWidths?: Record<number, number>;
+  sankeyLevelPathFilters?: Record<number, string>;
+  sankeySort?: 'desc' | 'asc' | 'alpha' | 'none';
+  sankeyLabelLineHeight?: number;
+  sankeyLabelFontWeight?: 'normal' | 'bold' | '500' | '600' | '700' | '800';
+  sankeyLabelColor?: string;
   bubbleScale?: number;
   gaugeMaxScale?: number;
   sunburstLevelConfigs?: Record<number, SunburstLevelConfig>;
@@ -530,4 +641,37 @@ export interface VisualizerPresetPayload {
   fitOffsetY?: number;
   containerPadding?: number;
   showSafeGuides?: boolean;
+  radarShape?: 'polygon' | 'circle';
+  radarAreaOpacity?: number;
+  radarLineWidth?: number;
+  radarSplitNumber?: number;
+  radarRadius?: number;
+  radarAxisLine?: boolean;
+  radarSplitLine?: boolean;
+  radarSplitArea?: boolean;
+  radarAxisNameMargin?: number;
+  radarAxisNameWidth?: number;
+  radarAxisNameOverflow?: 'break' | 'truncate' | 'none';
+  radarAxisNameLineHeight?: number;
+  radarShowDataLabels?: boolean;
+  radarDataLabelPosition?: 'top' | 'bottom' | 'inside' | 'outside' | 'auto';
+  radarBaselineLineStyle?: 'solid' | 'dashed' | 'dotted';
+  radarBaselineSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarBaselineSymbolSize?: number;
+  radarMode?: 'multi_variable' | 'qa_breakdown';
+  radarVariables?: string[];
+  radarVariableAliases?: Record<string, string>;
+  radarVariableTargets?: Record<string, number>;
+  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'name_only';
+  radarShowTarget?: boolean;
+  radarTargetName?: string;
+  radarTargetValue?: number;
+  radarTargetLineStyle?: 'dashed' | 'solid' | 'dotted';
+  radarTargetLineWidth?: number;
+  radarTargetColor?: string;
+  radarTargetAreaOpacity?: number;
+  radarTargetSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarTargetSymbolSize?: number;
+  radarBaselineName?: string;
+  radarBaselineColor?: string;
 }

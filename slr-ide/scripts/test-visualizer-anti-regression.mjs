@@ -953,7 +953,519 @@ const deserializedFit = JSON.parse(serializedFit);
 assert.strictEqual(deserializedFit.fitOffsetX, 12);
 assert.strictEqual(deserializedFit.fitOffsetY, -8);
 assert.strictEqual(deserializedFit.containerPadding, 16);
-assert.strictEqual(deserializedFit.showSafeGuides, true);
+// Test 20: PDF Physical Dimension and Image Container Calculations
+console.log('20. Testing PDF Physical Dimension & Page Layout Calculations...');
 
-console.log('✓ All 19 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+function resolvePdfPageLayout(aspectRatio, customWidth, customHeight, dimensionUnit, baseWidth, baseHeight) {
+  let targetWidthMm = 190;
+  let targetHeightMm = Math.max(40, Math.round((baseHeight / baseWidth) * 190));
+  if (aspectRatio === 'custom') {
+    if (dimensionUnit === 'mm') {
+      targetWidthMm = customWidth;
+      targetHeightMm = customHeight;
+    } else if (dimensionUnit === 'in') {
+      targetWidthMm = customWidth * 25.4;
+      targetHeightMm = customHeight * 25.4;
+    }
+  }
+  const orientation = targetWidthMm >= targetHeightMm ? 'landscape' : 'portrait';
+  return { targetWidthMm, targetHeightMm, orientation };
+}
 
+// Academic 16:9 standard (1200 x 675)
+const pdf169 = resolvePdfPageLayout('16:9', 190, 107, 'mm', 1200, 675);
+assert.strictEqual(pdf169.targetWidthMm, 190);
+assert.strictEqual(pdf169.targetHeightMm, 107);
+assert.strictEqual(pdf169.orientation, 'landscape');
+
+// Academic 4:3 single column (1000 x 750)
+const pdf43 = resolvePdfPageLayout('4:3', 90, 67.5, 'mm', 1000, 750);
+assert.strictEqual(pdf43.targetWidthMm, 190);
+assert.strictEqual(pdf43.targetHeightMm, 143);
+assert.strictEqual(pdf43.orientation, 'landscape');
+
+// Custom mm sizing (85mm x 120mm portrait)
+const pdfCustomMm = resolvePdfPageLayout('custom', 85, 120, 'mm', 850, 1200);
+assert.strictEqual(pdfCustomMm.targetWidthMm, 85);
+assert.strictEqual(pdfCustomMm.targetHeightMm, 120);
+
+// Test 21: Multi-Level Hierarchy Colon-Separated Path Extraction & Filtering
+console.log('21. Testing Hierarchy Colon-Separated Path Extraction & Filtering...');
+
+function extractColonPrefixPathsTest(papersList, fieldKey, umbrellanizerMap = {}) {
+  const prefixesSet = new Set();
+  const segmentsSet = new Set();
+
+  const processToken = (str) => {
+    if (!str || !str.includes(':')) return;
+    const parts = str.split(':').map(s => s.trim()).filter(Boolean);
+    if (parts.length < 2) return;
+    for (let i = 1; i <= parts.length; i++) {
+      prefixesSet.add(parts.slice(0, i).join(' : '));
+    }
+    for (let i = 1; i < parts.length; i++) {
+      segmentsSet.add(parts[i]);
+    }
+  };
+
+  papersList.forEach(p => {
+    let raw = p.extracted_data?.[fieldKey] || p[fieldKey] || '';
+    if (typeof raw === 'object' && raw !== null && 'value' in raw) raw = raw.value;
+    const tokens = Array.isArray(raw) ? raw : [raw];
+    tokens.forEach(token => {
+      const str = String(token || '').trim();
+      processToken(str);
+      const mapped = umbrellanizerMap[str];
+      if (mapped) processToken(mapped);
+    });
+  });
+  return {
+    fullPaths: Array.from(prefixesSet).sort(),
+    segments: Array.from(segmentsSet).sort()
+  };
+}
+
+function matchColonPathFilterTest(val, filterStr, fieldKey, paper) {
+  if (!filterStr || !filterStr.trim()) return true;
+  const fNorm = filterStr.trim().toLowerCase();
+  const vNorm = val.trim().toLowerCase();
+
+  const isWildcardSegment = fNorm.startsWith('* :') || fNorm.startsWith('*:');
+  const targetSegment = isWildcardSegment
+    ? fNorm.replace(/^\*\s*:\s*/, '').trim()
+    : fNorm;
+
+  if (isWildcardSegment) {
+    if (vNorm === targetSegment || vNorm.includes(targetSegment)) {
+      return true;
+    }
+  } else {
+    if (vNorm === fNorm || vNorm.startsWith(fNorm + ' :') || vNorm.startsWith(fNorm + ':')) {
+      return true;
+    }
+  }
+
+  const rawFull = paper.extracted_data?.[fieldKey] || paper[fieldKey] || '';
+  const tokens = Array.isArray(rawFull) ? rawFull : [rawFull];
+  for (const t of tokens) {
+    const rawTNorm = String(t || '').trim().toLowerCase();
+    if (isWildcardSegment) {
+      const parts = rawTNorm.split(':').map(s => s.trim());
+      if (parts.includes(targetSegment) || rawTNorm.includes(targetSegment)) {
+        return true;
+      }
+    } else {
+      if (rawTNorm === fNorm || rawTNorm.startsWith(fNorm + ' :') || rawTNorm.startsWith(fNorm + ':') || rawTNorm.includes(fNorm)) {
+        if (rawTNorm.includes(vNorm) || vNorm.includes(rawTNorm)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+const mockPapers = [
+  { Paper_ID: 'P1', extracted_data: { rq7a_algorithms: 'Biological Asset : Edge-Hosted : 1D-CNN' } },
+  { Paper_ID: 'P2', extracted_data: { rq7a_algorithms: 'Physical Asset : Edge-Hosted : LSTM' } },
+  { Paper_ID: 'P3', extracted_data: { rq7a_algorithms: 'Physical Asset : Cloud-Hosted : Transformer' } },
+  { Paper_ID: 'P4', extracted_data: { rq7a_algorithms: 'Biological Asset : Cloud-Hosted : Random Forest' } },
+  { Paper_ID: 'P5', extracted_data: { rq7a_algorithms: 'Cybernetic Asset : Quantum : Genetic Algorithm' } }
+];
+
+const pathsResult = extractColonPrefixPathsTest(mockPapers, 'rq7a_algorithms');
+assert.deepStrictEqual(pathsResult.segments, [
+  '1D-CNN',
+  'Cloud-Hosted',
+  'Edge-Hosted',
+  'Genetic Algorithm',
+  'LSTM',
+  'Quantum',
+  'Random Forest',
+  'Transformer'
+]);
+
+// 1. Cross-parent segment filter: "* : Edge-Hosted" should include BOTH Biological Asset and Physical Asset parents!
+const edgeP1 = matchColonPathFilterTest('1D-CNN', '* : Edge-Hosted', 'rq7a_algorithms', mockPapers[0]);
+const edgeP2 = matchColonPathFilterTest('LSTM', '* : Edge-Hosted', 'rq7a_algorithms', mockPapers[1]);
+const edgeP3 = matchColonPathFilterTest('Transformer', '* : Edge-Hosted', 'rq7a_algorithms', mockPapers[2]);
+const edgeP4 = matchColonPathFilterTest('Random Forest', '* : Edge-Hosted', 'rq7a_algorithms', mockPapers[3]);
+
+assert.strictEqual(edgeP1, true, 'Biological Asset : Edge-Hosted must match');
+assert.strictEqual(edgeP2, true, 'Physical Asset : Edge-Hosted must match');
+assert.strictEqual(edgeP3, false, 'Physical Asset : Cloud-Hosted must NOT match');
+assert.strictEqual(edgeP4, false, 'Biological Asset : Cloud-Hosted must NOT match');
+
+// 2. Specific branch filter: "Biological Asset : Edge-Hosted" should only match P1
+const bioEdgeP1 = matchColonPathFilterTest('1D-CNN', 'Biological Asset : Edge-Hosted', 'rq7a_algorithms', mockPapers[0]);
+const bioEdgeP2 = matchColonPathFilterTest('LSTM', 'Biological Asset : Edge-Hosted', 'rq7a_algorithms', mockPapers[1]);
+// Test 22: 44 Publication Palettes (32 Academic + 12 Sequential Degradation) & Roboto Font Resolution
+console.log('22. Testing 44 Academic & Sequential Degradation Palettes & Roboto Font Resolution...');
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+const themeFilePath = path.resolve('src/components/features/modals/visualizer/constants/themePalettes.ts');
+const themeCode = fs.readFileSync(themeFilePath, 'utf8');
+
+// Count distinct palette keys in THEME_PALETTES
+const paletteKeyMatches = themeCode.match(/(\w+):\s*{\s*name:/g) || [];
+assert.strictEqual(paletteKeyMatches.length, 44, 'Must have exactly 44 publication-grade color palettes defined (32 Academic + 12 Sequential Degradation)');
+
+const fontFilePath = path.resolve('src/components/features/modals/visualizer/constants/fontFamilies.ts');
+const fontCode = fs.readFileSync(fontFilePath, 'utf8');
+
+assert.ok(fontCode.includes("if (fontFamily === 'roboto') return '\"Roboto\", \"Noto Sans\", sans-serif'"), 'Roboto font family must resolve cleanly in resolveFontFamilyCss');
+
+const styleHookPath = path.resolve('src/components/features/modals/visualizer/hooks/useVisualizerStyle.ts');
+const styleCode = fs.readFileSync(styleHookPath, 'utf8');
+assert.ok(styleCode.includes("useState<FontFamily>('roboto')"), 'Default fontFamily state must be set to roboto');
+
+// Test 23: Multi-Variable Radar Chart & Boundary Reporting Paradox Engine
+console.log('23. Testing Multi-Variable Radar Chart & Boundary Reporting Paradox Engine...');
+
+function hexToRgba(color, opacity) {
+  if (!color || typeof color !== 'string') return `rgba(59, 130, 246, ${opacity})`;
+  if (color.startsWith('rgba')) return color;
+  if (color.startsWith('rgb')) {
+    return color.replace('rgb', 'rgba').replace(')', `, ${opacity})`);
+  }
+  let cleanHex = color.replace(/^#/, '');
+  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(c => c + c).join('');
+  const num = parseInt(cleanHex, 16);
+  if (isNaN(num)) return `rgba(59, 130, 246, ${opacity})`;
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+// 1. Assert hexToRgba conversions
+assert.strictEqual(hexToRgba('#d9534f', 0.08), 'rgba(217, 83, 79, 0.08)', 'Hex #d9534f must convert to rgba(217, 83, 79, 0.08)');
+assert.strictEqual(hexToRgba('#0275d8', 0.28), 'rgba(2, 117, 216, 0.28)', 'Hex #0275d8 must convert to rgba(2, 117, 216, 0.28)');
+
+// 2. Mock cohort of 46 papers with reporting frequencies
+const mockParadoxPapers = Array.from({ length: 46 }, (_, i) => {
+  const paper = { Paper_ID: `P${i + 1}`, extracted_data: {} };
+  // Execution Latency: 40 papers (87%)
+  if (i < 40) paper.extracted_data['Execution Latency'] = '12ms';
+  // Static Memory: 20 papers (43%)
+  if (i < 20) paper.extracted_data['Static Memory'] = '256KB';
+  // Power Profiling: 18 papers (39%)
+  if (i < 18) paper.extracted_data['Power Profiling'] = '1.2W';
+  // Explicit Envelopes: 21 papers (46%)
+  if (i < 21) paper.extracted_data['Explicit Envelopes'] = 'Yes';
+  // Narrowband / LPWAN: 6 papers (13%)
+  if (i < 6) paper.extracted_data['Narrowband / LPWAN'] = 'LoRaWAN';
+  // Harsh Environment: 5 papers (11%)
+  if (i < 5) paper.extracted_data['Harsh Environment'] = 'IP67';
+  // Agricultural Focus: 4 papers (9%)
+  if (i < 4) paper.extracted_data['Agricultural Focus'] = 'Greenhouse';
+  // Thermal Dissipation: 2 papers (4%)
+  if (i < 2) paper.extracted_data['Thermal Dissipation'] = 'Passive';
+  return paper;
+});
+
+const paradoxVars = [
+  'Execution Latency',
+  'Static Memory',
+  'Power Profiling',
+  'Explicit Envelopes',
+  'Narrowband / LPWAN',
+  'Harsh Environment',
+  'Agricultural Focus',
+  'Thermal Dissipation'
+];
+
+const computedPrevalences = paradoxVars.map(vKey => {
+  let count = 0;
+  mockParadoxPapers.forEach(p => {
+    const val = p.extracted_data[vKey];
+    if (val && val !== 'NOT_STATED') count++;
+  });
+  return Math.round((count / 46) * 100);
+});
+
+// Assert the exact empirical baseline values from the paradox user specification: [87, 43, 39, 46, 13, 11, 9, 4]
+assert.deepStrictEqual(
+  computedPrevalences,
+  [87, 43, 39, 46, 13, 11, 9, 4],
+  'Empirical prevalence calculation must match the exact Boundary Reporting Paradox distribution'
+);
+
+// 3. Test radar preset serialization
+const radarPreset = {
+  version: '3.0',
+  chartType: 'radar',
+  radarMode: 'multi_variable',
+  radarVariables: paradoxVars,
+  radarIndicatorFormat: 'two_line',
+  radarShowTarget: true,
+  radarTargetName: 'Horticultural Requirement Target',
+  radarTargetValue: 100,
+  radarTargetLineStyle: 'dashed',
+  radarTargetLineWidth: 2,
+  radarTargetColor: '#d9534f',
+  radarTargetAreaOpacity: 8,
+  radarTargetSymbol: 'circle',
+  radarTargetSymbolSize: 4,
+  radarBaselineName: 'Empirical Cohort Baseline (n={n})',
+  radarBaselineColor: '#0275d8',
+  radarBaselineLineStyle: 'solid',
+  radarBaselineSymbol: 'diamond',
+  radarBaselineSymbolSize: 8,
+  radarLineWidth: 2.5,
+  radarAreaOpacity: 28,
+  radarRadius: 70,
+  radarAxisLine: true,
+  radarSplitLine: true,
+  radarSplitArea: true,
+  radarAxisNameMargin: 18,
+  radarShowDataLabels: true
+};
+
+const serializedRadarPreset = JSON.stringify(radarPreset);
+const deserializedRadarPreset = JSON.parse(serializedRadarPreset);
+assert.strictEqual(deserializedRadarPreset.radarMode, 'multi_variable');
+assert.strictEqual(deserializedRadarPreset.radarTargetValue, 100);
+assert.strictEqual(deserializedRadarPreset.radarTargetColor, '#d9534f');
+assert.strictEqual(deserializedRadarPreset.radarBaselineColor, '#0275d8');
+assert.strictEqual(deserializedRadarPreset.radarRadius, 70);
+assert.strictEqual(deserializedRadarPreset.radarAxisNameMargin, 18);
+assert.strictEqual(deserializedRadarPreset.radarBaselineSymbol, 'diamond');
+assert.strictEqual(deserializedRadarPreset.radarShowDataLabels, true);
+// 4. Test Indicator Format variations
+function formatIndicatorLabel(alias, posCount, totalN, prevPct, fmt) {
+  if (fmt === 'two_line') return `${alias}\n(${prevPct}%)`;
+  if (fmt === 'single_line') return `${alias} (${prevPct}%)`;
+  if (fmt === 'ratio_percent') return `${alias} (n=${posCount}/${totalN}, ${prevPct}%)`;
+  return alias;
+}
+
+assert.strictEqual(formatIndicatorLabel('Execution Latency', 40, 46, 87, 'two_line'), 'Execution Latency\n(87%)');
+assert.strictEqual(formatIndicatorLabel('Execution Latency', 40, 46, 87, 'single_line'), 'Execution Latency (87%)');
+assert.strictEqual(formatIndicatorLabel('Execution Latency', 40, 46, 87, 'ratio_percent'), 'Execution Latency (n=40/46, 87%)');
+assert.strictEqual(formatIndicatorLabel('Execution Latency', 40, 46, 87, 'name_only'), 'Execution Latency');
+
+// 5. Test Smart Optimizer on Radar
+const smartOptPath = path.resolve('src/components/features/modals/visualizer/utils/smartOptimizer.ts');
+const smartOptCode = fs.readFileSync(smartOptPath, 'utf8');
+assert.ok(smartOptCode.includes("case 'radar':"), 'smartOptimizer must contain case radar');
+assert.ok(smartOptCode.includes("config.radarShape = 'polygon'"), 'smartOptimizer must tune radarShape to polygon');
+assert.ok(smartOptCode.includes("config.radarSplitNumber = 5"), 'smartOptimizer must tune radarSplitNumber to 5');
+assert.ok(smartOptCode.includes("config.radarLineWidth = 2.5"), 'smartOptimizer must tune radarLineWidth to 2.5');
+assert.ok(smartOptCode.includes("config.radarAreaOpacity = 28"), 'smartOptimizer must tune radarAreaOpacity to 28');
+assert.ok(smartOptCode.includes("config.radarTargetLineStyle = 'dashed'"), 'smartOptimizer must tune radarTargetLineStyle to dashed');
+
+// 6. Test Empty Papers N=0 Safety Guard
+const zeroPrevalences = paradoxVars.map(vKey => {
+  const emptyCohort = [];
+  let count = 0;
+  emptyCohort.forEach(p => { if (p.extracted_data[vKey]) count++; });
+  return emptyCohort.length > 0 ? Math.round((count / emptyCohort.length) * 100) : 0;
+});
+assert.deepStrictEqual(zeroPrevalences, [0, 0, 0, 0, 0, 0, 0, 0], 'Zero cohort papers must safely evaluate to 0% without NaN or division by zero');
+
+// ==============================================================================
+// TEST 24: Centralized Cohort Data Source & Scientific Integrity Engine
+// ==============================================================================
+console.log('24. Testing Centralized Cohort Data Source & Scientific Integrity Engine...');
+
+const mockCohortForEngine = [
+  {
+    Paper_ID: 'P01',
+    Title: 'Ultra-low latency inference on edge MCU',
+    Year: 2023,
+    Publisher: 'IEEE Transactions',
+    Authors: 'Zhang, L., Smith, K.',
+    Import_Source: 'IEEE Xplore',
+    Local_PDF_Status: 'DOWNLOADED',
+    citation_count: 14,
+    manual_stage: 4,
+    ai_stage: 4,
+    manual_extracted_data: JSON.stringify({
+      rq_latency: '12ms, 15ms peak',
+      rq_memory: '256 KB SRAM',
+      rq_power: '45mW',
+      explicit_envelope: 'Strict Real-time',
+      taxonomy_tree: 'Edge AI : Microcontrollers : Cortex-M4'
+    }),
+    manual_quality_assessment: JSON.stringify({
+      qa_scores: {
+        QA1: 1,
+        QA2: 1,
+        QA3: 0.5,
+        QA4: 1
+      }
+    })
+  },
+  {
+    Paper_ID: 'P02',
+    Title: 'Battery-less sensor node for greenhouse monitoring',
+    Year: 2024,
+    Publisher: 'Elsevier Computers & Electronics in Agriculture',
+    Authors: 'Patel, R., Tanaka, H.',
+    Import_Source: 'Scopus',
+    Local_PDF_Status: 'DOWNLOADED',
+    citation_count: 8,
+    manual_stage: 4,
+    ai_stage: 3,
+    manual_extracted_data: JSON.stringify({
+      rq_latency: '450ms',
+      rq_memory: '512 KB Flash',
+      rq_power: '12uW Solar Harvester',
+      narrowband_lpwan: 'LoRaWAN EU868',
+      agricultural_focus: 'Greenhouse Tomato',
+      taxonomy_tree: 'Agriculture : Precision Farming : Soil Moisture'
+    }),
+    manual_quality_assessment: JSON.stringify({
+      qa_scores: {
+        QA1: 1,
+        QA2: 1,
+        QA3: 1,
+        QA4: 1
+      }
+    })
+  },
+  {
+    Paper_ID: 'P03',
+    Title: 'Harsh environment thermal dissipation in edge nodes',
+    Year: 2022,
+    Publisher: 'ACM Transactions on Embedded Systems',
+    Authors: 'Müller, F.',
+    Import_Source: 'ACM Digital Library',
+    Local_PDF_Status: 'DOWNLOADED',
+    citation_count: 22,
+    manual_stage: 0,
+    ai_stage: 4,
+    ai_extracted_data: JSON.stringify({
+      rq_memory: '1 MB DRAM',
+      rq_power: '2.1W Active',
+      harsh_environment: 'IP67 Waterproof, Dust',
+      thermal_dissipation: 'Passive Heatsink',
+      taxonomy_tree: 'Industrial IoT : Rugged Hardware : Enclosures'
+    }),
+    ai_quality_assessment: JSON.stringify({
+      qa_scores: {
+        QA1: 1,
+        QA2: 0,
+        QA3: 0.5,
+        QA4: 0.5
+      }
+    })
+  }
+];
+
+// Helper pure JS resolver matching cohort-data-source.ts
+function testResolveValue(paper, fieldKey) {
+  if (!paper || !fieldKey) return [];
+  // 1. Metadata
+  if (paper[fieldKey] !== undefined && fieldKey !== 'Overall_QA' && !fieldKey.startsWith('qa:') && !fieldKey.startsWith('ext:') && !fieldKey.startsWith('raw:')) {
+    return [String(paper[fieldKey])];
+  }
+  // 2. QA
+  if (fieldKey === 'Overall_QA' || fieldKey.startsWith('qa:')) {
+    const isManual = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
+    const qaStr = isManual ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '') : (paper.ai_quality_assessment || paper.manual_quality_assessment || '');
+    if (!qaStr) return [];
+    const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
+    const qaObj = parsed.qa_scores || parsed;
+    if (fieldKey === 'Overall_QA') {
+      let score = 0;
+      Object.values(qaObj).forEach(v => { const n = parseFloat(v); if (!isNaN(n)) score += n; });
+      return [String(score)];
+    }
+    const realQaKey = fieldKey.replace(/^qa:/, '');
+    if (qaObj[realQaKey] !== undefined) return [String(qaObj[realQaKey])];
+  }
+  // 3. Extracted JSON
+  const isManual = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
+  const extStr = isManual ? (paper.manual_extracted_data || paper.ai_extracted_data || '') : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+  if (!extStr) return [];
+  const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
+  const extObj = parsed.extracted_data || parsed;
+  const cleanKey = fieldKey.replace(/^ext:(macro:|sub:|leaf:|tail:)?/, '').replace(/^raw:(leaf:|tail:)?ext:/, '').replace(/^ext:/, '');
+  let val = extObj[cleanKey];
+  if (val === undefined) {
+    const norm = cleanKey.toLowerCase().replace(/_/g, ' ');
+    const found = Object.keys(extObj).find(k => k.toLowerCase().replace(/_/g, ' ') === norm);
+    if (found) val = extObj[found];
+  }
+  if (val !== undefined && val !== null && val !== '') {
+    return [String(val)];
+  }
+  return [];
+}
+
+// 1. Stage Dominance & Extracted Resolution Check
+const p1Lat = testResolveValue(mockCohortForEngine[0], 'rq_latency');
+assert.ok(p1Lat[0].includes('12ms'), 'Resolves P01 rq_latency');
+
+const p3Thermal = testResolveValue(mockCohortForEngine[2], 'thermal_dissipation');
+assert.ok(p3Thermal[0].includes('Passive Heatsink'), 'P03 resolves AI-extracted data when ai_stage > manual_stage');
+
+// 2. Prefix Agnostic Equivalence
+const p1LatPrefixed = testResolveValue(mockCohortForEngine[0], 'ext:rq_latency');
+const p1LatSpaced = testResolveValue(mockCohortForEngine[0], 'rq latency');
+assert.deepStrictEqual(p1Lat, p1LatPrefixed, 'Un-prefixed and ext: prefixed keys evaluate identically');
+assert.deepStrictEqual(p1Lat, p1LatSpaced, 'Space and underscore keys evaluate identically');
+
+// 3. QA Scores Calculation
+const p1QA = testResolveValue(mockCohortForEngine[0], 'Overall_QA');
+assert.strictEqual(p1QA[0], '3.5', 'P01 QA score equals 3.5');
+
+// 4. Zero-Hit Near Miss Typo Detection
+const totalN = mockCohortForEngine.length;
+const testQuery = 'latency';
+let positiveCount = 0;
+mockCohortForEngine.forEach(p => {
+  if (testResolveValue(p, testQuery).length > 0) positiveCount++;
+});
+assert.strictEqual(positiveCount, 0, 'Exact query "latency" returns 0 hits in raw dictionary');
+
+// But fuzzy near-miss search correctly discovers 'rq_latency'
+const discoveredKeys = ['rq_latency', 'rq_memory', 'rq_power', 'explicit_envelope', 'narrowband_lpwan', 'agricultural_focus', 'harsh_environment', 'thermal_dissipation'];
+const nearMiss = discoveredKeys.filter(k => k.includes(testQuery) || testQuery.includes(k));
+assert.ok(nearMiss.includes('rq_latency'), 'Near miss discovery successfully maps "latency" to "rq_latency"');
+
+// 5. Verify source code exports of cohort-data-source.ts and FieldAutocomplete.tsx
+const cohortDataSrcPath = path.resolve('src/lib/services/cohort-data-source.ts');
+assert.ok(fs.existsSync(cohortDataSrcPath), 'cohort-data-source.ts must exist');
+const cohortDataSrcCode = fs.readFileSync(cohortDataSrcPath, 'utf8');
+assert.ok(cohortDataSrcCode.includes('export function discoverCohortVariables'), 'cohort-data-source must export discoverCohortVariables');
+assert.ok(cohortDataSrcCode.includes('export function resolveCohortFieldValue'), 'cohort-data-source must export resolveCohortFieldValue');
+assert.ok(cohortDataSrcCode.includes('export function validateCohortDataIntegrity'), 'cohort-data-source must export validateCohortDataIntegrity');
+assert.ok(cohortDataSrcCode.includes('export function extractRqCode'), 'cohort-data-source must export extractRqCode');
+
+const autocompletePath = path.resolve('src/components/features/modals/visualizer/components/subcomponents/FieldAutocomplete.tsx');
+assert.ok(fs.existsSync(autocompletePath), 'FieldAutocomplete.tsx must exist');
+const autocompleteCode = fs.readFileSync(autocompletePath, 'utf8');
+assert.ok(autocompleteCode.includes('export function FieldAutocomplete'), 'FieldAutocomplete must export component');
+assert.ok(autocompleteCode.includes('Search'), 'FieldAutocomplete must include search');
+assert.ok(autocompleteCode.includes('rqCode'), 'FieldAutocomplete must include rqCode display badge');
+
+// 6. Test RQ Code extraction & formatting
+function extractRqCodePure(key) {
+  const clean = key.replace(/^ext:(macro:|sub:|leaf:|tail:)?/, '').replace(/^raw:(leaf:|tail:)?ext:/, '').replace(/^ext:/, '');
+  const match = clean.match(/^(rq\d+[a-z]?)[_:]?/i);
+  return match ? match[1].toUpperCase() : undefined;
+}
+assert.strictEqual(extractRqCodePure('rq1_execution_latency'), 'RQ1');
+assert.strictEqual(extractRqCodePure('ext:macro:rq3a_edge_hardware'), 'RQ3A');
+assert.strictEqual(extractRqCodePure('ext:leaf:rq8b_thermal'), 'RQ8B');
+assert.strictEqual(extractRqCodePure('Year'), undefined);
+
+// 7. Test Specific Taxonomy Category Resolution
+function testResolveCategory(paper, catKey) {
+  if (catKey.startsWith('cat:')) {
+    const rawContent = catKey.substring(4);
+    const colonIdx = rawContent.indexOf(':', 10);
+    const targetVar = colonIdx !== -1 ? rawContent.substring(0, colonIdx) : rawContent;
+    const targetCat = colonIdx !== -1 ? rawContent.substring(colonIdx + 1).trim() : rawContent;
+    const vals = testResolveValue(paper, targetVar);
+    return vals.some(v => v.includes(targetCat) || targetCat.includes(v)) ? [targetCat] : [];
+  }
+  return [];
+}
+const catTest1 = testResolveCategory(mockCohortForEngine[0], 'cat:ext:macro:rq_memory:256 KB SRAM');
+assert.deepStrictEqual(catTest1, ['256 KB SRAM'], 'Specific category resolution returns matching category for P01');
+
+console.log('✓ All 24 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');

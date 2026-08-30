@@ -514,70 +514,518 @@ export function PieDonutConfigPanel() {
 }
 
 export function RadarConfigPanel() {
-  const { config } = useVisualizerContext();
+  const { config, camera } = useVisualizerContext();
+  const { fitOffsetY = 0, setFitOffsetY } = camera;
   const {
-    radarShape,
+    showLegend = true,
+    setShowLegend,
+    legendPosition = 'bottom',
+    setLegendPosition,
+    legendDistance = 15,
+    setLegendDistance,
+    legendItemGap = 12,
+    setLegendItemGap,
+    radarShape = 'polygon',
     setRadarShape,
-    radarAreaOpacity,
+    radarRadius = 65,
+    setRadarRadius,
+    radarAreaOpacity = 28,
     setRadarAreaOpacity,
-    radarLineWidth,
+    radarLineWidth = 2.5,
     setRadarLineWidth,
-    radarSplitNumber,
-    setRadarSplitNumber
+    radarSplitNumber = 5,
+    setRadarSplitNumber,
+    radarAxisLine = true,
+    setRadarAxisLine,
+    radarSplitLine = true,
+    setRadarSplitLine,
+    radarSplitArea = true,
+    setRadarSplitArea,
+    radarAxisNameMargin = 15,
+    setRadarAxisNameMargin,
+    radarAxisNameWidth = 120,
+    setRadarAxisNameWidth,
+    radarAxisNameOverflow = 'break',
+    setRadarAxisNameOverflow,
+    radarAxisNameLineHeight = 14,
+    setRadarAxisNameLineHeight,
+    radarShowDataLabels = false,
+    setRadarShowDataLabels,
+    radarDataLabelPosition = 'top',
+    setRadarDataLabelPosition,
+    radarBaselineLineStyle = 'solid',
+    setRadarBaselineLineStyle,
+    radarBaselineSymbol = 'circle',
+    setRadarBaselineSymbol,
+    radarBaselineSymbolSize = 6,
+    setRadarBaselineSymbolSize,
+    radarIndicatorFormat = 'two_line',
+    setRadarIndicatorFormat,
+    radarShowTarget = true,
+    setRadarShowTarget,
+    radarTargetLineStyle = 'dashed',
+    setRadarTargetLineStyle,
+    radarTargetLineWidth = 2,
+    setRadarTargetLineWidth,
+    radarTargetColor = '#d9534f',
+    setRadarTargetColor,
+    radarTargetAreaOpacity = 8,
+    setRadarTargetAreaOpacity,
+    radarTargetSymbol = 'circle',
+    setRadarTargetSymbol,
+    radarTargetSymbolSize = 4,
+    setRadarTargetSymbolSize,
+    radarBaselineColor = '#0275d8',
+    setRadarBaselineColor
   } = config;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Radar Web Geometry</label>
-          <select
-            value={radarShape}
-            onChange={(e) => setRadarShape(e.target.value as any)}
-            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-          >
-            <option value="polygon">Polygon (Standard Multi-Axis)</option>
-            <option value="circle">Concentric Circular Rings</option>
-          </select>
+    <div className="space-y-4">
+      {/* --- SECTION 1: LEGEND POSITIONING & LAYOUT --- */}
+      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-foreground block">Legend Positioning & Spacing</span>
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={showLegend}
+              onChange={(e) => setShowLegend(e.target.checked)}
+              className="rounded border-border text-primary"
+            />
+            <span>Show Legend</span>
+          </label>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Concentric Split Rings ({radarSplitNumber})</label>
-          <input
-            type="range"
-            min={3}
-            max={8}
-            value={radarSplitNumber}
-            onChange={(e) => setRadarSplitNumber(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
+        {showLegend && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Legend Position</label>
+              <select
+                value={legendPosition}
+                onChange={(e) => setLegendPosition(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+              >
+                <option value="bottom">Bottom (Recommended for Radar)</option>
+                <option value="top">Top</option>
+                <option value="left">Left Side</option>
+                <option value="right">Right Side</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Edge Offset ({legendDistance}px)</label>
+              <input
+                type="range"
+                min={0}
+                max={60}
+                value={legendDistance}
+                onChange={(e) => setLegendDistance(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Item Gap ({legendItemGap}px)</label>
+              <input
+                type="range"
+                min={4}
+                max={30}
+                value={legendItemGap}
+                onChange={(e) => setLegendItemGap(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- SECTION 2: WEB STRUCTURE & GEOMETRY --- */}
+      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+        <span className="text-xs font-black text-foreground block flex items-center justify-between">
+          <span>Web Structure & Geometry</span>
+          <span className="text-[10px] text-muted-foreground font-mono">Multi-Axis Layout</span>
+        </span>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Radar Geometry</label>
+            <select
+              value={radarShape}
+              onChange={(e) => setRadarShape(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="polygon">Polygon (Standard Multi-Axis)</option>
+              <option value="circle">Concentric Circular Rings</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Radar Radius Scale ({radarRadius}%)</label>
+            <input
+              type="range"
+              min={35}
+              max={85}
+              value={radarRadius}
+              onChange={(e) => setRadarRadius(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Concentric Split Rings ({radarSplitNumber})</label>
+            <input
+              type="range"
+              min={3}
+              max={10}
+              value={radarSplitNumber}
+              onChange={(e) => setRadarSplitNumber(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Axis Label Distance ({radarAxisNameMargin}px)</label>
+            <input
+              type="range"
+              min={5}
+              max={40}
+              value={radarAxisNameMargin}
+              onChange={(e) => setRadarAxisNameMargin(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Vertical Center Offset ({fitOffsetY > 0 ? `+${fitOffsetY}` : fitOffsetY}%)</label>
+            <input
+              type="range"
+              min={-25}
+              max={25}
+              value={fitOffsetY}
+              onChange={(e) => setFitOffsetY(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+        </div>
+
+        {/* Ring & Spoke Visibility Toggles */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-border/40">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={radarAxisLine}
+              onChange={(e) => setRadarAxisLine(e.target.checked)}
+              className="rounded border-border text-primary"
+            />
+            <span>Radial Spokes</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={radarSplitLine}
+              onChange={(e) => setRadarSplitLine(e.target.checked)}
+              className="rounded border-border text-primary"
+            />
+            <span>Ring Grid Lines</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={radarSplitArea}
+              onChange={(e) => setRadarSplitArea(e.target.checked)}
+              className="rounded border-border text-primary"
+            />
+            <span>Shaded Bands</span>
+          </label>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Area Fill Opacity ({radarAreaOpacity}%)</label>
-          <input
-            type="range"
-            min={5}
-            max={60}
-            value={radarAreaOpacity}
-            onChange={(e) => setRadarAreaOpacity(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
+      {/* --- SECTION 3: AXIS INDICATOR TYPOGRAPHY & LABEL WIDTH --- */}
+      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+        <span className="text-xs font-black text-foreground block">Axis Indicator Typography & Label Width</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Indicator Label Format</label>
+            <select
+              value={radarIndicatorFormat}
+              onChange={(e) => setRadarIndicatorFormat(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="two_line">Two-Line: "Name \n (87%)" (Standard Paradox Style)</option>
+              <option value="single_line">Single-Line: "Name (87%)"</option>
+              <option value="ratio_percent">Ratio & Percent: "Name (n=40/46, 87%)"</option>
+              <option value="name_only">Name Only: "Execution Latency"</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Max Label Width ({radarAxisNameWidth}px)</label>
+            <input
+              type="range"
+              min={60}
+              max={260}
+              step={5}
+              value={radarAxisNameWidth}
+              onChange={(e) => setRadarAxisNameWidth(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Label Text Overflow</label>
+            <select
+              value={radarAxisNameOverflow}
+              onChange={(e) => setRadarAxisNameOverflow(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="break">Wrap to Multi-Line (Break)</option>
+              <option value="truncate">Truncate with Ellipsis</option>
+              <option value="none">None (Single Unbounded Line)</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Label Line Height ({radarAxisNameLineHeight}px)</label>
+            <input
+              type="range"
+              min={10}
+              max={24}
+              value={radarAxisNameLineHeight}
+              onChange={(e) => setRadarAxisNameLineHeight(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Stroke Line Width ({radarLineWidth}px)</label>
-          <input
-            type="range"
-            min={1}
-            max={5}
-            value={radarLineWidth}
-            onChange={(e) => setRadarLineWidth(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
+        {/* Vertex Data Labels Toggle & Placement */}
+        <div className="pt-2 border-t border-border/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+              <input
+                type="checkbox"
+                checked={radarShowDataLabels}
+                onChange={(e) => setRadarShowDataLabels(e.target.checked)}
+                className="rounded border-border text-primary"
+              />
+              <span>Show Vertex Data Labels (% inside web)</span>
+            </label>
+          </div>
+
+          {radarShowDataLabels && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Label Position</label>
+                <select
+                  value={radarDataLabelPosition}
+                  onChange={(e) => setRadarDataLabelPosition(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
+                >
+                  <option value="top">Top of Point</option>
+                  <option value="bottom">Bottom of Point</option>
+                  <option value="inside">Inside Web</option>
+                  <option value="outside">Outside Web</option>
+                  <option value="auto">Auto Alignment</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* --- SECTION 3: EMPIRICAL BASELINE SERIES STYLING --- */}
+      <div className="p-3 bg-primary/5 rounded-2xl border border-primary/20 space-y-3">
+        <span className="text-xs font-black text-foreground block flex items-center justify-between">
+          <span>Empirical Baseline Series Styling</span>
+          <span className="text-[10px] font-mono text-primary font-bold">Observed Cohort Data</span>
+        </span>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Stroke Width ({radarLineWidth}px)</label>
+            <input
+              type="range"
+              min={1}
+              max={6}
+              step={0.5}
+              value={radarLineWidth}
+              onChange={(e) => setRadarLineWidth(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Line Pattern</label>
+            <select
+              value={radarBaselineLineStyle}
+              onChange={(e) => setRadarBaselineLineStyle(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
+            >
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Area Fill ({radarAreaOpacity}%)</label>
+            <input
+              type="range"
+              min={0}
+              max={80}
+              value={radarAreaOpacity}
+              onChange={(e) => setRadarAreaOpacity(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Baseline Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={radarBaselineColor || '#0275d8'}
+                onChange={(e) => setRadarBaselineColor(e.target.value)}
+                className="w-7 h-7 rounded border border-border cursor-pointer"
+              />
+              <input
+                type="text"
+                value={radarBaselineColor || '#0275d8'}
+                onChange={(e) => setRadarBaselineColor(e.target.value)}
+                className="flex-1 bg-card border border-border rounded px-2 py-0.5 text-xs font-mono font-bold"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Vertex Symbol</label>
+            <select
+              value={radarBaselineSymbol}
+              onChange={(e) => setRadarBaselineSymbol(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
+            >
+              <option value="circle">Circle</option>
+              <option value="diamond">Diamond</option>
+              <option value="triangle">Triangle</option>
+              <option value="rect">Square</option>
+              <option value="none">None (Clean Line)</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Symbol Size ({radarBaselineSymbolSize}px)</label>
+            <input
+              type="range"
+              min={2}
+              max={12}
+              value={radarBaselineSymbolSize}
+              onChange={(e) => setRadarBaselineSymbolSize(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* --- SECTION 4: REQUIREMENT TARGET SERIES STYLING --- */}
+      <div className="p-3 bg-destructive/5 rounded-2xl border border-destructive/20 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-foreground block">Benchmark Target Series Styling</span>
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-destructive">
+            <input
+              type="checkbox"
+              checked={radarShowTarget}
+              onChange={(e) => setRadarShowTarget(e.target.checked)}
+              className="rounded border-border text-destructive"
+            />
+            <span>Show Benchmark Series</span>
+          </label>
+        </div>
+
+        {radarShowTarget && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-destructive/10">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Line Pattern</label>
+              <select
+                value={radarTargetLineStyle}
+                onChange={(e) => setRadarTargetLineStyle(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
+              >
+                <option value="dashed">Dashed</option>
+                <option value="solid">Solid</option>
+                <option value="dotted">Dotted</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Line Width ({radarTargetLineWidth}px)</label>
+              <input
+                type="range"
+                min={1}
+                max={5}
+                value={radarTargetLineWidth}
+                onChange={(e) => setRadarTargetLineWidth(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Fill Opacity ({radarTargetAreaOpacity}%)</label>
+              <input
+                type="range"
+                min={0}
+                max={40}
+                value={radarTargetAreaOpacity}
+                onChange={(e) => setRadarTargetAreaOpacity(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Target Color</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="color"
+                  value={radarTargetColor || '#d9534f'}
+                  onChange={(e) => setRadarTargetColor(e.target.value)}
+                  className="w-7 h-7 rounded border border-border cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={radarTargetColor || '#d9534f'}
+                  onChange={(e) => setRadarTargetColor(e.target.value)}
+                  className="flex-1 bg-card border border-border rounded px-1.5 py-0.5 text-xs font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Target Symbol</label>
+              <select
+                value={radarTargetSymbol}
+                onChange={(e) => setRadarTargetSymbol(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
+              >
+                <option value="circle">Circle</option>
+                <option value="diamond">Diamond</option>
+                <option value="triangle">Triangle</option>
+                <option value="rect">Square</option>
+                <option value="none">None (Clean Line)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Target Symbol Size ({radarTargetSymbolSize}px)</label>
+              <input
+                type="range"
+                min={2}
+                max={10}
+                value={radarTargetSymbolSize}
+                onChange={(e) => setRadarTargetSymbolSize(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1105,3 +1553,4 @@ export function CalendarConfigPanel() {
   );
 }
 
+export { SankeyConfigPanel } from './SankeyConfigPanel';

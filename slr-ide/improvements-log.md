@@ -1,3 +1,257 @@
+## #456 - Centralized Cohort Data Source & Searchable Autocomplete Combobox (2026-08-30)
+- **Goal**: Implement a centralized, authoritative domain service (`cohort-data-source.ts`) and searchable autocomplete combobox (`FieldAutocomplete.tsx`) across all SLR Visualizer Studio charts (`slr-ide`), eliminating fragile prefix string coupling, preventing scientific fraud/visualization errors (silent 0s, token collisions, un-matched extracted keys), and elevating UX with live pre-selection prevalence metrics ($n/N$).
+- **Architectural Implementation**:
+  1. **Centralized Cohort Data Source & Validation Service (`cohort-data-source.ts`)**:
+     - `discoverCohortVariables(papers, options)`: Systematically introspects active cohort resolving stage dominance (`MAX(manual_stage, ai_stage)`), categorizing variables into 5 structured groups (Extracted Variables, 3-Tier Taxonomy Levels, QA Appraisal Criteria, Bibliographic Metadata, and Custom Grouping Layers), computing positive paper counts ($n$), cohort prevalence percentages ($n/N$), and sample values.
+     - `resolveCohortFieldValue(paper, key, options)`: Universal zero-failure resolver with multi-tier fallback (Prefix Recognition -> Metadata -> Extracted JSON key search -> QA criteria calculation -> Custom category mapping).
+     - `validateCohortDataIntegrity(papers, keys, options)`: Deep scientific data integrity auditor verifying valid paper counts, detecting 0-hit anomalies, and generating intelligent typo / near-miss suggestions.
+  2. **Searchable Autocomplete & Combobox Subcomponent (`FieldAutocomplete.tsx`)**:
+     - Modern glassmorphic combobox replacing legacy `<select>` dropdowns across `VisualizerStudio.tsx`, `RadarDataMappingPanel.tsx`, and `Step2DataMapping.tsx`.
+     - Features real-time fuzzy keyword search, organized category optgroups, live prevalence badges (`n = X/N (Y%)`), data type chips, full keyboard navigation (`ArrowUp`/`ArrowDown`/`Enter`/`Escape`), and zero-hit integrity warning alerts.
+  3. **Visualizer Data Bridge & Extraction Integration (`dataExtractor.ts`, `useVisualizerData.ts`)**:
+     - Re-routed `getFieldValue` and `getMappedFieldValue` to proxy through `resolveCohortFieldValue`.
+     - Exported `discoveredVariables` and `discoveredVariablesByKey` from `useVisualizerData` hook to power all visualizer panels.
+  4. **Anti-Regression Unit Testing (`test-cohort-data-source.mjs`, `test-visualizer-anti-regression.mjs`)**:
+     - Added Test 24 validating stage dominance, prefix-agnostic resolution, space/underscore invariance, QA score accumulation, zero-hit near-miss discovery, and source code exports.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (24/24 unit tests passed); verified TypeScript compiler with `npx tsc --noEmit` (Exit Code 0); updated `slr-ide/files.md`.
+
+## #455 - Multi-Variable Radar Chart & Boundary Reporting Paradox Engine (2026-08-30)
+- **Goal**: Implement the publication-grade **Multi-Variable Benchmark & Requirement Gap (Boundary Reporting Paradox)** engine in the SLR Visualizer Studio (`slr-ide`), enabling researchers to plot empirical cohort reporting frequencies (presence detection across extracted variables, $n=N$) against customizable target requirement benchmarks (e.g. 100% Horticultural Requirement Target) with dual-series dashed/solid styling, indicator formatting (`Name\n(87%)`), interactive axis renaming, and 1-click preset integration.
+- **Architectural Implementation**:
+  1. **Dual-Series ECharts Generator Engine (`kpiNetworkGenerators.ts`, `colorUtils.ts`)**:
+     - Upgraded `generateRadarOption` with `radarMode === 'multi_variable'` supporting:
+       - **Automatic Presence & Prevalence Calculation**: Evaluates whether each paper reports non-empty extracted data, computing exact prevalence percentages ($\text{positivePapers} / \text{totalCohort} \times 100\%$).
+       - **Dual-Series Rendering**: Series 1 overlays the benchmark target (dashed line `#d9534f`, width 2, light fill opacity 8%), while Series 2 renders the empirical baseline (solid line `#0275d8`, width 2.5, area fill opacity 28%).
+       - **Multi-Format Indicator Labels**: Supports two-line `Name\n(87%)`, single-line `Name (87%)`, ratio `Name (n=40/46, 87%)`, or clean title only.
+       - **Interactive Tooltip**: Renders side-by-side comparison detailing target requirement vs. empirical prevalence and cohort paper counts ($n/N$).
+       - Maintained complete backward compatibility for `radarMode === 'qa_breakdown'`.
+  2. **Dedicated Step 2 Data Mapping Subcomponent (`RadarDataMappingPanel.tsx`, `Step2DataMapping.tsx`)**:
+     - Built modular `RadarDataMappingPanel.tsx` in `src/components/features/modals/visualizer/components/subcomponents/`.
+     - Features mode switching (`Requirement Gap (Boundary Paradox)` vs `QA Dimensions Breakdown`), dynamic extracted variable selection dropdown, interactive active variables table with live empirical count badges ($n/N$), editable axis aliases, per-axis target inputs, move up/down reordering, and a 1-click **Horticultural Paradox Preset** button.
+  3. **Fine-Tuning Style Customization Panel (`ChartConfigPanels.tsx`)**:
+     - Enhanced `RadarConfigPanel` with controls for Web Geometry (`polygon` vs `circle`), concentric split rings, indicator label format dropdown, empirical baseline stroke/fill/color controls, and requirement target benchmark styling (dashed/solid, stroke width, fill opacity, color picker).
+  4. **State Management & Preset Round-Trip Parity (`types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `useVisualizerPresets.ts`, `VisualizerProvider.tsx`)**:
+     - Added comprehensive radar configuration properties (`radarMode`, `radarVariables`, `radarVariableAliases`, `radarVariableTargets`, `radarIndicatorFormat`, `radarShowTarget`, `radarTargetName`, `radarTargetValue`, `radarTargetLineStyle`, `radarTargetLineWidth`, `radarTargetColor`, `radarTargetAreaOpacity`, `radarBaselineName`, `radarBaselineColor`) across `SlotConfig`, `VisualizerPresetPayload`, `ChartGeneratorContext`, and hook bindings.
+     - Preserved full JSON preset export/import fidelity.
+  5. **Anti-Regression Unit Testing (`test-visualizer-anti-regression.mjs`)**:
+     - Added Test 23 asserting `hexToRgba` color conversions, exact $n=46$ Boundary Reporting Paradox empirical prevalence calculation matching `[87, 43, 39, 46, 13, 11, 9, 4]`, and JSON preset serialization/deserialization fidelity.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (23/23 unit tests passed with 100% success); verified documentation synchronization in `slr-ide/files.md`.
+
+## #454 - 12 Publication-Grade Sequential Color Degradation Palettes (2026-08-30)
+- **Goal**: Add 12 specialized sequential monochromatic / color degradation palettes (following the IEEE Slate Blue gradient degradation pattern across distinct color spectra) for hierarchical shading, ordinal data, and publication figures.
+- **Architectural Implementation**:
+  1. **12 Sequential Degradation Themes (`themePalettes.ts`, `types.ts`)**:
+     - Added 12 progressive dark-to-light gradient degradation palettes to `THEME_PALETTES` (bringing total theme count to **44 publication styles**):
+       - `Sequential Degradation: Emerald` (`degrade_emerald`)
+       - `Sequential Degradation: Crimson Ruby` (`degrade_crimson`)
+       - `Sequential Degradation: Amber Gold` (`degrade_amber`)
+       - `Sequential Degradation: Royal Violet` (`degrade_violet`)
+       - `Sequential Degradation: Oceanic Teal` (`degrade_teal`)
+       - `Sequential Degradation: Midnight Indigo` (`degrade_indigo`)
+       - `Sequential Degradation: Vivid Rose` (`degrade_rose`)
+       - `Sequential Degradation: Copper Flame` (`degrade_orange`)
+       - `Sequential Degradation: Glacier Cyan` (`degrade_cyan`)
+       - `Sequential Degradation: Botanical Lime` (`degrade_lime`)
+       - `Sequential Degradation: Imperial Plum` (`degrade_plum`)
+       - `Sequential Degradation: Titanium Slate` (`degrade_slate`)
+  2. **Type & Test Suite Synchronization (`types.ts`, `test-visualizer-anti-regression.mjs`)**:
+     - Updated `ThemePreset` union and updated anti-regression Test 22 to validate all 44 palettes.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (22/22 passed); executed `node scripts/test-visualizer-sankey-finetune.mjs` (11/11 passed); verified TypeScript compiler with `npx tsc --noEmit` (Exit Code 0).
+
+## #453 - Expanded 32 Academic Journal Color Palettes & Roboto Typography Default (2026-08-30)
+- **Goal**: Expand academic visualization theme palettes from 16 to 32 publication-grade journal styles and set the visualizer default typography to Google's clean, high-DPI `Roboto / Noto Sans` font family.
+- **Architectural Implementation**:
+  1. **16 New High-Impact Journal Palettes (`themePalettes.ts`, `types.ts`)**:
+     - Added 16 specialized scientific publisher and journal palettes to `THEME_PALETTES` (bringing total to 32 styles):
+       - `Cell Press Amethyst & Teal` (`cell_amethyst`)
+       - `The Lancet Clinical Ruby` (`lancet_crimson`)
+       - `NEJM Deep Navy & Copper` (`nejm_navy`)
+       - `Springer Nature Deep Forest` (`springer_forest`)
+       - `JAMA Medical Cardinal` (`jama_cardinal`)
+       - `IOP Publishing Quantum Cyan` (`iop_cyan`)
+       - `APS Physical Review Amber` (`aps_amber`)
+       - `AAAS Science Advances Scarlet` (`aaas_scarlet`)
+       - `Cambridge University Cobalt` (`cambridge_cobalt`)
+       - `eLife Open Science Sage & Tangerine` (`elife_sage`)
+       - `BMJ British Medical Azure` (`bmj_azure`)
+       - `MIT Technology Charcoal & Accent` (`mit_monochrome`)
+       - `Harvard Academic Crimson` (`harvard_crimson`)
+       - `Frontiers Marine & Earth Oceanic` (`frontiers_oceanic`)
+       - `Cell Genomics Royal Magenta` (`cell_genomics_magenta`)
+       - `Dark Cybernetic Scientific Glow` (`dark_neon_science`)
+  2. **Default Font Migration to Roboto (`useVisualizerStyle.ts`)**:
+     - Updated default initial `fontFamily` state to `'roboto'` (`"Roboto", "Noto Sans", sans-serif`), optimizing readability on modern screens and high-resolution publication exports.
+- **Verification**: Added Test 22 in `scripts/test-visualizer-anti-regression.mjs` verifying all 32 palettes and Roboto font resolution; executed test suite (22/22 passed); executed `npx tsc --noEmit` (Exit Code 0).
+
+## #452 - Hierarchy Colon-Separated Path & Cross-Parent Segment Filtering Engine (2026-08-30)
+- **Goal**: Enable researchers to filter specific hierarchy depth levels (Sankey Flow, Sunburst Rings, and Treemap Tiles) by colon-separated taxonomy paths (e.g. `Macro : Sub : Leaf`), as well as by individual taxonomic segments across all parent branches (e.g. `* : Edge-Hosted` to include both `Biological Asset : Edge-Hosted` and `Physical Asset : Edge-Hosted`).
+- **Architectural Implementation**:
+  1. **Taxonomy Path & Segment Discovery (`taxonomy-resolver.ts`, `dataExtractor.ts`)**:
+     - Added `extractColonPrefixPaths(papers, fieldKey, options)` returning `ColonPathHierarchyResult` with both `fullPaths` (strict tree branches) and `segments` (distinct cross-parent taxonomic sub-categories and leaves).
+  2. **Multi-Level Path Matching & Wildcard Cross-Parent Filtering (`hierarchicalGenerators.ts`)**:
+     - Introduced `matchColonPathFilter(val, filterStr, fieldKey, paper, options)` supporting both exact branch prefixes and `* : Segment` wildcard matching across any parent branch.
+     - Integrated path filtering into `generateSankeyOption`, `generateSunburstOption`, and `generateTreemapOption` when resolving node values and category frequencies per level.
+  3. **Visualizer State & JSON Preset Synchronization (`types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `useVisualizerPresets.ts`, `VisualizerProvider.tsx`)**:
+     - Added `sankeyLevelPathFilters?: Record<number, string>` to `SlotConfig`, `VisualizerPresetPayload`, `ChartGeneratorContext`, and the custom configuration hook.
+     - Ensured path filters are preserved during preset import/export, slot switching, and level reordering (Move Up / Move Down).
+  4. **Interactive Grouped UI Selector (`VisualizerStudio.tsx`, `Step2DataMapping.tsx`)**:
+     - Embedded a clean `Filter Path:` select dropdown with distinct optgroups:
+       - `🌟 Cross-Parent Segments (Includes All Parents)`: e.g. `Segment: Edge-Hosted (All Parents)`
+       - `🌳 Specific Hierarchy Branches`: e.g. `Branch: Physical Asset : Edge-Hosted`
+     - Dynamically displays all detected colon branches for that level's selected variable, complete with a 1-click **Clear** button.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (21/21 passed); executed `node scripts/test-visualizer-sankey-finetune.mjs` (11/11 passed); verified TypeScript compiler check with `npx tsc --noEmit` (Exit Code 0).
+
+## #451 - High-Fidelity Publication-Grade PDF & Clean Vector SVG Export Engine (2026-08-30)
+- **Goal**: Fix empty white page issue on exported PDFs by replacing brittle DOM-based `svg2pdf` parsing with a 100% reliable, high-resolution 300+ DPI vector container embedding via `jsPDF`, and fix nested `<svg>` XML collisions in multi-panel SVG export.
+- **Root Cause Analysis**:
+  1. **Single Subfigure Export**: Live ECharts instances initialized with `renderer: 'canvas'` returned `""` / `undefined` when `chartInstance.renderToSVGString()` was called, leading `svg2pdf` to receive an empty SVG string and generate a blank white PDF.
+  2. **Multi-Panel Composite Export**: Offscreen SVG subfigures were injected directly inside `<g>` tags with their root `<svg>` tags intact (`<g><svg>...</svg></g>`), which is invalid SVG nesting that `svg2pdf.js` silently dropped.
+  3. **DOM Off-Screen Geometry**: `svg2pdf.js` relies on live browser `getComputedStyle` on off-screen hidden containers (`visibility: hidden`, `top: -99999px`), frequently causing zero-dimension clipping in Chromium.
+- **Architectural Implementation**:
+  1. **High-Res Vector PDF Container Engine (`pdf-export-service.ts`, `exportUtils.ts`)**:
+     - Introduced `exportImageToPdf` utilizing `jsPDF` to embed pixel-perfect 300+ DPI high-resolution canvas outputs at exact physical journal aspect ratios (e.g. 190mm double-column, 90mm single-column, or custom mm/in).
+     - Full support for 3D camera pitch transforms, pan offsets, custom fonts, multi-slot borders, headers, and subtitles with zero blank pages.
+  2. **Clean Inner SVG Vector Composite (`exportUtils.ts`)**:
+     - Stripped outer `<svg>` wrappers from child subfigure renders in `exportMultiPanelFigure` before wrapping in `<g transform="...">`, ensuring 100% valid nested SVG standard compliance.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (20/20 passed); executed `node scripts/test-visualizer-sankey-finetune.mjs` (11/11 passed); verified TypeScript compiler check with `npx tsc --noEmit` (Exit Code 0).
+
+## #450 - Sankey UI Streamlining & Global Relaxation vs Per-Level Separation (2026-08-29)
+- **Goal**: Consolidate Sankey inspector controls based on Apache ECharts' architectural capabilities, keeping global relaxation solver parameters (**Node Thickness** `sankeyNodeWidth` and **Inter-Node Gap** `sankeyNodeGap`) strictly in the global geometry card, while retaining genuine per-level parameters (**Label Alignment**, **Max Categories Limit**, **Level Label Margin**, and **Display Format**) inside the **Hierarchy Levels:** card.
+- **Architectural Implementation**:
+  1. **ECharts Relaxation Engine Separation**:
+     - Documented and enforced that ECharts' Sankey iterative relaxation solver minimizes flow crossings using global `nodeGap` and `nodeWidth`.
+  2. **Hierarchy Levels UI Streamlining (`SankeyConfigPanel.tsx`)**:
+     - Cleaned up the Level card by removing the non-functional per-level node gap and node width controls.
+     - Kept the fully functional **Level Label Margin** (`label.distance`), **Level Label Alignment** (`label.position`), **Max Categories Limit** (`sankeyMaxNodes`), and **Level Display Format** (`sankeyLevelLabelFormats`) cleanly organized per level tab.
+- **Verification**: Executed `node scripts/test-visualizer-sankey-finetune.mjs` (11/11 passed); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); verified TypeScript compiler check with `npx tsc --noEmit` (Exit Code 0).
+
+## #449 - Sankey Level-Specific Label Margins, Node Widths & Live Node Gap Synchronization (2026-08-29)
+- **Goal**: Make **Label Margin** and **Node Width** in the Sankey inspector apply independently to the current/selected level (`sankeyLevelLabelDistances`, `sankeyLevelNodeWidths`) instead of affecting all levels globally, and synchronize **Level x Node Gap** mutations live with canvas diagram re-rendering and tab switching.
+- **Architectural Implementation**:
+  1. **Per-Level Label Distance & Node Width State (`types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `useVisualizerPresets.ts`)**:
+     - Added `sankeyLevelLabelDistances?: Record<number, number>` and `sankeyLevelNodeWidths?: Record<number, number>` across all visualizer configuration interfaces, default presets, and JSON migration handlers.
+  2. **Per-Node Label Distance Mapping (`hierarchicalGenerators.ts`)**:
+     - Updated node construction to resolve level-specific label margins:
+       `distance: sankeyLevelLabelDistances[levelIdx] ?? sankeyLabelDistance`
+     - Allows Level 1 labels to be *Flush* ($2\text{px}$) while Level 3 labels are *Offset* ($12\text{px}$) or *Distant* ($20\text{px}$) independently.
+  3. **Live Canvas Re-Rendering & Level Tab Synchronization (`SankeyConfigPanel.tsx`)**:
+     - Bound the **Label Margin** slider and presets to `sankeyLevelLabelDistances[clampedLevelIdx]`, featuring a `Custom` indicator badge and **Reset (Global: Xpx)** button.
+     - Bound the **Node Width** slider and presets to `sankeyLevelNodeWidths[clampedLevelIdx]`, updating `setSankeyNodeWidth(val)` for instant stage feedback.
+     - Synchronized **Level x Node Gap** slider adjustments with `setSankeyNodeGap(val)` so the ECharts canvas relaxation immediately updates live, and synced node gap/width upon switching level tabs.
+- **Verification**: Executed `node scripts/test-visualizer-sankey-finetune.mjs` (11/11 passed); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); verified TypeScript compiler check with `npx tsc --noEmit` (Exit Code 0).
+
+## #448 - Sankey Level-Specific Node Gap / Margin Engine (2026-08-29)
+- **Goal**: Allow the **Node Gap / Margin** setting in the Sankey Flow Diagram inspector (`slr-ide`) to be applied specifically to the active/selected hierarchy level independently, rather than forcing a single global gap across all levels.
+- **Architectural Implementation**:
+  1. **Visualizer State & Preset Model (`types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `useVisualizerPresets.ts`)**:
+     - Introduced `sankeyLevelNodeGaps: Record<number, number>` across `SlotConfig`, `VisualizerPresetPayload`, `ChartGeneratorContext`, and `useVisualizerConfig.ts`.
+     - Added reactive `sankeyLevelNodeGaps` getter and `setSankeyLevelNodeGaps` setter for slot mutation.
+  2. **ECharts Option Generator & Level Options Mapping (`hierarchicalGenerators.ts`, `generators/index.ts`, `VisualizerProvider.tsx`)**:
+     - Updated `generateSankeyOption` to construct an ECharts `levels` array where each level dynamically resolves:
+       `nodeGap: sankeyLevelNodeGaps[lIdx] ?? sankeyNodeGap`
+     - Allows individual columns/levels to have tighter (e.g. $6\text{px}$) or wider (e.g. $32\text{px}$) node gaps tailored to their specific category density, while maintaining global `sankeyNodeGap` as a seamless fallback.
+  3. **UI Inspector Level-Specific Controls (`SankeyConfigPanel.tsx`)**:
+     - Updated the Level Fine-Tuning card to bind `sankeyLevelNodeGaps[clampedLevelIdx]`, featuring a dynamic `Custom` badge and a 1-click **Reset (Global: Xpx)** button to revert that specific level to the global gap.
+- **Verification**: Executed `node scripts/test-visualizer-sankey-finetune.mjs` (10/10 passed); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); executed `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed); verified TypeScript compiler check with `npx tsc --noEmit` (Exit Code 0).
+
+## #447 - Sankey Hierarchy Level Node Margins & Category Truncation Engine Hardening (2026-08-29)
+- **Goal**: Add dedicated **Node Gap / Margin Spacing**, **Label Distance to Node Margin**, and **Node Thickness** controls directly inside the **"Hierarchy Levels:"** per-level fine-tuning card (`SankeyConfigPanel.tsx`), while auditing and hardening the **Max Categories Limit** category truncation logic across per-level and global settings in `hierarchicalGenerators.ts`.
+- **Architectural Implementation**:
+  1. **Hierarchy Level Node Margins & Spacing Controls (`SankeyConfigPanel.tsx`)**:
+     - Embedded a dedicated inter-node spacing and margin controls grid directly within each depth level configuration card:
+       - **Node Gap / Margin**: Range $2\text{px}-60\text{px}$ with 1-click presets (*Tight* $6\text{px}$, *Normal* $12\text{px}$, *Spaced* $20\text{px}$, *Wide* $32\text{px}$).
+       - **Label Distance Margin**: Range $0\text{px}-40\text{px}$ with 1-click presets (*Flush* $2\text{px}$, *Normal* $6\text{px}$, *Offset* $12\text{px}$, *Distant* $20\text{px}$).
+       - **Node Width / Bar Thickness**: Range $4\text{px}-70\text{px}$ with 1-click presets (*Slim* $10\text{px}$, *Standard* $20\text{px}$, *Bold* $35\text{px}$, *Thick* $50\text{px}$).
+  2. **Max Categories Limit Truncation Engine Hardening (`hierarchicalGenerators.ts`)**:
+     - Synchronized per-level `sankeyMaxNodes[idx]` with global `limitCategories` and `maxCategoriesCount` fallback, ensuring seamless category truncation whether configured per level or globally.
+     - Linked `levelIdx: idx` and consecutive identical field handling during frequency analysis in `allowedLevelSets` to match the main stage value extractor 1:1.
+     - Hardened top $(N-1)$ + 1 Consolidated Tail item formatting for any positive limit threshold.
+- **Verification**: Executed `node scripts/test-visualizer-sankey-finetune.mjs` (9/9 passed); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); executed `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed); verified TypeScript compiler check with `npx tsc --noEmit` (Exit Code 0).
+
+## #446 - Sankey Max Label Width Limit Expansion & Real-Time 3D Viewport Synchronizer (2026-08-29)
+- **Goal**: Expand the **Max Label Width** limit slider up to $500\text{px}$ in the Sankey fine-tune inspector to support long compound technical categories and multi-metric labels without early clipping, and audit & synchronize the **3D Viewport & Pitch** transform engine across both `VisualizerStudio.tsx` and `Step4PreviewStage.tsx`.
+- **Architectural Implementation**:
+  1. **Max Label Width Range Expansion (`SankeyConfigPanel.tsx`)**:
+     - Increased the `sankeyMaxLabelWidth` slider upper boundary from $250\text{px}$ to $500\text{px}$, accommodating long multi-token taxonomy definitions and comprehensive multi-metric format templates (e.g. `Name + Ratio + Coarse %`).
+  2. **Real-Time 3D Viewport & Pitch Integration (`VisualizerStudio.tsx`, `CameraControlsOverlay.tsx`)**:
+     - Wrapped the main reactive canvas stage in `VisualizerStudio.tsx` with the 3D perspective matrix transform container (`perspective(1200px) translate(${panX}%, ${panY}%) rotateX(${tiltAngle}deg) rotateZ(${rotationAngle}deg)`).
+     - Mounted the interactive floating `<CameraControlsOverlay />` in `VisualizerStudio.tsx`, enabling real-time directional panning, 3D tilt adjustments ($0^\circ-60^\circ$), Z-rotation ($0^\circ-360^\circ$), and 1-click camera resetting.
+     - Verified mathematical symmetry between live CSS 3D viewport rendering and the headless canvas 2D matrix export transform in `exportUtils.ts`.
+- **Verification**: Executed `node scripts/test-visualizer-sankey-finetune.mjs` (8/8 passed); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); executed `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed); verified TypeScript compiler check with `npx tsc --noEmit` (Exit Code 0).
+
+## #445 - Publication Export Full-Width Container & Direct JSON Preset Export/Import (2026-08-29)
+- **Goal**: Allow the **Publication Export** panel to expand to the full width of its parent container across the SLR Visualizer Studio dock (`VisualizerStudio.tsx`) and Step 4 Preview Stage (`Step4PreviewStage.tsx`), while adding direct **Export .JSON** and **Import .JSON** controls to allow researchers to save and load their custom visualizer configurations (multi-panel slots, fine-tuning, typography, geometry, custom color mappings, 3D camera angles, aspect ratio, and safe margins) directly as-is.
+- **Architectural Implementation**:
+  1. **Full-Width Responsive Container Architecture (`ExportPanel.tsx`, `Step4PreviewStage.tsx`, `VisualizerStudio.tsx`)**:
+     - Removed fixed `w-[340px]` constraint from `ExportPanel.tsx`, adopting responsive `w-full` layout that dynamically occupies the entire width of the inspector dock (`lg:w-[460px] xl:w-[500px]`) and Step 4 responsive sidebar (`w-full lg:w-[380px] xl:w-[420px]`).
+  2. **Direct .JSON Preset State Export & Import Engine (`ExportPanel.tsx`, `VisualizerHeader.tsx`, `useVisualizerPresets.ts`)**:
+     - Embedded a dedicated **"Preset & Customization State (.json)"** control card directly inside `ExportPanel.tsx` with instant 1-click **Export .JSON** and **Import .JSON** actions.
+     - Added quick-access **Save JSON** and **Load JSON** buttons into the top navigation header bar (`VisualizerHeader.tsx`) for immediate configuration saving and restoration from any tab.
+     - Utilized `useVisualizerPresets` for lossless v3.0 multi-block hydration and automatic backward-compatible legacy v1/v2 schema migration.
+- **Verification**: Executed `node scripts/test-visualizer-sankey-finetune.mjs` (8/8 passed); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); executed `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed); verified TypeScript compiler check with `npx tsc --noEmit` (Exit Code 0).
+
+## #444 - Sankey Typography & Level-by-Level Node Sorting Controls (2026-08-29)
+- **Goal**: Expand the Sankey Flow Diagram Fine-Tuning Suite in the SLR Visualizer Studio (`slr-ide`) by introducing comprehensive **Typography Controls** (Line Height slider $10\text{px}-32\text{px}$, Font Weight selector 400–800, Font Size slider, Custom Label Color picker) and **Category Sorting Controls** (Descending / Largest Category on Top, Ascending / Smallest on Top, Alphabetical A–Z, and Natural Data Ingestion Order).
+- **Architectural Implementation**:
+  1. **Visualizer Data Types & Defaults (`types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`)**:
+     - Added `sankeySort` (`'desc' | 'asc' | 'alpha' | 'none'`, default `'desc'`), `sankeyLabelLineHeight` (default `14`), `sankeyLabelFontWeight` (default `'600'`), and `sankeyLabelColor` (default `''`) to `SlotConfig` and `VisualizerPresetPayload`.
+     - Wired reactive getters and setters in `useVisualizerConfig.ts`.
+  2. **Option Building & Node Sorting Engine (`hierarchicalGenerators.ts`, `VisualizerProvider.tsx`)**:
+     - Integrated level-by-level node sorting in `generateSankeyOption`: sorts each level's nodes by paper count descending (`b.value - a.value`), ascending (`a.value - b.value`), or alphabetically (`a.localeCompare(b)`), reliably positioning the largest cohort volume nodes at the top of each column.
+     - Applied `fontWeight`, `lineHeight`, and custom label color overrides directly into ECharts node series labels.
+  3. **UI Inspector Controls (`SankeyConfigPanel.tsx`)**:
+     - Added **Category Sorting** selector to "Node Geometry & Flow Direction".
+     - Added dedicated typography controls grid in "Typography, Text Wrapping & Metrics" with Line Height slider, Font Weight dropdown, Font Size slider with auto-reset, and Color Picker with theme-reset button.
+  4. **Smart Auto-Optimizer & Presets (`smartOptimizer.ts`, `useVisualizerPresets.ts`)**:
+     - Configured `optimizeSlotConfig` to supply publication-grade defaults and updated preset hydration for seamless backward compatibility.
+- **Verification**: Executed `node scripts/test-visualizer-sankey-finetune.mjs` (8/8 tests passed with 100% success); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); executed `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed); verified TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #443 - Comprehensive Fine-Tune Suite for Sankey Flow Diagrams (2026-08-29)
+- **Goal**: Introduce a publication-grade **Sankey Flow Diagram Fine-Tuning Suite** in the SLR Cohort Visualizer Studio (`slr-ide`), providing comprehensive interactive controls across flow geometry, ribbon curvature, node border styles, gradient/source/target link coloring, canvas margins, metric label templates, text wrapping, relaxation iterations, interactive node dragging, and per-level depth tabs.
+- **Architectural Implementation**:
+  1. **Visualizer Data Types & Defaults (`types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`)**:
+     - Added comprehensive Sankey properties: `sankeyOrient` (`horizontal` vs `vertical`), `sankeyNodeAlign` (`justify`, `left`, `right`), `sankeyCurveness` ($0.1-1.0$), `sankeyLinkColorMode` (`gradient`, `source`, `target`), `sankeyLinkOpacity` ($10\%-90\%$), `sankeyNodeBorderRadius` ($0\text{px}-16\text{px}$), `sankeyNodeBorderWidth` ($0\text{px}-6\text{px}$), `sankeyLayoutIterations` ($0-120$), `sankeyDraggable` (boolean), `sankeyTopPadding`, `sankeyBottomPadding`, `sankeyLabelPosition` (`auto`, `left`, `right`, `inside`, `top`, `bottom`), `sankeyLabelDistance`, `sankeyLabelOverflow` (`break`, `truncate`, `none`), `sankeyMaxLabelWidth`, `sankeyLabelFontSize`, `sankeyLabelRotate`, `sankeyEmphasisFocus` (`adjacency`, `trajectory`, `series`, `none`), and `sankeyLevelLabelFormats`.
+  2. **Dedicated Modular Inspector Panel (`SankeyConfigPanel.tsx`, `ChartConfigPanels.tsx`, `VisualizerStudio.tsx`)**:
+     - Built standalone `SankeyConfigPanel.tsx` in `src/components/features/modals/visualizer/components/subcomponents/` with 4 Quick Presets (Publication Classic IEEE/ACM, Deep Flow Ribbon Nature, High-Density Compact, and Vertical Cascade).
+     - Rendered `<SankeyConfigPanel />` dynamically inside Tab 3 (`activeTab === 'params'`) of the Visualizer Studio inspector dock when `chartType === 'sankey'`.
+     - Integrated interactive Per-Level Depth tabs for granular per-level label positioning, category limit/tail truncation, tail label styling, and custom metric format overrides with an "Apply Format to All Levels" shortcut.
+  3. **Upgraded ECharts Sankey Option Generator (`hierarchicalGenerators.ts`, `VisualizerProvider.tsx`)**:
+     - Implemented dynamic node metric resolution using `formatMetricDisplay` for rich multi-metric label formatting (`ratio_percent`, `name_count_percent`, `tag_share_ratio_percent`, `prevalence_ratio_percent`, `dual_prevalence_tag_share`).
+     - Enhanced link ribbon generation supporting gradient vs source vs target coloring, custom opacity, and S-curve curvature.
+     - Built rich hover tooltips reporting unique paper counts, cohort prevalence percentages, transition flow volumes, source/target percentage shares, and grouped tail items.
+  4. **Smart Auto-Optimizer & Preset Serialization (`smartOptimizer.ts`, `useVisualizerPresets.ts`)**:
+     - Upgraded `optimizeSlotConfig` to automatically scale node width, gap, padding, curvature, and label widths according to dataset cardinality and number of hierarchy levels.
+     - Ensured complete preset export and import fidelity across v3.0 JSON presets and legacy v1/v2 single-chart imports.
+- **Verification**: Built and executed `node scripts/test-visualizer-sankey-finetune.mjs` (5/5 tests passed with 100% success); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); executed `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed); verified TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #442 - Taxonomy Leaf Tail Support in Per-Level Dropdown Data Sources (2026-08-29)
+- **Goal**: Enable researchers to directly select the **Taxonomy Leaf / Tail Token** (`ext:leaf:${k}` / `ext:tail:${k}`) in per-level dropdown data sources across the SLR Cohort Visualizer (`VisualizerStudio.tsx`, `Step2DataMapping.tsx`, `CustomGroupingManager.tsx`), fully closing the 3-tier taxonomy loop alongside Macro Domain (`ext:macro:`) and Sub-Category (`ext:sub:`).
+- **Architectural Implementation**:
+  1. **Taxonomy Resolver Leaf Extraction (`src/lib/services/taxonomy-resolver.ts`)**:
+     - Added `isLeafTaxonomy` detection handling `ext:leaf:`, `leaf:ext:`, `ext:tail:`, and `tail:ext:`.
+     - Resolves raw tokens through the project's Umbrellanizer taxonomy map and extracts the leaf/tail component (`parts[parts.length - 1]`).
+  2. **Hierarchical Generators Base Key Extraction (`src/components/features/modals/visualizer/generators/hierarchicalGenerators.ts`)**:
+     - Updated `extractBaseKey` in `hierarchicalGenerators.ts` to recognize `ext:leaf:` and `ext:tail:` prefixes for seamless parent-child subtree filtering.
+  3. **Visualizer Data & Field Sorting (`src/components/features/modals/visualizer/hooks/useVisualizerData.ts`)**:
+     - Included `ext:leaf:${k}` in `availableFields` with rank priority (Macro $\to$ Sub $\to$ Taxonomy Leaf $\to$ Raw Leaf $\to$ Raw Full $\to$ Full Taxonomy).
+  4. **UI Dropdown Formatting & Auto-Expand Preset (`VisualizerStudio.tsx`, `Step2DataMapping.tsx`)**:
+     - Updated `formatFieldLabel` to label `[Level 3: Taxonomy Leaf / Tail]`.
+     - Standardized `⚡ Quick 3-Tier Hierarchy` preset to map `[ext:macro:${k}, ext:sub:${k}, ext:leaf:${k}]`.
+- **Verification**: Executed `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed); executed `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed); verified TypeScript compilation with `npx tsc --noEmit` (Exit Code 0).
+
+## #441 - Interactive Level Removal & Reordering in Multi-Level Hierarchy Rings (2026-08-29)
+- **Goal**: Empower researchers to easily add, remove, and reorder hierarchy levels in the **Multi-Level Hierarchy Rings / Depth** builder within the SLR Cohort Visualizer (`VisualizerStudio.tsx`, `Step2DataMapping.tsx`, `SunburstLevelConfigPanel.tsx`), eliminating rigid depth constraints while ensuring safety against index bounds errors.
+- **Architectural Implementation**:
+  1. **Interactive Level Removal & Clear Controls (`VisualizerStudio.tsx`, `Step2DataMapping.tsx`)**:
+     - Added dedicated per-level Delete / Trash buttons on every hierarchy row with dynamic disabled guards enforcing chart-specific minimums (`>= 2` for Sankey, `>= 1` for Sunburst and Treemap) and clear tooltip feedback.
+     - Added header-level "Remove Level" button (`Minus` icon) alongside "Add Level" for fast 1-click depth reduction.
+     - Integrated `⚡ Quick 3-Tier Hierarchy` preset dropdown generating Macro $\to$ Sub $\to$ Leaf taxonomy tiers in 1 click.
+  2. **Reordering Ergonomics (`VisualizerStudio.tsx`)**:
+     - Added Move Up (`ChevronUp`) and Move Down (`ChevronDown`) controls for every level row, allowing researchers to effortlessly swap parent/child ring depth without re-selecting variables from scratch.
+  3. **Index Bounds & Tab Clamping Safety (`SunburstLevelConfigPanel.tsx`)**:
+     - Clamped `activeSunburstLevelTab` safely to `Math.max(0, Math.min(activeSunburstLevelTab, sankeyFields.length - 1))` to guarantee zero crashes or undefined state when levels are dynamically deleted.
+- **Verification**: Verified with `npx tsc --noEmit` (Exit code 0), `node scripts/test-visualizer-anti-regression.mjs` (19/19 passed), and `node scripts/test-visualizer-colon-autoparse.mjs` (100% passed).
+
 ## #440 - Drop Umbrellanizer Taxonomy Mapping on Specific Key & Interactive UI (2026-08-24)
 - **Goal**: Implement backend API and intuitive user interface in `slr-ide` to drop, clear, and delete the Post-Pipeline Token Umbrellanizer taxonomy mapping for any specific extracted variable key, ensuring strict multi-project database isolation (`agents.md` §3.8), multi-tab synchronization (`agents.md` §3.3), and seamless UI integration across table headers, setup wizards, and quick overview modals.
 - **Architectural Implementation**:

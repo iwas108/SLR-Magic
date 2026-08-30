@@ -305,6 +305,7 @@ export function extractPaperFieldValues(
 
   const isMacro = fieldKey.startsWith('ext:macro:') || fieldKey.startsWith('macro:ext:');
   const isSub = fieldKey.startsWith('ext:sub:') || fieldKey.startsWith('sub:ext:');
+  const isLeafTaxonomy = fieldKey.startsWith('ext:leaf:') || fieldKey.startsWith('leaf:ext:') || fieldKey.startsWith('ext:tail:') || fieldKey.startsWith('tail:ext:');
   const isLeafRaw = fieldKey.startsWith('raw:leaf:ext:') || fieldKey.startsWith('raw:tail:ext:');
   const isExplicitRaw = isLeafRaw || fieldKey.startsWith('raw:ext:') || fieldKey.startsWith('raw:');
   
@@ -313,6 +314,8 @@ export function extractPaperFieldValues(
     realKey = fieldKey.startsWith('ext:macro:') ? fieldKey.substring(10) : fieldKey.substring(10);
   } else if (isSub) {
     realKey = fieldKey.startsWith('ext:sub:') ? fieldKey.substring(8) : fieldKey.substring(8);
+  } else if (isLeafTaxonomy) {
+    realKey = (fieldKey.startsWith('ext:leaf:') || fieldKey.startsWith('ext:tail:')) ? fieldKey.substring(9) : fieldKey.substring(9);
   } else if (isLeafRaw) {
     realKey = fieldKey.startsWith('raw:leaf:ext:') ? fieldKey.substring(13) : fieldKey.substring(13);
   } else if (isExplicitRaw) {
@@ -361,6 +364,10 @@ export function extractPaperFieldValues(
           const parts = resolved.split(':').map(s => s.trim()).filter(Boolean);
           return parts.length >= 2 ? parts[1] : (parts[0] || resolved);
         }
+        if (isLeafTaxonomy) {
+          const parts = resolved.split(':').map(s => s.trim()).filter(Boolean);
+          return parts.length >= 3 ? parts[2] : (parts[parts.length - 1] || resolved);
+        }
         return resolved;
       };
 
@@ -408,3 +415,84 @@ export function extractPaperFieldValues(
     return [strVal];
   }
 }
+
+export interface ColonPathHierarchyResult {
+  fullPaths: string[];
+  segments: string[];
+}
+
+/**
+ * Extracts all unique colon-separated prefix paths and cross-parent segments (e.g. "Edge-Hosted")
+ * from the paper cohort for a specific fieldKey.
+ */
+export function extractColonPrefixPaths(
+  papers: any[],
+  fieldKey: string,
+  options: TaxonomyOptions = {}
+): ColonPathHierarchyResult {
+  if (!papers || papers.length === 0 || !fieldKey) return { fullPaths: [], segments: [] };
+  const { useUmbrellanizer = true, umbrellanizerMap = {} } = options;
+
+  const prefixesSet = new Set<string>();
+  const segmentsSet = new Set<string>();
+
+  const isExt = fieldKey.startsWith('ext:') || fieldKey.startsWith('raw:');
+  const baseKey = fieldKey.startsWith('ext:macro:') || fieldKey.startsWith('macro:ext:') 
+    ? fieldKey.substring(10)
+    : fieldKey.startsWith('ext:sub:') || fieldKey.startsWith('sub:ext:')
+    ? fieldKey.substring(8)
+    : fieldKey.startsWith('ext:leaf:') || fieldKey.startsWith('leaf:ext:') || fieldKey.startsWith('ext:tail:') || fieldKey.startsWith('tail:ext:')
+    ? fieldKey.substring(9)
+    : fieldKey.startsWith('raw:leaf:ext:') || fieldKey.startsWith('raw:tail:ext:')
+    ? fieldKey.substring(13)
+    : fieldKey.startsWith('raw:ext:')
+    ? fieldKey.substring(8)
+    : fieldKey.startsWith('ext:')
+    ? fieldKey.substring(4)
+    : fieldKey;
+
+  const processToken = (str: string) => {
+    if (!str || !str.includes(':')) return;
+    const parts = str.split(':').map(s => s.trim()).filter(Boolean);
+    if (parts.length < 2) return;
+
+    for (let i = 1; i <= parts.length; i++) {
+      prefixesSet.add(parts.slice(0, i).join(' : '));
+    }
+
+    for (let i = 1; i < parts.length; i++) {
+      segmentsSet.add(parts[i]);
+    }
+  };
+
+  papers.forEach(p => {
+    const rawTokens = extractPaperFieldValues(p, isExt ? `ext:${baseKey}` : fieldKey, {
+      useUmbrellanizer: false,
+      splitMultiValues: true,
+      excludeEmpty: true
+    });
+
+    rawTokens.forEach(token => {
+      processToken(token);
+
+      if (useUmbrellanizer) {
+        const resolved = resolveUmbrellanizerValue(token, baseKey, true, umbrellanizerMap);
+        if (resolved) {
+          processToken(resolved);
+        }
+      }
+    });
+
+    const directVals = extractPaperFieldValues(p, fieldKey, options);
+    directVals.forEach(val => {
+      processToken(val);
+    });
+  });
+
+  return {
+    fullPaths: Array.from(prefixesSet).sort((a, b) => a.localeCompare(b)),
+    segments: Array.from(segmentsSet).sort((a, b) => a.localeCompare(b))
+  };
+}
+
+

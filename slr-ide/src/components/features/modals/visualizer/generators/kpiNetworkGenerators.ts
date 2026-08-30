@@ -1,5 +1,5 @@
 import type * as echarts from 'echarts';
-import { getNodeColor } from '../utils/colorUtils';
+import { getNodeColor, hexToRgba } from '../utils/colorUtils';
 import { 
   getFieldValue, 
   getMappedFieldValue, 
@@ -27,9 +27,280 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     customCategoryMap,
     levelCustomGroupLinks,
     sankeyFields,
-    umbrellanizerMap
+    umbrellanizerMap,
+    radarMode = 'multi_variable',
+    radarVariables = [],
+    radarVariableAliases = {},
+    radarVariableTargets = {},
+    radarIndicatorFormat = 'two_line',
+    radarShowTarget = true,
+    radarTargetName = 'Horticultural Requirement Target',
+    radarTargetValue = 100,
+    radarTargetLineStyle = 'dashed',
+    radarTargetLineWidth = 2,
+    radarTargetColor = '#d9534f',
+    radarTargetAreaOpacity = 8,
+    radarBaselineName = 'Empirical Cohort Baseline (n={n})',
+    radarBaselineColor,
+    enableManualOverrides,
+    manualCategoryValues = {}
   } = ctx;
 
+  const totalCohort = papers.length;
+  const mappedOpts = { 
+    useUmbrellanizer, 
+    umbrellanizerMap, 
+    splitMultiValues, 
+    excludeEmpty,
+    customCategoryMap,
+    levelCustomGroupLinks,
+    sankeyFields,
+    primaryField
+  };
+
+  // --- MODE 1: MULTI-VARIABLE REQUIREMENT GAP & BOUNDARY PARADOX ---
+  if (radarMode === 'multi_variable') {
+    let targetVars = Array.isArray(radarVariables) ? [...radarVariables] : [];
+
+    // Auto-discover top extracted variables if none explicitly configured
+    if (targetVars.length === 0) {
+      const extKeysSet = new Set<string>();
+      papers.forEach(p => {
+        const isManualDominant = (p.manual_stage || 0) >= (p.ai_stage || 0);
+        const extStr = isManualDominant
+          ? (p.manual_extracted_data || p.ai_extracted_data || '')
+          : (p.ai_extracted_data || p.manual_extracted_data || '');
+        if (extStr) {
+          try {
+            const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
+            const extObj = parsed.extracted_data || parsed;
+            if (typeof extObj === 'object' && extObj !== null) {
+              Object.keys(extObj).forEach(k => {
+                if (!k.startsWith('_') && k !== 'logic_trace' && k !== '_scientist_logic_trace') {
+                  extKeysSet.add(k);
+                }
+              });
+            }
+          } catch (e) {}
+        }
+      });
+
+      if (extKeysSet.size > 0) {
+        targetVars = Array.from(extKeysSet).slice(0, 8);
+      } else {
+        targetVars = [
+          'Execution Latency',
+          'Static Memory',
+          'Power Profiling',
+          'Explicit Envelopes',
+          'Narrowband / LPWAN',
+          'Harsh Environment',
+          'Agricultural Focus',
+          'Thermal Dissipation'
+        ];
+      }
+    }
+
+    const varItems = targetVars.map((vKey) => {
+      let cleanKey = vKey;
+      if (vKey.startsWith('cat:')) {
+        const rawContent = vKey.substring(4);
+        const lastColon = rawContent.lastIndexOf(':');
+        cleanKey = lastColon !== -1 ? rawContent.substring(lastColon + 1).trim() : rawContent;
+      } else {
+        cleanKey = vKey
+          .replace(/^ext:(macro:|sub:|leaf:|tail:)?/, '')
+          .replace(/^raw:(leaf:|tail:)?ext:/, '')
+          .replace(/^rq\d*[_:]?/i, '')
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, l => l.toUpperCase())
+          .trim();
+      }
+
+      const alias = radarVariableAliases[vKey] || cleanKey || vKey;
+
+      let positiveCount = 0;
+      papers.forEach(p => {
+        const rawVals = getFieldValue(p, vKey, mappedOpts);
+        const hasValidValue = rawVals.some(v => {
+          const s = String(v || '').trim().toUpperCase();
+          return Boolean(s) && s !== 'NOT_STATED' && s !== 'FALSE' && s !== '0' && s !== 'NONE' && s !== 'UNSPECIFIED' && s !== '[OBJECT OBJECT]';
+        });
+        if (hasValidValue) {
+          positiveCount++;
+        }
+      });
+
+      let prevalencePct = totalCohort > 0 ? Math.round((positiveCount / totalCohort) * 100) : 0;
+      if (enableManualOverrides && manualCategoryValues[vKey] !== undefined) {
+        prevalencePct = Math.round(manualCategoryValues[vKey]);
+      } else if (enableManualOverrides && manualCategoryValues[alias] !== undefined) {
+        prevalencePct = Math.round(manualCategoryValues[alias]);
+      }
+
+      const targetVal = radarVariableTargets[vKey] ?? radarVariableTargets[alias] ?? radarTargetValue ?? 100;
+
+      let indicatorName = alias;
+      if (radarIndicatorFormat === 'two_line') {
+        indicatorName = `${alias}\n(${prevalencePct}%)`;
+      } else if (radarIndicatorFormat === 'single_line') {
+        indicatorName = `${alias} (${prevalencePct}%)`;
+      } else if (radarIndicatorFormat === 'ratio_percent') {
+        indicatorName = `${alias} (n=${positiveCount}/${totalCohort}, ${prevalencePct}%)`;
+      } else {
+        indicatorName = alias;
+      }
+
+      return {
+        vKey,
+        alias,
+        positiveCount,
+        prevalencePct,
+        targetVal,
+        indicatorName
+      };
+    });
+
+    const indicators = varItems.map(item => ({
+      name: item.indicatorName,
+      max: 100
+    }));
+
+    const targetSeriesName = radarTargetName || 'Horticultural Requirement Target';
+    const baselineSeriesName = (radarBaselineName || 'Empirical Cohort Baseline (n={n})').replace('{n}', String(totalCohort));
+    const baselineColor = radarBaselineColor || palette.colors[0] || '#0275d8';
+    const effectiveTargetColor = radarTargetColor || '#d9534f';
+
+    const seriesData: any[] = [];
+
+    if (radarShowTarget !== false) {
+      seriesData.push({
+        value: varItems.map(item => item.targetVal),
+        name: targetSeriesName,
+        symbol: ctx.radarTargetSymbol || 'circle',
+        symbolSize: ctx.radarTargetSymbol === 'none' ? 0 : (ctx.radarTargetSymbolSize ?? 4),
+        lineStyle: {
+          type: radarTargetLineStyle || 'dashed',
+          width: radarTargetLineWidth ?? 2,
+          color: effectiveTargetColor
+        },
+        areaStyle: {
+          color: hexToRgba(effectiveTargetColor, (radarTargetAreaOpacity ?? 8) / 100)
+        },
+        itemStyle: {
+          color: effectiveTargetColor
+        }
+      });
+    }
+
+    seriesData.push({
+      value: varItems.map(item => item.prevalencePct),
+      name: baselineSeriesName,
+      symbol: ctx.radarBaselineSymbol || 'circle',
+      symbolSize: ctx.radarBaselineSymbol === 'none' ? 0 : (ctx.radarBaselineSymbolSize ?? 6),
+      label: {
+        show: ctx.radarShowDataLabels === true,
+        formatter: (params: any) => `${params.value}%`,
+        position: ctx.radarDataLabelPosition || 'top',
+        color: palette.text,
+        fontSize: Math.max(9, fontSize - 3),
+        fontWeight: 'bold'
+      },
+      lineStyle: {
+        type: ctx.radarBaselineLineStyle || 'solid',
+        width: ctx.radarLineWidth ?? 2.5,
+        color: baselineColor
+      },
+      areaStyle: {
+        color: hexToRgba(baselineColor, (ctx.radarAreaOpacity ?? 28) / 100)
+      },
+      itemStyle: {
+        color: baselineColor
+      }
+    });
+
+    const radarTooltip = {
+      ...baseTooltip,
+      formatter: (params: any) => {
+        const isTarget = params.name === targetSeriesName;
+        const colorSquare = `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background-color:${isTarget ? effectiveTargetColor : baselineColor};margin-right:6px;"></span>`;
+        
+        let content = `<div style="font-family:${font};font-size:12px;padding:2px;line-height:1.5;">
+          <div style="font-weight:bold;color:${palette.text};border-bottom:1px solid ${palette.border};padding-bottom:4px;margin-bottom:6px;">
+            ${colorSquare}${params.name}
+          </div>`;
+
+        varItems.forEach(item => {
+          const val = isTarget ? item.targetVal : item.prevalencePct;
+          const detail = isTarget 
+            ? `${val}% Target Requirement`
+            : `${val}% Empirical Prevalence (n=${item.positiveCount}/${totalCohort})`;
+          content += `<div style="display:flex;justify-content:space-between;gap:12px;margin:2px 0;">
+            <span style="color:${palette.subtext};">${item.alias}:</span>
+            <strong style="color:${palette.text};">${detail}</strong>
+          </div>`;
+        });
+
+        content += `</div>`;
+        return content;
+      }
+    };
+
+    const calculatedRadius = Math.max(20, Math.min(90, (ctx.radarRadius ?? 65) - Math.round(((ctx.containerPadding ?? 12) - 12) * 0.3)));
+    const isLegendAtBottom = (ctx.showLegend !== false && (ctx.legendPosition === 'bottom' || !ctx.legendPosition));
+    const baseCenterY = isLegendAtBottom ? 48 : (ctx.legendPosition === 'top' ? 56 : 50);
+    const centerY = Math.max(20, Math.min(85, baseCenterY + (ctx.fitOffsetY ?? 0)));
+    const centerX = Math.max(20, Math.min(85, 50 + (ctx.fitOffsetX ?? 0)));
+
+    return {
+      backgroundColor: palette.bg,
+      color: radarShowTarget !== false ? [effectiveTargetColor, baselineColor, ...palette.colors] : [baselineColor, effectiveTargetColor, ...palette.colors],
+      title: baseTitle,
+      legend: {
+        ...baseLegend,
+        // For radar charts, default position to bottom if not set, preventing top vertex label collision
+        top: ctx.legendPosition === 'top' ? Math.max(10, ctx.legendDistance ?? 20) : (ctx.legendPosition === 'bottom' ? undefined : (ctx.legendPosition === 'left' || ctx.legendPosition === 'right' ? 'center' : undefined)),
+        bottom: (!ctx.legendPosition || ctx.legendPosition === 'bottom') ? Math.max(5, ctx.legendDistance ?? 10) : undefined,
+        data: radarShowTarget !== false ? [targetSeriesName, baselineSeriesName] : [baselineSeriesName]
+      },
+      tooltip: radarTooltip,
+      radar: {
+        indicator: indicators,
+        center: [`${centerX}%`, `${centerY}%`],
+        radius: `${calculatedRadius}%`,
+        shape: ctx.radarShape || 'polygon',
+        splitNumber: ctx.radarSplitNumber ?? 5,
+        axisLine: {
+          show: ctx.radarAxisLine !== false,
+          lineStyle: { color: palette.border }
+        },
+        splitLine: {
+          show: ctx.radarSplitLine !== false,
+          lineStyle: { color: palette.border }
+        },
+        splitArea: {
+          show: ctx.radarSplitArea !== false,
+          areaStyle: { color: [palette.bg, hexToRgba(palette.text, 0.03)] }
+        },
+        axisName: {
+          fontFamily: font,
+          fontSize: fontSize - 1,
+          color: palette.text,
+          width: (ctx.radarAxisNameWidth !== undefined && ctx.radarAxisNameWidth > 0) ? ctx.radarAxisNameWidth : undefined,
+          overflow: ctx.radarAxisNameOverflow || 'break',
+          lineHeight: ctx.radarAxisNameLineHeight || 14
+        },
+        axisNameGap: ctx.radarAxisNameMargin ?? 15
+      },
+      series: [{
+        name: 'Boundary Reporting Comparison',
+        type: 'radar',
+        data: seriesData
+      }]
+    };
+  }
+
+  // --- MODE 2: QUALITY ASSESSMENT (QA) BREAKDOWN (LEGACY) ---
   const qaKeysSet = new Set<string>();
   papers.forEach(p => {
     const isManualDominant = (p.manual_stage || 0) >= (p.ai_stage || 0);
@@ -38,7 +309,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
       : (p.ai_quality_assessment || p.manual_quality_assessment || '');
     if (qaStr) {
       try {
-        const parsed = JSON.parse(qaStr);
+        const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
         const qaObj = parsed.qa_scores || parsed;
         if (typeof qaObj === 'object' && qaObj !== null) {
           Object.keys(qaObj).forEach(k => qaKeysSet.add(k));
@@ -56,7 +327,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
       : (p.ai_quality_assessment || p.manual_quality_assessment || '');
     if (!qaStr) return 0;
     try {
-      const parsed = JSON.parse(qaStr);
+      const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
       const qaObj = parsed.qa_scores || parsed;
       const v = qaObj[key];
       const val = (v && typeof v === 'object' && 'value' in v) ? v.value : v;
@@ -70,17 +341,6 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
   const indicators = keysList.map(k => ({ name: k, max: 1.0 }));
 
   const countsMap = new Map<string, any[]>();
-  const mappedOpts = { 
-    useUmbrellanizer, 
-    umbrellanizerMap, 
-    splitMultiValues, 
-    excludeEmpty,
-    customCategoryMap,
-    levelCustomGroupLinks,
-    sankeyFields,
-    primaryField
-  };
-
   papers.forEach(p => {
     const vals = getMappedFieldValue(p, primaryField, mappedOpts);
     vals.forEach(v => {
@@ -120,8 +380,8 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
       type: 'radar',
       data: seriesData,
       symbolSize: 6,
-      lineStyle: { width: ctx.radarLineWidth ?? 2 },
-      areaStyle: { opacity: (ctx.radarAreaOpacity ?? 25) / 100 }
+      lineStyle: { width: ctx.radarLineWidth ?? 2.5 },
+      areaStyle: { opacity: (ctx.radarAreaOpacity ?? 28) / 100 }
     }]
   };
 }

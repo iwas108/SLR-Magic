@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { 
   BarChart2, 
   X, 
@@ -9,12 +9,16 @@ import {
   Keyboard,
   PanelRightClose,
   PanelRightOpen,
-  Wand2
+  Wand2,
+  Save,
+  Upload
 } from 'lucide-react';
 import { useVisualizerContext } from '../context/VisualizerContext';
 
 export function VisualizerHeader() {
-  const { props, layout, config, workspace } = useVisualizerContext();
+  const { props, layout, config, workspace, presets } = useVisualizerContext();
+  const headerFileInputRef = useRef<HTMLInputElement>(null);
+  const { handleExportPreset, handleImportPreset } = presets;
   const { papers, totalUnfilteredCount, isFiltered, onClose, umbrellanizerMap } = props;
   const { layoutMode } = layout;
   const { handleAutoOptimizeActiveSlot, autoOptimizeAllSlots } = config;
@@ -80,7 +84,38 @@ export function VisualizerHeader() {
           </button>
         )}
 
-        <div className="w-[1px] h-4 bg-border mx-1" />
+        <div className="w-[1px] h-4 bg-border mx-0.5" />
+
+        {/* Quick JSON Preset Save & Load */}
+        <button
+          type="button"
+          onClick={handleExportPreset}
+          className="px-2.5 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground hover:text-primary border border-border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
+          title="Save complete studio customizations and fine-tuning to .json preset"
+        >
+          <Save className="w-3.5 h-3.5 text-primary" />
+          <span className="hidden lg:inline">Save JSON</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => headerFileInputRef.current?.click()}
+          className="px-2.5 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground hover:text-primary border border-border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
+          title="Load saved studio customization from .json preset file"
+        >
+          <Upload className="w-3.5 h-3.5 text-primary" />
+          <span className="hidden lg:inline">Load JSON</span>
+        </button>
+
+        <input
+          ref={headerFileInputRef}
+          type="file"
+          accept=".json,application/json"
+          onChange={handleImportPreset}
+          className="hidden"
+        />
+
+        <div className="w-[1px] h-4 bg-border mx-0.5" />
 
         {/* Zen / Theater Mode Toggle */}
         <button

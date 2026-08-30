@@ -213,10 +213,40 @@ export function optimizeSlotConfig(
     }
 
     case 'sankey': {
-      config.sankeyNodeWidth = 18;
-      config.sankeyNodeGap = 16;
-      config.sankeyLeftPadding = 6;
-      config.sankeyRightPadding = 18;
+      const numLevels = sankeyFields.length || 3;
+      if (numLevels >= 4) {
+        config.sankeyNodeWidth = 14;
+        config.sankeyNodeGap = 12;
+        config.sankeyCurveness = 0.45;
+      } else if (numLevels <= 2) {
+        config.sankeyNodeWidth = 24;
+        config.sankeyNodeGap = 20;
+        config.sankeyCurveness = 0.55;
+      } else {
+        config.sankeyNodeWidth = 18;
+        config.sankeyNodeGap = 16;
+        config.sankeyCurveness = 0.5;
+      }
+
+      if (maxLabelLength > 20) {
+        config.sankeyRightPadding = 24;
+        config.sankeyLeftPadding = 10;
+        config.sankeyMaxLabelWidth = 140;
+        config.sankeyLabelOverflow = 'break';
+      } else {
+        config.sankeyRightPadding = 18;
+        config.sankeyLeftPadding = 8;
+        config.sankeyMaxLabelWidth = 120;
+      }
+
+      config.sankeyLinkColorMode = 'gradient';
+      config.sankeyLinkOpacity = 45;
+      config.sankeyNodeBorderRadius = 2;
+      config.sankeyNodeBorderWidth = 1;
+      config.sankeyEmphasisFocus = 'adjacency';
+      config.sankeySort = 'desc';
+      config.sankeyLabelLineHeight = 14;
+      config.sankeyLabelFontWeight = '600';
       break;
     }
 
@@ -250,6 +280,22 @@ export function optimizeSlotConfig(
       } else {
         config.bubbleScale = 1.2;
       }
+      break;
+    }
+
+    case 'radar': {
+      config.radarShape = 'polygon';
+      config.radarSplitNumber = 5;
+      config.radarLineWidth = 2.5;
+      config.radarAreaOpacity = 28;
+      config.radarTargetLineStyle = 'dashed';
+      config.radarTargetLineWidth = 2;
+      config.radarTargetAreaOpacity = 8;
+      config.radarTargetColor = config.radarTargetColor || '#d9534f';
+      config.radarBaselineColor = config.radarBaselineColor || '#0275d8';
+      config.radarIndicatorFormat = config.radarIndicatorFormat || 'two_line';
+      config.showLegend = true;
+      config.legendPosition = 'bottom';
       break;
     }
 

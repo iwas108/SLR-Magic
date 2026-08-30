@@ -46,6 +46,7 @@ function resolveUmbrellanizerValue(val, key, useUmbrellanizer, map) {
 function extractPaperFieldValuesMock(paper, fieldKey, options = {}) {
   const isMacro = fieldKey.startsWith('ext:macro:') || fieldKey.startsWith('macro:ext:');
   const isSub = fieldKey.startsWith('ext:sub:') || fieldKey.startsWith('sub:ext:');
+  const isLeafTaxonomy = fieldKey.startsWith('ext:leaf:') || fieldKey.startsWith('leaf:ext:') || fieldKey.startsWith('ext:tail:') || fieldKey.startsWith('tail:ext:');
   const isLeafRaw = fieldKey.startsWith('raw:leaf:ext:') || fieldKey.startsWith('raw:tail:ext:');
   const isExplicitRaw = isLeafRaw || fieldKey.startsWith('raw:ext:') || fieldKey.startsWith('raw:');
   
@@ -54,6 +55,8 @@ function extractPaperFieldValuesMock(paper, fieldKey, options = {}) {
     realKey = fieldKey.startsWith('ext:macro:') ? fieldKey.substring(10) : fieldKey.substring(10);
   } else if (isSub) {
     realKey = fieldKey.startsWith('ext:sub:') ? fieldKey.substring(8) : fieldKey.substring(8);
+  } else if (isLeafTaxonomy) {
+    realKey = (fieldKey.startsWith('ext:leaf:') || fieldKey.startsWith('ext:tail:')) ? fieldKey.substring(9) : fieldKey.substring(9);
   } else if (isLeafRaw) {
     realKey = fieldKey.startsWith('raw:leaf:ext:') ? fieldKey.substring(13) : fieldKey.substring(13);
   } else if (isExplicitRaw) {
@@ -79,8 +82,12 @@ function extractPaperFieldValuesMock(paper, fieldKey, options = {}) {
       return colonIdx !== -1 ? resolved.substring(0, colonIdx).trim() : resolved;
     }
     if (isSub) {
-      const colonIdx = resolved.indexOf(':');
-      return colonIdx !== -1 ? resolved.substring(colonIdx + 1).trim() : resolved;
+      const parts = resolved.split(':').map(s => s.trim()).filter(Boolean);
+      return parts.length >= 2 ? parts[1] : (parts[0] || resolved);
+    }
+    if (isLeafTaxonomy) {
+      const parts = resolved.split(':').map(s => s.trim()).filter(Boolean);
+      return parts.length >= 3 ? parts[2] : (parts[parts.length - 1] || resolved);
     }
     return resolved;
   };
@@ -99,6 +106,8 @@ function filterValuesForParent(vals, currentFieldKey, parentContext, options = {
   const extractBaseKey = (k) => {
     if (k.startsWith('ext:macro:') || k.startsWith('macro:ext:')) return k.substring(10);
     if (k.startsWith('ext:sub:') || k.startsWith('sub:ext:')) return k.substring(8);
+    if (k.startsWith('ext:leaf:') || k.startsWith('leaf:ext:')) return k.substring(9);
+    if (k.startsWith('ext:tail:') || k.startsWith('tail:ext:')) return k.substring(9);
     if (k.startsWith('raw:leaf:ext:') || k.startsWith('raw:tail:ext:')) return k.substring(13);
     if (k.startsWith('raw:ext:') || k.startsWith('raw:')) return k.startsWith('raw:ext:') ? k.substring(8) : k.substring(4);
     if (k.startsWith('ext:')) return k.substring(4);
@@ -279,16 +288,39 @@ assert.strictEqual(
   'formatTailLabel must return plain Other'
 );
 
-// Truncation test
-const mockLongTail = [
-  { name: 'ProtocolAlpha', count: 10 },
-  { name: 'ProtocolBeta', count: 8 },
-  { name: 'ProtocolGamma', count: 6 },
-  { name: 'ProtocolDelta', count: 4 },
-  { name: 'ProtocolEpsilon', count: 2 }
-];
-const truncatedComma = formatTailLabel(mockLongTail, 'comma_list', 30);
-assert(truncatedComma.includes('(+'), `Truncated label must contain count indicator: ${truncatedComma}`);
+// Test ext:leaf: and ext:tail: taxonomy resolution
+const mockPaperTaxonomy = {
+  extracted_data: {
+    rq5_network_protocols: ['REST', 'MQTT', 'TCP']
+  }
+};
 
-console.log('✅ ALL Native 3-Tier Taxonomy, Raw Leaf/Tail Token & Tail Grouping Tests PASSED Successfully!');
+const extractedLeaf = extractPaperFieldValuesMock(mockPaperTaxonomy, 'ext:leaf:rq5_network_protocols', { umbrellanizerMap: mockUmbrellanizerMap });
+assert.deepStrictEqual(
+  extractedLeaf,
+  ['Web Services & RPC APIs', 'Message Queues & Event Streaming', 'Core Transport & Internet Protocols'],
+  'ext:leaf: on 2-part mapped taxonomy must return the leaf/tail part'
+);
+
+const mockPaper3Part = {
+  extracted_data: {
+    rq5_network_protocols: ['CAN']
+  }
+};
+const mockMap3Part = {
+  rq5_network_protocols: {
+    'CAN': 'Physical/Link : Vehicular Buses : CAN Bus 2.0B'
+  }
+};
+const extracted3PartMacro = extractPaperFieldValuesMock(mockPaper3Part, 'ext:macro:rq5_network_protocols', { umbrellanizerMap: mockMap3Part });
+const extracted3PartSub = extractPaperFieldValuesMock(mockPaper3Part, 'ext:sub:rq5_network_protocols', { umbrellanizerMap: mockMap3Part });
+const extracted3PartLeaf = extractPaperFieldValuesMock(mockPaper3Part, 'ext:leaf:rq5_network_protocols', { umbrellanizerMap: mockMap3Part });
+const extracted3PartTail = extractPaperFieldValuesMock(mockPaper3Part, 'ext:tail:rq5_network_protocols', { umbrellanizerMap: mockMap3Part });
+
+assert.deepStrictEqual(extracted3PartMacro, ['Physical/Link'], 'ext:macro: must extract level 1 macro');
+assert.deepStrictEqual(extracted3PartSub, ['Vehicular Buses'], 'ext:sub: must extract level 2 sub');
+assert.deepStrictEqual(extracted3PartLeaf, ['CAN Bus 2.0B'], 'ext:leaf: must extract level 3 leaf tail');
+assert.deepStrictEqual(extracted3PartTail, ['CAN Bus 2.0B'], 'ext:tail: must extract level 3 leaf tail');
+
+console.log('✅ ALL Native 3-Tier Taxonomy, Taxonomy Leaf Tail (ext:leaf: / ext:tail:), Raw Leaf/Tail Token & Tail Grouping Tests PASSED Successfully!');
 

@@ -139,7 +139,7 @@ export function SunburstLevelConfigPanel() {
 
         {/* Active Level Configuration Panel */}
         {(() => {
-          const lIdx = activeSunburstLevelTab;
+          const lIdx = Math.max(0, Math.min(activeSunburstLevelTab, Math.max(0, sankeyFields.length - 1)));
           const curConf = sunburstLevelConfigs[lIdx] || {
             r0: 15 + lIdx * 30,
             r: 40 + lIdx * 30,

@@ -3,19 +3,40 @@ import type { ChartType, MetricMode, DetectedCategory } from '../types';
 import {
   safeString,
   resolveUmbrellanizerValue,
+  extractColonPrefixPaths,
   extractPaperFieldValues,
+  ColonPathHierarchyResult,
   stripParentPrefix,
   TaxonomyOptions
 } from '@/lib/services/taxonomy-resolver';
+import {
+  resolveCohortFieldValue,
+  discoverCohortVariables,
+  validateCohortDataIntegrity,
+  formatVariableDisplayName,
+  DiscoveredVariable,
+  DataIntegrityReport
+} from '@/lib/services/cohort-data-source';
 
-export { safeString, resolveUmbrellanizerValue, stripParentPrefix };
+export { 
+  safeString, 
+  resolveUmbrellanizerValue, 
+  stripParentPrefix, 
+  extractColonPrefixPaths,
+  extractPaperFieldValues,
+  resolveCohortFieldValue,
+  discoverCohortVariables,
+  validateCohortDataIntegrity,
+  formatVariableDisplayName
+};
+export type { ColonPathHierarchyResult, DiscoveredVariable, DataIntegrityReport };
 
 export function getFieldValue(
   paper: any, 
   fieldKey: string, 
   options: TaxonomyOptions = {}
 ): string[] {
-  return extractPaperFieldValues(paper, fieldKey, options);
+  return resolveCohortFieldValue(paper, fieldKey, options);
 }
 
 export function getMappedFieldValue(
@@ -35,38 +56,7 @@ export function getMappedFieldValue(
     primaryField?: string;
   } = {}
 ): string[] {
-  const {
-    subFieldKey,
-    levelIdx = 0,
-    parentName,
-    useUmbrellanizer = true,
-    umbrellanizerMap = {},
-    splitMultiValues = true,
-    excludeEmpty = true,
-    customCategoryMap = {},
-    levelCustomGroupLinks = {},
-    sankeyFields = ['Year', 'Import_Source', 'Local_PDF_Status'],
-    primaryField = 'Year'
-  } = options;
-
-  const extractOpts = { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty };
-
-  if (fieldKey === CUSTOM_GROUPING_KEY) {
-    const targetSubKey = subFieldKey || (sankeyFields.find((f, idx) => f !== CUSTOM_GROUPING_KEY && idx >= levelIdx) || sankeyFields.find(f => f !== CUSTOM_GROUPING_KEY) || primaryField);
-    const subVals = getFieldValue(paper, targetSubKey, extractOpts).map(safeString).filter(v => Boolean(v) && v !== '[object Object]' && v !== 'Unspecified');
-    if (subVals.length === 0) return excludeEmpty ? [] : ['Unassigned / Other'];
-    const linksMap = levelCustomGroupLinks[levelIdx] || levelCustomGroupLinks[0] || {};
-    const mapped = subVals.map(v => safeString(linksMap[v] || 'Unassigned / Other'));
-    return Array.from(new Set(mapped));
-  }
-
-  const rawVals = getFieldValue(paper, fieldKey, extractOpts).map(safeString).filter(v => Boolean(v) && v !== '[object Object]');
-  const mapObj = customCategoryMap[fieldKey];
-  const mappedList = (!mapObj || Object.keys(mapObj).length === 0) ? rawVals : rawVals.map(v => safeString(mapObj[v] || v));
-  if (parentName) {
-    return mappedList.map(v => stripParentPrefix(v, parentName));
-  }
-  return mappedList;
+  return resolveCohortFieldValue(paper, fieldKey, options);
 }
 
 export function extractNumericalValue(paper: any, numKey: string): number {

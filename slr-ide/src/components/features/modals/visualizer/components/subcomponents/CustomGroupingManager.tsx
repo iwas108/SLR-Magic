@@ -102,7 +102,9 @@ export function CustomGroupingManager() {
         const formatSubLabel = (k: string) => {
           if (k.startsWith('ext:macro:')) return `Extracted: ${k.substring(10)} [Level 1: Macro Domain]`;
           if (k.startsWith('ext:sub:')) return `Extracted: ${k.substring(8)} [Level 2: Sub-Category]`;
-          if (k.startsWith('raw:ext:')) return `Extracted: ${k.substring(8)} [Level 3: Raw Tokens]`;
+          if (k.startsWith('ext:leaf:') || k.startsWith('ext:tail:')) return `Extracted: ${k.substring(9)} [Level 3: Taxonomy Leaf / Tail]`;
+          if (k.startsWith('raw:leaf:ext:') || k.startsWith('raw:tail:ext:')) return `Extracted: ${k.substring(13)} [Raw Leaf Token (Tail after ':')]`;
+          if (k.startsWith('raw:ext:')) return `Extracted: ${k.substring(8)} [Raw Tokens (Full String)]`;
           if (k.startsWith('ext:')) return `Extracted: ${k.substring(4)} [Full Taxonomy String]`;
           return k;
         };

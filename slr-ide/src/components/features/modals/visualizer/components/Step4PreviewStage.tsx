@@ -484,7 +484,11 @@ export function Step4PreviewStage() {
       </div>
 
       {/* Scientific Export Sidebar (Collapsible in Zen Mode) */}
-      {!isZenMode && <ExportPanel />}
+      {!isZenMode && (
+        <div className="w-full lg:w-[380px] xl:w-[420px] bg-secondary/10 flex flex-col shrink-0 overflow-hidden border-l border-border">
+          <ExportPanel />
+        </div>
+      )}
     </div>
   );
 }

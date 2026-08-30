@@ -21,7 +21,7 @@ export function useVisualizerStyle() {
 
   // Global Academic Typography & Palette
   const [themePreset, setThemePreset] = useState<ThemePreset>('ieee_blue');
-  const [fontFamily, setFontFamily] = useState<FontFamily>('serif');
+  const [fontFamily, setFontFamily] = useState<FontFamily>('roboto');
   const [fontSize, setFontSize] = useState<number>(13);
 
   // Multi-Block Journal Subfigure Formatting

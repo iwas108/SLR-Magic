@@ -34,3 +34,19 @@ export function getNodeColor(
   }
   return defaultPalette[index % (defaultPalette.length || 1)] || '#3b82f6';
 }
+
+export function hexToRgba(color: string, opacity: number): string {
+  if (!color || typeof color !== 'string') return `rgba(59, 130, 246, ${opacity})`;
+  if (color.startsWith('rgba')) return color;
+  if (color.startsWith('rgb')) {
+    return color.replace('rgb', 'rgba').replace(')', `, ${opacity})`);
+  }
+  let cleanHex = color.replace(/^#/, '');
+  if (cleanHex.length === 3) cleanHex = cleanHex.split('').map(c => c + c).join('');
+  const num = parseInt(cleanHex, 16);
+  if (isNaN(num)) return `rgba(59, 130, 246, ${opacity})`;
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}

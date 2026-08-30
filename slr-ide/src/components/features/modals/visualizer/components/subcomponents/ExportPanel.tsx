@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { 
   Download, 
   Compass, 
@@ -15,7 +15,10 @@ import {
   Maximize,
   Target,
   Zap,
-  Crosshair
+  Crosshair,
+  FileCode,
+  Save,
+  Upload
 } from 'lucide-react';
 import { SLOT_METADATA } from '../../constants/layoutPresets';
 import { CHART_TYPES_INFO } from '../../constants/chartTypes';
@@ -24,7 +27,9 @@ import { resolveTargetDimensions } from '../../utils/exportUtils';
 import type { CanvasBackdrop, AspectRatioPreset, DimensionUnit, FittingAnchor } from '../../types';
 
 export function ExportPanel() {
-  const { layout, config, style, camera, canvas, workspace } = useVisualizerContext();
+  const { layout, config, style, camera, canvas, workspace, presets } = useVisualizerContext();
+  const { handleExportPreset, handleImportPreset } = presets;
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { layoutMode, activeSlot, activeSlotsList } = layout;
   const { slotsConfig, setCurrentStep } = config;
   const {
@@ -120,7 +125,7 @@ export function ExportPanel() {
   ];
 
   return (
-    <div className="w-[340px] bg-secondary/10 flex flex-col p-6 space-y-5 shrink-0 overflow-y-auto border-l border-border">
+    <div className="w-full flex flex-col p-4 sm:p-5 space-y-5 overflow-y-auto">
       <div className="flex items-center justify-between">
         <div className="space-y-0.5">
           <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -447,10 +452,55 @@ export function ExportPanel() {
         </div>
       </div>
 
-      {/* 5. Export Format & DPI Resolution */}
+      {/* 5. Customization State & Preset Storage (.json) */}
+      <div className="space-y-2.5 p-3.5 bg-card border border-border rounded-xl shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <FileCode className="w-3.5 h-3.5 text-primary" />
+              Preset & Customization State (.json)
+            </span>
+            <p className="text-[10px] text-muted-foreground">
+              Save or load your complete visualizer settings, fine-tuning, and layout directly.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleExportPreset}
+            className="py-2.5 px-3 bg-secondary/70 hover:bg-secondary text-foreground hover:text-primary border border-border rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs active:scale-[0.98]"
+            title="Export visualizer customizations and layout as a reusable .json preset file"
+          >
+            <Save className="w-3.5 h-3.5 text-primary" />
+            <span>Export .JSON</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="py-2.5 px-3 bg-secondary/70 hover:bg-secondary text-foreground hover:text-primary border border-border rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs active:scale-[0.98]"
+            title="Import and apply a previously saved .json preset file"
+          >
+            <Upload className="w-3.5 h-3.5 text-primary" />
+            <span>Import .JSON</span>
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleImportPreset}
+            className="hidden"
+          />
+        </div>
+      </div>
+
+      {/* 6. Export Format & DPI Resolution */}
       <div className="space-y-4">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-foreground block">Format</label>
+          <label className="text-xs font-bold text-foreground block">Figure Output Format</label>
           <div className="grid grid-cols-3 gap-1.5">
             <button
               type="button"

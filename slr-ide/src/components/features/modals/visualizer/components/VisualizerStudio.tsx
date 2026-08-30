@@ -16,12 +16,17 @@ import {
   Sparkles,
   ChevronRight,
   Plus,
+  Minus,
   Trash2,
+  ChevronUp,
+  ChevronDown,
+  Zap,
   Eye,
   Grid,
   FileCode,
   Table,
-  Check
+  Check,
+  Filter
 } from 'lucide-react';
 import { CHART_TYPES_INFO } from '../constants/chartTypes';
 import { THEME_PALETTES } from '../constants/themePalettes';
@@ -29,6 +34,7 @@ import { FONT_FAMILIES } from '../constants/fontFamilies';
 import { formatSubfigureLabel, SLOT_METADATA } from '../constants/layoutPresets';
 import { resolveTargetDimensions } from '../utils/exportUtils';
 import { CUSTOM_GROUPING_KEY } from '../constants/defaultConfigs';
+import { extractColonPrefixPaths } from '../utils/dataExtractor';
 import { useVisualizerContext } from '../context/VisualizerContext';
 import { SlotSwitcherBar } from './subcomponents/SlotSwitcherBar';
 import { LayoutTemplateSelector } from './subcomponents/LayoutTemplateSelector';
@@ -52,9 +58,13 @@ import {
   ScatterBubbleConfigPanel,
   GraphConfigPanel,
   GaugeConfigPanel,
-  CalendarConfigPanel
+  CalendarConfigPanel,
+  SankeyConfigPanel
 } from './subcomponents/ChartConfigPanels';
+import { RadarDataMappingPanel } from './subcomponents/RadarDataMappingPanel';
+import { FieldAutocomplete } from './subcomponents/FieldAutocomplete';
 import { ExportPanel } from './subcomponents/ExportPanel';
+import { CameraControlsOverlay } from './subcomponents/CameraControlsOverlay';
 import type { ChartType, ThemePreset, FontFamily, SlotId, MetricMode, DisplayFormatTemplate } from '../types';
 
 type StudioTab = 'data' | 'chart' | 'params' | 'style' | 'export';
@@ -63,16 +73,17 @@ function formatFieldLabel(f: string): string {
   if (f === CUSTOM_GROUPING_KEY) return '✨ [Custom Grouping Layer]';
   if (f.startsWith('ext:macro:')) return `Extracted: ${f.substring(10)} [Level 1: Macro Domain]`;
   if (f.startsWith('ext:sub:')) return `Extracted: ${f.substring(8)} [Level 2: Sub-Category]`;
-  if (f.startsWith('raw:leaf:ext:') || f.startsWith('raw:tail:ext:')) return `Extracted: ${f.substring(13)} [Level 3: Raw Leaf Token (Tail)]`;
-  if (f.startsWith('raw:ext:')) return `Extracted: ${f.substring(8)} [Level 3: Raw Tokens (Full String)]`;
+  if (f.startsWith('ext:leaf:') || f.startsWith('ext:tail:')) return `Extracted: ${f.substring(9)} [Level 3: Taxonomy Leaf / Tail]`;
+  if (f.startsWith('raw:leaf:ext:') || f.startsWith('raw:tail:ext:')) return `Extracted: ${f.substring(13)} [Raw Leaf Token (Tail after ':')]`;
+  if (f.startsWith('raw:ext:')) return `Extracted: ${f.substring(8)} [Raw Tokens (Full String)]`;
   if (f.startsWith('ext:')) return `Extracted: ${f.substring(4)} [Full Taxonomy String]`;
   return f;
 }
 
 function renderFieldOptions(availableFields: string[]) {
   const customGroupFields = availableFields.filter(f => f === CUSTOM_GROUPING_KEY);
-  const metadataFields = availableFields.filter(f => !f.startsWith('ext:') && !f.startsWith('raw:ext:') && !f.startsWith('raw:leaf:') && f !== CUSTOM_GROUPING_KEY);
-  const extractedFields = availableFields.filter(f => f.startsWith('ext:') || f.startsWith('raw:ext:') || f.startsWith('raw:leaf:'));
+  const metadataFields = availableFields.filter(f => !f.startsWith('ext:') && !f.startsWith('raw:ext:') && !f.startsWith('raw:leaf:') && !f.startsWith('raw:tail:') && f !== CUSTOM_GROUPING_KEY);
+  const extractedFields = availableFields.filter(f => f.startsWith('ext:') || f.startsWith('raw:ext:') || f.startsWith('raw:leaf:') || f.startsWith('raw:tail:'));
 
   return (
     <>
@@ -84,7 +95,7 @@ function renderFieldOptions(availableFields: string[]) {
         </optgroup>
       )}
       {extractedFields.length > 0 && (
-        <optgroup label="✨ Extracted Variables (3-Tier Taxonomy: Macro / Subcategory / Raw Leaf)">
+        <optgroup label="✨ Extracted Variables (3-Tier Taxonomy: Macro / Subcategory / Leaf Tail / Raw)">
           {extractedFields.map(f => (
             <option key={f} value={f}>{formatFieldLabel(f)}</option>
           ))}
@@ -119,6 +130,8 @@ export function VisualizerStudio() {
     setSankeyFields,
     sankeyMaxNodes,
     setSankeyMaxNodes,
+    sankeyLevelPathFilters,
+    setSankeyLevelPathFilters,
     tailLabelStyle,
     setTailLabelStyle,
     limitCategories,
@@ -198,6 +211,8 @@ export function VisualizerStudio() {
     setPanX,
     panY,
     setPanY,
+    tiltAngle,
+    rotationAngle,
     containerPadding,
     setContainerPadding,
     showSafeGuides,
@@ -216,7 +231,7 @@ export function VisualizerStudio() {
     setInspectedSlot
   } = workspace;
 
-  const { availableFields, numericalFields, detectedCategories } = data;
+  const { availableFields, discoveredVariables, numericalFields, detectedCategories } = data;
 
   // Active Inspector Tab
   const [activeTab, setActiveTab] = useState<StudioTab>('data');
@@ -224,6 +239,16 @@ export function VisualizerStudio() {
   const [showCustomGroupingModal, setShowCustomGroupingModal] = useState<boolean>(false);
   const [showBreakdownTable, setShowBreakdownTable] = useState<boolean>(false);
   const [showCrossTabModal, setShowCrossTabModal] = useState<boolean>(false);
+
+  // Detect unique colon prefix paths for each active hierarchy level
+  const levelColonPaths = useMemo(() => {
+    return sankeyFields.map(f => {
+      return extractColonPrefixPaths(papers, f, {
+        useUmbrellanizer,
+        umbrellanizerMap: props.umbrellanizerMap
+      });
+    });
+  }, [papers, sankeyFields, useUmbrellanizer, props.umbrellanizerMap]);
 
   const stageWrapperRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({ width: 800, height: 500 });
@@ -477,96 +502,111 @@ export function VisualizerStudio() {
           ref={stageWrapperRef} 
           className="flex-1 w-full h-full flex items-center justify-center relative overflow-hidden select-none"
         >
-          <div
-            style={fittedStageStyle}
-            className={`relative transition-all duration-150 flex flex-col rounded-xl overflow-hidden ${
-              showPanelBorders ? 'border border-border/80 shadow-md' : 'shadow-xs'
-            } ${getBackdropClasses()}`}
+          {/* 3D Perspective Pitch, Translation & Rotation Transform Wrapper */}
+          <div 
+            className="w-full h-full flex items-center justify-center transition-transform duration-150 ease-out overflow-hidden relative"
+            style={{
+              transform: `perspective(1200px) translate(${panX}%, ${panY}%) rotateX(${tiltAngle}deg) rotateZ(${rotationAngle}deg)`,
+              transformOrigin: 'center center'
+            }}
           >
-            {/* Safe Margin Guide Overlay */}
-            {showSafeGuides && (
-              <div className="absolute inset-2 border border-dashed border-sky-400/40 pointer-events-none z-30 flex items-start justify-end p-1">
-                <span className="text-[9px] font-mono text-sky-500/80 bg-sky-500/10 px-1 py-0.2 rounded">
-                  Print Margin Safe ({aspectLabel})
-                </span>
-              </div>
-            )}
-
-            {/* Main Figure Header Title */}
-            {(showChartTitle || showChartSubtitle) && (
-              <div className="p-3 text-center border-b border-border/40 shrink-0 select-text z-20">
-                {showChartTitle && (
-                  <h2 
-                    className="font-bold tracking-tight text-foreground"
-                    style={{ fontSize: `${fontSize + 3}px` }}
-                  >
-                    {chartTitle || 'Systematic Review Synthesis'}
-                  </h2>
-                )}
-                {showChartSubtitle && (
-                  <p 
-                    className="text-muted-foreground mt-0.5"
-                    style={{ fontSize: `${Math.max(10, fontSize - 2)}px` }}
-                  >
-                    {chartSubtitle}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Composite Multi-Slot Canvas Body */}
-            <div 
-              className={`flex-1 min-h-0 relative ${getGridContainerClasses()}`}
-              style={{ gap: `${panelGutter}px`, padding: `${panelGutter / 2}px` }}
+            <div
+              style={{
+                ...fittedStageStyle,
+                padding: `${containerPadding}px`
+              }}
+              className={`relative transition-all duration-150 flex flex-col rounded-xl overflow-hidden ${
+                showPanelBorders ? 'border border-border/80 shadow-md' : 'shadow-xs'
+              } ${getBackdropClasses()}`}
             >
-              {activeSlotsList.map((slotId, index) => {
-                const isSelected = activeSlot === slotId;
-                const slotMeta = SLOT_METADATA[slotId];
-                const slotCfg = slotsConfig[slotId] || currentSlotConfig;
-                const chartInfo = CHART_TYPES_INFO[slotCfg?.chartType || 'bar_vertical'];
-                const subfigureLabel = formatSubfigureLabel(index, subfigureLabelStyle);
+              {/* Safe Margin Guide Overlay */}
+              {showSafeGuides && (
+                <div className="absolute inset-2 border border-dashed border-sky-400/40 pointer-events-none z-30 flex items-start justify-end p-1">
+                  <span className="text-[9px] font-mono text-sky-500/80 bg-sky-500/10 px-1 py-0.2 rounded">
+                    Print Margin Safe ({aspectLabel})
+                  </span>
+                </div>
+              )}
 
-                return (
-                  <div
-                    key={slotId}
-                    onClick={() => setActiveSlot(slotId)}
-                    className={`relative flex flex-col flex-1 min-h-0 rounded-lg overflow-hidden transition-all group ${getSlotSpanClasses(slotId)} ${
-                      showPanelBorders ? 'border border-border/60' : ''
-                    } ${isSelected && layoutMode !== 'single' ? 'ring-2 ring-primary shadow-sm' : ''}`}
-                  >
-                    {/* Subfigure Letter Badge & Sub-title Header */}
-                    {layoutMode !== 'single' && (
-                      <div className="px-2.5 py-1 bg-secondary/30 border-b border-border/40 flex items-center justify-between z-10">
-                        <div className="flex items-center gap-1.5">
-                          {subfigureLabel && (
-                            <span className="font-black text-xs text-primary px-1.5 py-0.2 rounded bg-primary/10 border border-primary/20">
-                              {subfigureLabel}
+              {/* Main Figure Header Title */}
+              {(showChartTitle || showChartSubtitle) && (
+                <div className="p-3 text-center border-b border-border/40 shrink-0 select-text z-20">
+                  {showChartTitle && (
+                    <h2 
+                      className="font-bold tracking-tight text-foreground"
+                      style={{ fontSize: `${fontSize + 3}px` }}
+                    >
+                      {chartTitle || 'Systematic Review Synthesis'}
+                    </h2>
+                  )}
+                  {showChartSubtitle && (
+                    <p 
+                      className="text-muted-foreground mt-0.5"
+                      style={{ fontSize: `${Math.max(10, fontSize - 2)}px` }}
+                    >
+                      {chartSubtitle}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Composite Multi-Slot Canvas Body */}
+              <div 
+                className={`flex-1 min-h-0 relative ${getGridContainerClasses()}`}
+                style={{ gap: `${panelGutter}px`, padding: `${panelGutter / 2}px` }}
+              >
+                {activeSlotsList.map((slotId, index) => {
+                  const isSelected = activeSlot === slotId;
+                  const slotMeta = SLOT_METADATA[slotId];
+                  const slotCfg = slotsConfig[slotId] || currentSlotConfig;
+                  const chartInfo = CHART_TYPES_INFO[slotCfg?.chartType || 'bar_vertical'];
+                  const subfigureLabel = formatSubfigureLabel(index, subfigureLabelStyle);
+
+                  return (
+                    <div
+                      key={slotId}
+                      onClick={() => setActiveSlot(slotId)}
+                      className={`relative flex flex-col flex-1 min-h-0 rounded-lg overflow-hidden transition-all group ${getSlotSpanClasses(slotId)} ${
+                        showPanelBorders ? 'border border-border/60' : ''
+                      } ${isSelected && layoutMode !== 'single' ? 'ring-2 ring-primary shadow-sm' : ''}`}
+                    >
+                      {/* Subfigure Letter Badge & Sub-title Header */}
+                      {layoutMode !== 'single' && (
+                        <div className="px-2.5 py-1 bg-secondary/30 border-b border-border/40 flex items-center justify-between z-10">
+                          <div className="flex items-center gap-1.5">
+                            {subfigureLabel && (
+                              <span className="font-black text-xs text-primary px-1.5 py-0.2 rounded bg-primary/10 border border-primary/20">
+                                {subfigureLabel}
+                              </span>
+                            )}
+                            <span className="text-[11px] font-bold text-foreground truncate max-w-[160px]">
+                              {slotCfg?.subTitle || slotMeta.name}
                             </span>
-                          )}
-                          <span className="text-[11px] font-bold text-foreground truncate max-w-[160px]">
-                            {slotCfg?.subTitle || slotMeta.name}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground font-mono">
+                            {chartInfo?.name.split(' (')[0]}
                           </span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          {chartInfo?.name.split(' (')[0]}
-                        </span>
-                      </div>
-                    )}
+                      )}
 
-                    {/* ECharts Canvas Container */}
-                    <div
-                      ref={setSlotDomRef(slotId)}
-                      className="w-full h-full flex-1 min-h-[140px]"
-                      style={{
-                        transform: `scale(${chartScale}) translate(${panX + (fitOffsetX ?? 0)}px, ${panY + (fitOffsetY ?? 0)}px)`,
-                        transformOrigin: 'center center'
-                      }}
-                    />
-                  </div>
-                );
-              })}
+                      {/* ECharts Canvas Container */}
+                      <div
+                        ref={setSlotDomRef(slotId)}
+                        className="w-full h-full flex-1 min-h-[140px]"
+                        style={{
+                          transform: `scale(${chartScale}) translate(${fitOffsetX ?? 0}px, ${fitOffsetY ?? 0}px)`,
+                          transformOrigin: 'center center'
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
+
+          {/* Floating Camera & Pan Overlay Control Pad */}
+          <CameraControlsOverlay />
         </div>
       </div>
 
@@ -659,8 +699,11 @@ export function VisualizerStudio() {
           {activeTab === 'data' && (
             <div className="space-y-4">
               
+              {/* Radar Multi-Variable / Boundary Paradox Mapping */}
+              {chartType === 'radar' && <RadarDataMappingPanel />}
+
               {/* Primary Categorical Variable */}
-              {['bar_vertical', 'bar_horizontal', 'stacked_bar', 'clustered_bar', 'line', 'pie_donut', 'radar', 'funnel', 'heatmap', 'graph', 'boxplot'].includes(chartType) && (
+              {['bar_vertical', 'bar_horizontal', 'stacked_bar', 'clustered_bar', 'line', 'pie_donut', 'funnel', 'heatmap', 'graph', 'boxplot'].includes(chartType) && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-foreground flex items-center justify-between">
                     <span>Primary Variable / X-Axis Category:</span>
@@ -675,13 +718,12 @@ export function VisualizerStudio() {
                       </button>
                     )}
                   </label>
-                  <select
+                  <FieldAutocomplete
                     value={primaryField}
-                    onChange={(e) => setPrimaryField(e.target.value)}
-                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary shadow-xs"
-                  >
-                    {renderFieldOptions(availableFields)}
-                  </select>
+                    onChange={(newVal) => setPrimaryField(newVal)}
+                    discoveredVariables={discoveredVariables}
+                    availableFields={availableFields}
+                  />
                 </div>
               )}
 
@@ -703,62 +745,283 @@ export function VisualizerStudio() {
                       </button>
                     )}
                   </div>
-                  <select
+                  <FieldAutocomplete
                     value={secondaryField}
-                    onChange={(e) => setSecondaryField(e.target.value)}
-                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary shadow-xs"
-                  >
-                    {renderFieldOptions(availableFields)}
-                  </select>
+                    onChange={(newVal) => setSecondaryField(newVal)}
+                    discoveredVariables={discoveredVariables}
+                    availableFields={availableFields}
+                  />
                 </div>
               )}
 
               {/* Multi-Level Hierarchy Builder (Sankey, Treemap, Sunburst) */}
               {['sankey', 'treemap', 'sunburst'].includes(chartType) && (
-                <div className="space-y-2 p-3 bg-secondary/30 rounded-2xl border border-border/80">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5" />
-                      Multi-Level Hierarchy Rings / Depth
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setSankeyFields([...sankeyFields, availableFields[0] || 'Year'])}
-                      className="px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold flex items-center gap-1 transition-colors"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Add Level
-                    </button>
+                <div className="space-y-2.5 p-3 bg-secondary/30 rounded-2xl border border-border/80">
+                  {/* Header with Title & Level Operations */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5" />
+                        Multi-Level Hierarchy Rings / Depth
+                      </label>
+                      <span className="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-bold">
+                        {sankeyFields.length} {sankeyFields.length === 1 ? 'Level' : 'Levels'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {/* Remove Last Level Button */}
+                      <button
+                        type="button"
+                        disabled={sankeyFields.length <= (chartType === 'sankey' ? 2 : 1)}
+                        onClick={() => {
+                          if (sankeyFields.length > (chartType === 'sankey' ? 2 : 1)) {
+                            setSankeyFields(sankeyFields.slice(0, sankeyFields.length - 1));
+                          }
+                        }}
+                        className="px-2 py-0.5 rounded-md bg-secondary hover:bg-secondary/80 text-foreground border border-border text-[10px] font-bold flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title={
+                          sankeyFields.length <= (chartType === 'sankey' ? 2 : 1)
+                            ? `Minimum ${chartType === 'sankey' ? '2 levels' : '1 level'} required for ${chartType}`
+                            : 'Remove the outermost/last hierarchy level'
+                        }
+                      >
+                        <Minus className="w-3 h-3" />
+                        <span>Remove Level</span>
+                      </button>
+
+                      {/* Add Level Button */}
+                      <button
+                        type="button"
+                        disabled={sankeyFields.length >= 8}
+                        onClick={() => setSankeyFields([...sankeyFields, availableFields[0] || 'Year'])}
+                        className="px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[10px] font-bold flex items-center gap-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        title="Add an additional deeper hierarchy level / ring"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add Level</span>
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    {sankeyFields.map((field, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center justify-center text-[10px] font-black shrink-0">
-                          L{idx + 1}
-                        </span>
-                        <select
-                          value={field}
-                          onChange={(e) => {
-                            const next = [...sankeyFields];
-                            next[idx] = e.target.value;
-                            setSankeyFields(next);
-                          }}
-                          className="flex-1 bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
-                        >
-                          {renderFieldOptions(availableFields)}
-                        </select>
-                        {sankeyFields.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => setSankeyFields(sankeyFields.filter((_, i) => i !== idx))}
-                            className="p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                  {/* 1-Click Auto-Expand 3-Tier Hierarchy Preset (if macro variables exist) */}
+                  {availableFields.some((f: string) => f.startsWith('ext:macro:')) && (
+                    <div className="flex items-center gap-1.5 bg-card/60 border border-amber-500/30 rounded-xl px-2.5 py-1.5 shadow-xs">
+                      <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20 shrink-0" />
+                      <span className="text-[10.5px] font-bold text-amber-600 dark:text-amber-400 shrink-0">
+                        ⚡ Quick 3-Tier:
+                      </span>
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const k = e.target.value;
+                            setSankeyFields([
+                              `ext:macro:${k}`,
+                              `ext:sub:${k}`,
+                              `ext:leaf:${k}`
+                            ]);
+                            e.target.value = '';
+                          }
+                        }}
+                        className="flex-1 bg-secondary/60 border border-border rounded-lg px-2 py-0.5 text-[11px] font-bold text-foreground focus:outline-none focus:border-primary"
+                      >
+                        <option value="" disabled>Select Extracted Variable...</option>
+                        {Array.from(new Set(
+                          availableFields
+                            .filter((f: string) => f.startsWith('ext:macro:'))
+                            .map((f: string) => f.substring(10))
+                        )).map((k: string) => (
+                          <option key={k} value={k}>{k}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Level Rows with Move Up, Move Down, and Dedicated Remove Button */}
+                  <div className="space-y-1.5">
+                    {sankeyFields.map((field, idx) => {
+                      const minLevels = chartType === 'sankey' ? 2 : 1;
+                      const canDelete = sankeyFields.length > minLevels;
+                      const roleLabel = idx === 0 
+                        ? (chartType === 'sankey' ? 'Source / Root' : 'Root Ring') 
+                        : idx === sankeyFields.length - 1 
+                        ? (chartType === 'sankey' ? 'Target / Leaf' : 'Outer Ring') 
+                        : 'Sub-Category';
+
+                      const availablePaths = levelColonPaths[idx] || { fullPaths: [], segments: [] };
+                      const hasPaths = (availablePaths.fullPaths?.length || 0) > 0 || (availablePaths.segments?.length || 0) > 0;
+
+                      return (
+                        <div key={idx} className="space-y-1 bg-card/40 p-1.5 rounded-xl border border-border/60">
+                          <div className="flex items-center gap-1.5">
+                            {/* Level Badge */}
+                            <span 
+                              className="w-6 h-6 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center text-[10px] font-black shrink-0"
+                              title={`Level ${idx + 1}: ${roleLabel}`}
+                            >
+                              L{idx + 1}
+                            </span>
+
+                            {/* Variable Autocomplete Combobox */}
+                            <div className="flex-1 min-w-0">
+                              <FieldAutocomplete
+                                value={field}
+                                onChange={(newVal) => {
+                                  const next = [...sankeyFields];
+                                  next[idx] = newVal;
+                                  setSankeyFields(next);
+                                  if (sankeyLevelPathFilters[idx]) {
+                                    const nextFilters = { ...sankeyLevelPathFilters };
+                                    delete nextFilters[idx];
+                                    setSankeyLevelPathFilters(nextFilters);
+                                  }
+                                }}
+                                discoveredVariables={discoveredVariables}
+                                availableFields={availableFields}
+                                size="sm"
+                                showIntegrityWarning={false}
+                              />
+                            </div>
+
+                            {/* Reorder Buttons: Move Up / Move Down */}
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => {
+                                  if (idx > 0) {
+                                    const next = [...sankeyFields];
+                                    const temp = next[idx - 1];
+                                    next[idx - 1] = next[idx];
+                                    next[idx] = temp;
+                                    setSankeyFields(next);
+
+                                    const nextFilters = { ...sankeyLevelPathFilters };
+                                    const filterA = nextFilters[idx - 1];
+                                    const filterB = nextFilters[idx];
+                                    if (filterB) nextFilters[idx - 1] = filterB; else delete nextFilters[idx - 1];
+                                    if (filterA) nextFilters[idx] = filterA; else delete nextFilters[idx];
+                                    setSankeyLevelPathFilters(nextFilters);
+                                  }
+                                }}
+                                className="p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                title="Move level up (towards root/inner ring)"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === sankeyFields.length - 1}
+                                onClick={() => {
+                                  if (idx < sankeyFields.length - 1) {
+                                    const next = [...sankeyFields];
+                                    const temp = next[idx + 1];
+                                    next[idx + 1] = next[idx];
+                                    next[idx] = temp;
+                                    setSankeyFields(next);
+
+                                    const nextFilters = { ...sankeyLevelPathFilters };
+                                    const filterA = nextFilters[idx];
+                                    const filterB = nextFilters[idx + 1];
+                                    if (filterB) nextFilters[idx] = filterB; else delete nextFilters[idx];
+                                    if (filterA) nextFilters[idx + 1] = filterA; else delete nextFilters[idx + 1];
+                                    setSankeyLevelPathFilters(nextFilters);
+                                  }
+                                }}
+                                className="p-1 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                                title="Move level down (towards outer ring/leaf)"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Dedicated Remove Button */}
+                            <button
+                              type="button"
+                              disabled={!canDelete}
+                              onClick={() => {
+                                if (canDelete) {
+                                  setSankeyFields(sankeyFields.filter((_, i) => i !== idx));
+                                  const nextFilters = { ...sankeyLevelPathFilters };
+                                  delete nextFilters[idx];
+                                  setSankeyLevelPathFilters(nextFilters);
+                                }
+                              }}
+                              className={`p-1 rounded-md transition-colors shrink-0 ${
+                                canDelete
+                                  ? 'hover:bg-destructive/10 text-muted-foreground hover:text-destructive'
+                                  : 'opacity-30 cursor-not-allowed text-muted-foreground'
+                              }`}
+                              title={
+                                canDelete
+                                  ? `Remove Level ${idx + 1} (${formatFieldLabel(field)})`
+                                  : `Cannot remove: minimum ${minLevels} level(s) required for ${chartType}`
+                              }
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Optional Colon-Separated Path Filter Selector */}
+                          {hasPaths && (
+                            <div className="flex items-center gap-1.5 pt-1 border-t border-border/40 pl-7 text-[10.5px]">
+                              <span className="text-muted-foreground font-semibold flex items-center gap-1 shrink-0">
+                                <Filter className="w-3 h-3 text-primary/70" />
+                                <span>Filter Path:</span>
+                              </span>
+                              <select
+                                value={sankeyLevelPathFilters[idx] || ''}
+                                onChange={(e) => {
+                                  const nextFilters = { ...sankeyLevelPathFilters };
+                                  if (e.target.value) {
+                                    nextFilters[idx] = e.target.value;
+                                  } else {
+                                    delete nextFilters[idx];
+                                  }
+                                  setSankeyLevelPathFilters(nextFilters);
+                                }}
+                                className="flex-1 bg-secondary/40 border border-border/70 rounded px-2 py-0.5 text-[10.5px] font-bold text-foreground focus:outline-none focus:border-primary truncate"
+                              >
+                                <option value="">All Paths (Full Hierarchy Tree)</option>
+                                {availablePaths.segments && availablePaths.segments.length > 0 && (
+                                  <optgroup label="🌟 Cross-Parent Segments (Includes All Parents)">
+                                    {availablePaths.segments.map(seg => (
+                                      <option key={`seg:${seg}`} value={`* : ${seg}`}>
+                                        Segment: {seg} (All Parents)
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {availablePaths.fullPaths && availablePaths.fullPaths.length > 0 && (
+                                  <optgroup label="🌳 Specific Hierarchy Branches">
+                                    {availablePaths.fullPaths.map(p => (
+                                      <option key={`path:${p}`} value={p}>
+                                        Branch: {p}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                              </select>
+                              {sankeyLevelPathFilters[idx] && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextFilters = { ...sankeyLevelPathFilters };
+                                    delete nextFilters[idx];
+                                    setSankeyLevelPathFilters(nextFilters);
+                                  }}
+                                  className="text-[10px] text-primary hover:underline font-bold shrink-0 ml-1"
+                                  title="Clear path filter"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1062,6 +1325,7 @@ export function VisualizerStudio() {
               {chartType === 'stacked_bar' && <StackedBarConfigPanel />}
               {chartType === 'line' && <LineConfigPanel />}
               {chartType === 'pie_donut' && <PieDonutConfigPanel />}
+              {chartType === 'sankey' && <SankeyConfigPanel />}
               {chartType === 'sunburst' && <SunburstLevelConfigPanel />}
               {chartType === 'treemap' && <TreemapConfigPanel />}
               {chartType === 'heatmap' && <HeatmapConfigPanel />}

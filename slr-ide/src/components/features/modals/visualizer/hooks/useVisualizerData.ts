@@ -14,6 +14,7 @@ import {
 } from '../utils/dataExtractor';
 import { filterValuesForParent } from '../generators/hierarchicalGenerators';
 import { balanceQuotasToHundred } from '../utils/quotaBalancer';
+import { discoverCohortVariables, DiscoveredVariable } from '@/lib/services/cohort-data-source';
 import type { 
   SlotId,
   SlotConfig, 
@@ -81,8 +82,25 @@ export function useVisualizerData(params: {
     updateActiveSlot({ levelCustomGroupLinks: nextVal });
   }, [levelCustomGroupLinks, updateActiveSlot]);
 
+  // Discover full variable metadata across active cohort
+  const discoveredResult = useMemo(() => {
+    return discoverCohortVariables(papers, {
+      useUmbrellanizer,
+      umbrellanizerMap,
+      splitMultiValues,
+      excludeEmpty
+    });
+  }, [papers, useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty]);
+
+  const discoveredVariables = discoveredResult.variables;
+  const discoveredVariablesByKey = discoveredResult.variablesByKey;
+
   // Available data fields
   const availableFields = useMemo(() => {
+    if (discoveredVariables.length > 0) {
+      return discoveredVariables.map((v: DiscoveredVariable) => v.key);
+    }
+
     const fieldsSet = new Set<string>([
       'Paper_ID',
       'Title',
@@ -96,61 +114,8 @@ export function useVisualizerData(params: {
       'Overall_QA'
     ]);
 
-    papers.forEach(p => {
-      if (p.manual_extracted_data || p.ai_extracted_data) {
-        try {
-          const str = (p.manual_stage || 0) >= (p.ai_stage || 0)
-            ? (p.manual_extracted_data || p.ai_extracted_data)
-            : (p.ai_extracted_data || p.manual_extracted_data);
-          const parsed = typeof str === 'string' ? JSON.parse(str) : str;
-          const extObj = parsed.extracted_data || parsed;
-          Object.keys(extObj).forEach(k => {
-            if (!k.startsWith('_') && k !== 'logic_trace' && k !== '_scientist_logic_trace') {
-              fieldsSet.add(`ext:macro:${k}`);
-              fieldsSet.add(`ext:sub:${k}`);
-              fieldsSet.add(`raw:leaf:ext:${k}`);
-              fieldsSet.add(`raw:ext:${k}`);
-              fieldsSet.add(`ext:${k}`);
-            }
-          });
-        } catch (e) {}
-      }
-    });
-
-    const rankType = (s: string): number => {
-      if (s.startsWith('ext:macro:')) return 1;
-      if (s.startsWith('ext:sub:')) return 2;
-      if (s.startsWith('raw:leaf:ext:') || s.startsWith('raw:tail:ext:')) return 3;
-      if (s.startsWith('raw:ext:')) return 4;
-      if (s.startsWith('ext:')) return 5;
-      return 0;
-    };
-
-    const getBase = (s: string): string => {
-      if (s.startsWith('ext:macro:')) return s.substring(10);
-      if (s.startsWith('ext:sub:')) return s.substring(8);
-      if (s.startsWith('raw:leaf:ext:') || s.startsWith('raw:tail:ext:')) return s.substring(13);
-      if (s.startsWith('raw:ext:')) return s.substring(8);
-      if (s.startsWith('ext:')) return s.substring(4);
-      return s;
-    };
-
-    const sorted = Array.from(fieldsSet).sort((a, b) => {
-      const isExtA = a.startsWith('ext:') || a.startsWith('raw:ext:') || a.startsWith('raw:leaf:ext:');
-      const isExtB = b.startsWith('ext:') || b.startsWith('raw:ext:') || b.startsWith('raw:leaf:ext:');
-      if (isExtA !== isExtB) {
-        return isExtA ? 1 : -1; // Standard metadata fields first
-      }
-      const baseA = getBase(a);
-      const baseB = getBase(b);
-      if (baseA === baseB) {
-        return rankType(a) - rankType(b);
-      }
-      return baseA.localeCompare(baseB);
-    });
-
-    return [CUSTOM_GROUPING_KEY, ...sorted];
-  }, [papers]);
+    return [CUSTOM_GROUPING_KEY, ...Array.from(fieldsSet)];
+  }, [discoveredVariables]);
 
   const numericalFields = useMemo(() => {
     return ['Overall_QA', 'citation_count', 'Year'];
@@ -361,6 +326,8 @@ export function useVisualizerData(params: {
     levelCustomGroupLinks,
     setLevelCustomGroupLinks,
     availableFields,
+    discoveredVariables,
+    discoveredVariablesByKey,
     numericalFields,
     detectedCategories,
     realDataBreakdown,

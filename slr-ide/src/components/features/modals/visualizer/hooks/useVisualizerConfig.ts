@@ -168,6 +168,87 @@ export function useVisualizerConfig(params: {
   const sankeyRightPadding = currentSlotConfig.sankeyRightPadding;
   const setSankeyRightPadding = useCallback((v: number) => updateActiveSlot({ sankeyRightPadding: v }), [updateActiveSlot]);
 
+  const sankeyTopPadding = currentSlotConfig.sankeyTopPadding;
+  const setSankeyTopPadding = useCallback((v: number) => updateActiveSlot({ sankeyTopPadding: v }), [updateActiveSlot]);
+
+  const sankeyBottomPadding = currentSlotConfig.sankeyBottomPadding;
+  const setSankeyBottomPadding = useCallback((v: number) => updateActiveSlot({ sankeyBottomPadding: v }), [updateActiveSlot]);
+
+  const sankeyOrient = currentSlotConfig.sankeyOrient || 'horizontal';
+  const setSankeyOrient = useCallback((v: 'horizontal' | 'vertical') => updateActiveSlot({ sankeyOrient: v }), [updateActiveSlot]);
+
+  const sankeyNodeAlign = currentSlotConfig.sankeyNodeAlign || 'justify';
+  const setSankeyNodeAlign = useCallback((v: 'justify' | 'left' | 'right') => updateActiveSlot({ sankeyNodeAlign: v }), [updateActiveSlot]);
+
+  const sankeyCurveness = currentSlotConfig.sankeyCurveness ?? 0.5;
+  const setSankeyCurveness = useCallback((v: number) => updateActiveSlot({ sankeyCurveness: v }), [updateActiveSlot]);
+
+  const sankeyLinkColorMode = currentSlotConfig.sankeyLinkColorMode || 'gradient';
+  const setSankeyLinkColorMode = useCallback((v: 'gradient' | 'source' | 'target') => updateActiveSlot({ sankeyLinkColorMode: v }), [updateActiveSlot]);
+
+  const sankeyLinkOpacity = currentSlotConfig.sankeyLinkOpacity ?? 45;
+  const setSankeyLinkOpacity = useCallback((v: number) => updateActiveSlot({ sankeyLinkOpacity: v }), [updateActiveSlot]);
+
+  const sankeyNodeBorderRadius = currentSlotConfig.sankeyNodeBorderRadius ?? 2;
+  const setSankeyNodeBorderRadius = useCallback((v: number) => updateActiveSlot({ sankeyNodeBorderRadius: v }), [updateActiveSlot]);
+
+  const sankeyNodeBorderWidth = currentSlotConfig.sankeyNodeBorderWidth ?? 1;
+  const setSankeyNodeBorderWidth = useCallback((v: number) => updateActiveSlot({ sankeyNodeBorderWidth: v }), [updateActiveSlot]);
+
+  const sankeyLayoutIterations = currentSlotConfig.sankeyLayoutIterations ?? 32;
+  const setSankeyLayoutIterations = useCallback((v: number) => updateActiveSlot({ sankeyLayoutIterations: v }), [updateActiveSlot]);
+
+  const sankeyDraggable = currentSlotConfig.sankeyDraggable ?? true;
+  const setSankeyDraggable = useCallback((v: boolean) => updateActiveSlot({ sankeyDraggable: v }), [updateActiveSlot]);
+
+  const sankeyLabelPosition = currentSlotConfig.sankeyLabelPosition || 'auto';
+  const setSankeyLabelPosition = useCallback((v: 'auto' | 'left' | 'right' | 'inside' | 'top' | 'bottom') => updateActiveSlot({ sankeyLabelPosition: v }), [updateActiveSlot]);
+
+  const sankeyLabelDistance = currentSlotConfig.sankeyLabelDistance ?? 6;
+  const setSankeyLabelDistance = useCallback((v: number) => updateActiveSlot({ sankeyLabelDistance: v }), [updateActiveSlot]);
+
+  const sankeyLabelOverflow = currentSlotConfig.sankeyLabelOverflow || 'break';
+  const setSankeyLabelOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ sankeyLabelOverflow: v }), [updateActiveSlot]);
+
+  const sankeyMaxLabelWidth = currentSlotConfig.sankeyMaxLabelWidth ?? 120;
+  const setSankeyMaxLabelWidth = useCallback((v: number) => updateActiveSlot({ sankeyMaxLabelWidth: v }), [updateActiveSlot]);
+
+  const sankeyLabelFontSize = currentSlotConfig.sankeyLabelFontSize;
+  const setSankeyLabelFontSize = useCallback((v: number | undefined) => updateActiveSlot({ sankeyLabelFontSize: v }), [updateActiveSlot]);
+
+  const sankeyLabelRotate = currentSlotConfig.sankeyLabelRotate ?? 0;
+  const setSankeyLabelRotate = useCallback((v: number) => updateActiveSlot({ sankeyLabelRotate: v }), [updateActiveSlot]);
+
+  const sankeyEmphasisFocus = currentSlotConfig.sankeyEmphasisFocus || 'adjacency';
+  const setSankeyEmphasisFocus = useCallback((v: 'adjacency' | 'trajectory' | 'series' | 'none') => updateActiveSlot({ sankeyEmphasisFocus: v }), [updateActiveSlot]);
+
+  const sankeyLevelLabelFormats = currentSlotConfig.sankeyLevelLabelFormats || {};
+  const setSankeyLevelLabelFormats = useCallback((v: Record<number, DisplayFormatTemplate>) => updateActiveSlot({ sankeyLevelLabelFormats: v }), [updateActiveSlot]);
+
+  const sankeyLevelNodeGaps = currentSlotConfig.sankeyLevelNodeGaps || {};
+  const setSankeyLevelNodeGaps = useCallback((v: Record<number, number>) => updateActiveSlot({ sankeyLevelNodeGaps: v }), [updateActiveSlot]);
+
+  const sankeyLevelLabelDistances = currentSlotConfig.sankeyLevelLabelDistances || {};
+  const setSankeyLevelLabelDistances = useCallback((v: Record<number, number>) => updateActiveSlot({ sankeyLevelLabelDistances: v }), [updateActiveSlot]);
+
+  const sankeyLevelNodeWidths = currentSlotConfig.sankeyLevelNodeWidths || {};
+  const setSankeyLevelNodeWidths = useCallback((v: Record<number, number>) => updateActiveSlot({ sankeyLevelNodeWidths: v }), [updateActiveSlot]);
+
+  const sankeyLevelPathFilters = currentSlotConfig.sankeyLevelPathFilters || {};
+  const setSankeyLevelPathFilters = useCallback((v: Record<number, string>) => updateActiveSlot({ sankeyLevelPathFilters: v }), [updateActiveSlot]);
+
+  const sankeySort = currentSlotConfig.sankeySort || 'desc';
+  const setSankeySort = useCallback((v: 'desc' | 'asc' | 'alpha' | 'none') => updateActiveSlot({ sankeySort: v }), [updateActiveSlot]);
+
+  const sankeyLabelLineHeight = currentSlotConfig.sankeyLabelLineHeight ?? 14;
+  const setSankeyLabelLineHeight = useCallback((v: number) => updateActiveSlot({ sankeyLabelLineHeight: v }), [updateActiveSlot]);
+
+  const sankeyLabelFontWeight = currentSlotConfig.sankeyLabelFontWeight || '600';
+  const setSankeyLabelFontWeight = useCallback((v: 'normal' | 'bold' | '500' | '600' | '700' | '800') => updateActiveSlot({ sankeyLabelFontWeight: v }), [updateActiveSlot]);
+
+  const sankeyLabelColor = currentSlotConfig.sankeyLabelColor || '';
+  const setSankeyLabelColor = useCallback((v: string) => updateActiveSlot({ sankeyLabelColor: v }), [updateActiveSlot]);
+
   const bubbleScale = currentSlotConfig.bubbleScale;
   const setBubbleScale = useCallback((v: number) => updateActiveSlot({ bubbleScale: v }), [updateActiveSlot]);
 
@@ -394,14 +475,101 @@ export function useVisualizerConfig(params: {
   const radarShape = currentSlotConfig.radarShape || 'polygon';
   const setRadarShape = useCallback((v: 'polygon' | 'circle') => updateActiveSlot({ radarShape: v }), [updateActiveSlot]);
 
-  const radarAreaOpacity = currentSlotConfig.radarAreaOpacity ?? 25;
+  const radarAreaOpacity = currentSlotConfig.radarAreaOpacity ?? 28;
   const setRadarAreaOpacity = useCallback((v: number) => updateActiveSlot({ radarAreaOpacity: v }), [updateActiveSlot]);
 
-  const radarLineWidth = currentSlotConfig.radarLineWidth ?? 2;
+  const radarLineWidth = currentSlotConfig.radarLineWidth ?? 2.5;
   const setRadarLineWidth = useCallback((v: number) => updateActiveSlot({ radarLineWidth: v }), [updateActiveSlot]);
 
   const radarSplitNumber = currentSlotConfig.radarSplitNumber ?? 5;
   const setRadarSplitNumber = useCallback((v: number) => updateActiveSlot({ radarSplitNumber: v }), [updateActiveSlot]);
+
+  const radarMode = currentSlotConfig.radarMode || 'multi_variable';
+  const setRadarMode = useCallback((v: 'multi_variable' | 'qa_breakdown') => updateActiveSlot({ radarMode: v }), [updateActiveSlot]);
+
+  const radarVariables = currentSlotConfig.radarVariables || [];
+  const setRadarVariables = useCallback((v: string[]) => updateActiveSlot({ radarVariables: v }), [updateActiveSlot]);
+
+  const radarVariableAliases = currentSlotConfig.radarVariableAliases || {};
+  const setRadarVariableAliases = useCallback((v: Record<string, string>) => updateActiveSlot({ radarVariableAliases: v }), [updateActiveSlot]);
+
+  const radarVariableTargets = currentSlotConfig.radarVariableTargets || {};
+  const setRadarVariableTargets = useCallback((v: Record<string, number>) => updateActiveSlot({ radarVariableTargets: v }), [updateActiveSlot]);
+
+  const radarRadius = currentSlotConfig.radarRadius ?? 65;
+  const setRadarRadius = useCallback((v: number) => updateActiveSlot({ radarRadius: v }), [updateActiveSlot]);
+
+  const radarAxisLine = currentSlotConfig.radarAxisLine ?? true;
+  const setRadarAxisLine = useCallback((v: boolean) => updateActiveSlot({ radarAxisLine: v }), [updateActiveSlot]);
+
+  const radarSplitLine = currentSlotConfig.radarSplitLine ?? true;
+  const setRadarSplitLine = useCallback((v: boolean) => updateActiveSlot({ radarSplitLine: v }), [updateActiveSlot]);
+
+  const radarSplitArea = currentSlotConfig.radarSplitArea ?? true;
+  const setRadarSplitArea = useCallback((v: boolean) => updateActiveSlot({ radarSplitArea: v }), [updateActiveSlot]);
+
+  const radarAxisNameMargin = currentSlotConfig.radarAxisNameMargin ?? 15;
+  const setRadarAxisNameMargin = useCallback((v: number) => updateActiveSlot({ radarAxisNameMargin: v }), [updateActiveSlot]);
+
+  const radarAxisNameWidth = currentSlotConfig.radarAxisNameWidth ?? 120;
+  const setRadarAxisNameWidth = useCallback((v: number) => updateActiveSlot({ radarAxisNameWidth: v }), [updateActiveSlot]);
+
+  const radarAxisNameOverflow = currentSlotConfig.radarAxisNameOverflow || 'break';
+  const setRadarAxisNameOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ radarAxisNameOverflow: v }), [updateActiveSlot]);
+
+  const radarAxisNameLineHeight = currentSlotConfig.radarAxisNameLineHeight ?? 14;
+  const setRadarAxisNameLineHeight = useCallback((v: number) => updateActiveSlot({ radarAxisNameLineHeight: v }), [updateActiveSlot]);
+
+  const radarShowDataLabels = currentSlotConfig.radarShowDataLabels ?? false;
+  const setRadarShowDataLabels = useCallback((v: boolean) => updateActiveSlot({ radarShowDataLabels: v }), [updateActiveSlot]);
+
+  const radarDataLabelPosition = currentSlotConfig.radarDataLabelPosition || 'top';
+  const setRadarDataLabelPosition = useCallback((v: 'top' | 'bottom' | 'inside' | 'outside' | 'auto') => updateActiveSlot({ radarDataLabelPosition: v }), [updateActiveSlot]);
+
+  const radarBaselineLineStyle = currentSlotConfig.radarBaselineLineStyle || 'solid';
+  const setRadarBaselineLineStyle = useCallback((v: 'solid' | 'dashed' | 'dotted') => updateActiveSlot({ radarBaselineLineStyle: v }), [updateActiveSlot]);
+
+  const radarBaselineSymbol = currentSlotConfig.radarBaselineSymbol || 'circle';
+  const setRadarBaselineSymbol = useCallback((v: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none') => updateActiveSlot({ radarBaselineSymbol: v }), [updateActiveSlot]);
+
+  const radarBaselineSymbolSize = currentSlotConfig.radarBaselineSymbolSize ?? 6;
+  const setRadarBaselineSymbolSize = useCallback((v: number) => updateActiveSlot({ radarBaselineSymbolSize: v }), [updateActiveSlot]);
+
+  const radarTargetSymbol = currentSlotConfig.radarTargetSymbol || 'circle';
+  const setRadarTargetSymbol = useCallback((v: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none') => updateActiveSlot({ radarTargetSymbol: v }), [updateActiveSlot]);
+
+  const radarTargetSymbolSize = currentSlotConfig.radarTargetSymbolSize ?? 4;
+  const setRadarTargetSymbolSize = useCallback((v: number) => updateActiveSlot({ radarTargetSymbolSize: v }), [updateActiveSlot]);
+
+  const radarIndicatorFormat = currentSlotConfig.radarIndicatorFormat || 'two_line';
+  const setRadarIndicatorFormat = useCallback((v: 'two_line' | 'single_line' | 'ratio_percent' | 'name_only') => updateActiveSlot({ radarIndicatorFormat: v }), [updateActiveSlot]);
+
+  const radarShowTarget = currentSlotConfig.radarShowTarget ?? true;
+  const setRadarShowTarget = useCallback((v: boolean) => updateActiveSlot({ radarShowTarget: v }), [updateActiveSlot]);
+
+  const radarTargetName = currentSlotConfig.radarTargetName || 'Horticultural Requirement Target';
+  const setRadarTargetName = useCallback((v: string) => updateActiveSlot({ radarTargetName: v }), [updateActiveSlot]);
+
+  const radarTargetValue = currentSlotConfig.radarTargetValue ?? 100;
+  const setRadarTargetValue = useCallback((v: number) => updateActiveSlot({ radarTargetValue: v }), [updateActiveSlot]);
+
+  const radarTargetLineStyle = currentSlotConfig.radarTargetLineStyle || 'dashed';
+  const setRadarTargetLineStyle = useCallback((v: 'dashed' | 'solid' | 'dotted') => updateActiveSlot({ radarTargetLineStyle: v }), [updateActiveSlot]);
+
+  const radarTargetLineWidth = currentSlotConfig.radarTargetLineWidth ?? 2;
+  const setRadarTargetLineWidth = useCallback((v: number) => updateActiveSlot({ radarTargetLineWidth: v }), [updateActiveSlot]);
+
+  const radarTargetColor = currentSlotConfig.radarTargetColor || '#d9534f';
+  const setRadarTargetColor = useCallback((v: string) => updateActiveSlot({ radarTargetColor: v }), [updateActiveSlot]);
+
+  const radarTargetAreaOpacity = currentSlotConfig.radarTargetAreaOpacity ?? 8;
+  const setRadarTargetAreaOpacity = useCallback((v: number) => updateActiveSlot({ radarTargetAreaOpacity: v }), [updateActiveSlot]);
+
+  const radarBaselineName = currentSlotConfig.radarBaselineName || 'Empirical Cohort Baseline (n={n})';
+  const setRadarBaselineName = useCallback((v: string) => updateActiveSlot({ radarBaselineName: v }), [updateActiveSlot]);
+
+  const radarBaselineColor = currentSlotConfig.radarBaselineColor || '';
+  const setRadarBaselineColor = useCallback((v: string) => updateActiveSlot({ radarBaselineColor: v }), [updateActiveSlot]);
 
   const funnelAlign = currentSlotConfig.funnelAlign || 'center';
   const setFunnelAlign = useCallback((v: 'center' | 'left' | 'right') => updateActiveSlot({ funnelAlign: v }), [updateActiveSlot]);
@@ -539,6 +707,60 @@ export function useVisualizerConfig(params: {
     setSankeyLeftPadding,
     sankeyRightPadding,
     setSankeyRightPadding,
+    sankeyTopPadding,
+    setSankeyTopPadding,
+    sankeyBottomPadding,
+    setSankeyBottomPadding,
+    sankeyOrient,
+    setSankeyOrient,
+    sankeyNodeAlign,
+    setSankeyNodeAlign,
+    sankeyCurveness,
+    setSankeyCurveness,
+    sankeyLinkColorMode,
+    setSankeyLinkColorMode,
+    sankeyLinkOpacity,
+    setSankeyLinkOpacity,
+    sankeyNodeBorderRadius,
+    setSankeyNodeBorderRadius,
+    sankeyNodeBorderWidth,
+    setSankeyNodeBorderWidth,
+    sankeyLayoutIterations,
+    setSankeyLayoutIterations,
+    sankeyDraggable,
+    setSankeyDraggable,
+    sankeyLabelPosition,
+    setSankeyLabelPosition,
+    sankeyLabelDistance,
+    setSankeyLabelDistance,
+    sankeyLabelOverflow,
+    setSankeyLabelOverflow,
+    sankeyMaxLabelWidth,
+    setSankeyMaxLabelWidth,
+    sankeyLabelFontSize,
+    setSankeyLabelFontSize,
+    sankeyLabelRotate,
+    setSankeyLabelRotate,
+    sankeyEmphasisFocus,
+    setSankeyEmphasisFocus,
+    sankeyLevelLabelFormats,
+    setSankeyLevelLabelFormats,
+    sankeyLevelNodeGaps,
+    setSankeyLevelNodeGaps,
+    sankeyLevelLabelDistances,
+    setSankeyLevelLabelDistances,
+    sankeyLevelNodeWidths,
+    setSankeyLevelNodeWidths,
+    sankeyLevelPathFilters,
+    setSankeyLevelPathFilters,
+    sankeySort,
+    setSankeySort,
+    sankeyLabelLineHeight,
+    setSankeyLabelLineHeight,
+    sankeyLabelFontWeight,
+    setSankeyLabelFontWeight,
+    sankeyLabelColor,
+    setSankeyLabelColor,
     bubbleScale,
     setBubbleScale,
     gaugeMaxScale,
@@ -695,6 +917,64 @@ export function useVisualizerConfig(params: {
     setRadarLineWidth,
     radarSplitNumber,
     setRadarSplitNumber,
+    radarMode,
+    setRadarMode,
+    radarVariables,
+    setRadarVariables,
+    radarVariableAliases,
+    setRadarVariableAliases,
+    radarVariableTargets,
+    setRadarVariableTargets,
+    radarRadius,
+    setRadarRadius,
+    radarAxisLine,
+    setRadarAxisLine,
+    radarSplitLine,
+    setRadarSplitLine,
+    radarSplitArea,
+    setRadarSplitArea,
+    radarAxisNameMargin,
+    setRadarAxisNameMargin,
+    radarAxisNameWidth,
+    setRadarAxisNameWidth,
+    radarAxisNameOverflow,
+    setRadarAxisNameOverflow,
+    radarAxisNameLineHeight,
+    setRadarAxisNameLineHeight,
+    radarShowDataLabels,
+    setRadarShowDataLabels,
+    radarDataLabelPosition,
+    setRadarDataLabelPosition,
+    radarBaselineLineStyle,
+    setRadarBaselineLineStyle,
+    radarBaselineSymbol,
+    setRadarBaselineSymbol,
+    radarBaselineSymbolSize,
+    setRadarBaselineSymbolSize,
+    radarTargetSymbol,
+    setRadarTargetSymbol,
+    radarTargetSymbolSize,
+    setRadarTargetSymbolSize,
+    radarIndicatorFormat,
+    setRadarIndicatorFormat,
+    radarShowTarget,
+    setRadarShowTarget,
+    radarTargetName,
+    setRadarTargetName,
+    radarTargetValue,
+    setRadarTargetValue,
+    radarTargetLineStyle,
+    setRadarTargetLineStyle,
+    radarTargetLineWidth,
+    setRadarTargetLineWidth,
+    radarTargetColor,
+    setRadarTargetColor,
+    radarTargetAreaOpacity,
+    setRadarTargetAreaOpacity,
+    radarBaselineName,
+    setRadarBaselineName,
+    radarBaselineColor,
+    setRadarBaselineColor,
     funnelAlign,
     setFunnelAlign,
     funnelGap,

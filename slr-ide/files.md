@@ -66,6 +66,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `scripts/test-umbrellanizer-drop.mjs` | Test Automation | Standalone test suite verifying Umbrellanizer taxonomy drop/deletion on specific keys, state isolation across multi-projects, and re-run recovery. |
 | `scripts/test-llm-context-decimal.mjs` | Test Automation | Standalone test suite verifying LLM Context Builder decimal precision formatting, dynamic Hare-Hamilton 100% quota balancing across 0-4 decimals, and payload synthesis. |
 | `scripts/test-llm-context-state.mjs` | Test Automation | Standalone test suite verifying LLM Context Builder parent-child checkbox state consistency, auto-disabling, dynamic schema legend adaptation, and real-time Est. Tokens recalculation. |
+| `scripts/test-visualizer-sankey-finetune.mjs` | Test Automation | Standalone test suite verifying comprehensive Sankey Flow Diagram fine-tune parameters, presets, orientation, node & link styling, and auto-optimization. |
 
 ---
 
@@ -275,7 +276,10 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `components/features/modals/visualizer/components/subcomponents/CustomGroupingManager.tsx` | Subcomponent | Modal editor for custom taxonomy grouping, automated colon-delimited (':') macro-category prefix parsing, and sub-item aggregation with Hare-Hamilton quota preservation. |
 | `components/features/modals/visualizer/components/subcomponents/BreakdownTablePanel.tsx` | Subcomponent | Interactive data breakdown table showing raw paper counts, percentage contributions, and active grouping mappings. |
 | `components/features/modals/visualizer/components/subcomponents/SunburstLevelConfigPanel.tsx` | Subcomponent | Hierarchical level configuration panel for Sunburst and Tree charts with customizable layer depths. |
+| `components/features/modals/visualizer/components/subcomponents/SankeyConfigPanel.tsx` | Subcomponent | Comprehensive fine-tuning panel for Sankey Flow Diagrams featuring layout presets, orientation, node geometry, link ribbons & curvature, padding clearance, typography, formatting, and per-level depth controls. |
+| `components/features/modals/visualizer/components/subcomponents/ChartConfigPanels.tsx` | Subcomponents | Centralized collection and exports of fine-tuning parameter inspector panels across all scientific chart types. |
 | `components/features/modals/visualizer/components/subcomponents/HorizontalBarConfigPanel.tsx` | Subcomponent | Bar chart configuration panel with orientation toggles, bar width sliders, and label position controls. |
+| `components/features/modals/visualizer/components/subcomponents/RadarDataMappingPanel.tsx` | Subcomponent | Dedicated interactive multi-variable mapping panel for Radar charts supporting the Boundary Reporting Paradox ($n=N$), empirical prevalence badges, axis renaming, and target benchmark configuration. |
 | `components/features/modals/visualizer/components/subcomponents/CameraControlsOverlay.tsx` | Subcomponent | Floating viewport controls for canvas zoom in/out, pan reset, theater mode toggle, and snapshot capture. |
 | `components/features/modals/visualizer/components/subcomponents/ExportPanel.tsx` | Subcomponent | Multi-format export dialog supporting SVG, High-DPI PNG (1x, 2x, 4x, 8x), and journal publication presets (Nature, IEEE, Elsevier, ACM). |
 | `components/features/modals/visualizer/components/steps/Step1ChartSelector.tsx` | Step Component | Step 1 gallery of 17 publication-grade chart templates grouped by scientific analytical family with interactive hover cards and thumbnail previews. |
@@ -436,4 +440,7 @@ This document serves as a comprehensive index of every file within the `slr-ide`
 | `scripts/dev.mjs` | Launcher Script | Node.js development server launcher that resolves host/port from file-based configuration and starts `next dev` with formatted LAN URLs. |
 | `scripts/start.mjs` | Launcher Script | Node.js production server launcher that resolves host/port from file-based configuration and starts `next start`. |
 | `scripts/test-network-config.mjs` | Test Script | Automated test suite verifying file-based configuration discovery, JSON parsing, `.env` fallback, and IPv4 interface detection. |
+| `lib/services/cohort-data-source.ts` | Backend / Domain Service | Centralized authoritative source of truth for cohort variable discovery, universal prefix-agnostic data resolution across metadata/QA/taxonomy, and strict scientific data integrity validation with zero-hit typo suggestion engine. |
+| `components/features/modals/visualizer/components/subcomponents/FieldAutocomplete.tsx` | UI Subcomponent | High-performance searchable autocomplete combobox component featuring real-time fuzzy keyword filtering, categorized domain optgroups, pre-selection cohort prevalence badges ($n/N$), and zero-hit integrity alerts. |
+| `scripts/test-cohort-data-source.mjs` | Test Script | Automated test suite verifying universal variable discovery, stage dominance, prefix-agnostic resolution, QA score calculation, and typo near-miss discovery. |
 
