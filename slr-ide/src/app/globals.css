@@ -1,5 +1,63 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Carlito:ital,wght@0,400;0,700;1,400;1,700&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400;1,700&family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&display=swap');
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Local Offline Computer Modern / Latin Modern Roman Typefaces */
+@font-face {
+  font-family: "Computer Modern";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/fonts/cmu-serif-500-roman.woff2") format("woff2"), url("/fonts/cmu-serif-500-roman.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Computer Modern";
+  font-style: normal;
+  font-weight: 500;
+  src: url("/fonts/cmu-serif-500-roman.woff2") format("woff2"), url("/fonts/cmu-serif-500-roman.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Computer Modern";
+  font-style: italic;
+  font-weight: 400;
+  src: url("/fonts/cmu-serif-500-italic.woff2") format("woff2"), url("/fonts/cmu-serif-500-italic.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Computer Modern";
+  font-style: normal;
+  font-weight: 700;
+  src: url("/fonts/cmu-serif-700-roman.woff2") format("woff2"), url("/fonts/cmu-serif-700-roman.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Computer Modern";
+  font-style: italic;
+  font-weight: 700;
+  src: url("/fonts/cmu-serif-700-italic.woff2") format("woff2"), url("/fonts/cmu-serif-700-italic.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Latin Modern Roman";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/fonts/cmu-serif-500-roman.woff2") format("woff2"), url("/fonts/cmu-serif-500-roman.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "CMU Serif";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/fonts/cmu-serif-500-roman.woff2") format("woff2"), url("/fonts/cmu-serif-500-roman.ttf") format("truetype");
+  font-display: swap;
+}
 
 :root {
   --background: 240 10% 3.9%;

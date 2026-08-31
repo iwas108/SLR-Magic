@@ -1,3 +1,173 @@
+## #465 - Export Option Function Preservation & Bubble Scaling Fix (2026-08-31)
+- **Goal**: Fix bubble and scatter charts collapsing into tiny uniform dots and losing bubble count labels (`n=1`, `n=6`, etc.) during PNG/SVG figure export.
+- **Root Cause**: `scaleOptionFonts()` previously used `JSON.parse(JSON.stringify(option))` to clone ECharts options before scaling font metrics. `JSON.stringify` automatically stripped all JavaScript function properties, including `series.symbolSize` (the dynamic bubble radius function), `series.label.formatter` (the bubble count text formatter), and axis formatters. ECharts defaulted `symbolSize` to tiny 4px dots and wiped out the text.
+- **Fix**:
+  1. Implemented `deepClonePreservingFunctions()` in `exportUtils.ts` to recursively clone option trees while preserving all callback functions (`symbolSize`, `label.formatter`, `axisLabel.formatter`, `tooltip.formatter`), arrays, regexes, and nested objects.
+  2. Enhanced `scaleOptionFonts()` to scale both numeric and functional `symbolSize` dynamically (`origSymbolFn(val, params) * scale`), along with `barWidth`, `barMaxWidth`, and `boxWidth`, ensuring exported bubble sizes match the live preview proportionally at 300+ DPI target dimensions.
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/utils/exportUtils.ts`, `slr-ide/scripts/test-visualizer-anti-regression.mjs`.
+- **Verification**: `npx tsc --noEmit` passed (0 errors), `node scripts/test-visualizer-anti-regression.mjs` passed (28/28 tests).
+
+## #464 - Comprehensive Scientific Axis & Label Customization (2026-08-31)
+- **Goal**: Implement full, publication-grade customization for X and Y axis titles, labels, typography, rotation angles, tick density, word-wrapping, number formatting, baseline borders, and gridlines across all Cartesian charts in the SLR IDE Visualizer Studio, while eliminating duplicate legacy axis title panels.
+- **Architectural Implementation**:
+  1. **Domain Types & Default State (`types.ts`, `constants/defaultConfigs.ts`, `hooks/useVisualizerConfig.ts`)**:
+     - Extended `SlotConfig` and `VisualizerConfig` with granular X/Y axis properties: title typography (`showAxisTitleX/Y`, `axisTitleFontSizeX/Y`, `axisTitleFontWeightX/Y`, `axisTitleFontStyleX/Y`, `axisTitleColorX/Y`, `axisTitleLocationX/Y`, `axisTitleGapX/Y`), tick label typography & geometry (`showAxisLabelX/Y`, `axisLabelFontSizeX/Y`, `axisLabelFontWeightX/Y`, `axisLabelColorX/Y`, `axisLabelRotateX/Y`, `axisLabelMarginX/Y`, `axisLabelOverflowX/Y`, `axisLabelWidthX/Y`, `axisLabelLineHeightX/Y`, `axisLabelIntervalX/Y`), number/unit formatting presets (`axisLabelFormatX/Y`, `axisLabelPrefixX/Y`, `axisLabelSuffixX/Y`), and scientific gridline styles (`showGridLinesX/Y`, `gridLineStyle`, `gridLineColor`, `gridLineOpacity`).
+     - Added comprehensive getters and memoized setters in `useVisualizerConfig`.
+  2. **Centralized Axis Option Builder (`generators/axisConfigHelper.ts`, `generators/types.ts`, `generators/index.ts`)**:
+     - Created `buildScientificAxisConfig()` to assemble standardized, publication-grade ECharts axis specifications with robust multi-line word wrapping (`wrapAxisLabelText`), explicit truncation fallback (`…`), value formatting (`formatScientificAxisValue`), dynamic rotation, outward/inward journal tick marks, and baseline borders.
+  3. **Universal Chart Generator Integration & Deduplication (`generators/`, `ChartConfigPanels.tsx`)**:
+     - Upgraded `trendLineGenerators.ts` (Epistemic Simulation & Cohort Trend), `categoricalBarGenerators.ts` (Vertical, Horizontal, Stacked Bars), `clusteredBarGenerators.ts` (Clustered & Stacked Bars), `correlationGenerators.ts` (Scatter, 3D Continuous Bubble, 2D Categorical Bubble Matrix, Boxplot), and `matrixGenerators.ts` (Heatmap) to use the centralized axis builder.
+     - Removed redundant duplicate legacy "Axis Titles & Typography" controls from individual chart panels (e.g. `BubbleConfigPanel`), unifying all Cartesian axis controls under `Scientific Axis & Publishing Gridlines`.
+  4. **4-Tab Publication Inspector UI (`ScientificAxisConfigPanel.tsx`)**:
+     - Redesigned the Axis Panel into a 4-tab publication-grade suite:
+       - **Titles**: X & Y domain/metric labels, font sizes ($8\dots 20\text{px}$), weights (Normal, Bold, Semi-Bold, Extra Bold), styles (Plain, Italic), alignment/locations (Middle, Start, End), and gap sliders ($10\dots 120\text{px}$).
+       - **Ticks & Angles**: Granular X & Y controls for show/hide toggles, font size sliders, margin distance sliders ($2\dots 35\text{px}$), density intervals (Auto, All, 2nd, 3rd, 4th, 8th, 12th), rotation angle sliders ($-90^\circ \dots 90^\circ$) with quick buttons ($0^\circ, 15^\circ, 30^\circ, 45^\circ, 90^\circ, -45^\circ$), max width sliders ($50\dots 320\text{px}$), line height, and word-wrap/truncate overflow selectors for both X and Y axes.
+       - **Units & Formats**: Format presets (Auto, Percentage, Integer, 1-2 Decimals, Scientific, Currency, Raw), and customizable prefix/suffix strings.
+       - **Grid & Ticks**: Tick directions (Outward Journal, Inward Compact, None), value scale (Linear vs $\log_{10}$), baseline border toggle, X/Y gridline visibility, line pattern (Dashed, Solid, Dotted), and opacity slider ($10\dots 100\%$).
+- **Verification**: Verified clean TypeScript compilation (`npx tsc --noEmit` exited with code 0); executed `node scripts/test-visualizer-anti-regression.mjs` (27/27 passed); updated `slr-ide/files.md`, `slr-ide/improvements-log.md`, and `improvements.md`.
+
+## #463 - Export Font Size Proportional Scaling Fix (2026-08-31)
+- **Goal**: Fix font sizes in exported figures (PNG, SVG, PDF) appearing proportionally smaller than the live preview. Fonts looked correct in the preview but shrank in the export because the off-screen export canvas was larger than the preview container, while ECharts font sizes are absolute pixels.
+- **Root Cause**: `exportMultiPanelFigure` creates off-screen ECharts instances at the full publication target dimensions (e.g., 1200×675px for 16:9), but the live preview renders in a smaller fitted container (~600px). A 14px font in a 600px preview looks proportionally larger than 14px in a 1200px export canvas.
+- **Fix**: Added `scaleOptionFonts()` utility in `exportUtils.ts` that recursively scales all `fontSize`, `lineHeight`, text-wrap `width`, grid margins (`left`/`right`/`top`/`bottom`), and legend layout dimensions (`itemWidth`/`itemHeight`/`itemGap`/`padding`) by the ratio `exportChartWidth / previewChartWidth`. Applied in both PNG and SVG composite export paths.
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/utils/exportUtils.ts`
+- **Verification**: `npx tsc --noEmit` passed (0 errors), `node scripts/test-visualizer-anti-regression.mjs` passed (27/27).
+
+## #462 - Comprehensive Legend Customization & Local Offline LaTeX / Computer Modern Fonts (2026-08-31)
+- **Goal**: (1) Provide complete, comprehensive customization for chart legends across all visualization modes (multi-line wrapping vs single-line paged scroll, horizontal alignment, series symbol shapes, icon dimensions, spacing gaps, typography, text overflow, font weight, text color, and container box padding); (2) Bundle genuine local offline Computer Modern / LaTeX TrueType & WOFF2 font assets so they render instantly and losslessly in browsers and canvas exports without network latency.
+- **Architectural Implementation**:
+  1. **Local Offline LaTeX & Elsevier Font Assets (`public/fonts/`, `globals.css`)**:
+     - Bundled 64 genuine OFL Computer Modern / CMU font files (`cmu-serif-500-roman.woff2`, `cmu-serif-700-roman.woff2`, `cmu-serif-italic.woff2`, sans-serif, typewriter, and math variants) into `public/fonts/`.
+     - Defined comprehensive `@font-face` rules in `globals.css` mapping `"Computer Modern"`, `"CMU Serif"`, and `"Latin Modern Roman"` with `font-display: swap`.
+     - Added Google Fonts fallback imports for STIX Two Text, EB Garamond, Roboto, and Carlito.
+  2. **Universal Legend Generator Architecture (`generators/index.ts`, `generators/types.ts`)**:
+     - Upgraded `baseLegend` generator to dynamically build ECharts legend specifications honoring:
+       - `type`: Configurable `'plain'` (wraps items into multiple clean rows/columns without clipping) vs `'scroll'` (single-line with pagination arrows `◀ 1/2 ▶`).
+       - `align`: Horizontal distribution (`auto`, `center`, `left`, `right`).
+       - `icon`: Configurable symbol shapes (`inherit / auto`, `circle` ●, `rect` ■, `roundRect` ▢, `line` —, `triangle` ▲, `diamond` ◆, `none`).
+       - `itemWidth` ($8\text{px} \dots 40\text{px}$) & `itemHeight` ($4\text{px} \dots 24\text{px}$).
+       - `itemGap` ($2\text{px} \dots 40\text{px}$) & `padding` ($0\text{px} \dots 20\text{px}$).
+       - `textStyle`: Dynamic font family, font size, font weight (`normal`, `500`, `600`, `bold`), text color override, and text wrapping/overflow mode (`break`, `truncate`, `none`).
+       - `backgroundColor`, `borderColor`, `borderWidth`, `borderRadius`.
+  3. **Trajectory Line Chart Responsive Margin Allocation (`trendLineGenerators.ts`)**:
+     - Updated `trendLineGenerators.ts` to compute dynamic bottom canvas clearance (`autoGridBottom` expanded to $78\text{px}$ when `isMultiLineLegend` is active), ensuring multi-line wrapped legends never crowd or collide with the X-axis title or data curves.
+  4. **State Management & Preset Persistence**:
+     - Expanded `SlotConfig`, `VisualizerPresetPayload`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `VisualizerProvider.tsx`, and `useVisualizerPresets.ts` to fully serialize and deserialize all legend parameters.
+  5. **Rich Interactive UI Controls (`Step3StyleCustomization.tsx`, `ChartConfigPanels.tsx`)**:
+     - In **Step 3 (Publication Style)**, expanded the **Active Panel Legend & Typography** section with layout mode toggles, alignment, symbol shapes, icon dimensions, font weight, text overflow, and gap sliders.
+     - In **Fine-Tuning Panels (`LineConfigPanel`)**, embedded dedicated controls for wrapping, alignment, symbol shapes, icon width/height, and text colors.
+  6. **Anti-Regression Unit Testing (`test-visualizer-anti-regression.mjs`)**:
+     - Added **Test 27** asserting that `baseLegend` generator supports wrapping and icon dimensions, `trendLineGenerators` allocates dynamic clearance for multi-line wrapped legends, and local offline font assets exist in `public/fonts/`.
+- **Verification**: Executed `node scripts/test-visualizer-anti-regression.mjs` (all 27/27 tests passed with 100% success); verified TypeScript compiler cleanly (`npx tsc --noEmit` exited with code 0); updated `slr-ide/files.md`.
+
+## #461 - Elsevier Publication Typography, Area Shading Alpha Gradient & Physical Radio TX Peak Markers (2026-08-31)
+- **Goal**: Implement 3 major publication-grade refinements to the Visualizer Studio: (1) Add Elsevier and LaTeX-compliant font families (Computer Modern, Times New Roman, Helvetica, Calibri, Georgia, Garamond); (2) Eliminate muddy center overlap in print by introducing independent area shading fill modes with subtle alpha gradients ($\le 0.08$ opacity) solely beneath the estimator trajectory; (3) Explicitly mark physical radio transmission events ($\blacktriangle$ upward markers) at the exact peaks where state uncertainty reaches the trigger threshold ($\varepsilon = 1.00$).
+- **Architectural Implementation**:
+  1. **Elsevier & Publication-Grade Typography (`types.ts`, `fontFamilies.ts`, `Step3StyleCustomization.tsx`)**:
+     - Expanded `FontFamily` with Elsevier and journal standards: `'computer_modern'` (`"Computer Modern", "Latin Modern Roman", "STIX Two Text", "CMR10", serif`), `'times'` (`"Times New Roman", "Times", "STIX Two Text", serif`), `'helvetica'` (`"Helvetica Neue", "Helvetica", "Arial", sans-serif`), `'calibri'` (`"Calibri", "Carlito", sans-serif`), `'georgia'` (`"Georgia", serif`), and `'garamond'` (`"EB Garamond", "Garamond", serif`).
+     - Added formatted dropdown options with descriptions (e.g. *"Computer Modern (LaTeX / Elsevier)"*, *"Times New Roman (Elsevier Journal)"*).
+  2. **Area Shading Overlap Elimination & Subtle Alpha Gradients (`trendLineGenerators.ts`, `ChartConfigPanels.tsx`)**:
+     - Built `hexToRgba` color converter and JSON-serializable linear alpha gradient support for ECharts `areaStyle`.
+     - Added independent fill mode controls (`none`, `subtle_gradient`, `solid`) and opacity sliders for both Baseline ($0\% \dots 40\%$, default $0\%$) and Estimator ($0\% \dots 30\%$, default $8\%$).
+     - Defaulting Baseline fill to `none` ($0\%$) and Estimator fill to a delicate $8\%$ gradient ($\le 0.08 \rightarrow 0.0$ alpha) completely eliminates the muddy brown overlap in black-and-white / color academic printing.
+  3. **Physical Radio TX Peak Transmission Markers (`trendLineGenerators.ts`, `ChartConfigPanels.tsx`)**:
+     - Engineered peak-detection algorithm in `epistemic_simulation` loop: records the exact discrete time step $k$ where state uncertainty reaches trigger threshold $\varepsilon \rightarrow P_0$.
+     - Generates discrete scatter markers with upward orientation (`symbol: 'triangle'` $\blacktriangle$, `pin`, `diamond`, `circle`, `arrow`), customizable marker size ($6\text{px} \dots 24\text{px}$), color overrides with Academic Palette auto-fallback, and toggleable step labels (`TX #1`, `TX #2`, etc.).
+     - Registered TX events in the multi-series legend (`Physical Radio TX Events`) for selective reviewer toggle.
+  4. **State Management, Preset Serialization & Anti-Regression Testing**:
+     - Updated `SlotConfig`, `VisualizerPresetPayload`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `VisualizerProvider.tsx`, `useVisualizerPresets.ts`, and `test-visualizer-anti-regression.mjs`.
+     - Unit tests 22 & 26 assert font resolution and trajectory peak marker calculations.
+- **Verification**: Verified TypeScript compilation with 0 errors (`npx tsc --noEmit` exited with code 0); ran `node scripts/test-visualizer-anti-regression.mjs` with all 26/26 unit tests passing.
+
+## #460 - Academic Color Palette Integration & Comprehensive Customization for Line Chart (2026-08-31)
+- **Goal**: Fix line chart color binding so that selecting any of the 44 Academic Color Palettes dynamically updates the simulation curves and benchmark markLine colors; fix legend positioning conflict (preventing simultaneous `top` + `bottom` collision); and provide comprehensive fine-tuning controls for markers, X-axis label frequency, gridlines, markLine label positioning, and 4-directional canvas margins.
+- **Architectural Implementation**:
+  1. **Dynamic Academic Palette Binding (`trendLineGenerators.ts`, `defaultConfigs.ts`)**:
+     - Reset default line colors (`lineBaselineColor`, `lineEstimatorColor`, `lineThresholdColor`) to empty strings (`''`), enabling automatic fallback to active theme palette colors (`palette.colors[0]`, `palette.colors[1]`, `palette.colors[2]`/`palette.text`).
+     - Allowed seamless theme switching across all 44 Academic Color Palettes (IEEE Blue, Nature Coral, Cell Press Green, Sequential Degradation: Botanic, Emerald, Crimson, etc.) while preserving optional custom hex overrides.
+  2. **Clean Legend Positioning & Margin Calculations (`trendLineGenerators.ts`)**:
+     - Resolved ECharts bounding conflict by ensuring `top` is only set when `legendPosition === 'top'`, and `bottom` is only set when `legendPosition === 'bottom'`.
+     - Computed dynamic safe canvas margins (`effectiveGridTop`, `effectiveGridBottom`, `effectiveGridLeft`, `effectiveGridRight`) accounting for title visibility, legend position, container padding, and fit offsets.
+  3. **Comprehensive Fine-Tuning UI Controls (`ChartConfigPanels.tsx`, `useVisualizerConfig.ts`)**:
+     - **Academic Theme Binding Bar**: Added visual theme status indicator and one-click "Sync with Palette" / "Use Palette Color" reset buttons.
+     - **Point Markers & Shading**: Configurable marker symbols (`circle`, `emptyCircle`, `rect`, `triangle`, `diamond`, `none`), marker sizes ($2\text{px} \dots 12\text{px}$), spline smoothing, and area shading fill ($0\% \dots 50\%$).
+     - **X-Axis Label Frequency & Gridlines**: Selectable label intervals (`auto`, `all`, every 2nd, 4th, 8th, 12th, or 24th step) and coordinate horizontal gridlines toggle.
+     - **MarkLine Annotation Positioning**: Configurable threshold label alignment (`insideEndTop`, `insideStartTop`, `insideMiddleTop`, `end`, `start`) and line width ($1\text{px} \dots 4\text{px}$).
+     - **4-Directional Canvas Margins**: Sliders for Top, Bottom, Left, and Right grid clearance.
+  4. **Serialization & Anti-Regression Testing (`useVisualizerPresets.ts`, `test-visualizer-anti-regression.mjs`)**:
+     - Updated slot preset serialization and added comprehensive assertions in Test 26 verifying dynamic palette color binding and customizable styling parameters.
+- **Verification**: Executed `npx tsc --noEmit` (0 errors); executed `node scripts/test-visualizer-anti-regression.mjs` (all 26/26 unit tests passed with 100% success); updated `slr-ide/files.md`.
+
+## #459 - Epistemic Simulation & Trajectory Line Chart Dual Paradigm Engine (2026-08-31)
+- **Goal**: Implement a dual-paradigm Line Chart visualization engine supporting both **Empirical Literature Cohort Trends** and theoretical **Epistemic Simulation & Trajectory Modeling** (e.g. comparative state uncertainty propagation between static industrial baseline architectures and discrete recursive estimators with semantic trigger threshold resets).
+- **Architectural Implementation**:
+  1. **Dual-Paradigm Generator Engine (`trendLineGenerators.ts`)**:
+     - Upgraded `generateLineOption` to switch between `cohort_trend` (empirical synthesis) and `epistemic_simulation` (theoretical simulation trajectory).
+     - Built mathematical trajectory engine:
+       - **Curve 1 (Static Industrial Baseline)**: Exponential drift modeling $y(k) = A \cdot e^{B \cdot k}$ with configurable initial coefficient $A$, rate $B$, line style, and color.
+       - **Curve 2 (Discrete Recursive Estimator)**: Discrete recursive state tracking with sinusoidal cyclic drift $\Delta + M \cdot \sin(\dots)$ and discrete semantic trigger reset whenever reaching threshold $\varepsilon \rightarrow P_0$.
+       - **Curve 3 (Semantic Trigger / Benchmark Threshold)**: Silent horizontal benchmark `markLine` series displaying publication-grade annotation labels (`Threshold ε = 1.00`) with dotted styling.
+     - Added crosshair axis pointer tooltip (`type: 'cross'`), serif / typography scaling, custom $Y$-axis min/max bounds, and responsive multi-series legend.
+  2. **Step 2 Data Mapping & Step 3 Fine-Tuning UI Controls (`Step2DataMapping.tsx`, `ChartConfigPanels.tsx`, `VisualizerStudio.tsx`)**:
+     - Added Line Chart Paradigm toggle (`Cohort Trend` vs `Epistemic Simulation`) in both Data Mapping and Fine-Tuning panels.
+     - In `LineConfigPanel`, created dedicated control cards for:
+       - **Time Horizon & Axis Bounds**: Discretized time steps ($k=24 \dots 192$, default $96$), time domain label, metric $Y$-axis label, $Y_{\min}$/$Y_{\max}$ bounds, and axis pointer style.
+       - **Baseline Exponential Curve**: Custom title, initial uncertainty $A$, drift rate $B$, color picker, and line style.
+       - **Discrete Recursive Estimator**: Custom title, initial state $P_0$, step drift $\Delta$, color picker, and line style.
+       - **Semantic Trigger Threshold**: Threshold value $\varepsilon$, markline annotation label, legend title, and line color.
+  3. **State Management & Preset Persistence**:
+     - Updated `SlotConfig`, `VisualizerPresetPayload`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `VisualizerProvider.tsx`, and `useVisualizerPresets.ts` to seamlessly serialize and deserialize all trajectory parameters.
+  4. **Anti-Regression Unit Testing (`test-visualizer-anti-regression.mjs`)**:
+     - Added Test 26 verifying multi-point trajectory calculations ($k=0 \dots 96$), exponential baseline matching, recursive estimator cyclic resets, threshold markline rendering, and crosshair tooltip configuration.
+- **Verification**: Executed `npx tsc --noEmit` (0 errors); executed `node scripts/test-visualizer-anti-regression.mjs` (all 26/26 unit tests passed with 100% success); updated `slr-ide/files.md`.
+
+## #458 - Comprehensive Axis Title & Multi-Series Legend Customization for Bubble Matrix (2026-08-31)
+- **Goal**: Enable complete user customization of axis titles (alignment, gaps, typography, dynamic safe margins) and legend controls (multi-series category chips, single series custom titles, positioning, item gaps, offsets) for the 2D Categorical Cross-Tabulation Bubble Chart.
+- **Architectural Implementation**:
+  1. **Dynamic Safe Margins & Axis Title Typography (`correlationGenerators.ts`)**:
+     - Built automatic collision-prevention calculations: dynamically derives rotated X-axis label height and Y-axis label text widths to calculate safe default `nameGap` values (`autoXNameGap`, `autoYNameGap`) and safe canvas grid margins (`effectiveGridBottom`, `effectiveGridLeft`).
+     - Added full axis title typography: `bubbleXAxisNameLocation` (`middle`, `start`, `end`), `bubbleYAxisNameLocation` (`middle`, `start`, `end`), `bubbleAxisTitleFontSize`, `bubbleAxisTitleFontWeight`, and `bubbleAxisTitleColor`.
+  2. **Multi-Series Category Legend vs Single Series (`correlationGenerators.ts`)**:
+     - Implemented `bubbleLegendMode`:
+       - `'category_series'`: Generates separate scatter series for each categorical dimension (or compliance group), rendering colored legend chips in ECharts with interactive click-to-filter capability.
+       - `'single_series'`: Renders a single cohort scatter series with customizable title (`bubbleSeriesName`, e.g. "Deployments", "Synthesized Literature Cohort (n=46)").
+       - `'none'`: Cleanly hides the legend.
+     - Supports full legend positioning (`bottom`, `top`, `left`, `right`), item spacing gaps, and edge distance offsets.
+  3. **Fine-Tune UI Panel Refinements (`ChartConfigPanels.tsx`, `VisualizerStudio.tsx`)**:
+     - Expanded `BubbleConfigPanel` with 3 dedicated sections: **Axis Titles & Typography**, **Canvas Margins & Grid Clearance**, and **Legend & Category Filter**.
+     - Provided intuitive sliders for X-axis title gap ($10\text{px}$ to $180\text{px}$), Y-axis title gap ($20\text{px}$ to $260\text{px}$), Grid Left Margin ($40\text{px}$ to $320\text{px}$), Grid Bottom Margin ($40\text{px}$ to $260\text{px}$), Legend Item Gap ($4\text{px}$ to $36\text{px}$), and Edge Offset ($5\text{px}$ to $90\text{px}$).
+  4. **State & Preset Serialization**:
+     - Updated `SlotConfig`, `VisualizerPresetPayload`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `VisualizerProvider.tsx`, and `useVisualizerPresets.ts`.
+  5. **Anti-Regression Unit Testing (`test-visualizer-anti-regression.mjs`)**:
+     - Enhanced Test 25 to assert `bubbleLegendMode`, `bubbleAxisTitleFontSize`, `effectiveGridBottom`, and `effectiveGridLeft` safe margin calculations.
+- **Verification**: Executed `npx tsc --noEmit` (0 errors); executed `node scripts/test-visualizer-anti-regression.mjs` (all 25/25 unit tests passed with 100% success); updated `slr-ide/files.md`.
+
+## #457 - Centralized 2D Categorical Cross-Tabulation Matrix Bubble Chart (2026-08-30)
+- **Goal**: Upgrade the SLR Visualizer Studio Bubble Chart into an empirical **2D Categorical Cross-Tabulation Matrix** engine sourced from the centralized cohort data pipeline (`cohort-data-source.ts`), supporting cross-domain research synthesis (e.g. Hardware Silicon Tier RQ3a vs Control Autonomy Spectrum RQ8a with SWaP-C3 / Envelope Compliance classification overlays and scaled circle diameters).
+- **Architectural Implementation**:
+  1. **Categorical Matrix & Continuous 3D Generator Engine (`correlationGenerators.ts`)**:
+     - Upgraded `generateBubbleOption` to evaluate `bubbleMode` (`categorical_matrix` vs `numerical_3d`).
+     - In `categorical_matrix` mode, cross-tabulates primary variable categories ($X$-axis) against secondary variable categories ($Y$-axis) using centralized `getMappedFieldValue`, counting deduplicated paper occurrences ($n$), computing cohort prevalence percentages ($n/N$), and resolving custom compliance classifications and color overrides.
+     - Implemented dynamic circle scaling: $\text{symbolSize} = \max(\text{minRad}, \min(\text{maxRad}, \text{count} \times 8 \times \text{scale} + \text{minRad}))$.
+     - Built rich, publication-grade item tooltips displaying intersection titles, axis categories, paper counts with cohort prevalence %, compliance statuses, and sample study citations.
+     - Added inside-bubble label formatting (`n=X`, `X`, `P%`, or label name) with custom font size and color.
+  2. **Step 2 Data Mapping Integration (`Step2DataMapping.tsx`)**:
+     - Added Bubble Chart Paradigm switcher (`2D Categorical Matrix` vs `Continuous 3D Scatter`).
+     - Integrated `FieldAutocomplete` for searchable selection of X-Axis and Y-Axis categorical cohort variables with live prevalence badges ($n/N$) and RQ badges.
+     - Provided metric mode selector (`count`, `paper_prevalence`, `tag_share`, `avg_citation`, `avg_qa`).
+  3. **Fine-Tuning Style Customization Panel (`ChartConfigPanels.tsx`, `Step3StyleCustomization.tsx`)**:
+     - Created dedicated `BubbleConfigPanel` with 4 organized customization sections:
+       - **Bubble Sizing & Dynamic Scaling**: Bubble scale factor slider ($0.5\times$ to $3.0\times$), min bubble diameter ($6\text{px}$ to $24\text{px}$), and max bubble diameter ($25\text{px}$ to $90\text{px}$).
+       - **Bubble Aesthetics & Coloring**: Color partitioning mode (`color_by_x`, `color_by_y`, `color_by_metric`, `custom_compliance`), fill opacity slider ($30\%$ to $100\%$), border width ($0$ to $5\text{px}$), and border color picker.
+       - **Inside-Bubble Value Labels**: Show labels toggle, format selector (`count_n`, `count_only`, `percent`, `label`), font size slider, and label color picker.
+       - **Axis Dimensions & Grid Lines**: Custom X/Y axis titles, title gap sliders, X-axis label rotation, and coordinate grid lines toggle.
+     - Preserved backward compatibility with `ScatterConfigPanel` / `ScatterBubbleConfigPanel`.
+  4. **Radar Elevation & Percentage Decoupling Refinements (`kpiNetworkGenerators.ts`, `ChartConfigPanels.tsx`)**:
+     - Added radar legend positioning (`bottom`, `top`, `left`, `right`), item gap, and edge offset controls, decoupling inside-chart percentage visibility via `radarShowDataLabels` and automatically elevating radar center $Y$ when legend is positioned at bottom.
+  5. **Anti-Regression Unit Testing (`test-visualizer-anti-regression.mjs`)**:
+     - Added Test 25 validating 2D Categorical Cross-Tabulation Matrix computation, compliance rule resolution, scaled diameter math, and centralized generator integration.
+- **Verification**: Executed `npx tsc --noEmit` (0 errors); executed `node scripts/test-visualizer-anti-regression.mjs` (25/25 passed with 100% success); updated `slr-ide/files.md`.
+
 ## #456 - Centralized Cohort Data Source & Searchable Autocomplete Combobox (2026-08-30)
 - **Goal**: Implement a centralized, authoritative domain service (`cohort-data-source.ts`) and searchable autocomplete combobox (`FieldAutocomplete.tsx`) across all SLR Visualizer Studio charts (`slr-ide`), eliminating fragile prefix string coupling, preventing scientific fraud/visualization errors (silent 0s, token collisions, un-matched extracted keys), and elevating UX with live pre-selection prevalence metrics ($n/N$).
 - **Architectural Implementation**:

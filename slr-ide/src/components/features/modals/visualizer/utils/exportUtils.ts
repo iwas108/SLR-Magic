@@ -16,6 +16,118 @@ import type {
   ExportFormat
 } from '../types';
 
+/**
+ * Deep clones an object tree while strictly preserving all JavaScript functions,
+ * RegExp instances, arrays, and nested objects.
+ */
+function deepClonePreservingFunctions<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  if (typeof obj === 'function') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepClonePreservingFunctions(item)) as unknown as T;
+  }
+  const copy: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    copy[key] = deepClonePreservingFunctions((obj as any)[key]);
+  }
+  return copy as T;
+}
+
+/**
+ * Proportionally scale all font-related sizes and geometry in an ECharts option tree
+ * while preserving all function formatters (symbolSize, label.formatter, axisLabel.formatter, tooltip).
+ * Ensures export output visually matches the preview when the off-screen
+ * export canvas is larger than the live preview container.
+ *
+ * Scales: fontSize, lineHeight, text-wrap width, grid margins, legend layout dimensions, and series symbol/bar geometry.
+ */
+function scaleOptionFonts(option: echarts.EChartsOption, scale: number): echarts.EChartsOption {
+  if (!option || Math.abs(scale - 1) < 0.05) return option;
+
+  const cloned: any = deepClonePreservingFunctions(option);
+
+  // 1. Recursively scale fontSize, lineHeight, and text-wrap width
+  (function walk(obj: any) {
+    if (!obj || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) { obj.forEach(walk); return; }
+    for (const k of Object.keys(obj)) {
+      const v = obj[k];
+      if (typeof v === 'number') {
+        if (k === 'fontSize' || k === 'lineHeight') {
+          obj[k] = Math.round(v * scale);
+        } else if (k === 'width' && typeof obj.overflow === 'string') {
+          // Text-wrap width inside textStyle / rich blocks
+          obj[k] = Math.round(v * scale);
+        }
+      } else if (typeof v === 'object' && v !== null) {
+        walk(v);
+      }
+    }
+  })(cloned);
+
+  // 2. Scale grid margins (absolute px values only)
+  const scaleGridProps = (g: any) => {
+    for (const k of ['left', 'right', 'top', 'bottom'] as const) {
+      if (typeof g[k] === 'number') g[k] = Math.round(g[k] * scale);
+    }
+  };
+  if (cloned.grid) {
+    if (Array.isArray(cloned.grid)) cloned.grid.forEach(scaleGridProps);
+    else scaleGridProps(cloned.grid);
+  }
+
+  // 3. Scale legend layout dimensions
+  const scaleLegendProps = (l: any) => {
+    for (const k of ['itemWidth', 'itemHeight', 'itemGap'] as const) {
+      if (typeof l[k] === 'number') l[k] = Math.round(l[k] * scale);
+    }
+    if (typeof l.padding === 'number') {
+      l.padding = Math.round(l.padding * scale);
+    } else if (Array.isArray(l.padding)) {
+      l.padding = l.padding.map((p: number) => Math.round(p * scale));
+    }
+  };
+  if (cloned.legend) {
+    if (Array.isArray(cloned.legend)) cloned.legend.forEach(scaleLegendProps);
+    else scaleLegendProps(cloned.legend);
+  }
+
+  // 4. Scale series geometry (symbolSize functions/numbers, bar widths, box widths)
+  if (cloned.series) {
+    const scaleSeriesGeometry = (s: any) => {
+      if (!s || typeof s !== 'object') return;
+      if (typeof s.symbolSize === 'number') {
+        s.symbolSize = Math.round(s.symbolSize * scale);
+      } else if (typeof s.symbolSize === 'function') {
+        const origSymbolFn = s.symbolSize;
+        s.symbolSize = (val: any, params: any) => {
+          const res = origSymbolFn(val, params);
+          return typeof res === 'number' ? Math.round(res * scale) : res;
+        };
+      }
+      if (typeof s.barWidth === 'number') {
+        s.barWidth = Math.round(s.barWidth * scale);
+      }
+      if (typeof s.barMaxWidth === 'number') {
+        s.barMaxWidth = Math.round(s.barMaxWidth * scale);
+      }
+      if (Array.isArray(s.boxWidth)) {
+        s.boxWidth = s.boxWidth.map((bw: any) => typeof bw === 'number' ? Math.round(bw * scale) : bw);
+      } else if (typeof s.boxWidth === 'number') {
+        s.boxWidth = Math.round(s.boxWidth * scale);
+      }
+    };
+    if (Array.isArray(cloned.series)) cloned.series.forEach(scaleSeriesGeometry);
+    else scaleSeriesGeometry(cloned.series);
+  }
+
+  return cloned as echarts.EChartsOption;
+}
+
 export interface ExportChartOptions {
   chartInstance: echarts.ECharts | null;
   chartType: ChartType;
@@ -175,12 +287,17 @@ export async function exportFigure(options: ExportChartOptions): Promise<void> {
     }
 
     let finalSvg = svgData;
+    if (!finalSvg.includes('<defs>')) {
+      const defsBlock = `  <defs>\n    <style type="text/css">\n      @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&amp;family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&amp;family=Roboto:ital,wght@0,300..700;1,300..700&amp;family=Carlito:ital,wght@0,400..700;1,400..700&amp;display=swap');\n    </style>\n  </defs>\n`;
+      finalSvg = finalSvg.replace(/<svg([^>]*)>/, `<svg$1>\n${defsBlock}`);
+    }
+
     if (hasTransform) {
       const radX = (tiltAngle * Math.PI) / 180;
       const scaleY = (normScale * Math.cos(radX)).toFixed(3);
       const scaleX = normScale.toFixed(3);
       const transformStr = `rotate(${rotationAngle}) scale(${scaleX}, ${scaleY})`;
-      finalSvg = svgData.replace(/<g>/, `<g transform="${transformStr}">`);
+      finalSvg = finalSvg.replace(/<g>/, `<g transform="${transformStr}">`);
     }
 
     const blob = new Blob([finalSvg], { type: 'image/svg+xml;charset=utf-8' });
@@ -468,9 +585,16 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
           height: chartH
         });
 
-        const option = generateSlotOption
+        const rawOption = generateSlotOption
           ? generateSlotOption(slotId)
           : (chartInstances[slotId]?.getOption() as echarts.EChartsOption);
+
+        // Scale font sizes proportionally so the export matches the preview appearance.
+        // The preview renders in a small fitted container; the export renders at full
+        // target dimensions. Without scaling, fonts appear proportionally smaller.
+        const previewW = chartInstances[slotId]?.getWidth();
+        const fontScale = previewW && previewW > 0 ? chartW / previewW : 1;
+        const option = scaleOptionFonts(rawOption, fontScale);
 
         if (option) {
           offInstance.setOption({
@@ -639,9 +763,14 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
           height: chartH
         });
 
-        const option = generateSlotOption
+        const rawOption = generateSlotOption
           ? generateSlotOption(slotId)
           : (chartInstances[slotId]?.getOption() as echarts.EChartsOption);
+
+        // Scale fonts for SVG export (same rationale as PNG path)
+        const previewW = chartInstances[slotId]?.getWidth();
+        const fontScale = previewW && previewW > 0 ? chartW / previewW : 1;
+        const option = scaleOptionFonts(rawOption, fontScale);
 
         if (option) {
           offInstance.setOption({

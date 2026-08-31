@@ -10,6 +10,7 @@ import { getSeriesPatternStyle } from '../utils/hatchPatternUtils';
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
+import { buildScientificAxisConfig } from './axisConfigHelper';
 
 export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -363,63 +364,16 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
   const finalTitleY = customAxisTitleY?.trim() || defaultTitleY;
 
   // 7. Axis Configurations
-  const categoryAxisConfig = {
-    type: 'category' as const,
-    data: categories,
-    inverse: isHorizontal,
-    axisLabel: {
-      fontFamily: font,
-      fontSize: isHorizontal ? (barYAxisFontSize ?? Math.max(9, fontSize - 2)) : Math.max(9, fontSize - 1),
-      color: palette.text,
-      rotate: isHorizontal ? 0 : labelRotation,
-      width: isHorizontal ? barYAxisWidth : undefined,
-      overflow: (isHorizontal && barYAxisOverflow !== 'none') ? barYAxisOverflow : undefined,
-      lineHeight: isHorizontal ? (barLineHeight ?? Math.max(12, (barYAxisFontSize ?? (fontSize - 2)) + 3)) : Math.max(12, fontSize + 2),
-      formatter: (val: string) => {
-        if (isHorizontal && barYAxisOverflow === 'break') {
-          const effFont = barYAxisFontSize ?? Math.max(9, fontSize - 2);
-          const charLimit = Math.max(14, Math.floor((barYAxisWidth - 10) / (effFont * 0.55)));
-          if (val.length > charLimit - 2) {
-            const words = val.split(' ');
-            const lines: string[] = [];
-            let cur = '';
-            words.forEach(w => {
-              if ((cur + ' ' + w).trim().length > charLimit) {
-                if (cur) lines.push(cur);
-                cur = w;
-              } else {
-                cur = (cur + ' ' + w).trim();
-              }
-            });
-            if (cur) lines.push(cur);
-            return lines.join('\n');
-          }
-          return val;
-        }
-        return val;
-      }
-    },
-    axisTick: {
-      show: axisTickDirection !== 'none',
-      inside: axisTickDirection === 'inside',
-      alignWithLabel: true
-    },
-    axisLine: {
-      show: showAxisBaseline,
-      lineStyle: { color: palette.text, width: 1.2 }
-    },
-    name: isHorizontal ? finalTitleY : finalTitleX,
-    nameLocation: 'end' as const,
-    nameTextStyle: {
-      fontFamily: font,
-      fontSize: Math.max(9, fontSize - 2),
-      color: palette.subtext,
-      fontStyle: 'italic' as const
-    }
-  };
+  const categoryAxisConfig = buildScientificAxisConfig(isHorizontal ? 'y' : 'x', ctx, {
+    axisKind: 'category',
+    defaultTitle: isHorizontal ? primaryField : (customAxisTitleX || primaryField),
+    categories: categories,
+    inverse: isHorizontal
+  });
 
-  const valueAxisConfig = {
-    type: axisScaleType === 'log' ? ('log' as const) : ('value' as const),
+  const valueAxisConfig = buildScientificAxisConfig(isHorizontal ? 'x' : 'y', ctx, {
+    axisKind: 'value',
+    defaultTitle: isHorizontal ? (customAxisTitleX || metricLabel) : metricLabel,
     max: isLabelOutside
       ? (val: any) => {
           if (!val || val.max === 0) return 10;
@@ -427,32 +381,8 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
           return barBenchmarkLine ? Math.max(ceiling, Math.ceil(barBenchmarkValue * 1.15)) : ceiling;
         }
       : (barBenchmarkLine ? (val: any) => Math.max(val.max, Math.ceil(barBenchmarkValue * 1.15)) : undefined),
-    axisLabel: {
-      fontFamily: font,
-      fontSize: Math.max(9, fontSize - 1),
-      color: palette.text,
-      formatter: isPctMetric ? '{value}%' : '{value}'
-    },
-    splitLine: {
-      lineStyle: { color: palette.border, type: 'dashed' as const }
-    },
-    axisTick: {
-      show: axisTickDirection !== 'none',
-      inside: axisTickDirection === 'inside'
-    },
-    axisLine: {
-      show: showAxisBaseline,
-      lineStyle: { color: palette.text, width: 1.2 }
-    },
-    name: isHorizontal ? finalTitleX : finalTitleY,
-    nameLocation: 'end' as const,
-    nameTextStyle: {
-      fontFamily: font,
-      fontSize: Math.max(9, fontSize - 2),
-      color: palette.subtext,
-      fontStyle: 'italic' as const
-    }
-  };
+    defaultUnitFormatter: (v: any) => isPctMetric ? `${v}%` : `${v}`
+  });
 
   return {
     backgroundColor: palette.bg,

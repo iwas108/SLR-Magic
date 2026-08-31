@@ -111,6 +111,25 @@ export type AxisScaleType = 'linear' | 'log';
 
 export type AxisTickDirection = 'inside' | 'outside' | 'none';
 
+export type AxisLocation = 'start' | 'middle' | 'center' | 'end';
+
+export type AxisLabelFormat = 
+  | 'auto' 
+  | 'raw' 
+  | 'percent' 
+  | 'integer' 
+  | 'decimal_1' 
+  | 'decimal_2' 
+  | 'scientific' 
+  | 'currency' 
+  | 'custom_prefix_suffix';
+
+export type AxisGridLineStyle = 'dashed' | 'solid' | 'dotted';
+
+export type AxisFontWeight = 'normal' | 'bold' | '500' | '600' | '700' | '800' | '900';
+
+export type AxisFontStyle = 'normal' | 'italic';
+
 export interface StatisticalSummary {
   mean: number;
   count: number;
@@ -191,10 +210,15 @@ export type ThemePreset =
 
 export type FontFamily = 
   | 'serif' 
+  | 'times'
+  | 'computer_modern' 
   | 'sans-serif' 
   | 'inter' 
-  | 'computer_modern' 
   | 'arial' 
+  | 'helvetica'
+  | 'calibri'
+  | 'georgia'
+  | 'garamond'
   | 'roboto' 
   | 'mono';
 
@@ -357,6 +381,54 @@ export interface SlotConfig {
   showAxisBaseline?: boolean;
   customAxisTitleX?: string;
   customAxisTitleY?: string;
+  // Comprehensive Scientific Axis Titles Customization
+  showAxisTitleX?: boolean;
+  showAxisTitleY?: boolean;
+  axisTitleFontSizeX?: number;
+  axisTitleFontSizeY?: number;
+  axisTitleFontWeightX?: AxisFontWeight;
+  axisTitleFontWeightY?: AxisFontWeight;
+  axisTitleFontStyleX?: AxisFontStyle;
+  axisTitleFontStyleY?: AxisFontStyle;
+  axisTitleColorX?: string;
+  axisTitleColorY?: string;
+  axisTitleLocationX?: AxisLocation;
+  axisTitleLocationY?: AxisLocation;
+  axisTitleGapX?: number;
+  axisTitleGapY?: number;
+  // Comprehensive Scientific Axis Tick Labels Customization
+  showAxisLabelX?: boolean;
+  showAxisLabelY?: boolean;
+  axisLabelFontSizeX?: number;
+  axisLabelFontSizeY?: number;
+  axisLabelFontWeightX?: AxisFontWeight;
+  axisLabelFontWeightY?: AxisFontWeight;
+  axisLabelColorX?: string;
+  axisLabelColorY?: string;
+  axisLabelRotateX?: number;
+  axisLabelRotateY?: number;
+  axisLabelMarginX?: number;
+  axisLabelMarginY?: number;
+  axisLabelOverflowX?: 'none' | 'truncate' | 'break';
+  axisLabelOverflowY?: 'none' | 'truncate' | 'break';
+  axisLabelWidthX?: number;
+  axisLabelWidthY?: number;
+  axisLabelLineHeightX?: number;
+  axisLabelLineHeightY?: number;
+  axisLabelFormatX?: AxisLabelFormat;
+  axisLabelFormatY?: AxisLabelFormat;
+  axisLabelPrefixX?: string;
+  axisLabelSuffixX?: string;
+  axisLabelPrefixY?: string;
+  axisLabelSuffixY?: string;
+  axisLabelIntervalX?: 'auto' | number;
+  axisLabelIntervalY?: 'auto' | number;
+  // Scientific Gridlines
+  showGridLinesX?: boolean;
+  showGridLinesY?: boolean;
+  gridLineStyle?: AxisGridLineStyle;
+  gridLineColor?: string;
+  gridLineOpacity?: number;
   labelFormat?: DisplayFormatTemplate;
   barLabelPosition: 'right' | 'inside' | 'insideLeft' | 'insideRight';
   barLabelFormat: DisplayFormatTemplate;
@@ -403,10 +475,53 @@ export interface SlotConfig {
   fitOffsetY?: number;
   containerPadding?: number;
   // Enhanced Scientific Customization Properties
+  lineMode?: 'cohort_trend' | 'epistemic_simulation';
+  lineTimeSteps?: number;
+  lineTimeStepIntervalName?: string;
+  lineYAxisTitle?: string;
+  lineYMin?: number;
+  lineYMax?: number;
+  lineBaselineA?: number;
+  lineBaselineB?: number;
+  lineBaselineName?: string;
+  lineBaselineColor?: string;
+  lineBaselineStyle?: 'solid' | 'dashed' | 'dotted';
+  lineEstimatorInitial?: number;
+  lineEstimatorDrift?: number;
+  lineEstimatorModulation?: number;
+  lineEstimatorName?: string;
+  lineEstimatorColor?: string;
+  lineEstimatorStyle?: 'solid' | 'dashed' | 'dotted';
+  lineThresholdValue?: number;
+  lineThresholdName?: string;
+  lineThresholdLabel?: string;
+  lineThresholdColor?: string;
+  lineThresholdStyle?: 'dotted' | 'dashed' | 'solid';
+  lineThresholdPosition?: 'insideEndTop' | 'insideStartTop' | 'insideMiddleTop' | 'end' | 'start';
+  lineThresholdLineWidth?: number;
+  lineAxisPointerType?: 'cross' | 'line' | 'shadow';
+  lineMarkerSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none' | 'emptyCircle';
+  lineXAxisInterval?: number | 'auto';
+  lineShowGridLines?: boolean;
+  lineGridLeft?: number;
+  lineGridRight?: number;
+  lineGridTop?: number;
+  lineGridBottom?: number;
   lineWidth?: number;
   showLineMarkers?: boolean;
   lineMarkerSize?: number;
   lineAreaOpacity?: number;
+  lineBaselineAreaOpacity?: number;
+  lineEstimatorAreaOpacity?: number;
+  lineBaselineFillMode?: 'none' | 'subtle_gradient' | 'solid';
+  lineEstimatorFillMode?: 'none' | 'subtle_gradient' | 'solid';
+  lineShowTxEvents?: boolean;
+  lineTxEventSymbol?: 'triangle' | 'pin' | 'diamond' | 'circle' | 'arrow';
+  lineTxEventColor?: string;
+  lineTxEventSize?: number;
+  lineShowTxLabels?: boolean;
+  lineTxEventLabel?: string;
+  lineTxEventSeriesName?: string;
   lineStepMode?: 'none' | 'start' | 'middle' | 'end';
   roseType?: 'none' | 'radius' | 'area';
   piePadAngle?: number;
@@ -461,6 +576,34 @@ export interface SlotConfig {
   scatterPointOpacity?: number;
   scatterShowRegression?: boolean;
   scatterRegressionType?: 'linear' | 'mean';
+  bubbleMode?: 'categorical_matrix' | 'numerical_3d';
+  bubbleMinRadius?: number;
+  bubbleMaxRadius?: number;
+  bubbleOpacity?: number;
+  bubbleBorderWidth?: number;
+  bubbleBorderColor?: string;
+  bubbleShowLabels?: boolean;
+  bubbleLabelFormat?: 'count_n' | 'count_only' | 'percent' | 'label';
+  bubbleLabelFontSize?: number;
+  bubbleLabelColor?: string;
+  bubbleColorMode?: 'color_by_x' | 'color_by_y' | 'color_by_metric' | 'custom_compliance';
+  bubbleShowGridLines?: boolean;
+  bubbleComplianceRules?: Record<string, { label?: string; compliance?: string; color?: string }>;
+  bubbleXAxisName?: string;
+  bubbleYAxisName?: string;
+  bubbleXAxisNameGap?: number;
+  bubbleYAxisNameGap?: number;
+  bubbleXAxisNameLocation?: 'middle' | 'start' | 'end';
+  bubbleYAxisNameLocation?: 'middle' | 'start' | 'end';
+  bubbleAxisTitleFontSize?: number;
+  bubbleAxisTitleFontWeight?: 'bold' | 'normal' | 'bolder';
+  bubbleAxisTitleColor?: string;
+  bubbleGridLeft?: number;
+  bubbleGridBottom?: number;
+  bubbleGridTop?: number;
+  bubbleGridRight?: number;
+  bubbleSeriesName?: string;
+  bubbleLegendMode?: 'category_series' | 'single_series' | 'none';
   graphRepulsion?: number;
   graphEdgeLength?: number;
   graphGravity?: number;
@@ -473,6 +616,18 @@ export interface SlotConfig {
   calendarCellSize?: number;
   calendarYear?: string;
   stackedNormalized?: boolean;
+  legendType?: 'plain' | 'scroll';
+  legendAlign?: 'auto' | 'left' | 'right';
+  legendIcon?: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line';
+  legendItemWidth?: number;
+  legendItemHeight?: number;
+  legendFontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | number | string;
+  legendTextColor?: string;
+  legendBackgroundColor?: string;
+  legendBorderColor?: string;
+  legendBorderWidth?: number;
+  legendBorderRadius?: number;
+  legendPadding?: number;
 }
 
 export interface GlobalStyleConfig {
@@ -591,6 +746,54 @@ export interface VisualizerPresetPayload {
   showAxisBaseline?: boolean;
   customAxisTitleX?: string;
   customAxisTitleY?: string;
+  // Comprehensive Scientific Axis Titles Customization
+  showAxisTitleX?: boolean;
+  showAxisTitleY?: boolean;
+  axisTitleFontSizeX?: number;
+  axisTitleFontSizeY?: number;
+  axisTitleFontWeightX?: AxisFontWeight;
+  axisTitleFontWeightY?: AxisFontWeight;
+  axisTitleFontStyleX?: AxisFontStyle;
+  axisTitleFontStyleY?: AxisFontStyle;
+  axisTitleColorX?: string;
+  axisTitleColorY?: string;
+  axisTitleLocationX?: AxisLocation;
+  axisTitleLocationY?: AxisLocation;
+  axisTitleGapX?: number;
+  axisTitleGapY?: number;
+  // Comprehensive Scientific Axis Tick Labels Customization
+  showAxisLabelX?: boolean;
+  showAxisLabelY?: boolean;
+  axisLabelFontSizeX?: number;
+  axisLabelFontSizeY?: number;
+  axisLabelFontWeightX?: AxisFontWeight;
+  axisLabelFontWeightY?: AxisFontWeight;
+  axisLabelColorX?: string;
+  axisLabelColorY?: string;
+  axisLabelRotateX?: number;
+  axisLabelRotateY?: number;
+  axisLabelMarginX?: number;
+  axisLabelMarginY?: number;
+  axisLabelOverflowX?: 'none' | 'truncate' | 'break';
+  axisLabelOverflowY?: 'none' | 'truncate' | 'break';
+  axisLabelWidthX?: number;
+  axisLabelWidthY?: number;
+  axisLabelLineHeightX?: number;
+  axisLabelLineHeightY?: number;
+  axisLabelFormatX?: AxisLabelFormat;
+  axisLabelFormatY?: AxisLabelFormat;
+  axisLabelPrefixX?: string;
+  axisLabelSuffixX?: string;
+  axisLabelPrefixY?: string;
+  axisLabelSuffixY?: string;
+  axisLabelIntervalX?: 'auto' | number;
+  axisLabelIntervalY?: 'auto' | number;
+  // Scientific Gridlines
+  showGridLinesX?: boolean;
+  showGridLinesY?: boolean;
+  gridLineStyle?: AxisGridLineStyle;
+  gridLineColor?: string;
+  gridLineOpacity?: number;
   barLabelPosition?: 'right' | 'inside' | 'insideLeft' | 'insideRight';
   barLabelFormat?: 'value' | 'value_pct' | 'pct_only';
   barYAxisWidth?: number;
@@ -674,4 +877,87 @@ export interface VisualizerPresetPayload {
   radarTargetSymbolSize?: number;
   radarBaselineName?: string;
   radarBaselineColor?: string;
+  bubbleMode?: 'categorical_matrix' | 'numerical_3d';
+  bubbleMinRadius?: number;
+  bubbleMaxRadius?: number;
+  bubbleOpacity?: number;
+  bubbleBorderWidth?: number;
+  bubbleBorderColor?: string;
+  bubbleShowLabels?: boolean;
+  bubbleLabelFormat?: 'count_n' | 'count_only' | 'percent' | 'label';
+  bubbleLabelFontSize?: number;
+  bubbleLabelColor?: string;
+  bubbleColorMode?: 'color_by_x' | 'color_by_y' | 'color_by_metric' | 'custom_compliance';
+  bubbleShowGridLines?: boolean;
+  bubbleComplianceRules?: Record<string, { label?: string; compliance?: string; color?: string }>;
+  bubbleXAxisName?: string;
+  bubbleYAxisName?: string;
+  bubbleXAxisNameGap?: number;
+  bubbleYAxisNameGap?: number;
+  bubbleXAxisNameLocation?: 'middle' | 'start' | 'end';
+  bubbleYAxisNameLocation?: 'middle' | 'start' | 'end';
+  bubbleAxisTitleFontSize?: number;
+  bubbleAxisTitleFontWeight?: 'bold' | 'normal' | 'bolder';
+  bubbleAxisTitleColor?: string;
+  bubbleGridLeft?: number;
+  bubbleGridBottom?: number;
+  bubbleGridTop?: number;
+  bubbleGridRight?: number;
+  bubbleSeriesName?: string;
+  bubbleLegendMode?: 'category_series' | 'single_series' | 'none';
+  lineMode?: 'cohort_trend' | 'epistemic_simulation';
+  lineTimeSteps?: number;
+  lineTimeStepIntervalName?: string;
+  lineYAxisTitle?: string;
+  lineYMin?: number;
+  lineYMax?: number;
+  lineBaselineA?: number;
+  lineBaselineB?: number;
+  lineBaselineName?: string;
+  lineBaselineColor?: string;
+  lineBaselineStyle?: 'solid' | 'dashed' | 'dotted';
+  lineEstimatorInitial?: number;
+  lineEstimatorDrift?: number;
+  lineEstimatorModulation?: number;
+  lineEstimatorName?: string;
+  lineEstimatorColor?: string;
+  lineEstimatorStyle?: 'solid' | 'dashed' | 'dotted';
+  lineThresholdValue?: number;
+  lineThresholdName?: string;
+  lineThresholdLabel?: string;
+  lineThresholdColor?: string;
+  lineThresholdStyle?: 'dotted' | 'dashed' | 'solid';
+  lineThresholdPosition?: 'insideEndTop' | 'insideStartTop' | 'insideMiddleTop' | 'end' | 'start';
+  lineThresholdLineWidth?: number;
+  lineAxisPointerType?: 'cross' | 'line' | 'shadow';
+  lineMarkerSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none' | 'emptyCircle';
+  lineXAxisInterval?: number | 'auto';
+  lineShowGridLines?: boolean;
+  lineGridLeft?: number;
+  lineGridRight?: number;
+  lineGridTop?: number;
+  lineGridBottom?: number;
+  lineBaselineAreaOpacity?: number;
+  lineEstimatorAreaOpacity?: number;
+  lineBaselineFillMode?: 'none' | 'subtle_gradient' | 'solid';
+  lineEstimatorFillMode?: 'none' | 'subtle_gradient' | 'solid';
+  lineShowTxEvents?: boolean;
+  lineTxEventSymbol?: 'triangle' | 'pin' | 'diamond' | 'circle' | 'arrow';
+  lineTxEventColor?: string;
+  lineTxEventSize?: number;
+  lineShowTxLabels?: boolean;
+  lineTxEventLabel?: string;
+  lineTxEventSeriesName?: string;
+  legendType?: 'plain' | 'scroll';
+  legendAlign?: 'auto' | 'left' | 'right';
+  legendIcon?: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line';
+  legendItemWidth?: number;
+  legendItemHeight?: number;
+  legendFontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | number | string;
+  legendTextColor?: string;
+  legendBackgroundColor?: string;
+  legendBorderColor?: string;
+  legendBorderWidth?: number;
+  legendBorderRadius?: number;
+  legendPadding?: number;
 }

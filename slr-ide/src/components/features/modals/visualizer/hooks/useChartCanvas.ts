@@ -43,7 +43,7 @@ export function useChartCanvas(params: {
   fitOffsetY?: number;
   containerPadding?: number;
   inspectedSlot?: SlotId | null;
-  generateSlotOption: (slotId: SlotId) => echarts.EChartsOption;
+  generateSlotOption: (slotId: SlotId, overrides?: any) => echarts.EChartsOption;
 }) {
   const {
     isOpen,

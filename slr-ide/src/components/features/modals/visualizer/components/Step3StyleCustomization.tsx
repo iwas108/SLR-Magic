@@ -32,6 +32,8 @@ import {
   GraphConfigPanel, 
   GaugeConfigPanel, 
   CalendarConfigPanel,
+  BubbleConfigPanel,
+  ScatterConfigPanel,
   ScatterBubbleConfigPanel 
 } from './subcomponents/ChartConfigPanels';
 import { LiveSplitPreview } from './subcomponents/LiveSplitPreview';
@@ -110,7 +112,23 @@ export function Step3StyleCustomization() {
     legendFontSize,
     setLegendFontSize,
     legendOverflow,
-    setLegendOverflow
+    setLegendOverflow,
+    legendType = 'plain',
+    setLegendType,
+    legendAlign = 'auto',
+    setLegendAlign,
+    legendIcon = 'inherit',
+    setLegendIcon,
+    legendItemWidth = 25,
+    setLegendItemWidth,
+    legendItemHeight = 14,
+    setLegendItemHeight,
+    legendFontWeight = 'normal',
+    setLegendFontWeight,
+    legendTextColor = '',
+    setLegendTextColor,
+    legendPadding = 5,
+    setLegendPadding
   } = config;
 
   const {
@@ -560,8 +578,8 @@ export function Step3StyleCustomization() {
                     onChange={(e) => setLegendPosition(e.target.value as any)}
                     className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-semibold"
                   >
-                    <option value="top">Top Center</option>
                     <option value="bottom">Bottom Center</option>
+                    <option value="top">Top Center</option>
                     <option value="left">Left Side</option>
                     <option value="right">Right Side</option>
                   </select>
@@ -571,7 +589,7 @@ export function Step3StyleCustomization() {
 
             {showLegend && chartType !== 'sunburst' && chartType !== 'bar_horizontal' && (
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground block">Legend Label Format</label>
+                <label className="text-xs font-bold text-foreground block">Legend Format</label>
                 <select
                   value={legendFormat}
                   onChange={(e) => setLegendFormat(e.target.value as any)}
@@ -833,17 +851,76 @@ export function Step3StyleCustomization() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border/40">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-foreground block">Legend Text Overflow Mode</label>
+                  <label className="text-xs font-bold text-foreground block">Layout Mode</label>
+                  <select
+                    value={legendType}
+                    onChange={(e) => setLegendType(e.target.value as any)}
+                    className="w-full bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-semibold"
+                  >
+                    <option value="plain">Wrap Multi-Line (Plain)</option>
+                    <option value="scroll">Single-Line Paged (Scroll)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Symbol Align</label>
+                  <select
+                    value={legendAlign}
+                    onChange={(e) => setLegendAlign(e.target.value as any)}
+                    className="w-full bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-semibold"
+                  >
+                    <option value="auto">Auto</option>
+                    <option value="left">Left of Text</option>
+                    <option value="right">Right of Text</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Symbol Shape</label>
+                  <select
+                    value={legendIcon}
+                    onChange={(e) => setLegendIcon(e.target.value as any)}
+                    className="w-full bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-semibold"
+                  >
+                    <option value="inherit">Inherit / Auto</option>
+                    <option value="circle">Circle (●)</option>
+                    <option value="rect">Rectangle (■)</option>
+                    <option value="roundRect">Rounded (▢)</option>
+                    <option value="line">Line (—)</option>
+                    <option value="triangle">Triangle (▲)</option>
+                    <option value="diamond">Diamond (◆)</option>
+                    <option value="none">None (Text Only)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Font Weight</label>
+                  <select
+                    value={legendFontWeight}
+                    onChange={(e) => setLegendFontWeight(e.target.value as any)}
+                    className="w-full bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-semibold"
+                  >
+                    <option value="normal">Normal (400)</option>
+                    <option value="500">Medium (500)</option>
+                    <option value="600">Semi-Bold (600)</option>
+                    <option value="bold">Bold (700)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-border/40">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Legend Text Overflow</label>
                   <select
                     value={legendOverflow || 'break'}
                     onChange={(e) => setLegendOverflow(e.target.value as any)}
                     className="w-full bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-semibold"
                   >
-                    <option value="break">Break Words (Multi-line text wrapping)</option>
+                    <option value="break">Break Words (Multi-line)</option>
                     <option value="truncate">Truncate with Ellipsis (...)</option>
-                    <option value="none">Single Line (No wrapping / No overflow)</option>
+                    <option value="none">Single Line (No wrap)</option>
                   </select>
                 </div>
 
@@ -857,7 +934,7 @@ export function Step3StyleCustomization() {
                     }}
                     className="w-full bg-secondary border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-semibold"
                   >
-                    <option value={-1}>Inherit Base Font Size ({Math.max(9, fontSize - 1)}px)</option>
+                    <option value={-1}>Inherit Base ({Math.max(9, fontSize - 1)}px)</option>
                     <option value={9}>9px — Fine Small</option>
                     <option value={10}>10px — Compact</option>
                     <option value={11}>11px — Standard Academic</option>
@@ -865,6 +942,30 @@ export function Step3StyleCustomization() {
                     <option value={13}>13px — Prominent</option>
                     <option value={14}>14px — Large</option>
                   </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Symbol Width ({legendItemWidth}px)</label>
+                  <input
+                    type="range"
+                    min={8}
+                    max={40}
+                    value={legendItemWidth}
+                    onChange={(e) => setLegendItemWidth(Number(e.target.value))}
+                    className="w-full accent-primary mt-1.5"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Symbol Height ({legendItemHeight}px)</label>
+                  <input
+                    type="range"
+                    min={4}
+                    max={24}
+                    value={legendItemHeight}
+                    onChange={(e) => setLegendItemHeight(Number(e.target.value))}
+                    className="w-full accent-primary mt-1.5"
+                  />
                 </div>
               </div>
             </div>
@@ -1247,6 +1348,14 @@ export function Step3StyleCustomization() {
 
           {chartType === 'funnel' && (
             <FunnelConfigPanel />
+          )}
+
+          {chartType === 'scatter' && (
+            <ScatterConfigPanel />
+          )}
+
+          {chartType === 'bubble' && (
+            <BubbleConfigPanel />
           )}
 
           {chartType === 'boxplot' && (

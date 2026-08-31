@@ -1,6 +1,7 @@
 import type * as echarts from 'echarts';
 import { getFieldValue, getMappedFieldValue, limitCategoryMap } from '../utils/dataExtractor';
 import type { ChartGeneratorContext } from './types';
+import { buildScientificAxisConfig } from './axisConfigHelper';
 
 export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -105,8 +106,16 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
       bottom: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)), 
       containLabel: true 
     },
-    xAxis: { type: 'category', data: xData, axisLabel: { fontFamily: font, fontSize: fontSize - 1, color: palette.text, rotate: labelRotation } },
-    yAxis: { type: 'category', data: yData, axisLabel: { fontFamily: font, fontSize: fontSize - 1, color: palette.text } },
+    xAxis: buildScientificAxisConfig('x', ctx, {
+      axisKind: 'category',
+      defaultTitle: primaryField,
+      categories: xData
+    }),
+    yAxis: buildScientificAxisConfig('y', ctx, {
+      axisKind: 'category',
+      defaultTitle: secondaryField,
+      categories: yData
+    }),
     visualMap: { 
       min: 0, 
       max: maxVal, 

@@ -1,5 +1,7 @@
 import React from 'react';
 import { useVisualizerContext } from '../../context/VisualizerContext';
+import { THEME_PALETTES } from '../../constants/themePalettes';
+import { Sparkles, Palette, RotateCcw } from 'lucide-react';
 
 export function VerticalBarConfigPanel() {
   const { config } = useVisualizerContext();
@@ -279,104 +281,1219 @@ export function StackedBarConfigPanel() {
 }
 
 export function LineConfigPanel() {
-  const { config } = useVisualizerContext();
+  const { config, style } = useVisualizerContext();
+  const { themePreset } = style;
+  const palette = THEME_PALETTES[themePreset] || THEME_PALETTES.ieee_blue;
+
+  const defaultColor1 = palette.colors[0] || '#2E7D32';
+  const defaultColor2 = palette.colors[1] || '#00838F';
+  const defaultColor3 = palette.colors[2] || palette.text || '#292b2c';
+
   const {
+    showLegend = true,
+    setShowLegend,
+    legendPosition = 'top',
+    setLegendPosition,
+    legendDistance = 10,
+    setLegendDistance,
+    legendItemGap = 14,
+    setLegendItemGap,
+    legendFontSize,
+    setLegendFontSize,
+    legendType = 'plain',
+    setLegendType,
+    legendAlign = 'auto',
+    setLegendAlign,
+    legendIcon = 'inherit',
+    setLegendIcon,
+    legendItemWidth = 25,
+    setLegendItemWidth,
+    legendItemHeight = 14,
+    setLegendItemHeight,
+    legendFontWeight = 'normal',
+    setLegendFontWeight,
+    legendTextColor = '',
+    setLegendTextColor,
+    legendBackgroundColor = 'transparent',
+    setLegendBackgroundColor,
+    legendBorderColor = 'transparent',
+    setLegendBorderColor,
+    legendBorderWidth = 0,
+    setLegendBorderWidth,
+    legendBorderRadius = 4,
+    setLegendBorderRadius,
+    legendPadding = 5,
+    setLegendPadding,
+    lineMode = 'cohort_trend',
+    setLineMode,
+    lineTimeSteps = 96,
+    setLineTimeSteps,
+    lineTimeStepIntervalName = 'Time Steps k (15-min intervals / 24-h Cycle)',
+    setLineTimeStepIntervalName,
+    lineYAxisTitle = 'State Uncertainty Tr(P)',
+    setLineYAxisTitle,
+    lineYMin = 0,
+    setLineYMin,
+    lineYMax = 4.5,
+    setLineYMax,
+    lineBaselineA = 0.15,
+    setLineBaselineA,
+    lineBaselineB = 0.038,
+    setLineBaselineB,
+    lineBaselineName = 'Static Architecture (24% CNN / 15% Filter Cohort)',
+    setLineBaselineName,
+    lineBaselineColor = '',
+    setLineBaselineColor,
+    lineBaselineStyle = 'dashed',
+    setLineBaselineStyle,
+    lineEstimatorInitial = 0.15,
+    setLineEstimatorInitial,
+    lineEstimatorDrift = 0.11,
+    setLineEstimatorDrift,
+    lineEstimatorModulation = 0.05,
+    setLineEstimatorModulation,
+    lineEstimatorName = 'Discrete Recursive Estimator (Proposed Gated Pipeline)',
+    setLineEstimatorName,
+    lineEstimatorColor = '',
+    setLineEstimatorColor,
+    lineEstimatorStyle = 'solid',
+    setLineEstimatorStyle,
+    lineThresholdValue = 1.0,
+    setLineThresholdValue,
+    lineThresholdName = 'Semantic Trigger Threshold (ε)',
+    setLineThresholdName,
+    lineThresholdLabel = 'Threshold ε = 1.00',
+    setLineThresholdLabel,
+    lineThresholdColor = '',
+    setLineThresholdColor,
+    lineThresholdStyle = 'dotted',
+    setLineThresholdStyle,
+    lineThresholdPosition = 'insideEndTop',
+    setLineThresholdPosition,
+    lineThresholdLineWidth = 1.5,
+    setLineThresholdLineWidth,
+    lineAxisPointerType = 'cross',
+    setLineAxisPointerType,
+    lineMarkerSymbol = 'circle',
+    setLineMarkerSymbol,
+    lineXAxisInterval = 'auto',
+    setLineXAxisInterval,
+    lineShowGridLines = true,
+    setLineShowGridLines,
+    lineGridLeft = 60,
+    setLineGridLeft,
+    lineGridRight = 40,
+    setLineGridRight,
+    lineGridTop = 65,
+    setLineGridTop,
+    lineGridBottom = 65,
+    setLineGridBottom,
+    lineBaselineAreaOpacity = 0,
+    setLineBaselineAreaOpacity,
+    lineEstimatorAreaOpacity = 8,
+    setLineEstimatorAreaOpacity,
+    lineBaselineFillMode = 'none',
+    setLineBaselineFillMode,
+    lineEstimatorFillMode = 'subtle_gradient',
+    setLineEstimatorFillMode,
+    lineShowTxEvents = true,
+    setLineShowTxEvents,
+    lineTxEventSymbol = 'triangle',
+    setLineTxEventSymbol,
+    lineTxEventColor = '',
+    setLineTxEventColor,
+    lineTxEventSize = 12,
+    setLineTxEventSize,
+    lineShowTxLabels = true,
+    setLineShowTxLabels,
+    lineTxEventLabel = 'TX',
+    setLineTxEventLabel,
+    lineTxEventSeriesName = 'Physical Radio TX Events',
+    setLineTxEventSeriesName,
     smoothLine,
     setSmoothLine,
-    lineWidth,
+    lineWidth = 2.5,
     setLineWidth,
     showLineMarkers,
     setShowLineMarkers,
-    lineMarkerSize,
+    lineMarkerSize = 4,
     setLineMarkerSize,
-    lineAreaOpacity,
+    lineAreaOpacity = 0,
     setLineAreaOpacity,
-    lineStepMode,
+    lineStepMode = 'none',
     setLineStepMode
   } = config;
 
+  const activeColor1 = (lineBaselineColor && lineBaselineColor.trim() !== '') ? lineBaselineColor : defaultColor1;
+  const isColor1Custom = Boolean(lineBaselineColor && lineBaselineColor.trim() !== '');
+
+  const activeColor2 = (lineEstimatorColor && lineEstimatorColor.trim() !== '') ? lineEstimatorColor : defaultColor2;
+  const isColor2Custom = Boolean(lineEstimatorColor && lineEstimatorColor.trim() !== '');
+
+  const activeColor3 = (lineThresholdColor && lineThresholdColor.trim() !== '') ? lineThresholdColor : defaultColor3;
+  const isColor3Custom = Boolean(lineThresholdColor && lineThresholdColor.trim() !== '');
+
+  const hasAnyCustomColors = isColor1Custom || isColor2Custom || isColor3Custom;
+
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-xl border border-border/40">
+    <div className="space-y-4">
+      {/* Line Chart Paradigm Selector */}
+      <div className="p-3 bg-secondary/30 rounded-2xl border border-border/80 space-y-2">
+        <span className="text-xs font-black text-foreground block flex items-center justify-between">
+          <span>Line Chart Paradigm</span>
+          <span className="text-[10px] text-muted-foreground font-mono uppercase">
+            {lineMode === 'epistemic_simulation' ? 'Simulation Trajectory' : 'Literature Trend'}
+          </span>
+        </span>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setLineMode('cohort_trend')}
+            className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border text-left ${
+              lineMode !== 'epistemic_simulation'
+                ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                : 'bg-card border-border/70 text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <div className="font-bold">Cohort Trend</div>
+            <div className="text-[10px] opacity-75">Empirical Synthesis</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setLineMode('epistemic_simulation')}
+            className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border text-left ${
+              lineMode === 'epistemic_simulation'
+                ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                : 'bg-card border-border/70 text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <div className="font-bold">Epistemic Simulation</div>
+            <div className="text-[10px] opacity-75">Uncertainty Trajectory</div>
+          </button>
+        </div>
+      </div>
+
+      {/* Academic Color Palette Integration Bar */}
+      <div className="p-3 bg-secondary/30 rounded-2xl border border-border/80 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Palette className="w-4 h-4 text-primary shrink-0" />
           <div>
-            <span className="text-xs font-bold text-foreground block">Smooth Spline Curve</span>
-            <span className="text-[10px] text-muted-foreground block">Cubic Bézier interpolation</span>
+            <span className="text-xs font-bold text-foreground block">Academic Color Theme Binding</span>
+            <span className="text-[10px] text-muted-foreground block">
+              Active: <strong className="text-primary capitalize">{themePreset.replace(/_/g, ' ')}</strong>
+            </span>
           </div>
-          <input
-            type="checkbox"
-            checked={smoothLine}
-            onChange={(e) => setSmoothLine(e.target.checked)}
-            className="w-4 h-4 rounded border-border text-primary"
-          />
         </div>
+        {hasAnyCustomColors ? (
+          <button
+            type="button"
+            onClick={() => {
+              setLineBaselineColor('');
+              setLineEstimatorColor('');
+              setLineThresholdColor('');
+              setLineTxEventColor('');
+            }}
+            className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-colors"
+            title="Reset custom colors to automatically follow the selected Academic Color Palette"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Sync with Palette
+          </button>
+        ) : (
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+            ✓ Bound to Academic Palette
+          </span>
+        )}
+      </div>
 
-        <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-xl border border-border/40">
-          <div>
-            <span className="text-xs font-bold text-foreground block">Show Point Markers</span>
-            <span className="text-[10px] text-muted-foreground block">Displays vertex symbols</span>
+      {lineMode === 'epistemic_simulation' ? (
+        <>
+          {/* Section: Curve 1 - Exponential Baseline */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-foreground block flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeColor1 }} />
+                <span>Static Architecture Baseline (Exponential Drift)</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono">y(k) = A · e^(B·k)</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Baseline Series Legend Title</label>
+                <input
+                  type="text"
+                  value={lineBaselineName}
+                  onChange={(e) => setLineBaselineName(e.target.value)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Initial Uncertainty A ({lineBaselineA})</label>
+                <input
+                  type="range"
+                  min={0.05}
+                  max={0.50}
+                  step={0.01}
+                  value={lineBaselineA}
+                  onChange={(e) => setLineBaselineA(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Exponential Drift Rate B ({lineBaselineB})</label>
+                <input
+                  type="range"
+                  min={0.01}
+                  max={0.08}
+                  step={0.002}
+                  value={lineBaselineB}
+                  onChange={(e) => setLineBaselineB(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-muted-foreground block">Curve Color</label>
+                  {isColor1Custom && (
+                    <button
+                      type="button"
+                      onClick={() => setLineBaselineColor('')}
+                      className="text-[10px] text-primary hover:underline font-bold"
+                    >
+                      Use Palette Color
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={activeColor1}
+                    onChange={(e) => setLineBaselineColor(e.target.value)}
+                    className="w-7 h-7 rounded border border-border cursor-pointer p-0 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={lineBaselineColor || `Auto (${defaultColor1})`}
+                    onChange={(e) => setLineBaselineColor(e.target.value)}
+                    placeholder={defaultColor1}
+                    className="flex-1 bg-card border border-border rounded-xl px-2 py-1 text-xs text-foreground font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Line Style</label>
+                <select
+                  value={lineBaselineStyle}
+                  onChange={(e) => setLineBaselineStyle(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="dashed">Dashed Line (---)</option>
+                  <option value="solid">Solid Line (—)</option>
+                  <option value="dotted">Dotted Line (···)</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <input
-            type="checkbox"
-            checked={showLineMarkers}
-            onChange={(e) => setShowLineMarkers(e.target.checked)}
-            className="w-4 h-4 rounded border-border text-primary"
-          />
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Line Width ({lineWidth}px)</label>
-          <input
-            type="range"
-            min={1}
-            max={6}
-            step={0.5}
-            value={lineWidth}
-            onChange={(e) => setLineWidth(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
+          {/* Section: Curve 2 - Discrete Recursive Estimator */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-foreground block flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeColor2 }} />
+                <span>Discrete Recursive Estimator (Proposed Gated Pipeline)</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono">Reset at ε</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Estimator Series Legend Title</label>
+                <input
+                  type="text"
+                  value={lineEstimatorName}
+                  onChange={(e) => setLineEstimatorName(e.target.value)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Marker Size ({lineMarkerSize}px)</label>
-          <input
-            type="range"
-            min={4}
-            max={16}
-            value={lineMarkerSize}
-            onChange={(e) => setLineMarkerSize(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Initial P0 ({lineEstimatorInitial})</label>
+                <input
+                  type="range"
+                  min={0.05}
+                  max={0.50}
+                  step={0.01}
+                  value={lineEstimatorInitial}
+                  onChange={(e) => setLineEstimatorInitial(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Area Fill Opacity ({lineAreaOpacity}%)</label>
-          <input
-            type="range"
-            min={0}
-            max={60}
-            value={lineAreaOpacity}
-            onChange={(e) => setLineAreaOpacity(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
-      </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Step Drift Δ ({lineEstimatorDrift})</label>
+                <input
+                  type="range"
+                  min={0.02}
+                  max={0.25}
+                  step={0.01}
+                  value={lineEstimatorDrift}
+                  onChange={(e) => setLineEstimatorDrift(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
 
-      <div className="space-y-1 pt-1">
-        <label className="text-xs font-bold text-foreground block">Step Line Transition</label>
-        <select
-          value={lineStepMode}
-          onChange={(e) => setLineStepMode(e.target.value as any)}
-          className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-        >
-          <option value="none">Continuous / Linear</option>
-          <option value="start">Step at Start</option>
-          <option value="middle">Step at Middle</option>
-          <option value="end">Step at End</option>
-        </select>
-      </div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-muted-foreground block">Curve Color</label>
+                  {isColor2Custom && (
+                    <button
+                      type="button"
+                      onClick={() => setLineEstimatorColor('')}
+                      className="text-[10px] text-primary hover:underline font-bold"
+                    >
+                      Use Palette Color
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={activeColor2}
+                    onChange={(e) => setLineEstimatorColor(e.target.value)}
+                    className="w-7 h-7 rounded border border-border cursor-pointer p-0 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={lineEstimatorColor || `Auto (${defaultColor2})`}
+                    onChange={(e) => setLineEstimatorColor(e.target.value)}
+                    placeholder={defaultColor2}
+                    className="flex-1 bg-card border border-border rounded-xl px-2 py-1 text-xs text-foreground font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Line Style</label>
+                <select
+                  value={lineEstimatorStyle}
+                  onChange={(e) => setLineEstimatorStyle(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="solid">Solid Line (—)</option>
+                  <option value="dashed">Dashed Line (---)</option>
+                  <option value="dotted">Dotted Line (···)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Curve 3 - Semantic Trigger Threshold */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-foreground block flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeColor3 }} />
+                <span>Semantic Trigger / Benchmark Threshold (ε)</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono">MarkLine</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Threshold Value ε ({lineThresholdValue})</label>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={2.5}
+                  step={0.1}
+                  value={lineThresholdValue}
+                  onChange={(e) => setLineThresholdValue(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Threshold MarkLine Label</label>
+                <input
+                  type="text"
+                  value={lineThresholdLabel}
+                  onChange={(e) => setLineThresholdLabel(e.target.value)}
+                  placeholder="e.g. Threshold ε = 1.00"
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Label Position</label>
+                <select
+                  value={lineThresholdPosition}
+                  onChange={(e) => setLineThresholdPosition(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="insideEndTop">Inside End Top (Right)</option>
+                  <option value="insideStartTop">Inside Start Top (Left)</option>
+                  <option value="insideMiddleTop">Inside Center Top</option>
+                  <option value="end">Outside End (Right)</option>
+                  <option value="start">Outside Start (Left)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Threshold Legend Name</label>
+                <input
+                  type="text"
+                  value={lineThresholdName}
+                  onChange={(e) => setLineThresholdName(e.target.value)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-muted-foreground block">Threshold Line Color</label>
+                  {isColor3Custom && (
+                    <button
+                      type="button"
+                      onClick={() => setLineThresholdColor('')}
+                      className="text-[10px] text-primary hover:underline font-bold"
+                    >
+                      Use Palette Color
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={activeColor3}
+                    onChange={(e) => setLineThresholdColor(e.target.value)}
+                    className="w-7 h-7 rounded border border-border cursor-pointer p-0 shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={lineThresholdColor || `Auto (${defaultColor3})`}
+                    onChange={(e) => setLineThresholdColor(e.target.value)}
+                    placeholder={defaultColor3}
+                    className="flex-1 bg-card border border-border rounded-xl px-2 py-1 text-xs text-foreground font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Threshold Line Style</label>
+                <select
+                  value={lineThresholdStyle}
+                  onChange={(e) => setLineThresholdStyle(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="dotted">Dotted Line (···)</option>
+                  <option value="dashed">Dashed Line (---)</option>
+                  <option value="solid">Solid Line (—)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Physical Radio TX Transmission Events */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-black text-foreground block flex items-center gap-1.5">
+                  <span className="text-primary font-bold">▲</span>
+                  <span>Physical Radio Transmission Events (TX Peaks)</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  Explicit upward markers at exact peaks where green sawtooth reaches threshold ε = 1.00.
+                </span>
+              </div>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground cursor-pointer shrink-0">
+                <span>Enable TX Markers</span>
+                <input
+                  type="checkbox"
+                  checked={lineShowTxEvents}
+                  onChange={(e) => setLineShowTxEvents(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-primary"
+                />
+              </label>
+            </div>
+
+            {lineShowTxEvents && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t border-border/40">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground block">Marker Shape</label>
+                  <select
+                    value={lineTxEventSymbol}
+                    onChange={(e) => setLineTxEventSymbol(e.target.value as any)}
+                    className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                  >
+                    <option value="triangle">Upward Triangle (▲)</option>
+                    <option value="pin">Map Pin Symbol</option>
+                    <option value="diamond">Diamond (◆)</option>
+                    <option value="circle">Circle (●)</option>
+                    <option value="arrow">Arrow (↑)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground block">Marker Size ({lineTxEventSize}px)</label>
+                  <input
+                    type="range"
+                    min={6}
+                    max={24}
+                    value={lineTxEventSize}
+                    onChange={(e) => setLineTxEventSize(Number(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Marker Color</label>
+                    {lineTxEventColor && (
+                      <button
+                        type="button"
+                        onClick={() => setLineTxEventColor('')}
+                        className="text-[10px] text-primary hover:underline font-bold"
+                      >
+                        Palette Auto
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={lineTxEventColor || (palette.colors[2] || '#d9534f')}
+                      onChange={(e) => setLineTxEventColor(e.target.value)}
+                      className="w-7 h-7 rounded border border-border cursor-pointer p-0 shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={lineTxEventColor || `Auto (${palette.colors[2] || '#d9534f'})`}
+                      onChange={(e) => setLineTxEventColor(e.target.value)}
+                      placeholder={palette.colors[2] || '#d9534f'}
+                      className="flex-1 bg-card border border-border rounded-xl px-2 py-1 text-xs text-foreground font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground block">Label Tag Text</label>
+                  <input
+                    type="text"
+                    value={lineTxEventLabel}
+                    onChange={(e) => setLineTxEventLabel(e.target.value)}
+                    placeholder="e.g. TX"
+                    className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground block">Series Legend Title</label>
+                  <input
+                    type="text"
+                    value={lineTxEventSeriesName}
+                    onChange={(e) => setLineTxEventSeriesName(e.target.value)}
+                    placeholder="e.g. Physical Radio TX Events"
+                    className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 bg-card/60 rounded-xl border border-border/40 self-end">
+                  <div>
+                    <span className="text-xs font-bold text-foreground block">Show Step Labels</span>
+                    <span className="text-[10px] text-muted-foreground block">e.g. "TX #1", "TX #2"</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={lineShowTxLabels}
+                    onChange={(e) => setLineShowTxLabels(e.target.checked)}
+                    className="w-4 h-4 rounded border-border text-primary"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section: Area Shading & Overlap Elimination (Print Clarity) */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <div>
+              <span className="text-xs font-black text-foreground block">Area Shading & Print Clarity</span>
+              <span className="text-[10px] text-muted-foreground block">
+                Independent alpha gradients eliminate muddy center overlap in academic prints.
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-2.5 bg-card/60 rounded-xl border border-border/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-foreground">Baseline Curve Fill</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">{lineBaselineAreaOpacity}%</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={lineBaselineFillMode}
+                    onChange={(e) => setLineBaselineFillMode(e.target.value as any)}
+                    className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
+                  >
+                    <option value="none">None (No Fill)</option>
+                    <option value="subtle_gradient">Subtle Gradient</option>
+                    <option value="solid">Solid Fill</option>
+                  </select>
+                  <input
+                    type="range"
+                    min={0}
+                    max={40}
+                    value={lineBaselineAreaOpacity}
+                    onChange={(e) => setLineBaselineAreaOpacity(Number(e.target.value))}
+                    disabled={lineBaselineFillMode === 'none'}
+                    className="w-full accent-primary disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-card/60 rounded-xl border border-border/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-foreground">Estimator Trajectory Fill</span>
+                  <span className="text-[10px] font-mono text-primary font-bold">{lineEstimatorAreaOpacity}% (alpha)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={lineEstimatorFillMode}
+                    onChange={(e) => setLineEstimatorFillMode(e.target.value as any)}
+                    className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
+                  >
+                    <option value="subtle_gradient">Subtle Alpha Gradient (≤0.08)</option>
+                    <option value="solid">Solid Fill</option>
+                    <option value="none">None (No Fill)</option>
+                  </select>
+                  <input
+                    type="range"
+                    min={0}
+                    max={30}
+                    value={lineEstimatorAreaOpacity}
+                    onChange={(e) => setLineEstimatorAreaOpacity(Number(e.target.value))}
+                    disabled={lineEstimatorFillMode === 'none'}
+                    className="w-full accent-primary disabled:opacity-40"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Comprehensive Legend Customization */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-black text-foreground block">Legend Placement, Layout & Styling</span>
+                <span className="text-[10px] text-muted-foreground block">
+                  Fine-tune wrapping, symbols, alignment, and typography to avoid clipping.
+                </span>
+              </div>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground cursor-pointer shrink-0">
+                <span>Show Legend</span>
+                <input
+                  type="checkbox"
+                  checked={showLegend}
+                  onChange={(e) => setShowLegend(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-primary"
+                />
+              </label>
+            </div>
+            {showLegend && (
+              <div className="space-y-3 pt-1 border-t border-border/40">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Placement</label>
+                    <select
+                      value={legendPosition}
+                      onChange={(e) => setLegendPosition(e.target.value as any)}
+                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                    >
+                      <option value="bottom">Bottom Footer</option>
+                      <option value="top">Top Header</option>
+                      <option value="left">Left Margin</option>
+                      <option value="right">Right Margin</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Layout Mode</label>
+                    <select
+                      value={legendType}
+                      onChange={(e) => setLegendType(e.target.value as any)}
+                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                    >
+                      <option value="plain">Wrap Multi-Line (Plain)</option>
+                      <option value="scroll">Single-Line Paged (Scroll)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Symbol Align</label>
+                    <select
+                      value={legendAlign}
+                      onChange={(e) => setLegendAlign(e.target.value as any)}
+                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                    >
+                      <option value="auto">Auto</option>
+                      <option value="left">Left of Text</option>
+                      <option value="right">Right of Text</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Symbol Shape</label>
+                    <select
+                      value={legendIcon}
+                      onChange={(e) => setLegendIcon(e.target.value as any)}
+                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                    >
+                      <option value="inherit">Inherit (Auto Shape)</option>
+                      <option value="circle">Circle (●)</option>
+                      <option value="rect">Rectangle (■)</option>
+                      <option value="roundRect">Rounded (▢)</option>
+                      <option value="line">Line (—)</option>
+                      <option value="triangle">Triangle (▲)</option>
+                      <option value="diamond">Diamond (◆)</option>
+                      <option value="none">None (Text Only)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Symbol Width ({legendItemWidth}px)</label>
+                    <input
+                      type="range"
+                      min={8}
+                      max={40}
+                      value={legendItemWidth}
+                      onChange={(e) => setLegendItemWidth(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Symbol Height ({legendItemHeight}px)</label>
+                    <input
+                      type="range"
+                      min={4}
+                      max={24}
+                      value={legendItemHeight}
+                      onChange={(e) => setLegendItemHeight(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Item Gap ({legendItemGap ?? 14}px)</label>
+                    <input
+                      type="range"
+                      min={4}
+                      max={40}
+                      value={legendItemGap ?? 14}
+                      onChange={(e) => setLegendItemGap(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Edge Offset ({legendDistance ?? 10}px)</label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={60}
+                      value={legendDistance ?? 10}
+                      onChange={(e) => setLegendDistance(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Font Size ({legendFontSize ?? Math.max(9, style.fontSize - 2)}px)</label>
+                    <input
+                      type="range"
+                      min={8}
+                      max={18}
+                      value={legendFontSize ?? Math.max(9, style.fontSize - 2)}
+                      onChange={(e) => setLegendFontSize(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Font Weight</label>
+                    <select
+                      value={legendFontWeight}
+                      onChange={(e) => setLegendFontWeight(e.target.value as any)}
+                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                    >
+                      <option value="normal">Normal (400)</option>
+                      <option value="500">Medium (500)</option>
+                      <option value="600">Semi-Bold (600)</option>
+                      <option value="bold">Bold (700)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-muted-foreground block">Text Color</label>
+                      {legendTextColor && (
+                        <button
+                          type="button"
+                          onClick={() => setLegendTextColor('')}
+                          className="text-[10px] text-primary hover:underline font-bold"
+                        >
+                          Auto
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={legendTextColor || palette.text}
+                        onChange={(e) => setLegendTextColor(e.target.value)}
+                        className="w-7 h-7 rounded border border-border cursor-pointer p-0 shrink-0"
+                      />
+                      <input
+                        type="text"
+                        value={legendTextColor || `Auto (${palette.text})`}
+                        onChange={(e) => setLegendTextColor(e.target.value)}
+                        placeholder={palette.text}
+                        className="flex-1 bg-card border border-border rounded-xl px-2 py-1 text-xs text-foreground font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-muted-foreground block">Box Padding ({legendPadding}px)</label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={20}
+                      value={legendPadding}
+                      onChange={(e) => setLegendPadding(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section: Time Horizon, Axis Bounds & Label Interval */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <span className="text-xs font-black text-foreground block">Time Horizon, Axis Bounds & Frequency</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Time Steps Count ({lineTimeSteps} steps)</label>
+                <input
+                  type="range"
+                  min={24}
+                  max={192}
+                  step={12}
+                  value={lineTimeSteps}
+                  onChange={(e) => setLineTimeSteps(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">X-Axis Label Frequency</label>
+                <select
+                  value={String(lineXAxisInterval)}
+                  onChange={(e) => {
+                    const val = e.target.value === 'auto' ? 'auto' : Number(e.target.value);
+                    setLineXAxisInterval(val);
+                  }}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="auto">Auto (Balanced Spacing)</option>
+                  <option value="0">Show All Numbers (0, 1, 2, ...)</option>
+                  <option value="1">Every 2nd Step (0, 2, 4, 6, ...)</option>
+                  <option value="3">Every 4th Step (0, 4, 8, 12, ...)</option>
+                  <option value="7">Every 8th Step (0, 8, 16, 24, ...)</option>
+                  <option value="11">Every 12th Step (0, 12, 24, 36, ...)</option>
+                  <option value="23">Every 24th Step (0, 24, 48, 72, ...)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">X-Axis Label (Time Domain)</label>
+                <input
+                  type="text"
+                  value={lineTimeStepIntervalName}
+                  onChange={(e) => setLineTimeStepIntervalName(e.target.value)}
+                  placeholder="e.g. Time Steps k (15-min intervals / 24-h Cycle)"
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Y-Axis Label (Metric)</label>
+                <input
+                  type="text"
+                  value={lineYAxisTitle}
+                  onChange={(e) => setLineYAxisTitle(e.target.value)}
+                  placeholder="e.g. State Uncertainty Tr(P)"
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Y-Axis Min Bound</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={lineYMin}
+                  onChange={(e) => setLineYMin(Number(e.target.value))}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Y-Axis Max Bound</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={lineYMax}
+                  onChange={(e) => setLineYMax(Number(e.target.value))}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Axis Pointer Style</label>
+                <select
+                  value={lineAxisPointerType}
+                  onChange={(e) => setLineAxisPointerType(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="cross">Crosshair Pointer (Axis Cross)</option>
+                  <option value="line">Vertical Line Pointer</option>
+                  <option value="shadow">Shadow Band</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 bg-card/60 rounded-xl border border-border/40 self-end">
+                <div>
+                  <span className="text-xs font-bold text-foreground block">Horizontal Gridlines</span>
+                  <span className="text-[10px] text-muted-foreground block">Dashed guide markers</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={lineShowGridLines}
+                  onChange={(e) => setLineShowGridLines(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-primary"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Point Markers */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-foreground block">Point Markers & Spline Smoothing</span>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground cursor-pointer">
+                <span>Show Point Markers</span>
+                <input
+                  type="checkbox"
+                  checked={showLineMarkers}
+                  onChange={(e) => setShowLineMarkers(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-primary"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Marker Symbol</label>
+                <select
+                  value={lineMarkerSymbol}
+                  onChange={(e) => setLineMarkerSymbol(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="circle">Filled Circle (●)</option>
+                  <option value="emptyCircle">Hollow Circle (○)</option>
+                  <option value="rect">Square (■)</option>
+                  <option value="triangle">Triangle (▲)</option>
+                  <option value="diamond">Diamond (◆)</option>
+                  <option value="none">None (Hidden)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Marker Size ({lineMarkerSize}px)</label>
+                <input
+                  type="range"
+                  min={2}
+                  max={12}
+                  value={lineMarkerSize}
+                  onChange={(e) => setLineMarkerSize(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-2 bg-card/60 rounded-xl border border-border/40 self-end">
+                <div>
+                  <span className="text-xs font-bold text-foreground block">Smooth Spline Curve</span>
+                  <span className="text-[10px] text-muted-foreground block">Cubic Bézier</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={smoothLine}
+                  onChange={(e) => setSmoothLine(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-primary"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1 pt-1 border-t border-border/40">
+              <label className="text-[11px] font-bold text-muted-foreground block">Line Width ({lineWidth}px)</label>
+              <input
+                type="range"
+                min={1}
+                max={6}
+                step={0.5}
+                value={lineWidth}
+                onChange={(e) => setLineWidth(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+          </div>
+
+          {/* Section: Canvas Margins & Grid Clearance */}
+          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+            <span className="text-xs font-black text-foreground block">Canvas Margins & Grid Clearance</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted-foreground block">Top ({lineGridTop}px)</label>
+                <input
+                  type="range"
+                  min={15}
+                  max={140}
+                  value={lineGridTop}
+                  onChange={(e) => setLineGridTop(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted-foreground block">Bottom ({lineGridBottom}px)</label>
+                <input
+                  type="range"
+                  min={15}
+                  max={140}
+                  value={lineGridBottom}
+                  onChange={(e) => setLineGridBottom(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted-foreground block">Left ({lineGridLeft}px)</label>
+                <input
+                  type="range"
+                  min={20}
+                  max={160}
+                  value={lineGridLeft}
+                  onChange={(e) => setLineGridLeft(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted-foreground block">Right ({lineGridRight}px)</label>
+                <input
+                  type="range"
+                  min={15}
+                  max={140}
+                  value={lineGridRight}
+                  onChange={(e) => setLineGridRight(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Standard Cohort Trend Customization */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-xl border border-border/40">
+              <div>
+                <span className="text-xs font-bold text-foreground block">Smooth Spline Curve</span>
+                <span className="text-[10px] text-muted-foreground block">Cubic Bézier interpolation</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={smoothLine}
+                onChange={(e) => setSmoothLine(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-primary"
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-xl border border-border/40">
+              <div>
+                <span className="text-xs font-bold text-foreground block">Show Point Markers</span>
+                <span className="text-[10px] text-muted-foreground block">Displays vertex symbols</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={showLineMarkers}
+                onChange={(e) => setShowLineMarkers(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-primary"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-foreground block">Line Width ({lineWidth}px)</label>
+              <input
+                type="range"
+                min={1}
+                max={6}
+                step={0.5}
+                value={lineWidth}
+                onChange={(e) => setLineWidth(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-foreground block">Marker Size ({lineMarkerSize}px)</label>
+              <input
+                type="range"
+                min={4}
+                max={16}
+                value={lineMarkerSize}
+                onChange={(e) => setLineMarkerSize(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-foreground block">Area Fill Opacity ({lineAreaOpacity}%)</label>
+              <input
+                type="range"
+                min={0}
+                max={60}
+                value={lineAreaOpacity}
+                onChange={(e) => setLineAreaOpacity(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1 pt-1">
+            <label className="text-xs font-bold text-foreground block">Step Line Transition</label>
+            <select
+              value={lineStepMode}
+              onChange={(e) => setLineStepMode(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="none">Continuous / Linear</option>
+              <option value="start">Step at Start</option>
+              <option value="middle">Step at Middle</option>
+              <option value="end">Step at End</option>
+            </select>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1271,11 +2388,9 @@ export function BoxplotConfigPanel() {
   );
 }
 
-export function ScatterBubbleConfigPanel() {
+export function ScatterConfigPanel() {
   const { config } = useVisualizerContext();
   const {
-    bubbleScale,
-    setBubbleScale,
     scatterPointSize,
     setScatterPointSize,
     scatterPointOpacity,
@@ -1288,7 +2403,7 @@ export function ScatterBubbleConfigPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Point Size ({scatterPointSize}px)</label>
           <input
@@ -1297,19 +2412,6 @@ export function ScatterBubbleConfigPanel() {
             max={24}
             value={scatterPointSize}
             onChange={(e) => setScatterPointSize(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Bubble Scale ({bubbleScale}x)</label>
-          <input
-            type="range"
-            min={0.5}
-            max={3.0}
-            step={0.1}
-            value={bubbleScale}
-            onChange={(e) => setBubbleScale(Number(e.target.value))}
             className="w-full accent-primary"
           />
         </div>
@@ -1357,6 +2459,376 @@ export function ScatterBubbleConfigPanel() {
     </div>
   );
 }
+
+export function BubbleConfigPanel() {
+  const { config } = useVisualizerContext();
+  const {
+    bubbleScale = 1.2,
+    setBubbleScale,
+    bubbleMinRadius = 12,
+    setBubbleMinRadius,
+    bubbleMaxRadius = 65,
+    setBubbleMaxRadius,
+    bubbleOpacity = 85,
+    setBubbleOpacity,
+    bubbleBorderWidth = 1.5,
+    setBubbleBorderWidth,
+    bubbleBorderColor = '#333333',
+    setBubbleBorderColor,
+    bubbleShowLabels = true,
+    setBubbleShowLabels,
+    bubbleLabelFormat = 'count_n',
+    setBubbleLabelFormat,
+    bubbleLabelFontSize = 11,
+    setBubbleLabelFontSize,
+    bubbleLabelColor = '#ffffff',
+    setBubbleLabelColor,
+    bubbleColorMode = 'color_by_x',
+    setBubbleColorMode,
+    bubbleGridLeft = 40,
+    setBubbleGridLeft,
+    bubbleGridBottom = 35,
+    setBubbleGridBottom,
+    bubbleGridTop = 45,
+    setBubbleGridTop,
+    bubbleGridRight = 35,
+    setBubbleGridRight,
+    bubbleSeriesName = 'Deployments',
+    setBubbleSeriesName,
+    bubbleLegendMode = 'category_series',
+    setBubbleLegendMode,
+    showLegend = true,
+    setShowLegend,
+    legendPosition = 'bottom',
+    setLegendPosition,
+    legendItemGap = 12,
+    setLegendItemGap,
+    legendDistance = 20,
+    setLegendDistance
+  } = config;
+
+  return (
+    <div className="space-y-4">
+      {/* --- SECTION 1: BUBBLE SIZING & DYNAMIC SCALING --- */}
+      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+        <span className="text-xs font-black text-foreground block flex items-center justify-between">
+          <span>Bubble Sizing & Dynamic Scaling</span>
+          <span className="text-[10px] text-muted-foreground font-mono">Scale: {bubbleScale}x</span>
+        </span>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Bubble Scale Factor ({bubbleScale}x)</label>
+            <input
+              type="range"
+              min={0.5}
+              max={3.0}
+              step={0.1}
+              value={bubbleScale}
+              onChange={(e) => setBubbleScale(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Min Bubble Diameter ({bubbleMinRadius}px)</label>
+            <input
+              type="range"
+              min={6}
+              max={24}
+              value={bubbleMinRadius}
+              onChange={(e) => setBubbleMinRadius(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Max Bubble Diameter ({bubbleMaxRadius}px)</label>
+            <input
+              type="range"
+              min={25}
+              max={90}
+              value={bubbleMaxRadius}
+              onChange={(e) => setBubbleMaxRadius(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* --- SECTION 2: BUBBLE AESTHETICS & COLORING --- */}
+      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+        <span className="text-xs font-black text-foreground block flex items-center justify-between">
+          <span>Bubble Aesthetics & Visual Styling</span>
+          <span className="text-[10px] text-muted-foreground font-mono">Border & Fill</span>
+        </span>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Color Partitioning Mode</label>
+            <select
+              value={bubbleColorMode}
+              onChange={(e) => setBubbleColorMode(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="color_by_x">Color by X-Axis Category (Domain Palette)</option>
+              <option value="color_by_y">Color by Y-Axis Category (Spectrum Palette)</option>
+              <option value="color_by_metric">Color by Metric Density (Gradient Intensity)</option>
+              <option value="custom_compliance">Custom Compliance & Classification Rules</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Bubble Fill Opacity ({bubbleOpacity}%)</label>
+            <input
+              type="range"
+              min={30}
+              max={100}
+              value={bubbleOpacity}
+              onChange={(e) => setBubbleOpacity(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Bubble Border Width ({bubbleBorderWidth}px)</label>
+            <input
+              type="range"
+              min={0}
+              max={5}
+              step={0.5}
+              value={bubbleBorderWidth}
+              onChange={(e) => setBubbleBorderWidth(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Border Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={bubbleBorderColor || '#333333'}
+                onChange={(e) => setBubbleBorderColor(e.target.value)}
+                className="w-7 h-7 rounded border border-border cursor-pointer p-0"
+              />
+              <input
+                type="text"
+                value={bubbleBorderColor || '#333333'}
+                onChange={(e) => setBubbleBorderColor(e.target.value)}
+                className="flex-1 bg-card border border-border rounded-xl px-2 py-1 text-xs text-foreground font-mono"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* --- SECTION 3: INSIDE-BUBBLE VALUE LABELS --- */}
+      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-foreground block">Inside-Bubble Value Labels</span>
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={bubbleShowLabels}
+              onChange={(e) => setBubbleShowLabels(e.target.checked)}
+              className="rounded border-border text-primary"
+            />
+            <span>Show Labels</span>
+          </label>
+        </div>
+
+        {bubbleShowLabels && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Label Format</label>
+              <select
+                value={bubbleLabelFormat}
+                onChange={(e) => setBubbleLabelFormat(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+              >
+                <option value="count_n">"n=X" (e.g. n=7)</option>
+                <option value="count_only">"X" (Count Only e.g. 7)</option>
+                <option value="percent">"P%" (Prevalence % e.g. 15.2%)</option>
+                <option value="label">Intersection Title</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Label Font Size ({bubbleLabelFontSize}px)</label>
+              <input
+                type="range"
+                min={8}
+                max={16}
+                value={bubbleLabelFontSize}
+                onChange={(e) => setBubbleLabelFontSize(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Label Text Color</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={bubbleLabelColor || '#ffffff'}
+                  onChange={(e) => setBubbleLabelColor(e.target.value)}
+                  className="w-7 h-7 rounded border border-border cursor-pointer p-0"
+                />
+                <input
+                  type="text"
+                  value={bubbleLabelColor || '#ffffff'}
+                  onChange={(e) => setBubbleLabelColor(e.target.value)}
+                  className="flex-1 bg-card border border-border rounded-xl px-2 py-1 text-xs text-foreground font-mono"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- SECTION 4: CANVAS MARGINS & GRID CLEARANCE --- */}
+      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+        <span className="text-xs font-black text-foreground block">Canvas Margins & Grid Clearance</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Grid Bottom Margin ({bubbleGridBottom}px)</label>
+            <input
+              type="range"
+              min={10}
+              max={160}
+              value={bubbleGridBottom}
+              onChange={(e) => setBubbleGridBottom(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Grid Top Margin ({bubbleGridTop}px)</label>
+            <input
+              type="range"
+              min={10}
+              max={140}
+              value={bubbleGridTop}
+              onChange={(e) => setBubbleGridTop(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Grid Left Margin ({bubbleGridLeft}px)</label>
+            <input
+              type="range"
+              min={15}
+              max={180}
+              value={bubbleGridLeft}
+              onChange={(e) => setBubbleGridLeft(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-muted-foreground block">Grid Right Margin ({bubbleGridRight}px)</label>
+            <input
+              type="range"
+              min={15}
+              max={160}
+              value={bubbleGridRight}
+              onChange={(e) => setBubbleGridRight(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* --- SECTION 6: LEGEND CUSTOMIZATION --- */}
+      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-black text-foreground block">Legend & Category Filter</span>
+          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={showLegend}
+              onChange={(e) => setShowLegend(e.target.checked)}
+              className="rounded border-border text-primary"
+            />
+            <span>Show Legend</span>
+          </label>
+        </div>
+
+        {showLegend && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Legend Display Mode</label>
+              <select
+                value={bubbleLegendMode}
+                onChange={(e) => setBubbleLegendMode(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+              >
+                <option value="category_series">Category Chips (Multi-Series Filter)</option>
+                <option value="single_series">Single Cohort Series (Custom Title)</option>
+              </select>
+            </div>
+
+            {bubbleLegendMode === 'single_series' ? (
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Custom Series Title</label>
+                <input
+                  type="text"
+                  value={bubbleSeriesName}
+                  onChange={(e) => setBubbleSeriesName(e.target.value)}
+                  placeholder="e.g. Deployments"
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                />
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground block">Legend Position</label>
+                <select
+                  value={legendPosition || 'bottom'}
+                  onChange={(e) => setLegendPosition(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="bottom">Bottom of Chart</option>
+                  <option value="top">Top of Chart</option>
+                  <option value="left">Left Side</option>
+                  <option value="right">Right Side</option>
+                </select>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Item Spacing Gap ({legendItemGap ?? 12}px)</label>
+              <input
+                type="range"
+                min={4}
+                max={36}
+                value={legendItemGap ?? 12}
+                onChange={(e) => setLegendItemGap(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground block">Edge Offset Distance ({legendDistance ?? 20}px)</label>
+              <input
+                type="range"
+                min={5}
+                max={90}
+                value={legendDistance ?? 20}
+                onChange={(e) => setLegendDistance(Number(e.target.value))}
+                className="w-full accent-primary"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Alias for backward compatibility
+export const ScatterBubbleConfigPanel = ScatterConfigPanel;
 
 export function GraphConfigPanel() {
   const { config } = useVisualizerContext();

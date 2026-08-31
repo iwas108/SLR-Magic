@@ -9,6 +9,7 @@ import {
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
+import { buildScientificAxisConfig } from './axisConfigHelper';
 
 export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -137,22 +138,25 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
       }
     },
     grid: { left: '8%', right: '8%', top: showLegend ? 110 : 80, bottom: '15%', containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: categories,
-      axisLabel: { fontFamily: font, fontSize: fontSize - 1, color: palette.text, rotate: labelRotation }
-    },
-    yAxis: {
-      type: 'value',
+    xAxis: buildScientificAxisConfig('x', ctx, {
+      axisKind: 'category',
+      defaultTitle: primaryField,
+      categories: categories
+    }),
+    yAxis: buildScientificAxisConfig('y', ctx, {
+      axisKind: 'value',
+      defaultTitle: metricMode === 'paper_prevalence'
+        ? 'Prevalence (% of Cohort)'
+        : metricMode === 'tag_share'
+        ? 'Tag Share (%)'
+        : metricMode === 'avg_qa'
+        ? 'Average QA Score'
+        : metricMode === 'avg_citation'
+        ? 'Average Citation Count'
+        : 'Study Count (N)',
       max: showDataLabels ? (val: any) => (!val || val.max === 0 ? 10 : Math.ceil(val.max * 1.18)) : undefined,
-      axisLabel: {
-        fontFamily: font,
-        fontSize: fontSize - 1,
-        color: palette.text,
-        formatter: (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? '{value}%' : '{value}'
-      },
-      splitLine: { lineStyle: { color: palette.border, type: 'dashed' } }
-    },
+      defaultUnitFormatter: (v: any) => (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? `${v}%` : `${v}`
+    }),
     series: [{
       name: metricMode.replace(/_/g, ' ').toUpperCase(),
       type: 'bar',
@@ -449,8 +453,17 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
       bottom: gridBottom,
       containLabel: false
     },
-    xAxis: {
-      type: 'value',
+    xAxis: buildScientificAxisConfig('x', ctx, {
+      axisKind: 'value',
+      defaultTitle: metricMode === 'paper_prevalence'
+        ? 'Prevalence (% of Cohort)'
+        : metricMode === 'tag_share'
+        ? 'Tag Share (%)'
+        : metricMode === 'avg_qa'
+        ? 'Average QA Score'
+        : metricMode === 'avg_citation'
+        ? 'Average Citation Count'
+        : 'Study Count (N)',
       max: isLabelOutside
         ? (val: any) => {
             if (!val || val.max === 0) return 10;
@@ -458,51 +471,14 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
             return barBenchmarkLine ? Math.max(ceiling, Math.ceil(barBenchmarkValue * 1.15)) : ceiling;
           }
         : (barBenchmarkLine ? (val: any) => Math.max(val.max, Math.ceil(barBenchmarkValue * 1.15)) : undefined),
-      axisLabel: {
-        fontFamily: font,
-        fontSize: Math.max(9, fontSize - 1),
-        color: palette.text,
-        formatter: (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? '{value}%' : '{value}'
-      },
-      splitLine: { lineStyle: { color: palette.border, type: 'dashed' } }
-    },
-    yAxis: {
-      type: 'category',
-      inverse: true,
-      data: categories,
-      axisLabel: {
-        fontFamily: font,
-        fontSize: barYAxisFontSize ?? Math.max(9, fontSize - 2),
-        color: palette.text,
-        width: barYAxisWidth,
-        overflow: barYAxisOverflow !== 'none' ? barYAxisOverflow : undefined,
-        lineHeight: barLineHeight ?? Math.max(12, (barYAxisFontSize ?? (fontSize - 2)) + 3),
-        formatter: (val: string) => {
-          if (barYAxisOverflow === 'break') {
-            const effFont = barYAxisFontSize ?? Math.max(9, fontSize - 2);
-            const charLimit = Math.max(14, Math.floor((barYAxisWidth - 10) / (effFont * 0.55)));
-            if (val.length > charLimit - 2) {
-              const words = val.split(' ');
-              const lines: string[] = [];
-              let cur = '';
-              words.forEach(w => {
-                if ((cur + ' ' + w).trim().length > charLimit) {
-                  if (cur) lines.push(cur);
-                  cur = w;
-                } else {
-                  cur = (cur + ' ' + w).trim();
-                }
-              });
-              if (cur) lines.push(cur);
-              return lines.join('\n');
-            }
-            return val;
-          }
-          return val;
-        }
-      },
-      axisTick: { alignWithLabel: true }
-    },
+      defaultUnitFormatter: (v: any) => (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? `${v}%` : `${v}`
+    }),
+    yAxis: buildScientificAxisConfig('y', ctx, {
+      axisKind: 'category',
+      defaultTitle: primaryField,
+      categories: categories,
+      inverse: true
+    }),
     series: [
       {
         name: metricMode.replace(/_/g, ' ').toUpperCase(),
@@ -690,18 +666,17 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
       }
     },
     grid: { left: '8%', right: '8%', top: showLegend ? 110 : 80, bottom: '15%', containLabel: true },
-    xAxis: { type: 'category', data: categories, axisLabel: { fontFamily: font, fontSize: fontSize - 1, color: palette.text, rotate: labelRotation } },
-    yAxis: { 
-      type: 'value', 
+    xAxis: buildScientificAxisConfig('x', ctx, {
+      axisKind: 'category',
+      defaultTitle: primaryField,
+      categories: categories
+    }),
+    yAxis: buildScientificAxisConfig('y', ctx, {
+      axisKind: 'value',
+      defaultTitle: ctx.stackedNormalized ? 'Relative Proportion (%)' : 'Study Count (N)',
       max: ctx.stackedNormalized ? 100 : undefined,
-      axisLabel: { 
-        fontFamily: font, 
-        fontSize: fontSize - 1, 
-        color: palette.text,
-        formatter: ctx.stackedNormalized ? '{value}%' : '{value}'
-      }, 
-      splitLine: { lineStyle: { color: palette.border, type: 'dashed' } } 
-    },
+      defaultUnitFormatter: (v: any) => ctx.stackedNormalized ? `${v}%` : `${v}`
+    }),
     series: seriesList
   };
 }

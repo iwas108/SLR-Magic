@@ -55,6 +55,8 @@ import {
   HeatmapConfigPanel,
   TreemapConfigPanel,
   BoxplotConfigPanel,
+  ScatterConfigPanel,
+  BubbleConfigPanel,
   ScatterBubbleConfigPanel,
   GraphConfigPanel,
   GaugeConfigPanel,
@@ -144,6 +146,10 @@ export function VisualizerStudio() {
     setNumFieldY,
     numFieldSize,
     setNumFieldSize,
+    bubbleMode,
+    setBubbleMode,
+    lineMode,
+    setLineMode,
     useUmbrellanizer,
     setUseUmbrellanizer,
     splitMultiValues,
@@ -702,8 +708,50 @@ export function VisualizerStudio() {
               {/* Radar Multi-Variable / Boundary Paradox Mapping */}
               {chartType === 'radar' && <RadarDataMappingPanel />}
 
+              {/* Line Chart Paradigm Switcher */}
+              {chartType === 'line' && (
+                <div className="space-y-3.5 p-3 bg-secondary/30 rounded-2xl border border-border/80">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">Line Chart Paradigm</span>
+                      <span className="text-[10px] text-muted-foreground block">
+                        {lineMode === 'epistemic_simulation'
+                          ? 'Epistemic Simulation & Trajectory Model (Comparative Estimators)'
+                          : 'Empirical Literature Cohort Trend (Synthesis Variables)'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setLineMode('cohort_trend')}
+                      className={`py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all border text-left ${
+                        lineMode !== 'epistemic_simulation'
+                          ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                          : 'bg-card border-border/70 text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <div className="font-bold">Cohort Trend</div>
+                      <div className="text-[10px] opacity-75">Empirical Synthesis</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLineMode('epistemic_simulation')}
+                      className={`py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all border text-left ${
+                        lineMode === 'epistemic_simulation'
+                          ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                          : 'bg-card border-border/70 text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <div className="font-bold">Epistemic Simulation</div>
+                      <div className="text-[10px] opacity-75">Uncertainty Trajectory</div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Primary Categorical Variable */}
-              {['bar_vertical', 'bar_horizontal', 'stacked_bar', 'clustered_bar', 'line', 'pie_donut', 'funnel', 'heatmap', 'graph', 'boxplot'].includes(chartType) && (
+              {((chartType === 'line' && lineMode !== 'epistemic_simulation') || ['bar_vertical', 'bar_horizontal', 'stacked_bar', 'clustered_bar', 'pie_donut', 'funnel', 'heatmap', 'graph', 'boxplot'].includes(chartType)) && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-foreground flex items-center justify-between">
                     <span>Primary Variable / X-Axis Category:</span>
@@ -1026,8 +1074,115 @@ export function VisualizerStudio() {
                 </div>
               )}
 
-              {/* Numerical Fields for Scatter / Bubble / Boxplot */}
-              {['scatter', 'bubble', 'boxplot'].includes(chartType) && (
+              {/* Bubble Chart 2D Categorical Cross-Tabulation Matrix & Continuous 3D Mapping */}
+              {chartType === 'bubble' && (
+                <div className="space-y-3.5 p-3 bg-secondary/30 rounded-2xl border border-border/80">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-foreground block">Bubble Chart Paradigm</span>
+                      <span className="text-[10px] text-muted-foreground block">
+                        {bubbleMode === 'categorical_matrix'
+                          ? '2D Categorical Matrix (Standard SLR)'
+                          : 'Continuous 3D Scatter (Numerical X × Y × Size)'}
+                      </span>
+                    </div>
+                    <select
+                      value={bubbleMode || 'categorical_matrix'}
+                      onChange={(e) => setBubbleMode(e.target.value as any)}
+                      className="bg-card border border-border rounded-xl px-2.5 py-1 text-xs font-bold text-foreground"
+                    >
+                      <option value="categorical_matrix">2D Categorical Matrix (Standard SLR)</option>
+                      <option value="numerical_3d">Continuous 3D Scatter</option>
+                    </select>
+                  </div>
+
+                  {bubbleMode === 'categorical_matrix' ? (
+                    <div className="space-y-3 pt-2 border-t border-border/60">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-foreground flex items-center justify-between">
+                          <span>Primary Dimension / X-Axis Category (e.g. Hardware Tier):</span>
+                          {primaryField === CUSTOM_GROUPING_KEY && (
+                            <button
+                              type="button"
+                              onClick={() => setShowCustomGroupingModal(true)}
+                              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              Edit Custom Groups
+                            </button>
+                          )}
+                        </label>
+                        <FieldAutocomplete
+                          value={primaryField}
+                          onChange={(newVal) => setPrimaryField(newVal)}
+                          discoveredVariables={discoveredVariables}
+                          availableFields={availableFields}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-foreground">
+                            Secondary Dimension / Y-Axis Category (e.g. Autonomy Spectrum):
+                          </label>
+                          {secondaryField && (
+                            <button
+                              type="button"
+                              onClick={() => setShowCrossTabModal(true)}
+                              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                            >
+                              <Table className="w-3 h-3" />
+                              View 2D Matrix
+                            </button>
+                          )}
+                        </div>
+                        <FieldAutocomplete
+                          value={secondaryField}
+                          onChange={(newVal) => setSecondaryField(newVal)}
+                          discoveredVariables={discoveredVariables}
+                          availableFields={availableFields}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/60">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-foreground block">X-Axis Continuous Field</label>
+                        <select
+                          value={numFieldX}
+                          onChange={(e) => setNumFieldX(e.target.value)}
+                          className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
+                        >
+                          {numericalFields.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-foreground block">Y-Axis Continuous Field</label>
+                        <select
+                          value={numFieldY}
+                          onChange={(e) => setNumFieldY(e.target.value)}
+                          className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
+                        >
+                          {numericalFields.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-foreground block">Bubble Size Dimension</label>
+                        <select
+                          value={numFieldSize}
+                          onChange={(e) => setNumFieldSize(e.target.value)}
+                          className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
+                        >
+                          {numericalFields.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Numerical Fields for Scatter / Boxplot */}
+              {['scatter', 'boxplot'].includes(chartType) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 rounded-2xl border border-border/80">
                   {chartType !== 'boxplot' && (
                     <div className="space-y-1">
@@ -1053,18 +1208,6 @@ export function VisualizerStudio() {
                       {numericalFields.map(f => <option key={f} value={f}>{f}</option>)}
                     </select>
                   </div>
-                  {chartType === 'bubble' && (
-                    <div className="space-y-1 sm:col-span-2">
-                      <label className="text-[11px] font-bold text-foreground block">Bubble Size Dimension</label>
-                      <select
-                        value={numFieldSize}
-                        onChange={(e) => setNumFieldSize(e.target.value)}
-                        className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
-                      >
-                        {numericalFields.map(f => <option key={f} value={f}>{f}</option>)}
-                      </select>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -1332,7 +1475,8 @@ export function VisualizerStudio() {
               {chartType === 'radar' && <RadarConfigPanel />}
               {chartType === 'funnel' && <FunnelConfigPanel />}
               {chartType === 'boxplot' && <BoxplotConfigPanel />}
-              {(chartType === 'scatter' || chartType === 'bubble') && <ScatterBubbleConfigPanel />}
+              {chartType === 'scatter' && <ScatterConfigPanel />}
+              {chartType === 'bubble' && <BubbleConfigPanel />}
               {chartType === 'graph' && <GraphConfigPanel />}
               {chartType === 'gauge' && <GaugeConfigPanel />}
               {chartType === 'calendar' && <CalendarConfigPanel />}

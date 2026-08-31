@@ -86,6 +86,10 @@ export function Step2DataMapping() {
     setNumFieldY,
     numFieldSize,
     setNumFieldSize,
+    bubbleMode,
+    setBubbleMode,
+    lineMode,
+    setLineMode,
     useUmbrellanizer,
     setUseUmbrellanizer,
     splitMultiValues,
@@ -222,30 +226,71 @@ export function Step2DataMapping() {
         {/* 3. Line Chart */}
         {chartType === 'line' && (
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground block">Time / Sequence Field (X-Axis)</label>
-              <FieldAutocomplete
-                value={primaryField}
-                onChange={(newKey) => setPrimaryField(newKey)}
-                discoveredVariables={discoveredVariables}
-                availableFields={availableFields}
-              />
+            <div className="space-y-2 p-3 bg-secondary/30 rounded-2xl border border-border/80">
+              <span className="text-xs font-black text-foreground block">Line Chart Paradigm</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLineMode('cohort_trend')}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border text-left ${
+                    lineMode !== 'epistemic_simulation'
+                      ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                      : 'bg-card border-border/70 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <div className="font-bold">Cohort Trend</div>
+                  <div className="text-[10px] opacity-75">Empirical Synthesis</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLineMode('epistemic_simulation')}
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border text-left ${
+                    lineMode === 'epistemic_simulation'
+                      ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                      : 'bg-card border-border/70 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <div className="font-bold">Epistemic Simulation</div>
+                  <div className="text-[10px] opacity-75">Uncertainty Trajectory</div>
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground block">Y-Axis Metric</label>
-              <select
-                value={metricMode}
-                onChange={(e) => setMetricMode(e.target.value as any)}
-                className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
-              >
-                <option value="count">Paper Record Count (N)</option>
-                <option value="paper_prevalence">Paper Prevalence (% of Cohort Papers)</option>
-                <option value="tag_share">Tag Share (% of Total Extracted Tags)</option>
-                <option value="avg_citation">Average Citation Count</option>
-                <option value="avg_qa">Average Overall QA Score</option>
-              </select>
-            </div>
+            {lineMode !== 'epistemic_simulation' ? (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground block">Time / Sequence Field (X-Axis)</label>
+                  <FieldAutocomplete
+                    value={primaryField}
+                    onChange={(newKey) => setPrimaryField(newKey)}
+                    discoveredVariables={discoveredVariables}
+                    availableFields={availableFields}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground block">Y-Axis Metric</label>
+                  <select
+                    value={metricMode}
+                    onChange={(e) => setMetricMode(e.target.value as any)}
+                    className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+                  >
+                    <option value="count">Paper Record Count (N)</option>
+                    <option value="paper_prevalence">Paper Prevalence (% of Cohort Papers)</option>
+                    <option value="tag_share">Tag Share (% of Total Extracted Tags)</option>
+                    <option value="avg_citation">Average Citation Count</option>
+                    <option value="avg_qa">Average Overall QA Score</option>
+                  </select>
+                </div>
+              </>
+            ) : (
+              <div className="p-3 bg-primary/5 rounded-xl border border-primary/20 space-y-1">
+                <span className="text-xs font-bold text-primary block">Mathematical Trajectory Simulation Active</span>
+                <span className="text-[11px] text-muted-foreground block">
+                  Modeling comparative state uncertainty propagation (Static Architecture vs Discrete Recursive Estimator with Semantic Trigger Threshold). Use Step 3 (Fine-Tune) to adjust time horizons, mathematical drift rates, and threshold values.
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -315,41 +360,103 @@ export function Step2DataMapping() {
           </div>
         )}
 
-        {/* 6. Bubble Chart */}
+        {/* 6. Bubble Chart (Categorical 2D Cross-Tabulation Matrix & Continuous 3D) */}
         {chartType === 'bubble' && (
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground block">X-Axis Variable</label>
+          <div className="space-y-4">
+            <div className="p-3 bg-secondary/30 rounded-2xl border border-border flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-foreground block">Bubble Chart Paradigm</span>
+                <span className="text-[10px] text-muted-foreground block">
+                  {bubbleMode === 'categorical_matrix' 
+                    ? '2D Categorical Cross-Tabulation (Discovered Cohort Variables × RQ Domains)'
+                    : 'Continuous 3D Scatter (Numerical X × Numerical Y × Numerical Size)'}
+                </span>
+              </div>
               <select
-                value={numFieldX}
-                onChange={(e) => setNumFieldX(e.target.value)}
-                className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+                value={bubbleMode || 'categorical_matrix'}
+                onChange={(e) => setBubbleMode(e.target.value as any)}
+                className="bg-card border border-border rounded-xl px-2.5 py-1 text-xs font-bold text-foreground"
               >
-                {numericalFields.map((f: string) => <option key={f} value={f}>{f}</option>)}
+                <option value="categorical_matrix">2D Categorical Matrix (Standard SLR)</option>
+                <option value="numerical_3d">Continuous 3D Scatter</option>
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground block">Y-Axis Variable</label>
-              <select
-                value={numFieldY}
-                onChange={(e) => setNumFieldY(e.target.value)}
-                className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
-              >
-                {numericalFields.map((f: string) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
+            {bubbleMode === 'categorical_matrix' ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground block">Primary Dimension / X-Axis Category</label>
+                    <FieldAutocomplete
+                      value={primaryField}
+                      onChange={(newKey) => setPrimaryField(newKey)}
+                      discoveredVariables={discoveredVariables}
+                      availableFields={availableFields}
+                    />
+                  </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-foreground block">Bubble Size Metric</label>
-              <select
-                value={numFieldSize}
-                onChange={(e) => setNumFieldSize(e.target.value)}
-                className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
-              >
-                {numericalFields.map((f: string) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-foreground block">Secondary Dimension / Y-Axis Category</label>
+                    <FieldAutocomplete
+                      value={secondaryField}
+                      onChange={(newKey) => setSecondaryField(newKey)}
+                      discoveredVariables={discoveredVariables}
+                      availableFields={availableFields}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground block">Bubble Sizing Metric</label>
+                  <select
+                    value={metricMode}
+                    onChange={(e) => setMetricMode(e.target.value as any)}
+                    className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+                  >
+                    <option value="count">Paper Record Count (N)</option>
+                    <option value="paper_prevalence">Paper Prevalence (% of Cohort Papers)</option>
+                    <option value="tag_share">Tag Share (% of Total Extracted Tags)</option>
+                    <option value="avg_citation">Average Citation Count</option>
+                    <option value="avg_qa">Average Overall QA Score</option>
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground block">X-Axis Continuous Variable</label>
+                  <select
+                    value={numFieldX}
+                    onChange={(e) => setNumFieldX(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+                  >
+                    {numericalFields.map((f: string) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground block">Y-Axis Continuous Variable</label>
+                  <select
+                    value={numFieldY}
+                    onChange={(e) => setNumFieldY(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+                  >
+                    {numericalFields.map((f: string) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-foreground block">Bubble Size Metric</label>
+                  <select
+                    value={numFieldSize}
+                    onChange={(e) => setNumFieldSize(e.target.value)}
+                    className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+                  >
+                    {numericalFields.map((f: string) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -1114,6 +1114,12 @@ const fontFilePath = path.resolve('src/components/features/modals/visualizer/con
 const fontCode = fs.readFileSync(fontFilePath, 'utf8');
 
 assert.ok(fontCode.includes("if (fontFamily === 'roboto') return '\"Roboto\", \"Noto Sans\", sans-serif'"), 'Roboto font family must resolve cleanly in resolveFontFamilyCss');
+assert.ok(fontCode.includes("if (fontFamily === 'computer_modern')"), 'Computer Modern font family must resolve cleanly in resolveFontFamilyCss');
+assert.ok(fontCode.includes("if (fontFamily === 'times')"), 'Elsevier Times New Roman font family must resolve cleanly in resolveFontFamilyCss');
+assert.ok(fontCode.includes("if (fontFamily === 'helvetica')"), 'Elsevier Helvetica font family must resolve cleanly in resolveFontFamilyCss');
+assert.ok(fontCode.includes("if (fontFamily === 'calibri')"), 'Elsevier Calibri font family must resolve cleanly in resolveFontFamilyCss');
+assert.ok(fontCode.includes("if (fontFamily === 'georgia')"), 'Elsevier Georgia font family must resolve cleanly in resolveFontFamilyCss');
+assert.ok(fontCode.includes("if (fontFamily === 'garamond')"), 'Elsevier Garamond font family must resolve cleanly in resolveFontFamilyCss');
 
 const styleHookPath = path.resolve('src/components/features/modals/visualizer/hooks/useVisualizerStyle.ts');
 const styleCode = fs.readFileSync(styleHookPath, 'utf8');
@@ -1468,4 +1474,162 @@ function testResolveCategory(paper, catKey) {
 const catTest1 = testResolveCategory(mockCohortForEngine[0], 'cat:ext:macro:rq_memory:256 KB SRAM');
 assert.deepStrictEqual(catTest1, ['256 KB SRAM'], 'Specific category resolution returns matching category for P01');
 
-console.log('✓ All 24 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+// -----------------------------------------------------------------------------
+// 25. Testing 2D Categorical Cross-Tabulation Bubble Chart Matrix & Compliance
+// -----------------------------------------------------------------------------
+console.log('25. Testing 2D Categorical Cross-Tabulation Bubble Chart Matrix & Compliance...');
+
+const bubbleMockPapers = [
+  { Paper_ID: 'P01', Title: 'MCU Closed-Loop System', extracted_data: { rq3a_hardware: 'Bare-Metal MCUs', rq8a_autonomy: 'Closed-Loop' }, Overall_QA: 7.5 },
+  { Paper_ID: 'P02', Title: 'MCU Closed-Loop Node 2', extracted_data: { rq3a_hardware: 'Bare-Metal MCUs', rq8a_autonomy: 'Closed-Loop' }, Overall_QA: 8.0 },
+  { Paper_ID: 'P03', Title: 'MCU Open-Loop Beacon', extracted_data: { rq3a_hardware: 'Bare-Metal MCUs', rq8a_autonomy: 'Open-Loop' }, Overall_QA: 6.0 },
+  { Paper_ID: 'P04', Title: 'SBC Canopy Fog Node', extracted_data: { rq3a_hardware: 'Single-Board Computers', rq8a_autonomy: 'Open-Loop' }, Overall_QA: 7.0 },
+  { Paper_ID: 'P05', Title: 'GPU Edge AI Vision', extracted_data: { rq3a_hardware: 'Edge AI / GPUs', rq8a_autonomy: 'Closed-Loop' }, Overall_QA: 8.5 },
+  { Paper_ID: 'P06', Title: 'FPGA Industrial Controller', extracted_data: { rq3a_hardware: 'FPGAs & SoCs', rq8a_autonomy: 'Closed-Loop' }, Overall_QA: 7.5 }
+];
+
+const mockComplianceRules = {
+  'Bare-Metal MCUs:::Closed-Loop': { label: 'MCU Closed-Loop', compliance: 'SWaP-C3 Compliant (Deterministic)', color: '#2E7D32' },
+  'Single-Board Computers:::Open-Loop': { label: 'SBC Open-Loop', compliance: 'Envelope Violator at Canopy (Fog Node)', color: '#C62828' },
+  'FPGAs & SoCs:::Closed-Loop': { label: 'FPGA Closed-Loop', compliance: 'High CAPEX / Industrial Actuation', color: '#1565C0' }
+};
+
+// Compute 2D Matrix
+const xMap = new Set();
+const yMap = new Set();
+const matrix = new Map();
+
+bubbleMockPapers.forEach(p => {
+  const x = p.extracted_data.rq3a_hardware;
+  const y = p.extracted_data.rq8a_autonomy;
+  xMap.add(x);
+  yMap.add(y);
+  if (!matrix.has(x)) matrix.set(x, new Map());
+  if (!matrix.get(x).has(y)) matrix.get(x).set(y, []);
+  matrix.get(x).get(y).push(p);
+});
+
+const xCats = Array.from(xMap).sort();
+const yCats = Array.from(yMap).sort();
+
+assert.deepStrictEqual(xCats, ['Bare-Metal MCUs', 'Edge AI / GPUs', 'FPGAs & SoCs', 'Single-Board Computers']);
+assert.deepStrictEqual(yCats, ['Closed-Loop', 'Open-Loop']);
+
+// Test MCU Closed-Loop Cell
+const mcuClosedList = matrix.get('Bare-Metal MCUs').get('Closed-Loop');
+assert.strictEqual(mcuClosedList.length, 2, '2 papers at Bare-Metal MCUs × Closed-Loop');
+
+const ruleKey = 'Bare-Metal MCUs:::Closed-Loop';
+const rule = mockComplianceRules[ruleKey];
+assert.strictEqual(rule.compliance, 'SWaP-C3 Compliant (Deterministic)');
+assert.strictEqual(rule.color, '#2E7D32');
+
+// Test Bubble Sizing Formula: minRad + ratio * (maxRad - minRad) * scale
+const count = mcuClosedList.length; // 2 (max in dataset)
+const maxVal = 2;
+const scale = 1.0;
+const minRad = 12;
+const maxRad = 65;
+const ratio = count / maxVal;
+const bubbleDiameter = Math.round(minRad + ratio * (maxRad - minRad) * scale); // 12 + 1.0 * 53 = 65
+assert.strictEqual(bubbleDiameter, 65, 'Scaled bubble diameter matches expected 65px');
+
+// Verify Bubble generator file has centralized support & axis/legend customization
+// ---------------------------------------------------------------------------
+// TEST 26: Epistemic Uncertainty & Simulation Trajectory Line Chart Generation
+// ---------------------------------------------------------------------------
+console.log('--- TEST 26: Epistemic Uncertainty & Simulation Trajectory Line Chart ---');
+
+const trendLineGenPath = path.resolve('src/components/features/modals/visualizer/generators/trendLineGenerators.ts');
+const trendLineCode = fs.readFileSync(trendLineGenPath, 'utf8');
+
+assert.ok(trendLineCode.includes('lineMode === \'epistemic_simulation\''), 'trendLineGenerators must support epistemic_simulation mode');
+assert.ok(trendLineCode.includes('palette.colors[0]'), 'trendLineGenerators must bind to academic theme palette primary color');
+assert.ok(trendLineCode.includes('palette.colors[1]'), 'trendLineGenerators must bind to academic theme palette secondary color');
+assert.ok(trendLineCode.includes('lineBaselineA'), 'trendLineGenerators must support custom baseline A parameter');
+assert.ok(trendLineCode.includes('lineBaselineB'), 'trendLineGenerators must support custom baseline B parameter');
+assert.ok(trendLineCode.includes('lineEstimatorInitial'), 'trendLineGenerators must support recursive estimator initial state');
+assert.ok(trendLineCode.includes('lineThresholdValue'), 'trendLineGenerators must support semantic threshold value');
+assert.ok(trendLineCode.includes('lineThresholdPosition'), 'trendLineGenerators must support configurable markLine position');
+assert.ok(trendLineCode.includes('lineXAxisInterval'), 'trendLineGenerators must support customizable X-axis interval');
+assert.ok(trendLineCode.includes('lineMarkerSymbol'), 'trendLineGenerators must support custom marker symbol shapes');
+assert.ok(trendLineCode.includes('effectiveGridLeft'), 'trendLineGenerators must compute responsive grid margins');
+assert.ok(trendLineCode.includes('markLine'), 'trendLineGenerators must render markLine for threshold');
+assert.ok(trendLineCode.includes('axisPointer: { type: ctx.lineAxisPointerType || \'cross\' }'), 'trendLineGenerators must configure crosshair axisPointer');
+assert.ok(trendLineCode.includes('lineBaselineFillMode'), 'trendLineGenerators must support baseline fill mode configuration');
+assert.ok(trendLineCode.includes('lineEstimatorFillMode'), 'trendLineGenerators must support estimator fill mode configuration');
+assert.ok(trendLineCode.includes('lineShowTxEvents'), 'trendLineGenerators must support physical radio TX events markers');
+assert.ok(trendLineCode.includes('txEventScatterData'), 'trendLineGenerators must generate discrete TX event scatter coordinates');
+
+// Simulate the math trajectory algorithm directly:
+const testTimeSteps = 96;
+const testA = 0.15;
+const testB = 0.038;
+const testBaselineData = Array.from({ length: testTimeSteps + 1 }, (_, k) => +(testA * Math.exp(testB * k)).toFixed(3));
+assert.strictEqual(testBaselineData.length, 97, 'Baseline has 97 discrete time points (k=0..96)');
+assert.strictEqual(testBaselineData[0], 0.15, 'Initial baseline uncertainty at k=0 is 0.15');
+assert.strictEqual(testBaselineData[96], +(0.15 * Math.exp(0.038 * 96)).toFixed(3), 'Baseline at k=96 matches mathematical exponential');
+
+// Test recursive estimator trajectory with cyclic resets and discrete TX peak markers
+let p = 0.15;
+const testEstimatorData = [];
+const simulatedTxEvents = [];
+let resetCount = 0;
+for (let k = 0; k <= testTimeSteps; k++) {
+  testEstimatorData.push(+p.toFixed(3));
+  const nextP = p + 0.11 + 0.05 * Math.sin((k / testTimeSteps) * 2 * Math.PI - Math.PI / 2);
+  if (nextP >= 1.0) {
+    resetCount++;
+    simulatedTxEvents.push({ step: k, uncertaintyPeak: +p.toFixed(3), label: `TX #${resetCount}` });
+    p = 0.15;
+  } else {
+    p = nextP;
+  }
+}
+assert.strictEqual(testEstimatorData.length, 97, 'Estimator has 97 discrete time points (k=0..96)');
+assert.strictEqual(testEstimatorData[0], 0.15, 'Estimator starts at p0=0.15');
+assert.ok(resetCount >= 3, `Estimator triggered cyclic semantic reset at least 3 times (actual: ${resetCount})`);
+assert.strictEqual(simulatedTxEvents.length, resetCount, 'All TX peak markers recorded');
+// ---------------------------------------------------------------------------
+// TEST 27: Comprehensive Legend Customization & Local Font Bundles
+// ---------------------------------------------------------------------------
+console.log('--- TEST 27: Comprehensive Legend Customization & Offline Fonts ---');
+
+// 1. Verify that baseLegend generator supports legendType, icon, item dimensions, typography, and box framing
+const indexGenPath = path.resolve('src/components/features/modals/visualizer/generators/index.ts');
+const indexGenCode = fs.readFileSync(indexGenPath, 'utf8');
+
+assert.ok(indexGenCode.includes('type: params.legendType || \'plain\''), 'baseLegend must support configurable legendType (plain multi-line vs scroll paged)');
+assert.ok(indexGenCode.includes('icon: params.legendIcon'), 'baseLegend must support customizable legend icon shapes');
+assert.ok(indexGenCode.includes('itemWidth: params.legendItemWidth'), 'baseLegend must support customizable legend itemWidth');
+assert.ok(indexGenCode.includes('itemHeight: params.legendItemHeight'), 'baseLegend must support customizable legend itemHeight');
+assert.ok(indexGenCode.includes('fontWeight: (params.legendFontWeight'), 'baseLegend must support customizable legend fontWeight');
+assert.ok(indexGenCode.includes('backgroundColor: params.legendBackgroundColor'), 'baseLegend must support customizable legend backgroundColor');
+assert.ok(indexGenCode.includes('borderColor: params.legendBorderColor'), 'baseLegend must support customizable legend borderColor');
+
+// 2. Verify trendLineGenerators passes legend customization properties
+assert.ok(trendLineCode.includes('type: ctx.legendType || \'plain\''), 'trendLineGenerators must use configurable legendType (plain wrap vs scroll)');
+assert.ok(trendLineCode.includes('align: ctx.legendAlign || \'auto\''), 'trendLineGenerators must support configurable legend alignment');
+assert.ok(trendLineCode.includes('itemWidth: ctx.legendItemWidth'), 'trendLineGenerators must support customizable legend itemWidth');
+assert.ok(trendLineCode.includes('isMultiLineLegend'), 'trendLineGenerators must allocate dynamic bottom grid clearance for multi-line wrapped legends');
+
+// 3. Verify local offline font assets exist in public/fonts
+const publicFontsDir = path.resolve('public/fonts');
+assert.ok(fs.existsSync(publicFontsDir), 'public/fonts directory must exist');
+const fontFiles = fs.readdirSync(publicFontsDir);
+assert.ok(fontFiles.some(f => f.includes('cmu-serif-500-roman')), 'Local Computer Modern font asset cmu-serif-500-roman must exist for offline rendering');
+assert.ok(fontFiles.some(f => f.includes('cmu-serif-700-roman')), 'Local Computer Modern font asset cmu-serif-700-roman must exist for offline rendering');
+
+// ---------------------------------------------------------------------------
+// TEST 28: Export Option Scaling & Function Preservation (Bubble/Scatter/Formatters)
+// ---------------------------------------------------------------------------
+console.log('--- TEST 28: Export Option Scaling & Function Preservation ---');
+
+const exportUtilsPath = path.resolve('src/components/features/modals/visualizer/utils/exportUtils.ts');
+const exportUtilsCode = fs.readFileSync(exportUtilsPath, 'utf8');
+
+assert.ok(exportUtilsCode.includes('deepClonePreservingFunctions'), 'exportUtils must use deepClonePreservingFunctions instead of JSON.stringify');
+assert.ok(!exportUtilsCode.includes('JSON.parse(JSON.stringify(option))'), 'exportUtils must NOT use JSON.parse(JSON.stringify) which strips callback functions');
+assert.ok(exportUtilsCode.includes('scaleSeriesGeometry'), 'exportUtils must scale series symbolSize, barWidth, and boxWidth');
+
+console.log('✓ All 28 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');

@@ -9,7 +9,12 @@ import type {
   SunburstLevelConfig,
   DecimalPrecision,
   RatioStyle,
-  DisplayFormatTemplate
+  DisplayFormatTemplate,
+  AxisLocation,
+  AxisLabelFormat,
+  AxisGridLineStyle,
+  AxisFontWeight,
+  AxisFontStyle
 } from '../types';
 import type { ChartGeneratorContext } from './types';
 import { formatPercentage, formatRatio } from '../utils/formatterUtils';
@@ -44,6 +49,7 @@ import {
 } from './kpiNetworkGenerators';
 
 export * from './types';
+export * from './axisConfigHelper';
 export * from './categoricalBarGenerators';
 export * from './clusteredBarGenerators';
 export * from './trendLineGenerators';
@@ -136,6 +142,51 @@ export interface BuildChartOptionParams {
   showAxisBaseline?: boolean;
   customAxisTitleX?: string;
   customAxisTitleY?: string;
+  showAxisTitleX?: boolean;
+  showAxisTitleY?: boolean;
+  axisTitleFontSizeX?: number;
+  axisTitleFontSizeY?: number;
+  axisTitleFontWeightX?: AxisFontWeight;
+  axisTitleFontWeightY?: AxisFontWeight;
+  axisTitleFontStyleX?: AxisFontStyle;
+  axisTitleFontStyleY?: AxisFontStyle;
+  axisTitleColorX?: string;
+  axisTitleColorY?: string;
+  axisTitleLocationX?: AxisLocation;
+  axisTitleLocationY?: AxisLocation;
+  axisTitleGapX?: number;
+  axisTitleGapY?: number;
+  showAxisLabelX?: boolean;
+  showAxisLabelY?: boolean;
+  axisLabelFontSizeX?: number;
+  axisLabelFontSizeY?: number;
+  axisLabelFontWeightX?: AxisFontWeight;
+  axisLabelFontWeightY?: AxisFontWeight;
+  axisLabelColorX?: string;
+  axisLabelColorY?: string;
+  axisLabelRotateX?: number;
+  axisLabelRotateY?: number;
+  axisLabelMarginX?: number;
+  axisLabelMarginY?: number;
+  axisLabelOverflowX?: 'none' | 'truncate' | 'break';
+  axisLabelOverflowY?: 'none' | 'truncate' | 'break';
+  axisLabelWidthX?: number;
+  axisLabelWidthY?: number;
+  axisLabelLineHeightX?: number;
+  axisLabelLineHeightY?: number;
+  axisLabelFormatX?: AxisLabelFormat;
+  axisLabelFormatY?: AxisLabelFormat;
+  axisLabelPrefixX?: string;
+  axisLabelSuffixX?: string;
+  axisLabelPrefixY?: string;
+  axisLabelSuffixY?: string;
+  axisLabelIntervalX?: 'auto' | number;
+  axisLabelIntervalY?: 'auto' | number;
+  showGridLinesX?: boolean;
+  showGridLinesY?: boolean;
+  gridLineStyle?: AxisGridLineStyle;
+  gridLineColor?: string;
+  gridLineOpacity?: number;
   labelFormat?: DisplayFormatTemplate;
   barLabelPosition: 'right' | 'inside' | 'insideLeft' | 'insideRight';
   barLabelFormat: DisplayFormatTemplate;
@@ -187,10 +238,53 @@ export interface BuildChartOptionParams {
   fitOffsetY?: number;
   containerPadding?: number;
   umbrellanizerMap?: Record<string, Record<string, string>>;
+  lineMode?: 'cohort_trend' | 'epistemic_simulation';
+  lineTimeSteps?: number;
+  lineTimeStepIntervalName?: string;
+  lineYAxisTitle?: string;
+  lineYMin?: number;
+  lineYMax?: number;
+  lineBaselineA?: number;
+  lineBaselineB?: number;
+  lineBaselineName?: string;
+  lineBaselineColor?: string;
+  lineBaselineStyle?: 'solid' | 'dashed' | 'dotted';
+  lineEstimatorInitial?: number;
+  lineEstimatorDrift?: number;
+  lineEstimatorModulation?: number;
+  lineEstimatorName?: string;
+  lineEstimatorColor?: string;
+  lineEstimatorStyle?: 'solid' | 'dashed' | 'dotted';
+  lineThresholdValue?: number;
+  lineThresholdName?: string;
+  lineThresholdLabel?: string;
+  lineThresholdColor?: string;
+  lineThresholdStyle?: 'dotted' | 'dashed' | 'solid';
+  lineThresholdPosition?: 'insideEndTop' | 'insideStartTop' | 'insideMiddleTop' | 'end' | 'start';
+  lineThresholdLineWidth?: number;
+  lineAxisPointerType?: 'cross' | 'line' | 'shadow';
+  lineMarkerSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none' | 'emptyCircle';
+  lineXAxisInterval?: number | 'auto';
+  lineShowGridLines?: boolean;
+  lineGridLeft?: number;
+  lineGridRight?: number;
+  lineGridTop?: number;
+  lineGridBottom?: number;
   lineWidth?: number;
   showLineMarkers?: boolean;
   lineMarkerSize?: number;
   lineAreaOpacity?: number;
+  lineBaselineAreaOpacity?: number;
+  lineEstimatorAreaOpacity?: number;
+  lineBaselineFillMode?: 'none' | 'subtle_gradient' | 'solid';
+  lineEstimatorFillMode?: 'none' | 'subtle_gradient' | 'solid';
+  lineShowTxEvents?: boolean;
+  lineTxEventSymbol?: 'triangle' | 'pin' | 'diamond' | 'circle' | 'arrow';
+  lineTxEventColor?: string;
+  lineTxEventSize?: number;
+  lineShowTxLabels?: boolean;
+  lineTxEventLabel?: string;
+  lineTxEventSeriesName?: string;
   lineStepMode?: 'none' | 'start' | 'middle' | 'end';
   roseType?: 'none' | 'radius' | 'area';
   piePadAngle?: number;
@@ -245,6 +339,34 @@ export interface BuildChartOptionParams {
   scatterPointOpacity?: number;
   scatterShowRegression?: boolean;
   scatterRegressionType?: 'linear' | 'mean';
+  bubbleMode?: 'categorical_matrix' | 'numerical_3d';
+  bubbleMinRadius?: number;
+  bubbleMaxRadius?: number;
+  bubbleOpacity?: number;
+  bubbleBorderWidth?: number;
+  bubbleBorderColor?: string;
+  bubbleShowLabels?: boolean;
+  bubbleLabelFormat?: 'count_n' | 'count_only' | 'percent' | 'label';
+  bubbleLabelFontSize?: number;
+  bubbleLabelColor?: string;
+  bubbleColorMode?: 'color_by_x' | 'color_by_y' | 'color_by_metric' | 'custom_compliance';
+  bubbleShowGridLines?: boolean;
+  bubbleComplianceRules?: Record<string, { label?: string; compliance?: string; color?: string }>;
+  bubbleXAxisName?: string;
+  bubbleYAxisName?: string;
+  bubbleXAxisNameGap?: number;
+  bubbleYAxisNameGap?: number;
+  bubbleXAxisNameLocation?: 'middle' | 'start' | 'end';
+  bubbleYAxisNameLocation?: 'middle' | 'start' | 'end';
+  bubbleAxisTitleFontSize?: number;
+  bubbleAxisTitleFontWeight?: 'bold' | 'normal' | 'bolder';
+  bubbleAxisTitleColor?: string;
+  bubbleGridLeft?: number;
+  bubbleGridBottom?: number;
+  bubbleGridTop?: number;
+  bubbleGridRight?: number;
+  bubbleSeriesName?: string;
+  bubbleLegendMode?: 'category_series' | 'single_series' | 'none';
   graphRepulsion?: number;
   graphEdgeLength?: number;
   graphGravity?: number;
@@ -257,6 +379,18 @@ export interface BuildChartOptionParams {
   calendarCellSize?: number;
   calendarYear?: string;
   stackedNormalized?: boolean;
+  legendType?: 'plain' | 'scroll';
+  legendAlign?: 'auto' | 'left' | 'right';
+  legendIcon?: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line';
+  legendItemWidth?: number;
+  legendItemHeight?: number;
+  legendFontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | number | string;
+  legendTextColor?: string;
+  legendBackgroundColor?: string;
+  legendBorderColor?: string;
+  legendBorderWidth?: number;
+  legendBorderRadius?: number;
+  legendPadding?: number;
 }
 
 export function buildChartOption(params: BuildChartOptionParams): echarts.EChartsOption {
@@ -301,17 +435,27 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
 
   const baseLegend = {
     show: showLegend,
-    type: 'scroll' as const,
-    left: legendPosition === 'left' ? legendDistance : legendPosition === 'right' ? undefined : 'center',
-    right: legendPosition === 'right' ? legendDistance : undefined,
-    top: legendPosition === 'top' ? 65 : legendPosition === 'bottom' ? undefined : 'center',
-    bottom: legendPosition === 'bottom' ? legendDistance : undefined,
+    type: params.legendType || 'plain',
+    left: legendPosition === 'left' ? (legendDistance ?? 15) : legendPosition === 'right' ? undefined : (params.legendAlign === 'left' ? 20 : params.legendAlign === 'right' ? undefined : 'center'),
+    right: legendPosition === 'right' ? (legendDistance ?? 15) : (params.legendAlign === 'right' ? 20 : undefined),
+    top: legendPosition === 'top' ? (showChartTitle ? 55 : 15) + (legendDistance ?? 0) : legendPosition === 'bottom' ? undefined : 'center',
+    bottom: legendPosition === 'bottom' ? (legendDistance ?? 10) : undefined,
     orient: (legendPosition === 'left' || legendPosition === 'right') ? 'vertical' as const : 'horizontal' as const,
+    align: params.legendAlign || 'auto',
+    icon: params.legendIcon && params.legendIcon !== 'inherit' ? params.legendIcon : undefined,
+    itemWidth: params.legendItemWidth ?? 25,
+    itemHeight: params.legendItemHeight ?? 14,
     itemGap: effectiveLegendItemGap,
+    backgroundColor: params.legendBackgroundColor || 'transparent',
+    borderColor: params.legendBorderColor || 'transparent',
+    borderWidth: params.legendBorderWidth ?? 0,
+    borderRadius: params.legendBorderRadius ?? 4,
+    padding: params.legendPadding !== undefined ? params.legendPadding : 5,
     textStyle: {
       fontFamily: font,
       fontSize: effectiveLegendFontSize,
-      color: palette.text,
+      fontWeight: (params.legendFontWeight as any) || 'normal',
+      color: params.legendTextColor || palette.text,
       width: effectiveLegendWidth,
       overflow: legendOverflow,
       lineHeight: effectiveLegendLineHeight

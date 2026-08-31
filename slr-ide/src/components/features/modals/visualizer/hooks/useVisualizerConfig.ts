@@ -9,7 +9,12 @@ import type {
   SunburstLevelConfig,
   DecimalPrecision,
   RatioStyle,
-  DisplayFormatTemplate
+  DisplayFormatTemplate,
+  AxisLocation,
+  AxisLabelFormat,
+  AxisGridLineStyle,
+  AxisFontWeight,
+  AxisFontStyle
 } from '../types';
 
 export function useVisualizerConfig(params: {
@@ -143,6 +148,42 @@ export function useVisualizerConfig(params: {
 
   const legendPosition = currentSlotConfig.legendPosition;
   const setLegendPosition = useCallback((v: 'top' | 'bottom' | 'left' | 'right') => updateActiveSlot({ legendPosition: v }), [updateActiveSlot]);
+
+  const legendType = currentSlotConfig.legendType || 'plain';
+  const setLegendType = useCallback((v: 'plain' | 'scroll') => updateActiveSlot({ legendType: v }), [updateActiveSlot]);
+
+  const legendAlign = currentSlotConfig.legendAlign || 'auto';
+  const setLegendAlign = useCallback((v: 'auto' | 'left' | 'right') => updateActiveSlot({ legendAlign: v }), [updateActiveSlot]);
+
+  const legendIcon = currentSlotConfig.legendIcon || 'inherit';
+  const setLegendIcon = useCallback((v: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line') => updateActiveSlot({ legendIcon: v }), [updateActiveSlot]);
+
+  const legendItemWidth = currentSlotConfig.legendItemWidth ?? 25;
+  const setLegendItemWidth = useCallback((v: number) => updateActiveSlot({ legendItemWidth: v }), [updateActiveSlot]);
+
+  const legendItemHeight = currentSlotConfig.legendItemHeight ?? 14;
+  const setLegendItemHeight = useCallback((v: number) => updateActiveSlot({ legendItemHeight: v }), [updateActiveSlot]);
+
+  const legendFontWeight = currentSlotConfig.legendFontWeight || 'normal';
+  const setLegendFontWeight = useCallback((v: 'normal' | 'bold' | '500' | '600' | '700') => updateActiveSlot({ legendFontWeight: v }), [updateActiveSlot]);
+
+  const legendTextColor = currentSlotConfig.legendTextColor || '';
+  const setLegendTextColor = useCallback((v: string) => updateActiveSlot({ legendTextColor: v }), [updateActiveSlot]);
+
+  const legendBackgroundColor = currentSlotConfig.legendBackgroundColor || 'transparent';
+  const setLegendBackgroundColor = useCallback((v: string) => updateActiveSlot({ legendBackgroundColor: v }), [updateActiveSlot]);
+
+  const legendBorderColor = currentSlotConfig.legendBorderColor || 'transparent';
+  const setLegendBorderColor = useCallback((v: string) => updateActiveSlot({ legendBorderColor: v }), [updateActiveSlot]);
+
+  const legendBorderWidth = currentSlotConfig.legendBorderWidth ?? 0;
+  const setLegendBorderWidth = useCallback((v: number) => updateActiveSlot({ legendBorderWidth: v }), [updateActiveSlot]);
+
+  const legendBorderRadius = currentSlotConfig.legendBorderRadius ?? 4;
+  const setLegendBorderRadius = useCallback((v: number) => updateActiveSlot({ legendBorderRadius: v }), [updateActiveSlot]);
+
+  const legendPadding = currentSlotConfig.legendPadding ?? 5;
+  const setLegendPadding = useCallback((v: number) => updateActiveSlot({ legendPadding: v }), [updateActiveSlot]);
 
   const showDataLabels = currentSlotConfig.showDataLabels;
   const setShowDataLabels = useCallback((v: boolean) => updateActiveSlot({ showDataLabels: v }), [updateActiveSlot]);
@@ -312,6 +353,144 @@ export function useVisualizerConfig(params: {
   const customAxisTitleY = currentSlotConfig.customAxisTitleY || '';
   const setCustomAxisTitleY = useCallback((v: string) => updateActiveSlot({ customAxisTitleY: v }), [updateActiveSlot]);
 
+  // Axis Titles Customization
+  const showAxisTitleX = currentSlotConfig.showAxisTitleX ?? true;
+  const setShowAxisTitleX = useCallback((v: boolean) => updateActiveSlot({ showAxisTitleX: v }), [updateActiveSlot]);
+
+  const showAxisTitleY = currentSlotConfig.showAxisTitleY ?? true;
+  const setShowAxisTitleY = useCallback((v: boolean) => updateActiveSlot({ showAxisTitleY: v }), [updateActiveSlot]);
+
+  const axisTitleFontSizeX = currentSlotConfig.axisTitleFontSizeX ?? 11;
+  const setAxisTitleFontSizeX = useCallback((v: number) => updateActiveSlot({ axisTitleFontSizeX: v }), [updateActiveSlot]);
+
+  const axisTitleFontSizeY = currentSlotConfig.axisTitleFontSizeY ?? 11;
+  const setAxisTitleFontSizeY = useCallback((v: number) => updateActiveSlot({ axisTitleFontSizeY: v }), [updateActiveSlot]);
+
+  const axisTitleFontWeightX = currentSlotConfig.axisTitleFontWeightX || 'bold';
+  const setAxisTitleFontWeightX = useCallback((v: AxisFontWeight) => updateActiveSlot({ axisTitleFontWeightX: v }), [updateActiveSlot]);
+
+  const axisTitleFontWeightY = currentSlotConfig.axisTitleFontWeightY || 'bold';
+  const setAxisTitleFontWeightY = useCallback((v: AxisFontWeight) => updateActiveSlot({ axisTitleFontWeightY: v }), [updateActiveSlot]);
+
+  const axisTitleFontStyleX = currentSlotConfig.axisTitleFontStyleX || 'normal';
+  const setAxisTitleFontStyleX = useCallback((v: AxisFontStyle) => updateActiveSlot({ axisTitleFontStyleX: v }), [updateActiveSlot]);
+
+  const axisTitleFontStyleY = currentSlotConfig.axisTitleFontStyleY || 'normal';
+  const setAxisTitleFontStyleY = useCallback((v: AxisFontStyle) => updateActiveSlot({ axisTitleFontStyleY: v }), [updateActiveSlot]);
+
+  const axisTitleColorX = currentSlotConfig.axisTitleColorX || '';
+  const setAxisTitleColorX = useCallback((v: string) => updateActiveSlot({ axisTitleColorX: v }), [updateActiveSlot]);
+
+  const axisTitleColorY = currentSlotConfig.axisTitleColorY || '';
+  const setAxisTitleColorY = useCallback((v: string) => updateActiveSlot({ axisTitleColorY: v }), [updateActiveSlot]);
+
+  const axisTitleLocationX = currentSlotConfig.axisTitleLocationX || 'middle';
+  const setAxisTitleLocationX = useCallback((v: AxisLocation) => updateActiveSlot({ axisTitleLocationX: v }), [updateActiveSlot]);
+
+  const axisTitleLocationY = currentSlotConfig.axisTitleLocationY || 'middle';
+  const setAxisTitleLocationY = useCallback((v: AxisLocation) => updateActiveSlot({ axisTitleLocationY: v }), [updateActiveSlot]);
+
+  const axisTitleGapX = currentSlotConfig.axisTitleGapX ?? 28;
+  const setAxisTitleGapX = useCallback((v: number) => updateActiveSlot({ axisTitleGapX: v }), [updateActiveSlot]);
+
+  const axisTitleGapY = currentSlotConfig.axisTitleGapY ?? 38;
+  const setAxisTitleGapY = useCallback((v: number) => updateActiveSlot({ axisTitleGapY: v }), [updateActiveSlot]);
+
+  // Axis Tick Labels Customization
+  const showAxisLabelX = currentSlotConfig.showAxisLabelX ?? true;
+  const setShowAxisLabelX = useCallback((v: boolean) => updateActiveSlot({ showAxisLabelX: v }), [updateActiveSlot]);
+
+  const showAxisLabelY = currentSlotConfig.showAxisLabelY ?? true;
+  const setShowAxisLabelY = useCallback((v: boolean) => updateActiveSlot({ showAxisLabelY: v }), [updateActiveSlot]);
+
+  const axisLabelFontSizeX = currentSlotConfig.axisLabelFontSizeX ?? 11;
+  const setAxisLabelFontSizeX = useCallback((v: number) => updateActiveSlot({ axisLabelFontSizeX: v }), [updateActiveSlot]);
+
+  const axisLabelFontSizeY = currentSlotConfig.axisLabelFontSizeY ?? 11;
+  const setAxisLabelFontSizeY = useCallback((v: number) => updateActiveSlot({ axisLabelFontSizeY: v }), [updateActiveSlot]);
+
+  const axisLabelFontWeightX = currentSlotConfig.axisLabelFontWeightX || 'normal';
+  const setAxisLabelFontWeightX = useCallback((v: AxisFontWeight) => updateActiveSlot({ axisLabelFontWeightX: v }), [updateActiveSlot]);
+
+  const axisLabelFontWeightY = currentSlotConfig.axisLabelFontWeightY || 'normal';
+  const setAxisLabelFontWeightY = useCallback((v: AxisFontWeight) => updateActiveSlot({ axisLabelFontWeightY: v }), [updateActiveSlot]);
+
+  const axisLabelColorX = currentSlotConfig.axisLabelColorX || '';
+  const setAxisLabelColorX = useCallback((v: string) => updateActiveSlot({ axisLabelColorX: v }), [updateActiveSlot]);
+
+  const axisLabelColorY = currentSlotConfig.axisLabelColorY || '';
+  const setAxisLabelColorY = useCallback((v: string) => updateActiveSlot({ axisLabelColorY: v }), [updateActiveSlot]);
+
+  const axisLabelRotateX = currentSlotConfig.axisLabelRotateX ?? 0;
+  const setAxisLabelRotateX = useCallback((v: number) => updateActiveSlot({ axisLabelRotateX: v }), [updateActiveSlot]);
+
+  const axisLabelRotateY = currentSlotConfig.axisLabelRotateY ?? 0;
+  const setAxisLabelRotateY = useCallback((v: number) => updateActiveSlot({ axisLabelRotateY: v }), [updateActiveSlot]);
+
+  const axisLabelMarginX = currentSlotConfig.axisLabelMarginX ?? 8;
+  const setAxisLabelMarginX = useCallback((v: number) => updateActiveSlot({ axisLabelMarginX: v }), [updateActiveSlot]);
+
+  const axisLabelMarginY = currentSlotConfig.axisLabelMarginY ?? 8;
+  const setAxisLabelMarginY = useCallback((v: number) => updateActiveSlot({ axisLabelMarginY: v }), [updateActiveSlot]);
+
+  const axisLabelOverflowX = currentSlotConfig.axisLabelOverflowX || 'none';
+  const setAxisLabelOverflowX = useCallback((v: 'none' | 'truncate' | 'break') => updateActiveSlot({ axisLabelOverflowX: v }), [updateActiveSlot]);
+
+  const axisLabelOverflowY = currentSlotConfig.axisLabelOverflowY || 'none';
+  const setAxisLabelOverflowY = useCallback((v: 'none' | 'truncate' | 'break') => updateActiveSlot({ axisLabelOverflowY: v }), [updateActiveSlot]);
+
+  const axisLabelWidthX = currentSlotConfig.axisLabelWidthX ?? 120;
+  const setAxisLabelWidthX = useCallback((v: number) => updateActiveSlot({ axisLabelWidthX: v }), [updateActiveSlot]);
+
+  const axisLabelWidthY = currentSlotConfig.axisLabelWidthY ?? 140;
+  const setAxisLabelWidthY = useCallback((v: number) => updateActiveSlot({ axisLabelWidthY: v }), [updateActiveSlot]);
+
+  const axisLabelLineHeightX = currentSlotConfig.axisLabelLineHeightX ?? 14;
+  const setAxisLabelLineHeightX = useCallback((v: number) => updateActiveSlot({ axisLabelLineHeightX: v }), [updateActiveSlot]);
+
+  const axisLabelLineHeightY = currentSlotConfig.axisLabelLineHeightY ?? 14;
+  const setAxisLabelLineHeightY = useCallback((v: number) => updateActiveSlot({ axisLabelLineHeightY: v }), [updateActiveSlot]);
+
+  const axisLabelFormatX = currentSlotConfig.axisLabelFormatX || 'auto';
+  const setAxisLabelFormatX = useCallback((v: AxisLabelFormat) => updateActiveSlot({ axisLabelFormatX: v }), [updateActiveSlot]);
+
+  const axisLabelFormatY = currentSlotConfig.axisLabelFormatY || 'auto';
+  const setAxisLabelFormatY = useCallback((v: AxisLabelFormat) => updateActiveSlot({ axisLabelFormatY: v }), [updateActiveSlot]);
+
+  const axisLabelPrefixX = currentSlotConfig.axisLabelPrefixX || '';
+  const setAxisLabelPrefixX = useCallback((v: string) => updateActiveSlot({ axisLabelPrefixX: v }), [updateActiveSlot]);
+
+  const axisLabelSuffixX = currentSlotConfig.axisLabelSuffixX || '';
+  const setAxisLabelSuffixX = useCallback((v: string) => updateActiveSlot({ axisLabelSuffixX: v }), [updateActiveSlot]);
+
+  const axisLabelPrefixY = currentSlotConfig.axisLabelPrefixY || '';
+  const setAxisLabelPrefixY = useCallback((v: string) => updateActiveSlot({ axisLabelPrefixY: v }), [updateActiveSlot]);
+
+  const axisLabelSuffixY = currentSlotConfig.axisLabelSuffixY || '';
+  const setAxisLabelSuffixY = useCallback((v: string) => updateActiveSlot({ axisLabelSuffixY: v }), [updateActiveSlot]);
+
+  const axisLabelIntervalX = currentSlotConfig.axisLabelIntervalX ?? 'auto';
+  const setAxisLabelIntervalX = useCallback((v: 'auto' | number) => updateActiveSlot({ axisLabelIntervalX: v }), [updateActiveSlot]);
+
+  const axisLabelIntervalY = currentSlotConfig.axisLabelIntervalY ?? 'auto';
+  const setAxisLabelIntervalY = useCallback((v: 'auto' | number) => updateActiveSlot({ axisLabelIntervalY: v }), [updateActiveSlot]);
+
+  // Scientific Gridlines
+  const showGridLinesX = currentSlotConfig.showGridLinesX ?? false;
+  const setShowGridLinesX = useCallback((v: boolean) => updateActiveSlot({ showGridLinesX: v }), [updateActiveSlot]);
+
+  const showGridLinesY = currentSlotConfig.showGridLinesY ?? true;
+  const setShowGridLinesY = useCallback((v: boolean) => updateActiveSlot({ showGridLinesY: v }), [updateActiveSlot]);
+
+  const gridLineStyle = currentSlotConfig.gridLineStyle || 'dashed';
+  const setGridLineStyle = useCallback((v: AxisGridLineStyle) => updateActiveSlot({ gridLineStyle: v }), [updateActiveSlot]);
+
+  const gridLineColor = currentSlotConfig.gridLineColor || '';
+  const setGridLineColor = useCallback((v: string) => updateActiveSlot({ gridLineColor: v }), [updateActiveSlot]);
+
+  const gridLineOpacity = currentSlotConfig.gridLineOpacity ?? 100;
+  const setGridLineOpacity = useCallback((v: number) => updateActiveSlot({ gridLineOpacity: v }), [updateActiveSlot]);
+
   const labelFormat = currentSlotConfig.labelFormat || 'ratio_percent';
   const setLabelFormat = useCallback((v: DisplayFormatTemplate) => updateActiveSlot({ labelFormat: v, barLabelFormat: v }), [updateActiveSlot]);
 
@@ -430,6 +609,102 @@ export function useVisualizerConfig(params: {
   const setCustomSliceColors = useCallback((v: Record<string, string>) => updateActiveSlot({ customSliceColors: v }), [updateActiveSlot]);
 
   // Enhanced Scientific Customization Setters
+  const lineMode = currentSlotConfig.lineMode || 'cohort_trend';
+  const setLineMode = useCallback((v: 'cohort_trend' | 'epistemic_simulation') => updateActiveSlot({ lineMode: v }), [updateActiveSlot]);
+
+  const lineTimeSteps = currentSlotConfig.lineTimeSteps ?? 96;
+  const setLineTimeSteps = useCallback((v: number) => updateActiveSlot({ lineTimeSteps: v }), [updateActiveSlot]);
+
+  const lineTimeStepIntervalName = currentSlotConfig.lineTimeStepIntervalName || 'Time Steps k (15-min intervals / 24-h Cycle)';
+  const setLineTimeStepIntervalName = useCallback((v: string) => updateActiveSlot({ lineTimeStepIntervalName: v }), [updateActiveSlot]);
+
+  const lineYAxisTitle = currentSlotConfig.lineYAxisTitle || 'State Uncertainty Tr(P)';
+  const setLineYAxisTitle = useCallback((v: string) => updateActiveSlot({ lineYAxisTitle: v }), [updateActiveSlot]);
+
+  const lineYMin = currentSlotConfig.lineYMin ?? 0;
+  const setLineYMin = useCallback((v: number) => updateActiveSlot({ lineYMin: v }), [updateActiveSlot]);
+
+  const lineYMax = currentSlotConfig.lineYMax ?? 4.5;
+  const setLineYMax = useCallback((v: number) => updateActiveSlot({ lineYMax: v }), [updateActiveSlot]);
+
+  const lineBaselineA = currentSlotConfig.lineBaselineA ?? 0.15;
+  const setLineBaselineA = useCallback((v: number) => updateActiveSlot({ lineBaselineA: v }), [updateActiveSlot]);
+
+  const lineBaselineB = currentSlotConfig.lineBaselineB ?? 0.038;
+  const setLineBaselineB = useCallback((v: number) => updateActiveSlot({ lineBaselineB: v }), [updateActiveSlot]);
+
+  const lineBaselineName = currentSlotConfig.lineBaselineName || 'Static Architecture (24% CNN / 15% Filter Cohort)';
+  const setLineBaselineName = useCallback((v: string) => updateActiveSlot({ lineBaselineName: v }), [updateActiveSlot]);
+
+  const lineBaselineColor = currentSlotConfig.lineBaselineColor || '';
+  const setLineBaselineColor = useCallback((v: string) => updateActiveSlot({ lineBaselineColor: v }), [updateActiveSlot]);
+
+  const lineBaselineStyle = currentSlotConfig.lineBaselineStyle || 'dashed';
+  const setLineBaselineStyle = useCallback((v: 'solid' | 'dashed' | 'dotted') => updateActiveSlot({ lineBaselineStyle: v }), [updateActiveSlot]);
+
+  const lineEstimatorInitial = currentSlotConfig.lineEstimatorInitial ?? 0.15;
+  const setLineEstimatorInitial = useCallback((v: number) => updateActiveSlot({ lineEstimatorInitial: v }), [updateActiveSlot]);
+
+  const lineEstimatorDrift = currentSlotConfig.lineEstimatorDrift ?? 0.11;
+  const setLineEstimatorDrift = useCallback((v: number) => updateActiveSlot({ lineEstimatorDrift: v }), [updateActiveSlot]);
+
+  const lineEstimatorModulation = currentSlotConfig.lineEstimatorModulation ?? 0.05;
+  const setLineEstimatorModulation = useCallback((v: number) => updateActiveSlot({ lineEstimatorModulation: v }), [updateActiveSlot]);
+
+  const lineEstimatorName = currentSlotConfig.lineEstimatorName || 'Discrete Recursive Estimator (Proposed Gated Pipeline)';
+  const setLineEstimatorName = useCallback((v: string) => updateActiveSlot({ lineEstimatorName: v }), [updateActiveSlot]);
+
+  const lineEstimatorColor = currentSlotConfig.lineEstimatorColor || '';
+  const setLineEstimatorColor = useCallback((v: string) => updateActiveSlot({ lineEstimatorColor: v }), [updateActiveSlot]);
+
+  const lineEstimatorStyle = currentSlotConfig.lineEstimatorStyle || 'solid';
+  const setLineEstimatorStyle = useCallback((v: 'solid' | 'dashed' | 'dotted') => updateActiveSlot({ lineEstimatorStyle: v }), [updateActiveSlot]);
+
+  const lineThresholdValue = currentSlotConfig.lineThresholdValue ?? 1.0;
+  const setLineThresholdValue = useCallback((v: number) => updateActiveSlot({ lineThresholdValue: v }), [updateActiveSlot]);
+
+  const lineThresholdName = currentSlotConfig.lineThresholdName || 'Semantic Trigger Threshold (ε)';
+  const setLineThresholdName = useCallback((v: string) => updateActiveSlot({ lineThresholdName: v }), [updateActiveSlot]);
+
+  const lineThresholdLabel = currentSlotConfig.lineThresholdLabel || 'Threshold ε = 1.00';
+  const setLineThresholdLabel = useCallback((v: string) => updateActiveSlot({ lineThresholdLabel: v }), [updateActiveSlot]);
+
+  const lineThresholdColor = currentSlotConfig.lineThresholdColor || '';
+  const setLineThresholdColor = useCallback((v: string) => updateActiveSlot({ lineThresholdColor: v }), [updateActiveSlot]);
+
+  const lineThresholdStyle = currentSlotConfig.lineThresholdStyle || 'dotted';
+  const setLineThresholdStyle = useCallback((v: 'dotted' | 'dashed' | 'solid') => updateActiveSlot({ lineThresholdStyle: v }), [updateActiveSlot]);
+
+  const lineThresholdPosition = currentSlotConfig.lineThresholdPosition || 'insideEndTop';
+  const setLineThresholdPosition = useCallback((v: 'insideEndTop' | 'insideStartTop' | 'insideMiddleTop' | 'end' | 'start') => updateActiveSlot({ lineThresholdPosition: v }), [updateActiveSlot]);
+
+  const lineThresholdLineWidth = currentSlotConfig.lineThresholdLineWidth ?? 1.5;
+  const setLineThresholdLineWidth = useCallback((v: number) => updateActiveSlot({ lineThresholdLineWidth: v }), [updateActiveSlot]);
+
+  const lineAxisPointerType = currentSlotConfig.lineAxisPointerType || 'cross';
+  const setLineAxisPointerType = useCallback((v: 'cross' | 'line' | 'shadow') => updateActiveSlot({ lineAxisPointerType: v }), [updateActiveSlot]);
+
+  const lineMarkerSymbol = currentSlotConfig.lineMarkerSymbol || 'circle';
+  const setLineMarkerSymbol = useCallback((v: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none' | 'emptyCircle') => updateActiveSlot({ lineMarkerSymbol: v }), [updateActiveSlot]);
+
+  const lineXAxisInterval = currentSlotConfig.lineXAxisInterval ?? 'auto';
+  const setLineXAxisInterval = useCallback((v: number | 'auto') => updateActiveSlot({ lineXAxisInterval: v }), [updateActiveSlot]);
+
+  const lineShowGridLines = currentSlotConfig.lineShowGridLines ?? true;
+  const setLineShowGridLines = useCallback((v: boolean) => updateActiveSlot({ lineShowGridLines: v }), [updateActiveSlot]);
+
+  const lineGridLeft = currentSlotConfig.lineGridLeft ?? 60;
+  const setLineGridLeft = useCallback((v: number) => updateActiveSlot({ lineGridLeft: v }), [updateActiveSlot]);
+
+  const lineGridRight = currentSlotConfig.lineGridRight ?? 40;
+  const setLineGridRight = useCallback((v: number) => updateActiveSlot({ lineGridRight: v }), [updateActiveSlot]);
+
+  const lineGridTop = currentSlotConfig.lineGridTop ?? 65;
+  const setLineGridTop = useCallback((v: number) => updateActiveSlot({ lineGridTop: v }), [updateActiveSlot]);
+
+  const lineGridBottom = currentSlotConfig.lineGridBottom ?? 65;
+  const setLineGridBottom = useCallback((v: number) => updateActiveSlot({ lineGridBottom: v }), [updateActiveSlot]);
+
   const lineWidth = currentSlotConfig.lineWidth ?? 2.5;
   const setLineWidth = useCallback((v: number) => updateActiveSlot({ lineWidth: v }), [updateActiveSlot]);
 
@@ -439,8 +714,41 @@ export function useVisualizerConfig(params: {
   const lineMarkerSize = currentSlotConfig.lineMarkerSize ?? 8;
   const setLineMarkerSize = useCallback((v: number) => updateActiveSlot({ lineMarkerSize: v }), [updateActiveSlot]);
 
-  const lineAreaOpacity = currentSlotConfig.lineAreaOpacity ?? 15;
+  const lineAreaOpacity = currentSlotConfig.lineAreaOpacity ?? 0;
   const setLineAreaOpacity = useCallback((v: number) => updateActiveSlot({ lineAreaOpacity: v }), [updateActiveSlot]);
+
+  const lineBaselineAreaOpacity = currentSlotConfig.lineBaselineAreaOpacity ?? 0;
+  const setLineBaselineAreaOpacity = useCallback((v: number) => updateActiveSlot({ lineBaselineAreaOpacity: v }), [updateActiveSlot]);
+
+  const lineEstimatorAreaOpacity = currentSlotConfig.lineEstimatorAreaOpacity ?? 8;
+  const setLineEstimatorAreaOpacity = useCallback((v: number) => updateActiveSlot({ lineEstimatorAreaOpacity: v }), [updateActiveSlot]);
+
+  const lineBaselineFillMode = currentSlotConfig.lineBaselineFillMode || 'none';
+  const setLineBaselineFillMode = useCallback((v: 'none' | 'subtle_gradient' | 'solid') => updateActiveSlot({ lineBaselineFillMode: v }), [updateActiveSlot]);
+
+  const lineEstimatorFillMode = currentSlotConfig.lineEstimatorFillMode || 'subtle_gradient';
+  const setLineEstimatorFillMode = useCallback((v: 'none' | 'subtle_gradient' | 'solid') => updateActiveSlot({ lineEstimatorFillMode: v }), [updateActiveSlot]);
+
+  const lineShowTxEvents = currentSlotConfig.lineShowTxEvents ?? true;
+  const setLineShowTxEvents = useCallback((v: boolean) => updateActiveSlot({ lineShowTxEvents: v }), [updateActiveSlot]);
+
+  const lineTxEventSymbol = currentSlotConfig.lineTxEventSymbol || 'triangle';
+  const setLineTxEventSymbol = useCallback((v: 'triangle' | 'pin' | 'diamond' | 'circle' | 'arrow') => updateActiveSlot({ lineTxEventSymbol: v }), [updateActiveSlot]);
+
+  const lineTxEventColor = currentSlotConfig.lineTxEventColor || '';
+  const setLineTxEventColor = useCallback((v: string) => updateActiveSlot({ lineTxEventColor: v }), [updateActiveSlot]);
+
+  const lineTxEventSize = currentSlotConfig.lineTxEventSize ?? 12;
+  const setLineTxEventSize = useCallback((v: number) => updateActiveSlot({ lineTxEventSize: v }), [updateActiveSlot]);
+
+  const lineShowTxLabels = currentSlotConfig.lineShowTxLabels ?? true;
+  const setLineShowTxLabels = useCallback((v: boolean) => updateActiveSlot({ lineShowTxLabels: v }), [updateActiveSlot]);
+
+  const lineTxEventLabel = currentSlotConfig.lineTxEventLabel || 'TX';
+  const setLineTxEventLabel = useCallback((v: string) => updateActiveSlot({ lineTxEventLabel: v }), [updateActiveSlot]);
+
+  const lineTxEventSeriesName = currentSlotConfig.lineTxEventSeriesName || 'Physical Radio TX Events';
+  const setLineTxEventSeriesName = useCallback((v: string) => updateActiveSlot({ lineTxEventSeriesName: v }), [updateActiveSlot]);
 
   const lineStepMode = currentSlotConfig.lineStepMode || 'none';
   const setLineStepMode = useCallback((v: 'none' | 'start' | 'middle' | 'end') => updateActiveSlot({ lineStepMode: v }), [updateActiveSlot]);
@@ -604,6 +912,90 @@ export function useVisualizerConfig(params: {
   const scatterRegressionType = currentSlotConfig.scatterRegressionType || 'linear';
   const setScatterRegressionType = useCallback((v: 'linear' | 'mean') => updateActiveSlot({ scatterRegressionType: v }), [updateActiveSlot]);
 
+  const bubbleMode = currentSlotConfig.bubbleMode || 'categorical_matrix';
+  const setBubbleMode = useCallback((v: 'categorical_matrix' | 'numerical_3d') => updateActiveSlot({ bubbleMode: v }), [updateActiveSlot]);
+
+  const bubbleMinRadius = currentSlotConfig.bubbleMinRadius ?? 12;
+  const setBubbleMinRadius = useCallback((v: number) => updateActiveSlot({ bubbleMinRadius: v }), [updateActiveSlot]);
+
+  const bubbleMaxRadius = currentSlotConfig.bubbleMaxRadius ?? 65;
+  const setBubbleMaxRadius = useCallback((v: number) => updateActiveSlot({ bubbleMaxRadius: v }), [updateActiveSlot]);
+
+  const bubbleOpacity = currentSlotConfig.bubbleOpacity ?? 85;
+  const setBubbleOpacity = useCallback((v: number) => updateActiveSlot({ bubbleOpacity: v }), [updateActiveSlot]);
+
+  const bubbleBorderWidth = currentSlotConfig.bubbleBorderWidth ?? 1.5;
+  const setBubbleBorderWidth = useCallback((v: number) => updateActiveSlot({ bubbleBorderWidth: v }), [updateActiveSlot]);
+
+  const bubbleBorderColor = currentSlotConfig.bubbleBorderColor || '#333333';
+  const setBubbleBorderColor = useCallback((v: string) => updateActiveSlot({ bubbleBorderColor: v }), [updateActiveSlot]);
+
+  const bubbleShowLabels = currentSlotConfig.bubbleShowLabels ?? true;
+  const setBubbleShowLabels = useCallback((v: boolean) => updateActiveSlot({ bubbleShowLabels: v }), [updateActiveSlot]);
+
+  const bubbleLabelFormat = currentSlotConfig.bubbleLabelFormat || 'count_n';
+  const setBubbleLabelFormat = useCallback((v: 'count_n' | 'count_only' | 'percent' | 'label') => updateActiveSlot({ bubbleLabelFormat: v }), [updateActiveSlot]);
+
+  const bubbleLabelFontSize = currentSlotConfig.bubbleLabelFontSize ?? 11;
+  const setBubbleLabelFontSize = useCallback((v: number) => updateActiveSlot({ bubbleLabelFontSize: v }), [updateActiveSlot]);
+
+  const bubbleLabelColor = currentSlotConfig.bubbleLabelColor || '#ffffff';
+  const setBubbleLabelColor = useCallback((v: string) => updateActiveSlot({ bubbleLabelColor: v }), [updateActiveSlot]);
+
+  const bubbleColorMode = currentSlotConfig.bubbleColorMode || 'color_by_x';
+  const setBubbleColorMode = useCallback((v: 'color_by_x' | 'color_by_y' | 'color_by_metric' | 'custom_compliance') => updateActiveSlot({ bubbleColorMode: v }), [updateActiveSlot]);
+
+  const bubbleShowGridLines = currentSlotConfig.bubbleShowGridLines ?? true;
+  const setBubbleShowGridLines = useCallback((v: boolean) => updateActiveSlot({ bubbleShowGridLines: v }), [updateActiveSlot]);
+
+  const bubbleComplianceRules = currentSlotConfig.bubbleComplianceRules || {};
+  const setBubbleComplianceRules = useCallback((v: Record<string, { label?: string; compliance?: string; color?: string }>) => updateActiveSlot({ bubbleComplianceRules: v }), [updateActiveSlot]);
+
+  const bubbleXAxisName = currentSlotConfig.bubbleXAxisName || '';
+  const setBubbleXAxisName = useCallback((v: string) => updateActiveSlot({ bubbleXAxisName: v }), [updateActiveSlot]);
+
+  const bubbleYAxisName = currentSlotConfig.bubbleYAxisName || '';
+  const setBubbleYAxisName = useCallback((v: string) => updateActiveSlot({ bubbleYAxisName: v }), [updateActiveSlot]);
+
+  const bubbleXAxisNameGap = currentSlotConfig.bubbleXAxisNameGap ?? 55;
+  const setBubbleXAxisNameGap = useCallback((v: number) => updateActiveSlot({ bubbleXAxisNameGap: v }), [updateActiveSlot]);
+
+  const bubbleYAxisNameGap = currentSlotConfig.bubbleYAxisNameGap ?? 95;
+  const setBubbleYAxisNameGap = useCallback((v: number) => updateActiveSlot({ bubbleYAxisNameGap: v }), [updateActiveSlot]);
+
+  const bubbleXAxisNameLocation = currentSlotConfig.bubbleXAxisNameLocation || 'middle';
+  const setBubbleXAxisNameLocation = useCallback((v: 'middle' | 'start' | 'end') => updateActiveSlot({ bubbleXAxisNameLocation: v }), [updateActiveSlot]);
+
+  const bubbleYAxisNameLocation = currentSlotConfig.bubbleYAxisNameLocation || 'middle';
+  const setBubbleYAxisNameLocation = useCallback((v: 'middle' | 'start' | 'end') => updateActiveSlot({ bubbleYAxisNameLocation: v }), [updateActiveSlot]);
+
+  const bubbleAxisTitleFontSize = currentSlotConfig.bubbleAxisTitleFontSize ?? 12;
+  const setBubbleAxisTitleFontSize = useCallback((v: number) => updateActiveSlot({ bubbleAxisTitleFontSize: v }), [updateActiveSlot]);
+
+  const bubbleAxisTitleFontWeight = currentSlotConfig.bubbleAxisTitleFontWeight || 'bold';
+  const setBubbleAxisTitleFontWeight = useCallback((v: 'bold' | 'normal' | 'bolder') => updateActiveSlot({ bubbleAxisTitleFontWeight: v }), [updateActiveSlot]);
+
+  const bubbleAxisTitleColor = currentSlotConfig.bubbleAxisTitleColor || '';
+  const setBubbleAxisTitleColor = useCallback((v: string) => updateActiveSlot({ bubbleAxisTitleColor: v }), [updateActiveSlot]);
+
+  const bubbleGridLeft = currentSlotConfig.bubbleGridLeft ?? 120;
+  const setBubbleGridLeft = useCallback((v: number) => updateActiveSlot({ bubbleGridLeft: v }), [updateActiveSlot]);
+
+  const bubbleGridBottom = currentSlotConfig.bubbleGridBottom ?? 90;
+  const setBubbleGridBottom = useCallback((v: number) => updateActiveSlot({ bubbleGridBottom: v }), [updateActiveSlot]);
+
+  const bubbleGridTop = currentSlotConfig.bubbleGridTop ?? 65;
+  const setBubbleGridTop = useCallback((v: number) => updateActiveSlot({ bubbleGridTop: v }), [updateActiveSlot]);
+
+  const bubbleGridRight = currentSlotConfig.bubbleGridRight ?? 50;
+  const setBubbleGridRight = useCallback((v: number) => updateActiveSlot({ bubbleGridRight: v }), [updateActiveSlot]);
+
+  const bubbleSeriesName = currentSlotConfig.bubbleSeriesName || 'Deployments';
+  const setBubbleSeriesName = useCallback((v: string) => updateActiveSlot({ bubbleSeriesName: v }), [updateActiveSlot]);
+
+  const bubbleLegendMode = currentSlotConfig.bubbleLegendMode || 'category_series';
+  const setBubbleLegendMode = useCallback((v: 'category_series' | 'single_series' | 'none') => updateActiveSlot({ bubbleLegendMode: v }), [updateActiveSlot]);
+
   const graphRepulsion = currentSlotConfig.graphRepulsion ?? 120;
   const setGraphRepulsion = useCallback((v: number) => updateActiveSlot({ graphRepulsion: v }), [updateActiveSlot]);
 
@@ -691,6 +1083,30 @@ export function useVisualizerConfig(params: {
     setShowLegend,
     legendPosition,
     setLegendPosition,
+    legendType,
+    setLegendType,
+    legendAlign,
+    setLegendAlign,
+    legendIcon,
+    setLegendIcon,
+    legendItemWidth,
+    setLegendItemWidth,
+    legendItemHeight,
+    setLegendItemHeight,
+    legendFontWeight,
+    setLegendFontWeight,
+    legendTextColor,
+    setLegendTextColor,
+    legendBackgroundColor,
+    setLegendBackgroundColor,
+    legendBorderColor,
+    setLegendBorderColor,
+    legendBorderWidth,
+    setLegendBorderWidth,
+    legendBorderRadius,
+    setLegendBorderRadius,
+    legendPadding,
+    setLegendPadding,
     showDataLabels,
     setShowDataLabels,
     labelRotation,
@@ -803,6 +1219,99 @@ export function useVisualizerConfig(params: {
     setCustomAxisTitleX,
     customAxisTitleY,
     setCustomAxisTitleY,
+    // Axis Titles Customization
+    showAxisTitleX,
+    setShowAxisTitleX,
+    showAxisTitleY,
+    setShowAxisTitleY,
+    axisTitleFontSizeX,
+    setAxisTitleFontSizeX,
+    axisTitleFontSizeY,
+    setAxisTitleFontSizeY,
+    axisTitleFontWeightX,
+    setAxisTitleFontWeightX,
+    axisTitleFontWeightY,
+    setAxisTitleFontWeightY,
+    axisTitleFontStyleX,
+    setAxisTitleFontStyleX,
+    axisTitleFontStyleY,
+    setAxisTitleFontStyleY,
+    axisTitleColorX,
+    setAxisTitleColorX,
+    axisTitleColorY,
+    setAxisTitleColorY,
+    axisTitleLocationX,
+    setAxisTitleLocationX,
+    axisTitleLocationY,
+    setAxisTitleLocationY,
+    axisTitleGapX,
+    setAxisTitleGapX,
+    axisTitleGapY,
+    setAxisTitleGapY,
+    // Axis Tick Labels Customization
+    showAxisLabelX,
+    setShowAxisLabelX,
+    showAxisLabelY,
+    setShowAxisLabelY,
+    axisLabelFontSizeX,
+    setAxisLabelFontSizeX,
+    axisLabelFontSizeY,
+    setAxisLabelFontSizeY,
+    axisLabelFontWeightX,
+    setAxisLabelFontWeightX,
+    axisLabelFontWeightY,
+    setAxisLabelFontWeightY,
+    axisLabelColorX,
+    setAxisLabelColorX,
+    axisLabelColorY,
+    setAxisLabelColorY,
+    axisLabelRotateX,
+    setAxisLabelRotateX,
+    axisLabelRotateY,
+    setAxisLabelRotateY,
+    axisLabelMarginX,
+    setAxisLabelMarginX,
+    axisLabelMarginY,
+    setAxisLabelMarginY,
+    axisLabelOverflowX,
+    setAxisLabelOverflowX,
+    axisLabelOverflowY,
+    setAxisLabelOverflowY,
+    axisLabelWidthX,
+    setAxisLabelWidthX,
+    axisLabelWidthY,
+    setAxisLabelWidthY,
+    axisLabelLineHeightX,
+    setAxisLabelLineHeightX,
+    axisLabelLineHeightY,
+    setAxisLabelLineHeightY,
+    axisLabelFormatX,
+    setAxisLabelFormatX,
+    axisLabelFormatY,
+    setAxisLabelFormatY,
+    axisLabelPrefixX,
+    setAxisLabelPrefixX,
+    axisLabelSuffixX,
+    setAxisLabelSuffixX,
+    axisLabelPrefixY,
+    setAxisLabelPrefixY,
+    axisLabelSuffixY,
+    setAxisLabelSuffixY,
+    axisLabelIntervalX,
+    setAxisLabelIntervalX,
+    axisLabelIntervalY,
+    setAxisLabelIntervalY,
+    // Scientific Gridlines
+    showGridLinesX,
+    setShowGridLinesX,
+    showGridLinesY,
+    setShowGridLinesY,
+    gridLineStyle,
+    setGridLineStyle,
+    gridLineColor,
+    setGridLineColor,
+    gridLineOpacity,
+    setGridLineOpacity,
     labelFormat,
     setLabelFormat,
     barLabelPosition,
@@ -881,6 +1390,70 @@ export function useVisualizerConfig(params: {
     setLevelCustomGroupLinks,
     customSliceColors,
     setCustomSliceColors,
+    lineMode,
+    setLineMode,
+    lineTimeSteps,
+    setLineTimeSteps,
+    lineTimeStepIntervalName,
+    setLineTimeStepIntervalName,
+    lineYAxisTitle,
+    setLineYAxisTitle,
+    lineYMin,
+    setLineYMin,
+    lineYMax,
+    setLineYMax,
+    lineBaselineA,
+    setLineBaselineA,
+    lineBaselineB,
+    setLineBaselineB,
+    lineBaselineName,
+    setLineBaselineName,
+    lineBaselineColor,
+    setLineBaselineColor,
+    lineBaselineStyle,
+    setLineBaselineStyle,
+    lineEstimatorInitial,
+    setLineEstimatorInitial,
+    lineEstimatorDrift,
+    setLineEstimatorDrift,
+    lineEstimatorModulation,
+    setLineEstimatorModulation,
+    lineEstimatorName,
+    setLineEstimatorName,
+    lineEstimatorColor,
+    setLineEstimatorColor,
+    lineEstimatorStyle,
+    setLineEstimatorStyle,
+    lineThresholdValue,
+    setLineThresholdValue,
+    lineThresholdName,
+    setLineThresholdName,
+    lineThresholdLabel,
+    setLineThresholdLabel,
+    lineThresholdColor,
+    setLineThresholdColor,
+    lineThresholdStyle,
+    setLineThresholdStyle,
+    lineThresholdPosition,
+    setLineThresholdPosition,
+    lineThresholdLineWidth,
+    setLineThresholdLineWidth,
+    lineAxisPointerType,
+    setLineAxisPointerType,
+    lineMarkerSymbol,
+    setLineMarkerSymbol,
+    lineXAxisInterval,
+    setLineXAxisInterval,
+    lineShowGridLines,
+    setLineShowGridLines,
+    lineGridLeft,
+    setLineGridLeft,
+    lineGridRight,
+    setLineGridRight,
+    lineGridTop,
+    setLineGridTop,
+    lineGridBottom,
+    setLineGridBottom,
     lineWidth,
     setLineWidth,
     showLineMarkers,
@@ -889,6 +1462,28 @@ export function useVisualizerConfig(params: {
     setLineMarkerSize,
     lineAreaOpacity,
     setLineAreaOpacity,
+    lineBaselineAreaOpacity,
+    setLineBaselineAreaOpacity,
+    lineEstimatorAreaOpacity,
+    setLineEstimatorAreaOpacity,
+    lineBaselineFillMode,
+    setLineBaselineFillMode,
+    lineEstimatorFillMode,
+    setLineEstimatorFillMode,
+    lineShowTxEvents,
+    setLineShowTxEvents,
+    lineTxEventSymbol,
+    setLineTxEventSymbol,
+    lineTxEventColor,
+    setLineTxEventColor,
+    lineTxEventSize,
+    setLineTxEventSize,
+    lineShowTxLabels,
+    setLineShowTxLabels,
+    lineTxEventLabel,
+    setLineTxEventLabel,
+    lineTxEventSeriesName,
+    setLineTxEventSeriesName,
     lineStepMode,
     setLineStepMode,
     roseType,
@@ -997,6 +1592,62 @@ export function useVisualizerConfig(params: {
     setScatterShowRegression,
     scatterRegressionType,
     setScatterRegressionType,
+    bubbleMode,
+    setBubbleMode,
+    bubbleMinRadius,
+    setBubbleMinRadius,
+    bubbleMaxRadius,
+    setBubbleMaxRadius,
+    bubbleOpacity,
+    setBubbleOpacity,
+    bubbleBorderWidth,
+    setBubbleBorderWidth,
+    bubbleBorderColor,
+    setBubbleBorderColor,
+    bubbleShowLabels,
+    setBubbleShowLabels,
+    bubbleLabelFormat,
+    setBubbleLabelFormat,
+    bubbleLabelFontSize,
+    setBubbleLabelFontSize,
+    bubbleLabelColor,
+    setBubbleLabelColor,
+    bubbleColorMode,
+    setBubbleColorMode,
+    bubbleShowGridLines,
+    setBubbleShowGridLines,
+    bubbleComplianceRules,
+    setBubbleComplianceRules,
+    bubbleXAxisName,
+    setBubbleXAxisName,
+    bubbleYAxisName,
+    setBubbleYAxisName,
+    bubbleXAxisNameGap,
+    setBubbleXAxisNameGap,
+    bubbleYAxisNameGap,
+    setBubbleYAxisNameGap,
+    bubbleXAxisNameLocation,
+    setBubbleXAxisNameLocation,
+    bubbleYAxisNameLocation,
+    setBubbleYAxisNameLocation,
+    bubbleAxisTitleFontSize,
+    setBubbleAxisTitleFontSize,
+    bubbleAxisTitleFontWeight,
+    setBubbleAxisTitleFontWeight,
+    bubbleAxisTitleColor,
+    setBubbleAxisTitleColor,
+    bubbleGridLeft,
+    setBubbleGridLeft,
+    bubbleGridBottom,
+    setBubbleGridBottom,
+    bubbleGridTop,
+    setBubbleGridTop,
+    bubbleGridRight,
+    setBubbleGridRight,
+    bubbleSeriesName,
+    setBubbleSeriesName,
+    bubbleLegendMode,
+    setBubbleLegendMode,
     graphRepulsion,
     setGraphRepulsion,
     graphEdgeLength,
