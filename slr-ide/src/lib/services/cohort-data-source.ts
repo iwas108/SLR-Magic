@@ -44,9 +44,14 @@ export interface ResolveFieldOptions extends TaxonomyOptions {
   levelIdx?: number;
   parentName?: string;
   customCategoryMap?: Record<string, Record<string, string>>;
+  levelCustomGroups?: Record<number, string[]>;
   levelCustomGroupLinks?: Record<number, Record<string, string>>;
+  levelTargetFields?: Record<number, string>;
+  scopeFilter?: string;
+  unpackMacroToChildren?: boolean;
   sankeyFields?: string[];
   primaryField?: string;
+  excludeUnassigned?: boolean;
 }
 
 export interface DataIntegrityReport {
@@ -165,7 +170,7 @@ export function formatVariableDisplayName(key: string): string {
  */
 export function discoverCohortVariables(
   papers: any[],
-  options: TaxonomyOptions = {}
+  options: ResolveFieldOptions = {}
 ): DiscoveredVariablesResult {
   const totalCohortCount = papers ? papers.length : 0;
   const variables: DiscoveredVariable[] = [];
@@ -383,15 +388,43 @@ export function resolveCohortFieldValue(
   if (!paper || !fieldKey) return excludeEmpty ? [] : ['Unspecified'];
 
   const extractOpts = { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty };
-
   // 1. Custom Grouping Layer
   if (fieldKey === CUSTOM_GROUPING_KEY) {
-    const targetSubKey = subFieldKey || (sankeyFields.find((f, idx) => f !== CUSTOM_GROUPING_KEY && idx >= levelIdx) || sankeyFields.find(f => f !== CUSTOM_GROUPING_KEY) || primaryField);
-    const subVals = resolveCohortFieldValue(paper, targetSubKey, extractOpts).map(safeString).filter(v => Boolean(v) && v !== '[object Object]' && v !== 'Unspecified');
+    const configuredTarget = options.levelTargetFields?.[levelIdx];
+    const targetSubKey = subFieldKey || configuredTarget || options.levelTargetFields?.[0] || (sankeyFields.find((f, idx) => f !== CUSTOM_GROUPING_KEY && idx >= levelIdx) || sankeyFields.find(f => f !== CUSTOM_GROUPING_KEY) || (levelIdx === 0 ? 'Year' : primaryField));
+    const safeTarget = targetSubKey === CUSTOM_GROUPING_KEY ? 'Year' : targetSubKey;
+    const subVals = resolveCohortFieldValue(paper, safeTarget, extractOpts).map(safeString).filter(v => Boolean(v) && v !== '[object Object]' && v !== 'Unspecified');
     if (subVals.length === 0) return excludeEmpty ? [] : ['Unassigned / Other'];
-    const linksMap = levelCustomGroupLinks[levelIdx] || levelCustomGroupLinks[0] || {};
-    const mapped = subVals.map(v => safeString(linksMap[v] || 'Unassigned / Other'));
-    return Array.from(new Set(mapped));
+    
+    const linksMap = levelCustomGroupLinks[levelIdx] ?? (levelIdx === 0 ? levelCustomGroupLinks[0] : {}) ?? {};
+    const normLinksMap = new Map<string, string>();
+    Object.entries(linksMap).forEach(([k, g]) => {
+      normLinksMap.set(k, g);
+      normLinksMap.set(normalizeForLookup(k), g);
+    });
+
+    const mapped = subVals.map(v => {
+      // 1. Direct key match
+      if (linksMap[v]) return safeString(linksMap[v]).replace(/\\n/g, '\n');
+      // 2. Normalized key match
+      const normVal = normalizeForLookup(v);
+      if (normLinksMap.has(normVal)) return safeString(normLinksMap.get(normVal)!).replace(/\\n/g, '\n');
+      // 3. Colon prefix-stripped match (e.g. "Physical/Link: Wi-Fi & WLAN" vs "Wi-Fi & WLAN")
+      const colonIdx = v.lastIndexOf(':');
+      if (colonIdx !== -1) {
+        const leaf = v.substring(colonIdx + 1).trim();
+        if (linksMap[leaf]) return safeString(linksMap[leaf]).replace(/\\n/g, '\n');
+        const normLeaf = normalizeForLookup(leaf);
+        if (normLinksMap.has(normLeaf)) return safeString(normLinksMap.get(normLeaf)!).replace(/\\n/g, '\n');
+      }
+      return 'Unassigned / Other';
+    });
+
+    const uniqueMapped = Array.from(new Set(mapped));
+    if (excludeEmpty || options.excludeUnassigned) {
+      return uniqueMapped.filter(m => m !== 'Unassigned / Other' && m !== 'Unassigned');
+    }
+    return uniqueMapped;
   }
 
   // 1.5. Specific Taxonomy Category Filter (e.g. 'cat:ext:macro:rq3b_execution_footprint:Memory & Storage Metrics' or 'cat:Memory & Storage Metrics')
@@ -406,7 +439,7 @@ export function resolveCohortFieldValue(
         targetVar = rawContent.substring(0, colonIdx);
         targetCat = rawContent.substring(colonIdx + 1).trim();
       } else {
-        targetCat = rawContent.trim();
+        targetCat = rawContent;
       }
     } else {
       const colonIdx = rawContent.indexOf(':');
@@ -419,9 +452,18 @@ export function resolveCohortFieldValue(
     }
 
     if (targetVar) {
+      if (options.unpackMacroToChildren && targetVar.startsWith('ext:macro:')) {
+        const subVarKey = 'ext:sub:' + targetVar.substring(10);
+        const childVals = resolveCohortFieldValue(paper, subVarKey, {
+          ...extractOpts,
+          scopeFilter: targetCat,
+          unpackMacroToChildren: false
+        });
+        if (childVals.length > 0) return childVals;
+      }
       const parentVals = resolveCohortFieldValue(paper, targetVar, extractOpts);
       const normCat = normalizeForLookup(targetCat);
-      const isPresent = parentVals.some(v => normalizeForLookup(v) === normCat || v.toLowerCase().includes(targetCat.toLowerCase()));
+      const isPresent = parentVals.some(v => normalizeForLookup(v) === normCat);
       return isPresent ? [targetCat] : (excludeEmpty ? [] : ['Absent']);
     } else {
       const extStr = getStageDominantExtractedDataStr(paper);
@@ -432,7 +474,7 @@ export function resolveCohortFieldValue(
           const normCat = normalizeForLookup(targetCat);
           for (const k of Object.keys(extObj)) {
             const vals = resolveCohortFieldValue(paper, `ext:macro:${k}`, extractOpts);
-            if (vals.some(val => normalizeForLookup(val) === normCat || val.toLowerCase().includes(targetCat.toLowerCase()))) {
+            if (vals.some(val => normalizeForLookup(val) === normCat)) {
               return [targetCat];
             }
           }
@@ -555,6 +597,18 @@ export function resolveCohortFieldValue(
 
           const tokens = normalizeExtractedTokens(rawVal, targetKey || fieldKey);
           if (tokens.length > 0) {
+            let activeTokens = tokens;
+            if (options.scopeFilter) {
+              const normScope = normalizeForLookup(options.scopeFilter);
+              activeTokens = tokens.filter(t => {
+                const resolved = resolveUmbrellanizerValue(t, targetKey || fieldKey, useUmbrellanizer, umbrellanizerMap);
+                if (!resolved) return false;
+                const colonIdx = resolved.indexOf(':');
+                const macroPfx = colonIdx !== -1 ? resolved.substring(0, colonIdx).trim() : resolved;
+                return normalizeForLookup(macroPfx) === normScope || normalizeForLookup(resolved).startsWith(normScope);
+              });
+            }
+
             const transformToken = (t: string): string => {
               if (isExplicitRaw) {
                 if (isLeafRaw) {
@@ -580,7 +634,7 @@ export function resolveCohortFieldValue(
               return resolved;
             };
 
-            let mappedList = tokens.map(transformToken).filter(v => Boolean(v) && v !== '[object Object]');
+            let mappedList = activeTokens.map(transformToken).filter(v => Boolean(v) && v !== '[object Object]');
             
             // Apply custom category mapping if configured
             const mapObj = customCategoryMap[fieldKey] || customCategoryMap[targetKey];

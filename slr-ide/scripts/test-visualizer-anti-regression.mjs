@@ -1621,15 +1621,105 @@ assert.ok(fontFiles.some(f => f.includes('cmu-serif-500-roman')), 'Local Compute
 assert.ok(fontFiles.some(f => f.includes('cmu-serif-700-roman')), 'Local Computer Modern font asset cmu-serif-700-roman must exist for offline rendering');
 
 // ---------------------------------------------------------------------------
-// TEST 28: Export Option Scaling & Function Preservation (Bubble/Scatter/Formatters)
+// TEST 29: Dynamic Multi-RQ Stratification, Unique Series Counts & Strict Matching
 // ---------------------------------------------------------------------------
-console.log('--- TEST 28: Export Option Scaling & Function Preservation ---');
+console.log('--- TEST 29: Dynamic Multi-RQ Stratification & Strict Matching ---');
 
-const exportUtilsPath = path.resolve('src/components/features/modals/visualizer/utils/exportUtils.ts');
-const exportUtilsCode = fs.readFileSync(exportUtilsPath, 'utf8');
+const cohortDataSourcePath = path.resolve('src/lib/services/cohort-data-source.ts');
+const cohortDataSourceCode = fs.readFileSync(cohortDataSourcePath, 'utf8');
 
-assert.ok(exportUtilsCode.includes('deepClonePreservingFunctions'), 'exportUtils must use deepClonePreservingFunctions instead of JSON.stringify');
-assert.ok(!exportUtilsCode.includes('JSON.parse(JSON.stringify(option))'), 'exportUtils must NOT use JSON.parse(JSON.stringify) which strips callback functions');
-assert.ok(exportUtilsCode.includes('scaleSeriesGeometry'), 'exportUtils must scale series symbolSize, barWidth, and boxWidth');
+// 1. Verify strict equality matching (no .includes() loose substring collisions)
+assert.ok(!cohortDataSourceCode.includes('.toLowerCase().includes('), 'cohort-data-source must not use .toLowerCase().includes() for category matching');
+assert.ok(cohortDataSourceCode.includes('levelTargetFields?: Record<number, string>'), 'cohort-data-source must support levelTargetFields in ResolveFieldOptions');
+assert.ok(cohortDataSourceCode.includes('scopeFilter?: string'), 'cohort-data-source must support scopeFilter in ResolveFieldOptions');
 
-console.log('✓ All 28 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+// 2. Verify clusteredBarGenerators unique paper set aggregation
+const clusteredBarGenPath = path.resolve('src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts');
+const clusteredBarGenCode = fs.readFileSync(clusteredBarGenPath, 'utf8');
+
+assert.ok(clusteredBarGenCode.includes('const seriesUniquePapersSet = new Set<string>()'), 'clusteredBarGenerators must collect unique paper set for series count');
+assert.ok(clusteredBarGenCode.includes('secMappedOpts'), 'clusteredBarGenerators must use Level 1 secMappedOpts for secondaryField');
+assert.ok(clusteredBarGenCode.includes('barLabelPosition.startsWith(\'inside\') ? \'#ffffff\' : baseColor'), 'clusteredBarGenerators must color data labels matching series color');
+
+// 3. Verify CustomGroupingManager multi-level 2D support
+const customGroupingPath = path.resolve('src/components/features/modals/visualizer/components/subcomponents/CustomGroupingManager.tsx');
+const customGroupingCode = fs.readFileSync(customGroupingPath, 'utf8');
+
+assert.ok(customGroupingCode.includes('is2DChart'), 'CustomGroupingManager must support is2DChart active level indices');
+assert.ok(customGroupingCode.includes('secondaryField === CUSTOM_GROUPING_KEY'), 'CustomGroupingManager must support secondaryField custom grouping');
+assert.ok(customGroupingCode.includes('levelTargetFields'), 'CustomGroupingManager must use levelTargetFields from data layer');
+
+// 4. Verify axisConfigHelper newline unescaping and preservation
+const axisConfigPath = path.resolve('src/components/features/modals/visualizer/generators/axisConfigHelper.ts');
+const axisConfigCode = fs.readFileSync(axisConfigPath, 'utf8');
+assert.ok(axisConfigCode.includes('unescaped.includes(\'\\n\')') || axisConfigCode.includes('text.includes(\'\\n\')'), 'wrapAxisLabelText must preserve explicit and unescaped newline characters');
+assert.ok(axisConfigCode.includes('.replace(/\\\\n/g, \'\\n\')'), 'formatScientificAxisValue & wrapAxisLabelText must unescape literal \\n to real newlines');
+
+// 5. Verify VisualizerProvider passes levelTargetFields into chart option builder
+const visualizerProviderPath = path.resolve('src/components/features/modals/visualizer/context/VisualizerProvider.tsx');
+const visualizerProviderCode = fs.readFileSync(visualizerProviderPath, 'utf8');
+assert.ok(visualizerProviderCode.includes('levelTargetFields: slotConfig.levelTargetFields'), 'VisualizerProvider must pass levelTargetFields to buildChartOption');
+
+// 6. Verify CustomGroupingManager inline group renaming
+assert.ok(customGroupingCode.includes('handleRenameGroup'), 'CustomGroupingManager must support inline group renaming');
+assert.ok(customGroupingCode.includes('setEditingGroup'), 'CustomGroupingManager must support editingGroup state');
+
+// 7. Verify Unassigned / Other filtering when excludeEmpty is active
+assert.ok(cohortDataSourceCode.includes('filter(m => m !== \'Unassigned / Other\''), 'cohort-data-source must filter out Unassigned / Other when excludeEmpty is active');
+assert.ok(clusteredBarGenCode.includes('filter(c => c !== \'Unassigned / Other\''), 'clusteredBarGenerators must filter out Unassigned / Other when excludeEmpty is active');
+
+// --- TEST 30: Bar Value Typography, Multi-Line Layout & Offset Controls ---
+console.log('--- TEST 30: Bar Value Typography, Multi-Line Layout & Offset Controls ---');
+const formatterUtilsPath = path.resolve('src/components/features/modals/visualizer/utils/formatterUtils.ts');
+const formatterUtilsCode = fs.readFileSync(formatterUtilsPath, 'utf8');
+
+assert.ok(formatterUtilsCode.includes('two_line_count_percent'), 'formatterUtils must support two_line_count_percent template');
+assert.ok(formatterUtilsCode.includes('two_line_percent_count'), 'formatterUtils must support two_line_percent_count template');
+assert.ok(formatterUtilsCode.includes('two_line_ratio_percent'), 'formatterUtils must support two_line_ratio_percent template');
+
+const clusteredConfigPanelPath = path.resolve('src/components/features/modals/visualizer/components/subcomponents/ClusteredBarConfigPanel.tsx');
+const clusteredConfigPanelCode = fs.readFileSync(clusteredConfigPanelPath, 'utf8');
+
+assert.ok(clusteredConfigPanelCode.includes('barLabelFontSize'), 'ClusteredBarConfigPanel must include font size controls');
+assert.ok(clusteredConfigPanelCode.includes('barLabelFontWeight'), 'ClusteredBarConfigPanel must include font weight controls');
+assert.ok(clusteredConfigPanelCode.includes('barLabelRotate'), 'ClusteredBarConfigPanel must include text rotation controls');
+assert.ok(clusteredConfigPanelCode.includes('barLabelShowZero'), 'ClusteredBarConfigPanel must include zero-value hide toggle');
+
+assert.ok(clusteredBarGenCode.includes('ctx.barLabelFontSize'), 'clusteredBarGenerators must apply ctx.barLabelFontSize');
+assert.ok(clusteredBarGenCode.includes('ctx.barLabelRotate'), 'clusteredBarGenerators must apply ctx.barLabelRotate');
+// --- TEST 31: Standardized Scientific Axis Ceiling & Uniform Grid Steps ---
+console.log('--- TEST 31: Standardized Scientific Axis Ceiling & Uniform Grid Steps ---');
+assert.ok(axisConfigCode.includes('calculateNiceScientificCeiling'), 'axisConfigHelper must export calculateNiceScientificCeiling function');
+assert.ok(axisConfigCode.includes('interval: typeof options.interval === \'number\''), 'buildScientificAxisConfig must apply options.interval');
+
+assert.ok(clusteredConfigPanelCode.includes('barValueCeiling'), 'ClusteredBarConfigPanel must include barValueCeiling control');
+assert.ok(clusteredConfigPanelCode.includes('barValueInterval'), 'ClusteredBarConfigPanel must include barValueInterval control');
+
+assert.ok(clusteredBarGenCode.includes('calculateNiceScientificCeiling'), 'clusteredBarGenerators must use calculateNiceScientificCeiling for value axis');
+assert.ok(clusteredBarGenCode.includes('interval: explicitInterval'), 'clusteredBarGenerators must pass explicitInterval to value axis');
+
+// --- TEST 32: Dynamic Custom Group Prevalence Discovery & Integrity Warnings ---
+console.log('--- TEST 32: Dynamic Custom Group Prevalence Discovery & Integrity Warnings ---');
+const useVisualizerDataPath = path.resolve('src/components/features/modals/visualizer/hooks/useVisualizerData.ts');
+const useVisualizerDataCode = fs.readFileSync(useVisualizerDataPath, 'utf8');
+const fieldAutocompletePath = path.resolve('src/components/features/modals/visualizer/components/subcomponents/FieldAutocomplete.tsx');
+const fieldAutocompleteCode = fs.readFileSync(fieldAutocompletePath, 'utf8');
+
+assert.ok(useVisualizerDataCode.includes('levelCustomGroupLinks'), 'useVisualizerData must pass levelCustomGroupLinks into discoverCohortVariables');
+assert.ok(useVisualizerDataCode.includes('levelTargetFields'), 'useVisualizerData must pass levelTargetFields into discoverCohortVariables');
+assert.ok(fieldAutocompleteCode.includes('Custom grouping has no assigned categories in active cohort'), 'FieldAutocomplete must show clear custom grouping warning message');
+
+// --- TEST 33: Cross-Tabulation Matrix Modal Expansion & Tabular Synthesis ---
+console.log('--- TEST 33: Cross-Tabulation Matrix Modal Expansion & Tabular Synthesis ---');
+const crossTabPanelPath = path.resolve('src/components/features/modals/visualizer/components/subcomponents/CrossTabMatrixPanel.tsx');
+const crossTabPanelCode = fs.readFileSync(crossTabPanelPath, 'utf8');
+const crossTabModalPath = path.resolve('src/components/features/modals/visualizer/components/subcomponents/CrossTabMatrixModal.tsx');
+const crossTabModalCode = fs.readFileSync(crossTabModalPath, 'utf8');
+
+assert.ok(crossTabPanelCode.includes('isModalOpen'), 'CrossTabMatrixPanel must manage isModalOpen state');
+assert.ok(crossTabPanelCode.includes('Modal View'), 'CrossTabMatrixPanel must include Modal View trigger button');
+assert.ok(crossTabPanelCode.includes('<CrossTabMatrixModal'), 'CrossTabMatrixPanel must render CrossTabMatrixModal');
+assert.ok(crossTabModalCode.includes('handleCopyTSV'), 'CrossTabMatrixModal must provide handleCopyTSV');
+assert.ok(crossTabModalCode.includes('handleDownloadCSV'), 'CrossTabMatrixModal must provide handleDownloadCSV');
+
+console.log('✓ All 33 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');

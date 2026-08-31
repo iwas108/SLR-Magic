@@ -2,7 +2,8 @@ import { useMemo, useCallback } from 'react';
 import { 
   CUSTOM_GROUPING_KEY, 
   DEFAULT_CUSTOM_GROUPS, 
-  DEFAULT_CUSTOM_GROUP_LINKS 
+  DEFAULT_CUSTOM_GROUP_LINKS,
+  DEFAULT_LEVEL_TARGET_FIELDS
 } from '../constants/defaultConfigs';
 import { 
   safeString, 
@@ -48,7 +49,8 @@ export function useVisualizerData(params: {
     manualCategoryValues = {},
     customSliceColors = {},
     levelCustomGroups = DEFAULT_CUSTOM_GROUPS,
-    levelCustomGroupLinks = DEFAULT_CUSTOM_GROUP_LINKS
+    levelCustomGroupLinks = DEFAULT_CUSTOM_GROUP_LINKS,
+    levelTargetFields = DEFAULT_LEVEL_TARGET_FIELDS
   } = currentSlotConfig;
 
   // Setters updating active slot with functional update support
@@ -82,15 +84,36 @@ export function useVisualizerData(params: {
     updateActiveSlot({ levelCustomGroupLinks: nextVal });
   }, [levelCustomGroupLinks, updateActiveSlot]);
 
+  const setLevelTargetFields = useCallback((v: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => {
+    const nextVal = typeof v === 'function' ? v(levelTargetFields) : v;
+    updateActiveSlot({ levelTargetFields: nextVal });
+  }, [levelTargetFields, updateActiveSlot]);
+
   // Discover full variable metadata across active cohort
   const discoveredResult = useMemo(() => {
     return discoverCohortVariables(papers, {
       useUmbrellanizer,
       umbrellanizerMap,
       splitMultiValues,
-      excludeEmpty
+      excludeEmpty,
+      levelCustomGroupLinks,
+      levelTargetFields,
+      levelCustomGroups,
+      sankeyFields,
+      primaryField
     });
-  }, [papers, useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty]);
+  }, [
+    papers,
+    useUmbrellanizer,
+    umbrellanizerMap,
+    splitMultiValues,
+    excludeEmpty,
+    levelCustomGroupLinks,
+    levelTargetFields,
+    levelCustomGroups,
+    sankeyFields,
+    primaryField
+  ]);
 
   const discoveredVariables = discoveredResult.variables;
   const discoveredVariablesByKey = discoveredResult.variablesByKey;
@@ -130,11 +153,13 @@ export function useVisualizerData(params: {
       splitMultiValues,
       excludeEmpty,
       customCategoryMap,
+      levelCustomGroups,
       levelCustomGroupLinks,
+      levelTargetFields,
       sankeyFields,
       primaryField
     });
-  }, [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField]);
+  }, [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroups, levelCustomGroupLinks, levelTargetFields, sankeyFields, primaryField]);
 
   // Detected unique categories for Step 3 color pickers
   const detectedCategories = useMemo(() => {
@@ -325,6 +350,8 @@ export function useVisualizerData(params: {
     setLevelCustomGroups,
     levelCustomGroupLinks,
     setLevelCustomGroupLinks,
+    levelTargetFields,
+    setLevelTargetFields,
     availableFields,
     discoveredVariables,
     discoveredVariablesByKey,

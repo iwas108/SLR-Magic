@@ -8,10 +8,46 @@ export interface ScientificAxisOptions {
   inverse?: boolean;
   min?: number | ((val: any) => number);
   max?: number | ((val: any) => number);
+  interval?: number | 'auto';
   splitNumber?: number;
   scale?: boolean;
   isSecondary?: boolean;
   defaultUnitFormatter?: (val: any) => string;
+}
+
+/**
+ * Calculates a standardized, publication-grade axis ceiling with clean, uniform grid steps.
+ * Prevents arbitrary numbers like 36%, 17%, 23% by rounding up to standard scientific steps
+ * (e.g. 5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90, 100).
+ */
+export function calculateNiceScientificCeiling(neededMax: number, isPct: boolean = true): number {
+  if (neededMax <= 0) return isPct ? 10 : 5;
+
+  if (isPct) {
+    if (neededMax <= 5) return 5;
+    if (neededMax <= 10) return 10;
+    if (neededMax <= 15) return 15;
+    if (neededMax <= 20) return 20;
+    if (neededMax <= 25) return 25;
+    if (neededMax <= 30) return 30;
+    if (neededMax <= 35) return 35;
+    if (neededMax <= 40) return 40;
+    if (neededMax <= 50) return 50;
+    if (neededMax <= 60) return 60;
+    if (neededMax <= 70) return 70;
+    if (neededMax <= 80) return 80;
+    if (neededMax <= 90) return 90;
+    if (neededMax <= 100) return 100;
+    return Math.ceil(neededMax / 10) * 10;
+  }
+
+  if (neededMax <= 5) return Math.ceil(neededMax);
+  if (neededMax <= 10) return 10;
+  if (neededMax <= 20) return Math.ceil(neededMax / 2) * 2;
+  if (neededMax <= 50) return Math.ceil(neededMax / 5) * 5;
+  if (neededMax <= 100) return Math.ceil(neededMax / 10) * 10;
+  if (neededMax <= 500) return Math.ceil(neededMax / 50) * 50;
+  return Math.ceil(neededMax / 100) * 100;
 }
 
 /**
@@ -65,15 +101,20 @@ export function formatScientificAxisValue(
     coreStr = `${val}`;
   }
 
-  return `${prefix}${coreStr}${suffix}`;
+  return `${prefix}${coreStr}${suffix}`.replace(/\\n/g, '\n');
 }
 
 /**
  * Breaks long text strings across multiple lines based on maximum character limit.
  */
 export function wrapAxisLabelText(text: string, maxCharsPerLine: number = 16): string {
-  if (!text || text.length <= maxCharsPerLine) return text;
-  const words = text.split(' ');
+  if (!text) return '';
+  const unescaped = text.replace(/\\n/g, '\n');
+  if (unescaped.includes('\n')) {
+    return unescaped.split('\n').map(segment => wrapAxisLabelText(segment, maxCharsPerLine)).join('\n');
+  }
+  if (unescaped.length <= maxCharsPerLine) return unescaped;
+  const words = unescaped.split(' ');
   const lines: string[] = [];
   let current = '';
 
@@ -237,6 +278,7 @@ export function buildScientificAxisConfig(
     scale: options.scale,
     min: options.min,
     max: options.max,
+    interval: typeof options.interval === 'number' && options.interval > 0 ? options.interval : undefined,
     splitNumber: options.splitNumber,
     name: showTitle && resolvedTitle ? resolvedTitle : undefined,
     nameLocation: titleLocation as any,

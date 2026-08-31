@@ -762,7 +762,7 @@ export function VisualizerStudio() {
                         className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
                       >
                         <Sparkles className="w-3 h-3" />
-                        Edit Custom Groups
+                        Expand Modal
                       </button>
                     )}
                   </label>
@@ -782,16 +782,28 @@ export function VisualizerStudio() {
                     <label className="text-xs font-bold text-foreground">
                       Secondary Variable / Series Dimension:
                     </label>
-                    {secondaryField && (
-                      <button
-                        type="button"
-                        onClick={() => setShowCrossTabModal(true)}
-                        className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
-                      >
-                        <Table className="w-3 h-3" />
-                        View 2D Matrix
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {secondaryField === CUSTOM_GROUPING_KEY && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCustomGroupingModal(true)}
+                          className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Expand Modal
+                        </button>
+                      )}
+                      {secondaryField && secondaryField !== CUSTOM_GROUPING_KEY && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCrossTabModal(true)}
+                          className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                        >
+                          <Table className="w-3 h-3" />
+                          View 2D Matrix
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <FieldAutocomplete
                     value={secondaryField}
@@ -799,6 +811,13 @@ export function VisualizerStudio() {
                     discoveredVariables={discoveredVariables}
                     availableFields={availableFields}
                   />
+                </div>
+              )}
+
+              {/* Inline Custom Grouping Configuration Card */}
+              {(primaryField === CUSTOM_GROUPING_KEY || secondaryField === CUSTOM_GROUPING_KEY || sankeyFields.includes(CUSTOM_GROUPING_KEY)) && (
+                <div className="pt-1">
+                  <CustomGroupingManager />
                 </div>
               )}
 
@@ -1703,9 +1722,15 @@ export function VisualizerStudio() {
 
       {/* Sub-Modals: Custom Grouping & 2D Matrix */}
       {showCustomGroupingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-2xl bg-card border border-border rounded-2xl p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6"
+          onClick={() => setShowCustomGroupingModal(false)}
+        >
+          <div 
+            className="w-full max-w-4xl max-h-[85vh] bg-card border border-border rounded-2xl p-5 shadow-2xl space-y-4 flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3 shrink-0">
               <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
                 Custom Grouping Layer Manager
@@ -1713,12 +1738,14 @@ export function VisualizerStudio() {
               <button
                 type="button"
                 onClick={() => setShowCustomGroupingModal(false)}
-                className="text-xs font-bold text-muted-foreground hover:text-foreground"
+                className="px-2.5 py-1 rounded-lg bg-secondary hover:bg-secondary/80 text-xs font-bold text-foreground transition-all"
               >
-                Close
+                Done
               </button>
             </div>
-            <CustomGroupingManager />
+            <div className="flex-1 overflow-y-auto pr-1">
+              <CustomGroupingManager />
+            </div>
           </div>
         </div>
       )}

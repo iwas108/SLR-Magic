@@ -32,18 +32,29 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
     splitMultiValues, 
     excludeEmpty,
     customCategoryMap,
-    levelCustomGroupLinks
+    levelCustomGroups: ctx.levelCustomGroups,
+    levelCustomGroupLinks,
+    levelTargetFields: ctx.levelTargetFields,
+    scopeFilter: ctx.primaryScopeFilter
+  };
+
+  const secFieldOpts = {
+    ...fieldOpts,
+    primaryField: secondaryField,
+    subFieldKey: ctx.levelTargetFields?.[1],
+    levelIdx: 1,
+    scopeFilter: ctx.secondaryScopeFilter
   };
 
   const countsP = new Map<string, any[]>();
   const countsS = new Map<string, any[]>();
 
   papers.forEach(p => {
-    getMappedFieldValue(p, primaryField, { ...fieldOpts, primaryField, subFieldKey: secondaryField }).forEach(v => {
+    getMappedFieldValue(p, primaryField, { ...fieldOpts, primaryField, subFieldKey: ctx.levelTargetFields?.[0] }).forEach(v => {
       if (!countsP.has(v)) countsP.set(v, []);
       countsP.get(v)!.push(p);
     });
-    getMappedFieldValue(p, secondaryField, { ...fieldOpts, primaryField: secondaryField }).forEach(v => {
+    getMappedFieldValue(p, secondaryField, secFieldOpts).forEach(v => {
       if (!countsS.has(v)) countsS.set(v, []);
       countsS.get(v)!.push(p);
     });
@@ -57,8 +68,8 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
   const matrixMap = new Map<string, Map<string, number>>();
 
   papers.forEach(p => {
-    const rawP = getMappedFieldValue(p, primaryField, { ...fieldOpts, primaryField, subFieldKey: secondaryField });
-    const rawS = getMappedFieldValue(p, secondaryField, { ...fieldOpts, primaryField: secondaryField });
+    const rawP = getMappedFieldValue(p, primaryField, { ...fieldOpts, primaryField, subFieldKey: ctx.levelTargetFields?.[0] });
+    const rawS = getMappedFieldValue(p, secondaryField, secFieldOpts);
 
     const primVals = Array.from(new Set(rawP.map(v => activeCountsP.has(v) ? v : 'Other')));
     const secVals = Array.from(new Set(rawS.map(v => activeCountsS.has(v) ? v : 'Other')));

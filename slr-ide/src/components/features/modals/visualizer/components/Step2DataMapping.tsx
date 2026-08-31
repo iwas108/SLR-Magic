@@ -171,6 +171,10 @@ export function Step2DataMapping() {
                 <option value="avg_qa">Average Overall QA Score</option>
               </select>
             </div>
+
+            {primaryField === CUSTOM_GROUPING_KEY && (
+              <CustomGroupingManager />
+            )}
           </div>
         )}
 
@@ -203,6 +207,10 @@ export function Step2DataMapping() {
                 />
               </div>
             </div>
+
+            {(primaryField === CUSTOM_GROUPING_KEY || secondaryField === CUSTOM_GROUPING_KEY) && (
+              <CustomGroupingManager />
+            )}
 
             {['clustered_bar', 'stacked_bar'].includes(chartType) && (
               <div className="space-y-1.5">
@@ -683,6 +691,10 @@ export function Step2DataMapping() {
                 );
               })}
             </div>
+
+            {sankeyFields.includes(CUSTOM_GROUPING_KEY) && (
+              <CustomGroupingManager />
+            )}
           </div>
         )}
 
@@ -736,9 +748,6 @@ export function Step2DataMapping() {
             )}
           </div>
         )}
-
-        {/* Custom Grouping Layer Component */}
-        <CustomGroupingManager />
 
         {/* Dynamic Real Data Breakdown Table Component */}
         <BreakdownTablePanel />

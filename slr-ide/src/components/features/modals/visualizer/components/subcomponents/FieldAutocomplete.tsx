@@ -283,7 +283,9 @@ export function FieldAutocomplete({
                 : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
             }`}
           >
-            {activeVariable.positivePaperCount}/{activeVariable.totalCohortCount} ({activeVariable.prevalencePct}%)
+            {activeVariable.category === 'custom_group' && activeVariable.positivePaperCount === 0
+              ? 'Unassigned'
+              : `${activeVariable.positivePaperCount}/${activeVariable.totalCohortCount} (${activeVariable.prevalencePct}%)`}
           </span>
         )}
 
@@ -307,7 +309,11 @@ export function FieldAutocomplete({
         <div className="mt-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10.5px] font-bold flex items-center justify-between gap-1.5 shadow-xs">
           <div className="flex items-center gap-1.5 truncate">
             <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
-            <span className="truncate">Key has 0 hits in active cohort (N={activeVariable.totalCohortCount})</span>
+            <span className="truncate">
+              {activeVariable?.category === 'custom_group'
+                ? `Custom grouping has no assigned categories in active cohort (N=${activeVariable.totalCohortCount})`
+                : `Key has 0 hits in active cohort (N=${activeVariable.totalCohortCount})`}
+            </span>
           </div>
         </div>
       )}

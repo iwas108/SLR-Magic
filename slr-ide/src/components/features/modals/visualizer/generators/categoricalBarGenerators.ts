@@ -9,7 +9,7 @@ import {
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
-import { buildScientificAxisConfig } from './axisConfigHelper';
+import { buildScientificAxisConfig, calculateNiceScientificCeiling } from './axisConfigHelper';
 
 export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -49,7 +49,11 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
+    levelCustomGroups: ctx.levelCustomGroups,
     levelCustomGroupLinks,
+    levelTargetFields: ctx.levelTargetFields,
+    scopeFilter: ctx.primaryScopeFilter,
+    unpackMacroToChildren: true,
     sankeyFields,
     primaryField
   };
@@ -70,7 +74,7 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
     (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
   );
 
-  const categories = Array.from(activeCountsMap.keys()).sort((a, b) => {
+  let categories = Array.from(activeCountsMap.keys()).sort((a, b) => {
     if (a === 'Other') return 1;
     if (b === 'Other') return -1;
     const numA = parseFloat(a);
@@ -78,6 +82,10 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
     if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
     return a.localeCompare(b);
   });
+
+  if (excludeEmpty || (ctx as any).excludeUnassigned) {
+    categories = categories.filter(c => c !== 'Unassigned / Other' && c !== 'Unassigned');
+  }
 
   const effectiveLabelFormat = ctx.labelFormat || ctx.barLabelFormat || 'ratio_percent';
 
@@ -154,7 +162,14 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
         : metricMode === 'avg_citation'
         ? 'Average Citation Count'
         : 'Study Count (N)',
-      max: showDataLabels ? (val: any) => (!val || val.max === 0 ? 10 : Math.ceil(val.max * 1.18)) : undefined,
+      max: (typeof ctx.barValueCeiling === 'number' && ctx.barValueCeiling > 0)
+        ? ctx.barValueCeiling
+        : (val: any) => {
+            if (!val || val.max === 0) return (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? 10 : 5;
+            const neededMax = showDataLabels ? val.max * 1.18 : val.max;
+            return calculateNiceScientificCeiling(neededMax, metricMode === 'paper_prevalence' || metricMode === 'tag_share');
+          },
+      interval: (typeof ctx.barValueInterval === 'number' && ctx.barValueInterval > 0) ? ctx.barValueInterval : undefined,
       defaultUnitFormatter: (v: any) => (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? `${v}%` : `${v}`
     }),
     series: [{
@@ -165,10 +180,23 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
         show: showDataLabels,
         position: 'top',
         distance: ctx.barLabelDistance ?? 5,
+        rotate: ctx.barLabelRotate ?? 0,
         fontFamily: font,
-        fontSize: fontSize - 2,
-        color: palette.text,
+        fontSize: ctx.barLabelFontSize || Math.max(9, fontSize - 2),
+        fontWeight: (ctx.barLabelFontWeight as any) || 'bold',
+        fontStyle: ctx.barLabelFontStyle || 'normal',
+        lineHeight: ctx.barLabelLineHeight ?? (ctx.barLabelFontSize ? ctx.barLabelFontSize + 3 : 13),
+        color: ctx.barLabelColor 
+          ? (ctx.barLabelColor === 'foreground' ? palette.text : ctx.barLabelColor)
+          : palette.text,
         formatter: (params: any) => {
+          if (ctx.barLabelShowZero === false && (params.data?.paperCount === 0 || params.value === 0)) {
+            return '';
+          }
+          if (ctx.barLabelMinThreshold !== undefined && ctx.barLabelMinThreshold > 0) {
+            const rawPct = parseFloat(params.data?.prevalencePct ?? '0');
+            if (!isNaN(rawPct) && rawPct < ctx.barLabelMinThreshold) return '';
+          }
           return params.data?.formattedLabel ?? params.value;
         }
       }
@@ -229,7 +257,11 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
+    levelCustomGroups: ctx.levelCustomGroups,
     levelCustomGroupLinks,
+    levelTargetFields: ctx.levelTargetFields,
+    scopeFilter: ctx.primaryScopeFilter,
+    unpackMacroToChildren: true,
     sankeyFields,
     primaryField
   };
@@ -251,13 +283,16 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
   );
 
   let categories = Array.from(activeCountsMap.keys());
+  if (excludeEmpty || (ctx as any).excludeUnassigned) {
+    categories = categories.filter(c => c !== 'Unassigned / Other' && c !== 'Unassigned');
+  }
   if (barSorting === 'desc') {
     categories.sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+      if (a === 'Other') return -1;
+      if (b === 'Other') return 1;
       const valA = computeMetricValue(activeCountsMap.get(a)!, metricMode, papers.length, totalExtractedTags);
       const valB = computeMetricValue(activeCountsMap.get(b)!, metricMode, papers.length, totalExtractedTags);
-      return valB - valA;
+      return valA - valB;
     });
   } else if (barSorting === 'asc') {
     categories.sort((a, b) => {
@@ -464,13 +499,15 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
         : metricMode === 'avg_citation'
         ? 'Average Citation Count'
         : 'Study Count (N)',
-      max: isLabelOutside
-        ? (val: any) => {
-            if (!val || val.max === 0) return 10;
-            const ceiling = Math.ceil(val.max * headroomFactor);
-            return barBenchmarkLine ? Math.max(ceiling, Math.ceil(barBenchmarkValue * 1.15)) : ceiling;
-          }
-        : (barBenchmarkLine ? (val: any) => Math.max(val.max, Math.ceil(barBenchmarkValue * 1.15)) : undefined),
+      max: (typeof ctx.barValueCeiling === 'number' && ctx.barValueCeiling > 0)
+        ? ctx.barValueCeiling
+        : (val: any) => {
+            if (!val || val.max === 0) return (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? 10 : 5;
+            const ceiling = isLabelOutside ? val.max * headroomFactor : val.max;
+            const neededMax = barBenchmarkLine ? Math.max(ceiling, barBenchmarkValue * 1.15) : ceiling;
+            return calculateNiceScientificCeiling(neededMax, metricMode === 'paper_prevalence' || metricMode === 'tag_share');
+          },
+      interval: (typeof ctx.barValueInterval === 'number' && ctx.barValueInterval > 0) ? ctx.barValueInterval : undefined,
       defaultUnitFormatter: (v: any) => (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? `${v}%` : `${v}`
     }),
     yAxis: buildScientificAxisConfig('y', ctx, {
@@ -490,10 +527,23 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
           show: showDataLabels,
           position: barLabelPosition,
           distance: ctx.barLabelDistance ?? 5,
+          rotate: ctx.barLabelRotate ?? 0,
           fontFamily: font,
-          fontSize: Math.max(9, fontSize - 2),
-          color: barLabelPosition.startsWith('inside') ? '#ffffff' : palette.text,
+          fontSize: ctx.barLabelFontSize || Math.max(9, fontSize - 2),
+          fontWeight: (ctx.barLabelFontWeight as any) || 'bold',
+          fontStyle: ctx.barLabelFontStyle || 'normal',
+          lineHeight: ctx.barLabelLineHeight ?? (ctx.barLabelFontSize ? ctx.barLabelFontSize + 3 : 13),
+          color: ctx.barLabelColor 
+            ? (ctx.barLabelColor === 'foreground' ? palette.text : ctx.barLabelColor)
+            : (barLabelPosition.startsWith('inside') ? '#ffffff' : palette.text),
           formatter: (params: any) => {
+            if (ctx.barLabelShowZero === false && (params.data?.paperCount === 0 || params.value === 0)) {
+              return '';
+            }
+            if (ctx.barLabelMinThreshold !== undefined && ctx.barLabelMinThreshold > 0) {
+              const rawPct = parseFloat(params.data?.prevalencePct ?? '0');
+              if (!isNaN(rawPct) && rawPct < ctx.barLabelMinThreshold) return '';
+            }
             return params.data?.formattedLabel ?? params.value;
           }
         },
@@ -548,14 +598,27 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
     splitMultiValues, 
     excludeEmpty,
     customCategoryMap,
+    levelCustomGroups: ctx.levelCustomGroups,
     levelCustomGroupLinks,
+    levelTargetFields: ctx.levelTargetFields,
+    scopeFilter: ctx.primaryScopeFilter,
+    unpackMacroToChildren: true,
     sankeyFields,
     primaryField
   };
 
+  const secMappedOpts = {
+    ...mappedOpts,
+    primaryField: secondaryField,
+    subFieldKey: ctx.levelTargetFields?.[1],
+    levelIdx: 1,
+    scopeFilter: ctx.secondaryScopeFilter,
+    unpackMacroToChildren: false
+  };
+
   papers.forEach(p => {
     const primVals = getMappedFieldValue(p, primaryField, mappedOpts);
-    const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+    const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
 
     primVals.forEach(pv => {
       catSet.add(pv);
@@ -595,7 +658,7 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
         if (cat === 'Other') {
           const otherPapers: any[] = [];
           limitedPrimMap.get('Other')?.forEach(p => {
-            const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+            const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
             if (secVals.includes(stk)) otherPapers.push(p);
           });
           sum += computeMetricValue(otherPapers, metricMode, papers.length, totalExtractedTags);
@@ -616,7 +679,7 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
       if (cat === 'Other') {
         const otherPapers: any[] = [];
         limitedPrimMap.get('Other')?.forEach(p => {
-          const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+          const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
           if (secVals.includes(stk)) {
             otherPapers.push(p);
           }

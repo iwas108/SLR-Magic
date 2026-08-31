@@ -14,6 +14,7 @@ export * from './subcomponents/HorizontalBarConfigPanel';
 export * from './subcomponents/ClusteredBarConfigPanel';
 export * from './subcomponents/ScientificAxisConfigPanel';
 export * from './subcomponents/CrossTabMatrixPanel';
+export * from './subcomponents/CrossTabMatrixModal';
 export * from './subcomponents/CameraControlsOverlay';
 export * from './subcomponents/ExportPanel';
 export * from './subcomponents/SankeyConfigPanel';

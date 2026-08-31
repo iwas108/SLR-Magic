@@ -9,22 +9,11 @@ export const DEFAULT_SUNBURST_LEVEL_CONFIGS: Record<number, SunburstLevelConfig>
   2: { r0: 75, r: 77, position: 'outside', rotate: 'radial', align: 'right', minAngle: 0, borderWidth: 2, fontSize: 10, overflow: 'none', labelFormat: 'name' }
 };
 
-export const DEFAULT_CUSTOM_GROUPS: Record<number, string[]> = {
-  0: ['High-Maturity Indoor', 'Other Domains', 'Agriculture']
-};
+export const DEFAULT_CUSTOM_GROUPS: Record<number, string[]> = {};
 
-export const DEFAULT_CUSTOM_GROUP_LINKS: Record<number, Record<string, string>> = {
-  0: {
-    'Manufacturing': 'High-Maturity Indoor',
-    'Energy/Power': 'High-Maturity Indoor',
-    'Traffic/Smart City': 'Other Domains',
-    'Smart Building': 'Other Domains',
-    'Electronics': 'Other Domains',
-    'Aerospace': 'Other Domains',
-    'Environmental Monitoring': 'Other Domains',
-    'Agriculture/Horticulture': 'Agriculture'
-  }
-};
+export const DEFAULT_CUSTOM_GROUP_LINKS: Record<number, Record<string, string>> = {};
+
+export const DEFAULT_LEVEL_TARGET_FIELDS: Record<number, string> = {};
 
 export function createDefaultSlotConfig(slotId: SlotId): SlotConfig {
   const isSlotA = slotId === 'slot_a';
@@ -169,7 +158,7 @@ export function createDefaultSlotConfig(slotId: SlotId): SlotConfig {
     barBenchmarkColor: '#ef4444',
     legendFormat: 'name',
     barLegendFormat: 'name',
-    barLegendPosition: 'bottom-center',
+    barLegendPosition: 'top-center',
     sunburstLegendLevel: 0,
     sunburstLegendFormat: 'name',
     sunburstLegendPosition: 'bottom-center',
@@ -179,6 +168,9 @@ export function createDefaultSlotConfig(slotId: SlotId): SlotConfig {
     forceCohortDenominator: undefined,
     levelCustomGroups: { ...DEFAULT_CUSTOM_GROUPS },
     levelCustomGroupLinks: { ...DEFAULT_CUSTOM_GROUP_LINKS },
+    levelTargetFields: { ...DEFAULT_LEVEL_TARGET_FIELDS },
+    primaryScopeFilter: '',
+    secondaryScopeFilter: '',
     customCategoryMap: {},
     enableManualOverrides: false,
     manualCategoryValues: {},
@@ -191,6 +183,16 @@ export function createDefaultSlotConfig(slotId: SlotId): SlotConfig {
     pieLabelDistance: 6,
     pieLineHeight: 15,
     barLabelDistance: 5,
+    barLabelFontSize: undefined,
+    barLabelFontWeight: 'bold',
+    barLabelFontStyle: 'normal',
+    barLabelColor: '',
+    barLabelRotate: 0,
+    barLabelShowZero: true,
+    barLabelMinThreshold: 0,
+    barLabelLineHeight: 14,
+    barValueCeiling: 'auto',
+    barValueInterval: 'auto',
     legendDistance: 20,
     legendWidth: undefined,
     legendLineHeight: 15,

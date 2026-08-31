@@ -1,3 +1,103 @@
+## #471 - Fullscreen Cross-Tabulation Matrix Modal Dialog (2026-08-31)
+- **Goal**: Enable researchers to expand and inspect the Cross-Tabulation Matrix and Flattened Long Table in a spacious, fullscreen-capable modal dialog with integrated TSV/CSV export, sticky headers, and statistical summary bars.
+- **Architectural Implementation**:
+  1. **Standalone Encapsulated Modal (`CrossTabMatrixModal.tsx`)**:
+     - Built `CrossTabMatrixModal` with keyboard ergonomics (Escape key listener), backdrop blur, responsive width (`max-w-6xl`), and sticky headers/footers (`sticky top-0`, `sticky bottom-0`, `sticky right-0` for totals).
+     - Integrated interactive view toggle between **Matrix Grid (2D)** and **Long Table (1D Flat)**.
+     - Embedded one-click **Copy TSV** (formatted for instant paste into Excel, Google Sheets, or LaTeX) and **Download CSV** buttons.
+     - Added a bottom summary bar with total cohort studies ($N$), total pairwise association counts ($M$), row category count, and series column count.
+  2. **Panel Trigger & Header Cleanliness (`CrossTabMatrixPanel.tsx`)**:
+     - Added an **"Expand View / Modal View"** button (with `Maximize2` icon) directly in the panel toolbar.
+     - Replaced raw synthetic keys (`__custom_grouping__ \ __custom_grouping__`) in table corner headers with clean human-readable labels (`Row Groups \ Column Groups` or custom target field titles).
+  3. **Module Indexing & File Registry (`components/index.ts`, `slr-ide/files.md`)**:
+     - Exported `CrossTabMatrixModal` from `components/index.ts` and updated `files.md`.
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/components/subcomponents/CrossTabMatrixModal.tsx` (New), `slr-ide/src/components/features/modals/visualizer/components/subcomponents/CrossTabMatrixPanel.tsx`, `slr-ide/src/components/features/modals/visualizer/components/index.ts`, `slr-ide/files.md`, `slr-ide/scripts/test-visualizer-anti-regression.mjs`.
+- **Verification**: `npx tsc --noEmit` passed (0 errors), `node scripts/test-visualizer-anti-regression.mjs` passed (33/33 unit tests including TEST 33).
+
+## #470 - Dynamic Custom Group Prevalence Discovery & Integrity Warnings (2026-08-31)
+- **Goal**: Resolve false-positive "Key has 0 hits in active cohort" warnings for `✨ [Custom Grouping Layer]` by passing active slot group links into cohort variable discovery, and provide clear, contextual warning messages.
+- **Architectural Implementation**:
+  1. **Dynamic Custom Group Discovery (`cohort-data-source.ts`, `useVisualizerData.ts`)**:
+     - Updated `discoverCohortVariables()` signature to accept `ResolveFieldOptions`, enabling variable discovery to access active `levelCustomGroupLinks`, `levelTargetFields`, and `levelCustomGroups`.
+     - Connected `useVisualizerData.ts` to pass `levelCustomGroupLinks`, `levelTargetFields`, `levelCustomGroups`, `sankeyFields`, and `primaryField` into `discoverCohortVariables()`.
+     - When custom groups are configured, `CUSTOM_GROUPING_KEY` now dynamically computes the true positive paper count (e.g. `46/46 (100%)`) with representative sample group values instead of evaluating to 0.
+  2. **Context-Aware Integrity Warnings & Badges (`FieldAutocomplete.tsx`)**:
+     - Updated `FieldAutocomplete.tsx` so that when `custom_group` has 0 assigned categories, it displays a helpful contextual warning: `"Custom grouping has no assigned categories in active cohort (N=...)"` and an `"Unassigned"` badge, instead of a confusing generic "Key has 0 hits" error.
+- **Files Modified**: `slr-ide/src/lib/services/cohort-data-source.ts`, `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerData.ts`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/FieldAutocomplete.tsx`, `slr-ide/scripts/test-visualizer-anti-regression.mjs`.
+- **Verification**: `npx tsc --noEmit` passed (0 errors), `node scripts/test-visualizer-anti-regression.mjs` passed (32/32 unit tests including TEST 32).
+
+## #469 - Standardized Scientific Axis Ceilings (35% / 40%) & Uniform Grid Steps (2026-08-31)
+- **Goal**: Standardize the value axis ceiling and background grid increments to clean, publication-grade increments (e.g. 35% or 40% with 5% / 10% steps) instead of awkward non-uniform tick ceilings (like 36%).
+- **Architectural Implementation**:
+  1. **Smart Scientific Ceiling Algorithm (`axisConfigHelper.ts`)**:
+     - Created `calculateNiceScientificCeiling(neededMax, isPct)` which automatically rounds dynamic axis scale ceilings up to standard scientific steps (5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90, 100).
+     - Upgraded `buildScientificAxisConfig` to accept and apply explicit uniform `interval` properties to value axes.
+  2. **Domain Model & State Extensions (`types.ts`, `generators/types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `VisualizerProvider.tsx`)**:
+     - Added `barValueCeiling?: number | 'auto'` and `barValueInterval?: number | 'auto'` to `SlotConfig`, `ChartGeneratorContext`, and `BuildChartOptionParams`.
+     - Connected reactive getters/setters in `useVisualizerConfig.ts` and passed them down to `buildChartOption()` in `VisualizerProvider.tsx`.
+  3. **Engine Integration (`clusteredBarGenerators.ts`, `categoricalBarGenerators.ts`)**:
+     - Replaced naive `Math.ceil(val.max * headroomFactor)` with `calculateNiceScientificCeiling`, transforming awkward `36%` ceilings into standard `35%` (5% step) or `40%` (10% step) ranges.
+     - Applied `explicitCeiling` and `explicitInterval` overrides when selected by the user.
+  4. **Fine-Tune UI Panel Integration (`ClusteredBarConfigPanel.tsx`, `HorizontalBarConfigPanel.tsx`)**:
+     - Added an **"Axis Ceiling & Standard Grid Steps"** sub-panel in the Fine-Tune tab.
+     - Added selectable presets for Ceiling (Auto Smart Step, 25%, 30%, 35%, 40%, 45%, 50%, 60%, 75%, 100%) and Grid Step Intervals (Auto, 5%, 10%, 15%, 20%, 25%).
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`, `slr-ide/src/components/features/modals/visualizer/types.ts`, `slr-ide/src/components/features/modals/visualizer/generators/types.ts`, `slr-ide/src/components/features/modals/visualizer/generators/index.ts`, `slr-ide/src/components/features/modals/visualizer/constants/defaultConfigs.ts`, `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts`, `slr-ide/src/components/features/modals/visualizer/context/VisualizerProvider.tsx`, `slr-ide/src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ClusteredBarConfigPanel.tsx`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/HorizontalBarConfigPanel.tsx`, `slr-ide/scripts/test-visualizer-anti-regression.mjs`.
+- **Verification**: `npx tsc --noEmit` passed (0 errors), `node scripts/test-visualizer-anti-regression.mjs` passed (31/31 unit tests including TEST 31).
+
+## #468 - Bar Value Typography, Multi-Line Formatting & Granular Label Controls (2026-08-31)
+- **Goal**: Provide fine-grained typography, multi-line stacked layout formatting, distance offset, rotation, and clutter filtering controls for bar value data labels across Clustered, Categorical Horizontal, and Vertical Bar charts.
+- **Architectural Implementation**:
+  1. **Extended Domain Types & Configs (`types.ts`, `generators/types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`)**:
+     - Added `two_line_count_percent`, `two_line_percent_count`, `two_line_ratio_percent`, `two_line_percent_ratio`, and `two_line_name_count_percent` to `DisplayFormatTemplate`.
+     - Added `barLabelFontSize`, `barLabelFontWeight`, `barLabelFontStyle`, `barLabelColor`, `barLabelRotate`, `barLabelShowZero`, `barLabelMinThreshold`, and `barLabelLineHeight` to `SlotConfig` and `ChartGeneratorContext`.
+     - Added reactive state getters/setters in `useVisualizerConfig.ts` and connected them to `buildChartOption()` in `VisualizerProvider.tsx`.
+  2. **Multi-Line Template Formatter (`formatterUtils.ts`)**:
+     - Implemented stacked multi-line formatting in `formatMetricDisplay` to break labels into separate lines (e.g. `n = 14\n(~30%)` or `~30%\n(n = 14)`) using real linebreaks.
+  3. **ECharts Series Label Generator Upgrade (`clusteredBarGenerators.ts`, `categoricalBarGenerators.ts`)**:
+     - Applied `fontSize`, `fontWeight`, `fontStyle`, `color`, `lineHeight`, `rotate`, and `distance` to the ECharts `series.label` configuration.
+     - Added zero-value filtering (`barLabelShowZero === false`) and small-value threshold filtering (`barLabelMinThreshold`) to eliminate label clutter on narrow or empty bars.
+  4. **Interactive Fine-Tune UI Panel (`ClusteredBarConfigPanel.tsx`, `HorizontalBarConfigPanel.tsx`)**:
+     - Embedded a dedicated **"Value Labels Typography & Multi-Line Tuning"** sub-panel in the Fine-Tune tab.
+     - Added live interactive controls for Font Size slider ($8\dots 22\text{px}$), Font Weight selector (Normal, Medium, Semi-Bold, Bold, Black), Font Style (Plain, Italic), Text Color Mode (Match Series Bar, High-Contrast Theme, Custom Hex), Offset Distance slider ($-10\dots 30\text{px}$), Line Height slider ($10\dots 26\text{px}$), Rotation slider ($-90^\circ \dots 90^\circ$ with $0^\circ$ reset pill), and "Hide Zero Values" toggle.
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/types.ts`, `slr-ide/src/components/features/modals/visualizer/generators/types.ts`, `slr-ide/src/components/features/modals/visualizer/generators/index.ts`, `slr-ide/src/components/features/modals/visualizer/constants/defaultConfigs.ts`, `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts`, `slr-ide/src/components/features/modals/visualizer/context/VisualizerProvider.tsx`, `slr-ide/src/components/features/modals/visualizer/utils/formatterUtils.ts`, `slr-ide/src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ClusteredBarConfigPanel.tsx`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/HorizontalBarConfigPanel.tsx`, `slr-ide/scripts/test-visualizer-anti-regression.mjs`.
+- **Verification**: `npx tsc --noEmit` passed (0 errors), `node scripts/test-visualizer-anti-regression.mjs` passed (30/30 unit tests including TEST 30).
+
+## #467 - Unassigned Exclusion, Inline Group Renaming & Universal Multi-Line Label Support (2026-08-31)
+- **Goal**: (1) Provide clear exclusion/hiding of the `"Unassigned / Other"` category and series across chart engines and cross-tabulation tables; (2) Allow instant inline group renaming with edit buttons in `CustomGroupingManager`; (3) Universally unescape `\n` into authentic multi-line breaks across axis labels, data labels, legend entries, table headers, and custom groups.
+- **Architectural Implementation**:
+  1. **Unassigned Group Exclusion (`cohort-data-source.ts`, `clusteredBarGenerators.ts`, `categoricalBarGenerators.ts`, `CrossTabMatrixPanel.tsx`)**:
+     - Updated `resolveCohortFieldValue` in `cohort-data-source.ts` to automatically filter out `'Unassigned / Other'` and `'Unassigned'` when `excludeEmpty` or `excludeUnassigned` is enabled.
+     - Enhanced `clusteredBarGenerators.ts` and `categoricalBarGenerators.ts` to exclude unassigned categories and series keys from the rendered chart axes when `excludeEmpty` is checked, eliminating the orphan black bar.
+     - Connected `CrossTabMatrixPanel.tsx` to omit unassigned rows and columns under `excludeEmpty`.
+  2. **Interactive Group Renaming (`CustomGroupingManager.tsx`)**:
+     - Added an inline Rename button (pencil icon) to each custom group card with an active editing input field, Enter-to-save, and Esc-to-cancel handlers.
+     - Updating a group name dynamically modifies `levelCustomGroups` while concurrently re-pointing all associated item assignments in `levelCustomGroupLinks` to the new group name.
+  3. **Universal `\n` Unescaping & Multi-Line Rendering (`axisConfigHelper.ts`, `formatterUtils.ts`, `CustomGroupingManager.tsx`, `CrossTabMatrixPanel.tsx`)**:
+     - Added `text.replace(/\\n/g, '\n')` unescaping to `wrapAxisLabelText` and `formatScientificAxisValue` in `axisConfigHelper.ts` so user-entered `\n` strings break onto new lines properly.
+     - Updated `formatMetricDisplay` in `formatterUtils.ts` to process unescaped newlines across all 20+ label and legend formatting templates.
+     - Added `whitespace-pre-line leading-tight` styling to group cards in `CustomGroupingManager` and table headers in `CrossTabMatrixPanel`.
+- **Files Modified**: `slr-ide/src/lib/services/cohort-data-source.ts`, `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`, `slr-ide/src/components/features/modals/visualizer/utils/formatterUtils.ts`, `slr-ide/src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/CustomGroupingManager.tsx`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/CrossTabMatrixPanel.tsx`, `slr-ide/scripts/test-visualizer-anti-regression.mjs`.
+- **Verification**: `npx tsc --noEmit` passed with 0 errors; `node scripts/test-visualizer-anti-regression.mjs` passed (29/29 tests).
+
+## #466 - Universal Dynamic Multi-RQ Stratification, Strict Normalization & Interactive Custom Grouping (2026-08-31)
+- **Goal**: Enable researchers to dynamically cross-stratify any Research Question (RQ1..RQn), metadata attribute, or QA criterion across all 1D, 2D comparative, and hierarchical chart types with interactive custom group creation, searchable data source selection, persistent custom grouping, strict exact string matching, macro category auto-unpacking, and unique paper set sample size calculations.
+- **Architectural Implementation**:
+  1. **Inline & Interactive Custom Grouping Manager (`CustomGroupingManager.tsx`, `Step2DataMapping.tsx`, `defaultConfigs.ts`)**:
+     - Removed legacy hardcoded fallback group strings (`'High-Maturity Indoor', 'Other Domains'`) and initialized groups cleanly as `{}` by default.
+     - Embedded `CustomGroupingManager` directly inline underneath variable selection in Step 2 (Data Mapping) so the management panel appears immediately whenever `✨ [Custom Grouping Layer]` is chosen.
+     - Integrated `FieldAutocomplete` into the custom grouping panel to let users search and select any variable (e.g. `[RQ2] Operational Domains`, `[RQ5] Network Protocols`, `[RQ3] Hardware Classes`, `Year`) as the source data to group.
+     - Implemented an interactive Group Builder with an Unassigned Items Quick Bank, 1-click item assignment, and automatic group generation buttons (`⚡ Auto-Group from ':' Prefixes` and `⚡ Auto-Create Groups`).
+  2. **Centralized Data Source Strict Matching & Macro Unpacking (`cohort-data-source.ts`, `dataExtractor.ts`)**:
+     - Eliminated all loose `.includes()` substring matching across category filters in `resolveCohortFieldValue` and enforced strict canonical equality (`normalizeForLookup(v) === normCat`) to prevent false-positive token collisions on compound technical terms (e.g. `CAN` vs `SCAN`, `LSTM` vs `1D CNN-LSTM`), strictly adhering to AGENTS.md Rule 3.10.
+     - Added `levelTargetFields`, `scopeFilter`, and `unpackMacroToChildren` options to `ResolveFieldOptions` to support macro domain filtering (e.g., scoping to `Physical/Link`) across multi-tier taxonomy variables, allowing a selected macro category to automatically unpack its child sub-categories on categorical chart axes.
+  3. **Multi-Label True Sample Size Calculation & Layout Polish (`clusteredBarGenerators.ts`, `categoricalBarGenerators.ts`, `matrixGenerators.ts`, `defaultConfigs.ts`)**:
+     - Replaced naive sum of category paper occurrences with a whole-cohort `Set<string>` of unique paper IDs matching each series, guaranteeing that series legends (e.g. `Industrial Implementations (n = 39)`) reflect exact unique studies without multi-label double-counting.
+     - Bound top data labels in vertical clustered bar charts to their parent series color (`baseColor`) with bold weights for publication clarity.
+     - Changed default `barLegendPosition` to `top-center` and resolved bottom axis title/legend collision with dynamic clearance allocation and clean default category axis titles.
+     - Enhanced `axisConfigHelper.ts` to preserve explicit newline characters (`\n`) in category labels during text wrap.
+- **Files Modified**: `slr-ide/src/lib/services/cohort-data-source.ts`, `slr-ide/src/components/features/modals/visualizer/utils/dataExtractor.ts`, `slr-ide/src/components/features/modals/visualizer/types.ts`, `slr-ide/src/components/features/modals/visualizer/generators/types.ts`, `slr-ide/src/components/features/modals/visualizer/constants/defaultConfigs.ts`, `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerData.ts`, `slr-ide/src/components/features/modals/visualizer/components/Step2DataMapping.tsx`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/CustomGroupingManager.tsx`, `slr-ide/src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/generators/matrixGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`, `slr-ide/scripts/test-visualizer-anti-regression.mjs`.
+- **Verification**: `npx tsc --noEmit` passed (0 errors), `node scripts/test-visualizer-anti-regression.mjs` passed (29/29 tests including TEST 29).
+
 ## #465 - Export Option Function Preservation & Bubble Scaling Fix (2026-08-31)
 - **Goal**: Fix bubble and scatter charts collapsing into tiny uniform dots and losing bubble count labels (`n=1`, `n=6`, etc.) during PNG/SVG figure export.
 - **Root Cause**: `scaleOptionFonts()` previously used `JSON.parse(JSON.stringify(option))` to clone ECharts options before scaling font metrics. `JSON.stringify` automatically stripped all JavaScript function properties, including `series.symbolSize` (the dynamic bubble radius function), `series.label.formatter` (the bubble count text formatter), and axis formatters. ECharts defaulted `symbolSize` to tiny 4px dots and wiped out the text.

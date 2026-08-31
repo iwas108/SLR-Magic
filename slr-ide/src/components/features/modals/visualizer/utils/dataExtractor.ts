@@ -51,9 +51,13 @@ export function getMappedFieldValue(
     splitMultiValues?: boolean;
     excludeEmpty?: boolean;
     customCategoryMap?: Record<string, Record<string, string>>;
+    levelCustomGroups?: Record<number, string[]>;
     levelCustomGroupLinks?: Record<number, Record<string, string>>;
+    levelTargetFields?: Record<number, string>;
+    scopeFilter?: string;
     sankeyFields?: string[];
     primaryField?: string;
+    unpackMacroToChildren?: boolean;
   } = {}
 ): string[] {
   return resolveCohortFieldValue(paper, fieldKey, options);

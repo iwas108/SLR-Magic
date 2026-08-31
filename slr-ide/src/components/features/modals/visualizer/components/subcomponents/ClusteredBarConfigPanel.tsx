@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlignHorizontalJustifyStart, AlignVerticalJustifyStart, Sparkles } from 'lucide-react';
+import { AlignHorizontalJustifyStart, AlignVerticalJustifyStart, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { THEME_PALETTES } from '../../constants/themePalettes';
 import { useVisualizerContext } from '../../context/VisualizerContext';
 import { getMappedFieldValue } from '../../utils/dataExtractor';
@@ -32,6 +32,28 @@ export function ClusteredBarConfigPanel() {
     setBarLabelPosition,
     barLabelFormat,
     setBarLabelFormat,
+    barLabelFontSize = 11,
+    setBarLabelFontSize,
+    barLabelFontWeight = 'bold',
+    setBarLabelFontWeight,
+    barLabelFontStyle = 'normal',
+    setBarLabelFontStyle,
+    barLabelColor = '',
+    setBarLabelColor,
+    barLabelRotate = 0,
+    setBarLabelRotate,
+    barLabelDistance = 5,
+    setBarLabelDistance,
+    barLabelShowZero = true,
+    setBarLabelShowZero,
+    barLabelMinThreshold = 0,
+    setBarLabelMinThreshold,
+    barLabelLineHeight = 14,
+    setBarLabelLineHeight,
+    barValueCeiling = 'auto',
+    setBarValueCeiling,
+    barValueInterval = 'auto',
+    setBarValueInterval,
     barYAxisWidth,
     setBarYAxisWidth,
     barYAxisOverflow,
@@ -62,6 +84,7 @@ export function ClusteredBarConfigPanel() {
 
   const isHorizontal = barOrientation === 'horizontal';
   const isAvgMetric = metricMode === 'avg_qa' || metricMode === 'avg_citation';
+  const isPctMetric = metricMode === 'paper_prevalence' || metricMode === 'tag_share';
 
   // Discover all unique series values for the series color overrides
   const mappedOpts = {
@@ -165,6 +188,13 @@ export function ClusteredBarConfigPanel() {
               <option value="percent_only">Percentage Only (~P%)</option>
               <option value="count_only">Count Only (n = x)</option>
             </optgroup>
+            <optgroup label="Multi-Line Stacked (Recommended for Compact Columns)">
+              <option value="two_line_count_percent">Two-Line: Count & % (n = x \n ~P%)</option>
+              <option value="two_line_percent_count">Two-Line: % & Count (~P% \n n = x)</option>
+              <option value="two_line_ratio_percent">Two-Line: Ratio & % (n = x/N \n ~P%)</option>
+              <option value="two_line_percent_ratio">Two-Line: % & Ratio (~P% \n n = x/N)</option>
+              <option value="two_line_name_count_percent">Two-Line: Name \n Count & %</option>
+            </optgroup>
             <optgroup label="Explicit Tag Share (Total Extracted Tags Denominator)">
               <option value="tag_share_ratio_percent">Tag Share Ratio + % (n = x/TotalTags, ~P%)</option>
               <option value="name_tag_share_ratio_percent">Name + Tag Share Ratio + %</option>
@@ -183,6 +213,254 @@ export function ClusteredBarConfigPanel() {
               <option value="dual_prevalence_tag_share">Dual: Prev (n=x/N) | Tags (n=x/Total)</option>
             </optgroup>
           </select>
+        </div>
+      </div>
+
+      {/* 2.5. Bar Value Typography & Layout Adjustments */}
+      <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            Value Labels Typography & Multi-Line Tuning
+          </span>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {barLabelFontSize}px • {barLabelFontWeight} • {barLabelRotate}°
+          </span>
+        </div>
+
+        {/* Font Size, Weight, Style & Color */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-[10.5px] font-bold text-foreground">
+              <span>Font Size</span>
+              <span className="text-primary font-mono">{barLabelFontSize}px</span>
+            </div>
+            <input
+              type="range"
+              min={8}
+              max={22}
+              value={barLabelFontSize}
+              onChange={(e) => setBarLabelFontSize(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10.5px] font-bold text-foreground block">Font Weight</label>
+            <select
+              value={barLabelFontWeight}
+              onChange={(e) => setBarLabelFontWeight(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
+            >
+              <option value="normal">Normal (400)</option>
+              <option value="500">Medium (500)</option>
+              <option value="600">Semi-Bold (600)</option>
+              <option value="bold">Bold (700)</option>
+              <option value="800">Black (800)</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10.5px] font-bold text-foreground block">Font Style</label>
+            <select
+              value={barLabelFontStyle}
+              onChange={(e) => setBarLabelFontStyle(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
+            >
+              <option value="normal">Plain / Upright</option>
+              <option value="italic">Italic</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10.5px] font-bold text-foreground block">Text Color Mode</label>
+            <select
+              value={barLabelColor === '' ? 'match_series' : barLabelColor === 'foreground' ? 'foreground' : barLabelColor}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'match_series') setBarLabelColor('');
+                else setBarLabelColor(val);
+              }}
+              className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
+            >
+              <option value="match_series">Match Series Bar Color</option>
+              <option value="foreground">Theme High-Contrast Text</option>
+              <option value="#111827">Solid Dark Slate (#111827)</option>
+              <option value="#ffffff">Solid Pure White (#FFFFFF)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Distance, Line Height, Rotation & Clutter Filtering */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-[10.5px] font-bold text-foreground">
+              <span>Offset Distance</span>
+              <span className="text-primary font-mono">{barLabelDistance}px</span>
+            </div>
+            <input
+              type="range"
+              min={-10}
+              max={30}
+              value={barLabelDistance}
+              onChange={(e) => setBarLabelDistance(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-[10.5px] font-bold text-foreground">
+              <span>Line Height</span>
+              <span className="text-primary font-mono">{barLabelLineHeight}px</span>
+            </div>
+            <input
+              type="range"
+              min={10}
+              max={26}
+              value={barLabelLineHeight}
+              onChange={(e) => setBarLabelLineHeight(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-[10.5px] font-bold text-foreground">
+              <span>Text Rotation</span>
+              <span className="text-primary font-mono">{barLabelRotate}°</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <input
+                type="range"
+                min={-90}
+                max={90}
+                step={15}
+                value={barLabelRotate}
+                onChange={(e) => setBarLabelRotate(Number(e.target.value))}
+                className="flex-1 accent-primary"
+              />
+              <button
+                type="button"
+                onClick={() => setBarLabelRotate(0)}
+                className="text-[10px] px-1 py-0.5 rounded bg-secondary text-muted-foreground hover:text-foreground font-mono"
+                title="Reset angle to 0°"
+              >
+                0°
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1 flex flex-col justify-end">
+            <label className="flex items-center gap-2 cursor-pointer text-[11px] font-bold text-foreground py-1">
+              <input
+                type="checkbox"
+                checked={!barLabelShowZero}
+                onChange={(e) => setBarLabelShowZero(!e.target.checked)}
+                className="w-3.5 h-3.5 rounded text-primary"
+              />
+              <span>Hide Zero Values</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* 2.6. Axis Ceiling & Standard Grid Increments */}
+      <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+            {isHorizontal ? 'X-Axis (Value)' : 'Y-Axis (Value)'} Ceiling & Standard Grid Steps
+          </span>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            Ceiling: {barValueCeiling === 'auto' ? 'Auto Smart Step' : `${barValueCeiling}${isPctMetric ? '%' : ''}`} • Interval: {barValueInterval === 'auto' ? 'Auto' : `${barValueInterval}${isPctMetric ? '%' : ''}`}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Axis Ceiling (Max Scale) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-foreground block">
+              Axis Upper Ceiling (Max Range)
+            </label>
+            <div className="flex gap-1.5">
+              <select
+                value={typeof barValueCeiling === 'number' ? String(barValueCeiling) : barValueCeiling}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'auto') setBarValueCeiling('auto');
+                  else setBarValueCeiling(Number(val));
+                }}
+                className="flex-1 bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+              >
+                <option value="auto">Auto (Scientific Smart Step)</option>
+                {isPctMetric ? (
+                  <>
+                    <option value="25">25% (Compact)</option>
+                    <option value="30">30% (Tight)</option>
+                    <option value="35">35% (Standard 5% Steps)</option>
+                    <option value="40">40% (Standard 10% Steps)</option>
+                    <option value="45">45%</option>
+                    <option value="50">50% (Half Scale)</option>
+                    <option value="60">60%</option>
+                    <option value="75">75%</option>
+                    <option value="100">100% (Full Cohort)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="10">10 (Standard)</option>
+                    <option value="15">15</option>
+                    <option value="20">20</option>
+                    <option value="25">25</option>
+                    <option value="30">30</option>
+                    <option value="40">40</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </>
+                )}
+              </select>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Rounds the chart axis ceiling to clean, standard publications intervals (e.g. 35% or 40%).
+            </p>
+          </div>
+
+          {/* Grid Step Interval */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-foreground block">
+              Grid Line Increment (Step Interval)
+            </label>
+            <div className="flex gap-1.5">
+              <select
+                value={typeof barValueInterval === 'number' ? String(barValueInterval) : barValueInterval}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'auto') setBarValueInterval('auto');
+                  else setBarValueInterval(Number(val));
+                }}
+                className="flex-1 bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+              >
+                <option value="auto">Auto (Adaptive Spacing)</option>
+                {isPctMetric ? (
+                  <>
+                    <option value="5">5% Steps (0%, 5%, 10%, 15%, 20%, 25%, 30%, 35%)</option>
+                    <option value="10">10% Steps (0%, 10%, 20%, 30%, 40%)</option>
+                    <option value="15">15% Steps (0%, 15%, 30%, 45%)</option>
+                    <option value="20">20% Steps (0%, 20%, 40%, 60%)</option>
+                    <option value="25">25% Steps (0%, 25%, 50%, 75%)</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="2">2 Units Step</option>
+                    <option value="5">5 Units Step</option>
+                    <option value="10">10 Units Step</option>
+                    <option value="20">20 Units Step</option>
+                  </>
+                )}
+              </select>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Forces ticks and background horizontal grid lines to align on uniform increments.
+            </p>
+          </div>
         </div>
       </div>
 

@@ -96,6 +96,11 @@ export type DisplayFormatTemplate =
   | 'prevalence_percent_only'       // ~39%
   | 'prevalence_ratio_only'         // n = 18/46
   | 'dual_prevalence_tag_share'     // Dual: n = 18/46 (~39%) | Tags: 18/54 (~33%)
+  | 'two_line_count_percent'        // Multi-line: n = 14\n(~30%)
+  | 'two_line_percent_count'        // Multi-line: ~30%\n(n = 14)
+  | 'two_line_ratio_percent'        // Multi-line: n = 14/46\n(~30%)
+  | 'two_line_percent_ratio'        // Multi-line: ~30%\n(n = 14/46)
+  | 'two_line_name_count_percent'   // Multi-line: Name\nn = 14 (~30%)
   | 'name'                 // Legacy alias for name_only
   | 'value'                // Legacy alias for count_only
   | 'value_pct'            // Legacy alias for count_percent
@@ -453,6 +458,9 @@ export interface SlotConfig {
   forceCohortDenominator?: boolean;
   levelCustomGroups: Record<number, string[]>;
   levelCustomGroupLinks: Record<number, Record<string, string>>;
+  levelTargetFields?: Record<number, string>;
+  primaryScopeFilter?: string;
+  secondaryScopeFilter?: string;
   customCategoryMap: Record<string, Record<string, string>>;
   enableManualOverrides: boolean;
   manualCategoryValues: Record<string, number>;
@@ -465,6 +473,16 @@ export interface SlotConfig {
   pieLabelDistance?: number;
   pieLineHeight?: number;
   barLabelDistance?: number;
+  barLabelFontSize?: number;
+  barLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  barLabelFontStyle?: 'normal' | 'italic';
+  barLabelColor?: string;
+  barLabelRotate?: number;
+  barLabelShowZero?: boolean;
+  barLabelMinThreshold?: number;
+  barLabelLineHeight?: number;
+  barValueCeiling?: number | 'auto';
+  barValueInterval?: number | 'auto';
   legendDistance?: number;
   legendWidth?: number;
   legendLineHeight?: number;
@@ -818,6 +836,9 @@ export interface VisualizerPresetPayload {
   sunburstLegendPosition?: 'top-left' | 'top-center' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   levelCustomGroups?: Record<number, string[]>;
   levelCustomGroupLinks?: Record<number, Record<string, string>>;
+  levelTargetFields?: Record<number, string>;
+  primaryScopeFilter?: string;
+  secondaryScopeFilter?: string;
   customCategoryMap?: Record<string, Record<string, string>>;
   enableManualOverrides?: boolean;
   manualCategoryValues?: Record<string, number>;

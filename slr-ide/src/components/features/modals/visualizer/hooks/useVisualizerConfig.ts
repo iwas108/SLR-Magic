@@ -581,6 +581,36 @@ export function useVisualizerConfig(params: {
   const barLabelDistance = currentSlotConfig.barLabelDistance ?? 5;
   const setBarLabelDistance = useCallback((v: number) => updateActiveSlot({ barLabelDistance: v }), [updateActiveSlot]);
 
+  const barLabelFontSize = currentSlotConfig.barLabelFontSize;
+  const setBarLabelFontSize = useCallback((v?: number) => updateActiveSlot({ barLabelFontSize: v }), [updateActiveSlot]);
+
+  const barLabelFontWeight = currentSlotConfig.barLabelFontWeight || 'bold';
+  const setBarLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ barLabelFontWeight: v }), [updateActiveSlot]);
+
+  const barLabelFontStyle = currentSlotConfig.barLabelFontStyle || 'normal';
+  const setBarLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ barLabelFontStyle: v }), [updateActiveSlot]);
+
+  const barLabelColor = currentSlotConfig.barLabelColor || '';
+  const setBarLabelColor = useCallback((v: string) => updateActiveSlot({ barLabelColor: v }), [updateActiveSlot]);
+
+  const barLabelRotate = currentSlotConfig.barLabelRotate ?? 0;
+  const setBarLabelRotate = useCallback((v: number) => updateActiveSlot({ barLabelRotate: v }), [updateActiveSlot]);
+
+  const barLabelShowZero = currentSlotConfig.barLabelShowZero ?? true;
+  const setBarLabelShowZero = useCallback((v: boolean) => updateActiveSlot({ barLabelShowZero: v }), [updateActiveSlot]);
+
+  const barLabelMinThreshold = currentSlotConfig.barLabelMinThreshold ?? 0;
+  const setBarLabelMinThreshold = useCallback((v: number) => updateActiveSlot({ barLabelMinThreshold: v }), [updateActiveSlot]);
+
+  const barLabelLineHeight = currentSlotConfig.barLabelLineHeight ?? 14;
+  const setBarLabelLineHeight = useCallback((v: number) => updateActiveSlot({ barLabelLineHeight: v }), [updateActiveSlot]);
+
+  const barValueCeiling = currentSlotConfig.barValueCeiling ?? 'auto';
+  const setBarValueCeiling = useCallback((v: number | 'auto') => updateActiveSlot({ barValueCeiling: v }), [updateActiveSlot]);
+
+  const barValueInterval = currentSlotConfig.barValueInterval ?? 'auto';
+  const setBarValueInterval = useCallback((v: number | 'auto') => updateActiveSlot({ barValueInterval: v }), [updateActiveSlot]);
+
   const legendDistance = currentSlotConfig.legendDistance ?? 20;
   const setLegendDistance = useCallback((v: number) => updateActiveSlot({ legendDistance: v }), [updateActiveSlot]);
 
@@ -1372,6 +1402,26 @@ export function useVisualizerConfig(params: {
     setPieLineHeight,
     barLabelDistance,
     setBarLabelDistance,
+    barLabelFontSize,
+    setBarLabelFontSize,
+    barLabelFontWeight,
+    setBarLabelFontWeight,
+    barLabelFontStyle,
+    setBarLabelFontStyle,
+    barLabelColor,
+    setBarLabelColor,
+    barLabelRotate,
+    setBarLabelRotate,
+    barLabelShowZero,
+    setBarLabelShowZero,
+    barLabelMinThreshold,
+    setBarLabelMinThreshold,
+    barLabelLineHeight,
+    setBarLabelLineHeight,
+    barValueCeiling,
+    setBarValueCeiling,
+    barValueInterval,
+    setBarValueInterval,
     legendDistance,
     setLegendDistance,
     legendWidth,

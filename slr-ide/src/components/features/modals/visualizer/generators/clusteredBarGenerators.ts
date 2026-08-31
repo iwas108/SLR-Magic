@@ -3,14 +3,16 @@ import { getNodeColor } from '../utils/colorUtils';
 import { 
   getMappedFieldValue, 
   computeMetricValue, 
-  limitCategoryMap 
+  limitCategoryMap,
+  formatVariableDisplayName
 } from '../utils/dataExtractor';
+import { CUSTOM_GROUPING_KEY } from '../constants/defaultConfigs';
 import { computeGroupStatistics, getErrorBounds } from '../utils/statisticalUtils';
 import { getSeriesPatternStyle } from '../utils/hatchPatternUtils';
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
-import { buildScientificAxisConfig } from './axisConfigHelper';
+import { buildScientificAxisConfig, calculateNiceScientificCeiling } from './axisConfigHelper';
 
 export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -82,14 +84,29 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
+    levelCustomGroups: ctx.levelCustomGroups,
     levelCustomGroupLinks,
+    levelTargetFields: ctx.levelTargetFields,
+    subFieldKey: ctx.levelTargetFields?.[0],
+    levelIdx: 0,
+    scopeFilter: ctx.primaryScopeFilter,
+    unpackMacroToChildren: true,
     sankeyFields,
     primaryField
   };
 
+  const secMappedOpts = {
+    ...mappedOpts,
+    primaryField: secondaryField,
+    subFieldKey: ctx.levelTargetFields?.[1],
+    levelIdx: 1,
+    scopeFilter: ctx.secondaryScopeFilter,
+    unpackMacroToChildren: false
+  };
+
   papers.forEach(p => {
     const primVals = getMappedFieldValue(p, primaryField, mappedOpts);
-    const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+    const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
 
     primVals.forEach(pv => {
       catSet.add(pv);
@@ -121,6 +138,9 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
 
   // Determine sorted category list
   let categories = Array.from(limitedPrimMap.keys());
+  if (excludeEmpty || (ctx as any).excludeUnassigned) {
+    categories = categories.filter(c => c !== 'Unassigned / Other' && c !== 'Unassigned');
+  }
   if (barSorting === 'desc') {
     categories.sort((a, b) => {
       if (a === 'Other') return 1;
@@ -148,7 +168,10 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     });
   }
 
-  const seriesList = Array.from(seriesSet).sort();
+  let seriesList = Array.from(seriesSet).sort();
+  if (excludeEmpty || (ctx as any).excludeUnassigned) {
+    seriesList = seriesList.filter(s => s !== 'Unassigned / Other' && s !== 'Unassigned');
+  }
 
   // 2. Build Series Payload
   const effectiveLegendFormat = legendFormat || barLegendFormat || 'name';
@@ -162,7 +185,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       let groupPapers: any[] = [];
       if (cat === 'Other') {
         limitedPrimMap.get('Other')?.forEach(p => {
-          const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+          const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
           if (secVals.includes(seriesKey)) {
             groupPapers.push(p);
           }
@@ -235,7 +258,14 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       };
     });
 
-    const seriesTotalCount = seriesData.reduce((acc, d) => acc + d.paperCount, 0);
+    const seriesUniquePapersSet = new Set<string>();
+    papers.forEach(p => {
+      const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
+      if (secVals.includes(seriesKey)) {
+        seriesUniquePapersSet.add(p.Paper_ID || p.id || p.title || p.Title || JSON.stringify(p));
+      }
+    });
+    const seriesTotalCount = seriesUniquePapersSet.size;
     const seriesTotalTags = seriesData.reduce((acc, d) => acc + d.tagCount, 0);
     const seriesLegendLabel = formatLegendLabel(seriesKey, {
       paperCount: seriesTotalCount,
@@ -259,11 +289,29 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       data: seriesData,
       label: {
         show: showDataLabels,
-        position: isHorizontal ? (barLabelPosition === 'inside' ? 'inside' : 'right') : (barLabelPosition === 'inside' ? 'inside' : 'top'),
+        position: isHorizontal 
+          ? (barLabelPosition === 'inside' ? 'inside' : barLabelPosition === 'insideLeft' ? 'insideLeft' : barLabelPosition === 'insideRight' ? 'insideRight' : 'right')
+          : (barLabelPosition === 'inside' ? 'inside' : barLabelPosition === 'insideLeft' ? 'insideBottom' : barLabelPosition === 'insideRight' ? 'insideTop' : 'top'),
+        distance: ctx.barLabelDistance ?? 5,
+        rotate: ctx.barLabelRotate ?? 0,
         fontFamily: font,
-        fontSize: Math.max(9, fontSize - 2),
-        color: barLabelPosition.startsWith('inside') ? '#ffffff' : palette.text,
-        formatter: (params: any) => params.data?.formattedLabel ?? params.value
+        fontSize: ctx.barLabelFontSize || Math.max(9, fontSize - 2),
+        fontWeight: (ctx.barLabelFontWeight as any) || 'bold',
+        fontStyle: ctx.barLabelFontStyle || 'normal',
+        lineHeight: ctx.barLabelLineHeight ?? (ctx.barLabelFontSize ? ctx.barLabelFontSize + 3 : 13),
+        color: ctx.barLabelColor 
+          ? (ctx.barLabelColor === 'foreground' ? palette.text : ctx.barLabelColor)
+          : (barLabelPosition.startsWith('inside') ? '#ffffff' : baseColor),
+        formatter: (params: any) => {
+          if (ctx.barLabelShowZero === false && (params.data?.paperCount === 0 || params.value === 0)) {
+            return '';
+          }
+          if (ctx.barLabelMinThreshold !== undefined && ctx.barLabelMinThreshold > 0) {
+            const rawPct = parseFloat(params.data?.prevalencePct ?? '0');
+            if (!isNaN(rawPct) && rawPct < ctx.barLabelMinThreshold) return '';
+          }
+          return params.data?.formattedLabel ?? params.value;
+        }
       }
     };
   });
@@ -332,7 +380,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
   const customLegW = ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : 120;
   if (showLegend) {
     if (barLegendPosition.startsWith('top')) gridTop = 85;
-    else if (barLegendPosition.startsWith('bottom')) gridBottom = 55;
+    else if (barLegendPosition.startsWith('bottom')) gridBottom = Math.max(gridBottom, (customAxisTitleX?.trim() ? 75 : 55) + legDist);
     else if (barLegendPosition.includes('right')) gridRight = Math.max(gridRight, customLegW + legDist + 15);
     else if (barLegendPosition.includes('left')) gridLeft += Math.max(60, customLegW + legDist + 10);
   }
@@ -357,8 +405,8 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     ? 'Average Citation Count'
     : 'Study Count (N)';
 
-  const defaultTitleX = isHorizontal ? metricLabel : primaryField;
-  const defaultTitleY = isHorizontal ? primaryField : metricLabel;
+  const defaultTitleX = isHorizontal ? metricLabel : (customAxisTitleX?.trim() || '');
+  const defaultTitleY = isHorizontal ? (customAxisTitleY?.trim() || '') : metricLabel;
 
   const finalTitleX = customAxisTitleX?.trim() || defaultTitleX;
   const finalTitleY = customAxisTitleY?.trim() || defaultTitleY;
@@ -366,21 +414,26 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
   // 7. Axis Configurations
   const categoryAxisConfig = buildScientificAxisConfig(isHorizontal ? 'y' : 'x', ctx, {
     axisKind: 'category',
-    defaultTitle: isHorizontal ? primaryField : (customAxisTitleX || primaryField),
+    defaultTitle: isHorizontal ? (customAxisTitleY?.trim() || '') : (customAxisTitleX?.trim() || ''),
     categories: categories,
     inverse: isHorizontal
   });
 
+  const explicitCeiling = typeof ctx.barValueCeiling === 'number' && ctx.barValueCeiling > 0 ? ctx.barValueCeiling : undefined;
+  const explicitInterval = typeof ctx.barValueInterval === 'number' && ctx.barValueInterval > 0 ? ctx.barValueInterval : undefined;
+
   const valueAxisConfig = buildScientificAxisConfig(isHorizontal ? 'x' : 'y', ctx, {
     axisKind: 'value',
     defaultTitle: isHorizontal ? (customAxisTitleX || metricLabel) : metricLabel,
-    max: isLabelOutside
-      ? (val: any) => {
-          if (!val || val.max === 0) return 10;
-          const ceiling = Math.ceil(val.max * headroomFactor);
-          return barBenchmarkLine ? Math.max(ceiling, Math.ceil(barBenchmarkValue * 1.15)) : ceiling;
-        }
-      : (barBenchmarkLine ? (val: any) => Math.max(val.max, Math.ceil(barBenchmarkValue * 1.15)) : undefined),
+    max: explicitCeiling !== undefined
+      ? explicitCeiling
+      : (val: any) => {
+          if (!val || val.max === 0) return isPctMetric ? 10 : 5;
+          const ceiling = isLabelOutside ? val.max * headroomFactor : val.max;
+          const neededMax = barBenchmarkLine ? Math.max(ceiling, barBenchmarkValue * 1.15) : ceiling;
+          return calculateNiceScientificCeiling(neededMax, isPctMetric);
+        },
+    interval: explicitInterval,
     defaultUnitFormatter: (v: any) => isPctMetric ? `${v}%` : `${v}`
   });
 

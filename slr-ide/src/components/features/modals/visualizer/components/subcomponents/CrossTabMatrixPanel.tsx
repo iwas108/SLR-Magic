@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Table, Copy, Download, Layers } from 'lucide-react';
+import { Table, Copy, Download, Layers, Maximize2 } from 'lucide-react';
 import { useVisualizerContext } from '../../context/VisualizerContext';
-import { getMappedFieldValue, computeMetricValue, limitCategoryMap } from '../../utils/dataExtractor';
+import { getMappedFieldValue, computeMetricValue, limitCategoryMap, formatVariableDisplayName } from '../../utils/dataExtractor';
 import { formatPercentage, formatRatio } from '../../utils/formatterUtils';
 import type { CrossTabMatrix, CrossTabCell } from '../../types';
+import { CrossTabMatrixModal } from './CrossTabMatrixModal';
 
 export function CrossTabMatrixPanel() {
-  const { props, config, style } = useVisualizerContext();
+  const { props, config, style, data } = useVisualizerContext();
   const { papers, umbrellanizerMap } = props;
   const {
     primaryField,
@@ -18,12 +19,25 @@ export function CrossTabMatrixPanel() {
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
-    levelCustomGroupLinks,
     sankeyFields
   } = config;
+  const {
+    levelCustomGroups,
+    levelCustomGroupLinks,
+    levelTargetFields
+  } = data;
 
   const [activeTab, setActiveTab] = useState<'matrix' | 'flat'>('matrix');
   const [copied, setCopied] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const primLabel = primaryField === '__custom_grouping__'
+    ? (levelTargetFields?.[0] ? `Custom: ${formatVariableDisplayName(levelTargetFields[0])}` : 'Row Groups')
+    : formatVariableDisplayName(primaryField);
+
+  const secLabel = secondaryField === '__custom_grouping__'
+    ? (levelTargetFields?.[1] ? `Custom: ${formatVariableDisplayName(levelTargetFields[1])}` : 'Column Groups')
+    : formatVariableDisplayName(secondaryField);
 
   const mappedOpts = useMemo(() => ({
     useUmbrellanizer,
@@ -31,10 +45,12 @@ export function CrossTabMatrixPanel() {
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
+    levelCustomGroups,
     levelCustomGroupLinks,
+    levelTargetFields,
     sankeyFields,
     primaryField
-  }), [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField]);
+  }), [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroups, levelCustomGroupLinks, levelTargetFields, sankeyFields, primaryField]);
 
   // Compute Cross-Tabulation Matrix Data
   const crossTab: CrossTabMatrix = useMemo(() => {
@@ -44,8 +60,19 @@ export function CrossTabMatrixPanel() {
     let totalExtractedTags = 0;
 
     papers.forEach(p => {
-      const primVals = getMappedFieldValue(p, primaryField, mappedOpts);
-      const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+      const primVals = getMappedFieldValue(p, primaryField, {
+        ...mappedOpts,
+        levelIdx: 0,
+        subFieldKey: levelTargetFields?.[0],
+        unpackMacroToChildren: true
+      });
+      const secVals = getMappedFieldValue(p, secondaryField, {
+        ...mappedOpts,
+        primaryField: secondaryField,
+        levelIdx: 1,
+        subFieldKey: levelTargetFields?.[1],
+        unpackMacroToChildren: false
+      });
 
       primVals.forEach(pv => {
         catSet.add(pv);
@@ -73,13 +100,18 @@ export function CrossTabMatrixPanel() {
       (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
     );
 
-    const categories = Array.from(limitedPrimMap.keys()).sort((a, b) => {
+    let categories = Array.from(limitedPrimMap.keys()).sort((a, b) => {
       if (a === 'Other') return 1;
       if (b === 'Other') return -1;
       return a.localeCompare(b);
     });
 
-    const seriesList = Array.from(seriesSet).sort();
+    let seriesList = Array.from(seriesSet).sort();
+
+    if (excludeEmpty) {
+      categories = categories.filter(c => c !== 'Unassigned / Other' && c !== 'Unassigned');
+      seriesList = seriesList.filter(s => s !== 'Unassigned / Other' && s !== 'Unassigned');
+    }
 
     const matrix: Record<string, Record<string, CrossTabCell>> = {};
     const rowTotals: Record<string, { count: number; activeMetricVal: number }> = {};
@@ -234,6 +266,15 @@ export function CrossTabMatrixPanel() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+            title="Open Table in Fullscreen Modal Dialog"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            Modal View
+          </button>
+          <button
+            type="button"
             onClick={handleCopyTSV}
             className="px-2.5 py-1 rounded-lg bg-card border border-border hover:bg-secondary text-xs font-bold text-foreground flex items-center gap-1.5"
           >
@@ -258,10 +299,10 @@ export function CrossTabMatrixPanel() {
             <thead className="bg-secondary/70 text-foreground sticky top-0 z-10 border-b border-border text-[11px] font-bold">
               <tr>
                 <th className="px-3 py-2.5 border-r border-border">
-                  {primaryField} \ {secondaryField}
+                  {primLabel} \ {secLabel}
                 </th>
                 {crossTab.seriesList.map(s => (
-                  <th key={s} className="px-3 py-2.5 text-center border-r border-border min-w-[90px]">
+                  <th key={s} className="px-3 py-2.5 text-center border-r border-border min-w-[90px] whitespace-pre-line leading-tight">
                     {s}
                   </th>
                 ))}
@@ -273,7 +314,7 @@ export function CrossTabMatrixPanel() {
             <tbody className="divide-y divide-border">
               {crossTab.categories.map((cat, idx) => (
                 <tr key={cat} className={idx % 2 === 0 ? 'bg-card' : 'bg-secondary/20'}>
-                  <td className="px-3 py-2 font-bold text-foreground border-r border-border whitespace-nowrap">
+                  <td className="px-3 py-2 font-bold text-foreground border-r border-border whitespace-pre-line leading-tight">
                     {cat}
                   </td>
                   {crossTab.seriesList.map(s => {
@@ -323,8 +364,8 @@ export function CrossTabMatrixPanel() {
           <table className="w-full text-xs text-left border-collapse">
             <thead className="bg-secondary/70 text-foreground sticky top-0 z-10 border-b border-border text-[11px] font-bold">
               <tr>
-                <th className="px-3 py-2.5">{primaryField}</th>
-                <th className="px-3 py-2.5">{secondaryField}</th>
+                <th className="px-3 py-2.5">{primLabel}</th>
+                <th className="px-3 py-2.5">{secLabel}</th>
                 <th className="px-3 py-2.5 text-center">Paper Count (N)</th>
                 <th className="px-3 py-2.5 text-center">Prevalence (%)</th>
                 <th className="px-3 py-2.5 text-right">Active Metric Value</th>
@@ -351,6 +392,19 @@ export function CrossTabMatrixPanel() {
           </table>
         </div>
       )}
+
+      {/* Expanded Modal View */}
+      <CrossTabMatrixModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        crossTab={crossTab}
+        primaryField={primaryField}
+        secondaryField={secondaryField}
+        levelTargetFields={levelTargetFields}
+        metricMode={metricMode}
+        style={style}
+        totalCohortCount={papers.length}
+      />
     </div>
   );
 }
