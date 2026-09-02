@@ -48,6 +48,14 @@ export function HorizontalBarConfigPanel() {
     setBarLineHeight,
     barYAxisFontSize = 11,
     setBarYAxisFontSize,
+    barYAxisFontWeight = 'normal',
+    setBarYAxisFontWeight,
+    barYAxisFontStyle = 'normal',
+    setBarYAxisFontStyle,
+    barYAxisColor = '',
+    setBarYAxisColor,
+    axisLabelMarginY = 8,
+    setAxisLabelMarginY,
     barBenchmarkLine,
     setBarBenchmarkLine,
     barBenchmarkValue,
@@ -156,7 +164,7 @@ export function HorizontalBarConfigPanel() {
             <input
               type="range"
               min={8}
-              max={22}
+              max={32}
               value={barLabelFontSize}
               onChange={(e) => setBarLabelFontSize(Number(e.target.value))}
               className="w-full accent-primary"
@@ -412,7 +420,7 @@ export function HorizontalBarConfigPanel() {
           <input
             type="range"
             min={0}
-            max={80}
+            max={200}
             value={barGap}
             onChange={(e) => setBarGap(Number(e.target.value))}
             className="w-full accent-primary"
@@ -421,54 +429,125 @@ export function HorizontalBarConfigPanel() {
       </div>
 
       {/* Y-Axis Label Width, Line Height & Overflow Treatment */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-secondary/20 border border-border/60 rounded-xl">
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Y-Axis Width ({barYAxisWidth}px)</label>
-          <input
-            type="range"
-            min={80}
-            max={320}
-            value={barYAxisWidth}
-            onChange={(e) => setBarYAxisWidth(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
+      <div className="p-3 bg-secondary/20 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+          <span className="text-xs font-bold text-foreground">
+            Y-Axis Categorical Label Typography & Layout
+          </span>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {barYAxisFontSize}px • {barYAxisFontWeight} • {barYAxisFontStyle}
+          </span>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Line Height ({barLineHeight}px)</label>
-          <input
-            type="range"
-            min={8}
-            max={32}
-            value={barLineHeight}
-            onChange={(e) => setBarLineHeight(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Y-Axis Width ({barYAxisWidth}px)</label>
+            <input
+              type="range"
+              min={80}
+              max={360}
+              value={barYAxisWidth}
+              onChange={(e) => setBarYAxisWidth(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Line Height ({barLineHeight}px)</label>
+            <input
+              type="range"
+              min={8}
+              max={32}
+              value={barLineHeight}
+              onChange={(e) => setBarLineHeight(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Label Font Size ({barYAxisFontSize}px)</label>
+            <input
+              type="range"
+              min={8}
+              max={32}
+              value={barYAxisFontSize}
+              onChange={(e) => setBarYAxisFontSize(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Margin Offset ({axisLabelMarginY}px)</label>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              value={axisLabelMarginY}
+              onChange={(e) => setAxisLabelMarginY(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Label Font Size ({barYAxisFontSize}px)</label>
-          <input
-            type="range"
-            min={8}
-            max={18}
-            value={barYAxisFontSize}
-            onChange={(e) => setBarYAxisFontSize(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1 border-t border-border/40">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Font Weight</label>
+            <select
+              value={barYAxisFontWeight}
+              onChange={(e) => setBarYAxisFontWeight(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="normal">Normal (400)</option>
+              <option value="500">Medium (500)</option>
+              <option value="600">SemiBold (600)</option>
+              <option value="bold">Bold (700)</option>
+              <option value="800">ExtraBold (800)</option>
+            </select>
+          </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Overflow Wrapping</label>
-          <select
-            value={barYAxisOverflow}
-            onChange={(e) => setBarYAxisOverflow(e.target.value as any)}
-            className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
-          >
-            <option value="break">Word Wrap</option>
-            <option value="truncate">Truncate (...)</option>
-            <option value="none">Full Length</option>
-          </select>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Font Style</label>
+            <select
+              value={barYAxisFontStyle}
+              onChange={(e) => setBarYAxisFontStyle(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="normal">Normal / Upright</option>
+              <option value="italic">Italic</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Label Text Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={barYAxisColor || '#111827'}
+                onChange={(e) => setBarYAxisColor(e.target.value)}
+                className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent p-0"
+              />
+              <input
+                type="text"
+                value={barYAxisColor}
+                onChange={(e) => setBarYAxisColor(e.target.value)}
+                placeholder="Palette Default"
+                className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono font-bold text-foreground"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Overflow Wrapping</label>
+            <select
+              value={barYAxisOverflow}
+              onChange={(e) => setBarYAxisOverflow(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="break">Word Wrap</option>
+              <option value="truncate">Truncate (...)</option>
+              <option value="none">Full Length</option>
+            </select>
+          </div>
         </div>
       </div>
 

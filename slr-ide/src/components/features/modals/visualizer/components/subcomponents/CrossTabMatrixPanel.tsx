@@ -15,6 +15,7 @@ export function CrossTabMatrixPanel() {
     metricMode,
     limitCategories,
     maxCategoriesCount,
+    otherCategoryLabel = 'Other',
     useUmbrellanizer,
     splitMultiValues,
     excludeEmpty,
@@ -30,6 +31,8 @@ export function CrossTabMatrixPanel() {
   const [activeTab, setActiveTab] = useState<'matrix' | 'flat'>('matrix');
   const [copied, setCopied] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const isOther = (cat: string) => cat === (otherCategoryLabel || 'Other') || cat === 'Other';
 
   const primLabel = primaryField === '__custom_grouping__'
     ? (levelTargetFields?.[0] ? `Custom: ${formatVariableDisplayName(levelTargetFields[0])}` : 'Row Groups')
@@ -97,12 +100,13 @@ export function CrossTabMatrixPanel() {
       primAggregatePapersMap,
       limitCategories,
       maxCategoriesCount,
-      (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
+      (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags),
+      otherCategoryLabel || 'Other'
     );
 
     let categories = Array.from(limitedPrimMap.keys()).sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       return a.localeCompare(b);
     });
 
@@ -129,8 +133,8 @@ export function CrossTabMatrixPanel() {
 
       seriesList.forEach(s => {
         let groupPapers: any[] = [];
-        if (cat === 'Other') {
-          limitedPrimMap.get('Other')?.forEach(p => {
+        if (isOther(cat)) {
+          limitedPrimMap.get(cat)?.forEach(p => {
             const secVals = getMappedFieldValue(p, secondaryField, mappedOpts);
             if (secVals.includes(s)) groupPapers.push(p);
           });

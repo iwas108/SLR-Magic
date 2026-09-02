@@ -22,6 +22,7 @@ import { formatPercentage, formatRatio } from '../utils/formatterUtils';
 import {
   generateVerticalBarOption,
   generateHorizontalBarOption,
+  generateHorizontalBarScatterOption,
   generateStackedBarOption
 } from './categoricalBarGenerators';
 import { generateClusteredBarOption } from './clusteredBarGenerators';
@@ -244,9 +245,11 @@ export interface BuildChartOptionParams {
   barValueInterval?: number | 'auto';
   legendDistance?: number;
   legendWidth?: number;
+  legendWrapWidth?: number;
   legendLineHeight?: number;
   legendItemGap?: number;
   legendFontSize?: number;
+  legendFontStyle?: 'normal' | 'italic';
   legendOverflow?: 'break' | 'truncate' | 'none';
   fitOffsetX?: number;
   fitOffsetY?: number;
@@ -405,6 +408,67 @@ export interface BuildChartOptionParams {
   legendBorderWidth?: number;
   legendBorderRadius?: number;
   legendPadding?: number;
+  // Dual-Axis & Horizontal Bar + Scatter Combo Parameters
+  scatterAxisTitle?: string;
+  scatterAxisMin?: number;
+  scatterAxisMax?: number;
+  scatterAxisInterval?: number;
+  scatterAxisNameGap?: number;
+  scatterSeriesName?: string;
+  barSeriesName?: string;
+  scatterSymbol?: 'diamond' | 'circle' | 'rect' | 'triangle' | 'pin' | 'roundRect';
+  scatterSymbolSize?: number;
+  scatterColor?: string;
+  scatterBorderColor?: string;
+  scatterBorderWidth?: number;
+  scatterValues?: Record<string, number>;
+  barYAxisFontWeight?: AxisFontWeight;
+  barYAxisFontStyle?: AxisFontStyle;
+  barYAxisColor?: string;
+  scatterShowDataLabels?: boolean;
+  scatterLabelPosition?: 'top' | 'bottom' | 'right' | 'left' | 'inside';
+  scatterLabelFontSize?: number;
+  scatterLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  scatterLabelFontStyle?: 'normal' | 'italic';
+  scatterLabelColor?: string;
+  scatterLabelDistance?: number;
+  scatterLabelLineHeight?: number;
+  lineLabelFontSize?: number;
+  lineLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  lineLabelFontStyle?: 'normal' | 'italic';
+  lineLabelColor?: string;
+  pieLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  pieLabelFontStyle?: 'normal' | 'italic';
+  pieLabelColor?: string;
+  radarLabelFontSize?: number;
+  radarLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarLabelFontStyle?: 'normal' | 'italic';
+  radarLabelColor?: string;
+  heatmapLabelFontSize?: number;
+  heatmapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  heatmapLabelFontStyle?: 'normal' | 'italic';
+  heatmapLabelColor?: string;
+  treemapLabelFontSize?: number;
+  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapLabelFontStyle?: 'normal' | 'italic';
+  treemapLabelColor?: string;
+  funnelLabelFontSize?: number;
+  funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  funnelLabelFontStyle?: 'normal' | 'italic';
+  funnelLabelColor?: string;
+  boxplotLabelFontSize?: number;
+  boxplotLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  boxplotLabelFontStyle?: 'normal' | 'italic';
+  boxplotLabelColor?: string;
+  bubbleLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  bubbleLabelFontStyle?: 'normal' | 'italic';
+  barColorCustom?: string;
+  barGridTop?: number;
+  barGridBottom?: number;
+  barGridLeft?: number;
+  barGridRight?: number;
+  scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
+  otherCategoryLabel?: string;
 }
 
 export function buildChartOption(params: BuildChartOptionParams): echarts.EChartsOption {
@@ -469,8 +533,9 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
       fontFamily: font,
       fontSize: effectiveLegendFontSize,
       fontWeight: (params.legendFontWeight as any) || 'normal',
+      fontStyle: (params.legendFontStyle as any) || 'normal',
       color: params.legendTextColor || palette.text,
-      width: effectiveLegendWidth,
+      width: params.legendWrapWidth !== undefined ? params.legendWrapWidth : effectiveLegendWidth,
       overflow: legendOverflow,
       lineHeight: effectiveLegendLineHeight
     }
@@ -529,6 +594,8 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
       return generateVerticalBarOption(ctx);
     case 'bar_horizontal':
       return generateHorizontalBarOption(ctx);
+    case 'horizontal_bar_scatter':
+      return generateHorizontalBarScatterOption(ctx);
     case 'clustered_bar':
       return generateClusteredBarOption(ctx);
     case 'stacked_bar':

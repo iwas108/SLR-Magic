@@ -120,8 +120,8 @@ export function VerticalBarConfigPanel() {
           <label className="text-xs font-bold text-foreground block">Bar Spacing Gap ({barGap}%)</label>
           <input
             type="range"
-            min={5}
-            max={50}
+            min={0}
+            max={150}
             value={barGap}
             onChange={(e) => setBarGap(Number(e.target.value))}
             className="w-full accent-primary"
@@ -255,8 +255,8 @@ export function StackedBarConfigPanel() {
           <label className="text-xs font-bold text-foreground block">Inter-Column Gap ({barGap}%)</label>
           <input
             type="range"
-            min={5}
-            max={50}
+            min={0}
+            max={150}
             value={barGap}
             onChange={(e) => setBarGap(Number(e.target.value))}
             className="w-full accent-primary"
@@ -1087,7 +1087,7 @@ export function LineConfigPanel() {
                     <input
                       type="range"
                       min={4}
-                      max={40}
+                      max={120}
                       value={legendItemGap ?? 14}
                       onChange={(e) => setLegendItemGap(Number(e.target.value))}
                       className="w-full accent-primary"
@@ -1099,7 +1099,7 @@ export function LineConfigPanel() {
                     <input
                       type="range"
                       min={0}
-                      max={60}
+                      max={180}
                       value={legendDistance ?? 10}
                       onChange={(e) => setLegendDistance(Number(e.target.value))}
                       className="w-full accent-primary"
@@ -1111,7 +1111,7 @@ export function LineConfigPanel() {
                     <input
                       type="range"
                       min={8}
-                      max={18}
+                      max={32}
                       value={legendFontSize ?? Math.max(9, style.fontSize - 2)}
                       onChange={(e) => setLegendFontSize(Number(e.target.value))}
                       className="w-full accent-primary"
@@ -1513,6 +1513,12 @@ export function PieDonutConfigPanel() {
     setPieCornerRadius,
     pieLabelPlacement,
     setPieLabelPlacement,
+    pieLabelFontWeight = 'normal',
+    setPieLabelFontWeight,
+    pieLabelFontStyle = 'normal',
+    setPieLabelFontStyle,
+    pieLabelColor = '',
+    setPieLabelColor,
     pieLeaderLineLength,
     setPieLeaderLineLength,
     pieLeaderLineLength2,
@@ -1599,6 +1605,56 @@ export function PieDonutConfigPanel() {
           </select>
         </div>
       </div>
+
+      {pieLabelPlacement !== 'legend_only' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Label Weight</label>
+            <select
+              value={pieLabelFontWeight}
+              onChange={(e) => setPieLabelFontWeight(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="normal">Normal (400)</option>
+              <option value="500">Medium (500)</option>
+              <option value="600">SemiBold (600)</option>
+              <option value="bold">Bold (700)</option>
+              <option value="800">ExtraBold (800)</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Label Style</label>
+            <select
+              value={pieLabelFontStyle}
+              onChange={(e) => setPieLabelFontStyle(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="normal">Normal</option>
+              <option value="italic">Italic</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Label Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={pieLabelColor || '#111827'}
+                onChange={(e) => setPieLabelColor(e.target.value)}
+                className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent p-0"
+              />
+              <input
+                type="text"
+                value={pieLabelColor}
+                onChange={(e) => setPieLabelColor(e.target.value)}
+                placeholder="Auto Contrast"
+                className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono font-bold text-foreground"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {pieLabelPlacement === 'outside' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
@@ -1746,7 +1802,7 @@ export function RadarConfigPanel() {
               <input
                 type="range"
                 min={4}
-                max={30}
+                max={120}
                 value={legendItemGap}
                 onChange={(e) => setLegendItemGap(Number(e.target.value))}
                 className="w-full accent-primary"
@@ -2182,7 +2238,7 @@ export function FunnelConfigPanel() {
           <input
             type="range"
             min={0}
-            max={10}
+            max={50}
             value={funnelGap}
             onChange={(e) => setFunnelGap(Number(e.target.value))}
             className="w-full accent-primary"
@@ -2310,7 +2366,7 @@ export function TreemapConfigPanel() {
           <input
             type="range"
             min={0}
-            max={6}
+            max={30}
             value={treemapGapWidth}
             onChange={(e) => setTreemapGapWidth(Number(e.target.value))}
             className="w-full accent-primary"
@@ -2659,7 +2715,7 @@ export function BubbleConfigPanel() {
               <input
                 type="range"
                 min={8}
-                max={16}
+                max={32}
                 value={bubbleLabelFontSize}
                 onChange={(e) => setBubbleLabelFontSize(Number(e.target.value))}
                 className="w-full accent-primary"
@@ -2802,7 +2858,7 @@ export function BubbleConfigPanel() {
               <input
                 type="range"
                 min={4}
-                max={36}
+                max={120}
                 value={legendItemGap ?? 12}
                 onChange={(e) => setLegendItemGap(Number(e.target.value))}
                 className="w-full accent-primary"
@@ -2814,7 +2870,7 @@ export function BubbleConfigPanel() {
               <input
                 type="range"
                 min={5}
-                max={90}
+                max={180}
                 value={legendDistance ?? 20}
                 onChange={(e) => setLegendDistance(Number(e.target.value))}
                 className="w-full accent-primary"

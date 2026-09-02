@@ -3,20 +3,23 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Filter, ChevronUp, ChevronDown, BarChart2, Sparkles } from 'lucide-react';
 
+import dynamic from 'next/dynamic';
 import Sidebar from '@/components/Sidebar';
 import DashboardView from '../components/features/DashboardView';
-import PreCalibrationView from '../components/features/PreCalibrationView';
-import IngestionHubView from '../components/features/IngestionHubView';
-import PaperDatabaseView from '../components/features/PaperDatabaseView';
-import PipelineExecutionView from '../components/features/PipelineExecutionView';
-import PostValidationView from '../components/features/PostValidationView';
-import FullscreenAssignModal from '../components/features/modals/FullscreenAssignModal';
-import FullscreenInterRaterModal from '../components/features/modals/FullscreenInterRaterModal';
-import ProjectLockScreenModal from '../components/features/modals/ProjectLockScreenModal';
-import InsightExportView from '../components/features/InsightExportView';
 import MinimizedPipelineBanner from '../components/features/dashboard/MinimizedPipelineBanner';
 import ToastNotifications from '../components/features/dashboard/ToastNotifications';
-import GlobalModals from '../components/features/GlobalModals';
+import ProjectLockScreenModal from '../components/features/modals/ProjectLockScreenModal';
+
+// Code-split heavy views and modals for fast initial load and snappy reload
+const PreCalibrationView = dynamic(() => import('../components/features/PreCalibrationView'), { ssr: false });
+const IngestionHubView = dynamic(() => import('../components/features/IngestionHubView'), { ssr: false });
+const PaperDatabaseView = dynamic(() => import('../components/features/PaperDatabaseView'), { ssr: false });
+const PipelineExecutionView = dynamic(() => import('../components/features/PipelineExecutionView'), { ssr: false });
+const PostValidationView = dynamic(() => import('../components/features/PostValidationView'), { ssr: false });
+const InsightExportView = dynamic(() => import('../components/features/InsightExportView'), { ssr: false });
+const FullscreenAssignModal = dynamic(() => import('../components/features/modals/FullscreenAssignModal'), { ssr: false });
+const FullscreenInterRaterModal = dynamic(() => import('../components/features/modals/FullscreenInterRaterModal'), { ssr: false });
+const GlobalModals = dynamic(() => import('../components/features/GlobalModals'), { ssr: false });
 
 import { useAppSync } from '@/hooks/useAppSync';
 import { useProjects } from '@/hooks/useProjects';
@@ -79,7 +82,7 @@ export default function DashboardPage() {
   } = projectsHook;
 
   // Instantiating hook: Papers
-  const papersHook = usePapers(showToast, loadProjects);
+  const papersHook = usePapers(showToast, loadProjects, activeProjectId);
   const { loadPapers, handleSort, loadDuplicatesCount } = papersHook;
 
   // Instantiating hook: Sequential execution pipeline
@@ -101,7 +104,7 @@ export default function DashboardPage() {
   });
 
   // Instantiating hook: Manual Screening
-  const manualScreeningHook = useManualScreening(showToast, activeProjectId);
+  const manualScreeningHook = useManualScreening(showToast, activeProjectId, activeTab);
 
   // Register multi-tab synchronization BroadcastChannel handler
   useAppSync({
@@ -198,8 +201,7 @@ export default function DashboardPage() {
     const savedTheme = localStorage.getItem('theme') || 'dark';
     setTheme(savedTheme);
     applyTheme(savedTheme);
-    loadProjects();
-  }, [loadProjects, applyTheme]);
+  }, [applyTheme]);
 
   // Clear selection on project or active view tab change
   useEffect(() => {

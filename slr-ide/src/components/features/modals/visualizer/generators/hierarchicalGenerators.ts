@@ -1267,19 +1267,22 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
     };
   });
 
+  const resolvedPosKey = ctx.legendPosition || sunburstLegendPosition || 'bottom';
   const legendPosMap: Record<string, any> = {
+    'top': { top: (baseTitle?.show ? 55 : 15) + legendDistance, left: 'center' },
+    'bottom': { bottom: legendDistance, left: 'center' },
+    'left': { left: legendDistance, top: 'middle' },
+    'right': { right: legendDistance, top: 'middle' },
     'top-left': { top: 15, left: legendDistance },
     'top-center': { top: legendDistance, left: 'center' },
     'top-right': { top: 15, right: legendDistance },
-    'left': { left: legendDistance, top: 'center' },
-    'right': { right: legendDistance, top: 'center' },
     'bottom-left': { bottom: 15, left: legendDistance },
     'bottom-center': { bottom: legendDistance, left: 'center' },
     'bottom-right': { bottom: 15, right: legendDistance }
   };
 
-  const legendPos = legendPosMap[sunburstLegendPosition] || { bottom: legendDistance, left: 'center' };
-  const legendOrient = (sunburstLegendPosition === 'left' || sunburstLegendPosition === 'right') ? 'vertical' : 'horizontal';
+  const legendPos = legendPosMap[resolvedPosKey] || { bottom: legendDistance, left: 'center' };
+  const legendOrient = (resolvedPosKey === 'left' || resolvedPosKey === 'right') ? 'vertical' : 'horizontal';
 
   return {
     backgroundColor: palette.bg,

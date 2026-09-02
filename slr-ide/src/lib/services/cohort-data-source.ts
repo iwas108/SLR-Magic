@@ -239,7 +239,16 @@ export function discoverCohortVariables(
       const vals = resolveCohortFieldValue(p, key, options);
       const validVals = vals.filter(v => {
         const s = String(v || '').trim().toUpperCase();
-        return Boolean(s) && s !== 'NOT_STATED' && s !== 'FALSE' && s !== '0' && s !== 'NONE' && s !== 'UNSPECIFIED' && s !== '[OBJECT OBJECT]';
+        return Boolean(s) && 
+          s !== 'NOT_STATED' && 
+          s !== 'FALSE' && 
+          s !== '0' && 
+          s !== 'NONE' && 
+          s !== 'UNSPECIFIED' && 
+          s !== '[OBJECT OBJECT]' && 
+          s !== 'UNASSIGNED / OTHER' && 
+          s !== 'UNASSIGNED' && 
+          s !== 'ABSENT';
       });
 
       if (validVals.length > 0) {

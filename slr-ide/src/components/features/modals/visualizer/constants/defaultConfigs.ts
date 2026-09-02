@@ -350,7 +350,28 @@ export function createDefaultSlotConfig(slotId: SlotId): SlotConfig {
     legendBorderColor: 'transparent',
     legendBorderWidth: 0,
     legendBorderRadius: 4,
-    legendPadding: 5
+    legendPadding: 5,
+    scatterAxisTitle: 'Boundary Disclosure (%)',
+    scatterAxisMin: 0,
+    scatterAxisMax: 100,
+    scatterAxisInterval: 25,
+    scatterSeriesName: 'Boundary Disclosure Rate (%)',
+    barSeriesName: 'Cohort Prevalence (%)',
+    scatterSymbol: 'diamond',
+    scatterSymbolSize: 14,
+    scatterColor: '#d9534f',
+    scatterBorderColor: '#900',
+    scatterBorderWidth: 1.5,
+    scatterValues: {},
+    scatterAxisNameGap: 24,
+    scatterShowDataLabels: false,
+    scatterLabelPosition: 'top',
+    barColorCustom: '',
+    barGridTop: 48,
+    barGridBottom: 58,
+    barGridLeft: 4,
+    barGridRight: 4,
+    scatterSortMode: 'prevalence_desc'
   };
 }
 

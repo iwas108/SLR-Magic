@@ -1374,8 +1374,10 @@ export function initializeDatabase(db: Database.Database): void {
   // Run backfill for llm_screening_records from existing papers and audit logs
   backfillLlmScreeningRecords(db);
 
-  // Run synchronization for PDF statuses between papers, calibration_papers, and on-disk files
-  syncExistingPdfStatusesAndDisks(db);
+  // Run synchronization for PDF statuses between papers, calibration_papers, and on-disk files in deferred non-blocking background
+  setTimeout(() => {
+    syncExistingPdfStatusesAndDisks(db);
+  }, 1000);
 }
 
 function syncExistingPdfStatusesAndDisks(db: Database.Database) {

@@ -349,7 +349,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     });
   });
 
-  const activeCountsMap = limitCategoryMap(countsMap, limitCategories, maxCategoriesCount, list => list.length);
+  const activeCountsMap = limitCategoryMap(countsMap, limitCategories, maxCategoriesCount, list => list.length, ctx.otherCategoryLabel || 'Other');
 
   const seriesData = Array.from(activeCountsMap.entries()).map(([catName, pList]) => {
     const avgScores = keysList.map(k => {
@@ -441,7 +441,8 @@ export function generateFunnelOption(ctx: ChartGeneratorContext): echarts.EChart
     countsMap,
     limitCategories,
     maxCategoriesCount,
-    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
+    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags),
+    ctx.otherCategoryLabel || 'Other'
   );
 
   const funnelData = Array.from(activeCountsMap.entries()).map(([cat, pList], idx) => {
@@ -561,6 +562,7 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
     font,
     fontSize,
     baseTitle,
+    baseLegend,
     primaryField,
     secondaryField,
     limitCategories,
@@ -599,8 +601,9 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
     });
   });
 
-  const activeCountsP = limitCategoryMap(countsP, limitCategories, maxCategoriesCount, list => list.length);
-  const activeCountsS = limitCategoryMap(countsS, limitCategories, maxCategoriesCount, list => list.length);
+  const effectiveOtherLabel = ctx.otherCategoryLabel || 'Other';
+  const activeCountsP = limitCategoryMap(countsP, limitCategories, maxCategoriesCount, list => list.length, effectiveOtherLabel);
+  const activeCountsS = limitCategoryMap(countsS, limitCategories, maxCategoriesCount, list => list.length, effectiveOtherLabel);
 
   const nodesMap = new Map<string, { name: string; category: number }>();
   const linksMap = new Map<string, number>();
@@ -609,8 +612,8 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
     const rawP = getMappedFieldValue(p, primaryField, { ...mappedOpts, primaryField, subFieldKey: secondaryField });
     const rawS = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
 
-    const mappedP = Array.from(new Set(rawP.map(v => activeCountsP.has(v) ? v : 'Other')));
-    const mappedS = Array.from(new Set(rawS.map(v => activeCountsS.has(v) ? v : 'Other')));
+    const mappedP = Array.from(new Set(rawP.map(v => activeCountsP.has(v) ? v : effectiveOtherLabel)));
+    const mappedS = Array.from(new Set(rawS.map(v => activeCountsS.has(v) ? v : effectiveOtherLabel)));
 
     mappedP.forEach(pv => {
       const n1 = `[${primaryField}] ${pv}`;
@@ -642,9 +645,8 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
     color: palette.colors,
     title: baseTitle,
     legend: {
-      show: showLegend,
-      data: [primaryField, secondaryField],
-      textStyle: { fontFamily: font, fontSize: fontSize - 1, color: palette.text }
+      ...baseLegend,
+      data: [primaryField, secondaryField]
     },
     tooltip: { ...baseTooltip, formatter: (p: any) => p.dataType === 'edge' ? `${p.data.source} → ${p.data.target}: ${p.data.value} papers` : p.name },
     series: [{

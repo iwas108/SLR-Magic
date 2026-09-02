@@ -80,6 +80,10 @@ export function ScientificAxisConfigPanel() {
     setAxisLabelFontWeightX,
     axisLabelFontWeightY = 'normal',
     setAxisLabelFontWeightY,
+    axisLabelFontStyleX = 'normal',
+    setAxisLabelFontStyleX,
+    axisLabelFontStyleY = 'normal',
+    setAxisLabelFontStyleY,
     axisLabelColorX = '',
     setAxisLabelColorX,
     axisLabelColorY = '',
@@ -137,7 +141,7 @@ export function ScientificAxisConfigPanel() {
 
   const [subTab, setSubTab] = useState<AxisPanelSubTab>('titles');
 
-  const isHorizontal = chartType === 'bar_horizontal' || (chartType === 'clustered_bar' && barOrientation === 'horizontal');
+  const isHorizontal = chartType === 'bar_horizontal' || chartType === 'horizontal_bar_scatter' || (chartType === 'clustered_bar' && barOrientation === 'horizontal');
 
   const defaultMetricTitle = metricMode === 'paper_prevalence'
     ? 'Prevalence (% of Cohort)'
@@ -285,7 +289,7 @@ export function ScientificAxisConfigPanel() {
                   <input
                     type="range"
                     min={8}
-                    max={20}
+                    max={32}
                     value={axisTitleFontSizeX}
                     onChange={(e) => setAxisTitleFontSizeX(Number(e.target.value))}
                     className="w-full accent-primary"
@@ -333,8 +337,8 @@ export function ScientificAxisConfigPanel() {
                   <label className="font-bold text-muted-foreground block">Gap ({axisTitleGapX}px)</label>
                   <input
                     type="range"
-                    min={10}
-                    max={120}
+                    min={5}
+                    max={240}
                     value={axisTitleGapX}
                     onChange={(e) => setAxisTitleGapX(Number(e.target.value))}
                     className="w-full accent-primary"
@@ -379,7 +383,7 @@ export function ScientificAxisConfigPanel() {
                   <input
                     type="range"
                     min={8}
-                    max={20}
+                    max={32}
                     value={axisTitleFontSizeY}
                     onChange={(e) => setAxisTitleFontSizeY(Number(e.target.value))}
                     className="w-full accent-primary"
@@ -427,8 +431,8 @@ export function ScientificAxisConfigPanel() {
                   <label className="font-bold text-muted-foreground block">Gap ({axisTitleGapY}px)</label>
                   <input
                     type="range"
-                    min={10}
-                    max={120}
+                    min={5}
+                    max={240}
                     value={axisTitleGapY}
                     onChange={(e) => setAxisTitleGapY(Number(e.target.value))}
                     className="w-full accent-primary"
@@ -471,7 +475,7 @@ export function ScientificAxisConfigPanel() {
                     <input
                       type="range"
                       min={8}
-                      max={18}
+                      max={32}
                       value={axisLabelFontSizeX}
                       onChange={(e) => setAxisLabelFontSizeX(Number(e.target.value))}
                       className="w-full accent-primary"
@@ -516,17 +520,51 @@ export function ScientificAxisConfigPanel() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px] pt-1">
                   <div className="space-y-1">
-                    <label className="font-bold text-muted-foreground block">Tick Margin ({axisLabelMarginX}px)</label>
-                    <input
-                      type="range"
-                      min={2}
-                      max={35}
-                      value={axisLabelMarginX}
-                      onChange={(e) => setAxisLabelMarginX(Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
+                    <label className="font-bold text-muted-foreground block">Font Weight</label>
+                    <select
+                      value={axisLabelFontWeightX}
+                      onChange={(e) => setAxisLabelFontWeightX(e.target.value as AxisFontWeight)}
+                      className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="bold">Bold</option>
+                      <option value="500">Medium (500)</option>
+                      <option value="600">SemiBold (600)</option>
+                      <option value="700">ExtraBold (700)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Font Style</label>
+                    <select
+                      value={axisLabelFontStyleX}
+                      onChange={(e) => setAxisLabelFontStyleX(e.target.value as AxisFontStyle)}
+                      className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                    >
+                      <option value="normal">Plain / Upright</option>
+                      <option value="italic">Italic</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Text Color</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={axisLabelColorX || '#111827'}
+                        onChange={(e) => setAxisLabelColorX(e.target.value)}
+                        className="w-6 h-6 rounded border border-border cursor-pointer bg-transparent p-0"
+                      />
+                      <input
+                        type="text"
+                        value={axisLabelColorX}
+                        onChange={(e) => setAxisLabelColorX(e.target.value)}
+                        placeholder="Theme Default"
+                        className="w-full bg-card border border-border rounded px-1.5 py-0.5 text-[11px] font-mono font-bold text-foreground"
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -547,6 +585,20 @@ export function ScientificAxisConfigPanel() {
                       <option value="7">Every 8th (0, 8, 16, ...)</option>
                       <option value="11">Every 12th (0, 12, 24, ...)</option>
                     </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Tick Margin ({axisLabelMarginX}px)</label>
+                    <input
+                      type="range"
+                      min={2}
+                      max={100}
+                      value={axisLabelMarginX}
+                      onChange={(e) => setAxisLabelMarginX(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
                   </div>
                 </div>
 
@@ -606,56 +658,118 @@ export function ScientificAxisConfigPanel() {
             </div>
 
             {showAxisLabelY && (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Label Size ({axisLabelFontSizeY}px)</label>
-                  <input
-                    type="range"
-                    min={8}
-                    max={18}
-                    value={axisLabelFontSizeY}
-                    onChange={(e) => setAxisLabelFontSizeY(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Label Size ({axisLabelFontSizeY}px)</label>
+                    <input
+                      type="range"
+                      min={8}
+                      max={32}
+                      value={axisLabelFontSizeY}
+                      onChange={(e) => setAxisLabelFontSizeY(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Max Width ({axisLabelWidthY}px)</label>
+                    <input
+                      type="range"
+                      min={80}
+                      max={320}
+                      value={axisLabelWidthY}
+                      onChange={(e) => setAxisLabelWidthY(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Line Height ({axisLabelLineHeightY}px)</label>
+                    <input
+                      type="range"
+                      min={10}
+                      max={28}
+                      value={axisLabelLineHeightY}
+                      onChange={(e) => setAxisLabelLineHeightY(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Overflow Wrap</label>
+                    <select
+                      value={axisLabelOverflowY}
+                      onChange={(e) => setAxisLabelOverflowY(e.target.value as any)}
+                      className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                    >
+                      <option value="break">Word Wrap</option>
+                      <option value="truncate">Truncate (...)</option>
+                      <option value="none">Full Length</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Max Width ({axisLabelWidthY}px)</label>
-                  <input
-                    type="range"
-                    min={80}
-                    max={320}
-                    value={axisLabelWidthY}
-                    onChange={(e) => setAxisLabelWidthY(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px] pt-1">
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Font Weight</label>
+                    <select
+                      value={axisLabelFontWeightY}
+                      onChange={(e) => setAxisLabelFontWeightY(e.target.value as AxisFontWeight)}
+                      className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="bold">Bold</option>
+                      <option value="500">Medium (500)</option>
+                      <option value="600">SemiBold (600)</option>
+                      <option value="700">ExtraBold (700)</option>
+                    </select>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Line Height ({axisLabelLineHeightY}px)</label>
-                  <input
-                    type="range"
-                    min={10}
-                    max={28}
-                    value={axisLabelLineHeightY}
-                    onChange={(e) => setAxisLabelLineHeightY(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Font Style</label>
+                    <select
+                      value={axisLabelFontStyleY}
+                      onChange={(e) => setAxisLabelFontStyleY(e.target.value as AxisFontStyle)}
+                      className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                    >
+                      <option value="normal">Plain / Upright</option>
+                      <option value="italic">Italic</option>
+                    </select>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Overflow Wrap</label>
-                  <select
-                    value={axisLabelOverflowY}
-                    onChange={(e) => setAxisLabelOverflowY(e.target.value as any)}
-                    className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
-                  >
-                    <option value="break">Word Wrap</option>
-                    <option value="truncate">Truncate (...)</option>
-                    <option value="none">Full Length</option>
-                  </select>
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Text Color</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={axisLabelColorY || '#111827'}
+                        onChange={(e) => setAxisLabelColorY(e.target.value)}
+                        className="w-6 h-6 rounded border border-border cursor-pointer bg-transparent p-0"
+                      />
+                      <input
+                        type="text"
+                        value={axisLabelColorY}
+                        onChange={(e) => setAxisLabelColorY(e.target.value)}
+                        placeholder="Theme Default"
+                        className="w-full bg-card border border-border rounded px-1.5 py-0.5 text-[11px] font-mono font-bold text-foreground"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Tick Margin ({axisLabelMarginY}px)</label>
+                    <input
+                      type="range"
+                      min={2}
+                      max={100}
+                      value={axisLabelMarginY}
+                      onChange={(e) => setAxisLabelMarginY(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>

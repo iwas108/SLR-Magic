@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import db, { getConfig } from '@/lib/db';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const projects = db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as any[];
+    const { searchParams } = new URL(request.url);
+    const includeAllStats = searchParams.get('allStats') === 'true';
     const activeProjectId = getConfig('ACTIVE_PROJECT_ID', '');
+    const projects = db.prepare('SELECT * FROM projects ORDER BY created_at DESC').all() as any[];
     
     const projectsWithStats = projects.map(proj => {
+      const isTarget = includeAllStats || String(proj.id) === String(activeProjectId);
+
       const stats = db.prepare(`
         SELECT 
           COUNT(CASE WHEN is_duplicate IS NULL OR is_duplicate = 0 THEN 1 END) as total,
@@ -19,6 +23,44 @@ export async function GET() {
           SUM(CASE WHEN is_duplicate = 1 THEN 1 ELSE 0 END) as duplicates
         FROM papers WHERE (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
       `).get(proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id, proj.id) as any;
+
+      // Calculate live spend from llm_audit_log and umbrellanizer_results (fast index-backed aggregation)
+      const liveSpendRow = db.prepare(`
+        SELECT COALESCE(SUM(cost_usd), 0.0) as live_spend
+        FROM (
+          SELECT cost_usd FROM llm_audit_log WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          UNION ALL
+          SELECT cost_usd FROM umbrellanizer_results WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+        )
+      `).get(proj.id, proj.id, proj.id, proj.id) as { live_spend: number } | undefined;
+
+      const currentSpend = liveSpendRow ? Number(liveSpendRow.live_spend || 0) : 0;
+
+      if (!isTarget) {
+        return {
+          ...proj,
+          project_current_spend: currentSpend,
+          stats: stats ? {
+            ...stats,
+            tagStats: { pool_a: {}, pool_b: {}, pool_c: {} },
+            stageStats: {
+              '1': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} },
+              '2': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} },
+              '3': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} },
+              '4': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} }
+            }
+          } : {
+            total: 0, screened: 0, acquired: 0, synced: 0, pool_a_count: 0, pool_b_count: 0, pool_c_count: 0,
+            tagStats: { pool_a: {}, pool_b: {}, pool_c: {} },
+            stageStats: {
+              '1': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} },
+              '2': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} },
+              '3': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} },
+              '4': { included: 0, excluded: 0, unprocessed: 0, total: 0, ecBreakdown: {} }
+            }
+          }
+        };
+      }
 
       const tagRows = db.prepare(`
         SELECT calibration_pool, calibration_tag, COUNT(*) as count 
@@ -436,18 +478,6 @@ export async function GET() {
 
       stageStats['4'].unprocessed = stage4Unprocessed.count;
       stageStats['4'].total = stageStats['4'].included + stageStats['4'].excluded + stageStats['4'].unprocessed;
-
-      // Calculate live spend from llm_audit_log and umbrellanizer_results
-      const liveSpendRow = db.prepare(`
-        SELECT COALESCE(SUM(cost_usd), 0.0) as live_spend
-        FROM (
-          SELECT cost_usd FROM llm_audit_log WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
-          UNION ALL
-          SELECT cost_usd FROM umbrellanizer_results WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT)
-        )
-      `).get(proj.id, proj.id) as { live_spend: number } | undefined;
-
-      const currentSpend = liveSpendRow ? Number(liveSpendRow.live_spend || 0) : 0;
 
       return {
         ...proj,

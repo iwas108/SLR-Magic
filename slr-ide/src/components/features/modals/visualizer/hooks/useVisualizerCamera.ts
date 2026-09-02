@@ -11,7 +11,7 @@ export function useVisualizerCamera() {
   const [tiltAngle, setTiltAngle] = useState<number>(0); // 0° (flat) to 60° 3D perspective pitch tilt
   const [rotationAngle, setRotationAngle] = useState<number>(0); // 0° to 360° Z-axis rotation angle
   const [isCameraOverlayMinimized, setIsCameraOverlayMinimized] = useState<boolean>(false);
-  const [isCameraOverlayHidden, setIsCameraOverlayHidden] = useState<boolean>(false);
+  const [isCameraOverlayHidden, setIsCameraOverlayHidden] = useState<boolean>(true);
 
   // In-Frame Chart Fitting Point & Safe Margin Insets
   const [fitOffsetX, setFitOffsetX] = useState<number>(0); // -50% to +50% horizontal chart focal center

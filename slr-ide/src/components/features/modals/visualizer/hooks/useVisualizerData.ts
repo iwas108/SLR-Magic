@@ -245,7 +245,17 @@ export function useVisualizerData(params: {
     } else {
       papers.forEach(p => {
         const paperId = safeString(p.Paper_ID || p.id || p.Title || p.title || 'unknown');
-        const vals = getMappedFieldValue(p, primaryField, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, levelIdx: 0 });
+        const vals = getMappedFieldValue(p, primaryField, { 
+          ...extractOpts, 
+          customCategoryMap, 
+          levelCustomGroups,
+          levelCustomGroupLinks, 
+          levelTargetFields,
+          subFieldKey: levelTargetFields?.[0],
+          sankeyFields, 
+          primaryField, 
+          levelIdx: 0 
+        });
         vals.forEach(rawV => {
           const v = safeString(rawV);
           if (!v || v === '[object Object]') return;
@@ -315,7 +325,7 @@ export function useVisualizerData(params: {
     const isMultiLabel = totalItems > totalCohortPapers;
 
     return { rows, totalItems, totalCohortPapers, activeSum, isMultiLabel };
-  }, [papers, chartType, sankeyFields, primaryField, useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroupLinks, manualCategoryValues, enableManualOverrides, currentSlotConfig.metricMode]);
+  }, [papers, chartType, sankeyFields, primaryField, useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroups, levelCustomGroupLinks, levelTargetFields, manualCategoryValues, enableManualOverrides, currentSlotConfig.metricMode]);
 
   // Autofill / Normalize percentages to 100%
   const normalizePercentages = useCallback(() => {

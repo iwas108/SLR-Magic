@@ -71,7 +71,8 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
     countsMap,
     limitCategories,
     maxCategoriesCount,
-    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
+    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags),
+    ctx.otherCategoryLabel || 'Other'
   );
 
   const pieData = Array.from(activeCountsMap.entries()).map(([cat, pList], idx) => {
@@ -154,7 +155,9 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
     position: isInside ? 'inside' : 'outside',
     fontFamily: font,
     fontSize: isInside ? Math.max(10, fontSize - 2) : Math.max(10, fontSize - 1),
-    color: isInside ? '#ffffff' : palette.text,
+    fontWeight: (ctx.pieLabelFontWeight as any) || (isInside ? 'bold' : 'normal'),
+    fontStyle: (ctx.pieLabelFontStyle as any) || 'normal',
+    color: ctx.pieLabelColor ? ctx.pieLabelColor : (isInside ? '#ffffff' : palette.text),
     width: isInside ? undefined : pieLabelWidth,
     overflow: 'break',
     lineHeight: pieLineHeight ?? 15,

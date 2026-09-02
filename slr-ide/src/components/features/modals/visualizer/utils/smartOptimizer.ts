@@ -158,6 +158,51 @@ export function optimizeSlotConfig(
       break;
     }
 
+    case 'horizontal_bar_scatter': {
+      config.barSorting = 'desc';
+      config.showDataLabels = false;
+      config.barBorderRadius = 4;
+      config.barThickness = 24;
+      config.barGap = 20;
+      config.showLegend = true;
+      config.legendPosition = 'bottom';
+      config.scatterSymbol = 'diamond';
+      config.scatterSymbolSize = 14;
+      config.scatterColor = config.scatterColor || '#d9534f';
+      config.scatterBorderColor = config.scatterBorderColor || '#900';
+      config.scatterBorderWidth = 1.5;
+      config.scatterAxisTitle = config.scatterAxisTitle || 'Boundary Disclosure (%)';
+      config.scatterAxisMin = 0;
+      config.scatterAxisMax = 100;
+      config.scatterAxisInterval = 25;
+      config.barValueCeiling = config.barValueCeiling === 'auto' ? 40 : config.barValueCeiling;
+      config.barValueInterval = config.barValueInterval === 'auto' ? 10 : config.barValueInterval;
+      config.barSeriesName = config.barSeriesName || 'Cohort Prevalence (%)';
+      config.scatterSeriesName = config.scatterSeriesName || 'Boundary Disclosure Rate (%)';
+
+      if (maxLabelLength > 30) {
+        config.barYAxisWidth = 180;
+        config.barYAxisOverflow = 'break';
+        config.barLineHeight = 13;
+        config.barYAxisFontSize = 10;
+      } else if (maxLabelLength > 18) {
+        config.barYAxisWidth = 150;
+        config.barYAxisOverflow = 'break';
+        config.barLineHeight = 14;
+        config.barYAxisFontSize = 11;
+      } else {
+        config.barYAxisWidth = 130;
+        config.barYAxisOverflow = 'none';
+        config.barYAxisFontSize = 11;
+      }
+
+      if (uniqueCategoryCount > 15 && !config.limitCategories) {
+        config.limitCategories = true;
+        config.maxCategoriesCount = 12;
+      }
+      break;
+    }
+
     case 'bar_vertical': {
       config.barSorting = 'desc';
       config.showDataLabels = true;

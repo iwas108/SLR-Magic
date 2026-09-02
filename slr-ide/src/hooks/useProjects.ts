@@ -48,14 +48,8 @@ export function useProjects(showToast: (msg: string, type: 'success' | 'error' |
       }
     });
 
-    const handleFocus = () => {
-      loadProjects();
-    };
-    window.addEventListener('focus', handleFocus);
-
     return () => {
       unsubSync();
-      window.removeEventListener('focus', handleFocus);
     };
   }, [loadProjects]);
 

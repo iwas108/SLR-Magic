@@ -159,7 +159,20 @@ export interface ExportMultiPanelOptions {
   chartSubtitle: string;
   showChartTitle: boolean;
   showChartSubtitle: boolean;
+  titleFontSize?: number;
+  titleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700' | '800' | '900';
+  titleFontStyle?: 'normal' | 'italic';
+  titleColor?: string;
+  titleAlign?: 'left' | 'center' | 'right';
+  subtitleFontSize?: number;
+  subtitleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700';
+  subtitleFontStyle?: 'normal' | 'italic';
+  subtitleColor?: string;
+  subtitleLineHeight?: number;
+  titleGap?: number;
   subfigureLabelStyle: SubfigureLabelStyle;
+  subfigureLabelFontSize?: number;
+  subfigureLabelFontWeight?: 'normal' | 'bold' | '800';
   panelGutter: number;
   showPanelBorders: boolean;
   aspectRatio?: AspectRatioPreset;
@@ -460,7 +473,20 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
     chartSubtitle,
     showChartTitle,
     showChartSubtitle,
+    titleFontSize,
+    titleFontWeight = 'bold',
+    titleFontStyle = 'normal',
+    titleColor,
+    titleAlign = 'center',
+    subtitleFontSize,
+    subtitleFontWeight = 'normal',
+    subtitleFontStyle = 'normal',
+    subtitleColor,
+    subtitleLineHeight = 16,
+    titleGap = 4,
     subfigureLabelStyle,
+    subfigureLabelFontSize,
+    subfigureLabelFontWeight = 'bold',
     panelGutter,
     showPanelBorders,
     aspectRatio = '16:9',
@@ -488,8 +514,13 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
     1200
   );
 
+  const effectiveTitleSize = titleFontSize || (fontSize + 5);
+  const effectiveSubtitleSize = subtitleFontSize || fontSize;
+
   const hasMainHeader = (showChartTitle && chartTitle) || (showChartSubtitle && chartSubtitle);
-  const headerHeight = hasMainHeader ? 70 : 0;
+  const headerHeight = hasMainHeader 
+    ? Math.max(50, ((showChartTitle && chartTitle ? effectiveTitleSize + 12 : 0) + (showChartSubtitle && chartSubtitle ? effectiveSubtitleSize + subtitleLineHeight + titleGap : 0)))
+    : 0;
   const outerPadding = typeof options.containerPadding === 'number' ? options.containerPadding : 20;
 
   const stageWidth = baseWidth - outerPadding * 2;
@@ -517,19 +548,23 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
 
     // Render Global Figure Title & Subtitle Header
     if (hasMainHeader) {
-      ctx.fillStyle = palette.text;
-      ctx.textAlign = 'center';
+      const alignX = titleAlign === 'left' ? outerPadding : titleAlign === 'right' ? baseWidth - outerPadding : baseWidth / 2;
+      ctx.textAlign = titleAlign as CanvasTextAlign;
       ctx.textBaseline = 'top';
 
+      let currentHeaderY = outerPadding;
+
       if (showChartTitle && chartTitle) {
-        ctx.font = `bold ${fontSize + 5}px ${font}`;
-        ctx.fillText(chartTitle, baseWidth / 2, outerPadding);
+        ctx.fillStyle = titleColor || palette.text;
+        ctx.font = `${titleFontStyle} ${titleFontWeight} ${effectiveTitleSize}px ${font}`;
+        ctx.fillText(chartTitle, alignX, currentHeaderY);
+        currentHeaderY += effectiveTitleSize + titleGap;
       }
 
       if (showChartSubtitle && chartSubtitle) {
-        ctx.fillStyle = palette.subtext || '#64748b';
-        ctx.font = `${fontSize}px ${font}`;
-        ctx.fillText(chartSubtitle, baseWidth / 2, outerPadding + (showChartTitle ? fontSize + 9 : 0));
+        ctx.fillStyle = subtitleColor || palette.subtext || '#64748b';
+        ctx.font = `${subtitleFontStyle} ${subtitleFontWeight} ${effectiveSubtitleSize}px ${font}`;
+        ctx.fillText(chartSubtitle, alignX, currentHeaderY);
       }
     }
 
@@ -541,28 +576,29 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
 
       const drawX = outerPadding + rect.x;
       const drawY = outerPadding + headerHeight + rect.y;
+      const isSingleLayout = layoutMode === 'single' || activeSlotsList.length <= 1;
 
       // Panel Background & Border
-      if (showPanelBorders) {
+      if (showPanelBorders && !isSingleLayout) {
         ctx.strokeStyle = palette.border || '#cbd5e1';
         ctx.lineWidth = 1.2;
         ctx.strokeRect(drawX, drawY, rect.width, rect.height);
       }
 
       // Subfigure Label Badge (e.g. "(a) RQ1 Computational Topologies")
-      const subLabel = formatSubfigureLabel(index, subfigureLabelStyle);
+      const subLabel = formatSubfigureLabel(index, subfigureLabelStyle, isSingleLayout);
       const cfg = slotsConfig[slotId];
       const panelTitle = cfg?.subTitle ? `${subLabel ? `${subLabel} ` : ''}${cfg.subTitle}` : subLabel;
 
-      if (panelTitle && layoutMode !== 'single') {
+      if (panelTitle && !isSingleLayout) {
         ctx.fillStyle = palette.text;
-        ctx.font = `bold ${fontSize + 1}px ${font}`;
+        ctx.font = `${subfigureLabelFontWeight} ${subfigureLabelFontSize || (fontSize + 1)}px ${font}`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(panelTitle, drawX + 8, drawY + 8);
       }
 
-      const chartOffsetY = (panelTitle && layoutMode !== 'single') ? 26 : 4;
+      const chartOffsetY = (panelTitle && !isSingleLayout) ? 26 : 4;
       const chartW = Math.round(rect.width - 8);
       const chartH = Math.round(rect.height - chartOffsetY - 4);
 
@@ -716,11 +752,18 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
     svgContent += `  <rect width="100%" height="100%" fill="${bg}" />\n`;
 
     if (hasMainHeader) {
+      const alignX = titleAlign === 'left' ? outerPadding : titleAlign === 'right' ? baseWidth - outerPadding : baseWidth / 2;
+      const textAnchor = titleAlign === 'left' ? 'start' : titleAlign === 'right' ? 'end' : 'middle';
+      let currentHeaderY = outerPadding;
+
       if (showChartTitle && chartTitle) {
-        svgContent += `  <text x="${baseWidth / 2}" y="${outerPadding + fontSize + 4}" text-anchor="middle" font-family="${font}" font-size="${fontSize + 5}" font-weight="bold" fill="${palette.text}">${chartTitle}</text>\n`;
+        currentHeaderY += effectiveTitleSize;
+        svgContent += `  <text x="${alignX}" y="${currentHeaderY}" text-anchor="${textAnchor}" font-family="${font}" font-size="${effectiveTitleSize}" font-weight="${titleFontWeight}" font-style="${titleFontStyle}" fill="${titleColor || palette.text}">${chartTitle}</text>\n`;
+        currentHeaderY += titleGap;
       }
       if (showChartSubtitle && chartSubtitle) {
-        svgContent += `  <text x="${baseWidth / 2}" y="${outerPadding + (showChartTitle ? fontSize + 22 : fontSize + 4)}" text-anchor="middle" font-family="${font}" font-size="${fontSize}" fill="${palette.subtext || '#64748b'}">${chartSubtitle}</text>\n`;
+        currentHeaderY += effectiveSubtitleSize;
+        svgContent += `  <text x="${alignX}" y="${currentHeaderY}" text-anchor="${textAnchor}" font-family="${font}" font-size="${effectiveSubtitleSize}" font-weight="${subtitleFontWeight}" font-style="${subtitleFontStyle}" fill="${subtitleColor || palette.subtext || '#64748b'}">${chartSubtitle}</text>\n`;
       }
     }
 
@@ -731,20 +774,21 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
 
       const drawX = outerPadding + rect.x;
       const drawY = outerPadding + headerHeight + rect.y;
+      const isSingleLayout = layoutMode === 'single' || activeSlotsList.length <= 1;
 
-      if (showPanelBorders) {
+      if (showPanelBorders && !isSingleLayout) {
         svgContent += `  <rect x="${drawX}" y="${drawY}" width="${rect.width}" height="${rect.height}" fill="none" stroke="${palette.border || '#cbd5e1'}" stroke-width="1.2" />\n`;
       }
 
-      const subLabel = formatSubfigureLabel(index, subfigureLabelStyle);
+      const subLabel = formatSubfigureLabel(index, subfigureLabelStyle, isSingleLayout);
       const cfg = slotsConfig[slotId];
       const panelTitle = cfg?.subTitle ? `${subLabel ? `${subLabel} ` : ''}${cfg.subTitle}` : subLabel;
 
-      if (panelTitle && layoutMode !== 'single') {
-        svgContent += `  <text x="${drawX + 8}" y="${drawY + fontSize + 6}" font-family="${font}" font-size="${fontSize + 1}" font-weight="bold" fill="${palette.text}">${panelTitle}</text>\n`;
+      if (panelTitle && !isSingleLayout) {
+        svgContent += `  <text x="${drawX + 8}" y="${drawY + (subfigureLabelFontSize || fontSize + 1) + 4}" font-family="${font}" font-size="${subfigureLabelFontSize || (fontSize + 1)}" font-weight="${subfigureLabelFontWeight}" fill="${palette.text}">${panelTitle}</text>\n`;
       }
 
-      const chartOffsetY = (panelTitle && layoutMode !== 'single') ? 26 : 4;
+      const chartOffsetY = (panelTitle && !isSingleLayout) ? 26 : 4;
       const chartW = Math.round(rect.width - 8);
       const chartH = Math.round(rect.height - chartOffsetY - 4);
 

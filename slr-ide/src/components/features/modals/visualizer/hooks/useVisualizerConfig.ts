@@ -415,6 +415,12 @@ export function useVisualizerConfig(params: {
   const axisLabelFontWeightY = currentSlotConfig.axisLabelFontWeightY || 'normal';
   const setAxisLabelFontWeightY = useCallback((v: AxisFontWeight) => updateActiveSlot({ axisLabelFontWeightY: v }), [updateActiveSlot]);
 
+  const axisLabelFontStyleX = currentSlotConfig.axisLabelFontStyleX || 'normal';
+  const setAxisLabelFontStyleX = useCallback((v: AxisFontStyle) => updateActiveSlot({ axisLabelFontStyleX: v }), [updateActiveSlot]);
+
+  const axisLabelFontStyleY = currentSlotConfig.axisLabelFontStyleY || 'normal';
+  const setAxisLabelFontStyleY = useCallback((v: AxisFontStyle) => updateActiveSlot({ axisLabelFontStyleY: v }), [updateActiveSlot]);
+
   const axisLabelColorX = currentSlotConfig.axisLabelColorX || '';
   const setAxisLabelColorX = useCallback((v: string) => updateActiveSlot({ axisLabelColorX: v }), [updateActiveSlot]);
 
@@ -511,6 +517,15 @@ export function useVisualizerConfig(params: {
 
   const barYAxisFontSize = currentSlotConfig.barYAxisFontSize ?? 11;
   const setBarYAxisFontSize = useCallback((v: number) => updateActiveSlot({ barYAxisFontSize: v }), [updateActiveSlot]);
+
+  const barYAxisFontWeight = currentSlotConfig.barYAxisFontWeight || 'normal';
+  const setBarYAxisFontWeight = useCallback((v: AxisFontWeight) => updateActiveSlot({ barYAxisFontWeight: v, axisLabelFontWeightY: v }), [updateActiveSlot]);
+
+  const barYAxisFontStyle = currentSlotConfig.barYAxisFontStyle || 'normal';
+  const setBarYAxisFontStyle = useCallback((v: AxisFontStyle) => updateActiveSlot({ barYAxisFontStyle: v, axisLabelFontStyleY: v }), [updateActiveSlot]);
+
+  const barYAxisColor = currentSlotConfig.barYAxisColor || '';
+  const setBarYAxisColor = useCallback((v: string) => updateActiveSlot({ barYAxisColor: v, axisLabelColorY: v }), [updateActiveSlot]);
 
   const barBenchmarkLine = currentSlotConfig.barBenchmarkLine;
   const setBarBenchmarkLine = useCallback((v: boolean) => updateActiveSlot({ barBenchmarkLine: v }), [updateActiveSlot]);
@@ -617,6 +632,9 @@ export function useVisualizerConfig(params: {
   const legendWidth = currentSlotConfig.legendWidth;
   const setLegendWidth = useCallback((v?: number) => updateActiveSlot({ legendWidth: v }), [updateActiveSlot]);
 
+  const legendWrapWidth = currentSlotConfig.legendWrapWidth ?? 120;
+  const setLegendWrapWidth = useCallback((v: number) => updateActiveSlot({ legendWrapWidth: v }), [updateActiveSlot]);
+
   const legendLineHeight = currentSlotConfig.legendLineHeight ?? 15;
   const setLegendLineHeight = useCallback((v: number) => updateActiveSlot({ legendLineHeight: v }), [updateActiveSlot]);
 
@@ -625,6 +643,9 @@ export function useVisualizerConfig(params: {
 
   const legendFontSize = currentSlotConfig.legendFontSize;
   const setLegendFontSize = useCallback((v?: number) => updateActiveSlot({ legendFontSize: v }), [updateActiveSlot]);
+
+  const legendFontStyle = currentSlotConfig.legendFontStyle || 'normal';
+  const setLegendFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ legendFontStyle: v }), [updateActiveSlot]);
 
   const legendOverflow = currentSlotConfig.legendOverflow || 'break';
   const setLegendOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ legendOverflow: v }), [updateActiveSlot]);
@@ -1062,6 +1083,163 @@ export function useVisualizerConfig(params: {
   const stackedNormalized = currentSlotConfig.stackedNormalized ?? false;
   const setStackedNormalized = useCallback((v: boolean) => updateActiveSlot({ stackedNormalized: v }), [updateActiveSlot]);
 
+  // Dual-Axis & Horizontal Bar + Scatter Combo Parameters
+  const scatterAxisTitle = currentSlotConfig.scatterAxisTitle || 'Boundary Disclosure (%)';
+  const setScatterAxisTitle = useCallback((v: string) => updateActiveSlot({ scatterAxisTitle: v }), [updateActiveSlot]);
+
+  const scatterAxisMin = currentSlotConfig.scatterAxisMin ?? 0;
+  const setScatterAxisMin = useCallback((v: number) => updateActiveSlot({ scatterAxisMin: v }), [updateActiveSlot]);
+
+  const scatterAxisMax = currentSlotConfig.scatterAxisMax ?? 100;
+  const setScatterAxisMax = useCallback((v: number) => updateActiveSlot({ scatterAxisMax: v }), [updateActiveSlot]);
+
+  const scatterAxisInterval = currentSlotConfig.scatterAxisInterval ?? 25;
+  const setScatterAxisInterval = useCallback((v: number) => updateActiveSlot({ scatterAxisInterval: v }), [updateActiveSlot]);
+
+  const scatterSeriesName = currentSlotConfig.scatterSeriesName || 'Boundary Disclosure Rate (%)';
+  const setScatterSeriesName = useCallback((v: string) => updateActiveSlot({ scatterSeriesName: v }), [updateActiveSlot]);
+
+  const barSeriesName = currentSlotConfig.barSeriesName || 'Cohort Prevalence (%)';
+  const setBarSeriesName = useCallback((v: string) => updateActiveSlot({ barSeriesName: v }), [updateActiveSlot]);
+
+  const scatterSymbol = currentSlotConfig.scatterSymbol || 'diamond';
+  const setScatterSymbol = useCallback((v: 'diamond' | 'circle' | 'rect' | 'triangle' | 'pin' | 'roundRect') => updateActiveSlot({ scatterSymbol: v }), [updateActiveSlot]);
+
+  const scatterSymbolSize = currentSlotConfig.scatterSymbolSize ?? 14;
+  const setScatterSymbolSize = useCallback((v: number) => updateActiveSlot({ scatterSymbolSize: v }), [updateActiveSlot]);
+
+  const scatterColor = currentSlotConfig.scatterColor || '#d9534f';
+  const setScatterColor = useCallback((v: string) => updateActiveSlot({ scatterColor: v }), [updateActiveSlot]);
+
+  const scatterBorderColor = currentSlotConfig.scatterBorderColor || '#900';
+  const setScatterBorderColor = useCallback((v: string) => updateActiveSlot({ scatterBorderColor: v }), [updateActiveSlot]);
+
+  const scatterBorderWidth = currentSlotConfig.scatterBorderWidth ?? 1.5;
+  const setScatterBorderWidth = useCallback((v: number) => updateActiveSlot({ scatterBorderWidth: v }), [updateActiveSlot]);
+
+  const scatterValues = currentSlotConfig.scatterValues || {};
+  const setScatterValues = useCallback((v: Record<string, number>) => updateActiveSlot({ scatterValues: v }), [updateActiveSlot]);
+
+  const scatterAxisNameGap = currentSlotConfig.scatterAxisNameGap ?? 28;
+  const setScatterAxisNameGap = useCallback((v: number) => updateActiveSlot({ scatterAxisNameGap: v }), [updateActiveSlot]);
+
+  const scatterShowDataLabels = currentSlotConfig.scatterShowDataLabels ?? false;
+  const setScatterShowDataLabels = useCallback((v: boolean) => updateActiveSlot({ scatterShowDataLabels: v }), [updateActiveSlot]);
+
+  const scatterLabelPosition = currentSlotConfig.scatterLabelPosition || 'top';
+  const setScatterLabelPosition = useCallback((v: 'top' | 'bottom' | 'right' | 'left' | 'inside') => updateActiveSlot({ scatterLabelPosition: v }), [updateActiveSlot]);
+
+  const scatterLabelFontSize = currentSlotConfig.scatterLabelFontSize ?? 11;
+  const setScatterLabelFontSize = useCallback((v: number) => updateActiveSlot({ scatterLabelFontSize: v }), [updateActiveSlot]);
+
+  const scatterLabelFontWeight = currentSlotConfig.scatterLabelFontWeight || 'bold';
+  const setScatterLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ scatterLabelFontWeight: v }), [updateActiveSlot]);
+
+  const scatterLabelFontStyle = currentSlotConfig.scatterLabelFontStyle || 'normal';
+  const setScatterLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ scatterLabelFontStyle: v }), [updateActiveSlot]);
+
+  const scatterLabelColor = currentSlotConfig.scatterLabelColor || '';
+  const setScatterLabelColor = useCallback((v: string) => updateActiveSlot({ scatterLabelColor: v }), [updateActiveSlot]);
+
+  const scatterLabelDistance = currentSlotConfig.scatterLabelDistance ?? 5;
+  const setScatterLabelDistance = useCallback((v: number) => updateActiveSlot({ scatterLabelDistance: v }), [updateActiveSlot]);
+
+  const pieLabelFontWeight = currentSlotConfig.pieLabelFontWeight || 'normal';
+  const setPieLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ pieLabelFontWeight: v }), [updateActiveSlot]);
+
+  const pieLabelFontStyle = currentSlotConfig.pieLabelFontStyle || 'normal';
+  const setPieLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ pieLabelFontStyle: v }), [updateActiveSlot]);
+
+  const pieLabelColor = currentSlotConfig.pieLabelColor || '';
+  const setPieLabelColor = useCallback((v: string) => updateActiveSlot({ pieLabelColor: v }), [updateActiveSlot]);
+
+  const radarLabelFontSize = currentSlotConfig.radarLabelFontSize ?? 11;
+  const setRadarLabelFontSize = useCallback((v: number) => updateActiveSlot({ radarLabelFontSize: v }), [updateActiveSlot]);
+
+  const radarLabelFontWeight = currentSlotConfig.radarLabelFontWeight || 'bold';
+  const setRadarLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ radarLabelFontWeight: v }), [updateActiveSlot]);
+
+  const radarLabelFontStyle = currentSlotConfig.radarLabelFontStyle || 'normal';
+  const setRadarLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ radarLabelFontStyle: v }), [updateActiveSlot]);
+
+  const radarLabelColor = currentSlotConfig.radarLabelColor || '';
+  const setRadarLabelColor = useCallback((v: string) => updateActiveSlot({ radarLabelColor: v }), [updateActiveSlot]);
+
+  const heatmapLabelFontSize = currentSlotConfig.heatmapLabelFontSize ?? 11;
+  const setHeatmapLabelFontSize = useCallback((v: number) => updateActiveSlot({ heatmapLabelFontSize: v }), [updateActiveSlot]);
+
+  const heatmapLabelFontWeight = currentSlotConfig.heatmapLabelFontWeight || 'bold';
+  const setHeatmapLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ heatmapLabelFontWeight: v }), [updateActiveSlot]);
+
+  const heatmapLabelFontStyle = currentSlotConfig.heatmapLabelFontStyle || 'normal';
+  const setHeatmapLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ heatmapLabelFontStyle: v }), [updateActiveSlot]);
+
+  const heatmapLabelColor = currentSlotConfig.heatmapLabelColor || '';
+  const setHeatmapLabelColor = useCallback((v: string) => updateActiveSlot({ heatmapLabelColor: v }), [updateActiveSlot]);
+
+  const treemapLabelFontSize = currentSlotConfig.treemapLabelFontSize ?? 12;
+  const setTreemapLabelFontSize = useCallback((v: number) => updateActiveSlot({ treemapLabelFontSize: v }), [updateActiveSlot]);
+
+  const treemapLabelFontWeight = currentSlotConfig.treemapLabelFontWeight || 'bold';
+  const setTreemapLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ treemapLabelFontWeight: v }), [updateActiveSlot]);
+
+  const treemapLabelFontStyle = currentSlotConfig.treemapLabelFontStyle || 'normal';
+  const setTreemapLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ treemapLabelFontStyle: v }), [updateActiveSlot]);
+
+  const treemapLabelColor = currentSlotConfig.treemapLabelColor || '';
+  const setTreemapLabelColor = useCallback((v: string) => updateActiveSlot({ treemapLabelColor: v }), [updateActiveSlot]);
+
+  const funnelLabelFontSize = currentSlotConfig.funnelLabelFontSize ?? 11;
+  const setFunnelLabelFontSize = useCallback((v: number) => updateActiveSlot({ funnelLabelFontSize: v }), [updateActiveSlot]);
+
+  const funnelLabelFontWeight = currentSlotConfig.funnelLabelFontWeight || 'bold';
+  const setFunnelLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ funnelLabelFontWeight: v }), [updateActiveSlot]);
+
+  const funnelLabelFontStyle = currentSlotConfig.funnelLabelFontStyle || 'normal';
+  const setFunnelLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ funnelLabelFontStyle: v }), [updateActiveSlot]);
+
+  const funnelLabelColor = currentSlotConfig.funnelLabelColor || '';
+  const setFunnelLabelColor = useCallback((v: string) => updateActiveSlot({ funnelLabelColor: v }), [updateActiveSlot]);
+
+  const boxplotLabelFontSize = currentSlotConfig.boxplotLabelFontSize ?? 11;
+  const setBoxplotLabelFontSize = useCallback((v: number) => updateActiveSlot({ boxplotLabelFontSize: v }), [updateActiveSlot]);
+
+  const boxplotLabelFontWeight = currentSlotConfig.boxplotLabelFontWeight || 'bold';
+  const setBoxplotLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ boxplotLabelFontWeight: v }), [updateActiveSlot]);
+
+  const boxplotLabelFontStyle = currentSlotConfig.boxplotLabelFontStyle || 'normal';
+  const setBoxplotLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ boxplotLabelFontStyle: v }), [updateActiveSlot]);
+
+  const boxplotLabelColor = currentSlotConfig.boxplotLabelColor || '';
+  const setBoxplotLabelColor = useCallback((v: string) => updateActiveSlot({ boxplotLabelColor: v }), [updateActiveSlot]);
+
+  const bubbleLabelFontWeight = currentSlotConfig.bubbleLabelFontWeight || 'bold';
+  const setBubbleLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ bubbleLabelFontWeight: v }), [updateActiveSlot]);
+
+  const bubbleLabelFontStyle = currentSlotConfig.bubbleLabelFontStyle || 'normal';
+  const setBubbleLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ bubbleLabelFontStyle: v }), [updateActiveSlot]);
+
+  const barColorCustom = currentSlotConfig.barColorCustom || '';
+  const setBarColorCustom = useCallback((v: string) => updateActiveSlot({ barColorCustom: v }), [updateActiveSlot]);
+
+  const barGridTop = currentSlotConfig.barGridTop ?? 115;
+  const setBarGridTop = useCallback((v: number) => updateActiveSlot({ barGridTop: v }), [updateActiveSlot]);
+
+  const barGridBottom = currentSlotConfig.barGridBottom ?? 75;
+  const setBarGridBottom = useCallback((v: number) => updateActiveSlot({ barGridBottom: v }), [updateActiveSlot]);
+
+  const barGridLeft = currentSlotConfig.barGridLeft ?? 20;
+  const setBarGridLeft = useCallback((v: number) => updateActiveSlot({ barGridLeft: v }), [updateActiveSlot]);
+
+  const barGridRight = currentSlotConfig.barGridRight ?? 12;
+  const setBarGridRight = useCallback((v: number) => updateActiveSlot({ barGridRight: v }), [updateActiveSlot]);
+
+  const scatterSortMode = currentSlotConfig.scatterSortMode || 'prevalence_desc';
+  const setScatterSortMode = useCallback((v: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset') => updateActiveSlot({ scatterSortMode: v }), [updateActiveSlot]);
+
+  const otherCategoryLabel = currentSlotConfig.otherCategoryLabel ?? '';
+  const setOtherCategoryLabel = useCallback((v: string) => updateActiveSlot({ otherCategoryLabel: v }), [updateActiveSlot]);
+
   return {
     currentStep,
     setCurrentStep,
@@ -1291,6 +1469,10 @@ export function useVisualizerConfig(params: {
     setAxisLabelFontWeightX,
     axisLabelFontWeightY,
     setAxisLabelFontWeightY,
+    axisLabelFontStyleX,
+    setAxisLabelFontStyleX,
+    axisLabelFontStyleY,
+    setAxisLabelFontStyleY,
     axisLabelColorX,
     setAxisLabelColorX,
     axisLabelColorY,
@@ -1364,6 +1546,12 @@ export function useVisualizerConfig(params: {
     setBarLineHeight,
     barYAxisFontSize,
     setBarYAxisFontSize,
+    barYAxisFontWeight,
+    setBarYAxisFontWeight,
+    barYAxisFontStyle,
+    setBarYAxisFontStyle,
+    barYAxisColor,
+    setBarYAxisColor,
     barBenchmarkLine,
     setBarBenchmarkLine,
     barBenchmarkValue,
@@ -1432,6 +1620,10 @@ export function useVisualizerConfig(params: {
     setLegendItemGap,
     legendFontSize,
     setLegendFontSize,
+    legendFontStyle,
+    setLegendFontStyle,
+    legendWrapWidth,
+    setLegendWrapWidth,
     legendOverflow,
     setLegendOverflow,
     customCategoryMap,
@@ -1721,6 +1913,110 @@ export function useVisualizerConfig(params: {
     calendarYear,
     setCalendarYear,
     stackedNormalized,
-    setStackedNormalized
+    setStackedNormalized,
+    scatterAxisTitle,
+    setScatterAxisTitle,
+    scatterAxisMin,
+    setScatterAxisMin,
+    scatterAxisMax,
+    setScatterAxisMax,
+    scatterAxisInterval,
+    setScatterAxisInterval,
+    scatterSeriesName,
+    setScatterSeriesName,
+    barSeriesName,
+    setBarSeriesName,
+    scatterSymbol,
+    setScatterSymbol,
+    scatterSymbolSize,
+    setScatterSymbolSize,
+    scatterColor,
+    setScatterColor,
+    scatterBorderColor,
+    setScatterBorderColor,
+    scatterBorderWidth,
+    setScatterBorderWidth,
+    scatterValues,
+    setScatterValues,
+    scatterAxisNameGap,
+    setScatterAxisNameGap,
+    scatterShowDataLabels,
+    setScatterShowDataLabels,
+    scatterLabelPosition,
+    setScatterLabelPosition,
+    scatterLabelFontSize,
+    setScatterLabelFontSize,
+    scatterLabelFontWeight,
+    setScatterLabelFontWeight,
+    scatterLabelFontStyle,
+    setScatterLabelFontStyle,
+    scatterLabelColor,
+    setScatterLabelColor,
+    scatterLabelDistance,
+    setScatterLabelDistance,
+    pieLabelFontWeight,
+    setPieLabelFontWeight,
+    pieLabelFontStyle,
+    setPieLabelFontStyle,
+    pieLabelColor,
+    setPieLabelColor,
+    radarLabelFontSize,
+    setRadarLabelFontSize,
+    radarLabelFontWeight,
+    setRadarLabelFontWeight,
+    radarLabelFontStyle,
+    setRadarLabelFontStyle,
+    radarLabelColor,
+    setRadarLabelColor,
+    heatmapLabelFontSize,
+    setHeatmapLabelFontSize,
+    heatmapLabelFontWeight,
+    setHeatmapLabelFontWeight,
+    heatmapLabelFontStyle,
+    setHeatmapLabelFontStyle,
+    heatmapLabelColor,
+    setHeatmapLabelColor,
+    treemapLabelFontSize,
+    setTreemapLabelFontSize,
+    treemapLabelFontWeight,
+    setTreemapLabelFontWeight,
+    treemapLabelFontStyle,
+    setTreemapLabelFontStyle,
+    treemapLabelColor,
+    setTreemapLabelColor,
+    funnelLabelFontSize,
+    setFunnelLabelFontSize,
+    funnelLabelFontWeight,
+    setFunnelLabelFontWeight,
+    funnelLabelFontStyle,
+    setFunnelLabelFontStyle,
+    funnelLabelColor,
+    setFunnelLabelColor,
+    boxplotLabelFontSize,
+    setBoxplotLabelFontSize,
+    boxplotLabelFontWeight,
+    setBoxplotLabelFontWeight,
+    boxplotLabelFontStyle,
+    setBoxplotLabelFontStyle,
+    boxplotLabelColor,
+    setBoxplotLabelColor,
+    bubbleLabelFontWeight,
+    setBubbleLabelFontWeight,
+    bubbleLabelFontStyle,
+    setBubbleLabelFontStyle,
+    barColorCustom,
+    setBarColorCustom,
+    barGridTop,
+    setBarGridTop,
+    barGridBottom,
+    setBarGridBottom,
+    barGridLeft,
+    setBarGridLeft,
+    barGridRight,
+    setBarGridRight,
+    scatterSortMode,
+    setScatterSortMode,
+    otherCategoryLabel,
+    setOtherCategoryLabel
   };
 }

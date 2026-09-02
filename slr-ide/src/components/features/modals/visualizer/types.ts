@@ -4,6 +4,7 @@ import type * as echarts from 'echarts';
 export type ChartType = 
   | 'bar_vertical'
   | 'bar_horizontal'
+  | 'horizontal_bar_scatter'
   | 'clustered_bar'
   | 'stacked_bar'
   | 'line'
@@ -408,6 +409,8 @@ export interface SlotConfig {
   axisLabelFontSizeY?: number;
   axisLabelFontWeightX?: AxisFontWeight;
   axisLabelFontWeightY?: AxisFontWeight;
+  axisLabelFontStyleX?: AxisFontStyle;
+  axisLabelFontStyleY?: AxisFontStyle;
   axisLabelColorX?: string;
   axisLabelColorY?: string;
   axisLabelRotateX?: number;
@@ -441,6 +444,9 @@ export interface SlotConfig {
   barYAxisOverflow: 'break' | 'truncate' | 'none';
   barLineHeight?: number;
   barYAxisFontSize?: number;
+  barYAxisFontWeight?: AxisFontWeight;
+  barYAxisFontStyle?: AxisFontStyle;
+  barYAxisColor?: string;
   barBenchmarkLine: boolean;
   barBenchmarkValue: number;
   barBenchmarkLabel: string;
@@ -485,9 +491,11 @@ export interface SlotConfig {
   barValueInterval?: number | 'auto';
   legendDistance?: number;
   legendWidth?: number;
+  legendWrapWidth?: number;
   legendLineHeight?: number;
   legendItemGap?: number;
   legendFontSize?: number;
+  legendFontStyle?: 'normal' | 'italic';
   legendOverflow?: 'break' | 'truncate' | 'none';
   fitOffsetX?: number;
   fitOffsetY?: number;
@@ -646,6 +654,64 @@ export interface SlotConfig {
   legendBorderWidth?: number;
   legendBorderRadius?: number;
   legendPadding?: number;
+  // Dual-Axis & Horizontal Bar + Scatter Combo Parameters
+  scatterAxisTitle?: string;
+  scatterAxisMin?: number;
+  scatterAxisMax?: number;
+  scatterAxisInterval?: number;
+  scatterAxisNameGap?: number;
+  scatterSeriesName?: string;
+  barSeriesName?: string;
+  scatterSymbol?: 'diamond' | 'circle' | 'rect' | 'triangle' | 'pin' | 'roundRect';
+  scatterSymbolSize?: number;
+  scatterColor?: string;
+  scatterBorderColor?: string;
+  scatterBorderWidth?: number;
+  scatterValues?: Record<string, number>;
+  scatterShowDataLabels?: boolean;
+  scatterLabelPosition?: 'top' | 'bottom' | 'right' | 'left' | 'inside';
+  scatterLabelFontSize?: number;
+  scatterLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  scatterLabelFontStyle?: 'normal' | 'italic';
+  scatterLabelColor?: string;
+  scatterLabelDistance?: number;
+  scatterLabelLineHeight?: number;
+  lineLabelFontSize?: number;
+  lineLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  lineLabelFontStyle?: 'normal' | 'italic';
+  lineLabelColor?: string;
+  pieLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  pieLabelFontStyle?: 'normal' | 'italic';
+  pieLabelColor?: string;
+  radarLabelFontSize?: number;
+  radarLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarLabelFontStyle?: 'normal' | 'italic';
+  radarLabelColor?: string;
+  heatmapLabelFontSize?: number;
+  heatmapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  heatmapLabelFontStyle?: 'normal' | 'italic';
+  heatmapLabelColor?: string;
+  treemapLabelFontSize?: number;
+  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapLabelFontStyle?: 'normal' | 'italic';
+  treemapLabelColor?: string;
+  funnelLabelFontSize?: number;
+  funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  funnelLabelFontStyle?: 'normal' | 'italic';
+  funnelLabelColor?: string;
+  boxplotLabelFontSize?: number;
+  boxplotLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  boxplotLabelFontStyle?: 'normal' | 'italic';
+  boxplotLabelColor?: string;
+  bubbleLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  bubbleLabelFontStyle?: 'normal' | 'italic';
+  barColorCustom?: string;
+  barGridTop?: number;
+  barGridBottom?: number;
+  barGridLeft?: number;
+  barGridRight?: number;
+  scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
+  otherCategoryLabel?: string;
 }
 
 export interface GlobalStyleConfig {
@@ -657,7 +723,20 @@ export interface GlobalStyleConfig {
   chartSubtitle: string;
   showChartTitle: boolean;
   showChartSubtitle: boolean;
+  titleFontSize?: number;
+  titleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700' | '800' | '900';
+  titleFontStyle?: 'normal' | 'italic';
+  titleColor?: string;
+  titleAlign?: 'left' | 'center' | 'right';
+  subtitleFontSize?: number;
+  subtitleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700';
+  subtitleFontStyle?: 'normal' | 'italic';
+  subtitleColor?: string;
+  subtitleLineHeight?: number;
+  titleGap?: number;
   subfigureLabelStyle: SubfigureLabelStyle;
+  subfigureLabelFontSize?: number;
+  subfigureLabelFontWeight?: 'normal' | 'bold' | '800';
   panelGutter: number;
   showPanelBorders: boolean;
   aspectRatio: AspectRatioPreset;
@@ -786,6 +865,8 @@ export interface VisualizerPresetPayload {
   axisLabelFontSizeY?: number;
   axisLabelFontWeightX?: AxisFontWeight;
   axisLabelFontWeightY?: AxisFontWeight;
+  axisLabelFontStyleX?: AxisFontStyle;
+  axisLabelFontStyleY?: AxisFontStyle;
   axisLabelColorX?: string;
   axisLabelColorY?: string;
   axisLabelRotateX?: number;
@@ -814,10 +895,21 @@ export interface VisualizerPresetPayload {
   gridLineOpacity?: number;
   barLabelPosition?: 'right' | 'inside' | 'insideLeft' | 'insideRight';
   barLabelFormat?: 'value' | 'value_pct' | 'pct_only';
+  barLabelFontSize?: number;
+  barLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  barLabelFontStyle?: 'normal' | 'italic';
+  barLabelColor?: string;
+  barLabelRotate?: number;
+  barLabelShowZero?: boolean;
+  barLabelMinThreshold?: number;
+  barLabelLineHeight?: number;
   barYAxisWidth?: number;
   barYAxisOverflow?: 'break' | 'truncate' | 'none';
   barLineHeight?: number;
   barYAxisFontSize?: number;
+  barYAxisFontWeight?: AxisFontWeight;
+  barYAxisFontStyle?: AxisFontStyle;
+  barYAxisColor?: string;
   barBenchmarkLine?: boolean;
   barBenchmarkValue?: number;
   barBenchmarkLabel?: string;
@@ -981,4 +1073,62 @@ export interface VisualizerPresetPayload {
   legendBorderWidth?: number;
   legendBorderRadius?: number;
   legendPadding?: number;
+  // Dual-Axis & Horizontal Bar + Scatter Combo Parameters
+  scatterAxisTitle?: string;
+  scatterAxisMin?: number;
+  scatterAxisMax?: number;
+  scatterAxisInterval?: number;
+  scatterAxisNameGap?: number;
+  scatterSeriesName?: string;
+  barSeriesName?: string;
+  scatterSymbol?: 'diamond' | 'circle' | 'rect' | 'triangle' | 'pin' | 'roundRect';
+  scatterSymbolSize?: number;
+  scatterColor?: string;
+  scatterBorderColor?: string;
+  scatterBorderWidth?: number;
+  scatterValues?: Record<string, number>;
+  scatterShowDataLabels?: boolean;
+  scatterLabelPosition?: 'top' | 'bottom' | 'right' | 'left' | 'inside';
+  scatterLabelFontSize?: number;
+  scatterLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  scatterLabelFontStyle?: 'normal' | 'italic';
+  scatterLabelColor?: string;
+  scatterLabelDistance?: number;
+  scatterLabelLineHeight?: number;
+  lineLabelFontSize?: number;
+  lineLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  lineLabelFontStyle?: 'normal' | 'italic';
+  lineLabelColor?: string;
+  pieLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  pieLabelFontStyle?: 'normal' | 'italic';
+  pieLabelColor?: string;
+  radarLabelFontSize?: number;
+  radarLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarLabelFontStyle?: 'normal' | 'italic';
+  radarLabelColor?: string;
+  heatmapLabelFontSize?: number;
+  heatmapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  heatmapLabelFontStyle?: 'normal' | 'italic';
+  heatmapLabelColor?: string;
+  treemapLabelFontSize?: number;
+  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapLabelFontStyle?: 'normal' | 'italic';
+  treemapLabelColor?: string;
+  funnelLabelFontSize?: number;
+  funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  funnelLabelFontStyle?: 'normal' | 'italic';
+  funnelLabelColor?: string;
+  boxplotLabelFontSize?: number;
+  boxplotLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  boxplotLabelFontStyle?: 'normal' | 'italic';
+  boxplotLabelColor?: string;
+  bubbleLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  bubbleLabelFontStyle?: 'normal' | 'italic';
+  barColorCustom?: string;
+  barGridTop?: number;
+  barGridBottom?: number;
+  barGridLeft?: number;
+  barGridRight?: number;
+  scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
+  otherCategoryLabel?: string;
 }

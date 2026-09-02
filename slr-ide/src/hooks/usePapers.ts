@@ -2,7 +2,11 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Paper } from '@/types';
 import { broadcastSync, subscribeSyncChannel } from '@/lib/sync-utils';
 
-export function usePapers(showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void, loadProjects?: () => void) {
+export function usePapers(
+  showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void,
+  loadProjects?: () => void,
+  activeProjectId?: string
+) {
   const [papers, setPapers] = useState<Paper[]>([]);
   const [loadingPapers, setLoadingPapers] = useState(true);
   const [duplicatesCount, setDuplicatesCount] = useState(0);
@@ -45,7 +49,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
 
   const loadDuplicatesCount = useCallback(async () => {
     try {
-      const res = await fetch('/api/duplicates');
+      const res = await fetch(`/api/duplicates${activeProjectId ? `?projectId=${encodeURIComponent(activeProjectId)}` : ''}`);
       if (res.ok) {
         const data = await res.json();
         setDuplicatesCount(data.count || 0);
@@ -53,12 +57,13 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } catch (err) {
       console.error('Error loading duplicates count:', err);
     }
-  }, []);
+  }, [activeProjectId]);
 
   const loadPapers = useCallback(async () => {
     setLoadingPapers(true);
     try {
       const params = new URLSearchParams();
+      if (activeProjectId) params.append('projectId', activeProjectId);
       if (searchTerm) params.append('search', searchTerm);
       if (pdfFilter) params.append('pdfStatus', pdfFilter);
       if (sourceFilter) params.append('source', sourceFilter);
@@ -89,7 +94,7 @@ export function usePapers(showToast: (msg: string, type: 'success' | 'error' | '
     } finally {
       setLoadingPapers(false);
     }
-  }, [page, limit, sortBy, sortOrder, searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter, poolFilter, showToast, loadDuplicatesCount]);
+  }, [page, limit, sortBy, sortOrder, searchTerm, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, pipelineStageFilter, pipelineStatusFilter, ecTriggerFilter, poolFilter, showToast, loadDuplicatesCount, activeProjectId]);
 
   // Load papers on mount and when filters change
   useEffect(() => {

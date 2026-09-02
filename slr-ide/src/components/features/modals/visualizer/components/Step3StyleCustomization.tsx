@@ -18,6 +18,7 @@ import { useVisualizerContext } from '../context/VisualizerContext';
 import { SlotSwitcherBar } from './subcomponents/SlotSwitcherBar';
 import { SunburstLevelConfigPanel } from './subcomponents/SunburstLevelConfigPanel';
 import { HorizontalBarConfigPanel } from './subcomponents/HorizontalBarConfigPanel';
+import { HorizontalBarScatterConfigPanel } from './subcomponents/HorizontalBarScatterConfigPanel';
 import { ClusteredBarConfigPanel } from './subcomponents/ClusteredBarConfigPanel';
 import { ScientificAxisConfigPanel } from './subcomponents/ScientificAxisConfigPanel';
 import { 
@@ -354,8 +355,8 @@ export function Step3StyleCustomization() {
             <label className="text-xs font-bold text-foreground block">Base Font Size ({fontSize}px)</label>
             <input
               type="range"
-              min={10}
-              max={20}
+              min={8}
+              max={32}
               value={fontSize}
               onChange={(e) => setFontSize(Number(e.target.value))}
               className="w-full accent-primary mt-2"
@@ -822,7 +823,7 @@ export function Step3StyleCustomization() {
                   <input
                     type="range"
                     min={2}
-                    max={36}
+                    max={120}
                     value={legendItemGap ?? 12}
                     onChange={(e) => setLegendItemGap(Number(e.target.value))}
                     className="w-full accent-primary cursor-pointer"
@@ -832,7 +833,8 @@ export function Step3StyleCustomization() {
                       { label: 'Compact', val: 6 },
                       { label: 'Standard', val: 12 },
                       { label: 'Spaced', val: 18 },
-                      { label: 'Wide', val: 26 }
+                      { label: 'Wide', val: 32 },
+                      { label: 'Extra Wide', val: 60 }
                     ].map(preset => (
                       <button
                         key={preset.label}
@@ -941,6 +943,12 @@ export function Step3StyleCustomization() {
                     <option value={12}>12px — Medium</option>
                     <option value={13}>13px — Prominent</option>
                     <option value={14}>14px — Large</option>
+                    <option value={16}>16px — Extra Large</option>
+                    <option value={18}>18px — Huge</option>
+                    <option value={20}>20px — Header-level</option>
+                    <option value={24}>24px — Ultra</option>
+                    <option value={28}>28px — Maximum</option>
+                    <option value={32}>32px — Giant</option>
                   </select>
                 </div>
 
@@ -1095,6 +1103,10 @@ export function Step3StyleCustomization() {
 
           {chartType === 'bar_horizontal' && (
             <HorizontalBarConfigPanel />
+          )}
+
+          {chartType === 'horizontal_bar_scatter' && (
+            <HorizontalBarScatterConfigPanel />
           )}
 
           {chartType === 'clustered_bar' && (
@@ -1388,8 +1400,8 @@ export function Step3StyleCustomization() {
                   <label className="text-xs font-bold text-foreground block">Node Gap ({sankeyNodeGap}px)</label>
                   <input
                     type="range"
-                    min={10}
-                    max={40}
+                    min={4}
+                    max={120}
                     value={sankeyNodeGap}
                     onChange={(e) => setSankeyNodeGap(Number(e.target.value))}
                     className="w-full accent-primary"

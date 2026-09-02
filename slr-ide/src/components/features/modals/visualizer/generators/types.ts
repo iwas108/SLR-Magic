@@ -1,4 +1,5 @@
 import type { 
+  ChartType,
   ThemePalette, 
   MetricMode, 
   SunburstLevelConfig,
@@ -14,6 +15,7 @@ import type {
 import { formatMetricDisplay } from '../utils/formatterUtils';
 
 export interface ChartGeneratorContext {
+  chartType?: ChartType;
   papers: any[];
   palette: ThemePalette;
   font: string;
@@ -113,6 +115,8 @@ export interface ChartGeneratorContext {
   axisLabelFontSizeY?: number;
   axisLabelFontWeightX?: AxisFontWeight;
   axisLabelFontWeightY?: AxisFontWeight;
+  axisLabelFontStyleX?: AxisFontStyle;
+  axisLabelFontStyleY?: AxisFontStyle;
   axisLabelColorX?: string;
   axisLabelColorY?: string;
   axisLabelRotateX?: number;
@@ -145,6 +149,9 @@ export interface ChartGeneratorContext {
   barYAxisOverflow: 'break' | 'truncate' | 'none';
   barLineHeight?: number;
   barYAxisFontSize?: number;
+  barYAxisFontWeight?: AxisFontWeight;
+  barYAxisFontStyle?: AxisFontStyle;
+  barYAxisColor?: string;
   barBenchmarkLine: boolean;
   barBenchmarkValue: number;
   barBenchmarkLabel: string;
@@ -197,9 +204,11 @@ export interface ChartGeneratorContext {
   barValueInterval?: number | 'auto';
   legendDistance?: number;
   legendWidth?: number;
+  legendWrapWidth?: number;
   legendLineHeight?: number;
   legendItemGap?: number;
   legendFontSize?: number;
+  legendFontStyle?: 'normal' | 'italic';
   legendOverflow?: 'break' | 'truncate' | 'none';
   fitOffsetX?: number;
   fitOffsetY?: number;
@@ -359,6 +368,64 @@ export interface ChartGeneratorContext {
   legendBorderWidth?: number;
   legendBorderRadius?: number;
   legendPadding?: number;
+  // Dual-Axis & Horizontal Bar + Scatter Combo Parameters
+  scatterAxisTitle?: string;
+  scatterAxisMin?: number;
+  scatterAxisMax?: number;
+  scatterAxisInterval?: number;
+  scatterAxisNameGap?: number;
+  scatterSeriesName?: string;
+  barSeriesName?: string;
+  scatterSymbol?: 'diamond' | 'circle' | 'rect' | 'triangle' | 'pin' | 'roundRect';
+  scatterSymbolSize?: number;
+  scatterColor?: string;
+  scatterBorderColor?: string;
+  scatterBorderWidth?: number;
+  scatterValues?: Record<string, number>;
+  scatterShowDataLabels?: boolean;
+  scatterLabelPosition?: 'top' | 'bottom' | 'right' | 'left' | 'inside';
+  scatterLabelFontSize?: number;
+  scatterLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  scatterLabelFontStyle?: 'normal' | 'italic';
+  scatterLabelColor?: string;
+  scatterLabelDistance?: number;
+  scatterLabelLineHeight?: number;
+  lineLabelFontSize?: number;
+  lineLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  lineLabelFontStyle?: 'normal' | 'italic';
+  lineLabelColor?: string;
+  pieLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  pieLabelFontStyle?: 'normal' | 'italic';
+  pieLabelColor?: string;
+  radarLabelFontSize?: number;
+  radarLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarLabelFontStyle?: 'normal' | 'italic';
+  radarLabelColor?: string;
+  heatmapLabelFontSize?: number;
+  heatmapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  heatmapLabelFontStyle?: 'normal' | 'italic';
+  heatmapLabelColor?: string;
+  treemapLabelFontSize?: number;
+  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapLabelFontStyle?: 'normal' | 'italic';
+  treemapLabelColor?: string;
+  funnelLabelFontSize?: number;
+  funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  funnelLabelFontStyle?: 'normal' | 'italic';
+  funnelLabelColor?: string;
+  boxplotLabelFontSize?: number;
+  boxplotLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  boxplotLabelFontStyle?: 'normal' | 'italic';
+  boxplotLabelColor?: string;
+  bubbleLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  bubbleLabelFontStyle?: 'normal' | 'italic';
+  barColorCustom?: string;
+  barGridTop?: number;
+  barGridBottom?: number;
+  barGridLeft?: number;
+  barGridRight?: number;
+  scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
+  otherCategoryLabel?: string;
 }
 
 export function formatLegendLabel(

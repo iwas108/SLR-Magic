@@ -60,8 +60,8 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
     });
   });
 
-  const activeCountsP = limitCategoryMap(countsP, limitCategories, maxCategoriesCount, list => list.length);
-  const activeCountsS = limitCategoryMap(countsS, limitCategories, maxCategoriesCount, list => list.length);
+  const activeCountsP = limitCategoryMap(countsP, limitCategories, maxCategoriesCount, list => list.length, ctx.otherCategoryLabel || 'Other');
+  const activeCountsS = limitCategoryMap(countsS, limitCategories, maxCategoriesCount, list => list.length, ctx.otherCategoryLabel || 'Other');
 
   const catXSet = new Set<string>();
   const catYSet = new Set<string>();

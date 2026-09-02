@@ -34,6 +34,7 @@ export interface FieldAutocompleteProps {
   showPrevalence?: boolean;
   showIntegrityWarning?: boolean;
   disabled?: boolean;
+  customPrevalence?: { positivePaperCount: number; totalCohortCount: number; prevalencePct: number };
 }
 
 export function FieldAutocomplete({
@@ -47,7 +48,8 @@ export function FieldAutocomplete({
   filterCategories,
   showPrevalence = true,
   showIntegrityWarning = true,
-  disabled = false
+  disabled = false,
+  customPrevalence
 }: FieldAutocompleteProps) {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -96,6 +98,19 @@ export function FieldAutocomplete({
   const activeVariable = useMemo(() => {
     return variableList.find(v => v.key === value || v.rawKey === value);
   }, [variableList, value]);
+
+  // Effective prevalence (custom override or active variable)
+  const effectivePrevalence = useMemo(() => {
+    if (customPrevalence) return customPrevalence;
+    if (activeVariable && activeVariable.totalCohortCount > 0) {
+      return {
+        positivePaperCount: activeVariable.positivePaperCount,
+        totalCohortCount: activeVariable.totalCohortCount,
+        prevalencePct: activeVariable.prevalencePct
+      };
+    }
+    return null;
+  }, [customPrevalence, activeVariable]);
 
   // Filtered list based on search query
   const filteredList = useMemo(() => {
@@ -275,17 +290,17 @@ export function FieldAutocomplete({
         )}
 
         {/* Live Prevalence Badge on Selected Item */}
-        {!isOpen && activeVariable && showPrevalence && activeVariable.totalCohortCount > 0 && (
+        {!isOpen && effectivePrevalence && showPrevalence && effectivePrevalence.totalCohortCount > 0 && (
           <span 
             className={`px-2 py-0.5 rounded-full border text-[10px] font-extrabold shrink-0 font-mono ${
-              activeVariable.positivePaperCount > 0
+              effectivePrevalence.positivePaperCount > 0
                 ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
                 : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
             }`}
           >
-            {activeVariable.category === 'custom_group' && activeVariable.positivePaperCount === 0
+            {value === CUSTOM_GROUPING_KEY && effectivePrevalence.positivePaperCount === 0
               ? 'Unassigned'
-              : `${activeVariable.positivePaperCount}/${activeVariable.totalCohortCount} (${activeVariable.prevalencePct}%)`}
+              : `${effectivePrevalence.positivePaperCount}/${effectivePrevalence.totalCohortCount} (${effectivePrevalence.prevalencePct}%)`}
           </span>
         )}
 

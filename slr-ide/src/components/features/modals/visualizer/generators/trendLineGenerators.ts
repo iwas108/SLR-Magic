@@ -388,7 +388,8 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
     countsMap,
     limitCategories,
     maxCategoriesCount,
-    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
+    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags),
+    ctx.otherCategoryLabel || 'Other'
   );
 
   const categories = Array.from(activeCountsMap.keys()).sort((a, b) => parseFloat(a) - parseFloat(b) || a.localeCompare(b));

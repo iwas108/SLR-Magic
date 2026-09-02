@@ -128,12 +128,16 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     primAggregatePapersMap.set(cat, pList);
   });
 
+  const effectiveOtherLabel = ctx.otherCategoryLabel || 'Other';
+  const isOther = (cat: string) => cat === effectiveOtherLabel || cat === 'Other';
+
   // Limit categories if enabled
   const limitedPrimMap = limitCategoryMap(
     primAggregatePapersMap,
     limitCategories,
     maxCategoriesCount,
-    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
+    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags),
+    effectiveOtherLabel
   );
 
   // Determine sorted category list
@@ -143,24 +147,24 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
   }
   if (barSorting === 'desc') {
     categories.sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       const valA = computeMetricValue(limitedPrimMap.get(a) || [], metricMode, papers.length, totalExtractedTags);
       const valB = computeMetricValue(limitedPrimMap.get(b) || [], metricMode, papers.length, totalExtractedTags);
       return valB - valA;
     });
   } else if (barSorting === 'asc') {
     categories.sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       const valA = computeMetricValue(limitedPrimMap.get(a) || [], metricMode, papers.length, totalExtractedTags);
       const valB = computeMetricValue(limitedPrimMap.get(b) || [], metricMode, papers.length, totalExtractedTags);
       return valA - valB;
     });
   } else {
     categories.sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       const numA = parseFloat(a);
       const numB = parseFloat(b);
       if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
@@ -183,8 +187,8 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
 
     const seriesData = categories.map(cat => {
       let groupPapers: any[] = [];
-      if (cat === 'Other') {
-        limitedPrimMap.get('Other')?.forEach(p => {
+      if (isOther(cat)) {
+        limitedPrimMap.get(cat)?.forEach(p => {
           const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
           if (secVals.includes(seriesKey)) {
             groupPapers.push(p);
@@ -344,19 +348,27 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
 
   // 4. Legend Setup
   const legDist = ctx.legendDistance ?? 20;
+  const resolvedPosKey = ctx.legendPosition || barLegendPosition || 'bottom';
+  const isTop = resolvedPosKey === 'top' || resolvedPosKey.startsWith('top');
+  const isBottom = resolvedPosKey === 'bottom' || resolvedPosKey.startsWith('bottom');
+  const isLeft = resolvedPosKey === 'left';
+  const isRight = resolvedPosKey === 'right';
+
   const legendPosMap: Record<string, any> = {
+    'top': { top: (baseTitle?.show ? 55 : 15) + legDist, left: 'center' },
+    'bottom': { bottom: legDist, left: 'center' },
+    'left': { left: legDist, top: 'middle' },
+    'right': { right: legDist, top: 'middle' },
     'top-left': { top: 15, left: legDist },
     'top-center': { top: legDist, left: 'center' },
     'top-right': { top: 15, right: legDist },
-    'left': { left: legDist, top: 'center' },
-    'right': { right: legDist, top: 'center' },
     'bottom-left': { bottom: 15, left: legDist },
-    'bottom-center': { bottom: 15, left: 'center' },
+    'bottom-center': { bottom: legDist, left: 'center' },
     'bottom-right': { bottom: 15, right: legDist }
   };
 
-  const effectiveLegendPos = legendPosMap[barLegendPosition] || { bottom: legDist, left: 'center' };
-  const legendOrient = (barLegendPosition === 'left' || barLegendPosition === 'right') ? 'vertical' : 'horizontal';
+  const effectiveLegendPos = legendPosMap[resolvedPosKey] || { bottom: legDist, left: 'center' };
+  const legendOrient = (isLeft || isRight) ? 'vertical' : 'horizontal';
 
   // 5. Grid Layout Calculations
   const isLabelOutside = showDataLabels && (!barLabelPosition || (barLabelPosition as string) === 'right' || (barLabelPosition as string) === 'top' || !barLabelPosition.startsWith('inside'));
@@ -379,10 +391,10 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
 
   const customLegW = ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : 120;
   if (showLegend) {
-    if (barLegendPosition.startsWith('top')) gridTop = 85;
-    else if (barLegendPosition.startsWith('bottom')) gridBottom = Math.max(gridBottom, (customAxisTitleX?.trim() ? 75 : 55) + legDist);
-    else if (barLegendPosition.includes('right')) gridRight = Math.max(gridRight, customLegW + legDist + 15);
-    else if (barLegendPosition.includes('left')) gridLeft += Math.max(60, customLegW + legDist + 10);
+    if (isTop) gridTop = 85 + legDist;
+    else if (isBottom) gridBottom = Math.max(gridBottom, (customAxisTitleX?.trim() ? 75 : 55) + legDist);
+    else if (isRight) gridRight = Math.max(gridRight, customLegW + legDist + 15);
+    else if (isLeft) gridLeft += Math.max(60, customLegW + legDist + 10);
   }
 
   const cPad = ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0;
@@ -471,23 +483,29 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     },
     legend: showLegend ? {
       show: true,
-      type: 'scroll',
+      type: ctx.legendType || 'scroll',
       data: seriesObjects.map(s => s.name),
       ...effectiveLegendPos,
       orient: legendOrient,
+      align: ctx.legendAlign || 'auto',
       z: 20,
       textStyle: { 
-        color: palette.text, 
+        color: ctx.legendTextColor || palette.text, 
         fontFamily: font, 
         fontSize: ctx.legendFontSize ?? Math.max(9, fontSize - 3), 
-        fontWeight: 'bold',
+        fontWeight: (ctx.legendFontWeight as any) || 'bold',
         width: ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : undefined,
         lineHeight: ctx.legendLineHeight ?? 14,
         overflow: ctx.legendOverflow || 'break'
       },
-      itemWidth: 14,
-      itemHeight: 10,
+      itemWidth: ctx.legendItemWidth ?? 14,
+      itemHeight: ctx.legendItemHeight ?? 10,
       itemGap: ctx.legendItemGap ?? 10,
+      backgroundColor: ctx.legendBackgroundColor || 'transparent',
+      borderColor: ctx.legendBorderColor || 'transparent',
+      borderWidth: ctx.legendBorderWidth ?? 0,
+      borderRadius: ctx.legendBorderRadius ?? 4,
+      padding: ctx.legendPadding !== undefined ? ctx.legendPadding : 5,
       pageIconColor: palette.text,
       pageTextStyle: { color: palette.text }
     } : { show: false },

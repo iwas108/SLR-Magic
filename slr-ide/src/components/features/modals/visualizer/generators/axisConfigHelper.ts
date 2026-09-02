@@ -191,11 +191,15 @@ export function buildScientificAxisConfig(
 
   const labelFontWeight = isX
     ? (ctx.axisLabelFontWeightX || 'normal')
-    : (ctx.axisLabelFontWeightY || 'normal');
+    : (ctx.axisLabelFontWeightY || (ctx.barYAxisFontWeight ?? 'normal'));
+
+  const labelFontStyle = isX
+    ? (ctx.axisLabelFontStyleX || 'normal')
+    : (ctx.axisLabelFontStyleY || (ctx.barYAxisFontStyle ?? 'normal'));
 
   const labelColor = isX
     ? (ctx.axisLabelColorX || palette.text)
-    : (ctx.axisLabelColorY || palette.text);
+    : (ctx.axisLabelColorY || (ctx.barYAxisColor || palette.text));
 
   const labelRotate = isX
     ? (ctx.axisLabelRotateX ?? (ctx.labelRotation || 0))
@@ -229,9 +233,14 @@ export function buildScientificAxisConfig(
     : (ctx.axisLabelIntervalY ?? 'auto');
 
   // 3. Resolve Gridlines
+  const isHorizontalChart = ctx.chartType === 'bar_horizontal' || ctx.chartType === 'horizontal_bar_scatter' || (ctx.chartType === 'clustered_bar' && ctx.barOrientation === 'horizontal');
+  const defaultShowGrid = isX
+    ? (isHorizontalChart ? true : false)
+    : (isHorizontalChart ? false : (ctx.lineShowGridLines !== false));
+
   const showGrid = isX
-    ? (ctx.showGridLinesX ?? false)
-    : (ctx.showGridLinesY ?? (ctx.lineShowGridLines !== false));
+    ? (ctx.showGridLinesX !== undefined ? ctx.showGridLinesX : defaultShowGrid)
+    : (ctx.showGridLinesY !== undefined ? ctx.showGridLinesY : defaultShowGrid);
 
   const gridLineStyle: AxisGridLineStyle = ctx.gridLineStyle || 'dashed';
   const gridLineColor = ctx.gridLineColor || palette.border;
@@ -295,6 +304,7 @@ export function buildScientificAxisConfig(
       fontFamily: font,
       fontSize: labelFontSize,
       fontWeight: labelFontWeight as any,
+      fontStyle: labelFontStyle as any,
       color: labelColor,
       rotate: labelRotate,
       margin: labelMargin,

@@ -44,6 +44,7 @@ function getDynamicAllowedOrigins() {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.resolve(__dirname, '..'),
+  serverExternalPackages: ['better-sqlite3', 'ts-morph', 'bcryptjs'],
   allowedDevOrigins: getDynamicAllowedOrigins(),
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version || '0.1.0',

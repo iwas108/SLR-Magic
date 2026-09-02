@@ -26,7 +26,20 @@ export function useChartCanvas(params: {
   chartSubtitle: string;
   showChartTitle: boolean;
   showChartSubtitle: boolean;
+  titleFontSize?: number;
+  titleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700' | '800' | '900';
+  titleFontStyle?: 'normal' | 'italic';
+  titleColor?: string;
+  titleAlign?: 'left' | 'center' | 'right';
+  subtitleFontSize?: number;
+  subtitleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700';
+  subtitleFontStyle?: 'normal' | 'italic';
+  subtitleColor?: string;
+  subtitleLineHeight?: number;
+  titleGap?: number;
   subfigureLabelStyle: SubfigureLabelStyle;
+  subfigureLabelFontSize?: number;
+  subfigureLabelFontWeight?: 'normal' | 'bold' | '800';
   panelGutter: number;
   showPanelBorders: boolean;
   aspectRatio?: AspectRatioPreset;
@@ -58,7 +71,20 @@ export function useChartCanvas(params: {
     chartSubtitle,
     showChartTitle,
     showChartSubtitle,
+    titleFontSize,
+    titleFontWeight,
+    titleFontStyle,
+    titleColor,
+    titleAlign,
+    subtitleFontSize,
+    subtitleFontWeight,
+    subtitleFontStyle,
+    subtitleColor,
+    subtitleLineHeight,
+    titleGap,
     subfigureLabelStyle,
+    subfigureLabelFontSize,
+    subfigureLabelFontWeight,
     panelGutter,
     showPanelBorders,
     aspectRatio = '16:9',
@@ -224,7 +250,20 @@ export function useChartCanvas(params: {
       chartSubtitle,
       showChartTitle,
       showChartSubtitle,
+      titleFontSize,
+      titleFontWeight,
+      titleFontStyle,
+      titleColor,
+      titleAlign,
+      subtitleFontSize,
+      subtitleFontWeight,
+      subtitleFontStyle,
+      subtitleColor,
+      subtitleLineHeight,
+      titleGap,
       subfigureLabelStyle,
+      subfigureLabelFontSize,
+      subfigureLabelFontWeight,
       panelGutter,
       showPanelBorders,
       aspectRatio,
@@ -254,7 +293,20 @@ export function useChartCanvas(params: {
     chartSubtitle,
     showChartTitle,
     showChartSubtitle,
+    titleFontSize,
+    titleFontWeight,
+    titleFontStyle,
+    titleColor,
+    titleAlign,
+    subtitleFontSize,
+    subtitleFontWeight,
+    subtitleFontStyle,
+    subtitleColor,
+    subtitleLineHeight,
+    titleGap,
     subfigureLabelStyle,
+    subfigureLabelFontSize,
+    subfigureLabelFontWeight,
     panelGutter,
     showPanelBorders,
     aspectRatio,

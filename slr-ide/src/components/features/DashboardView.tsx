@@ -63,12 +63,6 @@ export default function DashboardView({
 
   const [projectSearchTerm, setProjectSearchTerm] = useState('');
 
-  React.useEffect(() => {
-    if (projectsHook?.loadProjects) {
-      projectsHook.loadProjects();
-    }
-  }, []);
-
   const activeProj = projects.find((p: any) => String(p.id) === String(activeProjectId)) || activeProject;
 
   // Active Project Metric Calculations

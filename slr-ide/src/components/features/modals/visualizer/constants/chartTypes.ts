@@ -31,6 +31,13 @@ export const CHART_TYPES_INFO: Record<ChartType, ChartTypeMeta> = {
     slrUseCase: 'Best for long extraction strings like specific Research Methods or Intervention types.',
     icon: BarChart2
   },
+  horizontal_bar_scatter: {
+    name: 'Horizontal Bar & Scatter Overlay',
+    category: 'Comparative / Dual-Axis Combo',
+    description: 'Combines horizontal category bars (prevalence/tag share) with an overlay scatter series (disclosure/reporting rate) on dual X-axes.',
+    slrUseCase: 'Cross-Domain Provenance vs. Boundary Envelope Disclosure (RQ2 vs RQ1b threshold reporting rate).',
+    icon: BarChart2
+  },
   clustered_bar: {
     name: 'Clustered / Comparative Bar Chart',
     category: 'Comparative / Multi-Series',

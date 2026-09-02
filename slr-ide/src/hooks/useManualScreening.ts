@@ -5,8 +5,11 @@ import { useNdjsonStream } from './useNdjsonStream';
 
 export function useManualScreening(
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void,
-  activeProjectId?: string
+  activeProjectId?: string,
+  activeTab?: string
 ) {
+  const isManualActive = !activeTab || activeTab === 'pipeline-manual-screening' || activeTab === 'full-execution';
+
   // Papers list state
   const [screeningPapers, setScreeningPapers] = useState<Paper[]>([]);
   const [screeningLoading, setScreeningLoading] = useState(true);
@@ -61,12 +64,14 @@ export function useManualScreening(
   }, [activeProjectId]);
 
   useEffect(() => {
-    loadVectorStatus();
-  }, [loadVectorStatus]);
-
+    if (isManualActive) {
+      loadVectorStatus();
+    }
+  }, [loadVectorStatus, isManualActive]);
 
   // Fetch EC triggers when pipelineStageFilter changes
   useEffect(() => {
+    if (!isManualActive) return;
     const fetchEcTriggers = async () => {
       setLoadingEcTriggers(true);
       try {
@@ -82,7 +87,7 @@ export function useManualScreening(
       }
     };
     fetchEcTriggers();
-  }, [pipelineStageFilter, activeProjectId]);
+  }, [pipelineStageFilter, activeProjectId, isManualActive]);
   
   // Project-wide stats state
   const [screeningStats, setScreeningStats] = useState<{
@@ -318,8 +323,10 @@ export function useManualScreening(
 
   // Load stats on project selection or change
   useEffect(() => {
-    loadScreeningStats();
-  }, [activeProjectId, loadScreeningStats]);
+    if (isManualActive) {
+      loadScreeningStats();
+    }
+  }, [activeProjectId, isManualActive, loadScreeningStats]);
 
   // Load normal paginated list
   const loadScreeningPapers = useCallback(async () => {
@@ -371,12 +378,14 @@ export function useManualScreening(
   useEffect(() => {
     const unsub = subscribeSyncChannel((syncType) => {
       if (syncType === 'SYNC_PAPERS' || syncType === 'SYNC_PROJECTS') {
-        loadScreeningPapers();
-        loadScreeningStats();
+        if (isManualActive) {
+          loadScreeningPapers();
+          loadScreeningStats();
+        }
       }
     });
     return unsub;
-  }, [loadScreeningPapers, loadScreeningStats]);
+  }, [loadScreeningPapers, loadScreeningStats, isManualActive]);
 
   // Trigger semantic (vector) search
   const triggerSemanticSearch = useCallback(async () => {
@@ -621,10 +630,10 @@ export function useManualScreening(
 
   // Load effect
   useEffect(() => {
-    if (screeningSearchMode === 'keyword') {
+    if (isManualActive && screeningSearchMode === 'keyword') {
       loadScreeningPapers();
     }
-  }, [loadScreeningPapers, screeningSearchMode]);
+  }, [loadScreeningPapers, screeningSearchMode, isManualActive]);
 
   const clearAllFilters = useCallback(() => {
     setScreeningStageFilter('');

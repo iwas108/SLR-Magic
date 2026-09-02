@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { ArrowLeft, ArrowRight, Zap, Database, Trash2, Filter } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Zap, Database, Trash2, Filter, Sparkles } from 'lucide-react';
 import { CHART_TYPES_INFO } from '../constants/chartTypes';
 import { CUSTOM_GROUPING_KEY } from '../constants/defaultConfigs';
 import { extractColonPrefixPaths } from '../utils/dataExtractor';
@@ -181,6 +181,76 @@ export function Step2DataMapping() {
         {/* 1b. Radar Chart (Multi-Variable Requirement Gap & Boundary Paradox) */}
         {chartType === 'radar' && (
           <RadarDataMappingPanel />
+        )}
+
+        {/* 1c. Horizontal Bar & Scatter Overlay (Cross-Domain Provenance vs Boundary Disclosure) */}
+        {chartType === 'horizontal_bar_scatter' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-foreground">
+                    Primary Category Field (Y-Axis Domains / Sectors)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setPrimaryField(CUSTOM_GROUPING_KEY)}
+                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                    title="Use Custom Grouping Layer"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Custom Groups</span>
+                  </button>
+                </div>
+                <FieldAutocomplete
+                  value={primaryField}
+                  onChange={(newKey) => setPrimaryField(newKey)}
+                  discoveredVariables={discoveredVariables}
+                  availableFields={availableFields}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-foreground">
+                    Secondary Rate / Boundary Field (Top X-Axis Scatter)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setSecondaryField(CUSTOM_GROUPING_KEY)}
+                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                    title="Use Custom Grouping Layer"
+                  >
+                    <Sparkles className="w-3 h-3 text-amber-500" />
+                    <span>Custom Groups</span>
+                  </button>
+                </div>
+                <FieldAutocomplete
+                  value={secondaryField}
+                  onChange={(newKey) => setSecondaryField(newKey)}
+                  discoveredVariables={discoveredVariables}
+                  availableFields={availableFields}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-foreground block">Primary Bar Metric Calculation</label>
+              <select
+                value={metricMode}
+                onChange={(e) => setMetricMode(e.target.value as any)}
+                className="w-full bg-secondary border border-border rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+              >
+                <option value="paper_prevalence">Cohort Prevalence (% of Total Cohort Papers)</option>
+                <option value="tag_share">Tag Share (% of Total Extracted Tags)</option>
+                <option value="count">Paper Record Count (N)</option>
+              </select>
+            </div>
+
+            {(primaryField === CUSTOM_GROUPING_KEY || secondaryField === CUSTOM_GROUPING_KEY) && (
+              <CustomGroupingManager />
+            )}
+          </div>
         )}
 
         {/* 2. Clustered Bar / Stacked Bar / Graph */}
@@ -717,7 +787,7 @@ export function Step2DataMapping() {
         )}
 
         {/* Category Data Limiting Option */}
-        {['bar_vertical', 'bar_horizontal', 'clustered_bar', 'stacked_bar', 'line', 'pie_donut', 'funnel', 'radar', 'boxplot', 'graph', 'heatmap'].includes(chartType) && (
+        {['bar_vertical', 'bar_horizontal', 'horizontal_bar_scatter', 'clustered_bar', 'stacked_bar', 'line', 'pie_donut', 'funnel', 'radar', 'boxplot', 'graph', 'heatmap'].includes(chartType) && (
           <div className="p-4 bg-secondary/20 border border-border/80 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">

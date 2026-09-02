@@ -267,7 +267,7 @@ export function SankeyConfigPanel() {
             <input
               type="range"
               min={6}
-              max={60}
+              max={120}
               value={sankeyNodeWidth}
               onChange={(e) => setSankeyNodeWidth(Number(e.target.value))}
               className="w-full accent-primary"
@@ -279,7 +279,7 @@ export function SankeyConfigPanel() {
             <input
               type="range"
               min={4}
-              max={50}
+              max={120}
               value={sankeyNodeGap}
               onChange={(e) => setSankeyNodeGap(Number(e.target.value))}
               className="w-full accent-primary"
@@ -615,7 +615,7 @@ export function SankeyConfigPanel() {
                   <input
                     type="range"
                     min={8}
-                    max={24}
+                    max={32}
                     value={sankeyLabelFontSize ?? 11}
                     onChange={(e) => setSankeyLabelFontSize(Number(e.target.value))}
                     className="w-full accent-primary"

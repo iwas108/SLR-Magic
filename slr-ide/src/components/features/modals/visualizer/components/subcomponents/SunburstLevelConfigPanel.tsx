@@ -215,7 +215,7 @@ export function SunburstLevelConfigPanel() {
                   <input
                     type="number"
                     min={8}
-                    max={20}
+                    max={32}
                     value={curConf.fontSize}
                     onChange={(e) => updateCurConf({ fontSize: Number(e.target.value) })}
                     className="w-full bg-secondary/40 border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"

@@ -156,7 +156,8 @@ export function limitCategoryMap(
   countsMap: Map<string, any[]>, 
   limitCategories: boolean, 
   maxCategoriesCount: number, 
-  computeMetricVal: (list: any[]) => number
+  computeMetricVal: (list: any[]) => number,
+  otherLabel: string = 'Other'
 ): Map<string, any[]> {
   if (!limitCategories || countsMap.size <= maxCategoriesCount || maxCategoriesCount < 2) {
     return countsMap;
@@ -179,7 +180,7 @@ export function limitCategoryMap(
   const otherList: any[] = [];
   tailEntries.forEach(e => otherList.push(...e.list));
   if (otherList.length > 0) {
-    result.set('Other', otherList);
+    result.set(otherLabel || 'Other', otherList);
   }
 
   return result;

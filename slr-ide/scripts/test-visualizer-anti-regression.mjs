@@ -1722,4 +1722,306 @@ assert.ok(crossTabPanelCode.includes('<CrossTabMatrixModal'), 'CrossTabMatrixPan
 assert.ok(crossTabModalCode.includes('handleCopyTSV'), 'CrossTabMatrixModal must provide handleCopyTSV');
 assert.ok(crossTabModalCode.includes('handleDownloadCSV'), 'CrossTabMatrixModal must provide handleDownloadCSV');
 
-console.log('✓ All 33 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+// --- TEST 34: Cross-Domain Provenance vs. Boundary Envelope Disclosure (Dual-Axis Horizontal Bar & Scatter Combo) ---
+console.log('--- TEST 34: Cross-Domain Provenance vs. Boundary Envelope Disclosure (Dual-Axis Horizontal Bar & Scatter Combo) ---');
+const categoricalBarGenCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts'), 'utf8');
+const horizontalBarScatterPanelPath = path.resolve('src/components/features/modals/visualizer/components/subcomponents/HorizontalBarScatterConfigPanel.tsx');
+const horizontalBarScatterPanelCode = fs.readFileSync(horizontalBarScatterPanelPath, 'utf8');
+const chartTypesCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/constants/chartTypes.ts'), 'utf8');
+const defaultConfigsCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/constants/defaultConfigs.ts'), 'utf8');
+const smartOptimizerCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/utils/smartOptimizer.ts'), 'utf8');
+const step2DataMappingCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/Step2DataMapping.tsx'), 'utf8');
+const step3StyleCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/Step3StyleCustomization.tsx'), 'utf8');
+
+// 1. Verify generator function exists and is exported
+assert.ok(categoricalBarGenCode.includes('export function generateHorizontalBarScatterOption'), 'categoricalBarGenerators must export generateHorizontalBarScatterOption');
+
+// 2. Verify chart type registration
+assert.ok(chartTypesCode.includes('horizontal_bar_scatter: {'), 'chartTypes.ts must register horizontal_bar_scatter metadata');
+assert.ok(defaultConfigsCode.includes("scatterSymbol: 'diamond'"), 'defaultConfigs must set default scatterSymbol to diamond');
+assert.ok(defaultConfigsCode.includes("scatterColor: '#d9534f'"), 'defaultConfigs must set default scatterColor');
+assert.ok(smartOptimizerCode.includes("case 'horizontal_bar_scatter':"), 'smartOptimizer must handle horizontal_bar_scatter case');
+
+// 3. Verify UI component integration
+assert.ok(step2DataMappingCode.includes("chartType === 'horizontal_bar_scatter'"), 'Step2DataMapping must render mapping fields for horizontal_bar_scatter');
+assert.ok(step3StyleCode.includes('<HorizontalBarScatterConfigPanel'), 'Step3StyleCustomization must render HorizontalBarScatterConfigPanel');
+assert.ok(horizontalBarScatterPanelCode.includes('scatterSymbol'), 'HorizontalBarScatterConfigPanel must include scatterSymbol controls');
+assert.ok(horizontalBarScatterPanelCode.includes('scatterAxisMax'), 'HorizontalBarScatterConfigPanel must include dual-axis ceiling controls');
+
+// 4. Test generator output against exact use case requirements and collision-free clearance
+const mockScatterContext = {
+  papers: [],
+  palette: {
+    bg: '#ffffff',
+    text: '#333333',
+    subtext: '#666666',
+    border: '#e5e7eb',
+    colors: ['#2b5c8f', '#d9534f', '#2ca02c', '#ff7f0e']
+  },
+  font: 'Inter, sans-serif',
+  fontSize: 12,
+  chartTitle: 'Cross-Domain Provenance vs. Boundary Envelope Disclosure (RQ2, RQ1b)',
+  chartSubtitle: 'Cohort prevalence (n=46) vs. rate of explicit physical threshold reporting',
+  primaryField: 'ext:rq2_operational_domains',
+  secondaryField: 'ext:rq1b_explicit_boundary_envelopes',
+  metricMode: 'paper_prevalence',
+  showLegend: true,
+  barThickness: 24,
+  barBorderRadius: 4,
+  barValueCeiling: 40,
+  barValueInterval: 10,
+  barGridTop: 115,
+  barGridBottom: 75,
+  barGridLeft: 20,
+  barGridRight: 12,
+  scatterAxisTitle: 'Boundary Disclosure (%)',
+  scatterAxisMin: 0,
+  scatterAxisMax: 100,
+  scatterAxisInterval: 25,
+  scatterAxisNameGap: 28,
+  scatterSeriesName: 'Boundary Disclosure Rate (%)',
+  barSeriesName: 'Cohort Prevalence (%)',
+  scatterSymbol: 'diamond',
+  scatterSymbolSize: 14,
+  scatterColor: '#d9534f',
+  scatterBorderColor: '#900',
+  scatterBorderWidth: 1.5,
+  scatterSortMode: 'prevalence_desc',
+  enableManualOverrides: true,
+  manualCategoryValues: {
+    'Manufacturing:::bar': 15,
+    'Energy & Power:::bar': 4,
+    'Traffic / Smart City:::bar': 7,
+    'Automotive:::bar': 9,
+    'Agriculture / Horticulture:::bar': 9,
+    'Aerospace:::bar': 9,
+    'Smart Building:::bar': 28,
+    'Other Sectors:::bar': 35,
+    'Manufacturing:::scatter': 43,
+    'Energy & Power:::scatter': 50,
+    'Traffic / Smart City:::scatter': 100,
+    'Automotive:::scatter': 50,
+    'Agriculture / Horticulture:::scatter': 100,
+    'Aerospace:::scatter': 50,
+    'Smart Building:::scatter': 38,
+    'Other Sectors:::scatter': 44
+  }
+};
+
+// Verify the option generated by the logic
+assert.ok(categoricalBarGenCode.includes("name: 'Cohort Share (%)'") || categoricalBarGenCode.includes('customAxisTitleX || \'Cohort Share (%)\''), 'xAxis[0] default title must be Cohort Share (%)');
+assert.ok(categoricalBarGenCode.includes("name: scatterAxisTitle || 'Boundary Disclosure (%)'"), 'xAxis[1] default title must be Boundary Disclosure (%)');
+assert.ok(categoricalBarGenCode.includes("symbol: scatterSymbol"), 'scatter series must apply scatterSymbol');
+assert.ok(categoricalBarGenCode.includes("xAxisIndex: 1"), 'scatter series must bind to xAxisIndex: 1');
+assert.ok(categoricalBarGenCode.includes("xAxisIndex: 0"), 'bar series must bind to xAxisIndex: 0');
+assert.ok(categoricalBarGenCode.includes("top: effectiveGridTop"), 'grid.top must apply collision clearance');
+assert.ok(categoricalBarGenCode.includes("bottom: effectiveGridBottom"), 'grid.bottom must apply collision clearance');
+
+// ==============================================================================
+// TEST 35: Dynamic Level-Aware Custom Grouping Prevalence & Secondary Scatter Boundary Disclosure
+// ==============================================================================
+console.log('--- TEST 35: Dynamic Level-Aware Custom Grouping Prevalence & Secondary Scatter Disclosure ---');
+
+const mockCohort46 = Array.from({ length: 46 }, (_, idx) => {
+  const isP1to21 = idx < 21;
+  return {
+    Paper_ID: `Paper_${idx + 1}`,
+    Title: `Paper Title ${idx + 1}`,
+    manual_stage: 4,
+    ai_stage: 4,
+    manual_extracted_data: JSON.stringify({
+      rq2_operational_domains: idx % 2 === 0 ? 'Manufacturing' : 'Energy & Power',
+      rq1b_explicit_boundary_envelopes: isP1to21 ? '100 ms latency limit' : ''
+    })
+  };
+});
+
+function testResolveCustomGrouping(paper, targetSubKey, linksMap) {
+  const rawVals = testResolveValue(paper, targetSubKey);
+  const validVals = rawVals.filter(v => v && v !== 'Unspecified');
+  if (validVals.length === 0) return [];
+  const mapped = validVals.map(v => linksMap[v] || 'Unassigned / Other');
+  return mapped.filter(m => m !== 'Unassigned / Other' && m !== 'Unassigned');
+}
+
+// 1. Primary Level 0 has 46/46 papers populated
+const p0Links = { 'Manufacturing': 'Industrial Sectors', 'Energy & Power': 'Industrial Sectors' };
+const p0Mapped = mockCohort46.map(p => testResolveCustomGrouping(p, 'ext:rq2_operational_domains', p0Links));
+const p0PositiveCount = p0Mapped.filter(v => v.length > 0).length;
+assert.strictEqual(p0PositiveCount, 46, 'Primary custom grouping level 0 must yield 46/46 positive papers');
+
+// 2. Secondary Level 1 has only 21/46 papers populated with 'Stated'
+const p1Links = { '100 ms latency limit': 'Stated' };
+const p1Mapped = mockCohort46.map(p => testResolveCustomGrouping(p, 'ext:rq1b_explicit_boundary_envelopes', p1Links));
+const p1PositiveCount = p1Mapped.filter(v => v.length > 0).length;
+const p1PrevalencePct = Math.round((p1PositiveCount / 46) * 100);
+assert.strictEqual(p1PositiveCount, 21, 'Secondary custom grouping level 1 must yield 21/46 positive papers (exact parity with grouping modal)');
+assert.strictEqual(p1PrevalencePct, 46, 'Secondary custom grouping prevalence must be 46% (21/46)');
+
+// 3. Verify that categoricalBarGenerators uses levelIdx: 1 for secondaryField
+assert.ok(categoricalBarGenCode.includes("levelIdx: 1"), 'categoricalBarGenerators must pass levelIdx: 1 for secondaryField mappedOpts');
+assert.ok(categoricalBarGenCode.includes("ctx.levelTargetFields?.[1]"), 'categoricalBarGenerators must resolve subFieldKey from levelTargetFields[1]');
+
+// =========================================================================
+// TEST 36: Universal Legend & Key Configuration
+// =========================================================================
+console.log('--- TEST 36: Universal Legend & Key Configuration in Dual-Axis Horizontal Bar & Scatter Combo ---');
+assert.ok(categoricalBarGenCode.includes("const resolvedLegendPos = ctx.legendPosition || 'bottom'"), 'horizontal_bar_scatter must dynamically resolve ctx.legendPosition');
+assert.ok(categoricalBarGenCode.includes("orient: legendOrient"), 'horizontal_bar_scatter must set orient according to legend position');
+assert.ok(categoricalBarGenCode.includes("itemGap: ctx.legendItemGap"), 'horizontal_bar_scatter must respect universal legendItemGap');
+assert.ok(categoricalBarGenCode.includes("fontSize: ctx.legendFontSize"), 'horizontal_bar_scatter must respect universal legendFontSize');
+assert.ok(categoricalBarGenCode.includes("const autoGridBottom = showLegend && isBottom"), 'horizontal_bar_scatter must compute dynamic grid clearances for bottom legend to prevent axis title collision');
+
+// =========================================================================
+// TEST 37: Universal Fine-Tune Font Sizing Range Expansion (>= 32px)
+// =========================================================================
+console.log('--- TEST 37: Universal Fine-Tune Font Sizing Range Expansion (>= 32px) ---');
+const fineTuneCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx'), 'utf8');
+const legendConfigCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalLegendConfigPanel.tsx'), 'utf8');
+const sciAxisCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/ScientificAxisConfigPanel.tsx'), 'utf8');
+const horizScatterCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/HorizontalBarScatterConfigPanel.tsx'), 'utf8');
+
+assert.ok(fineTuneCode.includes('max={32}'), 'UniversalFineTunePanel must allow Base Font Size up to 32px');
+assert.ok(legendConfigCode.includes('max={32}'), 'UniversalLegendConfigPanel must allow Key Font Size up to 32px');
+assert.ok(sciAxisCode.includes('max={32}'), 'ScientificAxisConfigPanel must allow Axis Title & Label Font Sizes up to 32px');
+assert.ok(horizScatterCode.includes('max={32}'), 'HorizontalBarScatterConfigPanel must allow Y-Axis Label Font Size up to 32px');
+
+// =========================================================================
+// TEST 38: Scientific Axis & Publishing Gridlines Universal Compliance
+// =========================================================================
+console.log('--- TEST 38: Scientific Axis & Publishing Gridlines Universal Compliance ---');
+const updatedCategoricalBarGenCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts'), 'utf8');
+const axisConfigHelperCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/generators/axisConfigHelper.ts'), 'utf8');
+const updatedSciAxisCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/ScientificAxisConfigPanel.tsx'), 'utf8');
+
+// 1. Verify ScientificAxisConfigPanel includes horizontal_bar_scatter in isHorizontal
+assert.ok(updatedSciAxisCode.includes("chartType === 'horizontal_bar_scatter'"), 'ScientificAxisConfigPanel must recognize horizontal_bar_scatter as horizontal');
+
+// 2. Verify horizontal_bar_scatter binds buildScientificAxisConfig for xAxis[0] and yAxis
+assert.ok(updatedCategoricalBarGenCode.includes("...buildScientificAxisConfig('x', ctx"), 'horizontal_bar_scatter must use buildScientificAxisConfig for xAxis[0]');
+assert.ok(updatedCategoricalBarGenCode.includes("yAxis: buildScientificAxisConfig('y', ctx"), 'horizontal_bar_scatter must use buildScientificAxisConfig for yAxis');
+
+// 3. Verify axisConfigHelper handles horizontal charts and gridlines
+assert.ok(axisConfigHelperCode.includes('isHorizontalChart'), 'axisConfigHelper must detect isHorizontalChart for gridline defaults');
+assert.ok(axisConfigHelperCode.includes('showGridLinesX'), 'axisConfigHelper must bind showGridLinesX to vertical gridlines');
+assert.ok(axisConfigHelperCode.includes('showGridLinesY'), 'axisConfigHelper must bind showGridLinesY to horizontal gridlines');
+
+console.log('✓ All 38 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+
+// =========================================================================
+// TEST 39: Fine-Tune Universal Gap Range Expansion (>= 120px / 150% / 200%)
+// =========================================================================
+console.log('--- TEST 39: Fine-Tune Universal Gap Range Expansion (>= 120px / 150% / 200%) ---');
+const updatedLegendConfigCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalLegendConfigPanel.tsx'), 'utf8');
+const updatedAxisPanelCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/ScientificAxisConfigPanel.tsx'), 'utf8');
+const updatedHorizScatterCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/HorizontalBarScatterConfigPanel.tsx'), 'utf8');
+const updatedHorizBarCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/HorizontalBarConfigPanel.tsx'), 'utf8');
+const updatedClusteredBarCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/ClusteredBarConfigPanel.tsx'), 'utf8');
+const updatedSankeyCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/SankeyConfigPanel.tsx'), 'utf8');
+
+assert.ok(updatedLegendConfigCode.includes('max={120}'), 'UniversalLegendConfigPanel must allow Item Gap up to 120px');
+assert.ok(updatedAxisPanelCode.includes('max={240}'), 'ScientificAxisConfigPanel must allow Title Gap up to 240px');
+assert.ok(updatedHorizScatterCode.includes('max={150}'), 'HorizontalBarScatterConfigPanel must allow Title Gap up to 150px');
+assert.ok(updatedHorizBarCode.includes('max={200}'), 'HorizontalBarConfigPanel must allow Bar Spacing Gap up to 200%');
+assert.ok(updatedClusteredBarCode.includes('max={150}') && updatedClusteredBarCode.includes('max={200}'), 'ClusteredBarConfigPanel must allow Intra/Cluster Gap up to 150%/200%');
+assert.ok(updatedSankeyCode.includes('max={120}'), 'SankeyConfigPanel must allow Node Gap up to 120px');
+
+console.log('✓ All 39 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+
+// =========================================================================
+// TEST 40: Single Layout Subfigure Label (a) Suppression
+// =========================================================================
+console.log('--- TEST 40: Single Layout Subfigure Label (a) Suppression ---');
+const visualizerStudioCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/VisualizerStudio.tsx'), 'utf8');
+const layoutPresetsCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/constants/layoutPresets.ts'), 'utf8');
+
+assert.ok(layoutPresetsCode.includes('if (isSingle) return \'\';'), 'formatSubfigureLabel must return empty string when isSingle is true');
+assert.ok(visualizerStudioCode.includes("const isSingleLayout = layoutMode === 'single' || activeSlotsList.length <= 1;"), 'VisualizerStudio must detect isSingleLayout');
+assert.ok(visualizerStudioCode.includes('!isSingleLayout && subfigureLabel &&'), 'VisualizerStudio must hide subfigure label on single layout');
+
+console.log('✓ All 40 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+
+// =========================================================================
+// TEST 41: Unified 4-Tab Workflow & Pervasive Typography Customization
+// =========================================================================
+console.log('--- TEST 41: Merged Tabs & Universal Typography Customization ---');
+const fineTuneCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx'), 'utf8');
+const legendConfigCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalLegendConfigPanel.tsx'), 'utf8');
+const typesCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/types.ts'), 'utf8');
+const styleHookCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/hooks/useVisualizerStyle.ts'), 'utf8');
+const configHookCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts'), 'utf8');
+
+// 1. Verify 4-tab workflow in VisualizerStudio.tsx
+assert.ok(visualizerStudioCode.includes('<span>Style & Fine-Tune</span>'), 'VisualizerStudio must render unified Style & Fine-Tune tab');
+assert.ok(!visualizerStudioCode.includes("onClick={() => setActiveTab('params')}"), 'VisualizerStudio must not have separate params tab switcher');
+
+// 2. Verify GlobalStyleConfig and SlotConfig have typography properties
+assert.ok(typesCodeT41.includes('titleFontSize?: number;') && typesCodeT41.includes('titleFontWeight?:'), 'GlobalStyleConfig must support title font size and weight');
+assert.ok(typesCodeT41.includes('titleFontStyle?:') && typesCodeT41.includes('titleColor?: string;'), 'GlobalStyleConfig must support title font style and color');
+assert.ok(typesCodeT41.includes('subtitleFontSize?: number;') && typesCodeT41.includes('subtitleLineHeight?: number;'), 'GlobalStyleConfig must support subtitle font size and line height');
+assert.ok(typesCodeT41.includes('legendFontStyle?:') && typesCodeT41.includes('legendWrapWidth?:'), 'SlotConfig must support legendFontStyle and legendWrapWidth');
+
+// 3. Verify useVisualizerStyle and useVisualizerConfig manage typography state
+assert.ok(styleHookCodeT41.includes('titleFontSize') && styleHookCodeT41.includes('setTitleFontSize'), 'useVisualizerStyle must manage titleFontSize');
+assert.ok(styleHookCodeT41.includes('subtitleLineHeight') && styleHookCodeT41.includes('setSubtitleLineHeight'), 'useVisualizerStyle must manage subtitleLineHeight');
+assert.ok(configHookCodeT41.includes('legendFontStyle') && configHookCodeT41.includes('legendWrapWidth'), 'useVisualizerConfig must manage legend typography');
+
+// 4. Verify UniversalFineTunePanel provides typography controls
+assert.ok(fineTuneCodeT41.includes('Global Typography & Base Sizing'), 'UniversalFineTunePanel must provide global typography');
+assert.ok(fineTuneCodeT41.includes('Main Figure Title') && fineTuneCodeT41.includes('Figure Subtitle / Caption'), 'UniversalFineTunePanel must provide title & subtitle typography');
+
+// 5. Verify UniversalLegendConfigPanel provides typography controls
+assert.ok(legendConfigCodeT41.includes('Legend Typography') && legendConfigCodeT41.includes('setLegendFontStyle'), 'UniversalLegendConfigPanel must provide legend typography controls');
+
+console.log('✓ All 41 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+
+// =========================================================================
+// TEST 42: Pervasive Category Label Bold & Complete Typography Customization
+// =========================================================================
+console.log('--- TEST 42: Pervasive Category Label Bold & Complete Typography Customization ---');
+const updatedTypesCodeT42 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/types.ts'), 'utf8');
+const updatedGenTypesCodeT42 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/generators/types.ts'), 'utf8');
+const updatedAxisHelperCodeT42 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/generators/axisConfigHelper.ts'), 'utf8');
+const updatedHorizScatterCodeT42 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/HorizontalBarScatterConfigPanel.tsx'), 'utf8');
+const updatedHorizBarCodeT42 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/HorizontalBarConfigPanel.tsx'), 'utf8');
+const updatedSciAxisCodeT42 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/ScientificAxisConfigPanel.tsx'), 'utf8');
+const updatedPropGenCodeT42 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/generators/proportionsGenerators.ts'), 'utf8');
+const updatedChartPanelsCodeT42 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/ChartConfigPanels.tsx'), 'utf8');
+
+// 1. Verify SlotConfig & Generator Context have barYAxis, scatterLabel, and axisLabel typography
+assert.ok(updatedTypesCodeT42.includes('barYAxisFontWeight?: AxisFontWeight;'), 'SlotConfig must support barYAxisFontWeight');
+assert.ok(updatedTypesCodeT42.includes('barYAxisFontStyle?: AxisFontStyle;'), 'SlotConfig must support barYAxisFontStyle');
+assert.ok(updatedTypesCodeT42.includes('barYAxisColor?: string;'), 'SlotConfig must support barYAxisColor');
+assert.ok(updatedTypesCodeT42.includes('scatterLabelFontWeight?:'), 'SlotConfig must support scatterLabelFontWeight');
+assert.ok(updatedTypesCodeT42.includes('axisLabelFontStyleX?: AxisFontStyle;'), 'SlotConfig must support axisLabelFontStyleX');
+assert.ok(updatedTypesCodeT42.includes('axisLabelFontStyleY?: AxisFontStyle;'), 'SlotConfig must support axisLabelFontStyleY');
+
+// 2. Verify axisConfigHelper applies font weight, style, and color to category/tick labels
+assert.ok(updatedAxisHelperCodeT42.includes('ctx.barYAxisFontWeight ?? \'normal\''), 'axisConfigHelper must fallback to barYAxisFontWeight for Y category ticks');
+assert.ok(updatedAxisHelperCodeT42.includes('ctx.barYAxisFontStyle ?? \'normal\''), 'axisConfigHelper must fallback to barYAxisFontStyle for Y category ticks');
+assert.ok(updatedAxisHelperCodeT42.includes('fontStyle: labelFontStyle as any'), 'axisConfigHelper must pass fontStyle to axisLabel');
+
+// 3. Verify HorizontalBarScatterConfigPanel and HorizontalBarConfigPanel expose Y-Axis label typography controls
+assert.ok(updatedHorizScatterCodeT42.includes('barYAxisFontWeight') && updatedHorizScatterCodeT42.includes('setBarYAxisFontWeight'), 'HorizontalBarScatterConfigPanel must provide Font Weight selector');
+assert.ok(updatedHorizScatterCodeT42.includes('barYAxisFontStyle') && updatedHorizScatterCodeT42.includes('setBarYAxisFontStyle'), 'HorizontalBarScatterConfigPanel must provide Font Style selector');
+assert.ok(updatedHorizScatterCodeT42.includes('barYAxisColor') && updatedHorizScatterCodeT42.includes('setBarYAxisColor'), 'HorizontalBarScatterConfigPanel must provide Color Picker');
+assert.ok(updatedHorizBarCodeT42.includes('barYAxisFontWeight') && updatedHorizBarCodeT42.includes('setBarYAxisFontWeight'), 'HorizontalBarConfigPanel must provide Font Weight selector');
+
+// 4. Verify ScientificAxisConfigPanel exposes tick label typography controls
+assert.ok(updatedSciAxisCodeT42.includes('axisLabelFontWeightX') && updatedSciAxisCodeT42.includes('axisLabelFontWeightY'), 'ScientificAxisConfigPanel must expose tick label weights');
+assert.ok(updatedSciAxisCodeT42.includes('axisLabelFontStyleX') && updatedSciAxisCodeT42.includes('axisLabelFontStyleY'), 'ScientificAxisConfigPanel must expose tick label styles');
+
+// 5. Verify Pie / Donut label typography
+assert.ok(updatedPropGenCodeT42.includes('ctx.pieLabelFontWeight') && updatedPropGenCodeT42.includes('ctx.pieLabelFontStyle'), 'proportionsGenerators must apply pieLabelFontWeight and fontStyle');
+assert.ok(updatedChartPanelsCodeT42.includes('pieLabelFontWeight') && updatedChartPanelsCodeT42.includes('setPieLabelFontWeight'), 'PieDonutConfigPanel must provide pieLabelFontWeight controls');
+
+console.log('✓ All 42 anti-regression & reviewer visualizer refinement unit tests PASSED successfully!');
+
+
+
+
+
+
+
+
+

@@ -237,8 +237,8 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
     });
   });
 
-  const activeCountsP = limitCategoryMap(countsP, limitCategories, maxCategoriesCount, list => list.length);
-  const activeCountsS = limitCategoryMap(countsS, limitCategories, maxCategoriesCount, list => list.length);
+  const activeCountsP = limitCategoryMap(countsP, limitCategories, maxCategoriesCount, list => list.length, ctx.otherCategoryLabel || 'Other');
+  const activeCountsS = limitCategoryMap(countsS, limitCategories, maxCategoriesCount, list => list.length, ctx.otherCategoryLabel || 'Other');
 
   const catXSet = new Set<string>();
   const catYSet = new Set<string>();
@@ -597,7 +597,8 @@ export function generateBoxplotOption(ctx: ChartGeneratorContext): echarts.EChar
     countsMap,
     limitCategories,
     maxCategoriesCount,
-    (list) => list.length
+    (list) => list.length,
+    ctx.otherCategoryLabel || 'Other'
   );
   const categories = Array.from(activeCountsMap.keys()).sort();
 

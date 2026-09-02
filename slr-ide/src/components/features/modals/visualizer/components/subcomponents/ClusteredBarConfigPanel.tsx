@@ -238,7 +238,7 @@ export function ClusteredBarConfigPanel() {
             <input
               type="range"
               min={8}
-              max={22}
+              max={32}
               value={barLabelFontSize}
               onChange={(e) => setBarLabelFontSize(Number(e.target.value))}
               className="w-full accent-primary"
@@ -483,7 +483,7 @@ export function ClusteredBarConfigPanel() {
           <input
             type="range"
             min={0}
-            max={60}
+            max={150}
             value={barInnerGap}
             onChange={(e) => setBarInnerGap(Number(e.target.value))}
             className="w-full accent-primary"
@@ -495,7 +495,7 @@ export function ClusteredBarConfigPanel() {
           <input
             type="range"
             min={0}
-            max={80}
+            max={200}
             value={barClusterGap}
             onChange={(e) => setBarClusterGap(Number(e.target.value))}
             className="w-full accent-primary"
@@ -547,7 +547,7 @@ export function ClusteredBarConfigPanel() {
             <input
               type="range"
               min={8}
-              max={18}
+              max={32}
               value={barYAxisFontSize}
               onChange={(e) => setBarYAxisFontSize(Number(e.target.value))}
               className="w-full accent-primary"
