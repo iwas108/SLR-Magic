@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useVisualizerContext } from '../../context/VisualizerContext';
 import { CUSTOM_GROUPING_KEY } from '../../constants/defaultConfigs';
-import { getMappedFieldValue } from '../../utils/dataExtractor';
+import { getMappedFieldValue, formatVariableDisplayName, discoverColonDepth, discoverColonSegmentsByLevel, extractCleanTaxonomyKey } from '../../utils/dataExtractor';
 import { FieldAutocomplete } from './FieldAutocomplete';
 import { BreakdownTablePanel } from './BreakdownTablePanel';
 import { RadarDataMappingPanel } from './RadarDataMappingPanel';
@@ -15,12 +15,161 @@ import {
   Plus, 
   Minus, 
   Trash2, 
-  HelpCircle 
+  HelpCircle,
+  Filter,
+  X
 } from 'lucide-react';
 
 export interface StudioDataTabProps {
   onOpenCustomGroupingModal: (targetSlotIndex?: number) => void;
   onOpenCrossTabModal: () => void;
+}
+
+function FieldColonSegmentPicker({
+  fieldKey,
+  onFieldChange,
+  papers,
+  useUmbrellanizer,
+  umbrellanizerMap
+}: {
+  fieldKey: string;
+  onFieldChange: (newKey: string) => void;
+  papers: any[];
+  useUmbrellanizer: boolean;
+  umbrellanizerMap: any;
+}) {
+  const cleanKey = extractCleanTaxonomyKey(fieldKey);
+
+  if (!cleanKey) return null;
+  const depth = discoverColonDepth(papers, cleanKey, { useUmbrellanizer, umbrellanizerMap });
+  if (depth <= 1) return null;
+
+  // Detect current segment index
+  let currentSegIdx = -1;
+  if (fieldKey.includes('lv1:') || fieldKey.includes('macro:')) currentSegIdx = 0;
+  else if (fieldKey.includes('lv2:') || fieldKey.includes('sub:')) currentSegIdx = 1;
+  else if (fieldKey.includes('lv3:') || fieldKey.includes('leaf:')) currentSegIdx = 2;
+  else {
+    const matchLv = fieldKey.match(/^ext:lv(\d+):/);
+    if (matchLv) currentSegIdx = parseInt(matchLv[1], 10) - 1;
+    const matchSeg = fieldKey.match(/^ext:segment:(\d+):/);
+    if (matchSeg) currentSegIdx = parseInt(matchSeg[1], 10);
+  }
+
+  // Detect scope
+  const scopeMatch = fieldKey.match(/\[(.*)\]$/);
+  const currentScope = scopeMatch ? scopeMatch[1].trim() : '';
+
+  const segmentsByLevel = discoverColonSegmentsByLevel(papers, cleanKey, {
+    useUmbrellanizer,
+    umbrellanizerMap
+  });
+
+  const candidateSegments: string[] = [];
+  Object.entries(segmentsByLevel).forEach(([sLvlStr, segList]) => {
+    const sLvl = Number(sLvlStr);
+    if (sLvl !== currentSegIdx) {
+      (segList || []).forEach(seg => {
+        if (!candidateSegments.includes(seg)) candidateSegments.push(seg);
+      });
+    }
+  });
+
+  const setSegmentAndScope = (newSegIdx: number, newScope: string) => {
+    let prefix = 'ext:';
+    if (newSegIdx >= 0) {
+      prefix = `ext:lv${newSegIdx + 1}:`;
+    }
+    const scopeSuffix = newScope ? `[${newScope}]` : '';
+    onFieldChange(`${prefix}${cleanKey}${scopeSuffix}`);
+  };
+
+  return (
+    <div className="mt-1.5 p-2 bg-secondary/20 rounded-xl border border-border/60 space-y-2">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] font-bold text-muted-foreground">Extract Colon Segment:</span>
+        <button
+          type="button"
+          onClick={() => setSegmentAndScope(-1, currentScope)}
+          className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border transition-all ${
+            currentSegIdx === -1
+              ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+              : 'bg-card hover:bg-secondary text-foreground border-border'
+          }`}
+          title="Use full unsegmented field"
+        >
+          Full (All)
+        </button>
+        {Array.from({ length: depth }).map((_, s) => {
+          const isSelected = currentSegIdx === s;
+          const sLabel = s === 0 ? 'Lv1 (Macro)' : s === 1 ? 'Lv2 (Sub)' : s === 2 ? 'Lv3 (Leaf)' : `Lv${s + 1}`;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setSegmentAndScope(s, currentScope)}
+              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border transition-all ${
+                isSelected
+                  ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                  : 'bg-card hover:bg-secondary text-foreground border-border'
+              }`}
+            >
+              {sLabel}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="pt-1.5 border-t border-border/40 space-y-1">
+        <div className="flex items-center justify-between gap-1 flex-wrap">
+          <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
+            <Filter className="w-2.5 h-2.5 text-primary" />
+            Parent Scope Filter:
+          </span>
+          {currentScope && (
+            <button
+              type="button"
+              onClick={() => setSegmentAndScope(currentSegIdx, '')}
+              className="text-[9.5px] font-bold text-destructive hover:underline flex items-center gap-0.5"
+            >
+              <X className="w-2.5 h-2.5" /> Clear Scope
+            </button>
+          )}
+        </div>
+
+        {currentScope ? (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+              Scoped to: &ldquo;{currentScope}&rdquo;
+              <button
+                type="button"
+                onClick={() => setSegmentAndScope(currentSegIdx, '')}
+                className="hover:text-destructive"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          </div>
+        ) : (
+          candidateSegments.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-[9px] text-muted-foreground/80 mr-0.5">Filter by:</span>
+              {candidateSegments.slice(0, 8).map(seg => (
+                <button
+                  key={seg}
+                  type="button"
+                  onClick={() => setSegmentAndScope(currentSegIdx >= 0 ? currentSegIdx : (depth > 2 ? 2 : 1), seg)}
+                  className="px-1.5 py-0.2 rounded text-[9.5px] font-medium bg-card hover:bg-primary/10 hover:text-primary border border-border/60 transition-all"
+                >
+                  +{seg}
+                </button>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function StudioDataTab({ onOpenCustomGroupingModal, onOpenCrossTabModal }: StudioDataTabProps) {
@@ -53,8 +202,11 @@ export function StudioDataTab({ onOpenCustomGroupingModal, onOpenCrossTabModal }
     discoveredVariables, 
     numericalFields,
     levelCustomGroups,
+    setLevelCustomGroups,
     levelCustomGroupLinks,
-    levelTargetFields
+    setLevelCustomGroupLinks,
+    levelTargetFields,
+    setLevelTargetFields
   } = data;
   const [showBreakdownTable, setShowBreakdownTable] = useState<boolean>(false);
 
@@ -110,6 +262,36 @@ export function StudioDataTab({ onOpenCustomGroupingModal, onOpenCrossTabModal }
     const pct = tot > 0 ? Math.round((pos / tot) * 100) : 0;
     return { positivePaperCount: pos, totalCohortCount: tot, prevalencePct: pct };
   }, [secondaryField, papers, levelTargetFields, levelCustomGroups, levelCustomGroupLinks, config.useUmbrellanizer, umbrellanizerMap, config.splitMultiValues]);
+
+  // Per-level dynamic prevalence calculation for Sankey / Sunburst / Treemap hierarchical rings
+  const getSankeyLevelPrevalence = useMemo(() => {
+    return (lIdx: number, field: string) => {
+      if (field !== CUSTOM_GROUPING_KEY || !papers || papers.length === 0) return undefined;
+      const targetKey = levelTargetFields?.[lIdx] || (sankeyFields[lIdx] !== CUSTOM_GROUPING_KEY ? sankeyFields[lIdx] : undefined) || sankeyFields.find((f, i) => f !== CUSTOM_GROUPING_KEY && i !== lIdx) || primaryField || 'Year';
+      const positiveSet = new Set<any>();
+      papers.forEach(p => {
+        const vals = getMappedFieldValue(p, CUSTOM_GROUPING_KEY, {
+          subFieldKey: targetKey,
+          levelIdx: lIdx,
+          levelCustomGroups,
+          levelCustomGroupLinks,
+          levelTargetFields,
+          excludeEmpty: true,
+          useUmbrellanizer: config.useUmbrellanizer,
+          umbrellanizerMap,
+          splitMultiValues: config.splitMultiValues
+        });
+        const valid = vals.filter(v => v && v !== 'Unassigned / Other' && v !== 'Unassigned' && v !== 'Unspecified');
+        if (valid.length > 0) {
+          positiveSet.add(p.Paper_ID || p.id || p.title || p.Title || p);
+        }
+      });
+      const pos = positiveSet.size;
+      const tot = papers.length;
+      const pct = tot > 0 ? Math.round((pos / tot) * 100) : 0;
+      return { positivePaperCount: pos, totalCohortCount: tot, prevalencePct: pct };
+    };
+  }, [sankeyFields, primaryField, papers, levelTargetFields, levelCustomGroups, levelCustomGroupLinks, config.useUmbrellanizer, umbrellanizerMap, config.splitMultiValues]);
 
   return (
     <div className="space-y-5">
@@ -189,6 +371,13 @@ export function StudioDataTab({ onOpenCustomGroupingModal, onOpenCrossTabModal }
             availableFields={availableFields}
             customPrevalence={primCustomPrevalence}
           />
+          <FieldColonSegmentPicker
+            fieldKey={primaryField}
+            onFieldChange={setPrimaryField}
+            papers={papers}
+            useUmbrellanizer={config.useUmbrellanizer}
+            umbrellanizerMap={umbrellanizerMap}
+          />
         </div>
       )}
 
@@ -229,6 +418,13 @@ export function StudioDataTab({ onOpenCustomGroupingModal, onOpenCrossTabModal }
             discoveredVariables={discoveredVariables}
             availableFields={availableFields}
             customPrevalence={secCustomPrevalence}
+          />
+          <FieldColonSegmentPicker
+            fieldKey={secondaryField}
+            onFieldChange={setSecondaryField}
+            papers={papers}
+            useUmbrellanizer={config.useUmbrellanizer}
+            umbrellanizerMap={umbrellanizerMap}
           />
         </div>
       )}
@@ -271,7 +467,24 @@ export function StudioDataTab({ onOpenCustomGroupingModal, onOpenCrossTabModal }
                     {sankeyFields.length > 2 && (
                       <button
                         type="button"
-                        onClick={() => setSankeyFields(sankeyFields.filter((_, i) => i !== idx))}
+                        onClick={() => {
+                          setSankeyFields(sankeyFields.filter((_, i) => i !== idx));
+                          const reindexRecord = <T,>(rec: Record<number, T> | undefined): Record<number, T> => {
+                            if (!rec) return {};
+                            const res: Record<number, T> = {};
+                            Object.entries(rec).forEach(([k, v]) => {
+                              const n = Number(k);
+                              if (n < idx) res[n] = v;
+                              else if (n > idx) res[n - 1] = v;
+                            });
+                            return res;
+                          };
+                          if (config.setLevelScopeFilters) config.setLevelScopeFilters((prev: Record<number, string>) => reindexRecord(prev));
+                          if (config.setLevelSegmentIndices) config.setLevelSegmentIndices((prev: Record<number, number>) => reindexRecord(prev));
+                          if (setLevelCustomGroups) setLevelCustomGroups((prev: Record<number, string[]>) => reindexRecord(prev));
+                          if (setLevelCustomGroupLinks) setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => reindexRecord(prev));
+                          if (setLevelTargetFields) setLevelTargetFields((prev: Record<number, string>) => reindexRecord(prev));
+                        }}
                         className="text-muted-foreground hover:text-red-500 p-0.5"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -285,10 +498,211 @@ export function StudioDataTab({ onOpenCustomGroupingModal, onOpenCrossTabModal }
                     const next = [...sankeyFields];
                     next[idx] = newVal;
                     setSankeyFields(next);
+                    // If base variable changed, reset stale scope filter & segment index
+                    const oldBase = field.replace(/^ext:(macro:|sub:|leaf:|tail:|lv\d+:|segment:\d+:)?/, '').replace(/^raw:(leaf:|tail:)?ext:/, '').replace(/^ext:/, '');
+                    const newBase = newVal.replace(/^ext:(macro:|sub:|leaf:|tail:|lv\d+:|segment:\d+:)?/, '').replace(/^raw:(leaf:|tail:)?ext:/, '').replace(/^ext:/, '');
+                    if (oldBase !== newBase) {
+                      config.setLevelScopeFilters((prev: Record<number, string>) => {
+                        const copy = { ...prev };
+                        delete copy[idx];
+                        return copy;
+                      });
+                      config.setLevelSegmentIndices((prev: Record<number, number>) => {
+                        const copy = { ...prev };
+                        delete copy[idx];
+                        return copy;
+                      });
+                    }
                   }}
                   discoveredVariables={discoveredVariables}
                   availableFields={availableFields}
+                  customPrevalence={getSankeyLevelPrevalence(idx, field)}
                 />
+
+                {/* Dynamic Colon Segment Selector for Multi-Tier Taxonomy Fields */}
+                {(() => {
+                  const targetVarKey = field === CUSTOM_GROUPING_KEY ? (levelTargetFields?.[idx] || primaryField) : field;
+                  if (!targetVarKey) return null;
+                  const depth = discoverColonDepth(papers, targetVarKey, { useUmbrellanizer: config.useUmbrellanizer, umbrellanizerMap });
+                  if (depth <= 1) return null;
+
+                  const currentSegIdx = config.levelSegmentIndices?.[idx] ?? (
+                    field.includes('lv1') || field.includes('macro') ? 0 :
+                    field.includes('lv2') || field.includes('sub') ? 1 :
+                    field.includes('lv3') || field.includes('leaf') ? 2 : idx
+                  );
+
+                  return (
+                    <div className="mt-1.5 p-2 bg-secondary/20 rounded-xl border border-border/60 space-y-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-muted-foreground">Extract Colon Segment:</span>
+                        {Array.from({ length: depth }).map((_, s) => {
+                          const isSelected = currentSegIdx === s;
+                          const sLabel = s === 0 ? 'Lv1 (Macro)' : s === 1 ? 'Lv2 (Sub)' : s === 2 ? 'Lv3 (Leaf)' : `Lv${s + 1}`;
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => {
+                                config.setLevelSegmentIndices((prev: Record<number, number>) => ({
+                                  ...prev,
+                                  [idx]: s
+                                }));
+                              }}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border transition-all ${
+                                isSelected
+                                  ? 'bg-primary text-primary-foreground border-primary shadow-xs'
+                                  : 'bg-card hover:bg-secondary text-foreground border-border'
+                              }`}
+                              title={`Extract segment ${s + 1} (0-indexed ${s}) from colon-separated taxonomy`}
+                            >
+                              {sLabel}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Parent Scope Filter: Discover and filter by intermediate parent segments */}
+                      {(() => {
+                        const segmentsByLevel = discoverColonSegmentsByLevel(papers, targetVarKey, {
+                          useUmbrellanizer: config.useUmbrellanizer,
+                          umbrellanizerMap
+                        });
+                        // Candidate filter values come from all segments OTHER than the current extracted segment
+                        const candidateSegments: string[] = [];
+                        Object.entries(segmentsByLevel).forEach(([sLvlStr, segList]) => {
+                          const sLvl = Number(sLvlStr);
+                          if (sLvl !== currentSegIdx) {
+                            const list = (segList as string[]) || [];
+                            list.forEach((seg: string) => {
+                              if (!candidateSegments.includes(seg)) candidateSegments.push(seg);
+                            });
+                          }
+                        });
+
+                        const currentScope = config.levelScopeFilters?.[idx] || '';
+
+                        return (
+                          <div className="pt-1.5 border-t border-border/40 space-y-1">
+                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                              <span className="text-[10px] font-bold text-muted-foreground flex items-center gap-1">
+                                <Filter className="w-2.5 h-2.5 text-primary" />
+                                Parent Scope Filter:
+                              </span>
+                              {currentScope && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    config.setLevelScopeFilters((prev: Record<number, string>) => {
+                                      const next = { ...prev };
+                                      delete next[idx];
+                                      return next;
+                                    });
+                                  }}
+                                  className="text-[9.5px] font-bold text-destructive hover:underline flex items-center gap-0.5"
+                                >
+                                  <X className="w-2.5 h-2.5" /> Clear Scope
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Active scope indicator badge */}
+                            {currentScope ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/30 text-[10px] font-black">
+                                  <span>Scoped to: <strong>"{currentScope}"</strong></span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      config.setLevelScopeFilters((prev: Record<number, string>) => {
+                                        const next = { ...prev };
+                                        delete next[idx];
+                                        return next;
+                                      });
+                                    }}
+                                    className="hover:text-destructive p-0.5"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </span>
+                              </div>
+                            ) : null}
+
+                            {/* Suggestion Pills */}
+                            {candidateSegments.length > 0 && (
+                              <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                <span className="text-[9.5px] text-muted-foreground italic">Filter by:</span>
+                                {candidateSegments.slice(0, 8).map(seg => {
+                                  const isScopeSelected = currentScope.toLowerCase() === seg.toLowerCase();
+                                  return (
+                                    <button
+                                      key={seg}
+                                      type="button"
+                                      onClick={() => {
+                                        config.setLevelScopeFilters((prev: Record<number, string>) => ({
+                                          ...prev,
+                                          [idx]: isScopeSelected ? '' : seg
+                                        }));
+                                      }}
+                                      className={`px-1.5 py-0.5 rounded text-[9.5px] font-semibold border transition-all ${
+                                        isScopeSelected
+                                          ? 'bg-primary text-primary-foreground border-primary font-bold'
+                                          : 'bg-card hover:bg-secondary text-muted-foreground border-border'
+                                      }`}
+                                      title={`Filter level ${idx + 1} extraction to only include tokens matching "${seg}"`}
+                                    >
+                                      {seg}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Custom Scope input */}
+                            <div className="flex items-center gap-1 pt-0.5">
+                              <input
+                                type="text"
+                                value={currentScope}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  config.setLevelScopeFilters((prev: Record<number, string>) => ({
+                                    ...prev,
+                                    [idx]: val
+                                  }));
+                                }}
+                                placeholder="Custom scope (e.g. Edge Hosted)..."
+                                className="flex-1 bg-card border border-border rounded px-2 py-0.5 text-[10px] text-foreground focus:outline-none focus:border-primary/60 font-mono"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                })()}
+
+                {field === CUSTOM_GROUPING_KEY && (
+                  <div className="mt-1.5 p-2 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10.5px] font-bold text-foreground truncate">
+                          Source: <strong className="text-primary font-mono">{formatVariableDisplayName(levelTargetFields?.[idx] || (sankeyFields[idx] !== CUSTOM_GROUPING_KEY ? sankeyFields[idx] : undefined) || sankeyFields.find((f, i) => f !== CUSTOM_GROUPING_KEY && i !== idx) || primaryField || 'Year')}</strong>
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary border border-primary/20 text-[9.5px] font-black font-mono">
+                          {(levelCustomGroups?.[idx] || []).length} groups
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenCustomGroupingModal(idx)}
+                      className="px-2 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-[10px] font-black transition-all flex items-center gap-1 shrink-0"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Edit Groups
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

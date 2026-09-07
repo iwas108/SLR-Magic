@@ -67,7 +67,7 @@ export type FittingAnchor =
 
 export type PieLabelPlacement = 'outside' | 'inside' | 'legend_only' | 'edge_aligned';
 
-export type DecimalPrecision = 0 | 1 | 2;
+export type DecimalPrecision = 0 | 1 | 2 | 3;
 
 export type RatioStyle = 'n_over_N' | 'fraction' | 'bracketed';
 
@@ -79,6 +79,7 @@ export type DisplayFormatTemplate =
   | 'name_ratio'           // Name (n = 1/18)
   | 'count_percent'        // n = 1 (~6%)
   | 'percent_only'         // ~6%
+  | 'layer_share'          // Relative Layer Share: ~6% (Sums to 100%)
   | 'count_only'           // n = 1
   | 'name_only'            // Name
   | 'name_count'           // Name (n = 1)
@@ -96,8 +97,10 @@ export type DisplayFormatTemplate =
   | 'name_prevalence_ratio_percent' // Name (n = 18/46, ~39%)
   | 'prevalence_percent_only'       // ~39%
   | 'prevalence_ratio_only'         // n = 18/46
+  | 'count_prevalence_percent'      // Explicit Prevalence: n = 18 (~39%)
   | 'dual_prevalence_tag_share'     // Dual: n = 18/46 (~39%) | Tags: 18/54 (~33%)
   | 'two_line_count_percent'        // Multi-line: n = 14\n(~30%)
+  | 'two_line_count_prevalence_percent' // Multi-line Prevalence: n = 14\n(~30%)
   | 'two_line_percent_count'        // Multi-line: ~30%\n(n = 14)
   | 'two_line_ratio_percent'        // Multi-line: n = 14/46\n(~30%)
   | 'two_line_percent_ratio'        // Multi-line: ~30%\n(n = 14/46)
@@ -214,6 +217,15 @@ export type ThemePreset =
   | 'degrade_plum'
   | 'degrade_slate';
 
+export type SmartColorMode = 
+  | 'branch_gradient' 
+  | 'parent_flow' 
+  | 'value_weighted_tint' 
+  | 'level_discrete' 
+  | 'rainbow_discrete';
+
+export type SmartColorPropagation = 'auto_children' | 'discrete_only';
+
 export type FontFamily = 
   | 'serif' 
   | 'times'
@@ -265,15 +277,56 @@ export interface SunburstLevelConfig {
   r0: number;
   r: number;
   position: 'inside' | 'outside';
-  rotate: 'tangential' | 'radial' | 'flat';
+  rotate: 'tangential' | 'radial' | 'flat' | 'auto';
   align: 'right' | 'center' | 'left';
   minAngle: number;
   borderWidth: number;
+  borderRadius?: number;
+  borderColor?: string;
   fontSize: number;
+  fontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  fontStyle?: 'normal' | 'italic';
+  lineHeight?: number;
   color?: string;
+  colorMode?: 'auto_contrast' | 'custom' | 'inherit_theme' | 'inherit_category';
+  distance?: number;
   overflow?: 'break' | 'truncate' | 'none';
   maxLabelWidth?: number;
   labelFormat?: DisplayFormatTemplate;
+  hideOverlap?: boolean;
+}
+
+export interface TreemapLevelConfig {
+  gapWidth?: number;
+  borderWidth?: number;
+  borderColor?: string;
+  borderRadius?: number;
+  showLabel?: boolean;
+  labelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  labelFormat?: DisplayFormatTemplate;
+  fontSize?: number;
+  fontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  fontStyle?: 'normal' | 'italic';
+  colorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  color?: string;
+  overflow?: 'break' | 'truncate' | 'none';
+  lineHeight?: number;
+  labelLineHeight?: number;
+  labelWidth?: number;
+  upperLabelWidth?: number;
+  showUpperLabel?: boolean;
+  upperLabelHeight?: number;
+  upperLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  upperLabelFormat?: DisplayFormatTemplate;
+  upperLabelFontSize?: number;
+  upperLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  upperLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  upperLabelColor?: string;
+  upperLabelBgColor?: string;
+  visibleMin?: number;
+  childrenVisibleMin?: number;
+  colorAlpha?: [number, number];
+  colorSaturation?: [number, number];
 }
 
 export interface VisualizerModalProps {
@@ -362,7 +415,12 @@ export interface SlotConfig {
   sankeyLevelLabelDistances?: Record<number, number>;
   sankeyLevelNodeWidths?: Record<number, number>;
   sankeyLevelPathFilters?: Record<number, string>;
-  sankeySort?: 'desc' | 'asc' | 'alpha' | 'none';
+  sankeySort?: 'desc' | 'asc' | 'alpha' | 'barycenter' | 'none';
+  sankeyPinUnstatedToBottom?: boolean;
+  sankeyFlowConservation?: boolean;
+  sankeyLevelNodeOrders?: Record<number, string[]>;
+  levelSegmentIndices?: Record<number, number>;
+  levelScopeFilters?: Record<number, string>;
   sankeyLabelLineHeight?: number;
   sankeyLabelFontWeight?: 'normal' | 'bold' | '500' | '600' | '700' | '800';
   sankeyLabelColor?: string;
@@ -372,6 +430,7 @@ export interface SlotConfig {
   sunburstSort: 'desc' | 'asc' | 'none';
   sunburstNodeClick: 'rootToNode' | 'link' | 'none';
   sunburstEmphasisFocus: 'ancestor' | 'descendant' | 'none';
+  sunburstColorMode?: 'branch_gradient' | 'level_discrete' | 'rainbow_discrete';
   barSorting: 'desc' | 'asc' | 'none';
   barOrientation?: BarOrientation;
   barThickness: number;
@@ -431,6 +490,8 @@ export interface SlotConfig {
   axisLabelSuffixY?: string;
   axisLabelIntervalX?: 'auto' | number;
   axisLabelIntervalY?: 'auto' | number;
+  axisLabelDecimalsX?: number;
+  axisLabelDecimalsY?: number;
   // Scientific Gridlines
   showGridLinesX?: boolean;
   showGridLinesY?: boolean;
@@ -455,6 +516,12 @@ export interface SlotConfig {
   legendFormat?: LegendFormat;
   barLegendFormat: LegendFormat;
   barLegendPosition: 'top-left' | 'top-center' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  legendContextScope?: 'global_cohort' | 'parent_layer' | 'surviving_flow' | 'in_chart_flow';
+  syncLegendAndBarMetrics?: boolean;
+  barLabelContextScope?: 'auto' | 'layer_share' | 'cohort_prevalence' | 'global_cohort';
+  legendShowParentPrefix?: boolean;
+  legendParentPrefixStyle?: 'abbreviated' | 'full' | 'colliding_only' | 'none';
+  legendGroupByParent?: boolean;
   sunburstLegendLevel: number;
   sunburstLegendFormat: LegendFormat;
   sunburstLegendPosition: 'top-left' | 'top-center' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
@@ -487,6 +554,7 @@ export interface SlotConfig {
   barLabelShowZero?: boolean;
   barLabelMinThreshold?: number;
   barLabelLineHeight?: number;
+  barLabelDecimals?: number;
   barValueCeiling?: number | 'auto';
   barValueInterval?: number | 'auto';
   legendDistance?: number;
@@ -495,7 +563,9 @@ export interface SlotConfig {
   legendLineHeight?: number;
   legendItemGap?: number;
   legendFontSize?: number;
+  legendFontFamily?: string;
   legendFontStyle?: 'normal' | 'italic';
+  legendLetterSpacing?: number;
   legendOverflow?: 'break' | 'truncate' | 'none';
   fitOffsetX?: number;
   fitOffsetY?: number;
@@ -553,33 +623,114 @@ export interface SlotConfig {
   piePadAngle?: number;
   pieCornerRadius?: number;
   treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
+  treemapSquareRatio?: number;
   treemapVisibleDepth?: number;
   treemapGapWidth?: number;
   treemapBorderWidth?: number;
+  treemapBorderRadius?: number;
+  treemapBorderColorMode?: 'auto_bg' | 'contrast' | 'custom' | 'transparent';
+  treemapBorderColor?: string;
+  treemapNodeClick?: 'zoomToNode' | 'link' | 'none';
+  treemapRoam?: boolean | 'scale' | 'move';
+  treemapDrillDownIcon?: string;
+  treemapShowBreadcrumb?: boolean;
+  treemapBreadcrumbPosition?: 'bottom' | 'top';
+  treemapBreadcrumbHeight?: number;
+  treemapColorMode?: 'branch_gradient' | 'depth_fade' | 'value_weighted' | 'level_discrete' | 'rainbow_discrete';
+  treemapCohortMode?: 'grouped' | 'global';
+  treemapColorMappingBy?: 'index' | 'value' | 'id';
+  treemapColorAlphaMin?: number;
+  treemapColorAlphaMax?: number;
+  treemapColorSaturationMin?: number;
+  treemapColorSaturationMax?: number;
+  treemapShowLabels?: boolean;
+  treemapLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapLabelFormat?: DisplayFormatTemplate;
+  treemapLabelFontSize?: number;
+  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapLabelFontStyle?: 'normal' | 'italic';
+  treemapLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapLabelColor?: string;
+  treemapLabelOverflow?: 'break' | 'truncate' | 'none';
+  treemapLabelWidth?: number;
+  treemapLabelLineHeight?: number;
+  treemapShowUpperLabel?: boolean;
+  treemapUpperLabelHeight?: number;
+  treemapUpperLabelWidth?: number;
+  treemapUpperLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapUpperLabelFormat?: DisplayFormatTemplate;
+  treemapUpperLabelFontSize?: number;
+  treemapUpperLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapUpperLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapUpperLabelColor?: string;
+  treemapUpperLabelBgColor?: string;
+  treemapVisibleMin?: number;
+  treemapChildrenVisibleMin?: number;
+  treemapLevelConfigs?: Record<number, TreemapLevelConfig>;
   heatmapCellRadius?: number;
   heatmapColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
   radarShape?: 'polygon' | 'circle';
+  radarStartAngle?: number;
   radarAreaOpacity?: number;
   radarLineWidth?: number;
   radarSplitNumber?: number;
   radarRadius?: number;
+  radarCenterX?: number;
+  radarCenterY?: number;
   radarAxisLine?: boolean;
+  radarAxisLineWidth?: number;
+  radarAxisLineType?: 'solid' | 'dashed' | 'dotted';
+  radarAxisLineColor?: string;
+  radarAxisLineOpacity?: number;
   radarSplitLine?: boolean;
+  radarSplitLineWidth?: number;
+  radarSplitLineType?: 'solid' | 'dashed' | 'dotted';
+  radarSplitLineColor?: string;
+  radarSplitLineOpacity?: number;
   radarSplitArea?: boolean;
+  radarSplitAreaTheme?: 'stepped' | 'subtle' | 'solid' | 'none' | 'custom';
+  radarSplitAreaOpacity?: number;
+  radarSplitAreaColor1?: string;
+  radarSplitAreaColor2?: string;
+  radarShowAxisScaleLabels?: boolean;
+  radarAxisScaleFormat?: 'percent' | 'integer' | 'decimal_1' | 'raw';
+  radarAxisScaleFontSize?: number;
+  radarAxisScaleFontWeight?: 'normal' | '500' | '600' | 'bold';
+  radarAxisScaleColor?: string;
+  radarScaleMax?: number;
+  radarScaleMin?: number;
+  radarShowAxisTicks?: boolean;
   radarAxisNameMargin?: number;
   radarAxisNameWidth?: number;
   radarAxisNameOverflow?: 'break' | 'truncate' | 'none';
   radarAxisNameLineHeight?: number;
+  radarAxisNameFontSize?: number;
+  radarAxisNameFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarAxisNameFontStyle?: 'normal' | 'italic';
+  radarAxisNameColor?: string;
+  radarAxisNameBgColor?: string;
+  radarAxisNamePadding?: number;
+  radarAxisNameBorderRadius?: number;
+  radarAxisNameBorderColor?: string;
+  radarAxisNameBorderWidth?: number;
   radarShowDataLabels?: boolean;
   radarDataLabelPosition?: 'top' | 'bottom' | 'inside' | 'outside' | 'auto';
+  radarDataLabelFontSize?: number;
+  radarDataLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarDataLabelColor?: string;
+  radarDataLabelFormat?: 'percent' | 'integer' | 'decimal_1' | 'raw' | 'detailed';
+  radarSmooth?: boolean;
   radarBaselineLineStyle?: 'solid' | 'dashed' | 'dotted';
   radarBaselineSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
   radarBaselineSymbolSize?: number;
-  radarMode?: 'multi_variable' | 'qa_breakdown';
+  radarBaselineAreaColor?: string;
+  radarBaselineSymbolBorderColor?: string;
+  radarBaselineSymbolBorderWidth?: number;
+  radarMode?: 'multi_variable' | 'qa_breakdown' | 'prevalence_vs_tag_share';
   radarVariables?: string[];
   radarVariableAliases?: Record<string, string>;
   radarVariableTargets?: Record<string, number>;
-  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'name_only';
+  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'asymmetry_two_line' | 'name_only';
   radarShowTarget?: boolean;
   radarTargetName?: string;
   radarTargetValue?: number;
@@ -587,10 +738,19 @@ export interface SlotConfig {
   radarTargetLineWidth?: number;
   radarTargetColor?: string;
   radarTargetAreaOpacity?: number;
+  radarTargetSmooth?: boolean;
   radarTargetSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
   radarTargetSymbolSize?: number;
   radarBaselineName?: string;
   radarBaselineColor?: string;
+  radarTagShareName?: string;
+  radarTagShareColor?: string;
+  radarTagShareLineStyle?: 'dashed' | 'solid' | 'dotted';
+  radarTagShareLineWidth?: number;
+  radarTagShareAreaOpacity?: number;
+  radarTagShareSmooth?: boolean;
+  radarTagShareSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarTagShareSymbolSize?: number;
   funnelAlign?: 'center' | 'left' | 'right';
   funnelGap?: number;
   funnelNeckWidth?: number;
@@ -642,6 +802,15 @@ export interface SlotConfig {
   calendarCellSize?: number;
   calendarYear?: string;
   stackedNormalized?: boolean;
+  stackedReverseOrder?: boolean;
+  stackedPerBarSorting?: 'none' | 'desc' | 'asc';
+  stackedShowTotalLabel?: boolean;
+  stackedTotalLabelPosition?: 'top' | 'insideTop' | 'right';
+  stackedTotalLabelFormat?: string;
+  stackedTotalFontSize?: number;
+  stackedTotalFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  stackedTotalColor?: string;
+  stackedTotalLabelDistance?: number;
   legendType?: 'plain' | 'scroll';
   legendAlign?: 'auto' | 'left' | 'right';
   legendIcon?: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line';
@@ -691,10 +860,6 @@ export interface SlotConfig {
   heatmapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   heatmapLabelFontStyle?: 'normal' | 'italic';
   heatmapLabelColor?: string;
-  treemapLabelFontSize?: number;
-  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
-  treemapLabelFontStyle?: 'normal' | 'italic';
-  treemapLabelColor?: string;
   funnelLabelFontSize?: number;
   funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   funnelLabelFontStyle?: 'normal' | 'italic';
@@ -710,6 +875,29 @@ export interface SlotConfig {
   barGridBottom?: number;
   barGridLeft?: number;
   barGridRight?: number;
+  // Universal Layout Margins & Canvas Padding
+  gridMarginAuto?: boolean;
+  gridMarginTop?: number;
+  gridMarginBottom?: number;
+  gridMarginLeft?: number;
+  gridMarginRight?: number;
+  // Universal Data Label Styling
+  universalLabelPosition?: 'auto' | 'top' | 'bottom' | 'left' | 'right' | 'inside' | 'insideLeft' | 'insideRight' | 'outside';
+  universalLabelDistance?: number;
+  universalLabelOverflow?: 'break' | 'truncate' | 'none';
+  universalMaxLabelWidth?: number;
+  universalLabelLineHeight?: number;
+  universalLabelFontSize?: number;
+  universalLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  universalLabelFontStyle?: 'normal' | 'italic';
+  universalLabelColor?: string;
+  universalLabelColorMode?: 'auto_contrast' | 'theme' | 'custom';
+  universalLabelRotate?: number;
+  universalLabelMinThreshold?: number;
+  universalLabelShowZero?: boolean;
+  // Smart Color Modes & Interactive Propagation
+  smartColorMode?: SmartColorMode;
+  smartColorPropagation?: SmartColorPropagation;
   scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
   otherCategoryLabel?: string;
 }
@@ -818,7 +1006,12 @@ export interface VisualizerPresetPayload {
   sankeyLevelLabelDistances?: Record<number, number>;
   sankeyLevelNodeWidths?: Record<number, number>;
   sankeyLevelPathFilters?: Record<number, string>;
-  sankeySort?: 'desc' | 'asc' | 'alpha' | 'none';
+  sankeySort?: 'desc' | 'asc' | 'alpha' | 'barycenter' | 'none';
+  sankeyPinUnstatedToBottom?: boolean;
+  sankeyFlowConservation?: boolean;
+  sankeyLevelNodeOrders?: Record<number, string[]>;
+  levelSegmentIndices?: Record<number, number>;
+  levelScopeFilters?: Record<number, string>;
   sankeyLabelLineHeight?: number;
   sankeyLabelFontWeight?: 'normal' | 'bold' | '500' | '600' | '700' | '800';
   sankeyLabelColor?: string;
@@ -828,6 +1021,7 @@ export interface VisualizerPresetPayload {
   sunburstSort?: 'desc' | 'asc' | 'none';
   sunburstNodeClick?: 'rootToNode' | 'link' | 'none';
   sunburstEmphasisFocus?: 'ancestor' | 'descendant' | 'none';
+  sunburstColorMode?: 'branch_gradient' | 'level_discrete' | 'rainbow_discrete';
   barSorting?: 'desc' | 'asc' | 'none';
   barOrientation?: BarOrientation;
   barThickness?: number;
@@ -887,6 +1081,8 @@ export interface VisualizerPresetPayload {
   axisLabelSuffixY?: string;
   axisLabelIntervalX?: 'auto' | number;
   axisLabelIntervalY?: 'auto' | number;
+  axisLabelDecimalsX?: number;
+  axisLabelDecimalsY?: number;
   // Scientific Gridlines
   showGridLinesX?: boolean;
   showGridLinesY?: boolean;
@@ -918,6 +1114,12 @@ export interface VisualizerPresetPayload {
   legendFormat?: LegendFormat;
   barLegendFormat?: LegendFormat;
   barLegendPosition?: 'top-left' | 'top-center' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  legendContextScope?: 'global_cohort' | 'parent_layer' | 'surviving_flow' | 'in_chart_flow';
+  syncLegendAndBarMetrics?: boolean;
+  barLabelContextScope?: 'auto' | 'layer_share' | 'cohort_prevalence' | 'global_cohort';
+  legendShowParentPrefix?: boolean;
+  legendParentPrefixStyle?: 'abbreviated' | 'full' | 'colliding_only' | 'none';
+  legendGroupByParent?: boolean;
   chartScale?: number;
   panX?: number;
   panY?: number;
@@ -943,6 +1145,7 @@ export interface VisualizerPresetPayload {
   pieLabelDistance?: number;
   pieLineHeight?: number;
   barLabelDistance?: number;
+  barLabelDecimals?: number;
   legendDistance?: number;
   legendWidth?: number;
   legendLineHeight?: number;
@@ -958,27 +1161,67 @@ export interface VisualizerPresetPayload {
   containerPadding?: number;
   showSafeGuides?: boolean;
   radarShape?: 'polygon' | 'circle';
+  radarStartAngle?: number;
   radarAreaOpacity?: number;
   radarLineWidth?: number;
   radarSplitNumber?: number;
   radarRadius?: number;
+  radarCenterX?: number;
+  radarCenterY?: number;
   radarAxisLine?: boolean;
+  radarAxisLineWidth?: number;
+  radarAxisLineType?: 'solid' | 'dashed' | 'dotted';
+  radarAxisLineColor?: string;
+  radarAxisLineOpacity?: number;
   radarSplitLine?: boolean;
+  radarSplitLineWidth?: number;
+  radarSplitLineType?: 'solid' | 'dashed' | 'dotted';
+  radarSplitLineColor?: string;
+  radarSplitLineOpacity?: number;
   radarSplitArea?: boolean;
+  radarSplitAreaTheme?: 'stepped' | 'subtle' | 'solid' | 'none' | 'custom';
+  radarSplitAreaOpacity?: number;
+  radarSplitAreaColor1?: string;
+  radarSplitAreaColor2?: string;
+  radarShowAxisScaleLabels?: boolean;
+  radarAxisScaleFormat?: 'percent' | 'integer' | 'decimal_1' | 'raw';
+  radarAxisScaleFontSize?: number;
+  radarAxisScaleFontWeight?: 'normal' | '500' | '600' | 'bold';
+  radarAxisScaleColor?: string;
+  radarScaleMax?: number;
+  radarScaleMin?: number;
+  radarShowAxisTicks?: boolean;
   radarAxisNameMargin?: number;
   radarAxisNameWidth?: number;
   radarAxisNameOverflow?: 'break' | 'truncate' | 'none';
   radarAxisNameLineHeight?: number;
+  radarAxisNameFontSize?: number;
+  radarAxisNameFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarAxisNameFontStyle?: 'normal' | 'italic';
+  radarAxisNameColor?: string;
+  radarAxisNameBgColor?: string;
+  radarAxisNamePadding?: number;
+  radarAxisNameBorderRadius?: number;
+  radarAxisNameBorderColor?: string;
+  radarAxisNameBorderWidth?: number;
   radarShowDataLabels?: boolean;
   radarDataLabelPosition?: 'top' | 'bottom' | 'inside' | 'outside' | 'auto';
+  radarDataLabelFontSize?: number;
+  radarDataLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarDataLabelColor?: string;
+  radarDataLabelFormat?: 'percent' | 'integer' | 'decimal_1' | 'raw' | 'detailed';
+  radarSmooth?: boolean;
   radarBaselineLineStyle?: 'solid' | 'dashed' | 'dotted';
   radarBaselineSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
   radarBaselineSymbolSize?: number;
-  radarMode?: 'multi_variable' | 'qa_breakdown';
+  radarBaselineAreaColor?: string;
+  radarBaselineSymbolBorderColor?: string;
+  radarBaselineSymbolBorderWidth?: number;
+  radarMode?: 'multi_variable' | 'qa_breakdown' | 'prevalence_vs_tag_share';
   radarVariables?: string[];
   radarVariableAliases?: Record<string, string>;
   radarVariableTargets?: Record<string, number>;
-  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'name_only';
+  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'asymmetry_two_line' | 'name_only';
   radarShowTarget?: boolean;
   radarTargetName?: string;
   radarTargetValue?: number;
@@ -986,10 +1229,19 @@ export interface VisualizerPresetPayload {
   radarTargetLineWidth?: number;
   radarTargetColor?: string;
   radarTargetAreaOpacity?: number;
+  radarTargetSmooth?: boolean;
   radarTargetSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
   radarTargetSymbolSize?: number;
   radarBaselineName?: string;
   radarBaselineColor?: string;
+  radarTagShareName?: string;
+  radarTagShareColor?: string;
+  radarTagShareLineStyle?: 'dashed' | 'solid' | 'dotted';
+  radarTagShareLineWidth?: number;
+  radarTagShareAreaOpacity?: number;
+  radarTagShareSmooth?: boolean;
+  radarTagShareSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarTagShareSymbolSize?: number;
   bubbleMode?: 'categorical_matrix' | 'numerical_3d';
   bubbleMinRadius?: number;
   bubbleMaxRadius?: number;
@@ -1061,6 +1313,34 @@ export interface VisualizerPresetPayload {
   lineShowTxLabels?: boolean;
   lineTxEventLabel?: string;
   lineTxEventSeriesName?: string;
+  stackedNormalized?: boolean;
+  setStackedNormalized?: (v: boolean) => void;
+  stackedReverseOrder?: boolean;
+  setStackedReverseOrder?: (v: boolean) => void;
+  stackedPerBarSorting?: 'none' | 'desc' | 'asc';
+  setStackedPerBarSorting?: (v: 'none' | 'desc' | 'asc') => void;
+  stackedShowTotalLabel?: boolean;
+  setStackedShowTotalLabel?: (v: boolean) => void;
+  stackedTotalLabelPosition?: 'top' | 'insideTop' | 'right';
+  setStackedTotalLabelPosition?: (v: 'top' | 'insideTop' | 'right') => void;
+  stackedTotalLabelFormat?: string;
+  setStackedTotalLabelFormat?: (v: string) => void;
+  stackedTotalFontSize?: number;
+  setStackedTotalFontSize?: (v: number) => void;
+  stackedTotalFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  setStackedTotalFontWeight?: (v: 'normal' | '500' | '600' | 'bold' | '800') => void;
+  stackedTotalColor?: string;
+  setStackedTotalColor?: (v: string) => void;
+  stackedTotalLabelDistance?: number;
+  setStackedTotalLabelDistance?: (v: number) => void;
+  setLegendContextScope?: (v: 'global_cohort' | 'parent_layer' | 'surviving_flow' | 'in_chart_flow') => void;
+  setSyncLegendAndBarMetrics?: (v: boolean) => void;
+  setBarLabelContextScope?: (v: 'auto' | 'layer_share' | 'cohort_prevalence' | 'global_cohort') => void;
+  setLegendShowParentPrefix?: (v: boolean) => void;
+  setLegendParentPrefixStyle?: (v: 'abbreviated' | 'full' | 'colliding_only' | 'none') => void;
+  setLegendGroupByParent?: (v: boolean) => void;
+  setPrimaryScopeFilter?: (v: string) => void;
+  setSecondaryScopeFilter?: (v: string) => void;
   legendType?: 'plain' | 'scroll';
   legendAlign?: 'auto' | 'left' | 'right';
   legendIcon?: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line';
@@ -1114,6 +1394,47 @@ export interface VisualizerPresetPayload {
   treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   treemapLabelFontStyle?: 'normal' | 'italic';
   treemapLabelColor?: string;
+  treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
+  treemapSquareRatio?: number;
+  treemapVisibleDepth?: number;
+  treemapGapWidth?: number;
+  treemapBorderWidth?: number;
+  treemapBorderRadius?: number;
+  treemapBorderColorMode?: 'auto_bg' | 'contrast' | 'custom' | 'transparent';
+  treemapBorderColor?: string;
+  treemapNodeClick?: 'zoomToNode' | 'link' | 'none';
+  treemapRoam?: boolean | 'scale' | 'move';
+  treemapDrillDownIcon?: string;
+  treemapShowBreadcrumb?: boolean;
+  treemapBreadcrumbPosition?: 'bottom' | 'top';
+  treemapBreadcrumbHeight?: number;
+  treemapColorMode?: 'branch_gradient' | 'depth_fade' | 'value_weighted' | 'level_discrete' | 'rainbow_discrete';
+  treemapCohortMode?: 'grouped' | 'global';
+  treemapColorMappingBy?: 'index' | 'value' | 'id';
+  treemapColorAlphaMin?: number;
+  treemapColorAlphaMax?: number;
+  treemapColorSaturationMin?: number;
+  treemapColorSaturationMax?: number;
+  treemapShowLabels?: boolean;
+  treemapLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapLabelFormat?: DisplayFormatTemplate;
+  treemapLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapLabelOverflow?: 'break' | 'truncate' | 'none';
+  treemapLabelWidth?: number;
+  treemapLabelLineHeight?: number;
+  treemapShowUpperLabel?: boolean;
+  treemapUpperLabelHeight?: number;
+  treemapUpperLabelWidth?: number;
+  treemapUpperLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapUpperLabelFormat?: DisplayFormatTemplate;
+  treemapUpperLabelFontSize?: number;
+  treemapUpperLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapUpperLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapUpperLabelColor?: string;
+  treemapUpperLabelBgColor?: string;
+  treemapVisibleMin?: number;
+  treemapChildrenVisibleMin?: number;
+  treemapLevelConfigs?: Record<number, TreemapLevelConfig>;
   funnelLabelFontSize?: number;
   funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   funnelLabelFontStyle?: 'normal' | 'italic';
@@ -1129,6 +1450,29 @@ export interface VisualizerPresetPayload {
   barGridBottom?: number;
   barGridLeft?: number;
   barGridRight?: number;
+  // Universal Layout Margins & Canvas Padding
+  gridMarginAuto?: boolean;
+  gridMarginTop?: number;
+  gridMarginBottom?: number;
+  gridMarginLeft?: number;
+  gridMarginRight?: number;
+  // Universal Data Label Styling
+  universalLabelPosition?: 'auto' | 'top' | 'bottom' | 'left' | 'right' | 'inside' | 'insideLeft' | 'insideRight' | 'outside';
+  universalLabelDistance?: number;
+  universalLabelOverflow?: 'break' | 'truncate' | 'none';
+  universalMaxLabelWidth?: number;
+  universalLabelLineHeight?: number;
+  universalLabelFontSize?: number;
+  universalLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  universalLabelFontStyle?: 'normal' | 'italic';
+  universalLabelColor?: string;
+  universalLabelColorMode?: 'auto_contrast' | 'theme' | 'custom';
+  universalLabelRotate?: number;
+  universalLabelMinThreshold?: number;
+  universalLabelShowZero?: boolean;
+  // Smart Color Modes & Interactive Propagation
+  smartColorMode?: SmartColorMode;
+  smartColorPropagation?: SmartColorPropagation;
   scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
   otherCategoryLabel?: string;
 }

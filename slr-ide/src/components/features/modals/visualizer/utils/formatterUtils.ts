@@ -22,6 +22,10 @@ export interface FormatMetricParams {
   useTildeForCoarse?: boolean;
   ratioStyle?: RatioStyle;
   forceCohortDenominator?: boolean;
+  parentName?: string;
+  parentPaperCount?: number;
+  parentTagCount?: number;
+  showParentPrefix?: boolean;
 }
 
 /**
@@ -29,7 +33,7 @@ export interface FormatMetricParams {
  */
 export function formatPercentage(
   rawPct: number | string | undefined,
-  precision: DecimalPrecision = 0,
+  precision: number = 0,
   useTilde: boolean = true
 ): string {
   if (rawPct === undefined || rawPct === null || rawPct === '') return '0%';
@@ -79,7 +83,7 @@ export function formatRatio(
  */
 export function formatMetricDisplay(params: FormatMetricParams): string {
   const {
-    name = '',
+    name: inputName = '',
     count,
     val,
     paperCount,
@@ -94,8 +98,14 @@ export function formatMetricDisplay(params: FormatMetricParams): string {
     decimalPrecision = 0,
     useTildeForCoarse = true,
     ratioStyle = 'n_over_N',
-    forceCohortDenominator = false
+    forceCohortDenominator = false,
+    parentName,
+    showParentPrefix = false
   } = params;
+
+  const name = (showParentPrefix && parentName && !inputName.startsWith(`[${parentName}]`) && !inputName.startsWith(`${parentName}:`))
+    ? `[${parentName}] ${inputName}`
+    : inputName;
 
   // 1. Resolve dedicated Tag Share components
   const effTagCount = tagCount ?? (typeof count === 'number' ? count : (typeof val === 'number' ? val : 0));
@@ -211,6 +221,10 @@ export function formatMetricDisplay(params: FormatMetricParams): string {
       rawFormatted = prevalenceRatioStr;
       break;
 
+    case 'count_prevalence_percent':
+      rawFormatted = `${prevalenceCountStr} (${prevalencePctStr})`;
+      break;
+
     // --- Dual Multi-Metric Template ---
     case 'dual_prevalence_tag_share':
       rawFormatted = `${prevalenceRatioStr} (${prevalencePctStr}) | Tags: ${tagShareRatioStr} (${tagSharePctStr})`;
@@ -220,6 +234,10 @@ export function formatMetricDisplay(params: FormatMetricParams): string {
     case 'two_line_count_percent':
       if (isScalarMetric) rawFormatted = `${scalarStr}\n(n = ${paperCount ?? nVal})`;
       else rawFormatted = `${countOnlyStr}\n(${pctStr})`;
+      break;
+
+    case 'two_line_count_prevalence_percent':
+      rawFormatted = `${prevalenceCountStr}\n(${prevalencePctStr})`;
       break;
 
     case 'two_line_percent_count':
@@ -256,6 +274,14 @@ export function formatMetricDisplay(params: FormatMetricParams): string {
     case 'percent_ratio':
       if (isScalarMetric) rawFormatted = `${scalarStr} (${ratioStr})`;
       else rawFormatted = `${pctStr} (${ratioStr})`;
+      break;
+
+    case 'percent_only':
+      rawFormatted = pctStr;
+      break;
+
+    case 'layer_share':
+      rawFormatted = pctStr;
       break;
 
     case 'ratio_only':
@@ -310,5 +336,12 @@ export function formatMetricDisplay(params: FormatMetricParams): string {
       break;
   }
 
-  return rawFormatted.replace(/\\n/g, '\n');
+  return rawFormatted
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .replace(/\(\s*,/g, '(')
+    .replace(/,\s*\)/g, ')')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\\n/g, '\n')
+    .trim();
 }

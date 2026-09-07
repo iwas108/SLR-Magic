@@ -3,7 +3,7 @@ import type { ThemePreset, ThemePalette } from '../types';
 export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   academic_grayscale: {
     name: 'Academic Grayscale (Print Ready)',
-    colors: ['#18181b', '#3f3f46', '#71717a', '#a1a1aa', '#d4d4d8', '#27272a'],
+    colors: ['#18181b', '#3f3f46', '#52525b', '#71717a', '#a1a1aa', '#d4d4d8', '#27272a', '#09090b'],
     bg: '#ffffff',
     text: '#09090b',
     subtext: '#52525b',
@@ -11,7 +11,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   ieee_blue: {
     name: 'IEEE / ACM Slate Blue',
-    colors: ['#0f172a', '#1e3a8a', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd'],
+    colors: ['#0f172a', '#1e3a8a', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#0284c7'],
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#475569',
@@ -19,7 +19,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   nature_emerald: {
     name: 'Nature / BioMed Emerald',
-    colors: ['#064e3b', '#047857', '#10b981', '#34d399', '#0284c7', '#0369a1'],
+    colors: ['#064e3b', '#047857', '#059669', '#10b981', '#34d399', '#0284c7', '#0369a1', '#0d9488', '#f59e0b'],
     bg: '#ffffff',
     text: '#022c22',
     subtext: '#047857',
@@ -27,7 +27,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   science_contrast: {
     name: 'Science High-Contrast',
-    colors: ['#b91c1c', '#1d4ed8', '#047857', '#d97706', '#6b21a8', '#0891b2'],
+    colors: ['#b91c1c', '#1d4ed8', '#047857', '#d97706', '#6b21a8', '#0891b2', '#c026d3', '#059669', '#ea580c'],
     bg: '#ffffff',
     text: '#111827',
     subtext: '#4b5563',
@@ -35,7 +35,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   acs_crimson: {
     name: 'ACS Chemical Society Crimson',
-    colors: ['#990000', '#d97706', '#0284c7', '#059669', '#7c3aed', '#db2777'],
+    colors: ['#990000', '#d97706', '#0284c7', '#059669', '#7c3aed', '#db2777', '#0891b2', '#c2410c'],
     bg: '#ffffff',
     text: '#18181b',
     subtext: '#52525b',
@@ -43,7 +43,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   pnas_gold: {
     name: 'PNAS Amber & Deep Teal',
-    colors: ['#0f766e', '#b45309', '#1e40af', '#047857', '#9333ea', '#c2410c'],
+    colors: ['#0f766e', '#b45309', '#1e40af', '#047857', '#9333ea', '#c2410c', '#0284c7', '#d97706'],
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#475569',
@@ -51,7 +51,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   oxford_burgundy: {
     name: 'Oxford Academic Burgundy',
-    colors: ['#701a75', '#0369a1', '#15803d', '#b45309', '#4338ca', '#be123c'],
+    colors: ['#701a75', '#0369a1', '#15803d', '#b45309', '#4338ca', '#be123c', '#0d9488', '#854d0e'],
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#4338ca',
@@ -59,7 +59,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   wiley_indigo: {
     name: 'Wiley Scientific Indigo',
-    colors: ['#312e81', '#0284c7', '#0d9488', '#d97706', '#be185d', '#4d7c0f'],
+    colors: ['#312e81', '#0284c7', '#0d9488', '#d97706', '#be185d', '#4d7c0f', '#7c3aed', '#059669'],
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#3730a3',
@@ -67,7 +67,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   taylor_sapphire: {
     name: 'Taylor & Francis Sapphire',
-    colors: ['#1e3a8a', '#c2410c', '#047857', '#6b21a8', '#0284c7', '#b91c1c'],
+    colors: ['#1e3a8a', '#c2410c', '#047857', '#6b21a8', '#0284c7', '#b91c1c', '#0d9488', '#d97706'],
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#334155',
@@ -75,7 +75,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   plos_coral: {
     name: 'PLOS ONE Coral & Slate',
-    colors: ['#f97316', '#334155', '#0284c7', '#10b981', '#8b5cf6', '#e11d48'],
+    colors: ['#f97316', '#334155', '#0284c7', '#10b981', '#8b5cf6', '#e11d48', '#0d9488', '#f59e0b'],
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#475569',
@@ -83,7 +83,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   frontiers_violet: {
     name: 'Frontiers Scientific Violet',
-    colors: ['#6d28d9', '#0284c7', '#059669', '#f59e0b', '#ec4899', '#3b82f6'],
+    colors: ['#6d28d9', '#0284c7', '#059669', '#f59e0b', '#ec4899', '#3b82f6', '#0d9488', '#be123c'],
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#4c1d95',
@@ -91,7 +91,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   bmc_teal: {
     name: 'BioMed Central (BMC) Teal',
-    colors: ['#0f766e', '#1d4ed8', '#c2410c', '#7e22ce', '#047857', '#0284c7'],
+    colors: ['#0f766e', '#1d4ed8', '#c2410c', '#7e22ce', '#047857', '#0284c7', '#be185d', '#d97706'],
     bg: '#ffffff',
     text: '#042f2e',
     subtext: '#0f766e',
@@ -99,7 +99,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   mdpi_vermilion: {
     name: 'MDPI Open Access Vermilion',
-    colors: ['#dc2626', '#0284c7', '#15803d', '#ca8a04', '#6b21a8', '#0891b2'],
+    colors: ['#dc2626', '#0284c7', '#15803d', '#ca8a04', '#6b21a8', '#0891b2', '#c2410c', '#0d9488'],
     bg: '#ffffff',
     text: '#111827',
     subtext: '#374151',
@@ -107,7 +107,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   rsc_ultramarine: {
     name: 'RSC Chemistry Ultramarine',
-    colors: ['#1d4ed8', '#b91c1c', '#047857', '#d97706', '#7c3aed', '#0284c7'],
+    colors: ['#1d4ed8', '#b91c1c', '#047857', '#d97706', '#7c3aed', '#0284c7', '#0d9488', '#c026d3'],
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#3730a3',
@@ -115,7 +115,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   dark_modern: {
     name: 'SLR IDE Dark Mode',
-    colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+    colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'],
     bg: '#090d16',
     text: '#f8fafc',
     subtext: '#94a3b8',
@@ -123,7 +123,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   slr_light: {
     name: 'SLR IDE Light Mode',
-    colors: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'],
+    colors: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'],
     bg: '#f8fafc',
     text: '#0f172a',
     subtext: '#64748b',
@@ -131,7 +131,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   cell_amethyst: {
     name: 'Cell Press Amethyst & Teal',
-    colors: ['#581c87', '#0284c7', '#0d9488', '#e11d48', '#d97706', '#4338ca'],
+    colors: ['#581c87', '#0284c7', '#0d9488', '#e11d48', '#d97706', '#4338ca', '#059669', '#c026d3'],
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#581c87',
@@ -139,7 +139,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   lancet_crimson: {
     name: 'The Lancet Clinical Ruby',
-    colors: ['#9f1239', '#1e40af', '#047857', '#b45309', '#6b21a8', '#0e7490'],
+    colors: ['#9f1239', '#1e40af', '#047857', '#b45309', '#6b21a8', '#0e7490', '#c2410c', '#0284c7'],
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#9f1239',
@@ -147,7 +147,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   nejm_navy: {
     name: 'NEJM Deep Navy & Copper',
-    colors: ['#172554', '#b45309', '#0369a1', '#15803d', '#86198f', '#c2410c'],
+    colors: ['#172554', '#b45309', '#0369a1', '#15803d', '#86198f', '#c2410c', '#0d9488', '#1e40af'],
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#1e3a8a',
@@ -155,7 +155,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   springer_forest: {
     name: 'Springer Nature Deep Forest',
-    colors: ['#14532d', '#1d4ed8', '#c2410c', '#7c2d12', '#047857', '#0369a1'],
+    colors: ['#14532d', '#1d4ed8', '#c2410c', '#7c2d12', '#047857', '#0369a1', '#d97706', '#6b21a8'],
     bg: '#ffffff',
     text: '#052e16',
     subtext: '#166534',
@@ -163,7 +163,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   jama_cardinal: {
     name: 'JAMA Medical Cardinal',
-    colors: ['#881337', '#0369a1', '#047857', '#d97706', '#4f46e5', '#be123c'],
+    colors: ['#881337', '#0369a1', '#047857', '#d97706', '#4f46e5', '#be123c', '#0d9488', '#854d0e'],
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#881337',
@@ -171,7 +171,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   iop_cyan: {
     name: 'IOP Publishing Quantum Cyan',
-    colors: ['#0891b2', '#4f46e5', '#dc2626', '#059669', '#d97706', '#9333ea'],
+    colors: ['#0891b2', '#4f46e5', '#dc2626', '#059669', '#d97706', '#9333ea', '#0284c7', '#16a34a'],
     bg: '#ffffff',
     text: '#083344',
     subtext: '#0e7490',
@@ -179,7 +179,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   aps_amber: {
     name: 'APS Physical Review Amber',
-    colors: ['#b45309', '#1d4ed8', '#047857', '#7e22ce', '#be123c', '#0284c7'],
+    colors: ['#b45309', '#1d4ed8', '#047857', '#7e22ce', '#be123c', '#0284c7', '#0d9488', '#c2410c'],
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#b45309',
@@ -187,7 +187,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   aaas_scarlet: {
     name: 'AAAS Science Advances Scarlet',
-    colors: ['#991b1b', '#0284c7', '#15803d', '#eab308', '#7c3aed', '#ea580c'],
+    colors: ['#991b1b', '#0284c7', '#15803d', '#eab308', '#7c3aed', '#ea580c', '#0d9488', '#3b82f6'],
     bg: '#ffffff',
     text: '#18181b',
     subtext: '#991b1b',
@@ -195,7 +195,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   cambridge_cobalt: {
     name: 'Cambridge University Cobalt',
-    colors: ['#1e3a8a', '#0d9488', '#b91c1c', '#d97706', '#6b21a8', '#047857'],
+    colors: ['#1e3a8a', '#0d9488', '#b91c1c', '#d97706', '#6b21a8', '#047857', '#0284c7', '#c2410c'],
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#1e3a8a',
@@ -203,7 +203,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   elife_sage: {
     name: 'eLife Open Science Sage & Tangerine',
-    colors: ['#047857', '#ea580c', '#2563eb', '#7c3aed', '#059669', '#db2777'],
+    colors: ['#047857', '#ea580c', '#2563eb', '#7c3aed', '#059669', '#db2777', '#0284c7', '#d97706'],
     bg: '#ffffff',
     text: '#064e3b',
     subtext: '#047857',
@@ -211,7 +211,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   bmj_azure: {
     name: 'BMJ British Medical Azure',
-    colors: ['#0284c7', '#be123c', '#047857', '#d97706', '#6366f1', '#0f766e'],
+    colors: ['#0284c7', '#be123c', '#047857', '#d97706', '#6366f1', '#0f766e', '#8b5cf6', '#ea580c'],
     bg: '#ffffff',
     text: '#0c4a6e',
     subtext: '#0284c7',
@@ -219,7 +219,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   mit_monochrome: {
     name: 'MIT Technology Charcoal & Accent',
-    colors: ['#18181b', '#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#7c3aed'],
+    colors: ['#18181b', '#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#7c3aed', '#0891b2', '#4b5563'],
     bg: '#ffffff',
     text: '#09090b',
     subtext: '#52525b',
@@ -227,7 +227,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   harvard_crimson: {
     name: 'Harvard Academic Crimson',
-    colors: ['#a51c30', '#1e3a8a', '#2e7d32', '#d97706', '#6a1b9a', '#00838f'],
+    colors: ['#a51c30', '#1e3a8a', '#2e7d32', '#d97706', '#6a1b9a', '#00838f', '#c2410c', '#4338ca'],
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#a51c30',
@@ -235,7 +235,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   frontiers_oceanic: {
     name: 'Frontiers Marine & Earth Oceanic',
-    colors: ['#0f766e', '#0284c7', '#047857', '#f59e0b', '#6366f1', '#e11d48'],
+    colors: ['#0f766e', '#0284c7', '#047857', '#f59e0b', '#6366f1', '#e11d48', '#0891b2', '#10b981'],
     bg: '#ffffff',
     text: '#042f2e',
     subtext: '#0f766e',
@@ -243,7 +243,7 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
   },
   cell_genomics_magenta: {
     name: 'Cell Genomics Royal Magenta',
-    colors: ['#a21caf', '#0284c7', '#15803d', '#ea580c', '#4338ca', '#059669'],
+    colors: ['#a21caf', '#0284c7', '#15803d', '#ea580c', '#4338ca', '#059669', '#be123c', '#d97706'],
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#a21caf',

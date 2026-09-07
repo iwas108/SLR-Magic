@@ -3,10 +3,11 @@ import {
   getFieldValue, 
   getMappedFieldValue,
   extractNumericalValue, 
-  limitCategoryMap 
+  limitCategoryMap,
+  formatVariableDisplayName
 } from '../utils/dataExtractor';
 import type { ChartGeneratorContext } from './types';
-import { buildScientificAxisConfig } from './axisConfigHelper';
+import { buildScientificAxisConfig, resolveUniversalGrid } from './axisConfigHelper';
 
 export function generateScatterOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -74,19 +75,16 @@ export function generateScatterOption(ctx: ChartGeneratorContext): echarts.EChar
     }
   }
 
+  const xTitle = formatVariableDisplayName(numFieldX);
+  const yTitle = formatVariableDisplayName(numFieldY);
+
   return {
     backgroundColor: palette.bg,
     color: palette.colors,
     title: baseTitle,
     legend: baseLegend,
-    tooltip: { ...baseTooltip, formatter: (p: any) => `<strong>${p.data[2]}</strong><br/>${numFieldX}: ${p.data[0]}<br/>${numFieldY}: ${p.data[1]}` },
-    grid: { 
-      left: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetX ?? 0)), 
-      right: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)), 
-      top: Math.max(20, (showLegend ? 100 : 70) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetY ?? 0)), 
-      bottom: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)), 
-      containLabel: true 
-    },
+    tooltip: { ...baseTooltip, formatter: (p: any) => `<strong>${p.data[2]}</strong><br/>${xTitle}: ${p.data[0]}<br/>${yTitle}: ${p.data[1]}` },
+    grid: resolveUniversalGrid(ctx, { left: 50, right: 50, top: showLegend ? 100 : 70, bottom: 50 }),
     xAxis: buildScientificAxisConfig('x', ctx, {
       axisKind: 'value',
       defaultTitle: numFieldX
@@ -103,26 +101,7 @@ export function generateScatterOption(ctx: ChartGeneratorContext): echarts.EChar
 }
 
 function cleanKey(rawKey: string): string {
-  if (!rawKey) return '';
-  let k = rawKey;
-  if (k.startsWith('cat:')) {
-    const parts = k.split(':');
-    return parts[parts.length - 1] || k;
-  }
-  if (k.startsWith('raw:ext:')) k = k.substring(8);
-  else if (k.startsWith('ext:')) k = k.substring(4);
-  else if (k.startsWith('meta:')) k = k.substring(5);
-  
-  if (k.startsWith('macro:')) k = k.substring(6);
-  if (k.startsWith('rq')) {
-    const underscoreIdx = k.indexOf('_');
-    if (underscoreIdx !== -1) {
-      const rqPrefix = k.substring(0, underscoreIdx).toUpperCase();
-      const rest = k.substring(underscoreIdx + 1).replace(/_/g, ' ');
-      return `[${rqPrefix}] ${rest.charAt(0).toUpperCase() + rest.slice(1)}`;
-    }
-  }
-  return k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return formatVariableDisplayName(rawKey);
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -178,19 +157,17 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
 
     const pOpacity = (ctx.bubbleOpacity ?? ctx.scatterPointOpacity ?? 75) / 100;
 
+    const xTitle = formatVariableDisplayName(numFieldX);
+    const yTitle = formatVariableDisplayName(numFieldY);
+    const sizeTitle = formatVariableDisplayName(numFieldSize);
+
     return {
       backgroundColor: palette.bg,
       color: palette.colors,
       title: baseTitle,
       legend: baseLegend,
-      tooltip: { ...baseTooltip, formatter: (p: any) => `<strong>${p.data[3]}</strong><br/>${numFieldX}: ${p.data[0]}<br/>${numFieldY}: ${p.data[1]}<br/>${numFieldSize}: ${p.data[2]}` },
-      grid: { 
-        left: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetX ?? 0)), 
-        right: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)), 
-        top: Math.max(20, (showLegend ? 100 : 70) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetY ?? 0)), 
-        bottom: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)), 
-        containLabel: true 
-      },
+      tooltip: { ...baseTooltip, formatter: (p: any) => `<strong>${p.data[3]}</strong><br/>${xTitle}: ${p.data[0]}<br/>${yTitle}: ${p.data[1]}<br/>${sizeTitle}: ${p.data[2]}` },
+      grid: resolveUniversalGrid(ctx, { left: 50, right: 50, top: showLegend ? 100 : 70, bottom: 50 }),
       xAxis: buildScientificAxisConfig('x', ctx, {
         axisKind: 'value',
         defaultTitle: numFieldX,
@@ -540,13 +517,12 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
         return content;
       }
     },
-    grid: {
-      left: Math.max(30, effectiveGridLeft + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetX ?? 0)),
-      right: Math.max(30, effectiveGridRight + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)),
-      top: Math.max(30, effectiveGridTop + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetY ?? 0)),
-      bottom: Math.max(30, effectiveGridBottom + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)),
-      containLabel: true
-    },
+    grid: resolveUniversalGrid(ctx, {
+      left: effectiveGridLeft,
+      right: effectiveGridRight,
+      top: effectiveGridTop,
+      bottom: effectiveGridBottom
+    }),
     xAxis: buildScientificAxisConfig('x', ctx, {
       axisKind: 'category',
       defaultTitle: xAxisTitle,
@@ -655,19 +631,13 @@ export function generateBoxplotOption(ctx: ChartGeneratorContext): echarts.EChar
         return `<strong>${params.name}</strong><br/>Min: ${params.data[1]}<br/>Q1: ${params.data[2]}<br/>Median: ${params.data[3]}<br/>Q3: ${params.data[4]}<br/>Max: ${params.data[5]}`;
       } 
     },
-    grid: { 
-      left: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetX ?? 0)), 
-      right: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)), 
-      top: Math.max(20, (showLegend ? 100 : 70) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetY ?? 0)), 
-      bottom: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)), 
-      containLabel: true 
-    },
-    xAxis: buildScientificAxisConfig(isHorizontal ? 'y' : 'x', ctx, {
+    grid: resolveUniversalGrid(ctx, { left: 50, right: 50, top: showLegend ? 100 : 70, bottom: 50 }),
+    xAxis: buildScientificAxisConfig('x', ctx, {
       axisKind: isHorizontal ? 'value' : 'category',
       defaultTitle: isHorizontal ? numFieldY : primaryField,
       categories: isHorizontal ? undefined : categories
     }),
-    yAxis: buildScientificAxisConfig(isHorizontal ? 'x' : 'y', ctx, {
+    yAxis: buildScientificAxisConfig('y', ctx, {
       axisKind: isHorizontal ? 'category' : 'value',
       defaultTitle: isHorizontal ? primaryField : numFieldY,
       categories: isHorizontal ? categories : undefined

@@ -259,6 +259,44 @@ export function useUmbrellanizer(
     }
   };
 
+  const exportMappings = async (key?: string, format: 'csv' | 'json' = 'csv'): Promise<boolean> => {
+    if (!projectId) return false;
+    try {
+      let url = `/api/umbrellanizer/export?projectId=${encodeURIComponent(projectId)}&format=${format}`;
+      if (key && key !== 'all') {
+        url += `&key=${encodeURIComponent(key)}`;
+      }
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Export failed with HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const contentDisposition = res.headers.get('Content-Disposition') || '';
+      const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+      const fallbackName = `umbrellanizer_mappings_${projectId}${key ? `_${key}` : '_all'}.${format}`;
+      const filename = match ? match[1] : fallbackName;
+
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+      showToast(`Exported taxonomy mappings (${filename})`, 'success');
+      return true;
+    } catch (err: any) {
+      console.error('Failed to export umbrellanizer mappings:', err);
+      showToast(err.message || 'Failed to export mappings', 'error');
+      return false;
+    }
+  };
+
   return {
     minerPapers,
     umbrellaResults,
@@ -272,6 +310,8 @@ export function useUmbrellanizer(
     getUniqueTokens,
     runUmbrellanizer,
     dropUmbrellanizerKey,
+    exportMappings,
     loadData
   };
 }
+

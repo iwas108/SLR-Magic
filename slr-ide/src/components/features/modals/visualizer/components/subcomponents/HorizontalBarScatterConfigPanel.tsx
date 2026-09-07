@@ -107,7 +107,21 @@ export function HorizontalBarScatterConfigPanel() {
     barGridLeft = 4,
     setBarGridLeft,
     barGridRight = 4,
-    setBarGridRight
+    setBarGridRight,
+    axisTitleGapY,
+    setAxisTitleGapY,
+    gridMarginLeft,
+    setGridMarginLeft,
+    gridMarginRight,
+    setGridMarginRight,
+    gridMarginTop,
+    setGridMarginTop,
+    gridMarginBottom,
+    setGridMarginBottom,
+    showLegend,
+    setShowLegend,
+    legendPosition,
+    setLegendPosition
   } = config;
 
   const {
@@ -518,12 +532,253 @@ export function HorizontalBarScatterConfigPanel() {
         </div>
       </div>
 
-      {/* 4. Dual X-Axes Calibration */}
+      {/* 4. Interactive Per-Category Values & Overrides Editor */}
+      <div className="p-3.5 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowOverrideTable(!showOverrideTable)}
+            className="text-xs font-extrabold text-foreground flex items-center gap-1.5 hover:text-primary transition-colors"
+          >
+            <Edit3 className="w-4 h-4 text-primary" />
+            <span>4. Per-Category Manual Values & Overrides</span>
+            {showOverrideTable ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-foreground">
+              <input
+                type="checkbox"
+                checked={enableManualOverrides}
+                onChange={(e) => setEnableManualOverrides(e.target.checked)}
+                className="rounded border-border text-primary w-3.5 h-3.5"
+              />
+              Enable Overrides
+            </label>
+            {enableManualOverrides && (
+              <button
+                type="button"
+                onClick={() => setManualCategoryValues({})}
+                className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-1 font-bold pl-2"
+                title="Reset manual overrides to computed values"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
+        {showOverrideTable && (
+          <div className="pt-2 border-t border-border/40 space-y-2">
+            <p className="text-[11px] text-muted-foreground">
+              Fine-tune the exact empirical values for each sector or domain:
+            </p>
+            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+              {[
+                'Other Sectors',
+                'Smart Building',
+                'Aerospace',
+                'Agriculture / Horticulture',
+                'Automotive',
+                'Traffic / Smart City',
+                'Energy & Power',
+                'Manufacturing'
+              ].map(cat => {
+                const barKey = `${cat}:::bar`;
+                const scatKey = `${cat}:::scatter`;
+                const currentBar = manualCategoryValues?.[barKey] ?? manualCategoryValues?.[cat] ?? '';
+                const currentScat = manualCategoryValues?.[scatKey] ?? '';
+
+                return (
+                  <div key={cat} className="flex items-center justify-between gap-2 p-2 bg-card/60 rounded-lg border border-border/40 text-xs">
+                    <span className="font-bold text-foreground truncate flex-1">{cat}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground font-mono">Bar %:</span>
+                        <input
+                          type="number"
+                          value={currentBar}
+                          disabled={!enableManualOverrides}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? undefined : Number(e.target.value);
+                            const next = { ...manualCategoryValues };
+                            if (val === undefined) {
+                              delete next[barKey];
+                              delete next[cat];
+                            } else {
+                              next[barKey] = val;
+                            }
+                            setManualCategoryValues(next);
+                          }}
+                          placeholder="auto"
+                          className="w-16 bg-card border border-border rounded px-1.5 py-0.5 text-xs font-bold text-foreground disabled:opacity-40"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground font-mono">Scatter %:</span>
+                        <input
+                          type="number"
+                          value={currentScat}
+                          disabled={!enableManualOverrides}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? undefined : Number(e.target.value);
+                            const next = { ...manualCategoryValues };
+                            if (val === undefined) {
+                              delete next[scatKey];
+                            } else {
+                              next[scatKey] = val;
+                            }
+                            setManualCategoryValues(next);
+                          }}
+                          placeholder="auto"
+                          className="w-16 bg-card border border-border rounded px-1.5 py-0.5 text-xs font-bold text-foreground disabled:opacity-40"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 5. Y-Axis Categorical Label Typography & Layout */}
+      <div className="p-3.5 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+          <span className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
+            <SlidersHorizontal className="w-4 h-4 text-primary" />
+            5. Y-Axis Categorical Label Typography & Layout
+          </span>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {barYAxisFontSize}px • {barYAxisFontWeight} • {barYAxisFontStyle}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Y-Axis Width ({barYAxisWidth}px)</label>
+            <input
+              type="range"
+              min={60}
+              max={360}
+              step={5}
+              value={barYAxisWidth}
+              onChange={(e) => setBarYAxisWidth(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Line Height ({barLineHeight}px)</label>
+            <input
+              type="range"
+              min={8}
+              max={32}
+              value={barLineHeight}
+              onChange={(e) => setBarLineHeight(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Label Font Size ({barYAxisFontSize}px)</label>
+            <input
+              type="range"
+              min={8}
+              max={32}
+              value={barYAxisFontSize}
+              onChange={(e) => setBarYAxisFontSize(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Margin Offset ({axisLabelMarginY}px)</label>
+            <input
+              type="range"
+              min={0}
+              max={40}
+              value={axisLabelMarginY}
+              onChange={(e) => setAxisLabelMarginY(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1 border-t border-border/40">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Overflow Wrapping</label>
+            <select
+              value={barYAxisOverflow}
+              onChange={(e) => setBarYAxisOverflow(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="break">Word Wrap (Academic Multi-line)</option>
+              <option value="truncate">Truncate with Ellipsis (…)</option>
+              <option value="none">Full Length (No Break)</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">
+              Title Distance Gap ({axisTitleGapY ?? Math.max(42, barYAxisWidth + axisLabelMarginY + 16)}px)
+            </label>
+            <input
+              type="range"
+              min={20}
+              max={280}
+              step={5}
+              value={axisTitleGapY ?? Math.max(42, barYAxisWidth + axisLabelMarginY + 16)}
+              onChange={(e) => setAxisTitleGapY(Number(e.target.value))}
+              className="w-full accent-primary"
+              title="Distance of Y-axis title from axis line to prevent collision"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Font Weight</label>
+            <select
+              value={barYAxisFontWeight}
+              onChange={(e) => setBarYAxisFontWeight(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="normal">Normal (400)</option>
+              <option value="500">Medium (500)</option>
+              <option value="600">SemiBold (600)</option>
+              <option value="bold">Bold (700)</option>
+              <option value="800">ExtraBold (800)</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Label Text Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={barYAxisColor || '#111827'}
+                onChange={(e) => setBarYAxisColor(e.target.value)}
+                className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent p-0"
+              />
+              <input
+                type="text"
+                value={barYAxisColor}
+                onChange={(e) => setBarYAxisColor(e.target.value)}
+                placeholder="Palette Default"
+                className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono font-bold text-foreground"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Dual X-Axes Scale & Interval Calibration */}
       <div className="p-3.5 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
         <div className="flex items-center justify-between pb-1.5 border-b border-border/50">
           <span className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
             <SlidersHorizontal className="w-4 h-4 text-primary" />
-            4. Dual X-Axes Scale & Interval Calibration
+            6. Dual X-Axes Scale & Interval Calibration
           </span>
           <span className="text-[10px] text-muted-foreground font-mono">
             Bottom: 0–{barValueCeiling}% • Top: 0–{scatterAxisMax}%
@@ -657,12 +912,12 @@ export function HorizontalBarScatterConfigPanel() {
         </div>
       </div>
 
-      {/* 5. Canvas Grid Margins & Collision Clearance */}
+      {/* 7. Canvas Grid Margins & Collision Clearance */}
       <div className="p-3.5 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
         <div className="flex items-center justify-between pb-1 border-b border-border/50">
           <span className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
             <LayoutGrid className="w-4 h-4 text-primary" />
-            5. Grid Clearance & Collision Spacing (Title/Axis/Legend)
+            7. Grid Clearance & Collision Spacing (Title/Axis/Legend)
           </span>
         </div>
 
@@ -674,7 +929,11 @@ export function HorizontalBarScatterConfigPanel() {
               min={20}
               max={240}
               value={barGridTop}
-              onChange={(e) => setBarGridTop(Number(e.target.value))}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setBarGridTop(v);
+                setGridMarginTop(v);
+              }}
               className="w-full accent-primary"
               title="Prevents subtitle colliding with Top X-Axis"
             />
@@ -687,7 +946,11 @@ export function HorizontalBarScatterConfigPanel() {
               min={25}
               max={240}
               value={barGridBottom}
-              onChange={(e) => setBarGridBottom(Number(e.target.value))}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setBarGridBottom(v);
+                setGridMarginBottom(v);
+              }}
               className="w-full accent-primary"
               title="Prevents bottom axis colliding with legend"
             />
@@ -697,11 +960,16 @@ export function HorizontalBarScatterConfigPanel() {
             <label className="text-xs font-bold text-foreground block">Left Margin ({barGridLeft}%)</label>
             <input
               type="range"
-              min={1}
-              max={30}
+              min={4}
+              max={35}
               value={barGridLeft}
-              onChange={(e) => setBarGridLeft(Number(e.target.value))}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setBarGridLeft(v);
+                setGridMarginLeft(Math.round(1200 * (v / 100)));
+              }}
               className="w-full accent-primary"
+              title="Left canvas clearance for category labels and axis title"
             />
           </div>
 
@@ -709,248 +977,49 @@ export function HorizontalBarScatterConfigPanel() {
             <label className="text-xs font-bold text-foreground block">Right Margin ({barGridRight}%)</label>
             <input
               type="range"
-              min={1}
-              max={25}
+              min={2}
+              max={30}
               value={barGridRight}
-              onChange={(e) => setBarGridRight(Number(e.target.value))}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setBarGridRight(v);
+                setGridMarginRight(Math.round(1200 * (v / 100)));
+              }}
               className="w-full accent-primary"
+              title="Right canvas clearance"
             />
           </div>
         </div>
       </div>
 
-      {/* 6. Y-Axis Categorical Typography */}
-      <div className="p-3.5 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
-        <div className="flex items-center justify-between pb-1 border-b border-border/50">
-          <span className="text-xs font-extrabold text-foreground flex items-center gap-1.5">
-            <SlidersHorizontal className="w-4 h-4 text-primary" />
-            6. Y-Axis Categorical Label Typography & Layout
-          </span>
-          <span className="text-[10px] text-muted-foreground font-mono">
-            {barYAxisFontSize}px • {barYAxisFontWeight} • {barYAxisFontStyle}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Y-Axis Width ({barYAxisWidth}px)</label>
-            <input
-              type="range"
-              min={80}
-              max={360}
-              value={barYAxisWidth}
-              onChange={(e) => setBarYAxisWidth(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Line Height ({barLineHeight}px)</label>
-            <input
-              type="range"
-              min={8}
-              max={32}
-              value={barLineHeight}
-              onChange={(e) => setBarLineHeight(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Label Font Size ({barYAxisFontSize}px)</label>
-            <input
-              type="range"
-              min={8}
-              max={32}
-              value={barYAxisFontSize}
-              onChange={(e) => setBarYAxisFontSize(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Margin Offset ({axisLabelMarginY}px)</label>
-            <input
-              type="range"
-              min={0}
-              max={40}
-              value={axisLabelMarginY}
-              onChange={(e) => setAxisLabelMarginY(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1 border-t border-border/40">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Font Weight</label>
-            <select
-              value={barYAxisFontWeight}
-              onChange={(e) => setBarYAxisFontWeight(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="normal">Normal (400)</option>
-              <option value="500">Medium (500)</option>
-              <option value="600">SemiBold (600)</option>
-              <option value="bold">Bold (700)</option>
-              <option value="800">ExtraBold (800)</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Font Style</label>
-            <select
-              value={barYAxisFontStyle}
-              onChange={(e) => setBarYAxisFontStyle(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="normal">Normal / Upright</option>
-              <option value="italic">Italic</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Label Text Color</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={barYAxisColor || '#111827'}
-                onChange={(e) => setBarYAxisColor(e.target.value)}
-                className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent p-0"
-              />
-              <input
-                type="text"
-                value={barYAxisColor}
-                onChange={(e) => setBarYAxisColor(e.target.value)}
-                placeholder="Palette Default"
-                className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono font-bold text-foreground"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Overflow Wrapping</label>
-            <select
-              value={barYAxisOverflow}
-              onChange={(e) => setBarYAxisOverflow(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="break">Word Wrap</option>
-              <option value="truncate">Truncate (...)</option>
-              <option value="none">Full Length</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* 7. Interactive Per-Category Values & Overrides Editor */}
+      {/* 8. Chart Legend & Key Customization */}
       <div className="p-3.5 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
         <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setShowOverrideTable(!showOverrideTable)}
-            className="text-xs font-extrabold text-foreground flex items-center gap-1.5 hover:text-primary transition-colors"
-          >
-            <Edit3 className="w-4 h-4 text-primary" />
-            <span>7. Per-Category Manual Values & Overrides</span>
-            {showOverrideTable ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-foreground">
-              <input
-                type="checkbox"
-                checked={enableManualOverrides}
-                onChange={(e) => setEnableManualOverrides(e.target.checked)}
-                className="rounded border-border text-primary w-3.5 h-3.5"
-              />
-              Enable Overrides
-            </label>
-            {enableManualOverrides && (
-              <button
-                type="button"
-                onClick={() => setManualCategoryValues({})}
-                className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-1 font-bold pl-2"
-                title="Reset manual overrides to computed values"
-              >
-                <RotateCcw className="w-3 h-3" />
-                Reset
-              </button>
-            )}
+          <div>
+            <span className="text-xs font-bold text-foreground block">8. Chart Legend</span>
+            <span className="text-[10px] text-muted-foreground block">Display bar prevalence and scatter disclosure series keys</span>
           </div>
+          <input
+            type="checkbox"
+            checked={showLegend}
+            onChange={(e) => setShowLegend(e.target.checked)}
+            className="w-4 h-4 rounded border-border text-primary"
+          />
         </div>
 
-        {showOverrideTable && (
-          <div className="pt-2 border-t border-border/40 space-y-2">
-            <p className="text-[11px] text-muted-foreground">
-              Fine-tune the exact empirical values for each sector or domain:
-            </p>
-            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
-              {[
-                'Other Sectors',
-                'Smart Building',
-                'Aerospace',
-                'Agriculture / Horticulture',
-                'Automotive',
-                'Traffic / Smart City',
-                'Energy & Power',
-                'Manufacturing'
-              ].map(cat => {
-                const barKey = `${cat}:::bar`;
-                const scatKey = `${cat}:::scatter`;
-                const currentBar = manualCategoryValues?.[barKey] ?? manualCategoryValues?.[cat] ?? '';
-                const currentScat = manualCategoryValues?.[scatKey] ?? '';
-
-                return (
-                  <div key={cat} className="flex items-center justify-between gap-2 p-2 bg-card/60 rounded-lg border border-border/40 text-xs">
-                    <span className="font-bold text-foreground truncate flex-1">{cat}</span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-muted-foreground font-mono">Bar %:</span>
-                        <input
-                          type="number"
-                          value={currentBar}
-                          disabled={!enableManualOverrides}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? undefined : Number(e.target.value);
-                            const next = { ...manualCategoryValues };
-                            if (val === undefined) {
-                              delete next[barKey];
-                              delete next[cat];
-                            } else {
-                              next[barKey] = val;
-                            }
-                            setManualCategoryValues(next);
-                          }}
-                          placeholder="auto"
-                          className="w-16 bg-card border border-border rounded px-1.5 py-0.5 text-xs font-bold text-foreground disabled:opacity-40"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-muted-foreground font-mono">Scatter %:</span>
-                        <input
-                          type="number"
-                          value={currentScat}
-                          disabled={!enableManualOverrides}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? undefined : Number(e.target.value);
-                            const next = { ...manualCategoryValues };
-                            if (val === undefined) {
-                              delete next[scatKey];
-                            } else {
-                              next[scatKey] = val;
-                            }
-                            setManualCategoryValues(next);
-                          }}
-                          placeholder="auto"
-                          className="w-16 bg-card border border-border rounded px-1.5 py-0.5 text-xs font-bold text-foreground disabled:opacity-40"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        {showLegend && (
+          <div className="p-2.5 bg-card/60 rounded-lg border border-border/50">
+            <label className="text-[11px] font-bold text-muted-foreground block mb-1">Legend Placement</label>
+            <select
+              value={legendPosition}
+              onChange={(e) => setLegendPosition(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
+            >
+              <option value="bottom">Bottom (Footer)</option>
+              <option value="top">Top (Header)</option>
+              <option value="left">Left (Sidebar)</option>
+              <option value="right">Right (Sidebar)</option>
+            </select>
           </div>
         )}
       </div>

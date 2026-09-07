@@ -106,15 +106,15 @@ if (config.host === '0.0.0.0') {
 } else {
   console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mLocal:    \x1b[0m\x1b[36mhttp://${config.host}:${config.port}\x1b[0m`);
 }
-const useWebpack = process.argv.includes('--webpack');
-const bundlerFlag = useWebpack ? '--webpack' : '--turbopack';
+const useTurbo = (process.argv.includes('--turbo') || process.argv.includes('--turbopack')) && !process.argv.includes('--webpack');
+const bundlerFlag = useTurbo ? '--turbopack' : '--webpack';
 const isWindows = process.platform === 'win32';
 const nextBin = path.join(slrIdeDir, 'node_modules', '.bin', isWindows ? 'next.cmd' : 'next');
 const cmdStr = fs.existsSync(nextBin)
   ? `"${nextBin}" dev ${bundlerFlag} -H ${config.host} -p ${config.port}`
   : `next dev ${bundlerFlag} -H ${config.host} -p ${config.port}`;
 
-console.log(`\x1b[90mEngine Bundler:       \x1b[0m\x1b[35m${useWebpack ? 'Webpack (--webpack)' : 'Turbopack (High Speed)'}\x1b[0m\n`);
+console.log(`\x1b[90mEngine Bundler:       \x1b[0m\x1b[35m${useTurbo ? 'Turbopack (--turbo)' : 'Webpack (Stable Default)'}\x1b[0m\n`);
 
 const child = spawn(cmdStr, {
   cwd: slrIdeDir,

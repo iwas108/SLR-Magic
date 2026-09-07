@@ -2,40 +2,21 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Database,
   Layers,
-  Sliders,
   Palette,
   Download,
-  AlertTriangle,
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Square,
   Crosshair,
   Maximize2,
   Minimize2,
-  Sparkles,
-  ChevronRight,
-  Plus,
-  Minus,
-  Trash2,
-  ChevronUp,
-  ChevronDown,
-  Zap,
-  Eye,
-  Grid,
-  FileCode,
   Table,
-  Check,
-  Filter,
   Target
 } from 'lucide-react';
 import { CHART_TYPES_INFO } from '../constants/chartTypes';
-import { THEME_PALETTES } from '../constants/themePalettes';
-import { FONT_FAMILIES, resolveFontFamilyCss } from '../constants/fontFamilies';
-import { formatSubfigureLabel, SLOT_METADATA } from '../constants/layoutPresets';
+import { resolveFontFamilyCss } from '../constants/fontFamilies';
+import { formatSubfigureLabel } from '../constants/layoutPresets';
 import { resolveTargetDimensions } from '../utils/exportUtils';
-import { CUSTOM_GROUPING_KEY } from '../constants/defaultConfigs';
-import { extractColonPrefixPaths } from '../utils/dataExtractor';
 import { useVisualizerContext } from '../context/VisualizerContext';
 import { SlotSwitcherBar } from './subcomponents/SlotSwitcherBar';
 import { StudioDataTab } from './subcomponents/StudioDataTab';
@@ -45,74 +26,19 @@ import { CustomGroupingModal } from './subcomponents/CustomGroupingModal';
 import { CrossTabMatrixPanel } from './subcomponents/CrossTabMatrixPanel';
 import { ExportPanel } from './subcomponents/ExportPanel';
 import { CameraControlsOverlay } from './subcomponents/CameraControlsOverlay';
-import type { ChartType, ThemePreset, FontFamily, SlotId, MetricMode, DisplayFormatTemplate } from '../types';
 
 type StudioTab = 'data' | 'chart' | 'style' | 'export';
 
 export function VisualizerStudio() {
-  const { props, layout, config, data, style, camera, canvas, workspace } = useVisualizerContext();
-  const { papers, totalUnfilteredCount, isFiltered } = props;
+  const { layout, config, style, camera, canvas, workspace } = useVisualizerContext();
   const { layoutMode, activeSlotsList, activeSlot, setActiveSlot } = layout;
-  const {
-    currentSlotConfig,
-    chartType,
-    setChartType,
-    primaryField,
-    setPrimaryField,
-    secondaryField,
-    setSecondaryField,
-    metricMode,
-    setMetricMode,
-    sankeyFields,
-    setSankeyFields,
-    sankeyMaxNodes,
-    setSankeyMaxNodes,
-    sankeyLevelPathFilters,
-    setSankeyLevelPathFilters,
-    tailLabelStyle,
-    setTailLabelStyle,
-    limitCategories,
-    setLimitCategories,
-    maxCategoriesCount,
-    setMaxCategoriesCount,
-    otherCategoryLabel,
-    setOtherCategoryLabel,
-    numFieldX,
-    setNumFieldX,
-    numFieldY,
-    setNumFieldY,
-    numFieldSize,
-    setNumFieldSize,
-    bubbleMode,
-    setBubbleMode,
-    lineMode,
-    setLineMode,
-    useUmbrellanizer,
-    setUseUmbrellanizer,
-    splitMultiValues,
-    setSplitMultiValues,
-    excludeEmpty,
-    setExcludeEmpty,
-    showLegend,
-    setShowLegend,
-    legendPosition,
-    setLegendPosition,
-    showDataLabels,
-    setShowDataLabels,
-    labelRotation,
-    setLabelRotation,
-    slotsConfig
-  } = config;
+  const { chartType } = config;
 
   const {
     chartTitle,
-    setChartTitle,
     chartSubtitle,
-    setChartSubtitle,
     showChartTitle,
-    setShowChartTitle,
     showChartSubtitle,
-    setShowChartSubtitle,
     titleFontSize,
     titleFontWeight,
     titleFontStyle,
@@ -124,51 +50,24 @@ export function VisualizerStudio() {
     subtitleColor,
     subtitleLineHeight,
     titleGap,
-    themePreset,
-    setThemePreset,
     fontFamily,
-    setFontFamily,
-    fontSize,
-    setFontSize,
     subfigureLabelStyle,
-    setSubfigureLabelStyle,
     panelGutter,
-    setPanelGutter,
     showPanelBorders,
-    setShowPanelBorders,
     aspectRatio,
-    setAspectRatio,
     customWidth,
-    setCustomWidth,
     customHeight,
-    setCustomHeight,
-    dimensionUnit,
-    setDimensionUnit,
-    decimalPrecision,
-    setDecimalPrecision,
-    useTildeForCoarse,
-    setUseTildeForCoarse,
-    ratioStyle,
-    setRatioStyle,
-    forceCohortDenominator,
-    setForceCohortDenominator,
-    defaultLabelFormat,
-    setDefaultLabelFormat,
-    defaultLegendFormat,
-    setDefaultLegendFormat
+    dimensionUnit
   } = style;
 
   const {
     chartScale,
     setChartScale,
     panX,
-    setPanX,
     panY,
-    setPanY,
     tiltAngle,
     rotationAngle,
     containerPadding,
-    setContainerPadding,
     showSafeGuides,
     setShowSafeGuides,
     fitOffsetX,
@@ -179,16 +78,12 @@ export function VisualizerStudio() {
     handleResetCamera
   } = camera;
 
-  const { setSlotDomRef, chartInstancesRef } = canvas;
+  const { setSlotDomRef } = canvas;
   const {
     isZenMode,
     toggleZenMode,
-    canvasBackdrop,
-    inspectedSlot,
-    setInspectedSlot
+    canvasBackdrop
   } = workspace;
-
-  const { availableFields, discoveredVariables, numericalFields, detectedCategories } = data;
 
   // Active Inspector Tab
   const [activeTab, setActiveTab] = useState<StudioTab>('data');
@@ -294,13 +189,27 @@ export function VisualizerStudio() {
             </button>
             <button
               type="button"
-              onClick={handleResetCamera}
+              onClick={() => {
+                handleResetCamera();
+                canvas.resetSlotDrillDown();
+              }}
               className="p-1.5 rounded-lg hover:bg-secondary text-foreground transition-colors flex items-center gap-1"
-              title="Reset View"
+              title="Reset View & Drill-Down"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span className="text-[10px] font-bold font-mono">100%</span>
             </button>
+            {(chartType === 'treemap' || chartType === 'sunburst') && (
+              <button
+                type="button"
+                onClick={() => canvas.resetSlotDrillDown()}
+                className="px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors flex items-center gap-1 text-[10px] font-bold"
+                title="Reset drill-down view back to top root level"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span className="hidden sm:inline">Reset Root</span>
+              </button>
+            )}
             <div className="w-[1px] h-3.5 bg-border mx-0.5" />
             <button
               type="button"
@@ -425,7 +334,6 @@ export function VisualizerStudio() {
                 {activeSlotsList.map((slotId, idx) => {
                   const isSingleLayout = layoutMode === 'single' || activeSlotsList.length <= 1;
                   const subfigureLabel = !isSingleLayout ? formatSubfigureLabel(idx, subfigureLabelStyle, isSingleLayout) : '';
-                  const isInspected = inspectedSlot === slotId;
                   const isTopHero = layoutMode === 'tri_top_two_bottom' && slotId === 'slot_a';
 
                   return (
@@ -509,14 +417,14 @@ export function VisualizerStudio() {
             <button
               type="button"
               onClick={() => setActiveTab('style')}
-              className={`flex-1 min-w-[95px] py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-1 ${
+              className={`flex-1 min-w-[85px] py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-1 ${
                 activeTab === 'style'
                   ? 'bg-card text-primary border border-border shadow-xs'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary/40'
               }`}
             >
               <Palette className="w-4 h-4" />
-              <span>Style & Fine-Tune</span>
+              <span>Customize</span>
             </button>
 
             <button
@@ -560,14 +468,14 @@ export function VisualizerStudio() {
               />
             )}
 
-            {/* TAB 3: UNIFIED STYLE & FINE-TUNE */}
+            {/* TAB 3: CUSTOMIZE (REUSABLE PALETTE + PER-CHART TUNING) */}
             {activeTab === 'style' && (
               <UniversalFineTunePanel />
             )}
 
             {/* TAB 4: EXPORT & PROOFING */}
             {activeTab === 'export' && (
-              <ExportPanel />
+              <ExportPanel onBackToCustomize={() => setActiveTab('style')} />
             )}
           </div>
         </div>

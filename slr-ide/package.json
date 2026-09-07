@@ -1,6 +1,6 @@
 {
   "name": "slr-ide",
-  "version": "0.1.22",
+  "version": "0.1.44",
   "private": true,
   "scripts": {
     "dev": "node scripts/dev.mjs",

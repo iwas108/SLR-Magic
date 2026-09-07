@@ -1,11 +1,13 @@
 import type * as echarts from 'echarts';
 import { CUSTOM_GROUPING_KEY } from '../constants/defaultConfigs';
-import { getNodeColor } from '../utils/colorUtils';
-import { getFieldValue, getMappedFieldValue, stripParentPrefix, resolveUmbrellanizerValue, safeString, extractPaperFieldValues } from '../utils/dataExtractor';
+import { getNodeColor, getContrastingTextColor } from '../utils/colorUtils';
+import { getFieldValue, getMappedFieldValue, stripParentPrefix, resolveUmbrellanizerValue, safeString, extractPaperFieldValues, extractTokenPaths, parseColonTaxonomySegments } from '../utils/dataExtractor';
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
+import type { DisplayFormatTemplate } from '../types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
 import { balanceQuotasToHundred } from '../utils/quotaBalancer';
+import { wrapAxisLabelText } from './axisConfigHelper';
 
 export interface ParentContext {
   fieldKey: string;
@@ -13,6 +15,7 @@ export interface ParentContext {
   rawName: string;
   displayName: string;
   path: string[];
+  color?: string;
 }
 
 export function filterValuesForParent(
@@ -46,6 +49,11 @@ export function filterValuesForParent(
   const parentBaseKey = extractBaseKey(parentField);
   const isSameBaseVariable = Boolean(currentBaseKey && parentBaseKey && currentBaseKey === parentBaseKey);
   const isRawChild = currentFieldKey.startsWith('raw:leaf:ext:') || currentFieldKey.startsWith('raw:tail:ext:') || currentFieldKey.startsWith('raw:ext:') || currentFieldKey.startsWith('raw:');
+
+  // Case 0: Current level is Custom Grouping Layer (values already scoped to childPapers)
+  if (currentFieldKey === CUSTOM_GROUPING_KEY) {
+    return vals;
+  }
 
   // Case 1: Parent level was Custom Grouping Layer (e.g. "Application/Middleware")
   if (parentField === CUSTOM_GROUPING_KEY) {
@@ -196,7 +204,20 @@ export function matchColonPathFilter(
 ): boolean {
   if (!filterStr || !filterStr.trim()) return true;
 
-  const fTrimmed = filterStr.trim();
+  // Support comma-separated multiple allowed filters (OR match)
+  if (filterStr.includes(',')) {
+    const subFilters = filterStr.split(',').map(s => s.trim()).filter(Boolean);
+    return subFilters.some(sf => matchColonPathFilter(val, sf, fieldKey, paper, options));
+  }
+
+  // Support negation (!Cloud Hosted or NOT Cloud Hosted)
+  const trimmedFilter = filterStr.trim();
+  if (trimmedFilter.startsWith('!') || trimmedFilter.startsWith('NOT ')) {
+    const positiveFilter = trimmedFilter.replace(/^(!|NOT\s+)/i, '').trim();
+    return !matchColonPathFilter(val, positiveFilter, fieldKey, paper, options);
+  }
+
+  const fTrimmed = trimmedFilter;
   const isWildcardSegment = fTrimmed.startsWith('* :') || fTrimmed.startsWith('*:');
   const targetRaw = isWildcardSegment
     ? fTrimmed.replace(/^\*\s*:\s*/, '').trim()
@@ -331,17 +352,20 @@ export function generateTreemapOption(ctx: ChartGeneratorContext): echarts.EChar
     font,
     fontSize,
     baseTitle,
+    baseLegend,
     baseTooltip,
     sankeyFields,
-    sankeyMaxNodes,
+    sankeyMaxNodes = {},
     sankeyLevelPathFilters = {},
+    levelSegmentIndices = {},
+    levelScopeFilters = {},
     useUmbrellanizer,
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
     levelCustomGroupLinks,
     enableManualOverrides,
-    manualCategoryValues,
+    manualCategoryValues = {},
     showLegend,
     umbrellanizerMap,
     tailLabelStyle = 'comma_list'
@@ -354,22 +378,44 @@ export function generateTreemapOption(ctx: ChartGeneratorContext): echarts.EChar
     excludeEmpty,
     customCategoryMap,
     levelCustomGroupLinks,
+    levelCustomGroups: ctx.levelCustomGroups,
+    levelTargetFields: ctx.levelTargetFields,
     sankeyFields
   };
 
-  const buildTree = (papersList: any[], levelIdx: number, parentContext?: ParentContext): any[] => {
-    if (levelIdx >= sankeyFields.length) return [];
+  // Active effective levels: collapse empty unconfigured custom grouping layers
+  const effectiveLevels = sankeyFields
+    .map((f, idx) => ({ fieldKey: f, originalIdx: idx }))
+    .filter(({ fieldKey, originalIdx }) => {
+      if (fieldKey !== CUSTOM_GROUPING_KEY) return true;
+      const groups = ctx.levelCustomGroups?.[originalIdx] || [];
+      const links = ctx.levelCustomGroupLinks?.[originalIdx] || {};
+      return groups.length > 0 || Object.keys(links).length > 0;
+    });
+  const activeLevels = effectiveLevels.length > 0 ? effectiveLevels : [{ fieldKey: sankeyFields[0] || 'Year', originalIdx: 0 }];
 
-    const fieldKey = sankeyFields[levelIdx];
-    const prevKey = levelIdx > 0 ? sankeyFields[levelIdx - 1] : null;
-    const limitCount = sankeyMaxNodes[levelIdx] || 0;
-    const pathFilter = sankeyLevelPathFilters[levelIdx];
+  const buildTree = (papersList: any[], levelIdx: number, parentContext?: ParentContext): any[] => {
+    if (levelIdx >= activeLevels.length) return [];
+
+    const { fieldKey, originalIdx } = activeLevels[levelIdx];
+    const prevKey = levelIdx > 0 ? activeLevels[levelIdx - 1].fieldKey : null;
+    const limitCount = sankeyMaxNodes[originalIdx] || 0;
+    const pathFilter = sankeyLevelPathFilters[originalIdx];
     const groupMap = new Map<string, any[]>();
 
     papersList.forEach(p => {
       const baseVals = (levelIdx > 0 && fieldKey === prevKey)
-        ? getFieldValue(p, fieldKey, mappedOpts)
-        : getMappedFieldValue(p, fieldKey, { ...mappedOpts, levelIdx });
+        ? getFieldValue(p, fieldKey, {
+            ...mappedOpts,
+            segmentIdx: levelSegmentIndices[originalIdx],
+            scopeFilter: levelScopeFilters[originalIdx]
+          })
+        : getMappedFieldValue(p, fieldKey, {
+            ...mappedOpts,
+            levelIdx: originalIdx,
+            segmentIdx: levelSegmentIndices[originalIdx],
+            scopeFilter: levelScopeFilters[originalIdx]
+          });
       
       const rawVals = pathFilter
         ? baseVals.filter(v => matchColonPathFilter(v, pathFilter, fieldKey, p, { umbrellanizerMap }))
@@ -380,7 +426,8 @@ export function generateTreemapOption(ctx: ChartGeneratorContext): echarts.EChar
         umbrellanizerMap
       });
 
-      scopedVals.forEach(v => {
+      const uniqueScopedVals = Array.from(new Set(scopedVals));
+      uniqueScopedVals.forEach(v => {
         if (!groupMap.has(v)) groupMap.set(v, []);
         groupMap.get(v)!.push(p);
       });
@@ -408,28 +455,75 @@ export function generateTreemapOption(ctx: ChartGeneratorContext): echarts.EChar
       processedEntries = entries.map(e => [e[0], e[1], undefined]);
     }
 
+    const totalSiblings = processedEntries.length;
+    const siblingValues = processedEntries.map(([vName, cPapers, tItems]) => {
+      const parentName = parentContext?.rawName || parentContext?.displayName;
+      const dName = tItems ? vName : stripParentPrefix(vName, parentName);
+      const manualVal = manualCategoryValues?.[dName] ?? manualCategoryValues?.[vName];
+      const uniquePaperCount = new Set(cPapers.map(p => p.Paper_ID || p.id || p.Title || p)).size;
+      return (enableManualOverrides && manualVal !== undefined) ? manualVal : uniquePaperCount;
+    });
+    const maxSiblingVal = Math.max(...siblingValues, 1);
+    const minSiblingVal = Math.min(...siblingValues, 0);
+    const totalSiblingVal = siblingValues.reduce((a, b) => a + b, 0);
+
     return processedEntries.map(([valName, childPapers, tailItems], idx) => {
       const parentName = parentContext?.rawName || parentContext?.displayName;
       const displayName = tailItems ? valName : stripParentPrefix(valName, parentName);
-      const color = getNodeColor(displayName, parentName, idx, palette.colors, ctx.customSliceColors) || getNodeColor(valName, parentName, idx, palette.colors, ctx.customSliceColors);
+      const nodeValue = siblingValues[idx];
+      const resolvedColorMode: 'branch_gradient' | 'parent_flow' | 'value_weighted_tint' | 'level_discrete' | 'rainbow_discrete' =
+        ctx.treemapColorMode === 'value_weighted' ? 'value_weighted_tint' :
+        ctx.treemapColorMode === 'depth_fade' ? 'branch_gradient' :
+        (ctx.treemapColorMode || (ctx.smartColorMode as any) || 'branch_gradient');
+
+      const color = getNodeColor(
+        displayName, 
+        parentName, 
+        idx, 
+        palette.colors, 
+        ctx.customSliceColors,
+        parentContext?.color,
+        totalSiblings,
+        levelIdx,
+        resolvedColorMode,
+        nodeValue,
+        maxSiblingVal,
+        minSiblingVal,
+        totalSiblingVal,
+        ctx.smartColorPropagation || 'auto_children'
+      ) || getNodeColor(
+        valName, 
+        parentName, 
+        idx, 
+        palette.colors, 
+        ctx.customSliceColors,
+        parentContext?.color,
+        totalSiblings,
+        levelIdx,
+        resolvedColorMode,
+        nodeValue,
+        maxSiblingVal,
+        minSiblingVal,
+        totalSiblingVal,
+        ctx.smartColorPropagation || 'auto_children'
+      );
 
       const nextParentContext: ParentContext = {
         fieldKey,
         levelIdx,
         rawName: valName,
         displayName,
+        color,
         path: [...(parentContext?.path || []), displayName]
       };
 
       const children = buildTree(childPapers, levelIdx + 1, nextParentContext);
 
-      const manualVal = manualCategoryValues[displayName] ?? manualCategoryValues[valName];
-      const nodeValue = (enableManualOverrides && manualVal !== undefined) ? manualVal : childPapers.length;
-
+      const tileTextColor = getContrastingTextColor(color, '#0f172a', '#ffffff');
       if (children.length > 0) {
-        return { name: displayName, itemStyle: { color }, tailItems, children };
+        return { name: displayName, itemStyle: { color }, label: { color: tileTextColor }, tailItems, children };
       }
-      return { name: displayName, value: nodeValue, tailItems, itemStyle: { color } };
+      return { name: displayName, value: nodeValue, tailItems, itemStyle: { color }, label: { color: tileTextColor } };
     });
   };
 
@@ -439,60 +533,381 @@ export function generateTreemapOption(ctx: ChartGeneratorContext): echarts.EChar
     : papers.filter(p => {
         return activeLevelFilters.every(([lIdxStr, filter]) => {
           const lIdx = Number(lIdxStr);
-          const f = sankeyFields[lIdx];
-          if (!f) return true;
-          const prevF = lIdx > 0 ? sankeyFields[lIdx - 1] : null;
+          const activeLvl = activeLevels[lIdx];
+          if (!activeLvl) return true;
+          const { fieldKey: f, originalIdx: origIdx } = activeLvl;
+          const prevF = lIdx > 0 ? activeLevels[lIdx - 1]?.fieldKey : null;
           const baseVals = (lIdx > 0 && f === prevF)
-            ? getFieldValue(p, f, mappedOpts)
-            : getMappedFieldValue(p, f, { ...mappedOpts, levelIdx: lIdx });
+            ? getFieldValue(p, f, {
+                ...mappedOpts,
+                segmentIdx: levelSegmentIndices[origIdx],
+                scopeFilter: levelScopeFilters[origIdx]
+              })
+            : getMappedFieldValue(p, f, {
+                ...mappedOpts,
+                levelIdx: origIdx,
+                segmentIdx: levelSegmentIndices[origIdx],
+                scopeFilter: levelScopeFilters[origIdx]
+              });
           return baseVals.some(v => matchColonPathFilter(v, filter, f, p, { umbrellanizerMap }));
         });
       });
 
-  const treeData = buildTree(validTreemapPapers, 0);
-
-  return {
-    backgroundColor: palette.bg,
-    color: palette.colors,
-    title: baseTitle,
-    tooltip: {
-      ...baseTooltip,
-      formatter: (params: any) => {
-        const val = params.value ?? (params.data?.children ? params.data.children.reduce((a: number, c: any) => a + (c.value || 0), 0) : 0);
-        const pathNames = (params.treePathInfo || []).map((p: any) => p.name).filter(Boolean);
-        const pathString = pathNames.length > 1 ? pathNames.join(' &gt; ') : params.name;
-        let output = `<strong>${pathString}</strong><br/>Cohort Count / Proportion: ${val}`;
-        if (params.data?.tailItems && params.data.tailItems.length > 0) {
-          output += `<div style="margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 4px; font-size: 11px;">`;
-          output += `<strong>Grouped Tail Items (${params.data.tailItems.length}):</strong><br/>`;
-          params.data.tailItems.forEach((t: any) => {
-            output += `• ${t.name}: ${t.count}<br/>`;
-          });
-          output += `</div>`;
-        }
-        return output;
-      }
-    },
-    series: [{
-      type: 'treemap',
-      top: Math.max(10, (showLegend ? 90 : 60) + (ctx.containerPadding ?? 12) - (ctx.fitOffsetY ?? 0)),
-      bottom: Math.max(10, (ctx.containerPadding ?? 12) + (ctx.fitOffsetY ?? 0)),
-      left: Math.max(10, (ctx.containerPadding ?? 12) - (ctx.fitOffsetX ?? 0)),
-      right: Math.max(10, (ctx.containerPadding ?? 12) + (ctx.fitOffsetX ?? 0)),
-      data: treeData,
-      squareRatio: ctx.treemapAlgorithm === 'sliceAndDice' ? 0.1 : ctx.treemapAlgorithm === 'binary' ? 1.0 : 0.5 * (1 + Math.sqrt(5)),
-      leafDepth: ctx.treemapVisibleDepth ?? 2,
-      label: { show: true, fontFamily: font, fontSize: fontSize - 1, formatter: '{b}\n{c}' },
-      levels: [{ 
-        itemStyle: { 
-          borderColor: palette.bg, 
-          borderWidth: ctx.treemapBorderWidth ?? 2, 
-          gapWidth: ctx.treemapGapWidth ?? 2 
-        } 
-      }]
-    }]
+  const getNodeValue = (paramsOrData: any): number => {
+    if (!paramsOrData) return 0;
+    if (typeof paramsOrData.value === 'number' && !isNaN(paramsOrData.value)) {
+      return paramsOrData.value;
+    }
+    const data = paramsOrData.data ?? paramsOrData;
+    if (typeof data.value === 'number' && !isNaN(data.value)) {
+      return data.value;
+    }
+    if (data.children && Array.isArray(data.children)) {
+      return data.children.reduce((acc: number, c: any) => acc + getNodeValue(c), 0);
+    }
+    return 0;
   };
-}
+
+  const treeData = buildTree(validTreemapPapers, 0);
+  const totalTreemapVal = treeData.reduce((acc, d) => acc + getNodeValue(d), 0);
+  const isGlobalCohort = ctx.treemapCohortMode === 'global';
+  const effectiveDenominator = isGlobalCohort ? (papers.length || 1) : (totalTreemapVal || 1);
+
+  const effectiveLegendFormat = ctx.legendFormat || 'name';
+  const rootLegendData = treeData.map(d => {
+    const val = getNodeValue(d);
+    const label = formatLegendLabel(d.name, {
+      paperCount: val,
+      count: val,
+      percent: effectiveDenominator > 0 ? (val / effectiveDenominator) * 100 : 0,
+      totalCohortPapers: effectiveDenominator,
+      decimalPrecision: ctx.decimalPrecision,
+      useTildeForCoarse: ctx.useTildeForCoarse,
+      ratioStyle: ctx.ratioStyle,
+      forceCohortDenominator: true
+    }, effectiveLegendFormat);
+    return {
+      name: label,
+      value: val,
+      icon: ctx.legendIcon && ctx.legendIcon !== 'inherit' ? ctx.legendIcon : 'roundRect',
+      itemStyle: { color: d.itemStyle?.color }
+    };
+  });
+
+    const hasVisibleTitle = Boolean(baseTitle && (baseTitle as any).show !== false);
+    const effectiveTreemapLegendPos = String(ctx.legendPosition || 'bottom');
+    const defaultTreemapTop = showLegend && effectiveTreemapLegendPos === 'top'
+      ? (hasVisibleTitle ? 85 : 55)
+      : (hasVisibleTitle ? 55 : 20);
+    const defaultTreemapBottom = showLegend && effectiveTreemapLegendPos === 'bottom' ? 55 : 20;
+    const defaultTreemapLeft = showLegend && effectiveTreemapLegendPos === 'left' ? 140 : 20;
+    const defaultTreemapRight = showLegend && effectiveTreemapLegendPos === 'right' ? 140 : 20;
+
+    const treemapTop = ctx.gridMarginTop !== undefined ? ctx.gridMarginTop : defaultTreemapTop;
+    const treemapBottom = ctx.gridMarginBottom !== undefined ? ctx.gridMarginBottom : defaultTreemapBottom;
+    const treemapLeft = ctx.gridMarginLeft !== undefined ? ctx.gridMarginLeft : defaultTreemapLeft;
+    const treemapRight = ctx.gridMarginRight !== undefined ? ctx.gridMarginRight : defaultTreemapRight;
+
+    const isDark = palette.bg === '#0f172a' || palette.bg === '#1e293b' || palette.bg === '#000000';
+    const resolveBorderColor = (colorMode?: string, customColor?: string) => {
+      if (colorMode === 'transparent') return 'transparent';
+      if (colorMode === 'contrast') return isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)';
+      if (colorMode === 'custom' && customColor) return customColor;
+      return palette.bg;
+    };
+    const globalBorderColor = resolveBorderColor(ctx.treemapBorderColorMode, ctx.treemapBorderColor);
+    const globalGapWidth = ctx.treemapGapWidth ?? 2;
+    const globalBorderWidth = ctx.treemapBorderWidth ?? 2;
+    const globalBorderRadius = ctx.treemapBorderRadius ?? 0;
+    const globalShowLabels = ctx.treemapShowLabels ?? true;
+    const globalLabelFormat = ctx.treemapLabelFormat || 'name_count';
+    const globalLabelPosition = ctx.treemapLabelPosition || 'inside';
+    const globalLabelFontSize = ctx.treemapLabelFontSize ?? (fontSize - 1);
+    const globalLabelFontWeight = ctx.treemapLabelFontWeight || '600';
+    const globalLabelFontStyle = ctx.treemapLabelFontStyle || 'normal';
+    const globalLabelOverflow = ctx.treemapLabelOverflow || 'break';
+    const globalShowUpperLabel = ctx.treemapShowUpperLabel ?? false;
+    const globalUpperHeight = ctx.treemapUpperLabelHeight ?? 24;
+    const globalUpperFontSize = ctx.treemapUpperLabelFontSize ?? (fontSize - 1);
+    const globalUpperFontWeight = ctx.treemapUpperLabelFontWeight || 'bold';
+    const globalUpperFormat = ctx.treemapUpperLabelFormat || 'name';
+    const globalUpperBgColor = ctx.treemapUpperLabelBgColor || 'rgba(0,0,0,0.18)';
+    const globalVisibleMin = ctx.treemapVisibleMin ?? 10;
+    const globalChildrenVisibleMin = ctx.treemapChildrenVisibleMin ?? 0;
+    const globalLabelColor = (ctx.treemapLabelColorMode === 'custom' && ctx.treemapLabelColor)
+      ? ctx.treemapLabelColor
+      : (ctx.treemapLabelColorMode === 'inherit_theme' ? palette.text : undefined);
+
+    const formatTileLabel = (name: string, val: number, template: DisplayFormatTemplate = 'name_count') => {
+      const pct = effectiveDenominator > 0 ? (val / effectiveDenominator) * 100 : 0;
+      return formatMetricDisplay({
+        name,
+        val,
+        count: val,
+        paperCount: val,
+        totalCohortPapers: effectiveDenominator,
+        totalExtractedTags: effectiveDenominator,
+        activePct: pct,
+        prevalencePct: pct,
+        template,
+        decimalPrecision: ctx.decimalPrecision,
+        useTildeForCoarse: ctx.useTildeForCoarse,
+        ratioStyle: ctx.ratioStyle,
+        forceCohortDenominator: true
+      });
+    };
+
+    const levels = [
+      {
+        itemStyle: {
+          borderColor: globalBorderColor,
+          borderWidth: globalBorderWidth,
+          gapWidth: globalGapWidth,
+          borderRadius: globalBorderRadius
+        },
+        upperLabel: { show: false }
+      },
+      ...activeLevels.map((lvl, lIdx) => {
+        const lvlConf = ctx.treemapLevelConfigs?.[lIdx] || {};
+        const isLeafLevel = lIdx === activeLevels.length - 1;
+        const hasChildren = !isLeafLevel;
+
+        const lvlGapWidth = lvlConf.gapWidth ?? Math.max(0, globalGapWidth - lIdx);
+        const lvlBorderWidth = lvlConf.borderWidth ?? Math.max(1, globalBorderWidth - lIdx);
+        const lvlBorderRadius = lvlConf.borderRadius ?? globalBorderRadius;
+        const lvlBorderColor = lvlConf.borderColor || globalBorderColor;
+
+        const showUpper = lvlConf.showUpperLabel !== undefined ? lvlConf.showUpperLabel : (hasChildren && globalShowUpperLabel);
+        const upperHeight = lvlConf.upperLabelHeight ?? globalUpperHeight;
+        const upperFontSize = lvlConf.upperLabelFontSize ?? globalUpperFontSize;
+        const upperFontWeight = lvlConf.upperLabelFontWeight ?? globalUpperFontWeight;
+        const upperFormat = lvlConf.upperLabelFormat ?? globalUpperFormat;
+        const upperBgColor = lvlConf.upperLabelBgColor ?? globalUpperBgColor;
+        const upperColorMode = lvlConf.upperLabelColorMode ?? ctx.treemapUpperLabelColorMode ?? 'auto_contrast';
+        const upperTextColor = (upperColorMode === 'custom' && (lvlConf.upperLabelColor || ctx.treemapUpperLabelColor))
+          ? (lvlConf.upperLabelColor || ctx.treemapUpperLabelColor)
+          : (upperColorMode === 'inherit_theme' ? palette.text : getContrastingTextColor(upperBgColor, '#0f172a', '#ffffff'));
+
+        const showDataLabel = lvlConf.showLabel !== undefined ? lvlConf.showLabel : (hasChildren && showUpper ? false : globalShowLabels);
+        const labelPos = lvlConf.labelPosition ?? globalLabelPosition;
+        const labelFormatTpl = lvlConf.labelFormat ?? globalLabelFormat;
+        const isStaleDefaultFontSize = lvlConf.fontSize === 12 || lvlConf.fontSize === 11 || lvlConf.fontSize === 10;
+        const isStaleDefaultWidth = lvlConf.labelWidth === 140 || lvlConf.labelWidth === 120 || lvlConf.labelWidth === 110;
+        const isStaleDefaultLineHeight = lvlConf.lineHeight === 15 || lvlConf.lineHeight === 14;
+
+        const labelFSize = (lvlConf.fontSize !== undefined && !isStaleDefaultFontSize)
+          ? lvlConf.fontSize
+          : (ctx.treemapLabelFontSize !== undefined ? ctx.treemapLabelFontSize : (lvlConf.fontSize ?? Math.max(8, fontSize - 1 - lIdx)));
+        const labelFWeight = lvlConf.fontWeight ?? (lIdx === 0 ? 'bold' : globalLabelFontWeight);
+        const labelFStyle = lvlConf.fontStyle ?? globalLabelFontStyle;
+        const labelOverflow = lvlConf.overflow ?? globalLabelOverflow;
+        const labelColorMode = lvlConf.colorMode ?? ctx.treemapLabelColorMode ?? 'auto_contrast';
+        const labelColor = (labelColorMode === 'custom' && (lvlConf.color || ctx.treemapLabelColor))
+          ? (lvlConf.color || ctx.treemapLabelColor)
+          : (labelColorMode === 'inherit_theme' ? palette.text : undefined);
+
+        const levelColorAlpha = lvlConf.colorAlpha ?? (
+          ctx.treemapColorMode === 'depth_fade'
+            ? [Math.max(0.2, (ctx.treemapColorAlphaMin ?? 0.7) - lIdx * 0.15), ctx.treemapColorAlphaMax ?? 1.0]
+            : undefined
+        );
+        const levelColorSaturation = lvlConf.colorSaturation ?? (
+          ctx.treemapColorSaturationMin !== undefined && ctx.treemapColorSaturationMax !== undefined
+            ? [ctx.treemapColorSaturationMin, ctx.treemapColorSaturationMax]
+            : undefined
+        );
+
+        const labelWidth = (lvlConf.labelWidth !== undefined && !isStaleDefaultWidth)
+          ? lvlConf.labelWidth
+          : (ctx.treemapLabelWidth !== undefined ? ctx.treemapLabelWidth : (lvlConf.labelWidth ?? 120));
+        const labelLineHeight = (lvlConf.lineHeight !== undefined && !isStaleDefaultLineHeight)
+          ? lvlConf.lineHeight
+          : (ctx.treemapLabelLineHeight !== undefined ? ctx.treemapLabelLineHeight : (lvlConf.lineHeight ?? Math.max(14, labelFSize + 4)));
+        const effectiveLineHeight = Math.max(labelLineHeight, labelFSize + 2);
+        const upperWidth = lvlConf.upperLabelWidth ?? ctx.treemapUpperLabelWidth;
+
+        return {
+          itemStyle: {
+            borderColor: lvlBorderColor,
+            borderWidth: lvlBorderWidth,
+            gapWidth: lvlGapWidth,
+            borderRadius: lvlBorderRadius
+          },
+          upperLabel: {
+            show: Boolean(showUpper),
+            height: upperHeight,
+            position: lvlConf.upperLabelPosition ?? 'inside',
+            fontFamily: font,
+            fontSize: upperFontSize,
+            fontWeight: upperFontWeight,
+            color: upperTextColor,
+            backgroundColor: upperBgColor,
+            borderRadius: [lvlBorderRadius, lvlBorderRadius, 0, 0],
+            ...(upperWidth ? { width: upperWidth, overflow: 'truncate' as const } : {}),
+            formatter: (params: any) => {
+              const val = getNodeValue(params);
+              return formatTileLabel(params.name, val, upperFormat);
+            }
+          },
+          label: {
+            show: Boolean(showDataLabel),
+            position: labelPos,
+            fontFamily: font,
+            fontSize: labelFSize,
+            fontWeight: labelFWeight,
+            fontStyle: labelFStyle,
+            width: labelWidth,
+            lineHeight: effectiveLineHeight,
+            overflow: labelOverflow,
+            ...(labelColor ? { color: labelColor } : {}),
+            formatter: (params: any) => {
+              const val = getNodeValue(params);
+              const formatted = formatTileLabel(params.name, val, labelFormatTpl);
+              if (labelOverflow === 'break' && labelWidth > 0) {
+                const charsPerLine = Math.max(4, Math.floor(labelWidth / Math.max(6, labelFSize * 0.58)));
+                return wrapAxisLabelText(formatted, charsPerLine);
+              }
+              return formatted;
+            }
+          },
+          visibleMin: lvlConf.visibleMin ?? globalVisibleMin,
+          childrenVisibleMin: lvlConf.childrenVisibleMin ?? globalChildrenVisibleMin,
+          colorMappingBy: ctx.treemapColorMappingBy || 'index',
+          ...(levelColorAlpha ? { colorAlpha: levelColorAlpha } : {}),
+          ...(levelColorSaturation ? { colorSaturation: levelColorSaturation } : {})
+        };
+      })
+    ];
+
+    const showBreadcrumb = ctx.treemapShowBreadcrumb ?? true;
+    const breadcrumbPos = ctx.treemapBreadcrumbPosition || 'bottom';
+    const breadcrumbHeight = ctx.treemapBreadcrumbHeight ?? 24;
+
+    const breadcrumbConfig = showBreadcrumb ? {
+      show: true,
+      [breadcrumbPos === 'top' ? 'top' : 'bottom']: 6,
+      left: 'center',
+      height: breadcrumbHeight,
+      emptyItemWidth: 28,
+      itemStyle: {
+        color: isDark ? 'rgba(30, 41, 59, 0.92)' : 'rgba(241, 245, 249, 0.95)',
+        borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)',
+        borderWidth: 1,
+        borderRadius: 4,
+        textStyle: {
+          color: isDark ? '#ffffff' : '#0f172a',
+          fontFamily: font,
+          fontSize: 11,
+          fontWeight: 'bold'
+        }
+      },
+      emphasis: {
+        itemStyle: {
+          color: palette.colors[0] || '#3b82f6',
+          textStyle: {
+            color: '#ffffff'
+          }
+        }
+      }
+    } : { show: false };
+
+    let adjustedTreemapTop = treemapTop;
+    let adjustedTreemapBottom = treemapBottom;
+    if (showBreadcrumb) {
+      if (breadcrumbPos === 'bottom') {
+        adjustedTreemapBottom += breadcrumbHeight + 8;
+      } else {
+        adjustedTreemapTop += breadcrumbHeight + 8;
+      }
+    }
+
+    const squareRatio = ctx.treemapSquareRatio ?? (
+      ctx.treemapAlgorithm === 'sliceAndDice' ? 0.1 : ctx.treemapAlgorithm === 'binary' ? 1.0 : 0.5 * (1 + Math.sqrt(5))
+    );
+    const leafDepth = (ctx.treemapVisibleDepth !== undefined && ctx.treemapVisibleDepth > 0)
+      ? ctx.treemapVisibleDepth
+      : undefined;
+    const nodeClick = ctx.treemapNodeClick === 'none' ? false : (ctx.treemapNodeClick || 'zoomToNode');
+    const roam = ctx.treemapRoam ?? false;
+    const drillDownIcon = ctx.treemapDrillDownIcon || '▶';
+
+    return {
+      backgroundColor: palette.bg,
+      color: palette.colors,
+      title: baseTitle,
+      legend: showLegend ? {
+        ...baseLegend,
+        data: rootLegendData
+      } : { show: false },
+      tooltip: {
+        ...baseTooltip,
+        formatter: (params: any) => {
+          const val = getNodeValue(params);
+          const pctVal = effectiveDenominator > 0 ? ((val / effectiveDenominator) * 100).toFixed(ctx.decimalPrecision ?? 1) : '0';
+          const cohortLabel = isGlobalCohort ? 'Global Cohort' : 'Grouped Cohort';
+          const pathNames = (params.treePathInfo || []).map((p: any) => p.name).filter(Boolean);
+          const pathString = pathNames.length > 1 ? pathNames.join(' &gt; ') : params.name;
+          let output = `<strong>${pathString}</strong><br/>Cohort Count: <strong>${val}</strong> (${pctVal}% of ${cohortLabel}, N=${effectiveDenominator})`;
+          if (params.data?.tailItems && params.data.tailItems.length > 0) {
+            output += `<div style="margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 4px; font-size: 11px;">`;
+            output += `<strong>Grouped Tail Items (${params.data.tailItems.length}):</strong><br/>`;
+            params.data.tailItems.forEach((t: any) => {
+              output += `• ${t.name}: ${t.count}<br/>`;
+            });
+            output += `</div>`;
+          }
+          return output;
+        }
+      },
+      series: [
+        {
+          type: 'treemap',
+          top: Math.max(10, adjustedTreemapTop + (ctx.containerPadding ?? 12) - (ctx.fitOffsetY ?? 0)),
+          bottom: Math.max(10, adjustedTreemapBottom + (ctx.containerPadding ?? 12) + (ctx.fitOffsetY ?? 0)),
+          left: Math.max(10, treemapLeft + (ctx.containerPadding ?? 12) - (ctx.fitOffsetX ?? 0)),
+          right: Math.max(10, treemapRight + (ctx.containerPadding ?? 12) + (ctx.fitOffsetX ?? 0)),
+          data: treeData,
+          squareRatio,
+          leafDepth,
+          roam,
+          nodeClick,
+          drillDownIcon,
+          breadcrumb: breadcrumbConfig,
+          label: {
+            show: globalShowLabels,
+            position: globalLabelPosition,
+            fontFamily: font,
+            fontSize: globalLabelFontSize,
+            fontWeight: globalLabelFontWeight as any,
+            fontStyle: globalLabelFontStyle,
+            width: ctx.treemapLabelWidth ?? 120,
+            lineHeight: Math.max(ctx.treemapLabelLineHeight ?? (globalLabelFontSize + 4), globalLabelFontSize + 2),
+            overflow: ctx.treemapLabelOverflow ?? 'break',
+            ...(globalLabelColor ? { color: globalLabelColor } : {}),
+            formatter: (params: any) => {
+              const val = getNodeValue(params);
+              const formatted = formatTileLabel(params.name, val, globalLabelFormat);
+              if ((ctx.treemapLabelOverflow ?? 'break') === 'break' && (ctx.treemapLabelWidth ?? 120) > 0) {
+                const charsPerLine = Math.max(4, Math.floor((ctx.treemapLabelWidth ?? 120) / Math.max(6, globalLabelFontSize * 0.58)));
+                return wrapAxisLabelText(formatted, charsPerLine);
+              }
+              return formatted;
+            }
+          },
+          levels: levels as any
+        } as any,
+        ...(showLegend ? [{
+          type: 'pie' as const,
+          radius: [0, 0],
+          center: ['50%', '50%'],
+          silent: true,
+          label: { show: false },
+          labelLine: { show: false },
+          data: rootLegendData
+        }] : [])
+      ]
+    };
+  }
 
 export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -519,7 +934,7 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
     sankeyLinkOpacity = 45,
     sankeyNodeBorderRadius = 2,
     sankeyNodeBorderWidth = 1,
-    sankeyLayoutIterations = 32,
+    sankeyLayoutIterations = 0,
     sankeyDraggable = true,
     sankeyLabelPosition = 'auto',
     sankeyLabelDistance = 6,
@@ -534,6 +949,11 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
     sankeyLevelNodeWidths = {},
     sankeyLevelPathFilters = {},
     sankeySort = 'desc',
+    sankeyPinUnstatedToBottom = true,
+    sankeyFlowConservation = ctx.sankeyFlowConservation === true,
+    sankeyLevelNodeOrders = ctx.sankeyLevelNodeOrders || {},
+    levelSegmentIndices = {},
+    levelScopeFilters = {},
     sankeyLabelLineHeight,
     sankeyLabelFontWeight = '600',
     sankeyLabelColor,
@@ -558,8 +978,21 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
     excludeEmpty,
     customCategoryMap,
     levelCustomGroupLinks,
+    levelCustomGroups: ctx.levelCustomGroups,
+    levelTargetFields: ctx.levelTargetFields,
     sankeyFields
   };
+
+  // Active effective levels: collapse empty unconfigured custom grouping layers
+  const effectiveLevels = sankeyFields
+    .map((f, idx) => ({ fieldKey: f, originalIdx: idx }))
+    .filter(({ fieldKey, originalIdx }) => {
+      if (fieldKey !== CUSTOM_GROUPING_KEY) return true;
+      const groups = ctx.levelCustomGroups?.[originalIdx] || [];
+      const links = ctx.levelCustomGroupLinks?.[originalIdx] || {};
+      return groups.length > 0 || Object.keys(links).length > 0;
+    });
+  const activeLevels = effectiveLevels.length > 0 ? effectiveLevels : [{ fieldKey: sankeyFields[0] || 'Year', originalIdx: 0 }];
 
   // Pre-filter papers so only papers whose entire path satisfies active level filters participate in the Sankey flow
   const activeLevelFilters = Object.entries(sankeyLevelPathFilters).filter(([_, filter]) => Boolean(filter && filter.trim()));
@@ -568,12 +1001,22 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
     : papers.filter(p => {
         return activeLevelFilters.every(([lIdxStr, filter]) => {
           const lIdx = Number(lIdxStr);
-          const f = sankeyFields[lIdx];
-          if (!f) return true;
-          const prevF = lIdx > 0 ? sankeyFields[lIdx - 1] : null;
+          const activeLvl = activeLevels[lIdx];
+          if (!activeLvl) return true;
+          const { fieldKey: f, originalIdx: origIdx } = activeLvl;
+          const prevF = lIdx > 0 ? activeLevels[lIdx - 1]?.fieldKey : null;
           const baseVals = (lIdx > 0 && f === prevF)
-            ? getFieldValue(p, f, mappedOpts)
-            : getMappedFieldValue(p, f, { ...mappedOpts, levelIdx: lIdx });
+            ? getFieldValue(p, f, {
+                ...mappedOpts,
+                segmentIdx: levelSegmentIndices[origIdx],
+                scopeFilter: levelScopeFilters[origIdx]
+              })
+            : getMappedFieldValue(p, f, {
+                ...mappedOpts,
+                levelIdx: origIdx,
+                segmentIdx: levelSegmentIndices[origIdx],
+                scopeFilter: levelScopeFilters[origIdx]
+              });
           return baseVals.some(v => matchColonPathFilter(v, filter, f, p, { umbrellanizerMap }));
         });
       });
@@ -585,21 +1028,23 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
   const levelTotalTags = new Map<number, number>();
   const nodeTailItemsMap = new Map<string, { name: string; count: number }[]>();
   const linksMap = new Map<string, number>();
+  const nodeSurvivingPapersMap = new Map<string, Set<string>>();
+  const nodeSurvivingTagsMap = new Map<string, number>();
 
-  const allowedLevelSets = sankeyFields.map((fieldKey, idx) => {
-    const limitCount = (sankeyMaxNodes && sankeyMaxNodes[idx] !== undefined && sankeyMaxNodes[idx] > 0)
-      ? sankeyMaxNodes[idx]
+  const allowedLevelSets = activeLevels.map(({ fieldKey, originalIdx }, l) => {
+    const limitCount = (sankeyMaxNodes && sankeyMaxNodes[originalIdx] !== undefined && sankeyMaxNodes[originalIdx] > 0)
+      ? sankeyMaxNodes[originalIdx]
       : (limitCategories && maxCategoriesCount > 0 ? maxCategoriesCount : 0);
 
     if (limitCount < 1) return null;
 
-    const prevF = idx > 0 ? sankeyFields[idx - 1] : null;
-    const pathFilter = sankeyLevelPathFilters[idx];
+    const prevF = l > 0 ? activeLevels[l - 1].fieldKey : null;
+    const pathFilter = sankeyLevelPathFilters[originalIdx];
     const counts = new Map<string, number>();
     validSankeyPapers.forEach(p => {
-      const baseVals = (idx > 0 && fieldKey === prevF)
+      const baseVals = (l > 0 && fieldKey === prevF)
         ? getFieldValue(p, fieldKey, mappedOpts)
-        : getMappedFieldValue(p, fieldKey, { ...mappedOpts, levelIdx: idx });
+        : getMappedFieldValue(p, fieldKey, { ...mappedOpts, levelIdx: originalIdx });
       const vals = pathFilter
         ? baseVals.filter(v => matchColonPathFilter(v, pathFilter, fieldKey, p, { umbrellanizerMap }))
         : baseVals;
@@ -624,17 +1069,26 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
 
   validSankeyPapers.forEach(p => {
     const pId = p.Paper_ID || String(Math.random());
-    const levelValues = sankeyFields.map((f, idx) => {
-      const prevF = idx > 0 ? sankeyFields[idx - 1] : null;
-      const pathFilter = sankeyLevelPathFilters[idx];
-      const baseVals = (idx > 0 && f === prevF)
-        ? getFieldValue(p, f, mappedOpts)
-        : getMappedFieldValue(p, f, { ...mappedOpts, levelIdx: idx });
+    const levelValues = activeLevels.map(({ fieldKey, originalIdx }, l) => {
+      const prevF = l > 0 ? activeLevels[l - 1].fieldKey : null;
+      const pathFilter = sankeyLevelPathFilters[originalIdx];
+      const baseVals = (l > 0 && fieldKey === prevF)
+        ? getFieldValue(p, fieldKey, {
+            ...mappedOpts,
+            segmentIdx: levelSegmentIndices[originalIdx],
+            scopeFilter: levelScopeFilters[originalIdx]
+          })
+        : getMappedFieldValue(p, fieldKey, {
+            ...mappedOpts,
+            levelIdx: originalIdx,
+            segmentIdx: levelSegmentIndices[originalIdx],
+            scopeFilter: levelScopeFilters[originalIdx]
+          });
       const rawVals = pathFilter
-        ? baseVals.filter(v => matchColonPathFilter(v, pathFilter, f, p, { umbrellanizerMap }))
+        ? baseVals.filter(v => matchColonPathFilter(v, pathFilter, fieldKey, p, { umbrellanizerMap }))
         : baseVals;
       
-      const levelFilter = allowedLevelSets[idx];
+      const levelFilter = allowedLevelSets[l];
       if (!levelFilter) return rawVals;
 
       const mapped = rawVals.map(v => {
@@ -659,81 +1113,506 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
           nodeTailItemsMap.set(nodeKey, curFilter.tailItems);
         }
       });
-    });
+    });    // Helper to resolve underlying variable key for any level
+    const resolveLevelTargetKey = (lvl: { fieldKey: string; originalIdx: number }): string => {
+      if (lvl.fieldKey === CUSTOM_GROUPING_KEY) {
+        return (
+          ctx.levelTargetFields?.[lvl.originalIdx] ||
+          ctx.levelTargetFields?.[0] ||
+          (sankeyFields.find((f, idx) => f !== CUSTOM_GROUPING_KEY && idx >= lvl.originalIdx) || 'Year')
+        );
+      }
+      return lvl.fieldKey;
+    };
+
+    const extractBaseTaxonomyKey = (k: string): string => {
+      if (!k) return '';
+      return k
+        .replace(/^ext:(macro:|sub:|leaf:|tail:|lv\d+:|segment:\d+:)?/, '')
+        .replace(/^raw:(leaf:|tail:)?ext:/, '')
+        .replace(/^ext:/, '');
+    };
+
+    const resolveLevelSegmentIdx = (lvl: { fieldKey: string; originalIdx: number }, targetKey: string): number => {
+      if (levelSegmentIndices[lvl.originalIdx] !== undefined) {
+        return levelSegmentIndices[lvl.originalIdx];
+      }
+      const combined = `${lvl.fieldKey} ${targetKey}`;
+      const segMatch = combined.match(/ext:segment:(\d+):/i);
+      if (segMatch) return parseInt(segMatch[1], 10);
+      const lvMatch = combined.match(/ext:lv(\d+):/i);
+      if (lvMatch) return parseInt(lvMatch[1], 10) - 1;
+      if (combined.includes('ext:macro:') || combined.includes('macro:')) return 0;
+      if (combined.includes('ext:sub:') || combined.includes('sub:')) return 1;
+      if (combined.includes('ext:leaf:') || combined.includes('leaf:') || combined.includes('ext:tail:')) return 2;
+      return lvl.originalIdx;
+    };
+
+    // Track active surviving nodes per level for paper p to enforce strict cross-variable ancestry
+    const survivingPaperNodesByLevel = new Map<number, Set<string>>();
+    const initialL0 = levelValues[0] && levelValues[0].length > 0 ? levelValues[0] : (excludeEmpty ? [] : ['Unspecified']);
+    survivingPaperNodesByLevel.set(0, new Set(initialL0));
+
+    // Track proportional paper flow mass across levels (for strict volume conservation)
+    const paperLevelInflow = new Map<number, Map<string, number>>();
+    const l0Inflows = new Map<string, number>();
+    const uniqueL0 = Array.from(survivingPaperNodesByLevel.get(0)!);
+    const l0Size = Math.max(1, uniqueL0.length);
+    uniqueL0.forEach(v => l0Inflows.set(v, 1.0 / l0Size));
+    paperLevelInflow.set(0, l0Inflows);
 
     // Register transitions/links between adjacent levels
-    for (let i = 0; i < levelValues.length - 1; i++) {
-      const currentField = sankeyFields[i];
-      const nextField = sankeyFields[i + 1];
-      const currentVals = levelValues[i];
-      const rawNextVals = levelValues[i + 1];
+    for (let i = 0; i < activeLevels.length - 1; i++) {
+      if (!survivingPaperNodesByLevel.has(i + 1)) {
+        survivingPaperNodesByLevel.set(i + 1, new Set());
+      }
+      const currentLevel = activeLevels[i];
+      const nextLevel = activeLevels[i + 1];
+      const currentField = currentLevel.fieldKey;
+      const nextField = nextLevel.fieldKey;
 
-      currentVals.forEach(cv => {
-        const sourceNode = `${i + 1}: ${cv}`;
+      const currentTargetKey = resolveLevelTargetKey(currentLevel);
+      const nextTargetKey = resolveLevelTargetKey(nextLevel);
+      const currentBaseKey = extractBaseTaxonomyKey(currentTargetKey);
+      const nextBaseKey = extractBaseTaxonomyKey(nextTargetKey);
 
-        // Strict parent scoping for next level nodes
-        const scopedNextVals = filterValuesForParent(rawNextVals, nextField, {
-          fieldKey: currentField,
-          levelIdx: i,
-          rawName: cv,
-          displayName: cv,
-          path: [cv]
-        }, { levelCustomGroupLinks, umbrellanizerMap });
+      const isSameColonVariable = Boolean(currentBaseKey && nextBaseKey && currentBaseKey === nextBaseKey);
 
-        scopedNextVals.forEach(nv => {
-          const targetNode = `${i + 2}: ${nv}`;
+      // Collect target nodes per source node for paper p at this level
+      const paperTransitions = new Map<string, Set<string>>();
+
+      if (isSameColonVariable) {
+        // TOKEN-LEVEL PARENT PATH LINEAGE TRACING
+        // Extract token paths: each token forms a strict path [seg0, seg1, seg2, ...]
+        const tokenPaths = extractTokenPaths(p, currentBaseKey, mappedOpts);
+        const segIdx_i = resolveLevelSegmentIdx(currentLevel, currentTargetKey);
+        const segIdx_next = resolveLevelSegmentIdx(nextLevel, nextTargetKey);
+
+        const currentPathFilter = sankeyLevelPathFilters[currentLevel.originalIdx];
+        const nextPathFilter = sankeyLevelPathFilters[nextLevel.originalIdx];
+
+        const linksMap_i = ctx.levelCustomGroupLinks?.[currentLevel.originalIdx] || {};
+        const links_next = ctx.levelCustomGroupLinks?.[nextLevel.originalIdx] || {};
+
+        const levelFilter_i = allowedLevelSets[i];
+        const levelFilter_next = allowedLevelSets[i + 1];
+
+        if (tokenPaths.length > 0) {
+          tokenPaths.forEach(path => {
+            // Full Ancestry Lineage & Scope Verification:
+            // Ensure every ancestor segment from Level 0 up to current target satisfies its level path filter, scope filter, and custom grouping
+            for (let step = 0; step <= i + 1; step++) {
+              const stepLevel = activeLevels[step];
+              const stepTargetKey = resolveLevelTargetKey(stepLevel);
+              const stepSegIdx = resolveLevelSegmentIdx(stepLevel, stepTargetKey);
+              const stepVal = path[stepSegIdx] ?? (stepSegIdx < path.length ? path[stepSegIdx] : path[path.length - 1]);
+              if (!stepVal) return;
+
+              // Check Parent Scope Filter (e.g. "Edge Hosted, Local Silicon" or "!Cloud Hosted")
+              const stepScopeFilter = levelScopeFilters[stepLevel.originalIdx];
+              if (stepScopeFilter && stepScopeFilter.trim()) {
+                const scopeItems = stepScopeFilter.split(',').map(s => s.trim()).filter(Boolean);
+                const posScopes = scopeItems.filter(s => !s.startsWith('!')).map(normalizeTaxonomySegment);
+                const negScopes = scopeItems.filter(s => s.startsWith('!')).map(s => normalizeTaxonomySegment(s.substring(1)));
+
+                const pathSegNorms = path.map(normalizeTaxonomySegment).filter(Boolean);
+
+                if (negScopes.length > 0 && negScopes.some(neg => pathSegNorms.includes(neg))) {
+                  return;
+                }
+                if (posScopes.length > 0 && !posScopes.some(pos => pathSegNorms.includes(pos))) {
+                  return;
+                }
+              }
+
+              const stepPathFilter = sankeyLevelPathFilters[stepLevel.originalIdx];
+              if (stepPathFilter && !matchColonPathFilter(stepVal, stepPathFilter, stepLevel.fieldKey, p, { umbrellanizerMap })) {
+                return;
+              }
+
+              if (stepLevel.fieldKey === CUSTOM_GROUPING_KEY) {
+                const stepLinks = ctx.levelCustomGroupLinks?.[stepLevel.originalIdx] || {};
+                const mappedGroup = stepLinks[stepVal] || stepLinks[stepVal.toLowerCase()];
+                if (excludeEmpty && (mappedGroup === 'Unassigned / Other' || mappedGroup === 'Unassigned' || mappedGroup === 'Unspecified')) {
+                  return;
+                }
+              }
+            }
+
+            const rawSource = path[segIdx_i] ?? (segIdx_i < path.length ? path[segIdx_i] : path[path.length - 1]);
+            const rawTarget = path[segIdx_next] ?? (segIdx_next < path.length ? path[segIdx_next] : path[path.length - 1]);
+
+            if (!rawSource || !rawTarget) return;
+
+            // Apply Path Filters if set
+            if (currentPathFilter && !matchColonPathFilter(rawSource, currentPathFilter, currentField, p, { umbrellanizerMap })) return;
+            if (nextPathFilter && !matchColonPathFilter(rawTarget, nextPathFilter, nextField, p, { umbrellanizerMap })) return;
+
+            // Map through Custom Grouping if configured
+            let sourceVal = rawSource;
+            if (currentField === CUSTOM_GROUPING_KEY) {
+              sourceVal = linksMap_i[rawSource] || linksMap_i[rawSource.toLowerCase()] || rawSource;
+            }
+            let targetVal = rawTarget;
+            if (nextField === CUSTOM_GROUPING_KEY) {
+              targetVal = links_next[rawTarget] || links_next[rawTarget.toLowerCase()] || rawTarget;
+            }
+
+            // Map through Tail Aggregator if applicable
+            if (levelFilter_i) {
+              sourceVal = levelFilter_i.topSet.has(sourceVal) ? sourceVal : levelFilter_i.tailName;
+            }
+            if (levelFilter_next) {
+              targetVal = levelFilter_next.topSet.has(targetVal) ? targetVal : levelFilter_next.tailName;
+            }
+
+            // Ensure source node was part of paper p's surviving nodes at level i
+            const survivingAt_i = survivingPaperNodesByLevel.get(i);
+            if (survivingAt_i && !survivingAt_i.has(sourceVal)) {
+              return;
+            }
+
+            if (sourceVal && targetVal) {
+              if (!paperTransitions.has(sourceVal)) paperTransitions.set(sourceVal, new Set());
+              paperTransitions.get(sourceVal)!.add(targetVal);
+            }
+          });
+        }
+
+        if (paperTransitions.size === 0 && !excludeEmpty) {
+          const survivingAt_i = survivingPaperNodesByLevel.get(i);
+          const srcList = survivingAt_i && survivingAt_i.size > 0 ? Array.from(survivingAt_i) : ['Unspecified'];
+          srcList.forEach(s => {
+            if (!paperTransitions.has(s)) paperTransitions.set(s, new Set());
+            paperTransitions.get(s)!.add('Unspecified');
+          });
+        }
+      } else {
+        // Cross-variable transition (e.g. RQ7a -> RQ7b)
+        // Strictly only allow links from paper p's SURVIVING nodes at level i
+        const activeSourceNodes = survivingPaperNodesByLevel.get(i);
+        if (activeSourceNodes && activeSourceNodes.size > 0) {
+          const rawNextVals = levelValues[i + 1] && levelValues[i + 1].length > 0
+            ? levelValues[i + 1]
+            : (excludeEmpty ? [] : ['Unspecified']);
+
+          activeSourceNodes.forEach(cv => {
+            const scopedNextVals = filterValuesForParent(rawNextVals, nextField, {
+              fieldKey: currentField,
+              levelIdx: i,
+              rawName: cv,
+              displayName: cv,
+              path: [cv]
+            }, { levelCustomGroupLinks, umbrellanizerMap });
+
+            const effNext = scopedNextVals.length > 0 ? scopedNextVals : (excludeEmpty ? [] : ['Unspecified']);
+            effNext.forEach(nv => {
+              if (!paperTransitions.has(cv)) paperTransitions.set(cv, new Set());
+              paperTransitions.get(cv)!.add(nv);
+            });
+          });
+        }
+      }
+
+      // Apply link weights and update surviving maps & next level inflows
+      const nextInflows = new Map<string, number>();
+      const currentInflowMap = paperLevelInflow.get(i) || new Map<string, number>();
+
+      paperTransitions.forEach((targetsSet, sourceVal) => {
+        const sourceNode = `${i + 1}: ${sourceVal}`;
+        const sourceInflow = currentInflowMap.get(sourceVal) ?? (1.0 / Math.max(1, paperTransitions.size));
+        const numTargets = Math.max(1, targetsSet.size);
+        const linkWeight = sankeyFlowConservation ? (sourceInflow / numTargets) : 1;
+
+        targetsSet.forEach(targetVal => {
+          const targetNode = `${i + 2}: ${targetVal}`;
           const linkKey = `${sourceNode}--->${targetNode}`;
-          linksMap.set(linkKey, (linksMap.get(linkKey) || 0) + 1);
+          linksMap.set(linkKey, (linksMap.get(linkKey) || 0) + linkWeight);
+
+          if (!nodeSurvivingPapersMap.has(sourceNode)) nodeSurvivingPapersMap.set(sourceNode, new Set());
+          if (!nodeSurvivingPapersMap.has(targetNode)) nodeSurvivingPapersMap.set(targetNode, new Set());
+          nodeSurvivingPapersMap.get(sourceNode)!.add(pId);
+          nodeSurvivingPapersMap.get(targetNode)!.add(pId);
+
+          nodeSurvivingTagsMap.set(sourceNode, (nodeSurvivingTagsMap.get(sourceNode) || 0) + 1);
+          nodeSurvivingTagsMap.set(targetNode, (nodeSurvivingTagsMap.get(targetNode) || 0) + 1);
+
+          survivingPaperNodesByLevel.get(i + 1)!.add(targetVal);
+          nextInflows.set(targetVal, (nextInflows.get(targetVal) || 0) + linkWeight);
         });
       });
+
+      paperLevelInflow.set(i + 1, nextInflows);
     }
   });
 
-  // Calculate Hare-Hamilton 100.00% balanced quota tag shares per level
-  const levelBalancedTagSharePcts = new Map<number, Map<string, number>>();
-  sankeyFields.forEach((_, lIdx) => {
-    const levelTotal = levelTotalTags.get(lIdx) || 0;
-    const levelNodes = Array.from(nodesSet).filter(n => n.startsWith(`${lIdx + 1}: `));
-    const quotaInputs = levelNodes.map(n => ({
-      name: n,
-      count: nodeTagCountsMap.get(n) || (nodePapersMap.get(n)?.size || 0)
-    }));
-    const balancedMap = balanceQuotasToHundred(quotaInputs, levelTotal);
-    levelBalancedTagSharePcts.set(lIdx, balancedMap);
+  // Ensure all link endpoints are guaranteed to exist in nodesSet
+  linksMap.forEach((_, linkKey) => {
+    const [source, target] = linkKey.split('--->');
+    nodesSet.add(source);
+    nodesSet.add(target);
   });
 
-  // Level-by-level node sorting
-  const sortedNodeKeys = sankeyFields.flatMap((_, lIdx) => {
+  // Compute node inflow and outflow sums for strict flow conservation
+  const nodeInflowMap = new Map<string, number>();
+  const nodeOutflowMap = new Map<string, number>();
+  linksMap.forEach((weight, linkKey) => {
+    const [source, target] = linkKey.split('--->');
+    nodeOutflowMap.set(source, (nodeOutflowMap.get(source) || 0) + weight);
+    nodeInflowMap.set(target, (nodeInflowMap.get(target) || 0) + weight);
+  });
+
+  // Helper for unstated/omitted baseline identification
+  const isUnstatedBaseline = (nodeName: string): boolean => {
+    const colonIdx = nodeName.indexOf(': ');
+    const clean = (colonIdx > -1 ? nodeName.substring(colonIdx + 2) : nodeName).toLowerCase().trim();
+    return (
+      clean.includes('omitted') ||
+      clean.includes('unspecified') ||
+      clean.includes('not stated') ||
+      clean.includes('not-stated') ||
+      clean.includes('unassigned') ||
+      clean.includes('none') ||
+      clean.includes('n/a') ||
+      clean.includes('unknown') ||
+      clean.includes('undefined') ||
+      clean.includes('not reported') ||
+      clean.includes('not available') ||
+      clean.includes('other / standalone')
+    );
+  };
+
+  // Helper to get effective flow or paper count for visual sorting
+  const getEffectiveSortVal = (nodeKey: string): number => {
+    const inVal = nodeInflowMap.get(nodeKey) || 0;
+    const outVal = nodeOutflowMap.get(nodeKey) || 0;
+    const flow = Math.max(inVal, outVal);
+    if (flow > 0) return flow;
+    const surviving = nodeSurvivingPapersMap.get(nodeKey)?.size;
+    if (surviving !== undefined && surviving > 0) return surviving;
+    return nodePapersMap.get(nodeKey)?.size || 0;
+  };
+
+  // Level-by-level node sorting with Barycenter / Destination-Weighted Ordering and Unstated Baseline Bottom-Anchoring
+  const numLevels = activeLevels.length;
+  const levelNodesList: string[][] = [];
+
+  for (let lIdx = 0; lIdx < numLevels; lIdx++) {
     const prefix = `${lIdx + 1}: `;
-    const levelNodes = Array.from(nodesSet).filter(n => n.startsWith(prefix));
+    const nodes = Array.from(nodesSet).filter(n => {
+      if (!n.startsWith(prefix)) return false;
+      if (linksMap.size > 0) {
+        if (lIdx === 0) {
+          return (nodeOutflowMap.get(n) || 0) > 0;
+        } else {
+          return (nodeInflowMap.get(n) || 0) > 0;
+        }
+      }
+      return true;
+    });
+    levelNodesList.push(nodes);
+  }
 
-    if (sankeySort === 'desc') {
-      return levelNodes.sort((a, b) => {
-        const aVal = nodePapersMap.get(a)?.size || 0;
-        const bVal = nodePapersMap.get(b)?.size || 0;
+  const finalSortedByLevel: string[][] = new Array(numLevels);
+
+  if (sankeySort === 'barycenter') {
+    // 1. Sort the last level (L - 1) first (by explicit order or descending volume)
+    const lastIdx = numLevels - 1;
+    const lastPrefix = `${lastIdx + 1}: `;
+    const lastNodes = [...levelNodesList[lastIdx]];
+
+    if (sankeyLevelNodeOrders && sankeyLevelNodeOrders[lastIdx] && sankeyLevelNodeOrders[lastIdx].length > 0) {
+      const orderMap = new Map<string, number>();
+      sankeyLevelNodeOrders[lastIdx].forEach((name, oIdx) => {
+        orderMap.set(name.toLowerCase(), oIdx);
+        orderMap.set(`${lastIdx + 1}: ${name}`.toLowerCase(), oIdx);
+      });
+      lastNodes.sort((a, b) => {
+        if (sankeyPinUnstatedToBottom !== false) {
+          const aUn = isUnstatedBaseline(a);
+          const bUn = isUnstatedBaseline(b);
+          if (aUn !== bUn) return aUn ? 1 : -1;
+        }
+        const aRank = orderMap.get(a.toLowerCase()) ?? orderMap.get(a.substring(lastPrefix.length).toLowerCase()) ?? 9999;
+        const bRank = orderMap.get(b.toLowerCase()) ?? orderMap.get(b.substring(lastPrefix.length).toLowerCase()) ?? 9999;
+        if (aRank !== bRank) return aRank - bRank;
+        return getEffectiveSortVal(b) - getEffectiveSortVal(a);
+      });
+    } else {
+      lastNodes.sort((a, b) => {
+        if (sankeyPinUnstatedToBottom !== false) {
+          const aUn = isUnstatedBaseline(a);
+          const bUn = isUnstatedBaseline(b);
+          if (aUn !== bUn) return aUn ? 1 : -1;
+        }
+        const aVal = getEffectiveSortVal(a);
+        const bVal = getEffectiveSortVal(b);
         if (bVal !== aVal) return bVal - aVal;
-        const aClean = a.substring(prefix.length);
-        const bClean = b.substring(prefix.length);
-        return aClean.localeCompare(bClean);
-      });
-    } else if (sankeySort === 'asc') {
-      return levelNodes.sort((a, b) => {
-        const aVal = nodePapersMap.get(a)?.size || 0;
-        const bVal = nodePapersMap.get(b)?.size || 0;
-        if (aVal !== bVal) return aVal - bVal;
-        const aClean = a.substring(prefix.length);
-        const bClean = b.substring(prefix.length);
-        return aClean.localeCompare(bClean);
-      });
-    } else if (sankeySort === 'alpha') {
-      return levelNodes.sort((a, b) => {
-        const aClean = a.substring(prefix.length);
-        const bClean = b.substring(prefix.length);
+        const aClean = a.substring(lastPrefix.length);
+        const bClean = b.substring(lastPrefix.length);
         return aClean.localeCompare(bClean);
       });
     }
-    // 'none': Natural insertion order
-    return levelNodes;
+    finalSortedByLevel[lastIdx] = lastNodes;
+
+    // 2. Iterate backwards from (L - 2) down to 0:
+    for (let lIdx = numLevels - 2; lIdx >= 0; lIdx--) {
+      const prefix = `${lIdx + 1}: `;
+      const curNodes = [...levelNodesList[lIdx]];
+      const downstreamSorted = finalSortedByLevel[lIdx + 1] || [];
+      const downstreamRankMap = new Map<string, number>();
+      downstreamSorted.forEach((nKey, r) => downstreamRankMap.set(nKey, r));
+
+      if (sankeyLevelNodeOrders && sankeyLevelNodeOrders[lIdx] && sankeyLevelNodeOrders[lIdx].length > 0) {
+        const orderMap = new Map<string, number>();
+        sankeyLevelNodeOrders[lIdx].forEach((name, oIdx) => {
+          orderMap.set(name.toLowerCase(), oIdx);
+          orderMap.set(`${lIdx + 1}: ${name}`.toLowerCase(), oIdx);
+        });
+        curNodes.sort((a, b) => {
+          if (sankeyPinUnstatedToBottom !== false) {
+            const aUn = isUnstatedBaseline(a);
+            const bUn = isUnstatedBaseline(b);
+            if (aUn !== bUn) return aUn ? 1 : -1;
+          }
+          const aRank = orderMap.get(a.toLowerCase()) ?? orderMap.get(a.substring(prefix.length).toLowerCase()) ?? 9999;
+          const bRank = orderMap.get(b.toLowerCase()) ?? orderMap.get(b.substring(prefix.length).toLowerCase()) ?? 9999;
+          if (aRank !== bRank) return aRank - bRank;
+          return getEffectiveSortVal(b) - getEffectiveSortVal(a);
+        });
+      } else {
+        const barycenterMap = new Map<string, number>();
+        curNodes.forEach(u => {
+          const outgoing = Array.from(linksMap.entries()).filter(([k]) => k.startsWith(u + '--->'));
+          if (outgoing.length > 0) {
+            const totalW = outgoing.reduce((sum, [_, w]) => sum + w, 0);
+            const weightedRank = outgoing.reduce((sum, [k, w]) => {
+              const tgt = k.split('--->')[1];
+              const r = downstreamRankMap.get(tgt) ?? 999;
+              return sum + w * r;
+            }, 0) / (totalW || 1);
+            barycenterMap.set(u, weightedRank);
+          } else {
+            barycenterMap.set(u, 999);
+          }
+        });
+
+        curNodes.sort((a, b) => {
+          if (sankeyPinUnstatedToBottom !== false) {
+            const aUn = isUnstatedBaseline(a);
+            const bUn = isUnstatedBaseline(b);
+            if (aUn !== bUn) return aUn ? 1 : -1;
+          }
+          const aBary = barycenterMap.get(a) ?? 999;
+          const bBary = barycenterMap.get(b) ?? 999;
+          if (Math.abs(aBary - bBary) > 0.0001) return aBary - bBary;
+          const aVal = getEffectiveSortVal(a);
+          const bVal = getEffectiveSortVal(b);
+          if (bVal !== aVal) return bVal - aVal;
+          const aClean = a.substring(prefix.length);
+          const bClean = b.substring(prefix.length);
+          return aClean.localeCompare(bClean);
+        });
+      }
+      finalSortedByLevel[lIdx] = curNodes;
+    }
+  } else {
+    // Non-barycenter standard ordering
+    for (let lIdx = 0; lIdx < numLevels; lIdx++) {
+      const prefix = `${lIdx + 1}: `;
+      const curNodes = [...levelNodesList[lIdx]];
+
+      if (sankeyLevelNodeOrders && sankeyLevelNodeOrders[lIdx] && sankeyLevelNodeOrders[lIdx].length > 0) {
+        const orderMap = new Map<string, number>();
+        sankeyLevelNodeOrders[lIdx].forEach((name, oIdx) => {
+          orderMap.set(name.toLowerCase(), oIdx);
+          orderMap.set(`${lIdx + 1}: ${name}`.toLowerCase(), oIdx);
+        });
+        curNodes.sort((a, b) => {
+          if (sankeyPinUnstatedToBottom !== false) {
+            const aUn = isUnstatedBaseline(a);
+            const bUn = isUnstatedBaseline(b);
+            if (aUn !== bUn) return aUn ? 1 : -1;
+          }
+          const aRank = orderMap.get(a.toLowerCase()) ?? orderMap.get(a.substring(prefix.length).toLowerCase()) ?? 9999;
+          const bRank = orderMap.get(b.toLowerCase()) ?? orderMap.get(b.substring(prefix.length).toLowerCase()) ?? 9999;
+          if (aRank !== bRank) return aRank - bRank;
+          return getEffectiveSortVal(b) - getEffectiveSortVal(a);
+        });
+      } else if (sankeySort === 'desc') {
+        curNodes.sort((a, b) => {
+          if (sankeyPinUnstatedToBottom !== false) {
+            const aUn = isUnstatedBaseline(a);
+            const bUn = isUnstatedBaseline(b);
+            if (aUn !== bUn) return aUn ? 1 : -1;
+          }
+          const aVal = getEffectiveSortVal(a);
+          const bVal = getEffectiveSortVal(b);
+          if (bVal !== aVal) return bVal - aVal;
+          const aClean = a.substring(prefix.length);
+          const bClean = b.substring(prefix.length);
+          return aClean.localeCompare(bClean);
+        });
+      } else if (sankeySort === 'asc') {
+        curNodes.sort((a, b) => {
+          if (sankeyPinUnstatedToBottom !== false) {
+            const aUn = isUnstatedBaseline(a);
+            const bUn = isUnstatedBaseline(b);
+            if (aUn !== bUn) return aUn ? 1 : -1;
+          }
+          const aVal = getEffectiveSortVal(a);
+          const bVal = getEffectiveSortVal(b);
+          if (aVal !== bVal) return aVal - bVal;
+          const aClean = a.substring(prefix.length);
+          const bClean = b.substring(prefix.length);
+          return aClean.localeCompare(bClean);
+        });
+      } else if (sankeySort === 'alpha') {
+        curNodes.sort((a, b) => {
+          if (sankeyPinUnstatedToBottom !== false) {
+            const aUn = isUnstatedBaseline(a);
+            const bUn = isUnstatedBaseline(b);
+            if (aUn !== bUn) return aUn ? 1 : -1;
+          }
+          const aClean = a.substring(prefix.length);
+          const bClean = b.substring(prefix.length);
+          return aClean.localeCompare(bClean);
+        });
+      } else if (sankeyPinUnstatedToBottom !== false) {
+        curNodes.sort((a, b) => {
+          const aUn = isUnstatedBaseline(a);
+          const bUn = isUnstatedBaseline(b);
+          if (aUn !== bUn) return aUn ? 1 : -1;
+          return 0;
+        });
+      }
+      finalSortedByLevel[lIdx] = curNodes;
+    }
+  }
+
+  const sortedNodeKeys = finalSortedByLevel.flat();
+
+  // Calculate Hare-Hamilton 100.00% balanced quota tag shares per active column
+  const levelBalancedTagSharePcts = new Map<number, Map<string, number>>();
+  activeLevels.forEach((_, lIdx) => {
+    const prefix = `${lIdx + 1}: `;
+    const levelNodes = sortedNodeKeys.filter(n => n.startsWith(prefix));
+    const quotaInputs = levelNodes.map(n => {
+      const survivingTags = nodeSurvivingTagsMap.get(n);
+      const survivingPapers = nodeSurvivingPapersMap.get(n)?.size;
+      const inVal = nodeInflowMap.get(n) || 0;
+      const outVal = nodeOutflowMap.get(n) || 0;
+      const flow = Math.max(inVal, outVal);
+      const count = (linksMap.size > 0 && survivingTags !== undefined)
+        ? survivingTags
+        : ((linksMap.size > 0 && flow > 0)
+          ? flow
+          : (nodeTagCountsMap.get(n) || survivingPapers || nodePapersMap.get(n)?.size || 0));
+      return { name: n, count };
+    });
+    const columnTotal = quotaInputs.reduce((sum, it) => sum + it.count, 0);
+    const balancedMap = balanceQuotasToHundred(quotaInputs, columnTotal > 0 ? columnTotal : 1);
+    levelBalancedTagSharePcts.set(lIdx, balancedMap);
   });
 
   const nodes = sortedNodeKeys.map((n, idx) => {
@@ -749,17 +1628,29 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
     } else if (sankeyLabelPosition && sankeyLabelPosition !== 'auto') {
       resolvedPos = sankeyLabelPosition;
     } else {
-      resolvedPos = levelNum === sankeyFields.length ? 'left' : 'right';
+      resolvedPos = levelNum === activeLevels.length ? 'left' : 'right';
     }
 
-    const color = getNodeColor(cleanName, undefined, idx, palette.colors, customSliceColors);
-    const paperCount = nodePapersMap.get(n)?.size || 0;
-    const tagCount = nodeTagCountsMap.get(n) || paperCount;
+    const survivingPapers = nodeSurvivingPapersMap.get(n);
+    const paperCount = (linksMap.size > 0 && survivingPapers && survivingPapers.size > 0)
+      ? survivingPapers.size
+      : (nodePapersMap.get(n)?.size || 0);
+
+    const inVal = nodeInflowMap.get(n) || 0;
+    const outVal = nodeOutflowMap.get(n) || 0;
+    const maxFlow = Math.max(inVal, outVal);
+    const nodeDisplayVal = maxFlow > 0 ? maxFlow : paperCount;
+
+    const survivingTags = nodeSurvivingTagsMap.get(n);
+    const tagCount = (linksMap.size > 0 && survivingTags !== undefined)
+      ? survivingTags
+      : (nodeTagCountsMap.get(n) || nodeDisplayVal);
+
     const levelTotalTagsCount = levelTotalTags.get(levelIdx) || totalCohort;
     const prevalencePct = totalCohort > 0 ? (paperCount / totalCohort) * 100 : 0;
     const tagSharePct = levelBalancedTagSharePcts.get(levelIdx)?.get(n) 
       ?? (levelTotalTagsCount > 0 ? (tagCount / levelTotalTagsCount) * 100 : 0);
-    const effLevelFormat = sankeyLevelLabelFormats[levelIdx] || labelFormat || 'name';
+    const effLevelFormat = sankeyLevelLabelFormats[levelIdx] || labelFormat || 'name_tag_share_count_percent';
 
     const formattedLabelText = formatMetricDisplay({
       name: cleanName,
@@ -779,6 +1670,8 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
       ratioStyle: ctx.ratioStyle,
       forceCohortDenominator: ctx.forceCohortDenominator
     });
+
+    const color = customSliceColors?.[n] || customSliceColors?.[cleanName] || getNodeColor(cleanName, undefined, idx, palette.colors, customSliceColors);
 
     const effFontSize = sankeyLabelFontSize || (fontSize - 1);
     const effLineHeight = sankeyLabelLineHeight ?? (effFontSize + 3);
@@ -807,7 +1700,8 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
 
     return {
       name: n,
-      value: paperCount,
+      depth: levelIdx,
+      value: nodeDisplayVal,
       itemStyle: {
         color,
         borderColor: palette.bg,
@@ -863,8 +1757,14 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
           const lvlNum = parseInt(lvl, 10);
           const lvlIdx = lvlNum - 1;
           const clean = idx > -1 ? name.substring(idx + 2) : name;
-          const pCount = nodePapersMap.get(name)?.size || params.value || 0;
-          const tCount = nodeTagCountsMap.get(name) || pCount;
+          const survivingPapers = nodeSurvivingPapersMap.get(name);
+          const pCount = (linksMap.size > 0 && survivingPapers && survivingPapers.size > 0)
+            ? survivingPapers.size
+            : (nodePapersMap.get(name)?.size || params.value || 0);
+          const survivingTags = nodeSurvivingTagsMap.get(name);
+          const tCount = (linksMap.size > 0 && survivingTags !== undefined)
+            ? survivingTags
+            : (nodeTagCountsMap.get(name) || pCount);
           const lTotalTags = levelTotalTags.get(lvlIdx) || totalCohort;
           const prevPct = totalCohort > 0 ? ((pCount / totalCohort) * 100).toFixed(1) : '0.0';
           const tSharePct = levelBalancedTagSharePcts.get(lvlIdx)?.get(name)?.toFixed(2) 
@@ -896,15 +1796,18 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
           const srcClean = src.indexOf(': ') > -1 ? src.substring(src.indexOf(': ') + 2) : src;
           const tgtClean = tgt.indexOf(': ') > -1 ? tgt.substring(tgt.indexOf(': ') + 2) : tgt;
           const flowVal = params.data.value || 0;
-          const srcCount = nodePapersMap.get(src)?.size || flowVal;
-          const tgtCount = nodePapersMap.get(tgt)?.size || flowVal;
+          const formattedFlow = Number.isInteger(flowVal) ? flowVal.toString() : flowVal.toFixed(2);
+          const srcSurviving = nodeSurvivingPapersMap.get(src);
+          const tgtSurviving = nodeSurvivingPapersMap.get(tgt);
+          const srcCount = (srcSurviving && srcSurviving.size > 0) ? srcSurviving.size : (nodePapersMap.get(src)?.size || flowVal);
+          const tgtCount = (tgtSurviving && tgtSurviving.size > 0) ? tgtSurviving.size : (nodePapersMap.get(tgt)?.size || flowVal);
           const srcSharePct = srcCount > 0 ? ((flowVal / srcCount) * 100).toFixed(1) : '100.0';
           const tgtSharePct = tgtCount > 0 ? ((flowVal / tgtCount) * 100).toFixed(1) : '100.0';
           const cohortFlowPct = totalCohort > 0 ? ((flowVal / totalCohort) * 100).toFixed(1) : '0.0';
 
           return `<div style="font-family:${font};font-size:12px;padding:2px;line-height:1.5;">
             <strong>${srcClean}</strong> <span style="color:${palette.subtext};">→</span> <strong>${tgtClean}</strong><br/>
-            <span style="color:${palette.subtext};">Transition Flow Volume:</span> <strong>${flowVal} papers</strong> <span style="color:${palette.subtext};font-size:11px;">(~${cohortFlowPct}% of cohort)</span><br/>
+            <span style="color:${palette.subtext};">Transition Flow Volume:</span> <strong>${formattedFlow} papers</strong> <span style="color:${palette.subtext};font-size:11px;">(~${cohortFlowPct}% of cohort)</span><br/>
             <span style="color:${palette.subtext};">Share of Source (${srcClean}):</span> <strong>${srcSharePct}%</strong><br/>
             <span style="color:${palette.subtext};">Share of Target (${tgtClean}):</span> <strong>${tgtSharePct}%</strong>
           </div>`;
@@ -916,7 +1819,7 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
       type: 'sankey',
       orient: sankeyOrient,
       nodeAlign: sankeyNodeAlign,
-      layoutIterations: sankeyLayoutIterations,
+      layoutIterations: (sankeyPinUnstatedToBottom !== false) ? 0 : (sankeyLayoutIterations ?? 32),
       draggable: sankeyDraggable,
       left: `${effectiveLeft}%`,
       right: `${effectiveRight}%`,
@@ -944,20 +1847,23 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
     font,
     fontSize,
     baseTitle,
+    baseLegend,
     baseTooltip,
     sankeyFields,
-    sankeyMaxNodes,
+    sankeyMaxNodes = {},
     sankeyLevelPathFilters = {},
+    levelSegmentIndices = {},
+    levelScopeFilters = {},
     useUmbrellanizer,
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
     levelCustomGroupLinks,
     enableManualOverrides,
-    manualCategoryValues,
+    manualCategoryValues = {},
     customSliceColors,
     showDataLabels,
-    sunburstLevelConfigs,
+    sunburstLevelConfigs = {},
     sunburstSort,
     sunburstNodeClick,
     sunburstEmphasisFocus,
@@ -979,22 +1885,44 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
     excludeEmpty,
     customCategoryMap,
     levelCustomGroupLinks,
+    levelCustomGroups: ctx.levelCustomGroups,
+    levelTargetFields: ctx.levelTargetFields,
     sankeyFields
   };
 
-  const buildTree = (papersList: any[], levelIdx: number, parentContext?: ParentContext): any[] => {
-    if (levelIdx >= sankeyFields.length) return [];
+  // Active effective levels: collapse empty unconfigured custom grouping layers
+  const effectiveLevels = sankeyFields
+    .map((f, idx) => ({ fieldKey: f, originalIdx: idx }))
+    .filter(({ fieldKey, originalIdx }) => {
+      if (fieldKey !== CUSTOM_GROUPING_KEY) return true;
+      const groups = ctx.levelCustomGroups?.[originalIdx] || [];
+      const links = ctx.levelCustomGroupLinks?.[originalIdx] || {};
+      return groups.length > 0 || Object.keys(links).length > 0;
+    });
+  const activeLevels = effectiveLevels.length > 0 ? effectiveLevels : [{ fieldKey: sankeyFields[0] || 'Year', originalIdx: 0 }];
 
-    const fieldKey = sankeyFields[levelIdx];
-    const prevField = levelIdx > 0 ? sankeyFields[levelIdx - 1] : null;
-    const limitCount = sankeyMaxNodes[levelIdx] || 0;
-    const pathFilter = sankeyLevelPathFilters[levelIdx];
+  const buildTree = (papersList: any[], levelIdx: number, parentContext?: ParentContext): any[] => {
+    if (levelIdx >= activeLevels.length) return [];
+
+    const { fieldKey, originalIdx } = activeLevels[levelIdx];
+    const prevField = levelIdx > 0 ? activeLevels[levelIdx - 1].fieldKey : null;
+    const limitCount = sankeyMaxNodes[originalIdx] || 0;
+    const pathFilter = sankeyLevelPathFilters[originalIdx];
     const groupMap = new Map<string, any[]>();
 
     papersList.forEach(p => {
       const baseVals = (levelIdx > 0 && fieldKey === prevField)
-        ? getFieldValue(p, fieldKey, mappedOpts)
-        : getMappedFieldValue(p, fieldKey, { ...mappedOpts, levelIdx });
+        ? getFieldValue(p, fieldKey, {
+            ...mappedOpts,
+            segmentIdx: levelSegmentIndices[originalIdx],
+            scopeFilter: levelScopeFilters[originalIdx]
+          })
+        : getMappedFieldValue(p, fieldKey, {
+            ...mappedOpts,
+            levelIdx: originalIdx,
+            segmentIdx: levelSegmentIndices[originalIdx],
+            scopeFilter: levelScopeFilters[originalIdx]
+          });
       
       const rawVals = pathFilter
         ? baseVals.filter(v => matchColonPathFilter(v, pathFilter, fieldKey, p, { umbrellanizerMap }))
@@ -1005,7 +1933,8 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
         umbrellanizerMap
       });
 
-      scopedVals.forEach(v => {
+      const uniqueScopedVals = Array.from(new Set(scopedVals));
+      uniqueScopedVals.forEach(v => {
         if (!groupMap.has(v)) groupMap.set(v, []);
         groupMap.get(v)!.push(p);
       });
@@ -1033,30 +1962,84 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
       processedEntries = entries.map(e => [e[0], e[1], undefined]);
     }
 
+    const totalSiblings = processedEntries.length;
+    const siblingValues = processedEntries.map(([vName, cPapers, tItems]) => {
+      const parentName = parentContext?.rawName || parentContext?.displayName;
+      const dName = tItems ? vName : stripParentPrefix(vName, parentName);
+      const manualVal = manualCategoryValues?.[dName] ?? manualCategoryValues?.[vName];
+      const uniquePaperCount = new Set(cPapers.map(p => p.Paper_ID || p.id || p.Title || p)).size;
+      return (enableManualOverrides && manualVal !== undefined) ? manualVal : uniquePaperCount;
+    });
+    const maxSiblingVal = Math.max(...siblingValues, 1);
+    const minSiblingVal = Math.min(...siblingValues, 0);
+    const totalSiblingVal = siblingValues.reduce((a, b) => a + b, 0);
+
     return processedEntries.map(([valName, childPapers, tailItems], idx) => {
       const parentName = parentContext?.rawName || parentContext?.displayName;
       const displayName = tailItems ? valName : stripParentPrefix(valName, parentName);
-      const color = getNodeColor(displayName, parentName, idx, palette.colors, customSliceColors) || getNodeColor(valName, parentName, idx, palette.colors, customSliceColors);
+      const nodeValue = siblingValues[idx];
+      const color = getNodeColor(
+        displayName, 
+        parentName, 
+        idx, 
+        palette.colors, 
+        customSliceColors,
+        parentContext?.color,
+        totalSiblings,
+        levelIdx,
+        ctx.smartColorMode || ctx.sunburstColorMode || 'branch_gradient',
+        nodeValue,
+        maxSiblingVal,
+        minSiblingVal,
+        totalSiblingVal,
+        ctx.smartColorPropagation || 'auto_children'
+      ) || getNodeColor(
+        valName, 
+        parentName, 
+        idx, 
+        palette.colors, 
+        customSliceColors,
+        parentContext?.color,
+        totalSiblings,
+        levelIdx,
+        ctx.smartColorMode || ctx.sunburstColorMode || 'branch_gradient',
+        nodeValue,
+        maxSiblingVal,
+        minSiblingVal,
+        totalSiblingVal,
+        ctx.smartColorPropagation || 'auto_children'
+      );
 
       const nextParentContext: ParentContext = {
         fieldKey,
         levelIdx,
         rawName: valName,
         displayName,
+        color,
         path: [...(parentContext?.path || []), displayName]
       };
 
       const children = buildTree(childPapers, levelIdx + 1, nextParentContext);
 
-      const manualVal = manualCategoryValues[displayName] ?? manualCategoryValues[valName];
-      const nodeValue = (enableManualOverrides && manualVal !== undefined)
-        ? manualVal
-        : childPapers.length;
+      const lvlConf = sunburstLevelConfigs[originalIdx];
+      const isOutside = lvlConf?.position === 'outside';
+      let nodeTextColor: string | undefined = undefined;
+
+      if (lvlConf?.color && lvlConf.color.trim() !== '') {
+        nodeTextColor = lvlConf.color;
+      } else if (lvlConf?.colorMode === 'inherit_theme') {
+        nodeTextColor = palette.text;
+      } else if (isOutside) {
+        nodeTextColor = getContrastingTextColor(palette.bg, palette.text, '#ffffff');
+      } else {
+        nodeTextColor = getContrastingTextColor(color, '#0f172a', '#ffffff');
+      }
 
       if (children.length > 0) {
         return {
           name: displayName,
           itemStyle: { color },
+          label: { color: nodeTextColor },
           tailItems,
           children
         };
@@ -1065,7 +2048,8 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
         name: displayName,
         value: nodeValue,
         tailItems,
-        itemStyle: { color }
+        itemStyle: { color },
+        label: { color: nodeTextColor }
       };
     });
   };
@@ -1076,12 +2060,22 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
     : papers.filter(p => {
         return activeLevelFilters.every(([lIdxStr, filter]) => {
           const lIdx = Number(lIdxStr);
-          const f = sankeyFields[lIdx];
-          if (!f) return true;
-          const prevF = lIdx > 0 ? sankeyFields[lIdx - 1] : null;
+          const activeLvl = activeLevels[lIdx];
+          if (!activeLvl) return true;
+          const { fieldKey: f, originalIdx: origIdx } = activeLvl;
+          const prevF = lIdx > 0 ? activeLevels[lIdx - 1]?.fieldKey : null;
           const baseVals = (lIdx > 0 && f === prevF)
-            ? getFieldValue(p, f, mappedOpts)
-            : getMappedFieldValue(p, f, { ...mappedOpts, levelIdx: lIdx });
+            ? getFieldValue(p, f, {
+                ...mappedOpts,
+                segmentIdx: levelSegmentIndices[origIdx],
+                scopeFilter: levelScopeFilters[origIdx]
+              })
+            : getMappedFieldValue(p, f, {
+                ...mappedOpts,
+                levelIdx: origIdx,
+                segmentIdx: levelSegmentIndices[origIdx],
+                scopeFilter: levelScopeFilters[origIdx]
+              });
           return baseVals.some(v => matchColonPathFilter(v, filter, f, p, { umbrellanizerMap }));
         });
       });
@@ -1103,17 +2097,18 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
   let defaultCenterY = 50;
   let defaultMaxRadius = 88;
 
+  const effectiveSunburstLegendPos = String(ctx.legendPosition || sunburstLegendPosition || 'bottom');
   if (showLegend) {
-    if (sunburstLegendPosition.includes('right')) {
+    if (effectiveSunburstLegendPos.includes('right')) {
       defaultCenterX = Math.max(32, 48 - Math.round(legendDistance / 5));
       defaultMaxRadius = 66;
-    } else if (sunburstLegendPosition.includes('left')) {
+    } else if (effectiveSunburstLegendPos.includes('left')) {
       defaultCenterX = Math.min(68, 52 + Math.round(legendDistance / 5));
       defaultMaxRadius = 66;
-    } else if (sunburstLegendPosition.startsWith('top')) {
+    } else if (effectiveSunburstLegendPos.startsWith('top')) {
       defaultCenterY = 56;
       defaultMaxRadius = 70;
-    } else if (sunburstLegendPosition.startsWith('bottom')) {
+    } else if (effectiveSunburstLegendPos.startsWith('bottom')) {
       defaultCenterY = 44;
       defaultMaxRadius = 70;
     }
@@ -1128,45 +2123,69 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
   const centerY = `${defaultCenterY + effectiveFitOffsetY}%`;
 
   const levels: any[] = [{}];
-  const numLevels = sankeyFields.length;
+  const numLevels = activeLevels.length;
 
   for (let l = 0; l < numLevels; l++) {
-    const lvlConf = sunburstLevelConfigs[l] || {
+    const originalIdx = activeLevels[l].originalIdx;
+    const lvlConf = sunburstLevelConfigs[originalIdx] || {
       r0: l === 0 ? 15 : (l === 1 ? 40 : 75),
       r: l === 0 ? 40 : (l === 1 ? 75 : 77),
       position: l === 0 ? 'inside' : 'outside',
       rotate: l === 0 ? 'tangential' : 'radial',
       align: 'right',
-      minAngle: 0,
+      minAngle: l === 0 ? 0 : (l === 1 ? 3 : 4),
       borderWidth: 2,
+      borderRadius: 0,
       fontSize: 11,
+      fontWeight: l === 0 ? 'bold' : 'normal',
+      fontStyle: 'normal',
+      colorMode: 'auto_contrast',
       overflow: 'none',
       maxLabelWidth: 80,
-      labelFormat: 'name'
+      labelFormat: 'name',
+      hideOverlap: true
     };
 
-    const resolvedRotate = lvlConf.rotate === 'flat' ? 0 : lvlConf.rotate;
+    const resolvedRotate = lvlConf.rotate === 'flat' ? 0 : (lvlConf.rotate || (l === 0 ? 'tangential' : 'radial'));
+
+    // Determine label color
+    let resolvedLabelColor: string | undefined = undefined;
+    if (lvlConf.color && lvlConf.color.trim() !== '') {
+      resolvedLabelColor = lvlConf.color;
+    } else if (lvlConf.colorMode === 'inherit_theme') {
+      resolvedLabelColor = palette.text;
+    } else if (lvlConf.position === 'outside') {
+      resolvedLabelColor = palette.text;
+    } else if (lvlConf.colorMode === 'auto_contrast') {
+      // In inside mode with auto_contrast, undefined allows default high legibility
+      resolvedLabelColor = undefined;
+    } else {
+      resolvedLabelColor = palette.text;
+    }
 
     const labelObj: any = {
       show: showDataLabels,
       position: lvlConf.position,
       rotate: resolvedRotate,
       align: lvlConf.position === 'outside' ? (lvlConf.align || 'right') : undefined,
-      minAngle: lvlConf.minAngle ?? 0,
+      minAngle: lvlConf.minAngle !== undefined ? lvlConf.minAngle : (l === 0 ? 0 : (l === 1 ? 3 : 4)),
+      distance: lvlConf.distance !== undefined ? lvlConf.distance : (lvlConf.position === 'outside' ? 5 : 0),
       padding: lvlConf.position === 'outside' ? 3 : 0,
       silent: false,
+      hideOverlap: lvlConf.hideOverlap !== false,
       fontFamily: font,
       fontSize: lvlConf.fontSize || (fontSize - (l === 0 ? 1 : 2)),
-      color: lvlConf.color || palette.text,
-      fontWeight: l === 0 ? 'bold' : 'normal'
+      fontWeight: lvlConf.fontWeight || (l === 0 ? 'bold' : 'normal'),
+      fontStyle: lvlConf.fontStyle || 'normal',
+      color: resolvedLabelColor
     };
 
     const overflowMode = lvlConf.overflow || 'none';
     if (overflowMode !== 'none') {
       labelObj.overflow = overflowMode;
       labelObj.width = lvlConf.maxLabelWidth || 80;
-      labelObj.lineHeight = Math.max(12, (lvlConf.fontSize || 11) + 2);
     }
+    labelObj.lineHeight = lvlConf.lineHeight || Math.max(12, (lvlConf.fontSize || 11) + 2);
 
     const lblFormat = lvlConf.labelFormat || ctx.labelFormat || 'name';
     labelObj.formatter = (params: any) => {
@@ -1202,7 +2221,11 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
     levels.push({
       r0: `${scaledR0}%`,
       r: `${scaledR}%`,
-      itemStyle: { borderWidth: lvlConf.borderWidth ?? 2, borderColor: palette.bg },
+      itemStyle: { 
+        borderWidth: lvlConf.borderWidth ?? 2, 
+        borderRadius: lvlConf.borderRadius ?? 0,
+        borderColor: lvlConf.borderColor || palette.bg 
+      },
       label: labelObj
     });
   }
@@ -1260,7 +2283,7 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
     }, effectiveLegendFormat);
     return {
       name: label,
-      icon: 'circle',
+      icon: ctx.legendIcon && ctx.legendIcon !== 'inherit' ? ctx.legendIcon : 'circle',
       itemStyle: {
         color: meta.color
       }
@@ -1310,26 +2333,18 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
       }
     },
     legend: showLegend ? {
-      show: true,
-      type: 'scroll',
+      ...baseLegend,
       data: legendData,
       ...legendPos,
       orient: legendOrient,
+      align: ctx.legendAlign || baseLegend.align,
       z: 20,
-      textStyle: { 
-        color: palette.text, 
-        fontFamily: font, 
-        fontSize: ctx.legendFontSize ?? Math.max(9, (fontSize - 3)), 
-        fontWeight: 'bold',
-        width: ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : undefined,
-        lineHeight: ctx.legendLineHeight ?? 14,
-        overflow: ctx.legendOverflow || 'break'
-      },
-      itemWidth: 12,
-      itemHeight: 12,
-      itemGap: ctx.legendItemGap ?? 10,
-      pageIconColor: palette.text,
-      pageTextStyle: { color: palette.text }
+      itemWidth: ctx.legendItemWidth ?? baseLegend.itemWidth,
+      itemHeight: ctx.legendItemHeight ?? baseLegend.itemHeight,
+      itemGap: ctx.legendItemGap ?? baseLegend.itemGap,
+      textStyle: {
+        ...baseLegend.textStyle
+      }
     } : { show: false },
     series: [
       {

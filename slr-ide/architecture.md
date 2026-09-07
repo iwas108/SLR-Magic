@@ -114,6 +114,8 @@ graph TD
 *   **Structured Output Storage**: Persists processed mapping results in the `umbrellanizer_results` table, keyed uniquely by `(project_id, extracted_data_key)` to enable clean upserts.
 *   **Double Column Value-Evidence Displays**: Render values and extracted evidences as dual sub-columns in the Post-Validation database grid layout. Values reveal their LLM logic traces on hover, while evidence columns showcase source quotes.
 *   **Wizard Steppers**: An inline 4-step stepper guides user config, deduplicated token verification, background LLM process spawning, and fanning out mappings to the papers database grid.
+*   **Mapping & Justification Export Engine**: Provides full CSV (with UTF-8 BOM) and structured JSON exports of induced taxonomies linking raw extracted manuscript terms to standardized umbrella categories, along with model normalization justifications, occurrence frequencies, and paper citation lists for academic SLR appendix reporting.
+
 
 ---
 
@@ -201,4 +203,19 @@ To support smart PDF vector-matching and advanced semantic discovery within the 
     - Applies tight *Fit-to-Figure* page aspect ratio matching with clean standard margins.
 *   **Visualizer & Multi-Panel Pipeline (`src/components/features/modals/visualizer/utils/exportUtils.ts`)**:
     - Supports `PNG`, `SVG`, and `PDF` for both single subfigures and multi-panel composites.
+
+### 2.12 Scientific Visualizer Studio: Stacked Bar Chart & CDS Studio Architecture
+*   **Zero-Leakage Token-Path Lineage Engine**:
+    - When `primaryField` and `secondaryField` share a colon taxonomy root (e.g. `ext:lv1:rq_algo` and `ext:lv2:rq_algo`), the generator (`categoricalBarGenerators.ts`) and cross-tab matrix (`CrossTabMatrixPanel.tsx`) ingest data using `extractTokenPaths` from `cohort-data-source.ts`.
+    - Pairs segments atomically from the same multi-level token path (`Biological Asset:Edge Hosted:LSTM:Quantization`), preventing Cartesian product leakage between independent branches of multi-label papers.
+    - Applies `checkPathMatchesScope` to evaluate comma-separated positive scopes and `!` negation on both primary and secondary axes.
+*   **Publication Customization Suite (`StackedBarConfigPanel.tsx`)**:
+    - **Orientation & Dimensions**: 1-click switcher between Horizontal Stacked Bars (for long category titles) and Vertical Stacked Columns (for chronological trends).
+    - **100% Normalized Proportions**: Toggles relative proportion comparison (`stackedNormalized`) scaling all stacks to 100% with exact percentage tooltips and Hare-Hamilton quota preservation.
+    - **Order & Sorting**: Supports inverted stacking order (`stackedReverseOrder`) and category sorting (`desc` volume, `asc`, `none` natural/chronological).
+    - **Data Labels & Typography**: Configurable positions (`inside`, `insideLeft`, `insideRight`, `top`), formatting (`count_only`, `percent_only`, `count_percent`, `two_line_count_percent`, `ratio_percent`), zero suppression, min threshold cutoff, and dynamic auto-contrast font colors.
+    - **Stack Summit / Total Summary Labels**: Renders academic total cohort volume labels (`__stacked_total_summary__`) at the top/right of stacked bars with format templates (`{total}`, `Total: {total}`, `N = {total}`, `{total} studies`).
+    - **Per-Series Color Overrides**: Real-time detected secondary series cards with HTML5 color pickers, hex inputs, and 1-click reset.
+    - **Scientific Axis & Publishing Gridlines**: Configurable category label overflow wrapping (`break`, `truncate`, `none`), max category label width (60–280px), value axis ceiling, and monochrome hatch pattern prints for black-and-white publications.
+
 

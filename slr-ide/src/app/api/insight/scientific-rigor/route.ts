@@ -89,6 +89,58 @@ export async function GET(request: Request) {
       } catch (e) {}
     }
 
+    // Parse Systematic Search Queries & Documentation (PRISMA 2020 Items 6 & 7)
+    let parsedSearchQueries: any[] = [];
+    if (project.search_queries) {
+      try {
+        const rawSq = typeof project.search_queries === 'string' ? JSON.parse(project.search_queries) : project.search_queries;
+        if (Array.isArray(rawSq)) {
+          parsedSearchQueries = rawSq;
+        }
+      } catch (e) {}
+    }
+
+    // Fallback to legacy scopus_search_string and manual_search_string if search_queries is empty
+    if (parsedSearchQueries.length === 0) {
+      if (project.scopus_search_string && String(project.scopus_search_string).trim()) {
+        parsedSearchQueries.push({
+          id: 'legacy-scopus-query',
+          source: 'Scopus',
+          query: String(project.scopus_search_string).trim(),
+          description: 'Primary Scopus search string documented in project settings'
+        });
+      }
+      if (project.manual_search_string && String(project.manual_search_string).trim()) {
+        parsedSearchQueries.push({
+          id: 'legacy-manual-query',
+          source: 'Google Scholar / Manual',
+          query: String(project.manual_search_string).trim(),
+          description: 'Manual / Google Scholar search string documented in project settings'
+        });
+      }
+    }
+
+    const formattedSearchQueries = parsedSearchQueries.map((sq, idx) => ({
+      index: idx + 1,
+      source: sq.source || 'Unspecified Database',
+      query: sq.query || '',
+      notes_and_filters: sq.description || ''
+    }));
+
+    const systematicSearchStrategies = {
+      total_databases_documented: formattedSearchQueries.length,
+      databases: Array.from(new Set(formattedSearchQueries.map(q => q.source))),
+      search_queries: formattedSearchQueries,
+      legacy_strings: {
+        scopus_search_string: project.scopus_search_string || '',
+        manual_search_string: project.manual_search_string || ''
+      },
+      prisma_item_6_7_compliance: {
+        item_6_information_sources: 'Specify all databases, registers, websites, organisations, reference lists and other sources searched or consulted. Specify the date when each source was last searched or consulted.',
+        item_7_search_strategy: 'Present the full search strategies for all databases, registers and websites, including any filters used.'
+      }
+    };
+
     // ----------------------------------------------------
     // 2. PRISMA FLOW DATA (100% Aligned with /api/insight/prisma)
     // ----------------------------------------------------
@@ -257,6 +309,7 @@ export async function GET(request: Request) {
     const prismaFlowData = {
       project_name: project.name,
       database_sources: databaseSources,
+      systematic_search_strategies: systematicSearchStrategies,
       total_records_identified_databases: papers.filter(p => !isOtherSource(p.Import_Source)).length,
       db_duplicates_removed: dbDuplicatesRemoved,
       db_records_screened: dbRecordsScreened,
@@ -1271,7 +1324,8 @@ export async function GET(request: Request) {
         '3. Prompt Engineering & Inter-Stage Consolidation: Describe the closed-loop Difference-Engine optimization, consolidation audit validation (availability, semantic alignment, and chainability between extraction and downstream taxonomy engines), and 70% train / 30% holdout benchmark sandbox evaluations.',
         '4. Empirical Gold Standard Benchmarking: Compare AI decisions directly against adjudicated human consensus across all 4 stages, emphasizing 100% recall retention in Stage 1, high precision in Stage 2, ordinal QA rubric proximity in Stage 3 (where 0.5-point score delta is accepted as consensus, requiring 0.0% critical miss rate), and 100% schema integrity in Stage 4.',
         '5. Post-Execution Sequential Quality Control: Explain the Wald/Fleiss-Cohen sequential estimation audit over micro-batches (n=20/batch) proving statistical stability of the autonomous pipeline via 95% Confidence Interval lower bounds stably exceeding methodological thresholds.',
-        '6. AI Screening Technical Specifications: Include the detailed LLM prompt specifications, response schemas, and hyperparameter tables provided in the exported dataset as a formal Appendix or Methodology subsection.'
+        '6. AI Screening Technical Specifications: Include the detailed LLM prompt specifications, response schemas, and hyperparameter tables provided in the exported dataset as a formal Appendix or Methodology subsection.',
+        '7. Literature Search & Systematic Search Strategy Disclosure: Explicitly disclose the exact database search strings, Boolean logic, search dates, and bibliographic limiters (e.g. publication years, language restrictions, subject filters) for all consulted repositories (Scopus, Web of Science, PubMed, etc.) as detailed in the systematic_search_strategies object, adhering strictly to PRISMA 2020 Items 6 and 7.'
       ],
       methodological_thresholds: {
         stage_1_fast_filter: 'Recall = 100%, F1 >= 85%',
@@ -1290,11 +1344,12 @@ export async function GET(request: Request) {
         project_id: resolvedProjectId,
         project_name: project.name || 'Unnamed SLR Project',
         exported_at: new Date().toISOString(),
-        schema_version: '1.1.0',
+        schema_version: '1.2.0',
         description: 'Authoritative, empirical context and complete AI screening technical specifications for journal reviewer disclosure and LLM narrative drafting.'
       },
       llm_narrative_guidelines: llmNarrativeGuidelines,
       ai_screening_technical_specifications: aiScreeningTechnicalSpecifications,
+      systematic_search_strategies: systematicSearchStrategies,
       prisma_flow_data: prismaFlowData,
       pre_calibration_data: preCalibrationData,
       prompt_optimization_data: promptOptimizationData,

@@ -348,6 +348,29 @@ export function useChartCanvas(params: {
     });
   }, [activeSlot, slotsConfig, exportFormat, exportScale, themePreset, chartScale, panX, panY, fitOffsetX, fitOffsetY, containerPadding, tiltAngle, rotationAngle]);
 
+  // Reset drill-down view back to root (Treemap / Sunburst)
+  const resetSlotDrillDown = useCallback((targetSlotId?: SlotId) => {
+    const targetSlot = targetSlotId || activeSlot;
+    const instance = chartInstancesRef.current[targetSlot];
+    if (!instance) return;
+    try {
+      instance.dispatchAction({
+        type: 'treemapRootToNode',
+        targetNode: ''
+      });
+      instance.dispatchAction({
+        type: 'sunburstRootToNode',
+        targetNode: ''
+      });
+      const option = generateSlotOption(targetSlot);
+      instance.clear();
+      instance.setOption(option, true);
+      instance.resize();
+    } catch (e) {
+      console.warn('Failed to reset slot drill-down:', e);
+    }
+  }, [activeSlot, generateSlotOption]);
+
   return {
     setSlotDomRef,
     chartInstancesRef,
@@ -356,6 +379,7 @@ export function useChartCanvas(params: {
     exportScale,
     setExportScale,
     handleExportChart,
-    handleExportActiveSlot
+    handleExportActiveSlot,
+    resetSlotDrillDown
   };
 }

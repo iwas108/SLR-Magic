@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlignHorizontalJustifyStart, AlignVerticalJustifyStart, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { AlignHorizontalJustifyStart, AlignVerticalJustifyStart, Sparkles, SlidersHorizontal, Palette } from 'lucide-react';
 import { THEME_PALETTES } from '../../constants/themePalettes';
 import { useVisualizerContext } from '../../context/VisualizerContext';
 import { getMappedFieldValue } from '../../utils/dataExtractor';
@@ -79,7 +79,9 @@ export function ClusteredBarConfigPanel() {
     excludeEmpty,
     customCategoryMap,
     levelCustomGroupLinks,
-    sankeyFields
+    sankeyFields,
+    showDataLabels,
+    setShowDataLabels
   } = config;
 
   const isHorizontal = barOrientation === 'horizontal';
@@ -219,10 +221,18 @@ export function ClusteredBarConfigPanel() {
       {/* 2.5. Bar Value Typography & Layout Adjustments */}
       <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
         <div className="flex items-center justify-between pb-1 border-b border-border/50">
-          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-primary" />
-            Value Labels Typography & Multi-Line Tuning
-          </span>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showDataLabels}
+              onChange={(e) => setShowDataLabels(e.target.checked)}
+              className="w-4 h-4 rounded border-border text-primary"
+            />
+            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              Enable Data Labels
+            </span>
+          </label>
           <span className="text-[10px] text-muted-foreground font-mono">
             {barLabelFontSize}px • {barLabelFontWeight} • {barLabelRotate}°
           </span>
@@ -275,21 +285,107 @@ export function ClusteredBarConfigPanel() {
           <div className="space-y-1">
             <label className="text-[10.5px] font-bold text-foreground block">Text Color Mode</label>
             <select
-              value={barLabelColor === '' ? 'match_series' : barLabelColor === 'foreground' ? 'foreground' : barLabelColor}
+              value={
+                barLabelColor === '' || barLabelColor === 'match_series'
+                  ? 'match_series'
+                  : barLabelColor === 'foreground' || barLabelColor === 'theme'
+                  ? 'foreground'
+                  : barLabelColor === '#111827'
+                  ? '#111827'
+                  : barLabelColor === '#ffffff'
+                  ? '#ffffff'
+                  : 'custom'
+              }
               onChange={(e) => {
                 const val = e.target.value;
                 if (val === 'match_series') setBarLabelColor('');
+                else if (val === 'custom') setBarLabelColor(barLabelColor && barLabelColor.startsWith('#') ? barLabelColor : '#0f172a');
                 else setBarLabelColor(val);
               }}
               className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
             >
-              <option value="match_series">Match Series Bar Color</option>
-              <option value="foreground">Theme High-Contrast Text</option>
+              <option value="foreground">Theme High-Contrast Text (Publishing Standard)</option>
+              <option value="match_series">Match Series Bar Color (Per-Bar Dynamic)</option>
               <option value="#111827">Solid Dark Slate (#111827)</option>
               <option value="#ffffff">Solid Pure White (#FFFFFF)</option>
+              <option value="custom">Custom Color (Color Picker / Hex)</option>
             </select>
           </div>
         </div>
+
+        {/* Custom Text Color Picker & Presets */}
+        {(barLabelColor !== '' && barLabelColor !== 'match_series' && barLabelColor !== 'foreground' && barLabelColor !== 'theme') && (
+          <div className="p-2.5 bg-secondary/30 rounded-xl border border-border/70 space-y-2 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between">
+              <span className="text-[10.5px] font-bold text-foreground flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5 text-primary" />
+                Custom Label Text Color
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground font-bold">
+                Active: {barLabelColor}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-card border border-border rounded-lg p-1">
+                <input
+                  type="color"
+                  value={barLabelColor.startsWith('#') && barLabelColor.length === 7 ? barLabelColor : '#0f172a'}
+                  onChange={(e) => setBarLabelColor(e.target.value)}
+                  className="w-6 h-6 rounded border border-border/80 cursor-pointer bg-transparent p-0"
+                  title="Choose custom text color"
+                />
+                <input
+                  type="text"
+                  value={barLabelColor}
+                  onChange={(e) => setBarLabelColor(e.target.value)}
+                  placeholder="#0f172a"
+                  className="w-20 bg-transparent border-0 px-1 py-0.5 text-xs font-mono font-bold text-foreground focus:outline-none"
+                />
+              </div>
+
+              {/* Quick 1-click scientific journal swatches */}
+              <div className="flex items-center gap-1.5 pl-1">
+                <span className="text-[10px] font-bold text-muted-foreground mr-0.5">Presets:</span>
+                {[
+                  { label: 'Slate', color: '#0f172a' },
+                  { label: 'Charcoal', color: '#334155' },
+                  { label: 'Neutral', color: '#64748b' },
+                  { label: 'IEEE Blue', color: '#1d4ed8' },
+                  { label: 'Emerald', color: '#047857' },
+                  { label: 'Crimson', color: '#b91c1c' },
+                  { label: 'White', color: '#ffffff' }
+                ].map((swatch) => (
+                  <button
+                    key={swatch.color}
+                    type="button"
+                    onClick={() => setBarLabelColor(swatch.color)}
+                    className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                      barLabelColor.toLowerCase() === swatch.color.toLowerCase()
+                        ? 'ring-2 ring-primary ring-offset-1 scale-110 border-primary'
+                        : 'border-border/80 hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: swatch.color }}
+                    title={`${swatch.label} (${swatch.color})`}
+                  >
+                    {swatch.color === '#ffffff' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setBarLabelColor('foreground')}
+                className="ml-auto text-[10px] font-bold text-primary hover:underline px-2 py-0.5 rounded bg-primary/10 border border-primary/20"
+                title="Reset to theme high-contrast text"
+              >
+                Reset to Theme Text
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Distance, Line Height, Rotation & Clutter Filtering */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">

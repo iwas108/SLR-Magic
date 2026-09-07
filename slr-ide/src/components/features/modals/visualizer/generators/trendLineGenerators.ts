@@ -2,7 +2,7 @@ import type * as echarts from 'echarts';
 import { getFieldValue, getMappedFieldValue, computeMetricValue, limitCategoryMap } from '../utils/dataExtractor';
 import type { ChartGeneratorContext } from './types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
-import { buildScientificAxisConfig } from './axisConfigHelper';
+import { buildScientificAxisConfig, resolveUniversalGrid } from './axisConfigHelper';
 
 function hexToRgba(hex: string, alpha: number): string {
   if (!hex || typeof hex !== 'string') return `rgba(46, 125, 50, ${alpha})`;
@@ -216,6 +216,7 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
       color: [baselineColor, estimatorColor, thresholdColor, txColor, ...palette.colors],
       title: baseTitle,
       legend: {
+        ...baseLegend,
         show: isLegendActive,
         type: ctx.legendType || 'plain',
         data: legendItems,
@@ -225,23 +226,12 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
         left: legendLeft,
         right: legendRight,
         align: ctx.legendAlign || 'auto',
-        icon: ctx.legendIcon && ctx.legendIcon !== 'inherit' ? ctx.legendIcon : undefined,
+        icon: ctx.legendIcon && ctx.legendIcon !== 'inherit' ? ctx.legendIcon : baseLegend.icon,
         itemWidth: ctx.legendItemWidth ?? 25,
-        itemHeight: ctx.legendItemHeight ?? 14,
-        itemGap: ctx.legendItemGap ?? 14,
-        backgroundColor: ctx.legendBackgroundColor || 'transparent',
-        borderColor: ctx.legendBorderColor || 'transparent',
-        borderWidth: ctx.legendBorderWidth ?? 0,
-        borderRadius: ctx.legendBorderRadius ?? 4,
-        padding: ctx.legendPadding !== undefined ? ctx.legendPadding : 5,
+        itemHeight: ctx.legendItemHeight ?? baseLegend.itemHeight,
+        itemGap: ctx.legendItemGap ?? baseLegend.itemGap,
         textStyle: {
-          fontFamily: font,
-          fontSize: ctx.legendFontSize ?? Math.max(9, fontSize - 2),
-          fontWeight: (ctx.legendFontWeight as any) || 'normal',
-          color: ctx.legendTextColor || palette.text,
-          width: ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : undefined,
-          overflow: ctx.legendOverflow || 'none',
-          lineHeight: ctx.legendLineHeight ?? 15
+          ...baseLegend.textStyle
         }
       },
       tooltip: {
@@ -251,13 +241,12 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
         borderColor: palette.border,
         textStyle: { fontFamily: font, fontSize: fontSize - 1, color: palette.text }
       },
-      grid: {
-        left: effectiveGridLeft,
-        right: effectiveGridRight,
-        top: effectiveGridTop,
-        bottom: effectiveGridBottom,
-        containLabel: true
-      },
+      grid: resolveUniversalGrid(ctx, {
+        left: ctx.lineGridLeft ?? autoGridLeft,
+        right: ctx.lineGridRight ?? autoGridRight,
+        top: ctx.lineGridTop ?? autoGridTop,
+        bottom: ctx.lineGridBottom ?? autoGridBottom
+      }),
       xAxis: buildScientificAxisConfig('x', ctx, {
         axisKind: 'category',
         defaultTitle: xAxisTitle,
@@ -431,6 +420,20 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
     };
   });
 
+  const grid = resolveUniversalGrid(ctx, { left: 50, right: 50, top: (showLegend ? 100 : 70), bottom: 50 });
+
+  const labelPos = ctx.universalLabelPosition && ctx.universalLabelPosition !== 'auto'
+    ? (ctx.universalLabelPosition === 'outside' ? 'top' : ctx.universalLabelPosition)
+    : 'top';
+  const labelDist = ctx.universalLabelDistance ?? 5;
+  const labelRot = ctx.universalLabelRotate ?? 0;
+  const labelFSize = ctx.universalLabelFontSize ?? (fontSize - 2);
+  const labelFWeight = (ctx.universalLabelFontWeight || 'bold') as any;
+  const labelFStyle = (ctx.universalLabelFontStyle || 'normal') as any;
+  const labelLHeight = ctx.universalLabelLineHeight ?? (labelFSize + 3);
+  const minThresh = ctx.universalLabelMinThreshold ?? 0;
+  const showZero = ctx.universalLabelShowZero ?? true;
+
   return {
     backgroundColor: palette.bg,
     color: palette.colors,
@@ -444,13 +447,7 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
         return renderCategoryTooltip(p?.data, p?.name);
       }
     },
-    grid: { 
-      left: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetX ?? 0)), 
-      right: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)), 
-      top: Math.max(20, (showLegend ? 100 : 70) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetY ?? 0)), 
-      bottom: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)), 
-      containLabel: true 
-    },
+    grid,
     xAxis: buildScientificAxisConfig('x', ctx, {
       axisKind: 'category',
       defaultTitle: primaryField,
@@ -482,11 +479,25 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
       },
       label: {
         show: showDataLabels,
-        position: 'top',
+        position: labelPos as any,
+        distance: labelDist,
+        rotate: labelRot,
         fontFamily: font,
-        fontSize: fontSize - 2,
-        color: palette.text,
-        formatter: (params: any) => params.data?.formattedLabel ?? params.value
+        fontSize: labelFSize,
+        fontWeight: labelFWeight,
+        fontStyle: labelFStyle,
+        lineHeight: labelLHeight,
+        color: ctx.universalLabelColor || palette.text,
+        formatter: (params: any) => {
+          if (!showZero && (params.data?.paperCount === 0 || params.value === 0)) {
+            return '';
+          }
+          if (minThresh > 0) {
+            const rawPct = parseFloat(params.data?.prevalencePct ?? '0');
+            if (!isNaN(rawPct) && rawPct < minThresh) return '';
+          }
+          return params.data?.formattedLabel ?? params.value;
+        }
       },
       areaStyle: (ctx.lineAreaOpacity && ctx.lineAreaOpacity > 0) ? { opacity: ctx.lineAreaOpacity / 100 } : undefined
     }]

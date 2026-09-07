@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Play, Loader2, HelpCircle, RotateCw, Copy, Check, X, BarChart3, Trash2, AlertTriangle } from 'lucide-react';
+import { Play, Loader2, HelpCircle, RotateCw, Copy, Check, X, BarChart3, Trash2, AlertTriangle, Download } from 'lucide-react';
 import { useUmbrellanizer } from '@/hooks/useUmbrellanizer';
 import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
 import {
@@ -11,6 +11,8 @@ import {
 } from '@/lib/services/taxonomy-resolver';
 import UmbrellanizerWizard from './UmbrellanizerWizard';
 import QuickOverviewModal from './QuickOverviewModal';
+import ExportMappingsModal from './ExportMappingsModal';
+
 
 interface UmbrellanizerViewProps {
   projectId: string;
@@ -25,6 +27,8 @@ interface TooltipState {
 
 export default function UmbrellanizerView({ projectId, showToast }: UmbrellanizerViewProps) {
   const [showQuickOverview, setShowQuickOverview] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportInitialKey, setExportInitialKey] = useState<string | null>(null);
   const [keyToDrop, setKeyToDrop] = useState<string | null>(null);
   const [isDropping, setIsDropping] = useState(false);
 
@@ -237,6 +241,18 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
             Quick Overview
           </button>
           <button
+            onClick={() => {
+              setExportInitialKey('all');
+              setShowExportModal(true);
+            }}
+            disabled={loading || extractedKeys.length === 0}
+            className="px-4 py-2 bg-secondary hover:bg-secondary/80 disabled:opacity-40 disabled:cursor-not-allowed border border-border text-foreground font-bold rounded-lg text-xs flex items-center gap-2 shadow-sm transition-all select-none"
+            title="Export raw-to-umbrella taxonomy mappings with justifications"
+          >
+            <Download className="w-3.5 h-3.5 text-primary" />
+            Export Mappings
+          </button>
+          <button
             onClick={() => setWizardStep(1)}
             disabled={loading || extractedKeys.length === 0}
             className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground font-bold rounded-lg text-xs flex items-center gap-2 shadow-md shadow-primary/20 transition-all select-none"
@@ -244,6 +260,7 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
             <Play className="w-3.5 h-3.5" />
             Run Umbrellanizer
           </button>
+
         </div>
       </div>
 
@@ -292,17 +309,31 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
                               )}
                             </div>
                             {hasMapping && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setKeyToDrop(key);
-                                }}
-                                title={`Drop Umbrellanizer taxonomy for ${key}`}
-                                className="p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-colors cursor-pointer shrink-0"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExportInitialKey(key);
+                                    setShowExportModal(true);
+                                  }}
+                                  title={`Export taxonomy mapping for ${key}`}
+                                  className="p-1 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-colors cursor-pointer shrink-0"
+                                >
+                                  <Download className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setKeyToDrop(key);
+                                  }}
+                                  title={`Drop Umbrellanizer taxonomy for ${key}`}
+                                  className="p-1 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded transition-colors cursor-pointer shrink-0"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             )}
                           </div>
                         </th>
@@ -505,6 +536,22 @@ export default function UmbrellanizerView({ projectId, showToast }: Umbrellanize
           onClose={() => setShowQuickOverview(false)}
         />
       )}
+
+      {/* Export Taxonomy Mappings Modal */}
+      {showExportModal && (
+        <ExportMappingsModal
+          projectId={projectId}
+          extractedKeys={extractedKeys}
+          mappingsByKey={mappingsByKey}
+          initialKey={exportInitialKey}
+          onClose={() => {
+            setShowExportModal(false);
+            setExportInitialKey(null);
+          }}
+          showToast={showToast}
+        />
+      )}
+
 
       {/* Drop Key Confirmation Modal */}
       {keyToDrop && (

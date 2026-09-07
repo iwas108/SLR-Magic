@@ -26,7 +26,11 @@ import { useVisualizerContext } from '../../context/VisualizerContext';
 import { resolveTargetDimensions } from '../../utils/exportUtils';
 import type { CanvasBackdrop, AspectRatioPreset, DimensionUnit, FittingAnchor } from '../../types';
 
-export function ExportPanel() {
+interface ExportPanelProps {
+  onBackToCustomize?: () => void;
+}
+
+export function ExportPanel({ onBackToCustomize }: ExportPanelProps = {}) {
   const { layout, config, style, camera, canvas, workspace, presets } = useVisualizerContext();
   const { handleExportPreset, handleImportPreset } = presets;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -608,7 +612,13 @@ export function ExportPanel() {
       <div className="pt-2">
         <button
           type="button"
-          onClick={() => setCurrentStep(3)}
+          onClick={() => {
+            if (onBackToCustomize) {
+              onBackToCustomize();
+            } else {
+              setCurrentStep(3);
+            }
+          }}
           className="w-full py-2 bg-secondary text-foreground hover:bg-secondary/80 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-border"
         >
           <ArrowLeft className="w-4 h-4" />

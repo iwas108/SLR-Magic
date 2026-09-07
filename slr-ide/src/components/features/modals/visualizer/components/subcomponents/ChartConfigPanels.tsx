@@ -14,10 +14,28 @@ export function VerticalBarConfigPanel() {
     setBarGap,
     barSorting,
     setBarSorting,
+    showDataLabels,
+    setShowDataLabels,
+    barLabelPosition = 'top',
+    setBarLabelPosition,
     barLabelFormat,
     setBarLabelFormat,
-    barLabelDistance,
+    barLabelDistance = 5,
     setBarLabelDistance,
+    barLabelFontSize = 11,
+    setBarLabelFontSize,
+    barLabelFontWeight = 'bold',
+    setBarLabelFontWeight,
+    barLabelColor = '',
+    setBarLabelColor,
+    barLabelRotate = 0,
+    setBarLabelRotate,
+    labelRotation = 0,
+    setLabelRotation,
+    barValueCeiling = 'auto',
+    setBarValueCeiling,
+    barValueInterval = 'auto',
+    setBarValueInterval,
     enableErrorBars,
     setEnableErrorBars,
     errorBarType,
@@ -38,10 +56,10 @@ export function VerticalBarConfigPanel() {
 
   return (
     <div className="space-y-4">
-      {/* Sorting, Dimensions & Radii */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* 1. Sorting, Column Dimensions & Spacing */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Bar Sorting Order</label>
+          <label className="text-xs font-bold text-foreground block">Column Sorting Order</label>
           <select
             value={barSorting}
             onChange={(e) => setBarSorting(e.target.value as any)}
@@ -54,7 +72,7 @@ export function VerticalBarConfigPanel() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Bar Width ({barThickness}px)</label>
+          <label className="text-xs font-bold text-foreground block">Column Width ({barThickness}px)</label>
           <input
             type="range"
             min={10}
@@ -78,46 +96,165 @@ export function VerticalBarConfigPanel() {
         </div>
       </div>
 
-      {/* Label Format & Spacing */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
+      {/* 2. Value Data Labels & Placement */}
+      <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showDataLabels}
+              onChange={(e) => setShowDataLabels(e.target.checked)}
+              className="w-4 h-4 rounded border-border text-primary"
+            />
+            <span className="text-xs font-bold text-foreground">
+              Enable Data Labels
+            </span>
+          </label>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {barLabelFontSize}px • {barLabelFontWeight} • {barLabelPosition}
+          </span>
+        </div>
+
+        {showDataLabels && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">Label Position</label>
+                <select
+                  value={barLabelPosition}
+                  onChange={(e) => setBarLabelPosition(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="top">Top (Above Column)</option>
+                  <option value="inside">Inside (Center of Column)</option>
+                  <option value="insideTop">Inside Top</option>
+                  <option value="insideBottom">Inside Base</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">Data Label Format</label>
+                <select
+                  value={barLabelFormat}
+                  onChange={(e) => setBarLabelFormat(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <optgroup label="Standard (Follows Chart Metric)">
+                    <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
+                    <option value="name_ratio_percent">Name + Ratio + Coarse %</option>
+                    <option value="percent_ratio">Coarse % + Ratio (~P%, n = x/N)</option>
+                    <option value="ratio_only">Ratio Only (n = x/N)</option>
+                    <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
+                    <option value="percent_only">Percentage Only (~P%)</option>
+                    <option value="count_only">Count Only (n = x)</option>
+                  </optgroup>
+                  <optgroup label="Explicit Tag Share (Total Extracted Tags Denominator)">
+                    <option value="tag_share_ratio_percent">Tag Share Ratio + % (n = x/TotalTags, ~P%)</option>
+                    <option value="name_tag_share_ratio_percent">Name + Tag Share Ratio + %</option>
+                    <option value="tag_share_percent_ratio">Tag Share % + Ratio (~P%, n = x/TotalTags)</option>
+                    <option value="tag_share_percent_only">Tag Share % Only (~P%)</option>
+                    <option value="tag_share_ratio_only">Tag Share Ratio Only (n = x/TotalTags)</option>
+                    <option value="tag_share_count_percent">Tag Count + % (n = x, ~P%)</option>
+                  </optgroup>
+                  <optgroup label="Explicit Paper Prevalence (Total Cohort Denominator)">
+                    <option value="prevalence_ratio_percent">Prevalence Ratio + % (n = x/CohortN, ~P%)</option>
+                    <option value="name_prevalence_ratio_percent">Name + Prevalence Ratio + %</option>
+                    <option value="prevalence_percent_only">Prevalence % Only (~P%)</option>
+                    <option value="prevalence_ratio_only">Prevalence Ratio Only (n = x/CohortN)</option>
+                  </optgroup>
+                  <optgroup label="Dual / Combined Multi-Metric">
+                    <option value="dual_prevalence_tag_share">Dual: Prev (n=x/N) | Tags (n=x/Total)</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            {/* Typography & Color */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-border/40">
+              <div className="space-y-1">
+                <div className="flex justify-between items-center text-[10.5px] font-bold text-foreground">
+                  <span>Font Size</span>
+                  <span className="text-primary font-mono">{barLabelFontSize}px</span>
+                </div>
+                <input
+                  type="range"
+                  min={8}
+                  max={24}
+                  value={barLabelFontSize}
+                  onChange={(e) => setBarLabelFontSize(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-foreground block">Font Weight</label>
+                <select
+                  value={barLabelFontWeight}
+                  onChange={(e) => setBarLabelFontWeight(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
+                >
+                  <option value="normal">Normal (400)</option>
+                  <option value="500">Medium (500)</option>
+                  <option value="600">Semi-Bold (600)</option>
+                  <option value="bold">Bold (700)</option>
+                  <option value="800">Black (800)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-foreground block">Distance ({barLabelDistance}px)</label>
+                <input
+                  type="range"
+                  min={-10}
+                  max={25}
+                  value={barLabelDistance}
+                  onChange={(e) => setBarLabelDistance(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-bold text-foreground block">Label Color</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={barLabelColor || '#111827'}
+                    onChange={(e) => setBarLabelColor(e.target.value)}
+                    className="w-6 h-6 rounded border border-border cursor-pointer bg-transparent p-0"
+                  />
+                  <input
+                    type="text"
+                    value={barLabelColor}
+                    onChange={(e) => setBarLabelColor(e.target.value)}
+                    placeholder="Auto Contrast"
+                    className="w-full bg-card border border-border rounded-lg px-2 py-1 text-[11px] font-mono font-bold text-foreground"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Scales, Ceiling & Category Rotation */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Data Label Format</label>
+          <label className="text-xs font-bold text-foreground block">X-Axis Label Rotation</label>
           <select
-            value={barLabelFormat}
-            onChange={(e) => setBarLabelFormat(e.target.value as any)}
+            value={labelRotation}
+            onChange={(e) => setLabelRotation(Number(e.target.value))}
             className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
           >
-            <optgroup label="Standard (Follows Chart Metric)">
-              <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
-              <option value="name_ratio_percent">Name + Ratio + Coarse %</option>
-              <option value="percent_ratio">Coarse % + Ratio (~P%, n = x/N)</option>
-              <option value="ratio_only">Ratio Only (n = x/N)</option>
-              <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
-              <option value="percent_only">Percentage Only (~P%)</option>
-              <option value="count_only">Count Only (n = x)</option>
-            </optgroup>
-            <optgroup label="Explicit Tag Share (Total Extracted Tags Denominator)">
-              <option value="tag_share_ratio_percent">Tag Share Ratio + % (n = x/TotalTags, ~P%)</option>
-              <option value="name_tag_share_ratio_percent">Name + Tag Share Ratio + %</option>
-              <option value="tag_share_percent_ratio">Tag Share % + Ratio (~P%, n = x/TotalTags)</option>
-              <option value="tag_share_percent_only">Tag Share % Only (~P%)</option>
-              <option value="tag_share_ratio_only">Tag Share Ratio Only (n = x/TotalTags)</option>
-              <option value="tag_share_count_percent">Tag Count + % (n = x, ~P%)</option>
-            </optgroup>
-            <optgroup label="Explicit Paper Prevalence (Total Cohort Denominator)">
-              <option value="prevalence_ratio_percent">Prevalence Ratio + % (n = x/CohortN, ~P%)</option>
-              <option value="name_prevalence_ratio_percent">Name + Prevalence Ratio + %</option>
-              <option value="prevalence_percent_only">Prevalence % Only (~P%)</option>
-              <option value="prevalence_ratio_only">Prevalence Ratio Only (n = x/CohortN)</option>
-            </optgroup>
-            <optgroup label="Dual / Combined Multi-Metric">
-              <option value="dual_prevalence_tag_share">Dual: Prev (n=x/N) | Tags (n=x/Total)</option>
-            </optgroup>
+            <option value={0}>0° (Horizontal)</option>
+            <option value={30}>30° (Slanted)</option>
+            <option value={45}>45° (Diagonal)</option>
+            <option value={60}>60° (Steep)</option>
+            <option value={90}>90° (Vertical)</option>
           </select>
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Bar Spacing Gap ({barGap}%)</label>
+          <label className="text-xs font-bold text-foreground block">Column Gap ({barGap}%)</label>
           <input
             type="range"
             min={0}
@@ -129,19 +266,18 @@ export function VerticalBarConfigPanel() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Distance to Label ({barLabelDistance ?? 5}px)</label>
+          <label className="text-xs font-bold text-foreground block">Scale Ceiling Limit</label>
           <input
-            type="range"
-            min={-15}
-            max={30}
-            value={barLabelDistance ?? 5}
-            onChange={(e) => setBarLabelDistance(Number(e.target.value))}
-            className="w-full accent-primary"
+            type="text"
+            value={barValueCeiling}
+            onChange={(e) => setBarValueCeiling(e.target.value === 'auto' ? 'auto' : (Number(e.target.value) || 'auto'))}
+            placeholder="auto or e.g. 50"
+            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground font-mono"
           />
         </div>
       </div>
 
-      {/* Target Benchmark Reference Line */}
+      {/* 4. Target Benchmark Reference Line */}
       <div className="pt-2 border-t border-border/40 space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-foreground flex items-center gap-2 cursor-pointer">
@@ -211,74 +347,7 @@ export function VerticalBarConfigPanel() {
   );
 }
 
-export function StackedBarConfigPanel() {
-  const { config } = useVisualizerContext();
-  const {
-    barThickness,
-    setBarThickness,
-    barBorderRadius,
-    setBarBorderRadius,
-    barGap,
-    setBarGap,
-    stackedNormalized,
-    setStackedNormalized
-  } = config;
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Stack Column Width ({barThickness}px)</label>
-          <input
-            type="range"
-            min={12}
-            max={60}
-            value={barThickness}
-            onChange={(e) => setBarThickness(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Corner Radius ({barBorderRadius}px)</label>
-          <input
-            type="range"
-            min={0}
-            max={12}
-            value={barBorderRadius}
-            onChange={(e) => setBarBorderRadius(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Inter-Column Gap ({barGap}%)</label>
-          <input
-            type="range"
-            min={0}
-            max={150}
-            value={barGap}
-            onChange={(e) => setBarGap(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
-      </div>
-
-      <div className="p-3 bg-secondary/30 rounded-xl border border-border/40 flex items-center justify-between">
-        <div>
-          <span className="text-xs font-bold text-foreground block">100% Normalized Stack Share</span>
-          <span className="text-[10px] text-muted-foreground block">Scales all category stacks to 100% height for proportion comparison</span>
-        </div>
-        <input
-          type="checkbox"
-          checked={stackedNormalized}
-          onChange={(e) => setStackedNormalized(e.target.checked)}
-          className="w-4 h-4 rounded border-border text-primary"
-        />
-      </div>
-    </div>
-  );
-}
+export { StackedBarConfigPanel } from './StackedBarConfigPanel';
 
 export function LineConfigPanel() {
   const { config, style } = useVisualizerContext();
@@ -421,7 +490,17 @@ export function LineConfigPanel() {
     lineAreaOpacity = 0,
     setLineAreaOpacity,
     lineStepMode = 'none',
-    setLineStepMode
+    setLineStepMode,
+    showDataLabels,
+    setShowDataLabels,
+    labelFormat,
+    setLabelFormat,
+    universalLabelPosition,
+    setUniversalLabelPosition,
+    universalLabelFontSize,
+    setUniversalLabelFontSize,
+    universalLabelColor,
+    setUniversalLabelColor
   } = config;
 
   const activeColor1 = (lineBaselineColor && lineBaselineColor.trim() !== '') ? lineBaselineColor : defaultColor1;
@@ -979,205 +1058,6 @@ export function LineConfigPanel() {
             </div>
           </div>
 
-          {/* Section: Comprehensive Legend Customization */}
-          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-xs font-black text-foreground block">Legend Placement, Layout & Styling</span>
-                <span className="text-[10px] text-muted-foreground block">
-                  Fine-tune wrapping, symbols, alignment, and typography to avoid clipping.
-                </span>
-              </div>
-              <label className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground cursor-pointer shrink-0">
-                <span>Show Legend</span>
-                <input
-                  type="checkbox"
-                  checked={showLegend}
-                  onChange={(e) => setShowLegend(e.target.checked)}
-                  className="w-4 h-4 rounded border-border text-primary"
-                />
-              </label>
-            </div>
-            {showLegend && (
-              <div className="space-y-3 pt-1 border-t border-border/40">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Placement</label>
-                    <select
-                      value={legendPosition}
-                      onChange={(e) => setLegendPosition(e.target.value as any)}
-                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-                    >
-                      <option value="bottom">Bottom Footer</option>
-                      <option value="top">Top Header</option>
-                      <option value="left">Left Margin</option>
-                      <option value="right">Right Margin</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Layout Mode</label>
-                    <select
-                      value={legendType}
-                      onChange={(e) => setLegendType(e.target.value as any)}
-                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-                    >
-                      <option value="plain">Wrap Multi-Line (Plain)</option>
-                      <option value="scroll">Single-Line Paged (Scroll)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Symbol Align</label>
-                    <select
-                      value={legendAlign}
-                      onChange={(e) => setLegendAlign(e.target.value as any)}
-                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-                    >
-                      <option value="auto">Auto</option>
-                      <option value="left">Left of Text</option>
-                      <option value="right">Right of Text</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Symbol Shape</label>
-                    <select
-                      value={legendIcon}
-                      onChange={(e) => setLegendIcon(e.target.value as any)}
-                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-                    >
-                      <option value="inherit">Inherit (Auto Shape)</option>
-                      <option value="circle">Circle (●)</option>
-                      <option value="rect">Rectangle (■)</option>
-                      <option value="roundRect">Rounded (▢)</option>
-                      <option value="line">Line (—)</option>
-                      <option value="triangle">Triangle (▲)</option>
-                      <option value="diamond">Diamond (◆)</option>
-                      <option value="none">None (Text Only)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Symbol Width ({legendItemWidth}px)</label>
-                    <input
-                      type="range"
-                      min={8}
-                      max={40}
-                      value={legendItemWidth}
-                      onChange={(e) => setLegendItemWidth(Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Symbol Height ({legendItemHeight}px)</label>
-                    <input
-                      type="range"
-                      min={4}
-                      max={24}
-                      value={legendItemHeight}
-                      onChange={(e) => setLegendItemHeight(Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Item Gap ({legendItemGap ?? 14}px)</label>
-                    <input
-                      type="range"
-                      min={4}
-                      max={120}
-                      value={legendItemGap ?? 14}
-                      onChange={(e) => setLegendItemGap(Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Edge Offset ({legendDistance ?? 10}px)</label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={180}
-                      value={legendDistance ?? 10}
-                      onChange={(e) => setLegendDistance(Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Font Size ({legendFontSize ?? Math.max(9, style.fontSize - 2)}px)</label>
-                    <input
-                      type="range"
-                      min={8}
-                      max={32}
-                      value={legendFontSize ?? Math.max(9, style.fontSize - 2)}
-                      onChange={(e) => setLegendFontSize(Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Font Weight</label>
-                    <select
-                      value={legendFontWeight}
-                      onChange={(e) => setLegendFontWeight(e.target.value as any)}
-                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-                    >
-                      <option value="normal">Normal (400)</option>
-                      <option value="500">Medium (500)</option>
-                      <option value="600">Semi-Bold (600)</option>
-                      <option value="bold">Bold (700)</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-bold text-muted-foreground block">Text Color</label>
-                      {legendTextColor && (
-                        <button
-                          type="button"
-                          onClick={() => setLegendTextColor('')}
-                          className="text-[10px] text-primary hover:underline font-bold"
-                        >
-                          Auto
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={legendTextColor || palette.text}
-                        onChange={(e) => setLegendTextColor(e.target.value)}
-                        className="w-7 h-7 rounded border border-border cursor-pointer p-0 shrink-0"
-                      />
-                      <input
-                        type="text"
-                        value={legendTextColor || `Auto (${palette.text})`}
-                        onChange={(e) => setLegendTextColor(e.target.value)}
-                        placeholder={palette.text}
-                        className="flex-1 bg-card border border-border rounded-xl px-2 py-1 text-xs text-foreground font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-muted-foreground block">Box Padding ({legendPadding}px)</label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={20}
-                      value={legendPadding}
-                      onChange={(e) => setLegendPadding(Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Section: Time Horizon, Axis Bounds & Label Interval */}
           <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
             <span className="text-xs font-black text-foreground block">Time Horizon, Axis Bounds & Frequency</span>
@@ -1357,57 +1237,6 @@ export function LineConfigPanel() {
               />
             </div>
           </div>
-
-          {/* Section: Canvas Margins & Grid Clearance */}
-          <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
-            <span className="text-xs font-black text-foreground block">Canvas Margins & Grid Clearance</span>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted-foreground block">Top ({lineGridTop}px)</label>
-                <input
-                  type="range"
-                  min={15}
-                  max={140}
-                  value={lineGridTop}
-                  onChange={(e) => setLineGridTop(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted-foreground block">Bottom ({lineGridBottom}px)</label>
-                <input
-                  type="range"
-                  min={15}
-                  max={140}
-                  value={lineGridBottom}
-                  onChange={(e) => setLineGridBottom(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted-foreground block">Left ({lineGridLeft}px)</label>
-                <input
-                  type="range"
-                  min={20}
-                  max={160}
-                  value={lineGridLeft}
-                  onChange={(e) => setLineGridLeft(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-muted-foreground block">Right ({lineGridRight}px)</label>
-                <input
-                  type="range"
-                  min={15}
-                  max={140}
-                  value={lineGridRight}
-                  onChange={(e) => setLineGridRight(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
-              </div>
-            </div>
-          </div>
         </>
       ) : (
         <>
@@ -1492,6 +1321,70 @@ export function LineConfigPanel() {
               <option value="end">Step at End</option>
             </select>
           </div>
+
+          {/* Point Data Labels */}
+          <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+            <div className="flex items-center justify-between pb-1 border-b border-border/50">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showDataLabels}
+                  onChange={(e) => setShowDataLabels(e.target.checked)}
+                  className="w-4 h-4 rounded border-border text-primary"
+                />
+                <span className="text-xs font-bold text-foreground">
+                  Enable Point Data Labels
+                </span>
+              </label>
+            </div>
+
+            {showDataLabels && (
+              <div className="space-y-2.5">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground block">Label Format Template</label>
+                  <select
+                    value={labelFormat || 'ratio_percent'}
+                    onChange={(e) => setLabelFormat(e.target.value as any)}
+                    className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                  >
+                    <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
+                    <option value="count_only">Count Only (n = x)</option>
+                    <option value="percent_only">Percentage Only (~P%)</option>
+                    <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
+                    <option value="name_ratio_percent">Name + Ratio + Coarse %</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10.5px] font-bold text-muted-foreground block">Placement</label>
+                    <select
+                      value={universalLabelPosition || 'top'}
+                      onChange={(e) => setUniversalLabelPosition(e.target.value as any)}
+                      className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                    >
+                      <option value="top">Above (Top)</option>
+                      <option value="bottom">Below (Bottom)</option>
+                      <option value="left">Left</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10.5px] font-bold text-muted-foreground block">Font Size ({universalLabelFontSize ?? 11}px)</label>
+                    <input
+                      type="range"
+                      min={8}
+                      max={22}
+                      value={universalLabelFontSize ?? 11}
+                      onChange={(e) => setUniversalLabelFontSize(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
@@ -1511,6 +1404,10 @@ export function PieDonutConfigPanel() {
     setPiePadAngle,
     pieCornerRadius,
     setPieCornerRadius,
+    showDataLabels,
+    setShowDataLabels,
+    labelFormat,
+    setLabelFormat,
     pieLabelPlacement,
     setPieLabelPlacement,
     pieLabelFontWeight = 'normal',
@@ -1527,7 +1424,8 @@ export function PieDonutConfigPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* 1. Radii, Donut Hole & Rose Type */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Outer Radius ({pieRadiusRatio}%)</label>
           <input
@@ -1566,7 +1464,8 @@ export function PieDonutConfigPanel() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
+      {/* 2. Slice Geometry & Corner Radii */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Slice Corner Radius ({pieCornerRadius}px)</label>
           <input
@@ -1590,619 +1489,148 @@ export function PieDonutConfigPanel() {
             className="w-full accent-primary"
           />
         </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Label Placement</label>
-          <select
-            value={pieLabelPlacement}
-            onChange={(e) => setPieLabelPlacement(e.target.value as any)}
-            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-          >
-            <option value="outside">Outside with Leader Lines</option>
-            <option value="inside">Inside Slices</option>
-            <option value="edge_aligned">Edge Aligned</option>
-            <option value="legend_only">Legend Only (No Canvas Labels)</option>
-          </select>
-        </div>
       </div>
 
-      {pieLabelPlacement !== 'legend_only' && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Label Weight</label>
-            <select
-              value={pieLabelFontWeight}
-              onChange={(e) => setPieLabelFontWeight(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="normal">Normal (400)</option>
-              <option value="500">Medium (500)</option>
-              <option value="600">SemiBold (600)</option>
-              <option value="bold">Bold (700)</option>
-              <option value="800">ExtraBold (800)</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Label Style</label>
-            <select
-              value={pieLabelFontStyle}
-              onChange={(e) => setPieLabelFontStyle(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="normal">Normal</option>
-              <option value="italic">Italic</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Label Color</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={pieLabelColor || '#111827'}
-                onChange={(e) => setPieLabelColor(e.target.value)}
-                className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent p-0"
-              />
-              <input
-                type="text"
-                value={pieLabelColor}
-                onChange={(e) => setPieLabelColor(e.target.value)}
-                placeholder="Auto Contrast"
-                className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono font-bold text-foreground"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pieLabelPlacement === 'outside' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Leader Line 1 ({pieLeaderLineLength ?? 12}px)</label>
-            <input
-              type="range"
-              min={4}
-              max={30}
-              value={pieLeaderLineLength ?? 12}
-              onChange={(e) => setPieLeaderLineLength(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Leader Line 2 ({pieLeaderLineLength2 ?? 14}px)</label>
-            <input
-              type="range"
-              min={4}
-              max={30}
-              value={pieLeaderLineLength2 ?? 14}
-              onChange={(e) => setPieLeaderLineLength2(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function RadarConfigPanel() {
-  const { config, camera } = useVisualizerContext();
-  const { fitOffsetY = 0, setFitOffsetY } = camera;
-  const {
-    showLegend = true,
-    setShowLegend,
-    legendPosition = 'bottom',
-    setLegendPosition,
-    legendDistance = 15,
-    setLegendDistance,
-    legendItemGap = 12,
-    setLegendItemGap,
-    radarShape = 'polygon',
-    setRadarShape,
-    radarRadius = 65,
-    setRadarRadius,
-    radarAreaOpacity = 28,
-    setRadarAreaOpacity,
-    radarLineWidth = 2.5,
-    setRadarLineWidth,
-    radarSplitNumber = 5,
-    setRadarSplitNumber,
-    radarAxisLine = true,
-    setRadarAxisLine,
-    radarSplitLine = true,
-    setRadarSplitLine,
-    radarSplitArea = true,
-    setRadarSplitArea,
-    radarAxisNameMargin = 15,
-    setRadarAxisNameMargin,
-    radarAxisNameWidth = 120,
-    setRadarAxisNameWidth,
-    radarAxisNameOverflow = 'break',
-    setRadarAxisNameOverflow,
-    radarAxisNameLineHeight = 14,
-    setRadarAxisNameLineHeight,
-    radarShowDataLabels = false,
-    setRadarShowDataLabels,
-    radarDataLabelPosition = 'top',
-    setRadarDataLabelPosition,
-    radarBaselineLineStyle = 'solid',
-    setRadarBaselineLineStyle,
-    radarBaselineSymbol = 'circle',
-    setRadarBaselineSymbol,
-    radarBaselineSymbolSize = 6,
-    setRadarBaselineSymbolSize,
-    radarIndicatorFormat = 'two_line',
-    setRadarIndicatorFormat,
-    radarShowTarget = true,
-    setRadarShowTarget,
-    radarTargetLineStyle = 'dashed',
-    setRadarTargetLineStyle,
-    radarTargetLineWidth = 2,
-    setRadarTargetLineWidth,
-    radarTargetColor = '#d9534f',
-    setRadarTargetColor,
-    radarTargetAreaOpacity = 8,
-    setRadarTargetAreaOpacity,
-    radarTargetSymbol = 'circle',
-    setRadarTargetSymbol,
-    radarTargetSymbolSize = 4,
-    setRadarTargetSymbolSize,
-    radarBaselineColor = '#0275d8',
-    setRadarBaselineColor
-  } = config;
-
-  return (
-    <div className="space-y-4">
-      {/* --- SECTION 1: LEGEND POSITIONING & LAYOUT --- */}
-      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-black text-foreground block">Legend Positioning & Spacing</span>
-          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-foreground">
+      {/* 3. Slice Data Labels & Format */}
+      <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={showLegend}
-              onChange={(e) => setShowLegend(e.target.checked)}
-              className="rounded border-border text-primary"
+              checked={showDataLabels}
+              onChange={(e) => setShowDataLabels(e.target.checked)}
+              className="w-4 h-4 rounded border-border text-primary"
             />
-            <span>Show Legend</span>
+            <span className="text-xs font-bold text-foreground">
+              Enable Slice Data Labels
+            </span>
           </label>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {pieLabelPlacement}
+          </span>
         </div>
 
-        {showLegend && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Legend Position</label>
-              <select
-                value={legendPosition}
-                onChange={(e) => setLegendPosition(e.target.value as any)}
-                className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-              >
-                <option value="bottom">Bottom (Recommended for Radar)</option>
-                <option value="top">Top</option>
-                <option value="left">Left Side</option>
-                <option value="right">Right Side</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Edge Offset ({legendDistance}px)</label>
-              <input
-                type="range"
-                min={0}
-                max={60}
-                value={legendDistance}
-                onChange={(e) => setLegendDistance(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Item Gap ({legendItemGap}px)</label>
-              <input
-                type="range"
-                min={4}
-                max={120}
-                value={legendItemGap}
-                onChange={(e) => setLegendItemGap(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* --- SECTION 2: WEB STRUCTURE & GEOMETRY --- */}
-      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
-        <span className="text-xs font-black text-foreground block flex items-center justify-between">
-          <span>Web Structure & Geometry</span>
-          <span className="text-[10px] text-muted-foreground font-mono">Multi-Axis Layout</span>
-        </span>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Radar Geometry</label>
-            <select
-              value={radarShape}
-              onChange={(e) => setRadarShape(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="polygon">Polygon (Standard Multi-Axis)</option>
-              <option value="circle">Concentric Circular Rings</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Radar Radius Scale ({radarRadius}%)</label>
-            <input
-              type="range"
-              min={35}
-              max={85}
-              value={radarRadius}
-              onChange={(e) => setRadarRadius(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Concentric Split Rings ({radarSplitNumber})</label>
-            <input
-              type="range"
-              min={3}
-              max={10}
-              value={radarSplitNumber}
-              onChange={(e) => setRadarSplitNumber(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Axis Label Distance ({radarAxisNameMargin}px)</label>
-            <input
-              type="range"
-              min={5}
-              max={40}
-              value={radarAxisNameMargin}
-              onChange={(e) => setRadarAxisNameMargin(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Vertical Center Offset ({fitOffsetY > 0 ? `+${fitOffsetY}` : fitOffsetY}%)</label>
-            <input
-              type="range"
-              min={-25}
-              max={25}
-              value={fitOffsetY}
-              onChange={(e) => setFitOffsetY(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-        </div>
-
-        {/* Ring & Spoke Visibility Toggles */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-border/40">
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
-            <input
-              type="checkbox"
-              checked={radarAxisLine}
-              onChange={(e) => setRadarAxisLine(e.target.checked)}
-              className="rounded border-border text-primary"
-            />
-            <span>Radial Spokes</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
-            <input
-              type="checkbox"
-              checked={radarSplitLine}
-              onChange={(e) => setRadarSplitLine(e.target.checked)}
-              className="rounded border-border text-primary"
-            />
-            <span>Ring Grid Lines</span>
-          </label>
-
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
-            <input
-              type="checkbox"
-              checked={radarSplitArea}
-              onChange={(e) => setRadarSplitArea(e.target.checked)}
-              className="rounded border-border text-primary"
-            />
-            <span>Shaded Bands</span>
-          </label>
-        </div>
-      </div>
-
-      {/* --- SECTION 3: AXIS INDICATOR TYPOGRAPHY & LABEL WIDTH --- */}
-      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
-        <span className="text-xs font-black text-foreground block">Axis Indicator Typography & Label Width</span>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Indicator Label Format</label>
-            <select
-              value={radarIndicatorFormat}
-              onChange={(e) => setRadarIndicatorFormat(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="two_line">Two-Line: "Name \n (87%)" (Standard Paradox Style)</option>
-              <option value="single_line">Single-Line: "Name (87%)"</option>
-              <option value="ratio_percent">Ratio & Percent: "Name (n=40/46, 87%)"</option>
-              <option value="name_only">Name Only: "Execution Latency"</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Max Label Width ({radarAxisNameWidth}px)</label>
-            <input
-              type="range"
-              min={60}
-              max={260}
-              step={5}
-              value={radarAxisNameWidth}
-              onChange={(e) => setRadarAxisNameWidth(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Label Text Overflow</label>
-            <select
-              value={radarAxisNameOverflow}
-              onChange={(e) => setRadarAxisNameOverflow(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="break">Wrap to Multi-Line (Break)</option>
-              <option value="truncate">Truncate with Ellipsis</option>
-              <option value="none">None (Single Unbounded Line)</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Label Line Height ({radarAxisNameLineHeight}px)</label>
-            <input
-              type="range"
-              min={10}
-              max={24}
-              value={radarAxisNameLineHeight}
-              onChange={(e) => setRadarAxisNameLineHeight(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-        </div>
-
-        {/* Vertex Data Labels Toggle & Placement */}
-        <div className="pt-2 border-t border-border/40 space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
-              <input
-                type="checkbox"
-                checked={radarShowDataLabels}
-                onChange={(e) => setRadarShowDataLabels(e.target.checked)}
-                className="rounded border-border text-primary"
-              />
-              <span>Show Vertex Data Labels (% inside web)</span>
-            </label>
-          </div>
-
-          {radarShowDataLabels && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        {showDataLabels && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-muted-foreground block">Label Position</label>
+                <label className="text-xs font-bold text-foreground block">Label Placement</label>
                 <select
-                  value={radarDataLabelPosition}
-                  onChange={(e) => setRadarDataLabelPosition(e.target.value as any)}
-                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
+                  value={pieLabelPlacement}
+                  onChange={(e) => setPieLabelPlacement(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
                 >
-                  <option value="top">Top of Point</option>
-                  <option value="bottom">Bottom of Point</option>
-                  <option value="inside">Inside Web</option>
-                  <option value="outside">Outside Web</option>
-                  <option value="auto">Auto Alignment</option>
+                  <option value="outside">Outside with Leader Lines</option>
+                  <option value="inside">Inside Slices</option>
+                  <option value="edge_aligned">Edge Aligned</option>
+                  <option value="legend_only">Legend Only (No Canvas Labels)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">Label Format Template</label>
+                <select
+                  value={labelFormat || 'name_ratio_percent'}
+                  onChange={(e) => setLabelFormat(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="name_ratio_percent">Name + Ratio + Coarse %</option>
+                  <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
+                  <option value="percent_ratio">Coarse % + Ratio (~P%, n = x/N)</option>
+                  <option value="percent_only">Percentage Only (~P%)</option>
+                  <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
+                  <option value="count_only">Count Only (n = x)</option>
+                  <option value="name_percent">Name + % Only</option>
                 </select>
               </div>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* --- SECTION 3: EMPIRICAL BASELINE SERIES STYLING --- */}
-      <div className="p-3 bg-primary/5 rounded-2xl border border-primary/20 space-y-3">
-        <span className="text-xs font-black text-foreground block flex items-center justify-between">
-          <span>Empirical Baseline Series Styling</span>
-          <span className="text-[10px] font-mono text-primary font-bold">Observed Cohort Data</span>
-        </span>
+            {pieLabelPlacement !== 'legend_only' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Label Weight</label>
+                  <select
+                    value={pieLabelFontWeight}
+                    onChange={(e) => setPieLabelFontWeight(e.target.value as any)}
+                    className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                  >
+                    <option value="normal">Normal (400)</option>
+                    <option value="500">Medium (500)</option>
+                    <option value="600">SemiBold (600)</option>
+                    <option value="bold">Bold (700)</option>
+                    <option value="800">ExtraBold (800)</option>
+                  </select>
+                </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Stroke Width ({radarLineWidth}px)</label>
-            <input
-              type="range"
-              min={1}
-              max={6}
-              step={0.5}
-              value={radarLineWidth}
-              onChange={(e) => setRadarLineWidth(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Label Style</label>
+                  <select
+                    value={pieLabelFontStyle}
+                    onChange={(e) => setPieLabelFontStyle(e.target.value as any)}
+                    className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="italic">Italic</option>
+                  </select>
+                </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Line Pattern</label>
-            <select
-              value={radarBaselineLineStyle}
-              onChange={(e) => setRadarBaselineLineStyle(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
-            >
-              <option value="solid">Solid</option>
-              <option value="dashed">Dashed</option>
-              <option value="dotted">Dotted</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Area Fill ({radarAreaOpacity}%)</label>
-            <input
-              type="range"
-              min={0}
-              max={80}
-              value={radarAreaOpacity}
-              onChange={(e) => setRadarAreaOpacity(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Baseline Color</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={radarBaselineColor || '#0275d8'}
-                onChange={(e) => setRadarBaselineColor(e.target.value)}
-                className="w-7 h-7 rounded border border-border cursor-pointer"
-              />
-              <input
-                type="text"
-                value={radarBaselineColor || '#0275d8'}
-                onChange={(e) => setRadarBaselineColor(e.target.value)}
-                className="flex-1 bg-card border border-border rounded px-2 py-0.5 text-xs font-mono font-bold"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Vertex Symbol</label>
-            <select
-              value={radarBaselineSymbol}
-              onChange={(e) => setRadarBaselineSymbol(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
-            >
-              <option value="circle">Circle</option>
-              <option value="diamond">Diamond</option>
-              <option value="triangle">Triangle</option>
-              <option value="rect">Square</option>
-              <option value="none">None (Clean Line)</option>
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Symbol Size ({radarBaselineSymbolSize}px)</label>
-            <input
-              type="range"
-              min={2}
-              max={12}
-              value={radarBaselineSymbolSize}
-              onChange={(e) => setRadarBaselineSymbolSize(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* --- SECTION 4: REQUIREMENT TARGET SERIES STYLING --- */}
-      <div className="p-3 bg-destructive/5 rounded-2xl border border-destructive/20 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-black text-foreground block">Benchmark Target Series Styling</span>
-          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-destructive">
-            <input
-              type="checkbox"
-              checked={radarShowTarget}
-              onChange={(e) => setRadarShowTarget(e.target.checked)}
-              className="rounded border-border text-destructive"
-            />
-            <span>Show Benchmark Series</span>
-          </label>
-        </div>
-
-        {radarShowTarget && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-destructive/10">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Line Pattern</label>
-              <select
-                value={radarTargetLineStyle}
-                onChange={(e) => setRadarTargetLineStyle(e.target.value as any)}
-                className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
-              >
-                <option value="dashed">Dashed</option>
-                <option value="solid">Solid</option>
-                <option value="dotted">Dotted</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Line Width ({radarTargetLineWidth}px)</label>
-              <input
-                type="range"
-                min={1}
-                max={5}
-                value={radarTargetLineWidth}
-                onChange={(e) => setRadarTargetLineWidth(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Fill Opacity ({radarTargetAreaOpacity}%)</label>
-              <input
-                type="range"
-                min={0}
-                max={40}
-                value={radarTargetAreaOpacity}
-                onChange={(e) => setRadarTargetAreaOpacity(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Target Color</label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="color"
-                  value={radarTargetColor || '#d9534f'}
-                  onChange={(e) => setRadarTargetColor(e.target.value)}
-                  className="w-7 h-7 rounded border border-border cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={radarTargetColor || '#d9534f'}
-                  onChange={(e) => setRadarTargetColor(e.target.value)}
-                  className="flex-1 bg-card border border-border rounded px-1.5 py-0.5 text-xs font-mono font-bold"
-                />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Label Color</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={pieLabelColor || '#111827'}
+                      onChange={(e) => setPieLabelColor(e.target.value)}
+                      className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent p-0"
+                    />
+                    <input
+                      type="text"
+                      value={pieLabelColor}
+                      onChange={(e) => setPieLabelColor(e.target.value)}
+                      placeholder="Auto Contrast"
+                      className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono font-bold text-foreground"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Target Symbol</label>
-              <select
-                value={radarTargetSymbol}
-                onChange={(e) => setRadarTargetSymbol(e.target.value as any)}
-                className="w-full bg-card border border-border rounded-xl px-2.5 py-1 text-xs text-foreground font-bold"
-              >
-                <option value="circle">Circle</option>
-                <option value="diamond">Diamond</option>
-                <option value="triangle">Triangle</option>
-                <option value="rect">Square</option>
-                <option value="none">None (Clean Line)</option>
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Target Symbol Size ({radarTargetSymbolSize}px)</label>
-              <input
-                type="range"
-                min={2}
-                max={10}
-                value={radarTargetSymbolSize}
-                onChange={(e) => setRadarTargetSymbolSize(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-            </div>
+            {pieLabelPlacement === 'outside' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Leader Line 1 ({pieLeaderLineLength ?? 12}px)</label>
+                  <input
+                    type="range"
+                    min={4}
+                    max={30}
+                    value={pieLeaderLineLength ?? 12}
+                    onChange={(e) => setPieLeaderLineLength(Number(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Leader Line 2 ({pieLeaderLineLength2 ?? 14}px)</label>
+                  <input
+                    type="range"
+                    min={4}
+                    max={30}
+                    value={pieLeaderLineLength2 ?? 14}
+                    onChange={(e) => setPieLeaderLineLength2(Number(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
+
+export { RadarConfigPanel } from './RadarConfigPanel';
+
+
 
 export function FunnelConfigPanel() {
   const { config } = useVisualizerContext();
@@ -2214,12 +1642,25 @@ export function FunnelConfigPanel() {
     funnelNeckWidth,
     setFunnelNeckWidth,
     funnelNeckHeight,
-    setFunnelNeckHeight
-  } = config;
+    setFunnelNeckHeight,
+    showDataLabels,
+    setShowDataLabels,
+    funnelLabelPosition = 'inside',
+    setFunnelLabelPosition,
+    labelFormat,
+    setLabelFormat,
+    funnelLabelFontSize = 11,
+    setFunnelLabelFontSize,
+    funnelLabelFontWeight = 'bold',
+    setFunnelLabelFontWeight,
+    funnelLabelColor = '',
+    setFunnelLabelColor
+  } = config as any;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-4">
+      {/* 1. Geometry & Alignment */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Funnel Alignment</label>
           <select
@@ -2244,9 +1685,7 @@ export function FunnelConfigPanel() {
             className="w-full accent-primary"
           />
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Base Neck Width ({funnelNeckWidth}%)</label>
           <input
@@ -2271,6 +1710,109 @@ export function FunnelConfigPanel() {
           />
         </div>
       </div>
+
+      {/* 2. Stage Data Labels */}
+      <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-border/50">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showDataLabels}
+              onChange={(e) => setShowDataLabels(e.target.checked)}
+              className="w-4 h-4 rounded border-border text-primary"
+            />
+            <span className="text-xs font-bold text-foreground">
+              Enable Stage Data Labels
+            </span>
+          </label>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {funnelLabelPosition}
+          </span>
+        </div>
+
+        {showDataLabels && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">Label Placement</label>
+                <select
+                  value={funnelLabelPosition}
+                  onChange={(e) => setFunnelLabelPosition?.(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="inside">Inside Section</option>
+                  <option value="outside">Outside</option>
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">Format Template</label>
+                <select
+                  value={labelFormat || 'name_ratio_percent'}
+                  onChange={(e) => setLabelFormat(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="name_ratio_percent">Name + Ratio + Coarse %</option>
+                  <option value="ratio_percent">Ratio + Coarse % (n = x/N, ~P%)</option>
+                  <option value="percent_only">Percentage Only (~P%)</option>
+                  <option value="count_only">Count Only (n = x)</option>
+                  <option value="count_percent">Count + Coarse % (n = x, ~P%)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">Font Size ({funnelLabelFontSize}px)</label>
+                <input
+                  type="range"
+                  min={9}
+                  max={24}
+                  value={funnelLabelFontSize}
+                  onChange={(e) => setFunnelLabelFontSize(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">Font Weight</label>
+                <select
+                  value={funnelLabelFontWeight}
+                  onChange={(e) => setFunnelLabelFontWeight(e.target.value as any)}
+                  className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+                >
+                  <option value="normal">Normal (400)</option>
+                  <option value="500">Medium (500)</option>
+                  <option value="600">SemiBold (600)</option>
+                  <option value="bold">Bold (700)</option>
+                  <option value="800">ExtraBold (800)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">Label Color</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={funnelLabelColor || '#ffffff'}
+                    onChange={(e) => setFunnelLabelColor(e.target.value)}
+                    className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent p-0"
+                  />
+                  <input
+                    type="text"
+                    value={funnelLabelColor}
+                    onChange={(e) => setFunnelLabelColor(e.target.value)}
+                    placeholder="Auto"
+                    className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono font-bold text-foreground"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2281,12 +1823,16 @@ export function HeatmapConfigPanel() {
     heatmapColorPreset,
     setHeatmapColorPreset,
     heatmapCellRadius,
-    setHeatmapCellRadius
+    setHeatmapCellRadius,
+    showDataLabels,
+    setShowDataLabels,
+    labelRotation = 0,
+    setLabelRotation
   } = config;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Color Gradient Palette</label>
           <select
@@ -2313,81 +1859,43 @@ export function HeatmapConfigPanel() {
             className="w-full accent-primary"
           />
         </div>
-      </div>
-    </div>
-  );
-}
 
-export function TreemapConfigPanel() {
-  const { config } = useVisualizerContext();
-  const {
-    treemapAlgorithm,
-    setTreemapAlgorithm,
-    treemapVisibleDepth,
-    setTreemapVisibleDepth,
-    treemapGapWidth,
-    setTreemapGapWidth,
-    treemapBorderWidth,
-    setTreemapBorderWidth
-  } = config;
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Partitioning Algorithm</label>
+          <label className="text-xs font-bold text-foreground block">Column Header Rotation</label>
           <select
-            value={treemapAlgorithm}
-            onChange={(e) => setTreemapAlgorithm(e.target.value as any)}
+            value={labelRotation}
+            onChange={(e) => setLabelRotation(Number(e.target.value))}
             className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
           >
-            <option value="squarified">Squarified (Golden Ratio Standard)</option>
-            <option value="sliceAndDice">Slice & Dice (Alternating)</option>
-            <option value="binary">Binary Partition</option>
+            <option value={0}>0° (Horizontal)</option>
+            <option value={30}>30° (Slanted)</option>
+            <option value={45}>45° (Diagonal)</option>
+            <option value={60}>60° (Steep)</option>
+            <option value={90}>90° (Vertical)</option>
           </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Visible Hierarchy Depth ({treemapVisibleDepth})</label>
-          <input
-            type="range"
-            min={1}
-            max={4}
-            value={treemapVisibleDepth}
-            onChange={(e) => setTreemapVisibleDepth(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Inter-Tile Gap ({treemapGapWidth}px)</label>
+      {/* Cell Values & Visual Map */}
+      <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs font-bold text-foreground block">Display Cell Numbers</span>
+            <span className="text-[10px] text-muted-foreground block">Render co-occurrence frequency counts inside matrix cells</span>
+          </div>
           <input
-            type="range"
-            min={0}
-            max={30}
-            value={treemapGapWidth}
-            onChange={(e) => setTreemapGapWidth(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Tile Border ({treemapBorderWidth}px)</label>
-          <input
-            type="range"
-            min={1}
-            max={6}
-            value={treemapBorderWidth}
-            onChange={(e) => setTreemapBorderWidth(Number(e.target.value))}
-            className="w-full accent-primary"
+            type="checkbox"
+            checked={showDataLabels}
+            onChange={(e) => setShowDataLabels(e.target.checked)}
+            className="w-4 h-4 rounded border-border text-primary"
           />
         </div>
       </div>
     </div>
   );
 }
+
+export { TreemapConfigPanel } from './TreemapConfigPanel';
 
 export function BoxplotConfigPanel() {
   const { config } = useVisualizerContext();
@@ -2541,26 +2049,10 @@ export function BubbleConfigPanel() {
     setBubbleLabelColor,
     bubbleColorMode = 'color_by_x',
     setBubbleColorMode,
-    bubbleGridLeft = 40,
-    setBubbleGridLeft,
-    bubbleGridBottom = 35,
-    setBubbleGridBottom,
-    bubbleGridTop = 45,
-    setBubbleGridTop,
-    bubbleGridRight = 35,
-    setBubbleGridRight,
     bubbleSeriesName = 'Deployments',
     setBubbleSeriesName,
     bubbleLegendMode = 'category_series',
-    setBubbleLegendMode,
-    showLegend = true,
-    setShowLegend,
-    legendPosition = 'bottom',
-    setLegendPosition,
-    legendItemGap = 12,
-    setLegendItemGap,
-    legendDistance = 20,
-    setLegendDistance
+    setBubbleLegendMode
   } = config;
 
   return (
@@ -2603,7 +2095,7 @@ export function BubbleConfigPanel() {
             <input
               type="range"
               min={25}
-              max={90}
+              max={140}
               value={bubbleMaxRadius}
               onChange={(e) => setBubbleMaxRadius(Number(e.target.value))}
               className="w-full accent-primary"
@@ -2743,141 +2235,35 @@ export function BubbleConfigPanel() {
         )}
       </div>
 
-      {/* --- SECTION 4: CANVAS MARGINS & GRID CLEARANCE --- */}
+      {/* --- SECTION 4: BUBBLE CATEGORY & SERIES DISPLAY --- */}
       <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
-        <span className="text-xs font-black text-foreground block">Canvas Margins & Grid Clearance</span>
+        <span className="text-xs font-black text-foreground block">Series Legend Mode</span>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Grid Bottom Margin ({bubbleGridBottom}px)</label>
-            <input
-              type="range"
-              min={10}
-              max={160}
-              value={bubbleGridBottom}
-              onChange={(e) => setBubbleGridBottom(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
+            <label className="text-[11px] font-bold text-muted-foreground block">Series Display Mode</label>
+            <select
+              value={bubbleLegendMode}
+              onChange={(e) => setBubbleLegendMode(e.target.value as any)}
+              className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
+            >
+              <option value="category_series">Category Chips (Multi-Series Filter)</option>
+              <option value="single_series">Single Cohort Series (Custom Title)</option>
+            </select>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Grid Top Margin ({bubbleGridTop}px)</label>
-            <input
-              type="range"
-              min={10}
-              max={140}
-              value={bubbleGridTop}
-              onChange={(e) => setBubbleGridTop(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Grid Left Margin ({bubbleGridLeft}px)</label>
-            <input
-              type="range"
-              min={15}
-              max={180}
-              value={bubbleGridLeft}
-              onChange={(e) => setBubbleGridLeft(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-muted-foreground block">Grid Right Margin ({bubbleGridRight}px)</label>
-            <input
-              type="range"
-              min={15}
-              max={160}
-              value={bubbleGridRight}
-              onChange={(e) => setBubbleGridRight(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* --- SECTION 6: LEGEND CUSTOMIZATION --- */}
-      <div className="p-3 bg-secondary/20 rounded-2xl border border-border/60 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-black text-foreground block">Legend & Category Filter</span>
-          <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-foreground">
-            <input
-              type="checkbox"
-              checked={showLegend}
-              onChange={(e) => setShowLegend(e.target.checked)}
-              className="rounded border-border text-primary"
-            />
-            <span>Show Legend</span>
-          </label>
-        </div>
-
-        {showLegend && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+          {bubbleLegendMode === 'single_series' && (
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Legend Display Mode</label>
-              <select
-                value={bubbleLegendMode}
-                onChange={(e) => setBubbleLegendMode(e.target.value as any)}
+              <label className="text-[11px] font-bold text-muted-foreground block">Custom Series Title</label>
+              <input
+                type="text"
+                value={bubbleSeriesName}
+                onChange={(e) => setBubbleSeriesName(e.target.value)}
+                placeholder="e.g. Deployments"
                 className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-              >
-                <option value="category_series">Category Chips (Multi-Series Filter)</option>
-                <option value="single_series">Single Cohort Series (Custom Title)</option>
-              </select>
-            </div>
-
-            {bubbleLegendMode === 'single_series' ? (
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-muted-foreground block">Custom Series Title</label>
-                <input
-                  type="text"
-                  value={bubbleSeriesName}
-                  onChange={(e) => setBubbleSeriesName(e.target.value)}
-                  placeholder="e.g. Deployments"
-                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-                />
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-muted-foreground block">Legend Position</label>
-                <select
-                  value={legendPosition || 'bottom'}
-                  onChange={(e) => setLegendPosition(e.target.value as any)}
-                  className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs text-foreground font-bold"
-                >
-                  <option value="bottom">Bottom of Chart</option>
-                  <option value="top">Top of Chart</option>
-                  <option value="left">Left Side</option>
-                  <option value="right">Right Side</option>
-                </select>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Item Spacing Gap ({legendItemGap ?? 12}px)</label>
-              <input
-                type="range"
-                min={4}
-                max={120}
-                value={legendItemGap ?? 12}
-                onChange={(e) => setLegendItemGap(Number(e.target.value))}
-                className="w-full accent-primary"
               />
             </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-muted-foreground block">Edge Offset Distance ({legendDistance ?? 20}px)</label>
-              <input
-                type="range"
-                min={5}
-                max={180}
-                value={legendDistance ?? 20}
-                onChange={(e) => setLegendDistance(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2896,12 +2282,16 @@ export function GraphConfigPanel() {
     graphGravity,
     setGraphGravity,
     graphCurveness,
-    setGraphCurveness
+    setGraphCurveness,
+    showDataLabels,
+    setShowDataLabels,
+    graphShowLinkWeights,
+    setGraphShowLinkWeights
   } = config;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Repulsion Force ({graphRepulsion})</label>
           <input
@@ -2925,9 +2315,7 @@ export function GraphConfigPanel() {
             className="w-full accent-primary"
           />
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Center Gravity ({graphGravity})</label>
           <input
@@ -2951,6 +2339,35 @@ export function GraphConfigPanel() {
             value={graphCurveness}
             onChange={(e) => setGraphCurveness(Number(e.target.value))}
             className="w-full accent-primary"
+          />
+        </div>
+      </div>
+
+      {/* Node Labels & Edge Weights */}
+      <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs font-bold text-foreground block">Display Node Labels</span>
+            <span className="text-[10px] text-muted-foreground block">Show entity names next to vertices</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={showDataLabels}
+            onChange={(e) => setShowDataLabels(e.target.checked)}
+            className="w-4 h-4 rounded border-border text-primary"
+          />
+        </div>
+
+        <div className="pt-2 border-t border-border/40 flex items-center justify-between">
+          <div>
+            <span className="text-xs font-bold text-foreground block">Display Edge Weight Labels</span>
+            <span className="text-[10px] text-muted-foreground block">Show co-occurrence counts along connecting lines</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={graphShowLinkWeights}
+            onChange={(e) => setGraphShowLinkWeights?.(e.target.checked)}
+            className="w-4 h-4 rounded border-border text-primary"
           />
         </div>
       </div>
@@ -3052,8 +2469,8 @@ export function CalendarConfigPanel() {
   } = config;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Date Grid Cell Size ({calendarCellSize}px)</label>
           <input

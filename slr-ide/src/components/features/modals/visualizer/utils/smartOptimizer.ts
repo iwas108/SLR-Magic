@@ -301,11 +301,95 @@ export function optimizeSlotConfig(
       config.sunburstLegendFormat = 'name_count_percent';
       config.sunburstLegendPosition = 'bottom-center';
       config.sunburstSort = 'desc';
+      config.sunburstColorMode = 'branch_gradient';
+
+      const numLevels = sankeyFields.length || 3;
+      const currentLevelConfigs = { ...(config.sunburstLevelConfigs || {}) };
+
+      for (let l = 0; l < numLevels; l++) {
+        if (!currentLevelConfigs[l]) {
+          currentLevelConfigs[l] = {
+            r0: l === 0 ? 15 : (l === 1 ? 40 : 72),
+            r: l === 0 ? 40 : (l === 1 ? 72 : 75),
+            position: l === 0 ? 'inside' : (l === 1 ? 'inside' : 'outside'),
+            rotate: l === 0 ? 'tangential' : 'radial',
+            align: 'right',
+            minAngle: l === 0 ? 0 : (l === 1 ? 3 : 4),
+            borderWidth: l === 0 ? 2 : 1,
+            borderRadius: 0,
+            fontSize: l === 0 ? 12 : (l === 1 ? 10 : 9),
+            fontWeight: l === 0 ? 'bold' : (l === 1 ? '600' : 'normal'),
+            fontStyle: 'normal',
+            colorMode: l <= 1 ? 'auto_contrast' : 'inherit_theme',
+            overflow: 'truncate',
+            maxLabelWidth: l === 0 ? 85 : (l === 1 ? 70 : 60),
+            labelFormat: 'name',
+            hideOverlap: true
+          };
+        } else {
+          currentLevelConfigs[l] = {
+            ...currentLevelConfigs[l],
+            minAngle: currentLevelConfigs[l].minAngle ?? (l === 0 ? 0 : (l === 1 ? 3 : 4)),
+            hideOverlap: currentLevelConfigs[l].hideOverlap !== false,
+            colorMode: currentLevelConfigs[l].colorMode || (currentLevelConfigs[l].position === 'inside' ? 'auto_contrast' : 'inherit_theme')
+          };
+        }
+      }
+      config.sunburstLevelConfigs = currentLevelConfigs;
       break;
     }
 
     case 'treemap': {
       config.showLegend = false;
+      config.treemapAlgorithm = config.treemapAlgorithm || 'squarified';
+      config.treemapSquareRatio = 0.618;
+      config.treemapRoam = true;
+      config.treemapNodeClick = 'zoomToNode';
+      config.treemapShowBreadcrumb = true;
+      config.treemapGapWidth = 3;
+      config.treemapBorderWidth = 1;
+      config.treemapBorderColorMode = 'auto_bg';
+      config.treemapColorMappingBy = 'index';
+      config.treemapColorAlphaMin = 0.5;
+      config.treemapColorAlphaMax = 1;
+
+      const numLevels = sankeyFields?.length || 2;
+      if (numLevels >= 2) {
+        config.treemapVisibleDepth = Math.min(numLevels, 2);
+        config.treemapShowUpperLabel = true;
+        config.treemapUpperLabelHeight = 22;
+        config.treemapUpperLabelFontSize = 11;
+        config.treemapUpperLabelColorMode = 'auto_contrast';
+        config.treemapUpperLabelBgColor = 'rgba(0, 0, 0, 0.45)';
+        config.treemapUpperLabelFormat = 'name_count';
+      } else {
+        config.treemapVisibleDepth = 1;
+        config.treemapShowUpperLabel = false;
+        config.treemapShowLabels = true;
+        config.treemapLabelFormat = 'name_count_percent';
+      }
+
+      const currentTreemapLevelConfigs = { ...(config.treemapLevelConfigs || {}) };
+      for (let l = 0; l <= Math.max(numLevels, 2); l++) {
+        if (!currentTreemapLevelConfigs[l]) {
+          currentTreemapLevelConfigs[l] = {
+            gapWidth: l === 0 ? 0 : (l === 1 ? 4 : 2),
+            borderWidth: l === 0 ? 0 : (l === 1 ? 2 : 1),
+            borderRadius: l === 1 ? 3 : 1,
+            colorAlpha: l <= 1 ? [0.7, 1] : [0.4, 1],
+            showUpperLabel: l === 1,
+            upperLabelHeight: 22,
+            upperLabelFontSize: 11,
+            upperLabelColorMode: 'auto_contrast',
+            showLabel: l >= 1,
+            fontSize: l === 1 ? 12 : 10,
+            fontWeight: l === 1 ? 'bold' : '600',
+            colorMode: 'auto_contrast',
+            labelFormat: l === 1 ? 'name_count' : 'name_count_percent'
+          };
+        }
+      }
+      config.treemapLevelConfigs = currentTreemapLevelConfigs;
       break;
     }
 
@@ -330,17 +414,67 @@ export function optimizeSlotConfig(
 
     case 'radar': {
       config.radarShape = 'polygon';
+      config.radarStartAngle = 90;
       config.radarSplitNumber = 5;
+      config.radarSplitAreaTheme = 'stepped';
+      config.radarRadius = 62;
       config.radarLineWidth = 2.5;
       config.radarAreaOpacity = 28;
-      config.radarTargetLineStyle = 'dashed';
-      config.radarTargetLineWidth = 2;
-      config.radarTargetAreaOpacity = 8;
-      config.radarTargetColor = config.radarTargetColor || '#d9534f';
-      config.radarBaselineColor = config.radarBaselineColor || '#0275d8';
       config.radarIndicatorFormat = config.radarIndicatorFormat || 'two_line';
+      config.radarAxisNameLineHeight = config.radarAxisNameLineHeight || 14;
+      config.radarAxisNameFontWeight = config.radarAxisNameFontWeight || 'bold';
+      config.radarAxisNameFontStyle = config.radarAxisNameFontStyle || 'normal';
       config.showLegend = true;
       config.legendPosition = 'bottom';
+
+      if (config.radarMode === 'prevalence_vs_tag_share') {
+        config.radarBaselineColor = config.radarBaselineColor || '#1b5e20';
+        config.radarTagShareColor = config.radarTagShareColor || '#c62828';
+        config.radarTagShareLineStyle = 'dashed';
+        config.radarTagShareLineWidth = 2;
+        config.radarTagShareAreaOpacity = 12;
+        config.radarTagShareSymbol = 'rect';
+        config.radarTagShareSymbolSize = 5;
+      } else {
+        config.radarTargetLineStyle = 'dashed';
+        config.radarTargetLineWidth = 2;
+        config.radarTargetAreaOpacity = 8;
+        config.radarTargetColor = config.radarTargetColor || '#d9534f';
+        config.radarBaselineColor = config.radarBaselineColor || '#0275d8';
+      }
+      break;
+    }
+
+    case 'funnel': {
+      config.funnelAlign = 'center';
+      config.funnelGap = 2;
+      config.showDataLabels = true;
+      break;
+    }
+
+    case 'gauge': {
+      config.gaugeDialWidth = config.gaugeDialWidth || 14;
+      config.gaugePointerWidth = config.gaugePointerWidth || 6;
+      break;
+    }
+
+    case 'graph': {
+      config.graphRepulsion = config.graphRepulsion || 120;
+      config.graphEdgeLength = config.graphEdgeLength || 90;
+      config.graphCurveness = config.graphCurveness || 0.2;
+      config.showDataLabels = true;
+      break;
+    }
+
+    case 'calendar': {
+      config.calendarCellSize = config.calendarCellSize || 14;
+      config.showLegend = true;
+      break;
+    }
+
+    case 'boxplot': {
+      config.boxplotBoxWidth = config.boxplotBoxWidth || 24;
+      config.boxplotShowScatter = true;
       break;
     }
 

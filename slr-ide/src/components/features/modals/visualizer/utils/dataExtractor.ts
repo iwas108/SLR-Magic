@@ -14,6 +14,11 @@ import {
   discoverCohortVariables,
   validateCohortDataIntegrity,
   formatVariableDisplayName,
+  extractTokenPaths,
+  discoverColonDepth,
+  discoverColonSegmentsByLevel,
+  parseColonTaxonomySegments,
+  extractCleanTaxonomyKey,
   DiscoveredVariable,
   DataIntegrityReport
 } from '@/lib/services/cohort-data-source';
@@ -27,14 +32,19 @@ export {
   resolveCohortFieldValue,
   discoverCohortVariables,
   validateCohortDataIntegrity,
-  formatVariableDisplayName
+  formatVariableDisplayName,
+  extractTokenPaths,
+  discoverColonDepth,
+  discoverColonSegmentsByLevel,
+  parseColonTaxonomySegments,
+  extractCleanTaxonomyKey
 };
 export type { ColonPathHierarchyResult, DiscoveredVariable, DataIntegrityReport };
 
 export function getFieldValue(
   paper: any, 
   fieldKey: string, 
-  options: TaxonomyOptions = {}
+  options: TaxonomyOptions & { segmentIdx?: number; scopeFilter?: string } = {}
 ): string[] {
   return resolveCohortFieldValue(paper, fieldKey, options);
 }
@@ -54,6 +64,7 @@ export function getMappedFieldValue(
     levelCustomGroups?: Record<number, string[]>;
     levelCustomGroupLinks?: Record<number, Record<string, string>>;
     levelTargetFields?: Record<number, string>;
+    segmentIdx?: number;
     scopeFilter?: string;
     sankeyFields?: string[];
     primaryField?: string;

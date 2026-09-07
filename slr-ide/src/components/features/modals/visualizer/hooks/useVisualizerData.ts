@@ -15,7 +15,7 @@ import {
 } from '../utils/dataExtractor';
 import { filterValuesForParent } from '../generators/hierarchicalGenerators';
 import { balanceQuotasToHundred } from '../utils/quotaBalancer';
-import { discoverCohortVariables, DiscoveredVariable } from '@/lib/services/cohort-data-source';
+import { discoverCohortVariables, DiscoveredVariable, auditCohortSafety } from '@/lib/services/cohort-data-source';
 import type { 
   SlotId,
   SlotConfig, 
@@ -347,6 +347,40 @@ export function useVisualizerData(params: {
     setEnableManualOverrides(false);
   }, [setManualCategoryValues, setEnableManualOverrides]);
 
+  // Fast Re-grouping: Clear All Custom Groups
+  const clearAllCustomGroups = useCallback((levelIdx?: number) => {
+    if (levelIdx !== undefined) {
+      setLevelCustomGroups((prev: Record<number, string[]>) => ({
+        ...prev,
+        [levelIdx]: []
+      }));
+      setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({
+        ...prev,
+        [levelIdx]: {}
+      }));
+    } else {
+      setLevelCustomGroups({});
+      setLevelCustomGroupLinks({});
+    }
+  }, [setLevelCustomGroups, setLevelCustomGroupLinks]);
+
+  // Fast Re-grouping: Unassign All Items (Preserves Groups)
+  const unassignAllItems = useCallback((levelIdx?: number) => {
+    if (levelIdx !== undefined) {
+      setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({
+        ...prev,
+        [levelIdx]: {}
+      }));
+    } else {
+      setLevelCustomGroupLinks({});
+    }
+  }, [setLevelCustomGroupLinks]);
+
+  // Cohort Safety Audit Result
+  const safetyAuditResult = useMemo(() => {
+    return auditCohortSafety(papers);
+  }, [papers]);
+
   return {
     customCategoryMap,
     setCustomCategoryMap,
@@ -369,6 +403,9 @@ export function useVisualizerData(params: {
     detectedCategories,
     realDataBreakdown,
     normalizePercentages,
-    revertToRealData
+    revertToRealData,
+    clearAllCustomGroups,
+    unassignAllItems,
+    safetyAuditResult
   };
 }

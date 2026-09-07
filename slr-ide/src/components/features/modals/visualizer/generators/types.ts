@@ -3,6 +3,7 @@ import type {
   ThemePalette, 
   MetricMode, 
   SunburstLevelConfig,
+  TreemapLevelConfig,
   DecimalPrecision,
   RatioStyle,
   DisplayFormatTemplate,
@@ -70,7 +71,12 @@ export interface ChartGeneratorContext {
   sankeyLevelLabelDistances?: Record<number, number>;
   sankeyLevelNodeWidths?: Record<number, number>;
   sankeyLevelPathFilters?: Record<number, string>;
-  sankeySort?: 'desc' | 'asc' | 'alpha' | 'none';
+  sankeySort?: 'desc' | 'asc' | 'alpha' | 'barycenter' | 'none';
+  sankeyPinUnstatedToBottom?: boolean;
+  sankeyFlowConservation?: boolean;
+  sankeyLevelNodeOrders?: Record<number, string[]>;
+  levelSegmentIndices?: Record<number, number>;
+  levelScopeFilters?: Record<number, string>;
   sankeyLabelLineHeight?: number;
   sankeyLabelFontWeight?: 'normal' | 'bold' | '500' | '600' | '700' | '800';
   sankeyLabelColor?: string;
@@ -137,6 +143,8 @@ export interface ChartGeneratorContext {
   axisLabelSuffixY?: string;
   axisLabelIntervalX?: 'auto' | number;
   axisLabelIntervalY?: 'auto' | number;
+  axisLabelDecimalsX?: number;
+  axisLabelDecimalsY?: number;
   showGridLinesX?: boolean;
   showGridLinesY?: boolean;
   gridLineStyle?: AxisGridLineStyle;
@@ -200,6 +208,7 @@ export interface ChartGeneratorContext {
   barLabelShowZero?: boolean;
   barLabelMinThreshold?: number;
   barLabelLineHeight?: number;
+  barLabelDecimals?: number;
   barValueCeiling?: number | 'auto';
   barValueInterval?: number | 'auto';
   legendDistance?: number;
@@ -210,6 +219,12 @@ export interface ChartGeneratorContext {
   legendFontSize?: number;
   legendFontStyle?: 'normal' | 'italic';
   legendOverflow?: 'break' | 'truncate' | 'none';
+  legendContextScope?: 'global_cohort' | 'parent_layer' | 'surviving_flow' | 'in_chart_flow';
+  syncLegendAndBarMetrics?: boolean;
+  barLabelContextScope?: 'auto' | 'layer_share' | 'cohort_prevalence' | 'global_cohort';
+  legendShowParentPrefix?: boolean;
+  legendParentPrefixStyle?: 'abbreviated' | 'full' | 'colliding_only' | 'none';
+  legendGroupByParent?: boolean;
   fitOffsetX?: number;
   fitOffsetY?: number;
   containerPadding?: number;
@@ -267,33 +282,112 @@ export interface ChartGeneratorContext {
   piePadAngle?: number;
   pieCornerRadius?: number;
   treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
+  treemapSquareRatio?: number;
   treemapVisibleDepth?: number;
   treemapGapWidth?: number;
   treemapBorderWidth?: number;
+  treemapBorderRadius?: number;
+  treemapBorderColorMode?: 'auto_bg' | 'contrast' | 'custom' | 'transparent';
+  treemapBorderColor?: string;
+  treemapNodeClick?: 'zoomToNode' | 'link' | 'none';
+  treemapRoam?: boolean | 'scale' | 'move';
+  treemapDrillDownIcon?: string;
+  treemapShowBreadcrumb?: boolean;
+  treemapBreadcrumbPosition?: 'bottom' | 'top';
+  treemapBreadcrumbHeight?: number;
+  treemapColorMode?: 'branch_gradient' | 'depth_fade' | 'value_weighted' | 'level_discrete' | 'rainbow_discrete';
+  treemapCohortMode?: 'grouped' | 'global';
+  treemapColorMappingBy?: 'index' | 'value' | 'id';
+  treemapColorAlphaMin?: number;
+  treemapColorAlphaMax?: number;
+  treemapColorSaturationMin?: number;
+  treemapColorSaturationMax?: number;
+  treemapShowLabels?: boolean;
+  treemapLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapLabelFormat?: DisplayFormatTemplate;
+  treemapLabelFontSize?: number;
+  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapLabelFontStyle?: 'normal' | 'italic';
+  treemapLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapLabelColor?: string;
+  treemapLabelOverflow?: 'break' | 'truncate' | 'none';
+  treemapShowUpperLabel?: boolean;
+  treemapUpperLabelHeight?: number;
+  treemapUpperLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapUpperLabelFormat?: DisplayFormatTemplate;
+  treemapUpperLabelFontSize?: number;
+  treemapUpperLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapUpperLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapUpperLabelColor?: string;
+  treemapUpperLabelBgColor?: string;
+  treemapVisibleMin?: number;
+  treemapChildrenVisibleMin?: number;
+  treemapLevelConfigs?: Record<number, TreemapLevelConfig>;
+  sunburstColorMode?: 'branch_gradient' | 'parent_flow' | 'value_weighted_tint' | 'level_discrete' | 'rainbow_discrete';
   heatmapCellRadius?: number;
   heatmapColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
   radarShape?: 'polygon' | 'circle';
+  radarStartAngle?: number;
   radarAreaOpacity?: number;
   radarLineWidth?: number;
   radarSplitNumber?: number;
   radarRadius?: number;
+  radarCenterX?: number;
+  radarCenterY?: number;
   radarAxisLine?: boolean;
+  radarAxisLineWidth?: number;
+  radarAxisLineType?: 'solid' | 'dashed' | 'dotted';
+  radarAxisLineColor?: string;
+  radarAxisLineOpacity?: number;
   radarSplitLine?: boolean;
+  radarSplitLineWidth?: number;
+  radarSplitLineType?: 'solid' | 'dashed' | 'dotted';
+  radarSplitLineColor?: string;
+  radarSplitLineOpacity?: number;
   radarSplitArea?: boolean;
+  radarSplitAreaTheme?: 'stepped' | 'subtle' | 'solid' | 'none' | 'custom';
+  radarSplitAreaOpacity?: number;
+  radarSplitAreaColor1?: string;
+  radarSplitAreaColor2?: string;
+  radarShowAxisScaleLabels?: boolean;
+  radarAxisScaleFormat?: 'percent' | 'integer' | 'decimal_1' | 'raw';
+  radarAxisScaleFontSize?: number;
+  radarAxisScaleFontWeight?: 'normal' | '500' | '600' | 'bold';
+  radarAxisScaleColor?: string;
+  radarScaleMax?: number;
+  radarScaleMin?: number;
+  radarShowAxisTicks?: boolean;
   radarAxisNameMargin?: number;
   radarAxisNameWidth?: number;
   radarAxisNameOverflow?: 'break' | 'truncate' | 'none';
   radarAxisNameLineHeight?: number;
+  radarAxisNameFontSize?: number;
+  radarAxisNameFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarAxisNameFontStyle?: 'normal' | 'italic';
+  radarAxisNameColor?: string;
+  radarAxisNameBgColor?: string;
+  radarAxisNamePadding?: number;
+  radarAxisNameBorderRadius?: number;
+  radarAxisNameBorderColor?: string;
+  radarAxisNameBorderWidth?: number;
   radarShowDataLabels?: boolean;
   radarDataLabelPosition?: 'top' | 'bottom' | 'inside' | 'outside' | 'auto';
+  radarDataLabelFontSize?: number;
+  radarDataLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarDataLabelColor?: string;
+  radarDataLabelFormat?: 'percent' | 'integer' | 'decimal_1' | 'raw' | 'detailed';
+  radarSmooth?: boolean;
   radarBaselineLineStyle?: 'solid' | 'dashed' | 'dotted';
   radarBaselineSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
   radarBaselineSymbolSize?: number;
-  radarMode?: 'multi_variable' | 'qa_breakdown';
+  radarBaselineAreaColor?: string;
+  radarBaselineSymbolBorderColor?: string;
+  radarBaselineSymbolBorderWidth?: number;
+  radarMode?: 'multi_variable' | 'qa_breakdown' | 'prevalence_vs_tag_share';
   radarVariables?: string[];
   radarVariableAliases?: Record<string, string>;
   radarVariableTargets?: Record<string, number>;
-  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'name_only';
+  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'asymmetry_two_line' | 'name_only';
   radarShowTarget?: boolean;
   radarTargetName?: string;
   radarTargetValue?: number;
@@ -301,10 +395,19 @@ export interface ChartGeneratorContext {
   radarTargetLineWidth?: number;
   radarTargetColor?: string;
   radarTargetAreaOpacity?: number;
+  radarTargetSmooth?: boolean;
   radarTargetSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
   radarTargetSymbolSize?: number;
   radarBaselineName?: string;
   radarBaselineColor?: string;
+  radarTagShareName?: string;
+  radarTagShareColor?: string;
+  radarTagShareLineStyle?: 'dashed' | 'solid' | 'dotted';
+  radarTagShareLineWidth?: number;
+  radarTagShareAreaOpacity?: number;
+  radarTagShareSmooth?: boolean;
+  radarTagShareSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarTagShareSymbolSize?: number;
   funnelAlign?: 'center' | 'left' | 'right';
   funnelGap?: number;
   funnelNeckWidth?: number;
@@ -356,6 +459,15 @@ export interface ChartGeneratorContext {
   calendarCellSize?: number;
   calendarYear?: string;
   stackedNormalized?: boolean;
+  stackedReverseOrder?: boolean;
+  stackedPerBarSorting?: 'none' | 'desc' | 'asc';
+  stackedShowTotalLabel?: boolean;
+  stackedTotalLabelPosition?: 'top' | 'insideTop' | 'right';
+  stackedTotalLabelFormat?: string;
+  stackedTotalFontSize?: number;
+  stackedTotalFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  stackedTotalColor?: string;
+  stackedTotalLabelDistance?: number;
   legendType?: 'plain' | 'scroll';
   legendAlign?: 'auto' | 'left' | 'right';
   legendIcon?: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line';
@@ -405,10 +517,9 @@ export interface ChartGeneratorContext {
   heatmapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   heatmapLabelFontStyle?: 'normal' | 'italic';
   heatmapLabelColor?: string;
-  treemapLabelFontSize?: number;
-  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
-  treemapLabelFontStyle?: 'normal' | 'italic';
-  treemapLabelColor?: string;
+  treemapLabelWidth?: number;
+  treemapLabelLineHeight?: number;
+  treemapUpperLabelWidth?: number;
   funnelLabelFontSize?: number;
   funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   funnelLabelFontStyle?: 'normal' | 'italic';
@@ -424,6 +535,29 @@ export interface ChartGeneratorContext {
   barGridBottom?: number;
   barGridLeft?: number;
   barGridRight?: number;
+  // Universal Layout Margins & Canvas Padding
+  gridMarginAuto?: boolean;
+  gridMarginTop?: number;
+  gridMarginBottom?: number;
+  gridMarginLeft?: number;
+  gridMarginRight?: number;
+  // Universal Data Label Styling
+  universalLabelPosition?: 'auto' | 'top' | 'bottom' | 'left' | 'right' | 'inside' | 'insideLeft' | 'insideRight' | 'outside';
+  universalLabelDistance?: number;
+  universalLabelOverflow?: 'break' | 'truncate' | 'none';
+  universalMaxLabelWidth?: number;
+  universalLabelLineHeight?: number;
+  universalLabelFontSize?: number;
+  universalLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  universalLabelFontStyle?: 'normal' | 'italic';
+  universalLabelColor?: string;
+  universalLabelColorMode?: 'auto_contrast' | 'theme' | 'custom';
+  universalLabelRotate?: number;
+  universalLabelMinThreshold?: number;
+  universalLabelShowZero?: boolean;
+  // Smart Color Modes & Interactive Propagation
+  smartColorMode?: 'branch_gradient' | 'parent_flow' | 'value_weighted_tint' | 'level_discrete' | 'rainbow_discrete';
+  smartColorPropagation?: 'auto_children' | 'discrete_only';
   scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
   otherCategoryLabel?: string;
 }
@@ -444,6 +578,10 @@ export function formatLegendLabel(
     useTildeForCoarse?: boolean;
     ratioStyle?: RatioStyle;
     forceCohortDenominator?: boolean;
+    parentName?: string;
+    parentPaperCount?: number;
+    parentTagCount?: number;
+    showParentPrefix?: boolean;
   },
   format: DisplayFormatTemplate = 'name'
 ): string {
@@ -462,7 +600,11 @@ export function formatLegendLabel(
     decimalPrecision: stats.decimalPrecision ?? 0,
     useTildeForCoarse: stats.useTildeForCoarse ?? true,
     ratioStyle: stats.ratioStyle ?? 'n_over_N',
-    forceCohortDenominator: stats.forceCohortDenominator ?? false
+    forceCohortDenominator: stats.forceCohortDenominator ?? false,
+    parentName: stats.parentName,
+    parentPaperCount: stats.parentPaperCount,
+    parentTagCount: stats.parentTagCount,
+    showParentPrefix: stats.showParentPrefix
   });
 }
 

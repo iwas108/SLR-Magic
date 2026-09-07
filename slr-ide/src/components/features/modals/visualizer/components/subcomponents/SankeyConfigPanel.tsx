@@ -66,6 +66,10 @@ export function SankeyConfigPanel() {
     setSankeyLevelNodeWidths,
     sankeySort = 'desc',
     setSankeySort,
+    sankeyPinUnstatedToBottom = true,
+    setSankeyPinUnstatedToBottom,
+    sankeyFlowConservation = true,
+    setSankeyFlowConservation,
     sankeyLabelLineHeight = 14,
     setSankeyLabelLineHeight,
     sankeyLabelFontWeight = '600',
@@ -240,10 +244,59 @@ export function SankeyConfigPanel() {
               className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
             >
               <option value="desc">Descending (Largest on Top)</option>
+              <option value="barycenter">Destination-Weighted (Barycenter - Min Crossings)</option>
               <option value="asc">Ascending (Smallest on Top)</option>
               <option value="alpha">Alphabetical (A → Z)</option>
               <option value="none">Natural Data Order</option>
             </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Omitted / Unspecified Placement</label>
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !sankeyPinUnstatedToBottom;
+                setSankeyPinUnstatedToBottom?.(nextVal);
+                if (nextVal) {
+                  setSankeyLayoutIterations?.(0);
+                } else if (sankeyLayoutIterations === 0) {
+                  setSankeyLayoutIterations?.(32);
+                }
+              }}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                sankeyPinUnstatedToBottom
+                  ? 'bg-primary/10 border-primary/40 text-primary'
+                  : 'bg-card border-border text-muted-foreground'
+              }`}
+              title="When enabled, categories like 'Optimization Omitted in Literature' or 'Unspecified' are anchored at the bottom edge of their flow tier (enforces 0 relaxation iterations)"
+            >
+              <span>Anchor Omitted to Bottom</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-background border border-border">
+                {sankeyPinUnstatedToBottom ? 'Enabled' : 'Disabled'}
+              </span>
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground block">Proportional Flow Conservation</label>
+            <button
+              type="button"
+              onClick={() => {
+                setSankeyFlowConservation?.(!sankeyFlowConservation);
+              }}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all ${
+                sankeyFlowConservation
+                  ? 'bg-primary/10 border-primary/40 text-primary'
+                  : 'bg-card border-border text-muted-foreground'
+              }`}
+              title="Ensures strict mathematical volume conservation (Sum(Inflow) = Node Width = Sum(Outflow)) with identical column heights across all tiers, preventing ribbon flaring or tapering."
+            >
+              <span>Conserve Flow (Equal Heights)</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-background border border-border">
+                {sankeyFlowConservation ? 'Enabled' : 'Disabled'}
+              </span>
+            </button>
           </div>
 
           <div className="space-y-1">
@@ -314,16 +367,28 @@ export function SankeyConfigPanel() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-foreground">Relaxation Iterations ({sankeyLayoutIterations})</label>
-              <span className="text-[10px] text-muted-foreground">{sankeyLayoutIterations === 0 ? 'Exact Data Order' : 'Optimized Flow Crossings'}</span>
+              <label className="text-xs font-bold text-foreground">
+                Relaxation Iterations ({sankeyPinUnstatedToBottom ? 0 : sankeyLayoutIterations})
+              </label>
+              <span className={`text-[10px] ${sankeyPinUnstatedToBottom || sankeyLayoutIterations === 0 ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                {sankeyPinUnstatedToBottom 
+                  ? '0 (Exact Data Order - Bottom-Anchored)' 
+                  : (sankeyLayoutIterations === 0 ? 'Exact Data Order' : 'Optimized Flow Crossings')}
+              </span>
             </div>
             <input
               type="range"
               min={0}
               max={120}
               step={4}
-              value={sankeyLayoutIterations}
-              onChange={(e) => setSankeyLayoutIterations(Number(e.target.value))}
+              value={sankeyPinUnstatedToBottom ? 0 : sankeyLayoutIterations}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setSankeyLayoutIterations(val);
+                if (val > 0 && sankeyPinUnstatedToBottom) {
+                  setSankeyPinUnstatedToBottom(false);
+                }
+              }}
               className="w-full accent-primary"
             />
           </div>
@@ -739,28 +804,6 @@ export function SankeyConfigPanel() {
                     <option value="bottom">Bottom of Node</option>
                   </select>
                 </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-foreground block">
-                    Max Categories Limit {curMaxNodes > 0 ? `(${curMaxNodes} items)` : '(No Limit)'}
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={50}
-                    value={curMaxNodes || ''}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setSankeyMaxNodes({
-                        ...sankeyMaxNodes,
-                        [clampedLevelIdx]: val > 0 ? val : 0
-                      });
-                    }}
-                    placeholder="0 (Unlimited)"
-                    className="w-full bg-secondary/40 border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
-                  />
-                </div>
-
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-foreground block">Tail Grouping Label Style</label>
                   <select

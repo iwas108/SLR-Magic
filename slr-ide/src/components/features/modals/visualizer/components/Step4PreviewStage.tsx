@@ -279,7 +279,7 @@ export function Step4PreviewStage() {
                   camera.handleAutoFit({
                     chartType: slotsConfig.slot_a?.chartType,
                     hasLegend: slotsConfig.slot_a?.showLegend,
-                    legendPos: slotsConfig.slot_a?.sunburstLegendPosition || slotsConfig.slot_a?.barLegendPosition
+                    legendPos: slotsConfig.slot_a?.legendPosition || slotsConfig.slot_a?.sunburstLegendPosition || slotsConfig.slot_a?.barLegendPosition
                   });
                   config.autoOptimizeAllSlots(papers, props.umbrellanizerMap);
                 }}

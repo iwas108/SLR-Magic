@@ -7,6 +7,7 @@ import type {
   SlotId, 
   SlotConfig, 
   SunburstLevelConfig,
+  TreemapLevelConfig,
   DecimalPrecision,
   RatioStyle,
   DisplayFormatTemplate,
@@ -236,7 +237,7 @@ export function useVisualizerConfig(params: {
   const sankeyNodeBorderWidth = currentSlotConfig.sankeyNodeBorderWidth ?? 1;
   const setSankeyNodeBorderWidth = useCallback((v: number) => updateActiveSlot({ sankeyNodeBorderWidth: v }), [updateActiveSlot]);
 
-  const sankeyLayoutIterations = currentSlotConfig.sankeyLayoutIterations ?? 32;
+  const sankeyLayoutIterations = currentSlotConfig.sankeyLayoutIterations ?? (currentSlotConfig.sankeyPinUnstatedToBottom !== false ? 0 : 32);
   const setSankeyLayoutIterations = useCallback((v: number) => updateActiveSlot({ sankeyLayoutIterations: v }), [updateActiveSlot]);
 
   const sankeyDraggable = currentSlotConfig.sankeyDraggable ?? true;
@@ -279,7 +280,28 @@ export function useVisualizerConfig(params: {
   const setSankeyLevelPathFilters = useCallback((v: Record<number, string>) => updateActiveSlot({ sankeyLevelPathFilters: v }), [updateActiveSlot]);
 
   const sankeySort = currentSlotConfig.sankeySort || 'desc';
-  const setSankeySort = useCallback((v: 'desc' | 'asc' | 'alpha' | 'none') => updateActiveSlot({ sankeySort: v }), [updateActiveSlot]);
+  const setSankeySort = useCallback((v: 'desc' | 'asc' | 'alpha' | 'barycenter' | 'none') => updateActiveSlot({ sankeySort: v }), [updateActiveSlot]);
+
+  const sankeyPinUnstatedToBottom = currentSlotConfig.sankeyPinUnstatedToBottom ?? true;
+  const setSankeyPinUnstatedToBottom = useCallback((v: boolean) => updateActiveSlot({ sankeyPinUnstatedToBottom: v }), [updateActiveSlot]);
+
+  const sankeyFlowConservation = currentSlotConfig.sankeyFlowConservation ?? true;
+  const setSankeyFlowConservation = useCallback((v: boolean) => updateActiveSlot({ sankeyFlowConservation: v }), [updateActiveSlot]);
+
+  const sankeyLevelNodeOrders = currentSlotConfig.sankeyLevelNodeOrders || {};
+  const setSankeyLevelNodeOrders = useCallback((v: Record<number, string[]>) => updateActiveSlot({ sankeyLevelNodeOrders: v }), [updateActiveSlot]);
+
+  const levelSegmentIndices = currentSlotConfig.levelSegmentIndices || {};
+  const setLevelSegmentIndices = useCallback((v: Record<number, number> | ((prev: Record<number, number>) => Record<number, number>)) => {
+    const nextVal = typeof v === 'function' ? v(currentSlotConfig.levelSegmentIndices || {}) : v;
+    updateActiveSlot({ levelSegmentIndices: nextVal });
+  }, [currentSlotConfig.levelSegmentIndices, updateActiveSlot]);
+
+  const levelScopeFilters = currentSlotConfig.levelScopeFilters || {};
+  const setLevelScopeFilters = useCallback((v: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => {
+    const nextVal = typeof v === 'function' ? v(currentSlotConfig.levelScopeFilters || {}) : v;
+    updateActiveSlot({ levelScopeFilters: nextVal });
+  }, [currentSlotConfig.levelScopeFilters, updateActiveSlot]);
 
   const sankeyLabelLineHeight = currentSlotConfig.sankeyLabelLineHeight ?? 14;
   const setSankeyLabelLineHeight = useCallback((v: number) => updateActiveSlot({ sankeyLabelLineHeight: v }), [updateActiveSlot]);
@@ -307,6 +329,9 @@ export function useVisualizerConfig(params: {
 
   const sunburstEmphasisFocus = currentSlotConfig.sunburstEmphasisFocus;
   const setSunburstEmphasisFocus = useCallback((v: 'ancestor' | 'descendant' | 'none') => updateActiveSlot({ sunburstEmphasisFocus: v }), [updateActiveSlot]);
+
+  const sunburstColorMode = currentSlotConfig.sunburstColorMode || 'branch_gradient';
+  const setSunburstColorMode = useCallback((v: 'branch_gradient' | 'level_discrete' | 'rainbow_discrete') => updateActiveSlot({ sunburstColorMode: v }), [updateActiveSlot]);
 
   const barSorting = currentSlotConfig.barSorting;
   const setBarSorting = useCallback((v: 'desc' | 'asc' | 'none') => updateActiveSlot({ barSorting: v }), [updateActiveSlot]);
@@ -442,26 +467,32 @@ export function useVisualizerConfig(params: {
   const axisLabelOverflowX = currentSlotConfig.axisLabelOverflowX || 'none';
   const setAxisLabelOverflowX = useCallback((v: 'none' | 'truncate' | 'break') => updateActiveSlot({ axisLabelOverflowX: v }), [updateActiveSlot]);
 
-  const axisLabelOverflowY = currentSlotConfig.axisLabelOverflowY || 'none';
-  const setAxisLabelOverflowY = useCallback((v: 'none' | 'truncate' | 'break') => updateActiveSlot({ axisLabelOverflowY: v }), [updateActiveSlot]);
+  const axisLabelOverflowY = currentSlotConfig.axisLabelOverflowY || currentSlotConfig.barYAxisOverflow || 'none';
+  const setAxisLabelOverflowY = useCallback((v: 'none' | 'truncate' | 'break') => updateActiveSlot({ axisLabelOverflowY: v, barYAxisOverflow: v }), [updateActiveSlot]);
 
   const axisLabelWidthX = currentSlotConfig.axisLabelWidthX ?? 120;
   const setAxisLabelWidthX = useCallback((v: number) => updateActiveSlot({ axisLabelWidthX: v }), [updateActiveSlot]);
 
-  const axisLabelWidthY = currentSlotConfig.axisLabelWidthY ?? 140;
-  const setAxisLabelWidthY = useCallback((v: number) => updateActiveSlot({ axisLabelWidthY: v }), [updateActiveSlot]);
+  const axisLabelWidthY = currentSlotConfig.axisLabelWidthY ?? currentSlotConfig.barYAxisWidth ?? 140;
+  const setAxisLabelWidthY = useCallback((v: number) => updateActiveSlot({ axisLabelWidthY: v, barYAxisWidth: v }), [updateActiveSlot]);
 
   const axisLabelLineHeightX = currentSlotConfig.axisLabelLineHeightX ?? 14;
   const setAxisLabelLineHeightX = useCallback((v: number) => updateActiveSlot({ axisLabelLineHeightX: v }), [updateActiveSlot]);
 
-  const axisLabelLineHeightY = currentSlotConfig.axisLabelLineHeightY ?? 14;
-  const setAxisLabelLineHeightY = useCallback((v: number) => updateActiveSlot({ axisLabelLineHeightY: v }), [updateActiveSlot]);
+  const axisLabelLineHeightY = currentSlotConfig.axisLabelLineHeightY ?? currentSlotConfig.barLineHeight ?? 14;
+  const setAxisLabelLineHeightY = useCallback((v: number) => updateActiveSlot({ axisLabelLineHeightY: v, barLineHeight: v }), [updateActiveSlot]);
 
   const axisLabelFormatX = currentSlotConfig.axisLabelFormatX || 'auto';
   const setAxisLabelFormatX = useCallback((v: AxisLabelFormat) => updateActiveSlot({ axisLabelFormatX: v }), [updateActiveSlot]);
 
   const axisLabelFormatY = currentSlotConfig.axisLabelFormatY || 'auto';
   const setAxisLabelFormatY = useCallback((v: AxisLabelFormat) => updateActiveSlot({ axisLabelFormatY: v }), [updateActiveSlot]);
+
+  const axisLabelDecimalsX = currentSlotConfig.axisLabelDecimalsX;
+  const setAxisLabelDecimalsX = useCallback((v?: number) => updateActiveSlot({ axisLabelDecimalsX: v }), [updateActiveSlot]);
+
+  const axisLabelDecimalsY = currentSlotConfig.axisLabelDecimalsY;
+  const setAxisLabelDecimalsY = useCallback((v?: number) => updateActiveSlot({ axisLabelDecimalsY: v }), [updateActiveSlot]);
 
   const axisLabelPrefixX = currentSlotConfig.axisLabelPrefixX || '';
   const setAxisLabelPrefixX = useCallback((v: string) => updateActiveSlot({ axisLabelPrefixX: v }), [updateActiveSlot]);
@@ -506,17 +537,17 @@ export function useVisualizerConfig(params: {
   const barLabelFormat = currentSlotConfig.barLabelFormat || 'ratio_percent';
   const setBarLabelFormat = useCallback((v: DisplayFormatTemplate) => updateActiveSlot({ barLabelFormat: v, labelFormat: v }), [updateActiveSlot]);
 
-  const barYAxisWidth = currentSlotConfig.barYAxisWidth;
-  const setBarYAxisWidth = useCallback((v: number) => updateActiveSlot({ barYAxisWidth: v }), [updateActiveSlot]);
+  const barYAxisWidth = currentSlotConfig.barYAxisWidth ?? currentSlotConfig.axisLabelWidthY ?? 140;
+  const setBarYAxisWidth = useCallback((v: number) => updateActiveSlot({ barYAxisWidth: v, axisLabelWidthY: v }), [updateActiveSlot]);
 
-  const barYAxisOverflow = currentSlotConfig.barYAxisOverflow;
-  const setBarYAxisOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ barYAxisOverflow: v }), [updateActiveSlot]);
+  const barYAxisOverflow = currentSlotConfig.barYAxisOverflow || currentSlotConfig.axisLabelOverflowY || 'break';
+  const setBarYAxisOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ barYAxisOverflow: v, axisLabelOverflowY: v }), [updateActiveSlot]);
 
-  const barLineHeight = currentSlotConfig.barLineHeight ?? 14;
-  const setBarLineHeight = useCallback((v: number) => updateActiveSlot({ barLineHeight: v }), [updateActiveSlot]);
+  const barLineHeight = currentSlotConfig.barLineHeight ?? currentSlotConfig.axisLabelLineHeightY ?? 14;
+  const setBarLineHeight = useCallback((v: number) => updateActiveSlot({ barLineHeight: v, axisLabelLineHeightY: v }), [updateActiveSlot]);
 
-  const barYAxisFontSize = currentSlotConfig.barYAxisFontSize ?? 11;
-  const setBarYAxisFontSize = useCallback((v: number) => updateActiveSlot({ barYAxisFontSize: v }), [updateActiveSlot]);
+  const barYAxisFontSize = currentSlotConfig.barYAxisFontSize ?? currentSlotConfig.axisLabelFontSizeY ?? 11;
+  const setBarYAxisFontSize = useCallback((v: number) => updateActiveSlot({ barYAxisFontSize: v, axisLabelFontSizeY: v }), [updateActiveSlot]);
 
   const barYAxisFontWeight = currentSlotConfig.barYAxisFontWeight || 'normal';
   const setBarYAxisFontWeight = useCallback((v: AxisFontWeight) => updateActiveSlot({ barYAxisFontWeight: v, axisLabelFontWeightY: v }), [updateActiveSlot]);
@@ -550,6 +581,24 @@ export function useVisualizerConfig(params: {
 
   const barLegendPosition = currentSlotConfig.barLegendPosition;
   const setBarLegendPosition = useCallback((v: 'top-left' | 'top-center' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right') => updateActiveSlot({ barLegendPosition: v }), [updateActiveSlot]);
+
+  const legendContextScope = currentSlotConfig.legendContextScope || 'global_cohort';
+  const setLegendContextScope = useCallback((v: 'global_cohort' | 'parent_layer' | 'surviving_flow' | 'in_chart_flow') => updateActiveSlot({ legendContextScope: v }), [updateActiveSlot]);
+
+  const syncLegendAndBarMetrics = currentSlotConfig.syncLegendAndBarMetrics ?? false;
+  const setSyncLegendAndBarMetrics = useCallback((v: boolean) => updateActiveSlot({ syncLegendAndBarMetrics: v }), [updateActiveSlot]);
+
+  const barLabelContextScope = currentSlotConfig.barLabelContextScope || 'auto';
+  const setBarLabelContextScope = useCallback((v: 'auto' | 'layer_share' | 'cohort_prevalence' | 'global_cohort') => updateActiveSlot({ barLabelContextScope: v }), [updateActiveSlot]);
+
+  const legendShowParentPrefix = currentSlotConfig.legendShowParentPrefix ?? false;
+  const setLegendShowParentPrefix = useCallback((v: boolean) => updateActiveSlot({ legendShowParentPrefix: v }), [updateActiveSlot]);
+
+  const legendParentPrefixStyle = currentSlotConfig.legendParentPrefixStyle || 'abbreviated';
+  const setLegendParentPrefixStyle = useCallback((v: 'abbreviated' | 'full' | 'colliding_only' | 'none') => updateActiveSlot({ legendParentPrefixStyle: v }), [updateActiveSlot]);
+
+  const legendGroupByParent = currentSlotConfig.legendGroupByParent ?? true;
+  const setLegendGroupByParent = useCallback((v: boolean) => updateActiveSlot({ legendGroupByParent: v }), [updateActiveSlot]);
 
   const sunburstLegendLevel = currentSlotConfig.sunburstLegendLevel;
   const setSunburstLegendLevel = useCallback((v: number) => updateActiveSlot({ sunburstLegendLevel: v }), [updateActiveSlot]);
@@ -620,6 +669,9 @@ export function useVisualizerConfig(params: {
   const barLabelLineHeight = currentSlotConfig.barLabelLineHeight ?? 14;
   const setBarLabelLineHeight = useCallback((v: number) => updateActiveSlot({ barLabelLineHeight: v }), [updateActiveSlot]);
 
+  const barLabelDecimals = currentSlotConfig.barLabelDecimals;
+  const setBarLabelDecimals = useCallback((v?: number) => updateActiveSlot({ barLabelDecimals: v }), [updateActiveSlot]);
+
   const barValueCeiling = currentSlotConfig.barValueCeiling ?? 'auto';
   const setBarValueCeiling = useCallback((v: number | 'auto') => updateActiveSlot({ barValueCeiling: v }), [updateActiveSlot]);
 
@@ -649,6 +701,12 @@ export function useVisualizerConfig(params: {
 
   const legendOverflow = currentSlotConfig.legendOverflow || 'break';
   const setLegendOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ legendOverflow: v }), [updateActiveSlot]);
+
+  const legendFontFamily = currentSlotConfig.legendFontFamily || 'inherit';
+  const setLegendFontFamily = useCallback((v: string) => updateActiveSlot({ legendFontFamily: v }), [updateActiveSlot]);
+
+  const legendLetterSpacing = currentSlotConfig.legendLetterSpacing ?? 0;
+  const setLegendLetterSpacing = useCallback((v: number) => updateActiveSlot({ legendLetterSpacing: v }), [updateActiveSlot]);
 
   const customCategoryMap = currentSlotConfig.customCategoryMap || {};
   const setCustomCategoryMap = useCallback((v: Record<string, Record<string, string>>) => updateActiveSlot({ customCategoryMap: v }), [updateActiveSlot]);
@@ -816,6 +874,9 @@ export function useVisualizerConfig(params: {
   const treemapAlgorithm = currentSlotConfig.treemapAlgorithm || 'squarified';
   const setTreemapAlgorithm = useCallback((v: 'squarified' | 'sliceAndDice' | 'binary') => updateActiveSlot({ treemapAlgorithm: v }), [updateActiveSlot]);
 
+  const treemapSquareRatio = currentSlotConfig.treemapSquareRatio ?? (0.5 * (1 + Math.sqrt(5)));
+  const setTreemapSquareRatio = useCallback((v: number) => updateActiveSlot({ treemapSquareRatio: v }), [updateActiveSlot]);
+
   const treemapVisibleDepth = currentSlotConfig.treemapVisibleDepth ?? 2;
   const setTreemapVisibleDepth = useCallback((v: number) => updateActiveSlot({ treemapVisibleDepth: v }), [updateActiveSlot]);
 
@@ -824,6 +885,126 @@ export function useVisualizerConfig(params: {
 
   const treemapBorderWidth = currentSlotConfig.treemapBorderWidth ?? 2;
   const setTreemapBorderWidth = useCallback((v: number) => updateActiveSlot({ treemapBorderWidth: v }), [updateActiveSlot]);
+
+  const treemapBorderRadius = currentSlotConfig.treemapBorderRadius ?? 0;
+  const setTreemapBorderRadius = useCallback((v: number) => updateActiveSlot({ treemapBorderRadius: v }), [updateActiveSlot]);
+
+  const treemapBorderColorMode = currentSlotConfig.treemapBorderColorMode || 'auto_bg';
+  const setTreemapBorderColorMode = useCallback((v: 'auto_bg' | 'contrast' | 'custom' | 'transparent') => updateActiveSlot({ treemapBorderColorMode: v }), [updateActiveSlot]);
+
+  const treemapBorderColor = currentSlotConfig.treemapBorderColor || '';
+  const setTreemapBorderColor = useCallback((v: string) => updateActiveSlot({ treemapBorderColor: v }), [updateActiveSlot]);
+
+  const treemapNodeClick = currentSlotConfig.treemapNodeClick || 'zoomToNode';
+  const setTreemapNodeClick = useCallback((v: 'zoomToNode' | 'link' | 'none') => updateActiveSlot({ treemapNodeClick: v }), [updateActiveSlot]);
+
+  const treemapRoam = currentSlotConfig.treemapRoam ?? false;
+  const setTreemapRoam = useCallback((v: boolean | 'scale' | 'move') => updateActiveSlot({ treemapRoam: v }), [updateActiveSlot]);
+
+  const treemapDrillDownIcon = currentSlotConfig.treemapDrillDownIcon || '▶';
+  const setTreemapDrillDownIcon = useCallback((v: string) => updateActiveSlot({ treemapDrillDownIcon: v }), [updateActiveSlot]);
+
+  const treemapShowBreadcrumb = currentSlotConfig.treemapShowBreadcrumb ?? false;
+  const setTreemapShowBreadcrumb = useCallback((v: boolean) => updateActiveSlot({ treemapShowBreadcrumb: v }), [updateActiveSlot]);
+
+  const treemapBreadcrumbPosition = currentSlotConfig.treemapBreadcrumbPosition || 'bottom';
+  const setTreemapBreadcrumbPosition = useCallback((v: 'bottom' | 'top') => updateActiveSlot({ treemapBreadcrumbPosition: v }), [updateActiveSlot]);
+
+  const treemapBreadcrumbHeight = currentSlotConfig.treemapBreadcrumbHeight ?? 22;
+  const setTreemapBreadcrumbHeight = useCallback((v: number) => updateActiveSlot({ treemapBreadcrumbHeight: v }), [updateActiveSlot]);
+
+  const treemapColorMode = currentSlotConfig.treemapColorMode || 'branch_gradient';
+  const setTreemapColorMode = useCallback((v: 'branch_gradient' | 'depth_fade' | 'value_weighted' | 'level_discrete' | 'rainbow_discrete') => updateActiveSlot({ treemapColorMode: v }), [updateActiveSlot]);
+
+  const treemapCohortMode = currentSlotConfig.treemapCohortMode || 'grouped';
+  const setTreemapCohortMode = useCallback((v: 'grouped' | 'global') => updateActiveSlot({ treemapCohortMode: v }), [updateActiveSlot]);
+
+  const treemapColorMappingBy = currentSlotConfig.treemapColorMappingBy || 'index';
+  const setTreemapColorMappingBy = useCallback((v: 'index' | 'value' | 'id') => updateActiveSlot({ treemapColorMappingBy: v }), [updateActiveSlot]);
+
+  const treemapColorAlphaMin = currentSlotConfig.treemapColorAlphaMin ?? 0.7;
+  const setTreemapColorAlphaMin = useCallback((v: number) => updateActiveSlot({ treemapColorAlphaMin: v }), [updateActiveSlot]);
+
+  const treemapColorAlphaMax = currentSlotConfig.treemapColorAlphaMax ?? 1.0;
+  const setTreemapColorAlphaMax = useCallback((v: number) => updateActiveSlot({ treemapColorAlphaMax: v }), [updateActiveSlot]);
+
+  const treemapColorSaturationMin = currentSlotConfig.treemapColorSaturationMin ?? 0.6;
+  const setTreemapColorSaturationMin = useCallback((v: number) => updateActiveSlot({ treemapColorSaturationMin: v }), [updateActiveSlot]);
+
+  const treemapColorSaturationMax = currentSlotConfig.treemapColorSaturationMax ?? 1.0;
+  const setTreemapColorSaturationMax = useCallback((v: number) => updateActiveSlot({ treemapColorSaturationMax: v }), [updateActiveSlot]);
+
+  const treemapShowLabels = currentSlotConfig.treemapShowLabels ?? true;
+  const setTreemapShowLabels = useCallback((v: boolean) => updateActiveSlot({ treemapShowLabels: v }), [updateActiveSlot]);
+
+  const treemapLabelPosition = currentSlotConfig.treemapLabelPosition || 'inside';
+  const setTreemapLabelPosition = useCallback((v: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center') => updateActiveSlot({ treemapLabelPosition: v }), [updateActiveSlot]);
+
+  const treemapLabelFormat = currentSlotConfig.treemapLabelFormat || 'name_count';
+  const setTreemapLabelFormat = useCallback((v: DisplayFormatTemplate) => updateActiveSlot({ treemapLabelFormat: v }), [updateActiveSlot]);
+
+  const treemapLabelFontSize = currentSlotConfig.treemapLabelFontSize ?? 11;
+  const setTreemapLabelFontSize = useCallback((v: number) => updateActiveSlot({ treemapLabelFontSize: v }), [updateActiveSlot]);
+
+  const treemapLabelFontWeight = currentSlotConfig.treemapLabelFontWeight || '600';
+  const setTreemapLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ treemapLabelFontWeight: v }), [updateActiveSlot]);
+
+  const treemapLabelFontStyle = currentSlotConfig.treemapLabelFontStyle || 'normal';
+  const setTreemapLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ treemapLabelFontStyle: v }), [updateActiveSlot]);
+
+  const treemapLabelColorMode = currentSlotConfig.treemapLabelColorMode || 'auto_contrast';
+  const setTreemapLabelColorMode = useCallback((v: 'auto_contrast' | 'inherit_theme' | 'custom') => updateActiveSlot({ treemapLabelColorMode: v }), [updateActiveSlot]);
+
+  const treemapLabelColor = currentSlotConfig.treemapLabelColor || '';
+  const setTreemapLabelColor = useCallback((v: string) => updateActiveSlot({ treemapLabelColor: v }), [updateActiveSlot]);
+
+  const treemapLabelOverflow = currentSlotConfig.treemapLabelOverflow || 'break';
+  const setTreemapLabelOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ treemapLabelOverflow: v }), [updateActiveSlot]);
+
+  const treemapLabelWidth = currentSlotConfig.treemapLabelWidth ?? 120;
+  const setTreemapLabelWidth = useCallback((v: number) => updateActiveSlot({ treemapLabelWidth: v }), [updateActiveSlot]);
+
+  const treemapLabelLineHeight = currentSlotConfig.treemapLabelLineHeight ?? 14;
+  const setTreemapLabelLineHeight = useCallback((v: number) => updateActiveSlot({ treemapLabelLineHeight: v }), [updateActiveSlot]);
+
+  const treemapShowUpperLabel = currentSlotConfig.treemapShowUpperLabel ?? false;
+  const setTreemapShowUpperLabel = useCallback((v: boolean) => updateActiveSlot({ treemapShowUpperLabel: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelHeight = currentSlotConfig.treemapUpperLabelHeight ?? 24;
+  const setTreemapUpperLabelHeight = useCallback((v: number) => updateActiveSlot({ treemapUpperLabelHeight: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelWidth = currentSlotConfig.treemapUpperLabelWidth;
+  const setTreemapUpperLabelWidth = useCallback((v: number | undefined) => updateActiveSlot({ treemapUpperLabelWidth: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelPosition = currentSlotConfig.treemapUpperLabelPosition || 'inside';
+  const setTreemapUpperLabelPosition = useCallback((v: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center') => updateActiveSlot({ treemapUpperLabelPosition: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelFormat = currentSlotConfig.treemapUpperLabelFormat || 'name';
+  const setTreemapUpperLabelFormat = useCallback((v: DisplayFormatTemplate) => updateActiveSlot({ treemapUpperLabelFormat: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelFontSize = currentSlotConfig.treemapUpperLabelFontSize ?? 11;
+  const setTreemapUpperLabelFontSize = useCallback((v: number) => updateActiveSlot({ treemapUpperLabelFontSize: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelFontWeight = currentSlotConfig.treemapUpperLabelFontWeight || 'bold';
+  const setTreemapUpperLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ treemapUpperLabelFontWeight: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelColorMode = currentSlotConfig.treemapUpperLabelColorMode || 'auto_contrast';
+  const setTreemapUpperLabelColorMode = useCallback((v: 'auto_contrast' | 'inherit_theme' | 'custom') => updateActiveSlot({ treemapUpperLabelColorMode: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelColor = currentSlotConfig.treemapUpperLabelColor || '';
+  const setTreemapUpperLabelColor = useCallback((v: string) => updateActiveSlot({ treemapUpperLabelColor: v }), [updateActiveSlot]);
+
+  const treemapUpperLabelBgColor = currentSlotConfig.treemapUpperLabelBgColor || 'rgba(0,0,0,0.18)';
+  const setTreemapUpperLabelBgColor = useCallback((v: string) => updateActiveSlot({ treemapUpperLabelBgColor: v }), [updateActiveSlot]);
+
+  const treemapVisibleMin = currentSlotConfig.treemapVisibleMin ?? 10;
+  const setTreemapVisibleMin = useCallback((v: number) => updateActiveSlot({ treemapVisibleMin: v }), [updateActiveSlot]);
+
+  const treemapChildrenVisibleMin = currentSlotConfig.treemapChildrenVisibleMin ?? 0;
+  const setTreemapChildrenVisibleMin = useCallback((v: number) => updateActiveSlot({ treemapChildrenVisibleMin: v }), [updateActiveSlot]);
+
+  const treemapLevelConfigs = currentSlotConfig.treemapLevelConfigs || {};
+  const setTreemapLevelConfigs = useCallback((v: Record<number, TreemapLevelConfig>) => updateActiveSlot({ treemapLevelConfigs: v }), [updateActiveSlot]);
 
   const heatmapCellRadius = currentSlotConfig.heatmapCellRadius ?? 0;
   const setHeatmapCellRadius = useCallback((v: number) => updateActiveSlot({ heatmapCellRadius: v }), [updateActiveSlot]);
@@ -843,8 +1024,11 @@ export function useVisualizerConfig(params: {
   const radarSplitNumber = currentSlotConfig.radarSplitNumber ?? 5;
   const setRadarSplitNumber = useCallback((v: number) => updateActiveSlot({ radarSplitNumber: v }), [updateActiveSlot]);
 
+  const radarStartAngle = currentSlotConfig.radarStartAngle ?? 90;
+  const setRadarStartAngle = useCallback((v: number) => updateActiveSlot({ radarStartAngle: v }), [updateActiveSlot]);
+
   const radarMode = currentSlotConfig.radarMode || 'multi_variable';
-  const setRadarMode = useCallback((v: 'multi_variable' | 'qa_breakdown') => updateActiveSlot({ radarMode: v }), [updateActiveSlot]);
+  const setRadarMode = useCallback((v: 'multi_variable' | 'qa_breakdown' | 'prevalence_vs_tag_share') => updateActiveSlot({ radarMode: v }), [updateActiveSlot]);
 
   const radarVariables = currentSlotConfig.radarVariables || [];
   const setRadarVariables = useCallback((v: string[]) => updateActiveSlot({ radarVariables: v }), [updateActiveSlot]);
@@ -858,14 +1042,80 @@ export function useVisualizerConfig(params: {
   const radarRadius = currentSlotConfig.radarRadius ?? 65;
   const setRadarRadius = useCallback((v: number) => updateActiveSlot({ radarRadius: v }), [updateActiveSlot]);
 
+  const radarCenterX = currentSlotConfig.radarCenterX ?? 50;
+  const setRadarCenterX = useCallback((v: number | undefined) => updateActiveSlot({ radarCenterX: v }), [updateActiveSlot]);
+
+  const radarCenterY = currentSlotConfig.radarCenterY ?? 52;
+  const setRadarCenterY = useCallback((v: number | undefined) => updateActiveSlot({ radarCenterY: v }), [updateActiveSlot]);
+
   const radarAxisLine = currentSlotConfig.radarAxisLine ?? true;
   const setRadarAxisLine = useCallback((v: boolean) => updateActiveSlot({ radarAxisLine: v }), [updateActiveSlot]);
+
+  const radarAxisLineWidth = currentSlotConfig.radarAxisLineWidth ?? 1;
+  const setRadarAxisLineWidth = useCallback((v: number) => updateActiveSlot({ radarAxisLineWidth: v }), [updateActiveSlot]);
+
+  const radarAxisLineType = currentSlotConfig.radarAxisLineType || 'solid';
+  const setRadarAxisLineType = useCallback((v: 'solid' | 'dashed' | 'dotted') => updateActiveSlot({ radarAxisLineType: v }), [updateActiveSlot]);
+
+  const radarAxisLineColor = currentSlotConfig.radarAxisLineColor || '';
+  const setRadarAxisLineColor = useCallback((v: string) => updateActiveSlot({ radarAxisLineColor: v }), [updateActiveSlot]);
+
+  const radarAxisLineOpacity = currentSlotConfig.radarAxisLineOpacity ?? 100;
+  const setRadarAxisLineOpacity = useCallback((v: number) => updateActiveSlot({ radarAxisLineOpacity: v }), [updateActiveSlot]);
 
   const radarSplitLine = currentSlotConfig.radarSplitLine ?? true;
   const setRadarSplitLine = useCallback((v: boolean) => updateActiveSlot({ radarSplitLine: v }), [updateActiveSlot]);
 
+  const radarSplitLineWidth = currentSlotConfig.radarSplitLineWidth ?? 1;
+  const setRadarSplitLineWidth = useCallback((v: number) => updateActiveSlot({ radarSplitLineWidth: v }), [updateActiveSlot]);
+
+  const radarSplitLineType = currentSlotConfig.radarSplitLineType || 'solid';
+  const setRadarSplitLineType = useCallback((v: 'solid' | 'dashed' | 'dotted') => updateActiveSlot({ radarSplitLineType: v }), [updateActiveSlot]);
+
+  const radarSplitLineColor = currentSlotConfig.radarSplitLineColor || '';
+  const setRadarSplitLineColor = useCallback((v: string) => updateActiveSlot({ radarSplitLineColor: v }), [updateActiveSlot]);
+
+  const radarSplitLineOpacity = currentSlotConfig.radarSplitLineOpacity ?? 100;
+  const setRadarSplitLineOpacity = useCallback((v: number) => updateActiveSlot({ radarSplitLineOpacity: v }), [updateActiveSlot]);
+
   const radarSplitArea = currentSlotConfig.radarSplitArea ?? true;
   const setRadarSplitArea = useCallback((v: boolean) => updateActiveSlot({ radarSplitArea: v }), [updateActiveSlot]);
+
+  const radarSplitAreaTheme = currentSlotConfig.radarSplitAreaTheme || 'stepped';
+  const setRadarSplitAreaTheme = useCallback((v: 'stepped' | 'subtle' | 'solid' | 'none' | 'custom') => updateActiveSlot({ radarSplitAreaTheme: v }), [updateActiveSlot]);
+
+  const radarSplitAreaOpacity = currentSlotConfig.radarSplitAreaOpacity ?? 100;
+  const setRadarSplitAreaOpacity = useCallback((v: number) => updateActiveSlot({ radarSplitAreaOpacity: v }), [updateActiveSlot]);
+
+  const radarSplitAreaColor1 = currentSlotConfig.radarSplitAreaColor1 || '';
+  const setRadarSplitAreaColor1 = useCallback((v: string) => updateActiveSlot({ radarSplitAreaColor1: v }), [updateActiveSlot]);
+
+  const radarSplitAreaColor2 = currentSlotConfig.radarSplitAreaColor2 || '';
+  const setRadarSplitAreaColor2 = useCallback((v: string) => updateActiveSlot({ radarSplitAreaColor2: v }), [updateActiveSlot]);
+
+  const radarShowAxisScaleLabels = currentSlotConfig.radarShowAxisScaleLabels ?? false;
+  const setRadarShowAxisScaleLabels = useCallback((v: boolean) => updateActiveSlot({ radarShowAxisScaleLabels: v }), [updateActiveSlot]);
+
+  const radarAxisScaleFormat = currentSlotConfig.radarAxisScaleFormat || 'percent';
+  const setRadarAxisScaleFormat = useCallback((v: 'percent' | 'integer' | 'decimal_1' | 'raw') => updateActiveSlot({ radarAxisScaleFormat: v }), [updateActiveSlot]);
+
+  const radarAxisScaleFontSize = currentSlotConfig.radarAxisScaleFontSize ?? 9;
+  const setRadarAxisScaleFontSize = useCallback((v: number) => updateActiveSlot({ radarAxisScaleFontSize: v }), [updateActiveSlot]);
+
+  const radarAxisScaleFontWeight = currentSlotConfig.radarAxisScaleFontWeight || '500';
+  const setRadarAxisScaleFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold') => updateActiveSlot({ radarAxisScaleFontWeight: v }), [updateActiveSlot]);
+
+  const radarAxisScaleColor = currentSlotConfig.radarAxisScaleColor || '';
+  const setRadarAxisScaleColor = useCallback((v: string) => updateActiveSlot({ radarAxisScaleColor: v }), [updateActiveSlot]);
+
+  const radarScaleMax = currentSlotConfig.radarScaleMax ?? 100;
+  const setRadarScaleMax = useCallback((v: number | undefined) => updateActiveSlot({ radarScaleMax: v }), [updateActiveSlot]);
+
+  const radarScaleMin = currentSlotConfig.radarScaleMin ?? 0;
+  const setRadarScaleMin = useCallback((v: number | undefined) => updateActiveSlot({ radarScaleMin: v }), [updateActiveSlot]);
+
+  const radarShowAxisTicks = currentSlotConfig.radarShowAxisTicks ?? true;
+  const setRadarShowAxisTicks = useCallback((v: boolean) => updateActiveSlot({ radarShowAxisTicks: v }), [updateActiveSlot]);
 
   const radarAxisNameMargin = currentSlotConfig.radarAxisNameMargin ?? 15;
   const setRadarAxisNameMargin = useCallback((v: number) => updateActiveSlot({ radarAxisNameMargin: v }), [updateActiveSlot]);
@@ -879,11 +1129,53 @@ export function useVisualizerConfig(params: {
   const radarAxisNameLineHeight = currentSlotConfig.radarAxisNameLineHeight ?? 14;
   const setRadarAxisNameLineHeight = useCallback((v: number) => updateActiveSlot({ radarAxisNameLineHeight: v }), [updateActiveSlot]);
 
+  const radarAxisNameFontSize = currentSlotConfig.radarAxisNameFontSize ?? currentSlotConfig.radarLabelFontSize;
+  const setRadarAxisNameFontSize = useCallback((v: number | undefined) => updateActiveSlot({ radarAxisNameFontSize: v, radarLabelFontSize: v }), [updateActiveSlot]);
+
+  const radarAxisNameFontWeight = currentSlotConfig.radarAxisNameFontWeight || currentSlotConfig.radarLabelFontWeight || 'bold';
+  const setRadarAxisNameFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ radarAxisNameFontWeight: v, radarLabelFontWeight: v }), [updateActiveSlot]);
+
+  const radarAxisNameFontStyle = currentSlotConfig.radarAxisNameFontStyle || currentSlotConfig.radarLabelFontStyle || 'normal';
+  const setRadarAxisNameFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ radarAxisNameFontStyle: v, radarLabelFontStyle: v }), [updateActiveSlot]);
+
+  const radarAxisNameColor = currentSlotConfig.radarAxisNameColor ?? currentSlotConfig.radarLabelColor ?? '';
+  const setRadarAxisNameColor = useCallback((v: string) => updateActiveSlot({ radarAxisNameColor: v, radarLabelColor: v }), [updateActiveSlot]);
+
+  const radarAxisNameBgColor = currentSlotConfig.radarAxisNameBgColor || '';
+  const setRadarAxisNameBgColor = useCallback((v: string) => updateActiveSlot({ radarAxisNameBgColor: v }), [updateActiveSlot]);
+
+  const radarAxisNamePadding = currentSlotConfig.radarAxisNamePadding ?? 0;
+  const setRadarAxisNamePadding = useCallback((v: number) => updateActiveSlot({ radarAxisNamePadding: v }), [updateActiveSlot]);
+
+  const radarAxisNameBorderRadius = currentSlotConfig.radarAxisNameBorderRadius ?? 4;
+  const setRadarAxisNameBorderRadius = useCallback((v: number) => updateActiveSlot({ radarAxisNameBorderRadius: v }), [updateActiveSlot]);
+
+  const radarAxisNameBorderColor = currentSlotConfig.radarAxisNameBorderColor || '';
+  const setRadarAxisNameBorderColor = useCallback((v: string) => updateActiveSlot({ radarAxisNameBorderColor: v }), [updateActiveSlot]);
+
+  const radarAxisNameBorderWidth = currentSlotConfig.radarAxisNameBorderWidth ?? 0;
+  const setRadarAxisNameBorderWidth = useCallback((v: number) => updateActiveSlot({ radarAxisNameBorderWidth: v }), [updateActiveSlot]);
+
   const radarShowDataLabels = currentSlotConfig.radarShowDataLabels ?? false;
   const setRadarShowDataLabels = useCallback((v: boolean) => updateActiveSlot({ radarShowDataLabels: v }), [updateActiveSlot]);
 
   const radarDataLabelPosition = currentSlotConfig.radarDataLabelPosition || 'top';
   const setRadarDataLabelPosition = useCallback((v: 'top' | 'bottom' | 'inside' | 'outside' | 'auto') => updateActiveSlot({ radarDataLabelPosition: v }), [updateActiveSlot]);
+
+  const radarDataLabelFontSize = currentSlotConfig.radarDataLabelFontSize ?? 10;
+  const setRadarDataLabelFontSize = useCallback((v: number) => updateActiveSlot({ radarDataLabelFontSize: v }), [updateActiveSlot]);
+
+  const radarDataLabelFontWeight = currentSlotConfig.radarDataLabelFontWeight || 'bold';
+  const setRadarDataLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ radarDataLabelFontWeight: v }), [updateActiveSlot]);
+
+  const radarDataLabelColor = currentSlotConfig.radarDataLabelColor || '';
+  const setRadarDataLabelColor = useCallback((v: string) => updateActiveSlot({ radarDataLabelColor: v }), [updateActiveSlot]);
+
+  const radarDataLabelFormat = currentSlotConfig.radarDataLabelFormat || 'percent';
+  const setRadarDataLabelFormat = useCallback((v: 'percent' | 'integer' | 'decimal_1' | 'raw' | 'detailed') => updateActiveSlot({ radarDataLabelFormat: v }), [updateActiveSlot]);
+
+  const radarSmooth = currentSlotConfig.radarSmooth ?? false;
+  const setRadarSmooth = useCallback((v: boolean) => updateActiveSlot({ radarSmooth: v }), [updateActiveSlot]);
 
   const radarBaselineLineStyle = currentSlotConfig.radarBaselineLineStyle || 'solid';
   const setRadarBaselineLineStyle = useCallback((v: 'solid' | 'dashed' | 'dotted') => updateActiveSlot({ radarBaselineLineStyle: v }), [updateActiveSlot]);
@@ -894,6 +1186,15 @@ export function useVisualizerConfig(params: {
   const radarBaselineSymbolSize = currentSlotConfig.radarBaselineSymbolSize ?? 6;
   const setRadarBaselineSymbolSize = useCallback((v: number) => updateActiveSlot({ radarBaselineSymbolSize: v }), [updateActiveSlot]);
 
+  const radarBaselineAreaColor = currentSlotConfig.radarBaselineAreaColor || '';
+  const setRadarBaselineAreaColor = useCallback((v: string) => updateActiveSlot({ radarBaselineAreaColor: v }), [updateActiveSlot]);
+
+  const radarBaselineSymbolBorderColor = currentSlotConfig.radarBaselineSymbolBorderColor || '';
+  const setRadarBaselineSymbolBorderColor = useCallback((v: string) => updateActiveSlot({ radarBaselineSymbolBorderColor: v }), [updateActiveSlot]);
+
+  const radarBaselineSymbolBorderWidth = currentSlotConfig.radarBaselineSymbolBorderWidth ?? 0;
+  const setRadarBaselineSymbolBorderWidth = useCallback((v: number) => updateActiveSlot({ radarBaselineSymbolBorderWidth: v }), [updateActiveSlot]);
+
   const radarTargetSymbol = currentSlotConfig.radarTargetSymbol || 'circle';
   const setRadarTargetSymbol = useCallback((v: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none') => updateActiveSlot({ radarTargetSymbol: v }), [updateActiveSlot]);
 
@@ -901,7 +1202,7 @@ export function useVisualizerConfig(params: {
   const setRadarTargetSymbolSize = useCallback((v: number) => updateActiveSlot({ radarTargetSymbolSize: v }), [updateActiveSlot]);
 
   const radarIndicatorFormat = currentSlotConfig.radarIndicatorFormat || 'two_line';
-  const setRadarIndicatorFormat = useCallback((v: 'two_line' | 'single_line' | 'ratio_percent' | 'name_only') => updateActiveSlot({ radarIndicatorFormat: v }), [updateActiveSlot]);
+  const setRadarIndicatorFormat = useCallback((v: 'two_line' | 'single_line' | 'ratio_percent' | 'asymmetry_two_line' | 'name_only') => updateActiveSlot({ radarIndicatorFormat: v }), [updateActiveSlot]);
 
   const radarShowTarget = currentSlotConfig.radarShowTarget ?? true;
   const setRadarShowTarget = useCallback((v: boolean) => updateActiveSlot({ radarShowTarget: v }), [updateActiveSlot]);
@@ -924,11 +1225,38 @@ export function useVisualizerConfig(params: {
   const radarTargetAreaOpacity = currentSlotConfig.radarTargetAreaOpacity ?? 8;
   const setRadarTargetAreaOpacity = useCallback((v: number) => updateActiveSlot({ radarTargetAreaOpacity: v }), [updateActiveSlot]);
 
+  const radarTargetSmooth = currentSlotConfig.radarTargetSmooth ?? false;
+  const setRadarTargetSmooth = useCallback((v: boolean) => updateActiveSlot({ radarTargetSmooth: v }), [updateActiveSlot]);
+
   const radarBaselineName = currentSlotConfig.radarBaselineName || 'Empirical Cohort Baseline (n={n})';
   const setRadarBaselineName = useCallback((v: string) => updateActiveSlot({ radarBaselineName: v }), [updateActiveSlot]);
 
   const radarBaselineColor = currentSlotConfig.radarBaselineColor || '';
   const setRadarBaselineColor = useCallback((v: string) => updateActiveSlot({ radarBaselineColor: v }), [updateActiveSlot]);
+
+  const radarTagShareName = currentSlotConfig.radarTagShareName || 'Tag Share (% of Disclosed Tags, N={N})';
+  const setRadarTagShareName = useCallback((v: string) => updateActiveSlot({ radarTagShareName: v }), [updateActiveSlot]);
+
+  const radarTagShareColor = currentSlotConfig.radarTagShareColor || '#c62828';
+  const setRadarTagShareColor = useCallback((v: string) => updateActiveSlot({ radarTagShareColor: v }), [updateActiveSlot]);
+
+  const radarTagShareLineStyle = currentSlotConfig.radarTagShareLineStyle || 'dashed';
+  const setRadarTagShareLineStyle = useCallback((v: 'dashed' | 'solid' | 'dotted') => updateActiveSlot({ radarTagShareLineStyle: v }), [updateActiveSlot]);
+
+  const radarTagShareLineWidth = currentSlotConfig.radarTagShareLineWidth ?? 2;
+  const setRadarTagShareLineWidth = useCallback((v: number) => updateActiveSlot({ radarTagShareLineWidth: v }), [updateActiveSlot]);
+
+  const radarTagShareAreaOpacity = currentSlotConfig.radarTagShareAreaOpacity ?? 12;
+  const setRadarTagShareAreaOpacity = useCallback((v: number) => updateActiveSlot({ radarTagShareAreaOpacity: v }), [updateActiveSlot]);
+
+  const radarTagShareSmooth = currentSlotConfig.radarTagShareSmooth ?? false;
+  const setRadarTagShareSmooth = useCallback((v: boolean) => updateActiveSlot({ radarTagShareSmooth: v }), [updateActiveSlot]);
+
+  const radarTagShareSymbol = currentSlotConfig.radarTagShareSymbol || 'rect';
+  const setRadarTagShareSymbol = useCallback((v: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none') => updateActiveSlot({ radarTagShareSymbol: v }), [updateActiveSlot]);
+
+  const radarTagShareSymbolSize = currentSlotConfig.radarTagShareSymbolSize ?? 5;
+  const setRadarTagShareSymbolSize = useCallback((v: number) => updateActiveSlot({ radarTagShareSymbolSize: v }), [updateActiveSlot]);
 
   const funnelAlign = currentSlotConfig.funnelAlign || 'center';
   const setFunnelAlign = useCallback((v: 'center' | 'left' | 'right') => updateActiveSlot({ funnelAlign: v }), [updateActiveSlot]);
@@ -1083,6 +1411,39 @@ export function useVisualizerConfig(params: {
   const stackedNormalized = currentSlotConfig.stackedNormalized ?? false;
   const setStackedNormalized = useCallback((v: boolean) => updateActiveSlot({ stackedNormalized: v }), [updateActiveSlot]);
 
+  const stackedReverseOrder = currentSlotConfig.stackedReverseOrder ?? false;
+  const setStackedReverseOrder = useCallback((v: boolean) => updateActiveSlot({ stackedReverseOrder: v }), [updateActiveSlot]);
+
+  const stackedPerBarSorting = currentSlotConfig.stackedPerBarSorting || 'none';
+  const setStackedPerBarSorting = useCallback((v: 'none' | 'desc' | 'asc') => updateActiveSlot({ stackedPerBarSorting: v }), [updateActiveSlot]);
+
+  const stackedShowTotalLabel = currentSlotConfig.stackedShowTotalLabel ?? false;
+  const setStackedShowTotalLabel = useCallback((v: boolean) => updateActiveSlot({ stackedShowTotalLabel: v }), [updateActiveSlot]);
+
+  const stackedTotalLabelPosition = currentSlotConfig.stackedTotalLabelPosition || 'top';
+  const setStackedTotalLabelPosition = useCallback((v: 'top' | 'insideTop' | 'right') => updateActiveSlot({ stackedTotalLabelPosition: v }), [updateActiveSlot]);
+
+  const stackedTotalLabelFormat = currentSlotConfig.stackedTotalLabelFormat || '{total}';
+  const setStackedTotalLabelFormat = useCallback((v: string) => updateActiveSlot({ stackedTotalLabelFormat: v }), [updateActiveSlot]);
+
+  const stackedTotalFontSize = currentSlotConfig.stackedTotalFontSize ?? 11;
+  const setStackedTotalFontSize = useCallback((v: number) => updateActiveSlot({ stackedTotalFontSize: v }), [updateActiveSlot]);
+
+  const stackedTotalFontWeight = currentSlotConfig.stackedTotalFontWeight || 'bold';
+  const setStackedTotalFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ stackedTotalFontWeight: v }), [updateActiveSlot]);
+
+  const stackedTotalColor = currentSlotConfig.stackedTotalColor || '';
+  const setStackedTotalColor = useCallback((v: string) => updateActiveSlot({ stackedTotalColor: v }), [updateActiveSlot]);
+
+  const stackedTotalLabelDistance = currentSlotConfig.stackedTotalLabelDistance ?? 4;
+  const setStackedTotalLabelDistance = useCallback((v: number) => updateActiveSlot({ stackedTotalLabelDistance: v }), [updateActiveSlot]);
+
+  const primaryScopeFilter = currentSlotConfig.primaryScopeFilter || '';
+  const setPrimaryScopeFilter = useCallback((v: string) => updateActiveSlot({ primaryScopeFilter: v }), [updateActiveSlot]);
+
+  const secondaryScopeFilter = currentSlotConfig.secondaryScopeFilter || '';
+  const setSecondaryScopeFilter = useCallback((v: string) => updateActiveSlot({ secondaryScopeFilter: v }), [updateActiveSlot]);
+
   // Dual-Axis & Horizontal Bar + Scatter Combo Parameters
   const scatterAxisTitle = currentSlotConfig.scatterAxisTitle || 'Boundary Disclosure (%)';
   const setScatterAxisTitle = useCallback((v: string) => updateActiveSlot({ scatterAxisTitle: v }), [updateActiveSlot]);
@@ -1177,18 +1538,6 @@ export function useVisualizerConfig(params: {
   const heatmapLabelColor = currentSlotConfig.heatmapLabelColor || '';
   const setHeatmapLabelColor = useCallback((v: string) => updateActiveSlot({ heatmapLabelColor: v }), [updateActiveSlot]);
 
-  const treemapLabelFontSize = currentSlotConfig.treemapLabelFontSize ?? 12;
-  const setTreemapLabelFontSize = useCallback((v: number) => updateActiveSlot({ treemapLabelFontSize: v }), [updateActiveSlot]);
-
-  const treemapLabelFontWeight = currentSlotConfig.treemapLabelFontWeight || 'bold';
-  const setTreemapLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ treemapLabelFontWeight: v }), [updateActiveSlot]);
-
-  const treemapLabelFontStyle = currentSlotConfig.treemapLabelFontStyle || 'normal';
-  const setTreemapLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ treemapLabelFontStyle: v }), [updateActiveSlot]);
-
-  const treemapLabelColor = currentSlotConfig.treemapLabelColor || '';
-  const setTreemapLabelColor = useCallback((v: string) => updateActiveSlot({ treemapLabelColor: v }), [updateActiveSlot]);
-
   const funnelLabelFontSize = currentSlotConfig.funnelLabelFontSize ?? 11;
   const setFunnelLabelFontSize = useCallback((v: number) => updateActiveSlot({ funnelLabelFontSize: v }), [updateActiveSlot]);
 
@@ -1222,23 +1571,88 @@ export function useVisualizerConfig(params: {
   const barColorCustom = currentSlotConfig.barColorCustom || '';
   const setBarColorCustom = useCallback((v: string) => updateActiveSlot({ barColorCustom: v }), [updateActiveSlot]);
 
-  const barGridTop = currentSlotConfig.barGridTop ?? 115;
-  const setBarGridTop = useCallback((v: number) => updateActiveSlot({ barGridTop: v }), [updateActiveSlot]);
+  const barGridTop = currentSlotConfig.barGridTop ?? currentSlotConfig.gridMarginTop ?? 115;
+  const setBarGridTop = useCallback((v: number) => updateActiveSlot({ barGridTop: v, gridMarginTop: v }), [updateActiveSlot]);
 
-  const barGridBottom = currentSlotConfig.barGridBottom ?? 75;
-  const setBarGridBottom = useCallback((v: number) => updateActiveSlot({ barGridBottom: v }), [updateActiveSlot]);
+  const barGridBottom = currentSlotConfig.barGridBottom ?? currentSlotConfig.gridMarginBottom ?? 75;
+  const setBarGridBottom = useCallback((v: number) => updateActiveSlot({ barGridBottom: v, gridMarginBottom: v }), [updateActiveSlot]);
 
-  const barGridLeft = currentSlotConfig.barGridLeft ?? 20;
-  const setBarGridLeft = useCallback((v: number) => updateActiveSlot({ barGridLeft: v }), [updateActiveSlot]);
+  const barGridLeft = currentSlotConfig.barGridLeft ?? currentSlotConfig.gridMarginLeft ?? 20;
+  const setBarGridLeft = useCallback((v: number) => updateActiveSlot({ barGridLeft: v, gridMarginLeft: v }), [updateActiveSlot]);
 
-  const barGridRight = currentSlotConfig.barGridRight ?? 12;
-  const setBarGridRight = useCallback((v: number) => updateActiveSlot({ barGridRight: v }), [updateActiveSlot]);
+  const barGridRight = currentSlotConfig.barGridRight ?? currentSlotConfig.gridMarginRight ?? 12;
+  const setBarGridRight = useCallback((v: number) => updateActiveSlot({ barGridRight: v, gridMarginRight: v }), [updateActiveSlot]);
 
   const scatterSortMode = currentSlotConfig.scatterSortMode || 'prevalence_desc';
   const setScatterSortMode = useCallback((v: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset') => updateActiveSlot({ scatterSortMode: v }), [updateActiveSlot]);
 
   const otherCategoryLabel = currentSlotConfig.otherCategoryLabel ?? '';
   const setOtherCategoryLabel = useCallback((v: string) => updateActiveSlot({ otherCategoryLabel: v }), [updateActiveSlot]);
+
+  // Universal Layout Margins
+  const gridMarginAuto = currentSlotConfig.gridMarginAuto ?? true;
+  const setGridMarginAuto = useCallback((v: boolean) => updateActiveSlot({ gridMarginAuto: v }), [updateActiveSlot]);
+
+  const gridMarginTop = currentSlotConfig.gridMarginTop ?? currentSlotConfig.barGridTop ?? 45;
+  const setGridMarginTop = useCallback((v: number) => updateActiveSlot({ gridMarginTop: v, barGridTop: v }), [updateActiveSlot]);
+
+  const gridMarginBottom = currentSlotConfig.gridMarginBottom ?? currentSlotConfig.barGridBottom ?? 45;
+  const setGridMarginBottom = useCallback((v: number) => updateActiveSlot({ gridMarginBottom: v, barGridBottom: v }), [updateActiveSlot]);
+
+  const gridMarginLeft = currentSlotConfig.gridMarginLeft ?? currentSlotConfig.barGridLeft ?? 60;
+  const setGridMarginLeft = useCallback((v: number) => updateActiveSlot({ gridMarginLeft: v, barGridLeft: v }), [updateActiveSlot]);
+
+  const gridMarginRight = currentSlotConfig.gridMarginRight ?? currentSlotConfig.barGridRight ?? 45;
+  const setGridMarginRight = useCallback((v: number) => updateActiveSlot({ gridMarginRight: v, barGridRight: v }), [updateActiveSlot]);
+
+  // Universal Data Labels
+  const universalLabelPosition = currentSlotConfig.universalLabelPosition || 'auto';
+  const setUniversalLabelPosition = useCallback((v: 'auto' | 'top' | 'bottom' | 'left' | 'right' | 'inside' | 'insideLeft' | 'insideRight' | 'outside') => updateActiveSlot({ universalLabelPosition: v }), [updateActiveSlot]);
+
+  const universalLabelDistance = currentSlotConfig.universalLabelDistance ?? 6;
+  const setUniversalLabelDistance = useCallback((v: number) => updateActiveSlot({ universalLabelDistance: v }), [updateActiveSlot]);
+
+  const universalLabelOverflow = currentSlotConfig.universalLabelOverflow || 'break';
+  const setUniversalLabelOverflow = useCallback((v: 'break' | 'truncate' | 'none') => updateActiveSlot({ universalLabelOverflow: v }), [updateActiveSlot]);
+
+  const universalMaxLabelWidth = currentSlotConfig.universalMaxLabelWidth ?? 140;
+  const setUniversalMaxLabelWidth = useCallback((v: number) => updateActiveSlot({ universalMaxLabelWidth: v }), [updateActiveSlot]);
+
+  const universalLabelLineHeight = currentSlotConfig.universalLabelLineHeight ?? 14;
+  const setUniversalLabelLineHeight = useCallback((v: number) => updateActiveSlot({ universalLabelLineHeight: v }), [updateActiveSlot]);
+
+  const universalLabelFontSize = currentSlotConfig.universalLabelFontSize;
+  const setUniversalLabelFontSize = useCallback((v: number | undefined) => updateActiveSlot({ universalLabelFontSize: v }), [updateActiveSlot]);
+
+  const universalLabelFontWeight = currentSlotConfig.universalLabelFontWeight || '600';
+  const setUniversalLabelFontWeight = useCallback((v: 'normal' | '500' | '600' | 'bold' | '800') => updateActiveSlot({ universalLabelFontWeight: v }), [updateActiveSlot]);
+
+  const universalLabelFontStyle = currentSlotConfig.universalLabelFontStyle || 'normal';
+  const setUniversalLabelFontStyle = useCallback((v: 'normal' | 'italic') => updateActiveSlot({ universalLabelFontStyle: v }), [updateActiveSlot]);
+
+  const universalLabelColor = currentSlotConfig.universalLabelColor || '';
+  const setUniversalLabelColor = useCallback((v: string) => updateActiveSlot({ universalLabelColor: v }), [updateActiveSlot]);
+
+  const universalLabelColorMode = currentSlotConfig.universalLabelColorMode || 'auto_contrast';
+  const setUniversalLabelColorMode = useCallback((v: 'auto_contrast' | 'theme' | 'custom') => updateActiveSlot({ universalLabelColorMode: v }), [updateActiveSlot]);
+
+  const universalLabelRotate = currentSlotConfig.universalLabelRotate ?? 0;
+  const setUniversalLabelRotate = useCallback((v: number) => updateActiveSlot({ universalLabelRotate: v }), [updateActiveSlot]);
+
+  const universalLabelMinThreshold = currentSlotConfig.universalLabelMinThreshold ?? 0;
+  const setUniversalLabelMinThreshold = useCallback((v: number) => updateActiveSlot({ universalLabelMinThreshold: v }), [updateActiveSlot]);
+
+  const universalLabelShowZero = currentSlotConfig.universalLabelShowZero ?? true;
+  const setUniversalLabelShowZero = useCallback((v: boolean) => updateActiveSlot({ universalLabelShowZero: v }), [updateActiveSlot]);
+
+  // Smart Color Modes
+  const smartColorMode = currentSlotConfig.smartColorMode || currentSlotConfig.sunburstColorMode || 'branch_gradient';
+  const setSmartColorMode = useCallback((v: 'branch_gradient' | 'parent_flow' | 'value_weighted_tint' | 'level_discrete' | 'rainbow_discrete') => {
+    updateActiveSlot({ smartColorMode: v, sunburstColorMode: v as any });
+  }, [updateActiveSlot]);
+
+  const smartColorPropagation = currentSlotConfig.smartColorPropagation || 'auto_children';
+  const setSmartColorPropagation = useCallback((v: 'auto_children' | 'discrete_only') => updateActiveSlot({ smartColorPropagation: v }), [updateActiveSlot]);
 
   return {
     currentStep,
@@ -1301,10 +1715,14 @@ export function useVisualizerConfig(params: {
     setLegendItemWidth,
     legendItemHeight,
     setLegendItemHeight,
+    legendFontFamily,
+    setLegendFontFamily,
     legendFontWeight,
     setLegendFontWeight,
     legendTextColor,
     setLegendTextColor,
+    legendLetterSpacing,
+    setLegendLetterSpacing,
     legendBackgroundColor,
     setLegendBackgroundColor,
     legendBorderColor,
@@ -1379,6 +1797,16 @@ export function useVisualizerConfig(params: {
     setSankeyLevelPathFilters,
     sankeySort,
     setSankeySort,
+    sankeyPinUnstatedToBottom,
+    setSankeyPinUnstatedToBottom,
+    sankeyFlowConservation,
+    setSankeyFlowConservation,
+    sankeyLevelNodeOrders,
+    setSankeyLevelNodeOrders,
+    levelSegmentIndices,
+    setLevelSegmentIndices,
+    levelScopeFilters,
+    setLevelScopeFilters,
     sankeyLabelLineHeight,
     setSankeyLabelLineHeight,
     sankeyLabelFontWeight,
@@ -1397,6 +1825,8 @@ export function useVisualizerConfig(params: {
     setSunburstNodeClick,
     sunburstEmphasisFocus,
     setSunburstEmphasisFocus,
+    sunburstColorMode,
+    setSunburstColorMode,
     barSorting,
     setBarSorting,
     barOrientation,
@@ -1513,6 +1943,10 @@ export function useVisualizerConfig(params: {
     setAxisLabelIntervalX,
     axisLabelIntervalY,
     setAxisLabelIntervalY,
+    axisLabelDecimalsX,
+    setAxisLabelDecimalsX,
+    axisLabelDecimalsY,
+    setAxisLabelDecimalsY,
     // Scientific Gridlines
     showGridLinesX,
     setShowGridLinesX,
@@ -1568,6 +2002,18 @@ export function useVisualizerConfig(params: {
     setBarLegendFormat,
     barLegendPosition,
     setBarLegendPosition,
+    legendContextScope,
+    setLegendContextScope,
+    syncLegendAndBarMetrics,
+    setSyncLegendAndBarMetrics,
+    barLabelContextScope,
+    setBarLabelContextScope,
+    legendShowParentPrefix,
+    setLegendShowParentPrefix,
+    legendParentPrefixStyle,
+    setLegendParentPrefixStyle,
+    legendGroupByParent,
+    setLegendGroupByParent,
     sunburstLegendLevel,
     setSunburstLegendLevel,
     sunburstLegendFormat,
@@ -1606,6 +2052,8 @@ export function useVisualizerConfig(params: {
     setBarLabelMinThreshold,
     barLabelLineHeight,
     setBarLabelLineHeight,
+    barLabelDecimals,
+    setBarLabelDecimals,
     barValueCeiling,
     setBarValueCeiling,
     barValueInterval,
@@ -1736,18 +2184,102 @@ export function useVisualizerConfig(params: {
     setPieCornerRadius,
     treemapAlgorithm,
     setTreemapAlgorithm,
+    treemapSquareRatio,
+    setTreemapSquareRatio,
     treemapVisibleDepth,
     setTreemapVisibleDepth,
     treemapGapWidth,
     setTreemapGapWidth,
     treemapBorderWidth,
     setTreemapBorderWidth,
+    treemapBorderRadius,
+    setTreemapBorderRadius,
+    treemapBorderColorMode,
+    setTreemapBorderColorMode,
+    treemapBorderColor,
+    setTreemapBorderColor,
+    treemapNodeClick,
+    setTreemapNodeClick,
+    treemapRoam,
+    setTreemapRoam,
+    treemapDrillDownIcon,
+    setTreemapDrillDownIcon,
+    treemapShowBreadcrumb,
+    setTreemapShowBreadcrumb,
+    treemapBreadcrumbPosition,
+    setTreemapBreadcrumbPosition,
+    treemapBreadcrumbHeight,
+    setTreemapBreadcrumbHeight,
+    treemapColorMode,
+    setTreemapColorMode,
+    treemapCohortMode,
+    setTreemapCohortMode,
+    treemapColorMappingBy,
+    setTreemapColorMappingBy,
+    treemapColorAlphaMin,
+    setTreemapColorAlphaMin,
+    treemapColorAlphaMax,
+    setTreemapColorAlphaMax,
+    treemapColorSaturationMin,
+    setTreemapColorSaturationMin,
+    treemapColorSaturationMax,
+    setTreemapColorSaturationMax,
+    treemapShowLabels,
+    setTreemapShowLabels,
+    treemapLabelPosition,
+    setTreemapLabelPosition,
+    treemapLabelFormat,
+    setTreemapLabelFormat,
+    treemapLabelFontSize,
+    setTreemapLabelFontSize,
+    treemapLabelFontWeight,
+    setTreemapLabelFontWeight,
+    treemapLabelFontStyle,
+    setTreemapLabelFontStyle,
+    treemapLabelColorMode,
+    setTreemapLabelColorMode,
+    treemapLabelColor,
+    setTreemapLabelColor,
+    treemapLabelOverflow,
+    setTreemapLabelOverflow,
+    treemapLabelWidth,
+    setTreemapLabelWidth,
+    treemapLabelLineHeight,
+    setTreemapLabelLineHeight,
+    treemapShowUpperLabel,
+    setTreemapShowUpperLabel,
+    treemapUpperLabelHeight,
+    setTreemapUpperLabelHeight,
+    treemapUpperLabelWidth,
+    setTreemapUpperLabelWidth,
+    treemapUpperLabelPosition,
+    setTreemapUpperLabelPosition,
+    treemapUpperLabelFormat,
+    setTreemapUpperLabelFormat,
+    treemapUpperLabelFontSize,
+    setTreemapUpperLabelFontSize,
+    treemapUpperLabelFontWeight,
+    setTreemapUpperLabelFontWeight,
+    treemapUpperLabelColorMode,
+    setTreemapUpperLabelColorMode,
+    treemapUpperLabelColor,
+    setTreemapUpperLabelColor,
+    treemapUpperLabelBgColor,
+    setTreemapUpperLabelBgColor,
+    treemapVisibleMin,
+    setTreemapVisibleMin,
+    treemapChildrenVisibleMin,
+    setTreemapChildrenVisibleMin,
+    treemapLevelConfigs,
+    setTreemapLevelConfigs,
     heatmapCellRadius,
     setHeatmapCellRadius,
     heatmapColorPreset,
     setHeatmapColorPreset,
     radarShape,
     setRadarShape,
+    radarStartAngle,
+    setRadarStartAngle,
     radarAreaOpacity,
     setRadarAreaOpacity,
     radarLineWidth,
@@ -1764,12 +2296,56 @@ export function useVisualizerConfig(params: {
     setRadarVariableTargets,
     radarRadius,
     setRadarRadius,
+    radarCenterX,
+    setRadarCenterX,
+    radarCenterY,
+    setRadarCenterY,
     radarAxisLine,
     setRadarAxisLine,
+    radarAxisLineWidth,
+    setRadarAxisLineWidth,
+    radarAxisLineType,
+    setRadarAxisLineType,
+    radarAxisLineColor,
+    setRadarAxisLineColor,
+    radarAxisLineOpacity,
+    setRadarAxisLineOpacity,
     radarSplitLine,
     setRadarSplitLine,
+    radarSplitLineWidth,
+    setRadarSplitLineWidth,
+    radarSplitLineType,
+    setRadarSplitLineType,
+    radarSplitLineColor,
+    setRadarSplitLineColor,
+    radarSplitLineOpacity,
+    setRadarSplitLineOpacity,
     radarSplitArea,
     setRadarSplitArea,
+    radarSplitAreaTheme,
+    setRadarSplitAreaTheme,
+    radarSplitAreaOpacity,
+    setRadarSplitAreaOpacity,
+    radarSplitAreaColor1,
+    setRadarSplitAreaColor1,
+    radarSplitAreaColor2,
+    setRadarSplitAreaColor2,
+    radarShowAxisScaleLabels,
+    setRadarShowAxisScaleLabels,
+    radarAxisScaleFormat,
+    setRadarAxisScaleFormat,
+    radarAxisScaleFontSize,
+    setRadarAxisScaleFontSize,
+    radarAxisScaleFontWeight,
+    setRadarAxisScaleFontWeight,
+    radarAxisScaleColor,
+    setRadarAxisScaleColor,
+    radarScaleMax,
+    setRadarScaleMax,
+    radarScaleMin,
+    setRadarScaleMin,
+    radarShowAxisTicks,
+    setRadarShowAxisTicks,
     radarAxisNameMargin,
     setRadarAxisNameMargin,
     radarAxisNameWidth,
@@ -1778,16 +2354,50 @@ export function useVisualizerConfig(params: {
     setRadarAxisNameOverflow,
     radarAxisNameLineHeight,
     setRadarAxisNameLineHeight,
+    radarAxisNameFontSize,
+    setRadarAxisNameFontSize,
+    radarAxisNameFontWeight,
+    setRadarAxisNameFontWeight,
+    radarAxisNameFontStyle,
+    setRadarAxisNameFontStyle,
+    radarAxisNameColor,
+    setRadarAxisNameColor,
+    radarAxisNameBgColor,
+    setRadarAxisNameBgColor,
+    radarAxisNamePadding,
+    setRadarAxisNamePadding,
+    radarAxisNameBorderRadius,
+    setRadarAxisNameBorderRadius,
+    radarAxisNameBorderColor,
+    setRadarAxisNameBorderColor,
+    radarAxisNameBorderWidth,
+    setRadarAxisNameBorderWidth,
     radarShowDataLabels,
     setRadarShowDataLabels,
     radarDataLabelPosition,
     setRadarDataLabelPosition,
+    radarDataLabelFontSize,
+    setRadarDataLabelFontSize,
+    radarDataLabelFontWeight,
+    setRadarDataLabelFontWeight,
+    radarDataLabelColor,
+    setRadarDataLabelColor,
+    radarDataLabelFormat,
+    setRadarDataLabelFormat,
+    radarSmooth,
+    setRadarSmooth,
     radarBaselineLineStyle,
     setRadarBaselineLineStyle,
     radarBaselineSymbol,
     setRadarBaselineSymbol,
     radarBaselineSymbolSize,
     setRadarBaselineSymbolSize,
+    radarBaselineAreaColor,
+    setRadarBaselineAreaColor,
+    radarBaselineSymbolBorderColor,
+    setRadarBaselineSymbolBorderColor,
+    radarBaselineSymbolBorderWidth,
+    setRadarBaselineSymbolBorderWidth,
     radarTargetSymbol,
     setRadarTargetSymbol,
     radarTargetSymbolSize,
@@ -1808,10 +2418,28 @@ export function useVisualizerConfig(params: {
     setRadarTargetColor,
     radarTargetAreaOpacity,
     setRadarTargetAreaOpacity,
+    radarTargetSmooth,
+    setRadarTargetSmooth,
     radarBaselineName,
     setRadarBaselineName,
     radarBaselineColor,
     setRadarBaselineColor,
+    radarTagShareName,
+    setRadarTagShareName,
+    radarTagShareColor,
+    setRadarTagShareColor,
+    radarTagShareLineStyle,
+    setRadarTagShareLineStyle,
+    radarTagShareLineWidth,
+    setRadarTagShareLineWidth,
+    radarTagShareAreaOpacity,
+    setRadarTagShareAreaOpacity,
+    radarTagShareSmooth,
+    setRadarTagShareSmooth,
+    radarTagShareSymbol,
+    setRadarTagShareSymbol,
+    radarTagShareSymbolSize,
+    setRadarTagShareSymbolSize,
     funnelAlign,
     setFunnelAlign,
     funnelGap,
@@ -1914,6 +2542,28 @@ export function useVisualizerConfig(params: {
     setCalendarYear,
     stackedNormalized,
     setStackedNormalized,
+    stackedReverseOrder,
+    setStackedReverseOrder,
+    stackedPerBarSorting,
+    setStackedPerBarSorting,
+    stackedShowTotalLabel,
+    setStackedShowTotalLabel,
+    stackedTotalLabelPosition,
+    setStackedTotalLabelPosition,
+    stackedTotalLabelFormat,
+    setStackedTotalLabelFormat,
+    stackedTotalFontSize,
+    setStackedTotalFontSize,
+    stackedTotalFontWeight,
+    setStackedTotalFontWeight,
+    stackedTotalColor,
+    setStackedTotalColor,
+    stackedTotalLabelDistance,
+    setStackedTotalLabelDistance,
+    primaryScopeFilter,
+    setPrimaryScopeFilter,
+    secondaryScopeFilter,
+    setSecondaryScopeFilter,
     scatterAxisTitle,
     setScatterAxisTitle,
     scatterAxisMin,
@@ -1976,14 +2626,6 @@ export function useVisualizerConfig(params: {
     setHeatmapLabelFontStyle,
     heatmapLabelColor,
     setHeatmapLabelColor,
-    treemapLabelFontSize,
-    setTreemapLabelFontSize,
-    treemapLabelFontWeight,
-    setTreemapLabelFontWeight,
-    treemapLabelFontStyle,
-    setTreemapLabelFontStyle,
-    treemapLabelColor,
-    setTreemapLabelColor,
     funnelLabelFontSize,
     setFunnelLabelFontSize,
     funnelLabelFontWeight,
@@ -2017,6 +2659,49 @@ export function useVisualizerConfig(params: {
     scatterSortMode,
     setScatterSortMode,
     otherCategoryLabel,
-    setOtherCategoryLabel
+    setOtherCategoryLabel,
+    // Universal Layout Margins
+    gridMarginAuto,
+    setGridMarginAuto,
+    gridMarginTop,
+    setGridMarginTop,
+    gridMarginBottom,
+    setGridMarginBottom,
+    gridMarginLeft,
+    setGridMarginLeft,
+    gridMarginRight,
+    setGridMarginRight,
+    // Universal Data Labels
+    universalLabelPosition,
+    setUniversalLabelPosition,
+    universalLabelDistance,
+    setUniversalLabelDistance,
+    universalLabelOverflow,
+    setUniversalLabelOverflow,
+    universalMaxLabelWidth,
+    setUniversalMaxLabelWidth,
+    universalLabelLineHeight,
+    setUniversalLabelLineHeight,
+    universalLabelFontSize,
+    setUniversalLabelFontSize,
+    universalLabelFontWeight,
+    setUniversalLabelFontWeight,
+    universalLabelFontStyle,
+    setUniversalLabelFontStyle,
+    universalLabelColor,
+    setUniversalLabelColor,
+    universalLabelColorMode,
+    setUniversalLabelColorMode,
+    universalLabelRotate,
+    setUniversalLabelRotate,
+    universalLabelMinThreshold,
+    setUniversalLabelMinThreshold,
+    universalLabelShowZero,
+    setUniversalLabelShowZero,
+    // Smart Color Modes
+    smartColorMode,
+    setSmartColorMode,
+    smartColorPropagation,
+    setSmartColorPropagation
   };
 }

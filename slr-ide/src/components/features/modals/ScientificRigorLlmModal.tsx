@@ -17,7 +17,8 @@ import {
   SlidersHorizontal,
   RefreshCw,
   Cpu,
-  FileCode
+  FileCode,
+  Search
 } from 'lucide-react';
 
 interface ScientificRigorLlmModalProps {
@@ -40,6 +41,7 @@ export default function ScientificRigorLlmModal({
 
   // Section inclusion states
   const [includeAiSpecs, setIncludeAiSpecs] = useState(true);
+  const [includeSearchStrategies, setIncludeSearchStrategies] = useState(true);
   const [includePrisma, setIncludePrisma] = useState(true);
   const [includePreCalibration, setIncludePreCalibration] = useState(true);
   const [includePromptOptimization, setIncludePromptOptimization] = useState(true);
@@ -94,6 +96,10 @@ export default function ScientificRigorLlmModal({
       payload.ai_screening_technical_specifications = rawData.ai_screening_technical_specifications;
     }
 
+    if (includeSearchStrategies && rawData.systematic_search_strategies) {
+      payload.systematic_search_strategies = rawData.systematic_search_strategies;
+    }
+
     if (includePrisma && rawData.prisma_flow_data) {
       payload.prisma_flow_data = rawData.prisma_flow_data;
     }
@@ -118,6 +124,7 @@ export default function ScientificRigorLlmModal({
   }, [
     rawData,
     includeAiSpecs,
+    includeSearchStrategies,
     includePrisma,
     includePreCalibration,
     includePromptOptimization,
@@ -142,6 +149,7 @@ export default function ScientificRigorLlmModal({
 
   const selectedCount = [
     includeAiSpecs,
+    includeSearchStrategies,
     includePrisma,
     includePreCalibration,
     includePromptOptimization,
@@ -188,6 +196,7 @@ export default function ScientificRigorLlmModal({
 
   const handleSelectAll = () => {
     setIncludeAiSpecs(true);
+    setIncludeSearchStrategies(true);
     setIncludePrisma(true);
     setIncludePreCalibration(true);
     setIncludePromptOptimization(true);
@@ -198,6 +207,7 @@ export default function ScientificRigorLlmModal({
 
   const handleDeselectAll = () => {
     setIncludeAiSpecs(false);
+    setIncludeSearchStrategies(false);
     setIncludePrisma(false);
     setIncludePreCalibration(false);
     setIncludePromptOptimization(false);
@@ -222,7 +232,7 @@ export default function ScientificRigorLlmModal({
               <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
                 Scientific Rigor &amp; AI Specifications Extractor
                 <span className="bg-primary/10 text-primary border border-primary/20 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                  JSON Context · {selectedCount}/7 Sections
+                  JSON Context · {selectedCount}/8 Sections
                 </span>
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -255,7 +265,7 @@ export default function ScientificRigorLlmModal({
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal className="w-4 h-4 text-primary" />
                     <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Included Context Sections ({selectedCount} of 7 Active)
+                      Included Context Sections ({selectedCount} of 8 Active)
                     </h4>
                   </div>
 
@@ -325,7 +335,30 @@ export default function ScientificRigorLlmModal({
                     </div>
                   </label>
 
-                  {/* 3. Pre-Calibration Data */}
+                  {/* 3. Systematic Search Strategy & Database Documentation */}
+                  <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                    includeSearchStrategies 
+                      ? 'bg-primary/5 border-primary/40 shadow-xs' 
+                      : 'bg-card border-border hover:bg-secondary/40 text-muted-foreground'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={includeSearchStrategies}
+                      onChange={(e) => setIncludeSearchStrategies(e.target.checked)}
+                      className="mt-1 rounded border-border text-primary focus:ring-primary h-4 w-4 shrink-0"
+                    />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-foreground">
+                        <Search className="w-3.5 h-3.5 text-blue-400" />
+                        Systematic Search Strategy &amp; Queries
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Database documentation, Boolean search expressions, search dates, and bibliographic limiters across repositories (PRISMA 2020 Items 6 &amp; 7).
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* 4. Pre-Calibration Data */}
                   <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
                     includePreCalibration 
                       ? 'bg-primary/5 border-primary/40 shadow-xs' 
@@ -348,7 +381,7 @@ export default function ScientificRigorLlmModal({
                     </div>
                   </label>
 
-                  {/* 4. Prompt Optimization & Audits */}
+                  {/* 5. Prompt Optimization & Audits */}
                   <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
                     includePromptOptimization 
                       ? 'bg-primary/5 border-primary/40 shadow-xs' 
@@ -371,7 +404,7 @@ export default function ScientificRigorLlmModal({
                     </div>
                   </label>
 
-                  {/* 5. Gold Standard Stage Comparisons */}
+                  {/* 6. Gold Standard Stage Comparisons */}
                   <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
                     includeStageComparison 
                       ? 'bg-primary/5 border-primary/40 shadow-xs' 
@@ -394,7 +427,7 @@ export default function ScientificRigorLlmModal({
                     </div>
                   </label>
 
-                  {/* 6. Rolling Batch Validation */}
+                  {/* 7. Rolling Batch Validation */}
                   <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
                     includeRollingBatch 
                       ? 'bg-primary/5 border-primary/40 shadow-xs' 
@@ -417,7 +450,7 @@ export default function ScientificRigorLlmModal({
                     </div>
                   </label>
 
-                  {/* 7. LLM Master Directives */}
+                  {/* 8. LLM Master Directives */}
                   <label className={`p-3.5 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
                     includeLlmDirectives 
                       ? 'bg-primary/5 border-primary/40 shadow-xs' 

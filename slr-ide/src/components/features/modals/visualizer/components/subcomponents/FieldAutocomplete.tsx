@@ -242,7 +242,9 @@ export function FieldAutocomplete({
     ? searchQuery 
     : (activeVariable ? activeVariable.displayName : formatVariableDisplayName(value || ''));
 
-  const isZeroHits = activeVariable && activeVariable.positivePaperCount === 0 && activeVariable.totalCohortCount > 0 && value !== '';
+  const isZeroHits = effectivePrevalence
+    ? effectivePrevalence.positivePaperCount === 0 && effectivePrevalence.totalCohortCount > 0 && value !== ''
+    : activeVariable && activeVariable.positivePaperCount === 0 && activeVariable.totalCohortCount > 0 && value !== '';
 
   return (
     <div ref={containerRef} className={`relative w-full ${className}`}>
@@ -326,8 +328,8 @@ export function FieldAutocomplete({
             <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
             <span className="truncate">
               {activeVariable?.category === 'custom_group'
-                ? `Custom grouping has no assigned categories in active cohort (N=${activeVariable.totalCohortCount})`
-                : `Key has 0 hits in active cohort (N=${activeVariable.totalCohortCount})`}
+                ? `Custom grouping has no assigned categories in active cohort (N=${activeVariable?.totalCohortCount ?? effectivePrevalence?.totalCohortCount ?? 0})`
+                : `Key has 0 hits in active cohort (N=${activeVariable?.totalCohortCount ?? effectivePrevalence?.totalCohortCount ?? 0})`}
             </span>
           </div>
         </div>

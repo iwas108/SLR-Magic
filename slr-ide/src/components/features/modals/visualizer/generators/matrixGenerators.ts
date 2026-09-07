@@ -1,7 +1,7 @@
 import type * as echarts from 'echarts';
 import { getFieldValue, getMappedFieldValue, limitCategoryMap } from '../utils/dataExtractor';
 import type { ChartGeneratorContext } from './types';
-import { buildScientificAxisConfig } from './axisConfigHelper';
+import { buildScientificAxisConfig, resolveUniversalGrid } from './axisConfigHelper';
 
 export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -106,17 +106,17 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
   };
   const activeColorMap = colorMapPresets[ctx.heatmapColorPreset || 'academic'] || colorMapPresets.academic;
 
+  const labelFSize = ctx.universalLabelFontSize ?? (fontSize - 2);
+  const labelFWeight = (ctx.universalLabelFontWeight || 'normal') as any;
+  const labelFStyle = (ctx.universalLabelFontStyle || 'normal') as any;
+  const minThresh = ctx.universalLabelMinThreshold ?? 0;
+  const showZero = ctx.universalLabelShowZero ?? true;
+
   return {
     backgroundColor: palette.bg,
     title: baseTitle,
     tooltip: { ...baseTooltip, formatter: (p: any) => `${xData[p.data[0]]} × ${yData[p.data[1]]}: ${p.data[2]} papers` },
-    grid: { 
-      left: Math.max(20, 60 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetX ?? 0)), 
-      right: Math.max(20, 60 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)), 
-      top: Math.max(20, (showLegend ? 100 : 70) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetY ?? 0)), 
-      bottom: Math.max(20, 50 + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)), 
-      containLabel: true 
-    },
+    grid: resolveUniversalGrid(ctx, { left: 60, right: 60, top: showLegend !== false ? 100 : 70, bottom: 50 }),
     xAxis: buildScientificAxisConfig('x', ctx, {
       axisKind: 'category',
       defaultTitle: primaryField,
@@ -128,14 +128,23 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
       categories: yData
     }),
     visualMap: { 
+      show: showLegend !== false,
       min: 0, 
       max: maxVal, 
       calculable: true, 
-      orient: 'horizontal', 
-      left: 'center', 
-      bottom: '2%', 
+      orient: (ctx.legendPosition === 'left' || ctx.legendPosition === 'right') ? 'vertical' : 'horizontal', 
+      left: ctx.legendPosition === 'left' ? (ctx.legendDistance ?? 15) : ctx.legendPosition === 'right' ? undefined : (ctx.legendAlign === 'left' ? 20 : ctx.legendAlign === 'right' ? undefined : 'center'), 
+      right: ctx.legendPosition === 'right' ? (ctx.legendDistance ?? 15) : (ctx.legendAlign === 'right' ? 20 : undefined),
+      top: ctx.legendPosition === 'top' ? (baseTitle?.show ? 55 : 15) + (ctx.legendDistance ?? 0) : undefined,
+      bottom: (!ctx.legendPosition || ctx.legendPosition === 'bottom') ? (ctx.legendDistance ?? 10) : undefined, 
       inRange: { color: activeColorMap }, 
-      textStyle: { fontFamily: font, color: palette.text } 
+      textStyle: { 
+        fontFamily: font, 
+        fontSize: ctx.legendFontSize ?? Math.max(9, fontSize - 2),
+        fontWeight: (ctx.legendFontWeight as any) || 'normal',
+        fontStyle: (ctx.legendFontStyle as any) || 'normal',
+        color: ctx.legendTextColor || palette.text 
+      } 
     },
     series: [{ 
       type: 'heatmap', 
@@ -143,7 +152,20 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
       itemStyle: {
         borderRadius: ctx.heatmapCellRadius ?? 0
       },
-      label: { show: showDataLabels, fontFamily: font, fontSize: fontSize - 2, color: palette.text } 
+      label: { 
+        show: showDataLabels, 
+        fontFamily: font, 
+        fontSize: labelFSize, 
+        fontWeight: labelFWeight,
+        fontStyle: labelFStyle,
+        color: ctx.universalLabelColor || palette.text,
+        formatter: (params: any) => {
+          const val = params.data?.[2] ?? params.value;
+          if (!showZero && val === 0) return '';
+          if (minThresh > 0 && typeof val === 'number' && val < minThresh) return '';
+          return `${val}`;
+        }
+      } 
     }]
   };
 }
@@ -153,6 +175,7 @@ export function generateCalendarOption(ctx: ChartGeneratorContext): echarts.ECha
     papers,
     palette,
     font,
+    fontSize,
     baseTitle,
     baseTooltip,
     showLegend
@@ -190,19 +213,29 @@ export function generateCalendarOption(ctx: ChartGeneratorContext): echarts.ECha
     title: baseTitle,
     tooltip: { ...baseTooltip, formatter: (p: any) => `${p.data[0]}: ${p.data[1]} papers ingested` },
     visualMap: {
+      show: showLegend !== false,
       min: 0,
       max: maxVal,
       type: 'continuous',
-      orient: 'horizontal',
-      left: 'center',
-      bottom: '2%',
+      orient: (ctx.legendPosition === 'left' || ctx.legendPosition === 'right') ? 'vertical' : 'horizontal',
+      left: ctx.legendPosition === 'left' ? (ctx.legendDistance ?? 15) : ctx.legendPosition === 'right' ? undefined : (ctx.legendAlign === 'left' ? 20 : ctx.legendAlign === 'right' ? undefined : 'center'),
+      right: ctx.legendPosition === 'right' ? (ctx.legendDistance ?? 15) : (ctx.legendAlign === 'right' ? 20 : undefined),
+      top: ctx.legendPosition === 'top' ? (baseTitle?.show ? 55 : 15) + (ctx.legendDistance ?? 0) : undefined,
+      bottom: (!ctx.legendPosition || ctx.legendPosition === 'bottom') ? (ctx.legendDistance ?? 10) : undefined,
       inRange: { color: [palette.bg, palette.colors[2] || '#3b82f6', palette.colors[0] || '#0f172a'] },
-      textStyle: { fontFamily: font, color: palette.text }
+      textStyle: { 
+        fontFamily: font, 
+        fontSize: ctx.legendFontSize ?? Math.max(9, fontSize - 2),
+        fontWeight: (ctx.legendFontWeight as any) || 'normal',
+        fontStyle: (ctx.legendFontStyle as any) || 'normal',
+        color: ctx.legendTextColor || palette.text 
+      }
     },
     calendar: {
-      top: showLegend ? 110 : 80,
-      left: 60,
-      right: 40,
+      top: Math.max(10, (ctx.gridMarginTop !== undefined ? ctx.gridMarginTop : (showLegend ? 110 : 80)) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetY ?? 0)),
+      bottom: ctx.gridMarginBottom !== undefined ? Math.max(10, ctx.gridMarginBottom + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetY ?? 0)) : undefined,
+      left: Math.max(10, (ctx.gridMarginLeft !== undefined ? ctx.gridMarginLeft : 60) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) - (ctx.fitOffsetX ?? 0)),
+      right: Math.max(10, (ctx.gridMarginRight !== undefined ? ctx.gridMarginRight : 40) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)),
       cellSize: ['auto', ctx.calendarCellSize ?? 14],
       range: effectiveRange,
       itemStyle: { borderWidth: 1, borderColor: palette.border },

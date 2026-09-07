@@ -1,5 +1,5 @@
 import type * as echarts from 'echarts';
-import { getNodeColor } from '../utils/colorUtils';
+import { getNodeColor, getContrastingTextColor } from '../utils/colorUtils';
 import { getMappedFieldValue, computeMetricValue, limitCategoryMap } from '../utils/dataExtractor';
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
@@ -19,72 +19,90 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
     metricMode,
     limitCategories,
     maxCategoriesCount,
-    useUmbrellanizer,
     splitMultiValues,
     excludeEmpty,
+    useUmbrellanizer,
     customCategoryMap,
-    levelCustomGroupLinks,
-    sankeyFields,
     enableManualOverrides,
-    manualCategoryValues,
-    customSliceColors,
-    donutRatio,
+    manualCategoryValues = {},
+    customSliceColors = {},
     showDataLabels,
-    legendFormat = 'name',
-    legendPosition = 'top',
+    donutRatio,
     showLegend = true,
+    legendPosition = 'top',
+    legendFormat = 'name',
     pieLabelPlacement = 'outside',
     pieRadiusRatio = 64,
-    pieLabelWidth = 140,
+    pieLabelWidth = 120,
     pieLeaderLineLength,
     pieLeaderLineLength2,
     pieLabelDistance,
     pieLineHeight,
-    legendDistance = 20,
     umbrellanizerMap
   } = ctx;
+
+  const isInside = pieLabelPlacement === 'inside';
+  const isLegendOnly = pieLabelPlacement === 'legend_only';
+  const isEdgeAligned = pieLabelPlacement === 'edge_aligned';
 
   const countsMap = new Map<string, any[]>();
   let totalExtractedTags = 0;
 
-  const mappedOpts = {
-    useUmbrellanizer,
-    umbrellanizerMap,
-    splitMultiValues,
-    excludeEmpty,
-    customCategoryMap,
-    levelCustomGroupLinks,
-    sankeyFields,
-    primaryField
-  };
-
   papers.forEach(p => {
-    const vals = getMappedFieldValue(p, primaryField, mappedOpts);
-    vals.forEach(v => {
+    const rawVals = getMappedFieldValue(p, primaryField, { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap });
+    rawVals.forEach(v => {
       totalExtractedTags++;
-      if (!countsMap.has(v)) countsMap.set(v, []);
-      countsMap.get(v)!.push(p);
+      const trimmed = v.trim();
+      if (!trimmed && excludeEmpty) return;
+      if (!countsMap.has(trimmed)) countsMap.set(trimmed, []);
+      countsMap.get(trimmed)!.push(p);
     });
   });
 
   const activeCountsMap = limitCategoryMap(
     countsMap,
-    limitCategories,
-    maxCategoriesCount,
+    Boolean(limitCategories),
+    maxCategoriesCount || 10,
     (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags),
     ctx.otherCategoryLabel || 'Other'
   );
 
-  const pieData = Array.from(activeCountsMap.entries()).map(([cat, pList], idx) => {
+  const entries = Array.from(activeCountsMap.entries());
+  const entryValues = entries.map(([cat, pList]) => {
+    const realVal = computeMetricValue(pList, metricMode, papers.length, totalExtractedTags);
+    const manualVal = manualCategoryValues[cat];
+    return (enableManualOverrides && manualVal !== undefined) ? manualVal : realVal;
+  });
+  const maxVal = Math.max(...entryValues, 1);
+  const minVal = Math.min(...entryValues, 0);
+  const totalVal = entryValues.reduce((a, b) => a + b, 0);
+
+  const pieData = entries.map(([cat, pList], idx) => {
     const tagCount = pList.length;
     const uniquePaperIds = new Set(pList.map(p => p.Paper_ID || p.id || p.title || p.Title || p));
     const paperCount = uniquePaperIds.size;
-    const realVal = computeMetricValue(pList, metricMode, papers.length, totalExtractedTags);
-    const manualVal = manualCategoryValues[cat];
-    const val = (enableManualOverrides && manualVal !== undefined) ? manualVal : realVal;
-    const color = customSliceColors[cat] || getNodeColor(cat, undefined, idx, palette.colors, customSliceColors);
+    const val = entryValues[idx];
+    const color = customSliceColors[cat] || getNodeColor(
+      cat, 
+      undefined, 
+      idx, 
+      palette.colors, 
+      customSliceColors,
+      undefined,
+      entries.length,
+      0,
+      ctx.smartColorMode || 'branch_gradient',
+      val,
+      maxVal,
+      minVal,
+      totalVal,
+      ctx.smartColorPropagation || 'auto_children'
+    );
     const prevalencePct = papers.length > 0 ? ((paperCount / papers.length) * 100).toFixed(2) : '0.00';
     const tagPct = totalExtractedTags > 0 ? ((tagCount / totalExtractedTags) * 100).toFixed(2) : '0.00';
+    const sliceTextColor = ctx.universalLabelColor || ctx.pieLabelColor
+      ? (ctx.universalLabelColor || ctx.pieLabelColor)
+      : (isInside ? getContrastingTextColor(color, '#0f172a', '#ffffff') : palette.text);
 
     return {
       name: cat,
@@ -93,6 +111,9 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
       tagCount,
       prevalencePct,
       tagPct,
+      label: {
+        color: sliceTextColor
+      },
       itemStyle: { 
         color, 
         borderRadius: ctx.pieCornerRadius ?? 4, 
@@ -110,10 +131,6 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
   const configuredRadius = pieRadiusRatio || 64;
   const padDeduction = Math.round(((ctx.containerPadding ?? 12) - 12) * 0.4);
   let maxOuterRadius = Math.max(15, Math.min(88, configuredRadius - padDeduction));
-
-  const isInside = pieLabelPlacement === 'inside';
-  const isLegendOnly = pieLabelPlacement === 'legend_only';
-  const isEdgeAligned = pieLabelPlacement === 'edge_aligned';
 
   if (showLegend) {
     if (legendPosition === 'top') {
@@ -148,19 +165,27 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
 
   const lineLength = pieLeaderLineLength !== undefined ? pieLeaderLineLength : 12;
   const lineLength2 = pieLeaderLineLength2 !== undefined ? pieLeaderLineLength2 : 14;
-  const labelDist = pieLabelDistance !== undefined ? pieLabelDistance : 6;
+  const labelDist = ctx.universalLabelDistance ?? (pieLabelDistance !== undefined ? pieLabelDistance : 6);
+  const labelFSize = ctx.universalLabelFontSize ?? (isInside ? Math.max(10, fontSize - 2) : Math.max(10, fontSize - 1));
+  const labelFWeight = (ctx.universalLabelFontWeight || ctx.pieLabelFontWeight || (isInside ? 'bold' : 'normal')) as any;
+  const labelFStyle = (ctx.universalLabelFontStyle || ctx.pieLabelFontStyle || 'normal') as any;
+  const labelLHeight = ctx.universalLabelLineHeight ?? (pieLineHeight ?? 15);
+  const labelWidth = ctx.universalMaxLabelWidth ?? (isInside ? undefined : pieLabelWidth);
+  const labelOverflow = ctx.universalLabelOverflow || 'break';
+  const minThresh = ctx.universalLabelMinThreshold ?? 0;
+  const showZero = ctx.universalLabelShowZero ?? true;
 
   const labelConfig: any = {
     show: showDataLabels && !isLegendOnly,
     position: isInside ? 'inside' : 'outside',
     fontFamily: font,
-    fontSize: isInside ? Math.max(10, fontSize - 2) : Math.max(10, fontSize - 1),
-    fontWeight: (ctx.pieLabelFontWeight as any) || (isInside ? 'bold' : 'normal'),
-    fontStyle: (ctx.pieLabelFontStyle as any) || 'normal',
-    color: ctx.pieLabelColor ? ctx.pieLabelColor : (isInside ? '#ffffff' : palette.text),
-    width: isInside ? undefined : pieLabelWidth,
-    overflow: 'break',
-    lineHeight: pieLineHeight ?? 15,
+    fontSize: labelFSize,
+    fontWeight: labelFWeight,
+    fontStyle: labelFStyle,
+    color: ctx.universalLabelColor || (ctx.pieLabelColor ? ctx.pieLabelColor : (isInside ? '#ffffff' : palette.text)),
+    width: labelWidth,
+    overflow: labelOverflow,
+    lineHeight: labelLHeight,
     distance: isInside ? 0 : labelDist,
     minMargin: 4,
     alignTo: isEdgeAligned ? 'edge' : 'labelLine',
@@ -169,6 +194,14 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
       const item = pieDataMap.get(params?.name) || params?.data;
       if (!item) return params?.name || '';
       
+      if (!showZero && (item.paperCount === 0 || item.value === 0)) {
+        return '';
+      }
+      if (minThresh > 0) {
+        const rawPct = parseFloat(item.prevalencePct ?? '0');
+        if (!isNaN(rawPct) && rawPct < minThresh) return '';
+      }
+
       const effectiveLabelFormat = ctx.labelFormat || (isInside ? 'percent_only' : 'name_ratio_percent');
       return formatMetricDisplay({
         name: params.name,
@@ -190,32 +223,12 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
     }
   };
 
-  const legendCustomPos: any = {};
-  if (showLegend) {
-    if (legendPosition === 'right') {
-      legendCustomPos.right = legendDistance;
-      legendCustomPos.left = undefined;
-      legendCustomPos.top = 'middle';
-    } else if (legendPosition === 'left') {
-      legendCustomPos.left = legendDistance;
-      legendCustomPos.right = undefined;
-      legendCustomPos.top = 'middle';
-    } else if (legendPosition === 'top') {
-      legendCustomPos.top = legendDistance;
-      legendCustomPos.left = 'center';
-    } else if (legendPosition === 'bottom') {
-      legendCustomPos.bottom = legendDistance;
-      legendCustomPos.left = 'center';
-    }
-  }
-
   return {
     backgroundColor: palette.bg,
     color: palette.colors,
     title: baseTitle,
     legend: {
       ...baseLegend,
-      ...legendCustomPos,
       formatter: (name: string) => {
         const item = pieDataMap.get(name);
         if (!item) return name;

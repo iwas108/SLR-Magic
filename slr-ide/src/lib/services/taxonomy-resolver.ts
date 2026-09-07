@@ -97,8 +97,8 @@ export function normalizeExtractedTokens(val: any, fieldKey?: string): string[] 
 
   if (Array.isArray(targetVal)) {
     targetVal.forEach(item => {
-      if (typeof item === 'string' && item.includes(',') && !isSingle) {
-        item.split(',').forEach(t => {
+      if (typeof item === 'string' && (item.includes(',') || item.includes(';') || item.includes('\n')) && !isSingle) {
+        item.split(/[;\n,]/).forEach(t => {
           const clean = canonicalizeString(t);
           if (clean) rawTokens.push(clean);
         });
@@ -108,8 +108,8 @@ export function normalizeExtractedTokens(val: any, fieldKey?: string): string[] 
       }
     });
   } else if (typeof targetVal === 'string') {
-    if (targetVal.includes(',') && !isSingle) {
-      targetVal.split(',').forEach(t => {
+    if ((targetVal.includes(',') || targetVal.includes(';') || targetVal.includes('\n')) && !isSingle) {
+      targetVal.split(/[;\n,]/).forEach(t => {
         const clean = canonicalizeString(t);
         if (clean) rawTokens.push(clean);
       });
@@ -372,14 +372,14 @@ export function extractPaperFieldValues(
       };
 
       if (splitMultiValues) {
-        const mappedList = tokens
+        const mappedList = Array.from(new Set(tokens
           .map(transformToken)
-          .filter(v => Boolean(v) && v !== '[object Object]');
+          .filter(v => Boolean(v) && v !== '[object Object]')));
         return mappedList.length > 0 ? mappedList : (excludeEmpty ? [] : ['Unspecified']);
       } else {
-        const mappedJoined = tokens
+        const mappedJoined = Array.from(new Set(tokens
           .map(transformToken)
-          .filter(v => Boolean(v) && v !== '[object Object]')
+          .filter(v => Boolean(v) && v !== '[object Object]')))
           .join(', ');
         return mappedJoined ? [mappedJoined] : (excludeEmpty ? [] : ['Unspecified']);
       }

@@ -9,15 +9,19 @@ import {
   ArrowDown, 
   Sparkles, 
   Sliders, 
-  Zap,
-  Tag,
-  RotateCcw,
-  CheckCircle2,
-  AlertCircle,
-  ChevronDown
+  Zap, 
+  Tag, 
+  RotateCcw, 
+  CheckCircle2, 
+  AlertCircle, 
+  ChevronDown,
+  Layers,
+  PieChart,
+  BarChart2
 } from 'lucide-react';
 import { useVisualizerContext } from '../../context/VisualizerContext';
 import { getFieldValue } from '../../utils/dataExtractor';
+import { calculateCohortVariableMetrics } from '@/lib/services/cohort-metrics';
 import { FieldAutocomplete } from './FieldAutocomplete';
 
 export function RadarDataMappingPanel() {
@@ -41,6 +45,8 @@ export function RadarDataMappingPanel() {
     setRadarTargetValue,
     radarBaselineName = 'Empirical Cohort Baseline (n={n})',
     setRadarBaselineName,
+    radarTagShareName = 'Tag Share (% of Disclosed Tags, N={N})',
+    setRadarTagShareName,
     primaryField,
     setPrimaryField,
     useUmbrellanizer,
@@ -75,7 +81,7 @@ export function RadarDataMappingPanel() {
       .trim() || key;
   };
 
-  // Compute empirical positive counts for active variables
+  // Compute empirical positive counts for active variables in multi_variable mode
   const variableStats = useMemo(() => {
     const stats: Record<string, { count: number; pct: number }> = {};
     radarVariables.forEach((vKey) => {
@@ -93,6 +99,14 @@ export function RadarDataMappingPanel() {
     });
     return stats;
   }, [radarVariables, papers, mappedOpts, totalCohort]);
+
+  // Compute cohort variable metrics for prevalence_vs_tag_share mode
+  const effectivePrimaryField = primaryField || 'ext:macro:Execution Metrics';
+  const cohortMetrics = useMemo(() => {
+    return calculateCohortVariableMetrics(papers, effectivePrimaryField, mappedOpts);
+  }, [papers, effectivePrimaryField, mappedOpts]);
+
+  const totalTags = cohortMetrics.totalExtractedTags || 0;
 
   const handleAddVariable = (fieldKey: string) => {
     if (!fieldKey || radarVariables.includes(fieldKey)) return;
@@ -214,15 +228,37 @@ export function RadarDataMappingPanel() {
     setRadarShowTarget(true);
   };
 
+  const handlePreFillExecutionFootprint = () => {
+    const footprintDimensions = [
+      'Time & Latency',
+      'Memory & Storage',
+      'Energy & Power',
+      'Compute Utilization',
+      'Network Overhead',
+      'Thermal & Environmental'
+    ];
+
+    setRadarVariables(footprintDimensions);
+    const aliases: Record<string, string> = {};
+    footprintDimensions.forEach(d => {
+      aliases[d] = d;
+    });
+    setRadarVariableAliases(aliases);
+    setRadarBaselineName('Paper Prevalence (% of Studies, n={n})');
+    if (setRadarTagShareName) {
+      setRadarTagShareName('Tag Share (% of Disclosed Tags, N={N})');
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Radar Mode Switcher */}
       <div className="flex flex-col gap-2 p-3 bg-secondary/30 rounded-2xl border border-border/80">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-foreground">Radar Analysis Mode</span>
-          <span className="text-[10px] text-muted-foreground font-mono">Dual-Series / Single</span>
+          <span className="text-[10px] text-muted-foreground font-mono">Dual-Series / Comparative</span>
         </div>
-        <div className="grid grid-cols-2 gap-1.5 bg-card border border-border rounded-xl p-1 shadow-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 bg-card border border-border rounded-xl p-1 shadow-xs">
           <button
             type="button"
             onClick={() => setRadarMode('multi_variable')}
@@ -233,7 +269,19 @@ export function RadarDataMappingPanel() {
             }`}
           >
             <Target className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Requirement Gap (Paradox)</span>
+            <span className="truncate">Requirement Gap</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setRadarMode('prevalence_vs_tag_share')}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all text-center ${
+              radarMode === 'prevalence_vs_tag_share'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/40'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Prevalence vs. Tag Share</span>
           </button>
           <button
             type="button"
@@ -250,8 +298,8 @@ export function RadarDataMappingPanel() {
         </div>
       </div>
 
-      {/* --- MODE A: MULTI-VARIABLE REQUIREMENT GAP --- */}
-      {radarMode === 'multi_variable' ? (
+      {/* --- MODE 1: MULTI-VARIABLE REQUIREMENT GAP --- */}
+      {radarMode === 'multi_variable' && (
         <div className="space-y-3.5">
           {/* Preset & Quick Action Toolbar */}
           <div className="p-3 bg-primary/5 border border-primary/20 rounded-2xl space-y-2.5">
@@ -539,8 +587,251 @@ export function RadarDataMappingPanel() {
             )}
           </div>
         </div>
-      ) : (
-        /* --- MODE B: QA BREAKDOWN ACROSS CATEGORIES --- */
+      )}
+
+      {/* --- MODE 2: PREVALENCE VS TAG SHARE ASYMMETRY --- */}
+      {radarMode === 'prevalence_vs_tag_share' && (
+        <div className="space-y-3.5">
+          {/* Primary Field Selector Header */}
+          <div className="p-3.5 bg-primary/5 border border-primary/20 rounded-2xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="space-y-0.5">
+                <span className="text-xs font-black text-foreground flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-primary shrink-0" />
+                  Primary Multi-Label / Taxonomy Field
+                </span>
+                <span className="text-[11px] text-muted-foreground block">
+                  Select the categorical or multi-value extraction field to derive radar axes.
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="px-2.5 py-1 rounded-xl bg-card border border-border text-[11px] font-bold text-foreground shadow-xs">
+                  Cohort: <strong>{totalCohort}</strong> papers
+                </span>
+                <span className="px-2.5 py-1 rounded-xl bg-card border border-border text-[11px] font-bold text-primary shadow-xs">
+                  Tags: <strong>{totalTags}</strong>
+                </span>
+              </div>
+            </div>
+
+            <FieldAutocomplete
+              value={effectivePrimaryField}
+              onChange={(newKey) => setPrimaryField(newKey)}
+              discoveredVariables={discoveredVariables}
+              availableFields={availableFields}
+              placeholder="Search & select multi-label field..."
+            />
+
+            {/* Quick Presets for Multi-Label Radar */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 border-t border-primary/10">
+              <button
+                type="button"
+                onClick={handlePreFillExecutionFootprint}
+                className="w-full px-2.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-[11px] font-extrabold flex items-center justify-center gap-1.5 shadow-xs transition-all text-left"
+                title="Populate 6 Runtime Execution Footprint dimensions (Latency, Memory, Power, Compute, Network, Thermal)"
+              >
+                <Zap className="w-3.5 h-3.5 shrink-0" />
+                <span>Execution Footprint Profiling Preset</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAllVariables}
+                className="w-full px-2.5 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground text-[11px] font-extrabold flex items-center justify-center gap-1.5 shadow-xs transition-all text-left border border-border"
+                title="Reset to dynamic auto-extraction from selected field"
+              >
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <span>Auto-Extract All Field Categories</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Add Variable / Custom Axis Autocomplete */}
+          <div className="flex items-center gap-1.5">
+            <div className="flex-1 min-w-0">
+              <FieldAutocomplete
+                value={selectedFieldToAdd}
+                onChange={(newKey) => setSelectedFieldToAdd(newKey)}
+                discoveredVariables={discoveredVariables}
+                availableFields={availableFields}
+                placeholder="Add custom category or variable axis..."
+              />
+            </div>
+            <button
+              type="button"
+              disabled={!selectedFieldToAdd}
+              onClick={() => handleAddVariable(selectedFieldToAdd)}
+              className="px-3.5 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-bold flex items-center gap-1 shadow-xs disabled:opacity-40 transition-all shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Axis</span>
+            </button>
+          </div>
+
+          {/* Active Categories / Radar Axes List */}
+          <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+            {(radarVariables.length > 0 ? radarVariables : cohortMetrics.categories.map(c => c.category)).map((catKey, idx) => {
+              const matchedStat = cohortMetrics.categories.find(c => c.category === catKey);
+              const alias = radarVariableAliases[catKey] || getAutoAlias(catKey);
+              const paperCount = matchedStat ? matchedStat.paperCount : (variableStats[catKey]?.count || 0);
+              const prevalencePct = matchedStat ? Math.round(matchedStat.paperPrevalencePct) : (variableStats[catKey]?.pct || 0);
+              const tagCount = matchedStat ? matchedStat.tagCount : paperCount;
+              const tagSharePct = matchedStat ? Math.round(matchedStat.tagSharePct) : (totalTags > 0 ? Math.round((tagCount / totalTags) * 100) : 0);
+
+              return (
+                <div 
+                  key={catKey} 
+                  className="p-3 bg-card border border-border/80 rounded-2xl shadow-xs space-y-2 hover:border-primary/40 transition-all group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <span className="w-5 h-5 rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center justify-center text-[10px] font-black shrink-0 font-mono">
+                        {idx + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={alias}
+                        onChange={(e) => handleSetAlias(catKey, e.target.value)}
+                        placeholder="Display Axis Name"
+                        className="flex-1 min-w-[120px] bg-secondary/50 border border-border rounded-lg px-2.5 py-1 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
+                        title="Click to rename display axis title"
+                      />
+                    </div>
+
+                    {/* Dual Prevalence & Tag Share Badges */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span 
+                        className="px-2 py-0.5 rounded-full border text-[10.5px] font-extrabold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 flex items-center gap-1"
+                        title={`Paper Prevalence: ${paperCount} of ${totalCohort} papers (${prevalencePct}%)`}
+                      >
+                        <BarChart2 className="w-3 h-3" />
+                        <span>Prev: {prevalencePct}% ({paperCount}/{totalCohort})</span>
+                      </span>
+                      <span 
+                        className="px-2 py-0.5 rounded-full border text-[10.5px] font-extrabold bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 flex items-center gap-1"
+                        title={`Tag Share: ${tagCount} of ${totalTags} tags (${tagSharePct}%)`}
+                      >
+                        <PieChart className="w-3 h-3" />
+                        <span>Tag: {tagSharePct}%</span>
+                      </span>
+                    </div>
+
+                    {/* Action Buttons: Move Up, Move Down, Delete */}
+                    {radarVariables.length > 0 && (
+                      <div className="flex items-center gap-0.5 shrink-0 bg-secondary/60 p-0.5 rounded-lg border border-border/60">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveVariable(idx, 'up')}
+                          className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"
+                          title="Move Axis Counter-Clockwise"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === radarVariables.length - 1}
+                          onClick={() => handleMoveVariable(idx, 'down')}
+                          className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"
+                          title="Move Axis Clockwise"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVariable(catKey)}
+                          className="p-1 rounded hover:bg-destructive/15 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Remove This Axis"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Dual-Series Metadata & Benchmark Settings Card - Collapsible */}
+          <div className="p-3.5 bg-secondary/20 border border-border/80 rounded-2xl space-y-3">
+            <div 
+              onClick={() => setIsMetadataOpen(!isMetadataOpen)}
+              className="flex items-center justify-between cursor-pointer select-none"
+            >
+              <div className="flex items-center gap-2">
+                <Sliders className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-xs font-black text-foreground">
+                  Dual-Series Metadata & Legend Token Interpolation
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isMetadataOpen ? 'rotate-180' : ''}`} />
+            </div>
+
+            {isMetadataOpen && (
+              <div className="space-y-3 pt-1 animate-in fade-in duration-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10.5px] font-bold text-muted-foreground block">
+                        Series 1: Paper Prevalence Name
+                      </label>
+                      {!radarBaselineName.includes('{n}') && (
+                        <button
+                          type="button"
+                          onClick={() => setRadarBaselineName(`${radarBaselineName.trim()} (n={n})`)}
+                          className="text-[9.5px] font-bold text-primary hover:underline"
+                        >
+                          + Add (n={'{n}'})
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={radarBaselineName}
+                      onChange={(e) => setRadarBaselineName(e.target.value)}
+                      placeholder="Paper Prevalence (% of Studies, n={n})"
+                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs font-bold text-foreground focus:outline-none focus:border-primary shadow-xs"
+                    />
+                    <span className="text-[9.5px] text-muted-foreground font-mono block">
+                      Preview: {radarBaselineName.replace(/\{n\}/gi, String(totalCohort))}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10.5px] font-bold text-muted-foreground block">
+                        Series 2: Tag Share Name
+                      </label>
+                      {!radarTagShareName.includes('{N}') && (
+                        <button
+                          type="button"
+                          onClick={() => setRadarTagShareName(`${radarTagShareName.trim()} (N={N})`)}
+                          className="text-[9.5px] font-bold text-primary hover:underline"
+                        >
+                          + Add (N={'{N}'})
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={radarTagShareName}
+                      onChange={(e) => setRadarTagShareName(e.target.value)}
+                      placeholder="Tag Share (% of Disclosed Tags, N={N})"
+                      className="w-full bg-card border border-border rounded-xl px-2.5 py-1.5 text-xs font-bold text-foreground focus:outline-none focus:border-primary shadow-xs"
+                    />
+                    <span className="text-[9.5px] text-muted-foreground font-mono block">
+                      Preview: {radarTagShareName.replace(/\{N\}|\{tags\}/gi, String(totalTags))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- MODE 3: QA BREAKDOWN ACROSS CATEGORIES --- */}
+      {radarMode === 'qa_breakdown' && (
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-foreground block">

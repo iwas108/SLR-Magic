@@ -65,7 +65,9 @@ export function HorizontalBarConfigPanel() {
     barBenchmarkStyle,
     setBarBenchmarkStyle,
     barBenchmarkColor,
-    setBarBenchmarkColor
+    setBarBenchmarkColor,
+    showDataLabels,
+    setShowDataLabels
   } = config;
 
   return (
@@ -146,9 +148,17 @@ export function HorizontalBarConfigPanel() {
       {/* Bar Value Typography & Multi-Line Tuning */}
       <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
         <div className="flex items-center justify-between pb-1 border-b border-border/50">
-          <span className="text-xs font-bold text-foreground">
-            Value Labels Typography & Multi-Line Tuning
-          </span>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showDataLabels}
+              onChange={(e) => setShowDataLabels(e.target.checked)}
+              className="w-4 h-4 rounded border-border text-primary"
+            />
+            <span className="text-xs font-bold text-foreground">
+              Enable Data Labels
+            </span>
+          </label>
           <span className="text-[10px] text-muted-foreground font-mono">
             {barLabelFontSize}px • {barLabelFontWeight} • {barLabelRotate}°
           </span>

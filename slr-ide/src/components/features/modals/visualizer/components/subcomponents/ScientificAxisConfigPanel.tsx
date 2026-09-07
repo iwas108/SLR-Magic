@@ -6,6 +6,7 @@ import {
   Hash, 
   Grid, 
   ChevronRight, 
+  ChevronDown,
   Sparkles,
   Palette,
   Eye,
@@ -24,6 +25,7 @@ export function ScientificAxisConfigPanel() {
     secondaryField,
     metricMode,
     barOrientation = 'horizontal',
+    boxplotOrientation = 'vertical',
     lineMode = 'cohort_trend',
     numFieldX = 'Year',
     numFieldY = 'Quality_Score',
@@ -124,6 +126,11 @@ export function ScientificAxisConfigPanel() {
     setAxisLabelIntervalX,
     axisLabelIntervalY = 'auto',
     setAxisLabelIntervalY,
+    // Decimal Precision
+    axisLabelDecimalsX,
+    setAxisLabelDecimalsX,
+    axisLabelDecimalsY,
+    setAxisLabelDecimalsY,
     // Scientific Gridlines
     showGridLinesX = false,
     setShowGridLinesX,
@@ -141,7 +148,7 @@ export function ScientificAxisConfigPanel() {
 
   const [subTab, setSubTab] = useState<AxisPanelSubTab>('titles');
 
-  const isHorizontal = chartType === 'bar_horizontal' || chartType === 'horizontal_bar_scatter' || (chartType === 'clustered_bar' && barOrientation === 'horizontal');
+  const isHorizontal = chartType === 'bar_horizontal' || chartType === 'horizontal_bar_scatter' || (chartType === 'clustered_bar' && barOrientation === 'horizontal') || (chartType === 'stacked_bar' && barOrientation === 'horizontal') || (chartType === 'boxplot' && boxplotOrientation === 'horizontal');
 
   const defaultMetricTitle = metricMode === 'paper_prevalence'
     ? 'Prevalence (% of Cohort)'
@@ -181,11 +188,17 @@ export function ScientificAxisConfigPanel() {
     autoTitleY = primaryField;
   }
 
+  const [isExpanded, setIsExpanded] = useState(true);
+
   return (
-    <div className="p-3.5 bg-secondary/30 border border-border/80 rounded-2xl space-y-3.5 shadow-xs">
+    <div className="p-3.5 bg-card border border-border rounded-2xl space-y-3.5 shadow-xs">
       {/* Header with Title and Mode Badge */}
-      <div className="flex items-center justify-between gap-2 flex-wrap pb-1 border-b border-border/50">
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center justify-between gap-2 flex-wrap pb-1 border-b border-border/50 cursor-pointer select-none"
+      >
         <div className="flex items-center gap-2">
+          {isExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4 text-primary" />}
           <SlidersHorizontal className="w-4 h-4 text-primary" />
           <span className="text-xs font-black text-foreground">Scientific Axis & Publishing Gridlines</span>
         </div>
@@ -194,8 +207,10 @@ export function ScientificAxisConfigPanel() {
         </span>
       </div>
 
-      {/* Sub-Tab Navigation Bar */}
-      <div className="flex items-center gap-1 bg-card/60 p-1 rounded-xl border border-border/60">
+      {isExpanded && (
+        <>
+          {/* Sub-Tab Navigation Bar */}
+          <div className="flex items-center gap-1 bg-card/60 p-1 rounded-xl border border-border/60">
         <button
           type="button"
           onClick={() => setSubTab('titles')}
@@ -785,7 +800,7 @@ export function ScientificAxisConfigPanel() {
             <span className="text-xs font-bold text-foreground block">
               X-Axis Metric / Value Formatting
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
               <div className="space-y-1">
                 <label className="font-bold text-muted-foreground block">Number Format</label>
                 <select
@@ -801,6 +816,22 @@ export function ScientificAxisConfigPanel() {
                   <option value="scientific">Scientific (e.g. 1.25e+2)</option>
                   <option value="currency">Currency ($)</option>
                   <option value="raw">Raw Unformatted</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-muted-foreground block">Decimal Places</label>
+                <select
+                  value={axisLabelDecimalsX ?? ''}
+                  onChange={(e) => setAxisLabelDecimalsX(e.target.value === '' ? undefined : Number(e.target.value))}
+                  className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                >
+                  <option value="">Auto</option>
+                  <option value="0">0 — Integer</option>
+                  <option value="1">1 — e.g. 27.5%</option>
+                  <option value="2">2 — e.g. 27.45%</option>
+                  <option value="3">3 — e.g. 27.453%</option>
+                  <option value="4">4 — e.g. 27.4531%</option>
                 </select>
               </div>
 
@@ -833,7 +864,7 @@ export function ScientificAxisConfigPanel() {
             <span className="text-xs font-bold text-foreground block">
               Y-Axis Metric / Value Formatting
             </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px]">
               <div className="space-y-1">
                 <label className="font-bold text-muted-foreground block">Number Format</label>
                 <select
@@ -849,6 +880,22 @@ export function ScientificAxisConfigPanel() {
                   <option value="scientific">Scientific (e.g. 1.25e+2)</option>
                   <option value="currency">Currency ($)</option>
                   <option value="raw">Raw Unformatted</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-muted-foreground block">Decimal Places</label>
+                <select
+                  value={axisLabelDecimalsY ?? ''}
+                  onChange={(e) => setAxisLabelDecimalsY(e.target.value === '' ? undefined : Number(e.target.value))}
+                  className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                >
+                  <option value="">Auto</option>
+                  <option value="0">0 — Integer</option>
+                  <option value="1">1 — e.g. 27.5%</option>
+                  <option value="2">2 — e.g. 27.45%</option>
+                  <option value="3">3 — e.g. 27.453%</option>
+                  <option value="4">4 — e.g. 27.4531%</option>
                 </select>
               </div>
 
@@ -986,6 +1033,8 @@ export function ScientificAxisConfigPanel() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

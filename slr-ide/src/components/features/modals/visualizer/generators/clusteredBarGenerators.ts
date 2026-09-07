@@ -1,5 +1,5 @@
 import type * as echarts from 'echarts';
-import { getNodeColor } from '../utils/colorUtils';
+import { getNodeColor, getContrastingTextColor, generateDistinctPalette } from '../utils/colorUtils';
 import { 
   getMappedFieldValue, 
   computeMetricValue, 
@@ -12,7 +12,7 @@ import { getSeriesPatternStyle } from '../utils/hatchPatternUtils';
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
-import { buildScientificAxisConfig, calculateNiceScientificCeiling } from './axisConfigHelper';
+import { buildScientificAxisConfig, calculateNiceScientificCeiling, resolveUniversalGrid } from './axisConfigHelper';
 
 export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -21,6 +21,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     font,
     fontSize,
     baseTitle,
+    baseLegend,
     primaryField,
     secondaryField,
     metricMode,
@@ -181,8 +182,9 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
   const effectiveLegendFormat = legendFormat || barLegendFormat || 'name';
   const isPctMetric = metricMode === 'paper_prevalence' || metricMode === 'tag_share';
 
+  const distinctPalette = generateDistinctPalette(palette.colors, seriesList.length);
   const seriesObjects: any[] = seriesList.map((seriesKey, sIdx) => {
-    const baseColor = customSliceColors[seriesKey] || getNodeColor(seriesKey, undefined, sIdx, palette.colors, customSliceColors);
+    const baseColor = customSliceColors[seriesKey] || distinctPalette[sIdx] || getNodeColor(seriesKey, undefined, sIdx, palette.colors, customSliceColors);
     const patternStyle = getSeriesPatternStyle(sIdx, baseColor, enableHatchPatterns);
 
     const seriesData = categories.map(cat => {
@@ -283,6 +285,20 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       forceCohortDenominator: ctx.forceCohortDenominator
     }, effectiveLegendFormat);
 
+    const labelPos = ctx.universalLabelPosition && ctx.universalLabelPosition !== 'auto'
+      ? (isHorizontal ? (ctx.universalLabelPosition === 'outside' ? 'right' : ctx.universalLabelPosition) : (ctx.universalLabelPosition === 'outside' ? 'top' : ctx.universalLabelPosition))
+      : (isHorizontal 
+          ? (barLabelPosition === 'inside' ? 'inside' : barLabelPosition === 'insideLeft' ? 'insideLeft' : barLabelPosition === 'insideRight' ? 'insideRight' : 'right')
+          : (barLabelPosition === 'inside' ? 'inside' : barLabelPosition === 'insideLeft' ? 'insideBottom' : barLabelPosition === 'insideRight' ? 'insideTop' : 'top'));
+    const labelDist = ctx.universalLabelDistance ?? ctx.barLabelDistance ?? 5;
+    const labelRot = ctx.universalLabelRotate ?? ctx.barLabelRotate ?? 0;
+    const labelFSize = ctx.universalLabelFontSize ?? ctx.barLabelFontSize ?? Math.max(9, fontSize - 2);
+    const labelFWeight = (ctx.universalLabelFontWeight || ctx.barLabelFontWeight || 'bold') as any;
+    const labelFStyle = (ctx.universalLabelFontStyle || ctx.barLabelFontStyle || 'normal') as any;
+    const labelLHeight = ctx.universalLabelLineHeight ?? ctx.barLabelLineHeight ?? (labelFSize + 3);
+    const minThresh = ctx.universalLabelMinThreshold ?? ctx.barLabelMinThreshold ?? 0;
+    const showZero = ctx.universalLabelShowZero ?? ctx.barLabelShowZero ?? true;
+
     return {
       name: seriesLegendLabel,
       rawSeriesKey: seriesKey,
@@ -290,29 +306,43 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       barWidth: barThickness,
       barGap: `${barInnerGap}%`,
       barCategoryGap: `${barClusterGap}%`,
+      itemStyle: {
+        color: baseColor
+      },
       data: seriesData,
       label: {
         show: showDataLabels,
-        position: isHorizontal 
-          ? (barLabelPosition === 'inside' ? 'inside' : barLabelPosition === 'insideLeft' ? 'insideLeft' : barLabelPosition === 'insideRight' ? 'insideRight' : 'right')
-          : (barLabelPosition === 'inside' ? 'inside' : barLabelPosition === 'insideLeft' ? 'insideBottom' : barLabelPosition === 'insideRight' ? 'insideTop' : 'top'),
-        distance: ctx.barLabelDistance ?? 5,
-        rotate: ctx.barLabelRotate ?? 0,
+        position: labelPos as any,
+        distance: labelDist,
+        rotate: labelRot,
         fontFamily: font,
-        fontSize: ctx.barLabelFontSize || Math.max(9, fontSize - 2),
-        fontWeight: (ctx.barLabelFontWeight as any) || 'bold',
-        fontStyle: ctx.barLabelFontStyle || 'normal',
-        lineHeight: ctx.barLabelLineHeight ?? (ctx.barLabelFontSize ? ctx.barLabelFontSize + 3 : 13),
-        color: ctx.barLabelColor 
-          ? (ctx.barLabelColor === 'foreground' ? palette.text : ctx.barLabelColor)
-          : (barLabelPosition.startsWith('inside') ? '#ffffff' : baseColor),
+        fontSize: labelFSize,
+        fontWeight: labelFWeight,
+        fontStyle: labelFStyle,
+        lineHeight: labelLHeight,
+        color: (() => {
+          const mode = ctx.barLabelColor ?? '';
+          if (mode === '' || mode === 'match_series') {
+            return barLabelPosition.startsWith('inside') ? getContrastingTextColor(baseColor) : baseColor;
+          }
+          if (mode === 'foreground' || mode === 'theme' || mode === 'theme_contrast') {
+            return palette.text;
+          }
+          if (mode === '#111827' || mode === '#ffffff' || mode.startsWith('#') || mode.startsWith('rgb')) {
+            return mode;
+          }
+          if (ctx.universalLabelColor) {
+            return ctx.universalLabelColor === 'foreground' ? palette.text : ctx.universalLabelColor;
+          }
+          return barLabelPosition.startsWith('inside') ? getContrastingTextColor(baseColor) : baseColor;
+        })(),
         formatter: (params: any) => {
-          if (ctx.barLabelShowZero === false && (params.data?.paperCount === 0 || params.value === 0)) {
+          if (!showZero && (params.data?.paperCount === 0 || params.value === 0)) {
             return '';
           }
-          if (ctx.barLabelMinThreshold !== undefined && ctx.barLabelMinThreshold > 0) {
+          if (minThresh > 0) {
             const rawPct = parseFloat(params.data?.prevalencePct ?? '0');
-            if (!isNaN(rawPct) && rawPct < ctx.barLabelMinThreshold) return '';
+            if (!isNaN(rawPct) && rawPct < minThresh) return '';
           }
           return params.data?.formattedLabel ?? params.value;
         }
@@ -384,27 +414,17 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     : 1.18;
 
   const yWidth = barYAxisWidth || 140;
-  let gridTop = 45;
-  let gridBottom = isHorizontal ? 35 : 45;
-  let gridLeft = isHorizontal ? Math.max(90, Math.min(240, yWidth + 16)) : 60;
-  let gridRight = (isHorizontal && isLabelOutside) ? Math.max(80, Math.min(160, Math.round(maxLabelLength * 2.6))) : 65;
+  let defGridTop = 45;
+  let defGridBottom = isHorizontal ? 35 : 45;
+  let defGridLeft = isHorizontal ? Math.max(90, Math.min(240, yWidth + 16)) : 60;
+  let defGridRight = (isHorizontal && isLabelOutside) ? Math.max(80, Math.min(160, Math.round(maxLabelLength * 2.6))) : 65;
 
-  const customLegW = ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : 120;
-  if (showLegend) {
-    if (isTop) gridTop = 85 + legDist;
-    else if (isBottom) gridBottom = Math.max(gridBottom, (customAxisTitleX?.trim() ? 75 : 55) + legDist);
-    else if (isRight) gridRight = Math.max(gridRight, customLegW + legDist + 15);
-    else if (isLeft) gridLeft += Math.max(60, customLegW + legDist + 10);
-  }
-
-  const cPad = ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0;
-  const offX = ctx.fitOffsetX ?? 0;
-  const offY = ctx.fitOffsetY ?? 0;
-
-  gridTop = Math.max(15, gridTop + cPad - offY);
-  gridBottom = Math.max(15, gridBottom + cPad + offY);
-  gridLeft = Math.max(20, gridLeft + cPad - offX);
-  gridRight = Math.max(20, gridRight + cPad + offX);
+  const grid = resolveUniversalGrid(ctx, {
+    top: defGridTop,
+    bottom: defGridBottom,
+    left: defGridLeft,
+    right: defGridRight
+  });
 
   // 6. Metric Unit and Axis Titles
   const metricLabel = metricMode === 'paper_prevalence' 
@@ -449,9 +469,11 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     defaultUnitFormatter: (v: any) => isPctMetric ? `${v}%` : `${v}`
   });
 
+  const seriesColors = seriesObjects.map((s: any) => s.itemStyle?.color).filter(Boolean);
+
   return {
     backgroundColor: palette.bg,
-    color: palette.colors,
+    color: seriesColors.length > 0 ? seriesColors : palette.colors,
     title: baseTitle,
     tooltip: {
       trigger: 'axis',
@@ -482,40 +504,20 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       }
     },
     legend: showLegend ? {
-      show: true,
-      type: ctx.legendType || 'scroll',
+      ...baseLegend,
       data: seriesObjects.map(s => s.name),
       ...effectiveLegendPos,
       orient: legendOrient,
-      align: ctx.legendAlign || 'auto',
+      align: ctx.legendAlign || baseLegend.align,
       z: 20,
-      textStyle: { 
-        color: ctx.legendTextColor || palette.text, 
-        fontFamily: font, 
-        fontSize: ctx.legendFontSize ?? Math.max(9, fontSize - 3), 
-        fontWeight: (ctx.legendFontWeight as any) || 'bold',
-        width: ctx.legendWidth && ctx.legendWidth > 0 ? ctx.legendWidth : undefined,
-        lineHeight: ctx.legendLineHeight ?? 14,
-        overflow: ctx.legendOverflow || 'break'
-      },
-      itemWidth: ctx.legendItemWidth ?? 14,
-      itemHeight: ctx.legendItemHeight ?? 10,
-      itemGap: ctx.legendItemGap ?? 10,
-      backgroundColor: ctx.legendBackgroundColor || 'transparent',
-      borderColor: ctx.legendBorderColor || 'transparent',
-      borderWidth: ctx.legendBorderWidth ?? 0,
-      borderRadius: ctx.legendBorderRadius ?? 4,
-      padding: ctx.legendPadding !== undefined ? ctx.legendPadding : 5,
-      pageIconColor: palette.text,
-      pageTextStyle: { color: palette.text }
+      itemWidth: ctx.legendItemWidth ?? baseLegend.itemWidth,
+      itemHeight: ctx.legendItemHeight ?? baseLegend.itemHeight,
+      itemGap: ctx.legendItemGap ?? baseLegend.itemGap,
+      textStyle: {
+        ...baseLegend.textStyle
+      }
     } : { show: false },
-    grid: {
-      left: gridLeft,
-      right: gridRight,
-      top: gridTop,
-      bottom: gridBottom,
-      containLabel: false
-    },
+    grid,
     xAxis: isHorizontal ? valueAxisConfig : categoryAxisConfig,
     yAxis: isHorizontal ? categoryAxisConfig : valueAxisConfig,
     series: seriesObjects

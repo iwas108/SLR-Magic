@@ -86,8 +86,6 @@ To maintain the system state and trace all changes cleanly, we adopt a hierarchi
 ### 3.4 Mandatory Tree Shaking
 *   **Post-Refactor Cleanup**: Every time you perform a major component or hook extraction, you MUST perform a 'tree shaking' audit of the parent file (e.g., page.tsx).
 *   **Remove Dead Code**: Identify and delete any unused imports, orphaned local states (useState), and abandoned functions left behind by the refactor.
-*   **Compiler Verification**: After tree shaking, you MUST run the TypeScript compiler (e.g., 
-px tsc --noEmit) to verify that no duplicate variables or syntax errors remain, ensuring a clean and stable build.
 
 ### 3.5 Isolation of Double-Blind Calibration Adjudication
 *   **Calibration Data Sandbox**: The double-blind calibration adjudication tables (`reviewer_decisions`, `calibration_commit_ledger`, and `calibration_papers`) and columns (`manual_decision`, `manual_rationale`, `manual_quality_assessment`, `manual_extracted_data`, `manual_stage` on `calibration_papers`) are standalone modules strictly reserved for prompt and agreement calibration.

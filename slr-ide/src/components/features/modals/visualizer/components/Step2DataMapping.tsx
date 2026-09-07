@@ -786,36 +786,30 @@ export function Step2DataMapping() {
           </div>
         )}
 
-        {/* Category Data Limiting Option */}
-        {['bar_vertical', 'bar_horizontal', 'horizontal_bar_scatter', 'clustered_bar', 'stacked_bar', 'line', 'pie_donut', 'funnel', 'radar', 'boxplot', 'graph', 'heatmap'].includes(chartType) && (
-          <div className="p-4 bg-secondary/20 border border-border/80 rounded-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
-                <input
-                  type="checkbox"
-                  checked={limitCategories}
-                  onChange={(e) => setLimitCategories(e.target.checked)}
-                  className="rounded border-border text-primary"
-                />
-                Enable Category Limiting (Group Minority Tail into "Other")
-              </label>
-            </div>
-
-            {limitCategories && (
-              <div className="flex items-center gap-3 pt-1">
-                <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                  Max Categories to Show (Top N-1 + "Other"):
-                </label>
-                <input
-                  type="number"
-                  min={2}
-                  max={50}
-                  value={maxCategoriesCount}
-                  onChange={(e) => setMaxCategoriesCount(Math.max(2, Number(e.target.value)))}
-                  className="w-24 bg-card border border-border rounded-lg px-2.5 py-1 text-xs font-bold text-foreground focus:outline-none focus:border-primary"
-                />
+        {/* Universal Data Grouping Studio Launcher */}
+        {primaryField !== CUSTOM_GROUPING_KEY && ['bar_vertical', 'bar_horizontal', 'horizontal_bar_scatter', 'clustered_bar', 'stacked_bar', 'line', 'pie_donut', 'funnel', 'radar', 'boxplot', 'graph', 'heatmap'].includes(chartType) && (
+          <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-primary/20 text-primary">
+                <Sparkles className="w-5 h-5" />
               </div>
-            )}
+              <div>
+                <span className="text-xs font-bold text-foreground block">
+                  Universal Data Grouping &amp; Stratification Studio
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Custom group, colon-prefix auto-parse, or smart tail bundle categories for <strong className="text-primary font-mono">{primaryField}</strong>.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPrimaryField(CUSTOM_GROUPING_KEY)}
+              className="px-3.5 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Open Data Grouping Studio
+            </button>
           </div>
         )}
 

@@ -7,6 +7,7 @@ import type {
   FontFamily, 
   MetricMode, 
   SunburstLevelConfig,
+  TreemapLevelConfig,
   DecimalPrecision,
   RatioStyle,
   DisplayFormatTemplate,
@@ -118,7 +119,12 @@ export interface BuildChartOptionParams {
   sankeyLevelLabelDistances?: Record<number, number>;
   sankeyLevelNodeWidths?: Record<number, number>;
   sankeyLevelPathFilters?: Record<number, string>;
-  sankeySort?: 'desc' | 'asc' | 'alpha' | 'none';
+  sankeySort?: 'desc' | 'asc' | 'alpha' | 'barycenter' | 'none';
+  sankeyPinUnstatedToBottom?: boolean;
+  sankeyFlowConservation?: boolean;
+  sankeyLevelNodeOrders?: Record<number, string[]>;
+  levelSegmentIndices?: Record<number, number>;
+  levelScopeFilters?: Record<number, string>;
   sankeyLabelLineHeight?: number;
   sankeyLabelFontWeight?: 'normal' | 'bold' | '500' | '600' | '700' | '800';
   sankeyLabelColor?: string;
@@ -203,6 +209,12 @@ export interface BuildChartOptionParams {
   legendFormat?: DisplayFormatTemplate;
   barLegendFormat: DisplayFormatTemplate;
   barLegendPosition: 'top-left' | 'top-center' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  legendContextScope?: 'global_cohort' | 'parent_layer' | 'surviving_flow' | 'in_chart_flow';
+  syncLegendAndBarMetrics?: boolean;
+  barLabelContextScope?: 'auto' | 'layer_share' | 'cohort_prevalence' | 'global_cohort';
+  legendShowParentPrefix?: boolean;
+  legendParentPrefixStyle?: 'abbreviated' | 'full' | 'colliding_only' | 'none';
+  legendGroupByParent?: boolean;
   decimalPrecision?: DecimalPrecision;
   useTildeForCoarse?: boolean;
   ratioStyle?: RatioStyle;
@@ -249,7 +261,9 @@ export interface BuildChartOptionParams {
   legendLineHeight?: number;
   legendItemGap?: number;
   legendFontSize?: number;
+  legendFontFamily?: string;
   legendFontStyle?: 'normal' | 'italic';
+  legendLetterSpacing?: number;
   legendOverflow?: 'break' | 'truncate' | 'none';
   fitOffsetX?: number;
   fitOffsetY?: number;
@@ -307,12 +321,50 @@ export interface BuildChartOptionParams {
   piePadAngle?: number;
   pieCornerRadius?: number;
   treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
+  treemapSquareRatio?: number;
   treemapVisibleDepth?: number;
   treemapGapWidth?: number;
   treemapBorderWidth?: number;
+  treemapBorderRadius?: number;
+  treemapBorderColorMode?: 'auto_bg' | 'contrast' | 'custom' | 'transparent';
+  treemapBorderColor?: string;
+  treemapNodeClick?: 'zoomToNode' | 'link' | 'none';
+  treemapRoam?: boolean | 'scale' | 'move';
+  treemapDrillDownIcon?: string;
+  treemapShowBreadcrumb?: boolean;
+  treemapBreadcrumbPosition?: 'bottom' | 'top';
+  treemapBreadcrumbHeight?: number;
+  treemapColorMode?: 'branch_gradient' | 'depth_fade' | 'value_weighted' | 'level_discrete' | 'rainbow_discrete';
+  treemapColorMappingBy?: 'index' | 'value' | 'id';
+  treemapColorAlphaMin?: number;
+  treemapColorAlphaMax?: number;
+  treemapColorSaturationMin?: number;
+  treemapColorSaturationMax?: number;
+  treemapShowLabels?: boolean;
+  treemapLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapLabelFormat?: DisplayFormatTemplate;
+  treemapLabelFontSize?: number;
+  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapLabelFontStyle?: 'normal' | 'italic';
+  treemapLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapLabelColor?: string;
+  treemapLabelOverflow?: 'break' | 'truncate' | 'none';
+  treemapShowUpperLabel?: boolean;
+  treemapUpperLabelHeight?: number;
+  treemapUpperLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapUpperLabelFormat?: DisplayFormatTemplate;
+  treemapUpperLabelFontSize?: number;
+  treemapUpperLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapUpperLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapUpperLabelColor?: string;
+  treemapUpperLabelBgColor?: string;
+  treemapVisibleMin?: number;
+  treemapChildrenVisibleMin?: number;
+  treemapLevelConfigs?: Record<number, TreemapLevelConfig>;
   heatmapCellRadius?: number;
   heatmapColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
   radarShape?: 'polygon' | 'circle';
+  radarStartAngle?: number;
   radarAreaOpacity?: number;
   radarLineWidth?: number;
   radarSplitNumber?: number;
@@ -320,6 +372,7 @@ export interface BuildChartOptionParams {
   radarAxisLine?: boolean;
   radarSplitLine?: boolean;
   radarSplitArea?: boolean;
+  radarSplitAreaTheme?: 'stepped' | 'subtle' | 'none';
   radarAxisNameMargin?: number;
   radarAxisNameWidth?: number;
   radarAxisNameOverflow?: 'break' | 'truncate' | 'none';
@@ -329,11 +382,11 @@ export interface BuildChartOptionParams {
   radarBaselineLineStyle?: 'solid' | 'dashed' | 'dotted';
   radarBaselineSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
   radarBaselineSymbolSize?: number;
-  radarMode?: 'multi_variable' | 'qa_breakdown';
+  radarMode?: 'multi_variable' | 'qa_breakdown' | 'prevalence_vs_tag_share';
   radarVariables?: string[];
   radarVariableAliases?: Record<string, string>;
   radarVariableTargets?: Record<string, number>;
-  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'name_only';
+  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'asymmetry_two_line' | 'name_only';
   radarShowTarget?: boolean;
   radarTargetName?: string;
   radarTargetValue?: number;
@@ -345,6 +398,13 @@ export interface BuildChartOptionParams {
   radarTargetSymbolSize?: number;
   radarBaselineName?: string;
   radarBaselineColor?: string;
+  radarTagShareName?: string;
+  radarTagShareColor?: string;
+  radarTagShareLineStyle?: 'dashed' | 'solid' | 'dotted';
+  radarTagShareLineWidth?: number;
+  radarTagShareAreaOpacity?: number;
+  radarTagShareSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarTagShareSymbolSize?: number;
   funnelAlign?: 'center' | 'left' | 'right';
   funnelGap?: number;
   funnelNeckWidth?: number;
@@ -396,6 +456,15 @@ export interface BuildChartOptionParams {
   calendarCellSize?: number;
   calendarYear?: string;
   stackedNormalized?: boolean;
+  stackedReverseOrder?: boolean;
+  stackedPerBarSorting?: 'none' | 'desc' | 'asc';
+  stackedShowTotalLabel?: boolean;
+  stackedTotalLabelPosition?: 'top' | 'insideTop' | 'right';
+  stackedTotalLabelFormat?: string;
+  stackedTotalFontSize?: number;
+  stackedTotalFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  stackedTotalColor?: string;
+  stackedTotalLabelDistance?: number;
   legendType?: 'plain' | 'scroll';
   legendAlign?: 'auto' | 'left' | 'right';
   legendIcon?: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line';
@@ -448,10 +517,6 @@ export interface BuildChartOptionParams {
   heatmapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   heatmapLabelFontStyle?: 'normal' | 'italic';
   heatmapLabelColor?: string;
-  treemapLabelFontSize?: number;
-  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
-  treemapLabelFontStyle?: 'normal' | 'italic';
-  treemapLabelColor?: string;
   funnelLabelFontSize?: number;
   funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   funnelLabelFontStyle?: 'normal' | 'italic';
@@ -469,6 +534,29 @@ export interface BuildChartOptionParams {
   barGridRight?: number;
   scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
   otherCategoryLabel?: string;
+  // Universal Layout Margins & Canvas Padding
+  gridMarginAuto?: boolean;
+  gridMarginTop?: number;
+  gridMarginBottom?: number;
+  gridMarginLeft?: number;
+  gridMarginRight?: number;
+  // Universal Data Label Styling
+  universalLabelPosition?: 'auto' | 'top' | 'bottom' | 'left' | 'right' | 'inside' | 'insideLeft' | 'insideRight' | 'outside';
+  universalLabelDistance?: number;
+  universalLabelOverflow?: 'break' | 'truncate' | 'none';
+  universalMaxLabelWidth?: number;
+  universalLabelLineHeight?: number;
+  universalLabelFontSize?: number;
+  universalLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  universalLabelFontStyle?: 'normal' | 'italic';
+  universalLabelColor?: string;
+  universalLabelColorMode?: 'auto_contrast' | 'theme' | 'custom';
+  universalLabelRotate?: number;
+  universalLabelMinThreshold?: number;
+  universalLabelShowZero?: boolean;
+  // Smart Color Modes & Interactive Propagation
+  smartColorMode?: 'branch_gradient' | 'parent_flow' | 'value_weighted_tint' | 'level_discrete' | 'rainbow_discrete';
+  smartColorPropagation?: 'auto_children' | 'discrete_only';
 }
 
 export function buildChartOption(params: BuildChartOptionParams): echarts.EChartsOption {
@@ -510,13 +598,14 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
   const effectiveLegendLineHeight = legendLineHeight !== undefined ? legendLineHeight : 15;
   const effectiveLegendItemGap = legendItemGap !== undefined ? legendItemGap : 12;
   const effectiveLegendWidth = (legendWidth !== undefined && legendWidth > 0) ? legendWidth : undefined;
+  const hasVisibleTitle = Boolean(baseTitle && (baseTitle as any).show !== false);
 
   const baseLegend = {
     show: showLegend,
     type: params.legendType || 'plain',
     left: legendPosition === 'left' ? (legendDistance ?? 15) : legendPosition === 'right' ? undefined : (params.legendAlign === 'left' ? 20 : params.legendAlign === 'right' ? undefined : 'center'),
     right: legendPosition === 'right' ? (legendDistance ?? 15) : (params.legendAlign === 'right' ? 20 : undefined),
-    top: legendPosition === 'top' ? (showChartTitle ? 55 : 15) + (legendDistance ?? 0) : legendPosition === 'bottom' ? undefined : 'center',
+    top: legendPosition === 'top' ? (hasVisibleTitle ? 55 : 15) + (legendDistance ?? 0) : legendPosition === 'bottom' ? undefined : 'center',
     bottom: legendPosition === 'bottom' ? (legendDistance ?? 10) : undefined,
     orient: (legendPosition === 'left' || legendPosition === 'right') ? 'vertical' as const : 'horizontal' as const,
     align: params.legendAlign || 'auto',
@@ -529,8 +618,10 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
     borderWidth: params.legendBorderWidth ?? 0,
     borderRadius: params.legendBorderRadius ?? 4,
     padding: params.legendPadding !== undefined ? params.legendPadding : 5,
+    pageIconColor: palette.text,
+    pageTextStyle: { color: palette.text },
     textStyle: {
-      fontFamily: font,
+      fontFamily: params.legendFontFamily && params.legendFontFamily !== 'inherit' ? resolveFontFamilyCss(params.legendFontFamily as any) : font,
       fontSize: effectiveLegendFontSize,
       fontWeight: (params.legendFontWeight as any) || 'normal',
       fontStyle: (params.legendFontStyle as any) || 'normal',

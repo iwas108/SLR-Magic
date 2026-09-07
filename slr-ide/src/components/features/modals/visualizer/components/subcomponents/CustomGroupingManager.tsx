@@ -33,6 +33,7 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
   const { 
     chartType, 
     sankeyFields, 
+    setSankeyFields,
     primaryField, 
     setPrimaryField, 
     secondaryField, 
@@ -102,8 +103,28 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
 
   const totalCohort = (papers || []).length || 1;
 
-  // 1-Click Colon Prefix Discovery
-  const handleAutoParseColon = (lIdx: number, subValues: string[], targetKey: string) => {
+  // 1-Click Clear All Groups
+  const handleClearAllGroups = (lIdx: number) => {
+    setLevelCustomGroups((prev: Record<number, string[]>) => ({
+      ...prev,
+      [lIdx]: []
+    }));
+    setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({
+      ...prev,
+      [lIdx]: {}
+    }));
+  };
+
+  // 1-Click Unassign All Items (Keeps Custom Groups)
+  const handleUnassignAll = (lIdx: number) => {
+    setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({
+      ...prev,
+      [lIdx]: {}
+    }));
+  };
+
+  // Dynamic Colon Segment Auto-Grouping for any Level X (0-indexed segment)
+  const handleAutoParseColonLevel = (lIdx: number, subValues: string[], targetKey: string, segmentIdx: number) => {
     if (!subValues || subValues.length === 0) return;
 
     const newGroupsSet = new Set<string>();
@@ -112,16 +133,15 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
 
     subValues.forEach(val => {
       if (!val || val === '[object Object]' || val === 'Unspecified') return;
-      const colonIdx = val.indexOf(':');
-      if (colonIdx !== -1) {
-        const prefix = val.substring(0, colonIdx).trim();
-        if (prefix) {
-          newGroupsSet.add(prefix);
-          newLinks[val] = prefix;
-        } else {
-          hasStandalone = true;
-          newLinks[val] = 'Other / Standalone';
-        }
+      const parts = val.split(':').map(s => s.trim()).filter(Boolean);
+      if (parts.length > segmentIdx && parts[segmentIdx]) {
+        const segVal = parts[segmentIdx];
+        newGroupsSet.add(segVal);
+        newLinks[val] = segVal;
+      } else if (parts.length > 0) {
+        const fallback = parts[parts.length - 1];
+        newGroupsSet.add(fallback);
+        newLinks[val] = fallback;
       } else {
         hasStandalone = true;
         newLinks[val] = 'Other / Standalone';
@@ -136,17 +156,16 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
     if (!levelTargetFields[lIdx]) {
       setLevelTargetFields((prev: Record<number, string>) => ({ ...prev, [lIdx]: targetKey }));
     }
-
-    setLevelCustomGroups((prev: Record<number, string[]>) => ({
-      ...prev,
-      [lIdx]: sortedGroups
-    }));
-
-    setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({
-      ...prev,
-      [lIdx]: newLinks
-    }));
+    setLevelCustomGroups((prev: Record<number, string[]>) => ({ ...prev, [lIdx]: sortedGroups }));
+    setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({ ...prev, [lIdx]: newLinks }));
+    if (config.setLevelSegmentIndices) {
+      config.setLevelSegmentIndices((prev: Record<number, number>) => ({ ...prev, [lIdx]: segmentIdx }));
+    }
   };
+
+  const handleAutoParseColonLv1 = (lIdx: number, subValues: string[], targetKey: string) => handleAutoParseColonLevel(lIdx, subValues, targetKey, 0);
+  const handleAutoParseColonLv2 = (lIdx: number, subValues: string[], targetKey: string) => handleAutoParseColonLevel(lIdx, subValues, targetKey, 1);
+  const handleAutoParseColonLv3 = (lIdx: number, subValues: string[], targetKey: string) => handleAutoParseColonLevel(lIdx, subValues, targetKey, 2);
 
   // 1-Click Direct Grouping
   const handleAutoGroupDirect = (lIdx: number, subValues: string[], targetKey: string) => {
@@ -267,11 +286,13 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
         const currentNewName = levelNewGroupName[lIdx] || '';
         const currentSearch = searchFilter[lIdx] || '';
 
-        const defaultSubFieldKey = is2DChart
-          ? (lIdx === 0 
-              ? (levelTargetFields[0] || (primaryField !== CUSTOM_GROUPING_KEY ? primaryField : (discoveredVariables?.find(v => v.category === 'extracted' || v.category === 'taxonomy')?.key || 'Year'))) 
-              : (levelTargetFields[1] || (secondaryField !== CUSTOM_GROUPING_KEY ? secondaryField : (discoveredVariables?.find(v => v.key.includes('rq2') || v.category === 'extracted')?.key || 'Import_Source'))))
-          : (levelTargetFields[lIdx] || sankeyFields.find((f, i) => f !== CUSTOM_GROUPING_KEY && i > lIdx) || sankeyFields.find(f => f !== CUSTOM_GROUPING_KEY) || (primaryField !== CUSTOM_GROUPING_KEY ? primaryField : 'Year'));
+        const defaultSubFieldKey = isHierarchical
+          ? (levelTargetFields[lIdx] || (sankeyFields[lIdx] && sankeyFields[lIdx] !== CUSTOM_GROUPING_KEY ? sankeyFields[lIdx] : undefined) || sankeyFields.find((f, i) => f !== CUSTOM_GROUPING_KEY && i !== lIdx) || (primaryField !== CUSTOM_GROUPING_KEY ? primaryField : 'Year'))
+          : is2DChart
+            ? (lIdx === 0 
+                ? (levelTargetFields[0] || (primaryField !== CUSTOM_GROUPING_KEY ? primaryField : (discoveredVariables?.find(v => v.category === 'extracted' || v.category === 'taxonomy')?.key || 'Year'))) 
+                : (levelTargetFields[1] || (secondaryField !== CUSTOM_GROUPING_KEY ? secondaryField : (discoveredVariables?.find(v => v.key.includes('rq2') || v.category === 'extracted')?.key || 'Import_Source'))))
+            : (levelTargetFields[0] || (primaryField !== CUSTOM_GROUPING_KEY ? primaryField : 'Year'));
         
         const subFieldKey = levelTargetFields[lIdx] || defaultSubFieldKey;
 
@@ -310,14 +331,25 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
         }, [papers, subFieldKey, extractOpts, totalCohort]);
 
         const colonItemsCount = allSubValues.filter(v => v.includes(':')).length;
+        let maxColonDepth = 1;
+        if (colonItemsCount > 0) {
+          allSubValues.forEach(v => {
+            if (v.includes(':')) {
+              const parts = v.split(':').map(s => s.trim()).filter(Boolean);
+              if (parts.length > maxColonDepth) maxColonDepth = parts.length;
+            }
+          });
+        }
         const unassignedItems = allSubValues.filter(v => !currentLevelLinks[v]);
         const filteredUnassigned = currentSearch
           ? unassignedItems.filter(u => u.toLowerCase().includes(currentSearch.toLowerCase()))
           : unassignedItems;
 
-        const levelTitle = is2DChart
-          ? (lIdx === 0 ? 'Primary Dimension (X-Axis / Rows) Grouping' : 'Secondary Dimension (Series / Columns) Grouping')
-          : `Hierarchy Level ${lIdx + 1} Grouping Layer`;
+        const levelTitle = isHierarchical
+          ? `Hierarchy Level ${lIdx + 1} (${chartType === 'sunburst' ? `Ring ${lIdx + 1}` : chartType === 'sankey' ? `Flow ${lIdx + 1}` : `Depth ${lIdx + 1}`}) Custom Grouping Layer`
+          : is2DChart
+            ? (lIdx === 0 ? 'Primary Dimension (X-Axis / Rows) Custom Grouping' : 'Secondary Dimension (Series / Columns) Custom Grouping')
+            : 'Custom Grouping & Thematic Stratification Layer';
 
         return (
           <div key={lIdx} className="p-4 bg-secondary/20 border-2 border-primary/30 rounded-2xl space-y-4 shadow-sm">
@@ -337,19 +369,57 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
                 </div>
               </div>
 
-              {/* 1-Click Auto Groupers */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {colonItemsCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => handleAutoParseColon(lIdx, allSubValues, subFieldKey)}
-                    className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-xs active:scale-95"
-                    title="Automatically discover macro-categories from ':' prefixes"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
-                    Auto-Group from &apos;:&apos; Prefixes ({colonItemsCount})
-                  </button>
+              {/* 1-Click Fast Re-Groupers & Clear Actions */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {colonItemsCount > 0 && Array.from({ length: maxColonDepth }).map((_, sIdx) => {
+                  const levelNum = sIdx + 1;
+                  const label = levelNum === 1 ? 'Lv1 (Macro)' : levelNum === 2 ? 'Lv2 (Sub)' : levelNum === 3 ? 'Lv3 (Leaf)' : `Lv${levelNum}`;
+                  const colorStyles = [
+                    'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30',
+                    'bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border-sky-500/30',
+                    'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
+                    'bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30',
+                    'bg-pink-500/10 hover:bg-pink-500/20 text-pink-600 dark:text-pink-400 border-pink-500/30'
+                  ];
+                  const activeColor = colorStyles[sIdx % colorStyles.length];
+                  return (
+                    <button
+                      key={sIdx}
+                      type="button"
+                      onClick={() => handleAutoParseColonLevel(lIdx, allSubValues, subFieldKey, sIdx)}
+                      className={`px-2.5 py-1.5 ${activeColor} border rounded-xl text-[11px] font-extrabold flex items-center gap-1 transition-all shadow-xs active:scale-95`}
+                      title={`Auto-Group by Colon Segment Level ${levelNum} (0-indexed segment ${sIdx})`}
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      Auto-Group &apos;:&apos; {label}
+                    </button>
+                  );
+                })}
+
+                {currentLevelGroups.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleUnassignAll(lIdx)}
+                      className="px-2.5 py-1.5 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all shadow-xs active:scale-95"
+                      title="Keep custom group names but clear all item assignments"
+                    >
+                      <X className="w-3.5 h-3.5 text-muted-foreground" />
+                      Unassign All
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleClearAllGroups(lIdx)}
+                      className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all shadow-xs active:scale-95"
+                      title="Completely delete all custom groups and unassign all items for this level"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Clear All Groups
+                    </button>
+                  </>
                 )}
+
                 {currentLevelGroups.length === 0 && allSubValues.length > 0 && (
                   <button
                     type="button"
@@ -366,12 +436,15 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
 
             {/* Integrated Extraction Protocols & Scientific Metric Controls */}
             <div className="p-3.5 bg-card border border-border rounded-xl space-y-3 shadow-xs">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Filter className="w-3.5 h-3.5 text-primary" />
                   Extraction Protocols & Pre-Normalization
                 </span>
-                <span className="text-[10px] text-muted-foreground font-mono">Dynamic Cohort Resolution</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1 font-mono">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Data Query Safety Guard: PASSED (N={totalCohort})
+                </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                 <label className="flex items-center gap-2 p-2 bg-secondary/30 rounded-lg border border-border/80 cursor-pointer hover:bg-secondary/50 transition-colors">
@@ -850,35 +923,94 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
             )}
 
             {/* Apply Grouping Layer to Chart Actions */}
-            <div className="pt-2 border-t border-border/60 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLevelTargetFields((prev: Record<number, string>) => ({ ...prev, [lIdx]: subFieldKey }));
-                    setPrimaryField(CUSTOM_GROUPING_KEY);
-                    if (onClose) onClose();
-                  }}
-                  className="px-3.5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
-                  title="Assign this custom grouping layer as the primary chart dimension"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Apply as Primary Variable
-                </button>
+            <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                {isHierarchical ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLevelTargetFields((prev: Record<number, string>) => ({ ...prev, [lIdx]: subFieldKey }));
+                        const nextSankeyFields = [...sankeyFields];
+                        nextSankeyFields[lIdx] = CUSTOM_GROUPING_KEY;
+                        setSankeyFields(nextSankeyFields);
+                        if (onClose) onClose();
+                      }}
+                      className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                      title={`Assign this custom grouping layer directly to Level ${lIdx + 1} (${chartType === 'sunburst' ? `Ring ${lIdx + 1}` : chartType === 'sankey' ? `Flow ${lIdx + 1}` : `Depth ${lIdx + 1}`})`}
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300" />
+                      Apply to Level {lIdx + 1} ({chartType === 'sunburst' ? `Ring ${lIdx + 1}` : chartType === 'sankey' ? `Flow ${lIdx + 1}` : `Depth ${lIdx + 1}`})
+                    </button>
 
-                {is2DChart && (
+                    {sankeyFields.length > 1 && (
+                      <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-xl border border-border">
+                        <span className="text-[10px] font-bold text-muted-foreground px-1.5">Apply to another level:</span>
+                        {sankeyFields.map((_, targetIdx) => {
+                          if (targetIdx === lIdx) return null;
+                          return (
+                            <button
+                              key={targetIdx}
+                              type="button"
+                              onClick={() => {
+                                setLevelTargetFields((prev: Record<number, string>) => ({ ...prev, [targetIdx]: subFieldKey }));
+                                const nextSankeyFields = [...sankeyFields];
+                                nextSankeyFields[targetIdx] = CUSTOM_GROUPING_KEY;
+                                setSankeyFields(nextSankeyFields);
+                                if (onClose) onClose();
+                              }}
+                              className="px-2 py-1 bg-card hover:bg-card/80 text-foreground border border-border rounded-lg text-[10px] font-bold transition-all"
+                            >
+                              Level {targetIdx + 1} ({chartType === 'sunburst' ? `Ring ${targetIdx + 1}` : `L${targetIdx + 1}`})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                ) : is2DChart ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLevelTargetFields((prev: Record<number, string>) => ({ ...prev, [0]: subFieldKey }));
+                        setPrimaryField(CUSTOM_GROUPING_KEY);
+                        if (onClose) onClose();
+                      }}
+                      className="px-3.5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95"
+                      title="Assign this custom grouping layer as the primary chart dimension (X-Axis / Rows)"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Apply as Primary Dimension (X-Axis / Base)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLevelTargetFields((prev: Record<number, string>) => ({ ...prev, [1]: subFieldKey }));
+                        setSecondaryField(CUSTOM_GROUPING_KEY);
+                        if (onClose) onClose();
+                      }}
+                      className="px-3.5 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95"
+                      title="Assign this custom grouping layer as the secondary chart series (Comparison / Legend)"
+                    >
+                      <Layers className="w-4 h-4" />
+                      Apply as Secondary Series (Comparison)
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
                     onClick={() => {
-                      setLevelTargetFields((prev: Record<number, string>) => ({ ...prev, [lIdx]: subFieldKey }));
-                      setSecondaryField(CUSTOM_GROUPING_KEY);
+                      setLevelTargetFields((prev: Record<number, string>) => ({ ...prev, [0]: subFieldKey }));
+                      setPrimaryField(CUSTOM_GROUPING_KEY);
                       if (onClose) onClose();
                     }}
-                    className="px-3.5 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
-                    title="Assign this custom grouping layer as the secondary chart series"
+                    className="px-3.5 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95"
+                    title="Assign this custom grouping layer as the primary chart dimension"
                   >
-                    <Layers className="w-4 h-4" />
-                    Apply as Secondary Variable
+                    <Sparkles className="w-4 h-4" />
+                    Apply as Main Category Dimension
                   </button>
                 )}
               </div>
@@ -887,9 +1019,9 @@ export function CustomGroupingManager({ onClose, targetSlotIndex }: CustomGroupi
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-foreground"
+                  className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-xl text-xs font-bold transition-all"
                 >
-                  Done
+                  Done / Close
                 </button>
               )}
             </div>

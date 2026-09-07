@@ -1,5 +1,6 @@
 import type { ChartGeneratorContext } from './types';
 import type { AxisLocation, AxisLabelFormat, AxisGridLineStyle } from '../types';
+import { formatVariableDisplayName } from '@/lib/services/cohort-data-source';
 
 export interface ScientificAxisOptions {
   axisKind: 'category' | 'value' | 'time';
@@ -106,12 +107,23 @@ export function formatScientificAxisValue(
 
 /**
  * Breaks long text strings across multiple lines based on maximum character limit.
+ * Priority order: (1) explicit \n, (2) "/" semantic delimiters, (3) space-based word wrap.
  */
 export function wrapAxisLabelText(text: string, maxCharsPerLine: number = 16): string {
   if (!text) return '';
   const unescaped = text.replace(/\\n/g, '\n');
   if (unescaped.includes('\n')) {
     return unescaped.split('\n').map(segment => wrapAxisLabelText(segment, maxCharsPerLine)).join('\n');
+  }
+  // Priority 2: Pre-split on "/" semantic separators (e.g. "Agriculture/Horticulture", "Traffic / Smart City")
+  if (unescaped.includes('/')) {
+    const slashSegments = unescaped.split('/').map(s => s.trim()).filter(Boolean);
+    if (slashSegments.length > 1) {
+      return slashSegments.map((segment, sIdx) => {
+        const textWithSlash = sIdx < slashSegments.length - 1 ? `${segment}/` : segment;
+        return wrapAxisLabelText(textWithSlash, maxCharsPerLine);
+      }).join('\n');
+    }
   }
   if (unescaped.length <= maxCharsPerLine) return unescaped;
   const words = unescaped.split(' ');
@@ -152,11 +164,66 @@ export function buildScientificAxisConfig(
 ): any {
   const { palette, font, fontSize } = ctx;
   const isX = axisTarget === 'x';
+  const isHorizontalChart = ctx.chartType === 'bar_horizontal' || ctx.chartType === 'horizontal_bar_scatter' || (ctx.chartType === 'clustered_bar' && ctx.barOrientation === 'horizontal') || (ctx.chartType === 'stacked_bar' && ctx.barOrientation === 'horizontal') || (ctx.chartType === 'boxplot' && ctx.boxplotOrientation === 'horizontal');
 
-  // 1. Resolve Titles
+  // 1. Resolve Tick Labels
+  const showLabel = isX ? (ctx.showAxisLabelX ?? true) : (ctx.showAxisLabelY ?? true);
+
+  const labelFontSize = isX
+    ? (ctx.axisLabelFontSizeX ?? Math.max(8, fontSize - 2))
+    : (ctx.axisLabelFontSizeY ?? ctx.barYAxisFontSize ?? Math.max(8, fontSize - 2));
+
+  const labelFontWeight = isX
+    ? (ctx.axisLabelFontWeightX || 'normal')
+    : (ctx.axisLabelFontWeightY || ctx.barYAxisFontWeight || 'normal');
+
+  const labelFontStyle = isX
+    ? (ctx.axisLabelFontStyleX || 'normal')
+    : (ctx.axisLabelFontStyleY || ctx.barYAxisFontStyle || 'normal');
+
+  const labelColor = isX
+    ? (ctx.axisLabelColorX || palette.text)
+    : (ctx.axisLabelColorY || ctx.barYAxisColor || palette.text);
+
+  const labelRotate = isX
+    ? (ctx.axisLabelRotateX ?? (ctx.labelRotation || 0))
+    : (ctx.axisLabelRotateY ?? 0);
+
+  const labelMargin = isX
+    ? (ctx.axisLabelMarginX ?? 8)
+    : (ctx.axisLabelMarginY ?? 8);
+
+  const labelOverflow = isX
+    ? (ctx.axisLabelOverflowX || 'none')
+    : (ctx.axisLabelOverflowY ?? ctx.barYAxisOverflow ?? (isHorizontalChart ? 'break' : 'none'));
+
+  const labelWidth = isX
+    ? (ctx.axisLabelWidthX ?? 120)
+    : (ctx.axisLabelWidthY ?? ctx.barYAxisWidth ?? 140);
+
+  const labelLineHeight = isX
+    ? (ctx.axisLabelLineHeightX ?? Math.max(12, labelFontSize + 3))
+    : (ctx.axisLabelLineHeightY ?? ctx.barLineHeight ?? Math.max(12, labelFontSize + 3));
+
+  const labelFormat = isX
+    ? (ctx.axisLabelFormatX || 'auto')
+    : (ctx.axisLabelFormatY || 'auto');
+
+  const labelDecimals = isX ? ctx.axisLabelDecimalsX : ctx.axisLabelDecimalsY;
+
+  const labelPrefix = isX ? (ctx.axisLabelPrefixX || '') : (ctx.axisLabelPrefixY || '');
+  const labelSuffix = isX ? (ctx.axisLabelSuffixX || '') : (ctx.axisLabelSuffixY || '');
+
+  const labelInterval = isX
+    ? (ctx.axisLabelIntervalX ?? 'auto')
+    : (ctx.axisLabelIntervalY ?? 'auto');
+
+  // 2. Resolve Titles
   const customTitle = isX ? ctx.customAxisTitleX : ctx.customAxisTitleY;
   const showTitle = isX ? (ctx.showAxisTitleX ?? true) : (ctx.showAxisTitleY ?? true);
-  const resolvedTitle = (customTitle && customTitle.trim() !== '') ? customTitle.trim() : (options.defaultTitle || '');
+  const resolvedTitle = (customTitle && customTitle.trim() !== '') 
+    ? customTitle.trim() 
+    : (options.defaultTitle ? formatVariableDisplayName(options.defaultTitle) : '');
 
   const titleFontSize = isX
     ? (ctx.axisTitleFontSizeX ?? Math.max(9, fontSize - 1))
@@ -178,62 +245,15 @@ export function buildScientificAxisConfig(
     ? (ctx.axisTitleLocationX || 'middle')
     : (ctx.axisTitleLocationY || 'middle');
 
+  const dynamicDefaultTitleGap = isX
+    ? 28
+    : (isHorizontalChart ? Math.max(42, labelWidth + labelMargin + 16) : 38);
+
   const titleGap = isX
     ? (ctx.axisTitleGapX ?? 28)
-    : (ctx.axisTitleGapY ?? 38);
-
-  // 2. Resolve Tick Labels
-  const showLabel = isX ? (ctx.showAxisLabelX ?? true) : (ctx.showAxisLabelY ?? true);
-
-  const labelFontSize = isX
-    ? (ctx.axisLabelFontSizeX ?? Math.max(8, fontSize - 2))
-    : (ctx.axisLabelFontSizeY ?? (ctx.barYAxisFontSize ?? Math.max(8, fontSize - 2)));
-
-  const labelFontWeight = isX
-    ? (ctx.axisLabelFontWeightX || 'normal')
-    : (ctx.axisLabelFontWeightY || (ctx.barYAxisFontWeight ?? 'normal'));
-
-  const labelFontStyle = isX
-    ? (ctx.axisLabelFontStyleX || 'normal')
-    : (ctx.axisLabelFontStyleY || (ctx.barYAxisFontStyle ?? 'normal'));
-
-  const labelColor = isX
-    ? (ctx.axisLabelColorX || palette.text)
-    : (ctx.axisLabelColorY || (ctx.barYAxisColor || palette.text));
-
-  const labelRotate = isX
-    ? (ctx.axisLabelRotateX ?? (ctx.labelRotation || 0))
-    : (ctx.axisLabelRotateY ?? 0);
-
-  const labelMargin = isX
-    ? (ctx.axisLabelMarginX ?? 8)
-    : (ctx.axisLabelMarginY ?? 8);
-
-  const labelOverflow = isX
-    ? (ctx.axisLabelOverflowX || 'none')
-    : (ctx.axisLabelOverflowY || (ctx.barYAxisOverflow || 'none'));
-
-  const labelWidth = isX
-    ? (ctx.axisLabelWidthX ?? 120)
-    : (ctx.axisLabelWidthY ?? (ctx.barYAxisWidth ?? 140));
-
-  const labelLineHeight = isX
-    ? (ctx.axisLabelLineHeightX ?? Math.max(12, labelFontSize + 3))
-    : (ctx.axisLabelLineHeightY ?? (ctx.barLineHeight ?? Math.max(12, labelFontSize + 3)));
-
-  const labelFormat = isX
-    ? (ctx.axisLabelFormatX || 'auto')
-    : (ctx.axisLabelFormatY || 'auto');
-
-  const labelPrefix = isX ? (ctx.axisLabelPrefixX || '') : (ctx.axisLabelPrefixY || '');
-  const labelSuffix = isX ? (ctx.axisLabelSuffixX || '') : (ctx.axisLabelSuffixY || '');
-
-  const labelInterval = isX
-    ? (ctx.axisLabelIntervalX ?? 'auto')
-    : (ctx.axisLabelIntervalY ?? 'auto');
+    : (ctx.axisTitleGapY ?? dynamicDefaultTitleGap);
 
   // 3. Resolve Gridlines
-  const isHorizontalChart = ctx.chartType === 'bar_horizontal' || ctx.chartType === 'horizontal_bar_scatter' || (ctx.chartType === 'clustered_bar' && ctx.barOrientation === 'horizontal');
   const defaultShowGrid = isX
     ? (isHorizontalChart ? true : false)
     : (isHorizontalChart ? false : (ctx.lineShowGridLines !== false));
@@ -275,6 +295,23 @@ export function buildScientificAxisConfig(
         return formatScientificAxisValue(truncated, labelFormat, labelPrefix, labelSuffix);
       }
       return formatScientificAxisValue(textVal, labelFormat, labelPrefix, labelSuffix);
+    }
+
+    // Apply explicit decimal precision override for numeric value axes
+    if (labelDecimals !== undefined && typeof rawVal === 'number') {
+      const fixed = rawVal.toFixed(labelDecimals);
+      if (labelFormat === 'percent') {
+        return `${labelPrefix}${fixed}%${labelSuffix}`;
+      }
+      if (labelFormat === 'auto' || labelFormat === 'raw') {
+        if (options.defaultUnitFormatter) {
+          // Reformat via default unit formatter but replace numeric core with fixed precision
+          const base = options.defaultUnitFormatter(rawVal);
+          // Replace leading number with fixed version
+          return `${labelPrefix}${base.replace(/^-?\d+(\.\d+)?/, fixed)}${labelSuffix}`;
+        }
+        return `${labelPrefix}${fixed}${labelSuffix}`;
+      }
     }
 
     return formatScientificAxisValue(rawVal, labelFormat, labelPrefix, labelSuffix, options.defaultUnitFormatter);
@@ -334,3 +371,90 @@ export function buildScientificAxisConfig(
     }
   };
 }
+
+export interface UniversalGridResult {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+  containLabel?: boolean;
+}
+
+/**
+ * Universally computes standard publication grid clearances for Cartesian,
+ * correlation, and matrix charts, respecting universal margins and camera padding.
+ */
+export function resolveUniversalGrid(
+  ctx: ChartGeneratorContext,
+  defaultGrid: { top?: number; bottom?: number; left?: number; right?: number } = {}
+): UniversalGridResult {
+  const isAuto = ctx.gridMarginAuto ?? true;
+  const showLegend = ctx.showLegend;
+  const legDist = ctx.legendDistance ?? 20;
+  const isTop = ctx.legendPosition === 'top' || !ctx.legendPosition;
+  const isBottom = ctx.legendPosition === 'bottom';
+  const isLeft = ctx.legendPosition === 'left';
+  const isRight = ctx.legendPosition === 'right';
+
+  const offX = ctx.fitOffsetX ?? 0;
+  const offY = ctx.fitOffsetY ?? 0;
+
+  const isHorizontalChart = ctx.chartType === 'bar_horizontal' ||
+    ctx.chartType === 'horizontal_bar_scatter' ||
+    ((ctx.chartType === 'clustered_bar' || ctx.chartType === 'stacked_bar') && ctx.barOrientation === 'horizontal') ||
+    (ctx.chartType === 'boxplot' && ctx.boxplotOrientation === 'horizontal');
+
+  const effectiveLabelWidth = ctx.axisLabelWidthY ?? ctx.barYAxisWidth ?? 140;
+  const effectiveLabelMargin = ctx.axisLabelMarginY ?? 8;
+  const showYTitle = (ctx.showAxisTitleY ?? true) && Boolean(ctx.customAxisTitleY || (ctx as any).primaryField || (ctx as any).categoryField);
+  const effectiveYTitleGap = ctx.axisTitleGapY ?? Math.max(42, effectiveLabelWidth + effectiveLabelMargin + 16);
+  const titleFontSize = ctx.axisTitleFontSizeY ?? Math.max(9, (ctx.fontSize || 12) - 1);
+  const requiredYTitleClearance = isHorizontalChart
+    ? (showYTitle ? (effectiveYTitleGap + titleFontSize + 16) : (effectiveLabelWidth + effectiveLabelMargin + 20))
+    : 40;
+
+  if (!isAuto) {
+    const top = ctx.gridMarginTop ?? defaultGrid.top ?? 45;
+    const bottom = ctx.gridMarginBottom ?? defaultGrid.bottom ?? 45;
+    let rawLeft = ctx.gridMarginLeft ?? defaultGrid.left ?? (isHorizontalChart ? requiredYTitleClearance : 60);
+    if (isHorizontalChart && rawLeft <= 40) {
+      rawLeft = Math.round(1200 * (rawLeft / 100));
+    }
+    const left = isHorizontalChart ? Math.max(requiredYTitleClearance, rawLeft) : rawLeft;
+    const right = ctx.gridMarginRight ?? defaultGrid.right ?? 45;
+    return {
+      top: Math.max(0, top - offY),
+      bottom: Math.max(0, bottom + offY),
+      left: Math.max(0, left - offX),
+      right: Math.max(0, right + offX),
+      containLabel: true
+    };
+  }
+
+  let top = defaultGrid.top ?? 45;
+  let bottom = defaultGrid.bottom ?? 45;
+  let rawLeft = defaultGrid.left ?? (isHorizontalChart ? requiredYTitleClearance : 60);
+  if (isHorizontalChart && rawLeft <= 40) {
+    rawLeft = Math.round(1200 * (rawLeft / 100));
+  }
+  let left = isHorizontalChart ? Math.max(requiredYTitleClearance, rawLeft) : rawLeft;
+  let right = defaultGrid.right ?? 45;
+
+  if (showLegend) {
+    if (isTop) top = (ctx.baseTitle?.show ? 85 : 55) + Math.round(legDist * 0.5);
+    else if (isBottom) bottom = 55 + Math.round(legDist * 0.5);
+    else if (isRight) right = Math.max(right, 130 + legDist);
+    else if (isLeft) left = Math.max(left, 120 + legDist);
+  }
+
+  const cPad = ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0;
+
+  return {
+    top: Math.max(10, top + cPad - offY),
+    bottom: Math.max(10, bottom + cPad + offY),
+    left: Math.max(15, left + cPad - offX),
+    right: Math.max(15, right + cPad + offX),
+    containLabel: true
+  };
+}
+

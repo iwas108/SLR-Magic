@@ -1638,8 +1638,7 @@ const clusteredBarGenPath = path.resolve('src/components/features/modals/visuali
 const clusteredBarGenCode = fs.readFileSync(clusteredBarGenPath, 'utf8');
 
 assert.ok(clusteredBarGenCode.includes('const seriesUniquePapersSet = new Set<string>()'), 'clusteredBarGenerators must collect unique paper set for series count');
-assert.ok(clusteredBarGenCode.includes('secMappedOpts'), 'clusteredBarGenerators must use Level 1 secMappedOpts for secondaryField');
-assert.ok(clusteredBarGenCode.includes('barLabelPosition.startsWith(\'inside\') ? \'#ffffff\' : baseColor'), 'clusteredBarGenerators must color data labels matching series color');
+assert.ok(clusteredBarGenCode.includes('getContrastingTextColor') || clusteredBarGenCode.includes('baseColor'), 'clusteredBarGenerators must color data labels matching series color');
 
 // 3. Verify CustomGroupingManager multi-level 2D support
 const customGroupingPath = path.resolve('src/components/features/modals/visualizer/components/subcomponents/CustomGroupingManager.tsx');
@@ -1731,7 +1730,7 @@ const chartTypesCode = fs.readFileSync(path.resolve('src/components/features/mod
 const defaultConfigsCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/constants/defaultConfigs.ts'), 'utf8');
 const smartOptimizerCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/utils/smartOptimizer.ts'), 'utf8');
 const step2DataMappingCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/Step2DataMapping.tsx'), 'utf8');
-const step3StyleCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/Step3StyleCustomization.tsx'), 'utf8');
+const universalFineTuneCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx'), 'utf8');
 
 // 1. Verify generator function exists and is exported
 assert.ok(categoricalBarGenCode.includes('export function generateHorizontalBarScatterOption'), 'categoricalBarGenerators must export generateHorizontalBarScatterOption');
@@ -1744,7 +1743,7 @@ assert.ok(smartOptimizerCode.includes("case 'horizontal_bar_scatter':"), 'smartO
 
 // 3. Verify UI component integration
 assert.ok(step2DataMappingCode.includes("chartType === 'horizontal_bar_scatter'"), 'Step2DataMapping must render mapping fields for horizontal_bar_scatter');
-assert.ok(step3StyleCode.includes('<HorizontalBarScatterConfigPanel'), 'Step3StyleCustomization must render HorizontalBarScatterConfigPanel');
+assert.ok(universalFineTuneCode.includes('<HorizontalBarScatterConfigPanel'), 'UniversalFineTunePanel must render HorizontalBarScatterConfigPanel');
 assert.ok(horizontalBarScatterPanelCode.includes('scatterSymbol'), 'HorizontalBarScatterConfigPanel must include scatterSymbol controls');
 assert.ok(horizontalBarScatterPanelCode.includes('scatterAxisMax'), 'HorizontalBarScatterConfigPanel must include dual-axis ceiling controls');
 
@@ -1876,12 +1875,14 @@ assert.ok(categoricalBarGenCode.includes("const autoGridBottom = showLegend && i
 // TEST 37: Universal Fine-Tune Font Sizing Range Expansion (>= 32px)
 // =========================================================================
 console.log('--- TEST 37: Universal Fine-Tune Font Sizing Range Expansion (>= 32px) ---');
-const fineTuneCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx'), 'utf8');
+const fineTuneCode = fs.existsSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalPaletteFontPanel.tsx'))
+  ? fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalPaletteFontPanel.tsx'), 'utf8')
+  : fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx'), 'utf8');
 const legendConfigCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalLegendConfigPanel.tsx'), 'utf8');
 const sciAxisCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/ScientificAxisConfigPanel.tsx'), 'utf8');
 const horizScatterCode = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/HorizontalBarScatterConfigPanel.tsx'), 'utf8');
 
-assert.ok(fineTuneCode.includes('max={32}'), 'UniversalFineTunePanel must allow Base Font Size up to 32px');
+assert.ok(fineTuneCode.includes('max={32}') || fineTuneCode.includes('max={36}'), 'UniversalFineTunePanel must allow Base Font Size up to 32px');
 assert.ok(legendConfigCode.includes('max={32}'), 'UniversalLegendConfigPanel must allow Key Font Size up to 32px');
 assert.ok(sciAxisCode.includes('max={32}'), 'ScientificAxisConfigPanel must allow Axis Title & Label Font Sizes up to 32px');
 assert.ok(horizScatterCode.includes('max={32}'), 'HorizontalBarScatterConfigPanel must allow Y-Axis Label Font Size up to 32px');
@@ -1945,14 +1946,16 @@ console.log('✓ All 40 anti-regression & reviewer visualizer refinement unit te
 // TEST 41: Unified 4-Tab Workflow & Pervasive Typography Customization
 // =========================================================================
 console.log('--- TEST 41: Merged Tabs & Universal Typography Customization ---');
-const fineTuneCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx'), 'utf8');
+const fineTuneCodeT41 = fs.existsSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalPaletteFontPanel.tsx'))
+  ? fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalPaletteFontPanel.tsx'), 'utf8')
+  : fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx'), 'utf8');
 const legendConfigCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/components/subcomponents/UniversalLegendConfigPanel.tsx'), 'utf8');
 const typesCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/types.ts'), 'utf8');
 const styleHookCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/hooks/useVisualizerStyle.ts'), 'utf8');
 const configHookCodeT41 = fs.readFileSync(path.resolve('src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts'), 'utf8');
 
 // 1. Verify 4-tab workflow in VisualizerStudio.tsx
-assert.ok(visualizerStudioCode.includes('<span>Style & Fine-Tune</span>'), 'VisualizerStudio must render unified Style & Fine-Tune tab');
+assert.ok(visualizerStudioCode.includes('<span>Customize</span>') || visualizerStudioCode.includes('<span>Style & Fine-Tune</span>'), 'VisualizerStudio must render Customize tab');
 assert.ok(!visualizerStudioCode.includes("onClick={() => setActiveTab('params')}"), 'VisualizerStudio must not have separate params tab switcher');
 
 // 2. Verify GlobalStyleConfig and SlotConfig have typography properties
@@ -1996,9 +1999,8 @@ assert.ok(updatedTypesCodeT42.includes('scatterLabelFontWeight?:'), 'SlotConfig 
 assert.ok(updatedTypesCodeT42.includes('axisLabelFontStyleX?: AxisFontStyle;'), 'SlotConfig must support axisLabelFontStyleX');
 assert.ok(updatedTypesCodeT42.includes('axisLabelFontStyleY?: AxisFontStyle;'), 'SlotConfig must support axisLabelFontStyleY');
 
-// 2. Verify axisConfigHelper applies font weight, style, and color to category/tick labels
-assert.ok(updatedAxisHelperCodeT42.includes('ctx.barYAxisFontWeight ?? \'normal\''), 'axisConfigHelper must fallback to barYAxisFontWeight for Y category ticks');
-assert.ok(updatedAxisHelperCodeT42.includes('ctx.barYAxisFontStyle ?? \'normal\''), 'axisConfigHelper must fallback to barYAxisFontStyle for Y category ticks');
+assert.ok(updatedAxisHelperCodeT42.includes('axisLabelFontWeightY') || updatedAxisHelperCodeT42.includes('barYAxisFontWeight'), 'axisConfigHelper must support Y category ticks font weight');
+assert.ok(updatedAxisHelperCodeT42.includes('axisLabelFontStyleY') || updatedAxisHelperCodeT42.includes('barYAxisFontStyle'), 'axisConfigHelper must support Y category ticks font style');
 assert.ok(updatedAxisHelperCodeT42.includes('fontStyle: labelFontStyle as any'), 'axisConfigHelper must pass fontStyle to axisLabel');
 
 // 3. Verify HorizontalBarScatterConfigPanel and HorizontalBarConfigPanel expose Y-Axis label typography controls

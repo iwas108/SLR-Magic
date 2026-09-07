@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, ChevronDown, ChevronUp, BarChart3, Download, HelpCircle, Printer, Trash2 } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, BarChart3, Download, HelpCircle, Printer, Trash2, FileSpreadsheet } from 'lucide-react';
 import { MinerPaper } from '@/hooks/useUmbrellanizer';
+
 import {
   resolveUmbrellanizerValue,
   getUmbrellanizerJustification,
@@ -235,6 +236,20 @@ export default function QuickOverviewModal({
                     <span className="text-[10px] text-muted-foreground font-mono bg-card border border-border px-1.5 py-0.5 rounded font-bold">
                       {categoryStats.length} categories
                     </span>
+                    {mappingsByKey[key] && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const url = `/api/umbrellanizer/export?projectId=${encodeURIComponent(projectId)}&key=${encodeURIComponent(key)}&format=csv`;
+                          window.open(url, '_blank');
+                        }}
+                        title={`Export raw-to-umbrella mapping for ${key} (CSV)`}
+                        className="p-1 hover:bg-primary/20 text-muted-foreground hover:text-primary rounded transition-colors cursor-pointer print:hidden"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {mappingsByKey[key] && onDropKey && (
                       <button
                         type="button"
@@ -327,11 +342,22 @@ export default function QuickOverviewModal({
         <div className="p-4 border-t border-border bg-secondary/10 flex justify-between items-center select-none print:hidden">
           <div className="flex items-center gap-2">
             <button
+              onClick={() => {
+                const url = `/api/umbrellanizer/export?projectId=${encodeURIComponent(projectId)}&format=csv`;
+                window.open(url, '_blank');
+              }}
+              title="Export all raw-to-umbrella taxonomy mappings with justifications as CSV"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/10 transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Export Mappings CSV
+            </button>
+            <button
               onClick={handleDownloadJson}
               className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-md shadow-primary/10 transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              Download JSON
+              Download Trends JSON
             </button>
             <button
               onClick={handlePrintPdf}
@@ -341,6 +367,7 @@ export default function QuickOverviewModal({
               Print PDF
             </button>
           </div>
+
           <button
             onClick={onClose}
             className="px-4 py-2 bg-secondary text-foreground hover:bg-secondary/80 border border-border font-semibold rounded-lg text-xs"

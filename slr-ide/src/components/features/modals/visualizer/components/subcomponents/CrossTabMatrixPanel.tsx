@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { Table, Copy, Download, Layers, Maximize2 } from 'lucide-react';
 import { useVisualizerContext } from '../../context/VisualizerContext';
-import { getMappedFieldValue, computeMetricValue, limitCategoryMap, formatVariableDisplayName } from '../../utils/dataExtractor';
+import { getMappedFieldValue, computeMetricValue, limitCategoryMap, formatVariableDisplayName, extractCleanTaxonomyKey } from '../../utils/dataExtractor';
+import { extractTokenPaths } from '@/lib/services/cohort-data-source';
+import { filterValuesForParent } from '../../generators/hierarchicalGenerators';
 import { formatPercentage, formatRatio } from '../../utils/formatterUtils';
 import type { CrossTabMatrix, CrossTabCell } from '../../types';
 import { CrossTabMatrixModal } from './CrossTabMatrixModal';
@@ -20,7 +22,11 @@ export function CrossTabMatrixPanel() {
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
-    sankeyFields
+    sankeyFields,
+    primaryScopeFilter,
+    secondaryScopeFilter,
+    levelScopeFilters,
+    levelSegmentIndices
   } = config;
   const {
     levelCustomGroups,
@@ -34,13 +40,24 @@ export function CrossTabMatrixPanel() {
 
   const isOther = (cat: string) => cat === (otherCategoryLabel || 'Other') || cat === 'Other';
 
+  // Support inline bracket scope syntax (e.g. "ext:lv1:rq_algo[Biological Asset]" or "ext:lv1:rq_algo[scope=Biological Asset]")
+  const primBracket = primaryField ? primaryField.match(/^(.*?)\[(?:scope=)?(.*?)\]$/) : null;
+  const secBracket = secondaryField ? secondaryField.match(/^(.*?)\[(?:scope=)?(.*?)\]$/) : null;
+  const cleanPrimField = primBracket ? primBracket[1].trim() : primaryField;
+  const cleanSecField = secBracket ? secBracket[1].trim() : secondaryField;
+
   const primLabel = primaryField === '__custom_grouping__'
     ? (levelTargetFields?.[0] ? `Custom: ${formatVariableDisplayName(levelTargetFields[0])}` : 'Row Groups')
-    : formatVariableDisplayName(primaryField);
+    : formatVariableDisplayName(cleanPrimField);
 
   const secLabel = secondaryField === '__custom_grouping__'
     ? (levelTargetFields?.[1] ? `Custom: ${formatVariableDisplayName(levelTargetFields[1])}` : 'Column Groups')
-    : formatVariableDisplayName(secondaryField);
+    : formatVariableDisplayName(cleanSecField);
+
+  const effectivePrimScope = primaryScopeFilter || levelScopeFilters?.[0] || (primBracket ? primBracket[2].trim() : undefined);
+  const effectiveSecScope = secondaryScopeFilter || levelScopeFilters?.[1] || (secBracket ? secBracket[2].trim() : undefined);
+  const primSegIdx = levelSegmentIndices?.[0];
+  const secSegIdx = levelSegmentIndices?.[1];
 
   const mappedOpts = useMemo(() => ({
     useUmbrellanizer,
@@ -52,8 +69,8 @@ export function CrossTabMatrixPanel() {
     levelCustomGroupLinks,
     levelTargetFields,
     sankeyFields,
-    primaryField
-  }), [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroups, levelCustomGroupLinks, levelTargetFields, sankeyFields, primaryField]);
+    primaryField: cleanPrimField
+  }), [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroups, levelCustomGroupLinks, levelTargetFields, sankeyFields, cleanPrimField]);
 
   // Compute Cross-Tabulation Matrix Data
   const crossTab: CrossTabMatrix = useMemo(() => {
@@ -62,31 +79,97 @@ export function CrossTabMatrixPanel() {
     const rawMap = new Map<string, Map<string, any[]>>();
     let totalExtractedTags = 0;
 
-    papers.forEach(p => {
-      const primVals = getMappedFieldValue(p, primaryField, {
-        ...mappedOpts,
-        levelIdx: 0,
-        subFieldKey: levelTargetFields?.[0],
-        unpackMacroToChildren: true
-      });
-      const secVals = getMappedFieldValue(p, secondaryField, {
-        ...mappedOpts,
-        primaryField: secondaryField,
-        levelIdx: 1,
-        subFieldKey: levelTargetFields?.[1],
-        unpackMacroToChildren: false
-      });
+    const getSegIdxFromKey = (key: string, fallback?: number): number => {
+      if (fallback !== undefined && fallback >= 0) return fallback;
+      const matchSeg = key.match(/^ext:segment:(\d+):/i);
+      if (matchSeg) return parseInt(matchSeg[1], 10);
+      const matchLv = key.match(/^ext:lv(\d+):/i);
+      if (matchLv) return parseInt(matchLv[1], 10) - 1;
+      if (key.includes('macro:') || key.includes('lv1:')) return 0;
+      if (key.includes('sub:') || key.includes('lv2:')) return 1;
+      if (key.includes('leaf:') || key.includes('lv3:') || key.includes('tail:')) return 2;
+      return 0;
+    };
 
-      primVals.forEach(pv => {
-        catSet.add(pv);
-        secVals.forEach(sv => {
+    const checkPathMatchesScope = (path: string[], scopeFilter?: string): boolean => {
+      if (!scopeFilter) return true;
+      const scopeItems = scopeFilter.split(',').map(s => s.trim()).filter(Boolean);
+      const posScopes = scopeItems.filter(s => !s.startsWith('!')).map(s => s.toLowerCase());
+      const negScopes = scopeItems.filter(s => s.startsWith('!')).map(s => s.substring(1).toLowerCase());
+      const pathNorms = path.map(s => s.toLowerCase());
+      if (negScopes.length > 0 && negScopes.some(neg => pathNorms.includes(neg))) return false;
+      if (posScopes.length > 0) return posScopes.some(pos => pathNorms.includes(pos));
+      return true;
+    };
+
+    const primBaseKey = extractCleanTaxonomyKey(cleanPrimField);
+    const secBaseKey = extractCleanTaxonomyKey(cleanSecField);
+    const isSharedTaxonomy = Boolean(primBaseKey && secBaseKey && primBaseKey === secBaseKey);
+
+    papers.forEach(p => {
+      if (isSharedTaxonomy) {
+        const paths = extractTokenPaths(p, cleanPrimField, mappedOpts);
+        const effectivePrimIdx = getSegIdxFromKey(cleanPrimField, primSegIdx);
+        const effectiveSecIdx = getSegIdxFromKey(cleanSecField, secSegIdx);
+
+        paths.forEach(path => {
+          if (!checkPathMatchesScope(path, effectivePrimScope)) return;
+          if (!checkPathMatchesScope(path, effectiveSecScope)) return;
+
+          const rawPv = path[effectivePrimIdx < path.length ? effectivePrimIdx : path.length - 1];
+          const rawSv = path[effectiveSecIdx < path.length ? effectiveSecIdx : path.length - 1];
+          if (!rawPv || !rawSv) return;
+
+          const primMapObj = customCategoryMap[cleanPrimField] || (primBaseKey ? customCategoryMap[primBaseKey] : undefined);
+          const secMapObj = customCategoryMap[cleanSecField] || (secBaseKey ? customCategoryMap[secBaseKey] : undefined);
+          const pv = primMapObj?.[rawPv] || rawPv;
+          const sv = secMapObj?.[rawSv] || rawSv;
+
           totalExtractedTags++;
+          catSet.add(pv);
           seriesSet.add(sv);
           if (!rawMap.has(pv)) rawMap.set(pv, new Map());
           if (!rawMap.get(pv)!.has(sv)) rawMap.get(pv)!.set(sv, []);
           rawMap.get(pv)!.get(sv)!.push(p);
         });
-      });
+      } else {
+        const primVals = getMappedFieldValue(p, cleanPrimField, {
+          ...mappedOpts,
+          levelIdx: 0,
+          segmentIdx: primSegIdx,
+          scopeFilter: effectivePrimScope,
+          subFieldKey: levelTargetFields?.[0],
+          unpackMacroToChildren: true
+        });
+        const rawSecVals = getMappedFieldValue(p, cleanSecField, {
+          ...mappedOpts,
+          primaryField: cleanSecField,
+          levelIdx: 1,
+          segmentIdx: secSegIdx,
+          scopeFilter: effectiveSecScope,
+          subFieldKey: levelTargetFields?.[1],
+          unpackMacroToChildren: false
+        });
+
+        primVals.forEach(pv => {
+          catSet.add(pv);
+          const scopedSecVals = filterValuesForParent(rawSecVals, cleanSecField, {
+            fieldKey: cleanPrimField,
+            levelIdx: 0,
+            rawName: pv,
+            displayName: pv,
+            path: [pv]
+          }, { levelCustomGroupLinks, umbrellanizerMap });
+
+          scopedSecVals.forEach(sv => {
+            totalExtractedTags++;
+            seriesSet.add(sv);
+            if (!rawMap.has(pv)) rawMap.set(pv, new Map());
+            if (!rawMap.get(pv)!.has(sv)) rawMap.get(pv)!.set(sv, []);
+            rawMap.get(pv)!.get(sv)!.push(p);
+          });
+        });
+      }
     });
 
     const primAggregatePapersMap = new Map<string, any[]>();
@@ -185,7 +268,7 @@ export function CrossTabMatrixPanel() {
   const handleCopyTSV = () => {
     let tsv = '';
     if (activeTab === 'matrix') {
-      tsv = `${primaryField} / ${secondaryField}\t` + crossTab.seriesList.join('\t') + '\tRow Total\n';
+      tsv = `${primLabel} / ${secLabel}\t` + crossTab.seriesList.join('\t') + '\tRow Total\n';
       crossTab.categories.forEach(cat => {
         const rowVals = crossTab.seriesList.map(s => crossTab.matrix[cat]?.[s]?.count ?? 0);
         tsv += `${cat}\t` + rowVals.join('\t') + `\t${crossTab.rowTotals[cat]?.count ?? 0}\n`;
@@ -193,7 +276,7 @@ export function CrossTabMatrixPanel() {
       const colTotals = crossTab.seriesList.map(s => crossTab.colTotals[s]?.count ?? 0);
       tsv += `Column Total\t` + colTotals.join('\t') + `\t${crossTab.grandTotalCount}\n`;
     } else {
-      tsv = `${primaryField}\t${secondaryField}\tCount (N)\tPrevalence (%)\tActive Metric\n`;
+      tsv = `${primLabel}\t${secLabel}\tCount (N)\tPrevalence (%)\tActive Metric\n`;
       crossTab.categories.forEach(cat => {
         crossTab.seriesList.forEach(s => {
           const cell = crossTab.matrix[cat]?.[s];
@@ -212,7 +295,7 @@ export function CrossTabMatrixPanel() {
   const handleDownloadCSV = () => {
     let csv = '';
     if (activeTab === 'matrix') {
-      csv = `"${primaryField} / ${secondaryField}",` + crossTab.seriesList.map(s => `"${s}"`).join(',') + ',"Row Total"\n';
+      csv = `"${primLabel} / ${secLabel}",` + crossTab.seriesList.map(s => `"${s}"`).join(',') + ',"Row Total"\n';
       crossTab.categories.forEach(cat => {
         const rowVals = crossTab.seriesList.map(s => crossTab.matrix[cat]?.[s]?.count ?? 0);
         csv += `"${cat}",` + rowVals.join(',') + `,${crossTab.rowTotals[cat]?.count ?? 0}\n`;
@@ -220,7 +303,7 @@ export function CrossTabMatrixPanel() {
       const colTotals = crossTab.seriesList.map(s => crossTab.colTotals[s]?.count ?? 0);
       csv += `"Column Total",` + colTotals.join(',') + `,${crossTab.grandTotalCount}\n`;
     } else {
-      csv = `"${primaryField}","${secondaryField}","Count (N)","Prevalence (%)","Active Metric"\n`;
+      csv = `"${primLabel}","${secLabel}","Count (N)","Prevalence (%)","Active Metric"\n`;
       crossTab.categories.forEach(cat => {
         crossTab.seriesList.forEach(s => {
           const cell = crossTab.matrix[cat]?.[s];

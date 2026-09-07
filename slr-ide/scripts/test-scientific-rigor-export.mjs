@@ -21,6 +21,9 @@ db.exec(`
     ec_rules TEXT,
     pool_c_qa_rules TEXT,
     pool_c_extraction_rules TEXT,
+    search_queries TEXT,
+    scopus_search_string TEXT,
+    manual_search_string TEXT,
     llm_config TEXT DEFAULT '{}'
   );
 
@@ -222,15 +225,20 @@ const extractionRulesJson = JSON.stringify([
   { json_key: 'evaluation_metric', description: 'Validation metrics' }
 ]);
 
-db.prepare(`
-  INSERT INTO projects (id, name, ec_rules, pool_c_qa_rules, pool_c_extraction_rules, pool_a_size, pool_b_size, pool_c_size, rolling_batch_size)
-  VALUES ('proj-1', 'AI Rigor Review 2026', ?, ?, ?, 50, 30, 20, 20)
-`).run(ecRulesJson, qaRulesJson, extractionRulesJson);
+const p1SearchQueriesJson = JSON.stringify([
+  { id: 'sq-1', source: 'Scopus', query: 'TITLE-ABS-KEY("artificial intelligence" AND "systematic literature review")', description: 'Searched 2026-05-12, filters: 2018-2026, English' },
+  { id: 'sq-2', source: 'Web of Science', query: 'TS=("artificial intelligence" AND "systematic review")', description: 'Searched 2026-05-12, filters: Article or Proceedings' }
+]);
 
-// Project 2 for multi-project isolation testing
 db.prepare(`
-  INSERT INTO projects (id, name, ec_rules, pool_c_qa_rules, pool_c_extraction_rules)
-  VALUES ('proj-2', 'Unrelated Review', ?, ?, ?)
+  INSERT INTO projects (id, name, ec_rules, pool_c_qa_rules, pool_c_extraction_rules, pool_a_size, pool_b_size, pool_c_size, rolling_batch_size, search_queries)
+  VALUES ('proj-1', 'AI Rigor Review 2026', ?, ?, ?, 50, 30, 20, 20, ?)
+`).run(ecRulesJson, qaRulesJson, extractionRulesJson, p1SearchQueriesJson);
+
+// Project 2 for multi-project isolation testing & legacy search string fallback testing
+db.prepare(`
+  INSERT INTO projects (id, name, ec_rules, pool_c_qa_rules, pool_c_extraction_rules, scopus_search_string, manual_search_string)
+  VALUES ('proj-2', 'Unrelated Review', ?, ?, ?, 'TITLE-ABS-KEY("unrelated")', 'allintitle: unrelated')
 `).run(ecRulesJson, qaRulesJson, extractionRulesJson);
 
 // 2. Seed Prompt Templates (Global & Project Custom)
@@ -578,6 +586,84 @@ const uniqueTypes = new Set(resolvedTemplates.map(t => t.prompt_type));
 assert.strictEqual(uniqueTypes.size, 8, 'Every prompt type must appear exactly once');
 
 console.log('✅ Test 5 Passed: prompt_optimization_data.prompt_templates filtered strictly to project active defaults.\n');
+
+// Test 6: Systematic Search Strategies & Database Documentation Resolution (PRISMA Items 6 & 7)
+console.log('Test 6: Systematic Search Strategies & Database Documentation Resolution');
+
+function resolveSearchStrategies(project) {
+  let parsedSearchQueries = [];
+  if (project.search_queries) {
+    try {
+      const rawSq = typeof project.search_queries === 'string' ? JSON.parse(project.search_queries) : project.search_queries;
+      if (Array.isArray(rawSq)) {
+        parsedSearchQueries = rawSq;
+      }
+    } catch (e) {}
+  }
+
+  if (parsedSearchQueries.length === 0) {
+    if (project.scopus_search_string && String(project.scopus_search_string).trim()) {
+      parsedSearchQueries.push({
+        id: 'legacy-scopus-query',
+        source: 'Scopus',
+        query: String(project.scopus_search_string).trim(),
+        description: 'Primary Scopus search string documented in project settings'
+      });
+    }
+    if (project.manual_search_string && String(project.manual_search_string).trim()) {
+      parsedSearchQueries.push({
+        id: 'legacy-manual-query',
+        source: 'Google Scholar / Manual',
+        query: String(project.manual_search_string).trim(),
+        description: 'Manual / Google Scholar search string documented in project settings'
+      });
+    }
+  }
+
+  const formattedSearchQueries = parsedSearchQueries.map((sq, idx) => ({
+    index: idx + 1,
+    source: sq.source || 'Unspecified Database',
+    query: sq.query || '',
+    notes_and_filters: sq.description || ''
+  }));
+
+  return {
+    total_databases_documented: formattedSearchQueries.length,
+    databases: Array.from(new Set(formattedSearchQueries.map(q => q.source))),
+    search_queries: formattedSearchQueries,
+    legacy_strings: {
+      scopus_search_string: project.scopus_search_string || '',
+      manual_search_string: project.manual_search_string || ''
+    },
+    prisma_item_6_7_compliance: {
+      item_6_information_sources: 'Specify all databases, registers, websites, organisations, reference lists and other sources searched or consulted. Specify the date when each source was last searched or consulted.',
+      item_7_search_strategy: 'Present the full search strategies for all databases, registers and websites, including any filters used.'
+    }
+  };
+}
+
+const p1Project = db.prepare('SELECT * FROM projects WHERE id = ?').get('proj-1');
+const p1Search = resolveSearchStrategies(p1Project);
+
+assert.strictEqual(p1Search.total_databases_documented, 2, 'Should document 2 databases for proj-1');
+assert.deepStrictEqual(p1Search.databases, ['Scopus', 'Web of Science']);
+assert.strictEqual(p1Search.search_queries[0].source, 'Scopus');
+assert.ok(p1Search.search_queries[0].query.includes('TITLE-ABS-KEY'), 'Query must contain Scopus expression');
+assert.ok(p1Search.search_queries[0].notes_and_filters.includes('2026-05-12'), 'Notes must contain search date');
+assert.ok(p1Search.prisma_item_6_7_compliance.item_6_information_sources.length > 0);
+assert.ok(p1Search.prisma_item_6_7_compliance.item_7_search_strategy.length > 0);
+
+// Test Legacy Fallback for proj-2
+const p2Project = db.prepare('SELECT * FROM projects WHERE id = ?').get('proj-2');
+const p2Search = resolveSearchStrategies(p2Project);
+
+assert.strictEqual(p2Search.total_databases_documented, 2, 'Should fall back to 2 legacy search strings for proj-2');
+assert.strictEqual(p2Search.search_queries[0].source, 'Scopus');
+assert.strictEqual(p2Search.search_queries[1].source, 'Google Scholar / Manual');
+assert.strictEqual(p2Search.search_queries[0].query, 'TITLE-ABS-KEY("unrelated")');
+assert.strictEqual(p2Search.search_queries[1].query, 'allintitle: unrelated');
+
+console.log('✅ Test 6 Passed: Systematic search strategies resolved with full multi-database documentation, legacy fallbacks, and PRISMA compliance blocks.\n');
 
 console.log('🎉 ALL SCIENTIFIC RIGOR & AI TECHNICAL SPECIFICATION TESTS PASSED WITH 0 FAILURES!');
 
