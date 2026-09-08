@@ -9,7 +9,8 @@ import type {
   SlotConfig, 
   SubfigureLabelStyle,
   AspectRatioPreset,
-  DimensionUnit
+  DimensionUnit,
+  ExportFormat
 } from '../types';
 
 export function useChartCanvas(params: {
@@ -25,7 +26,20 @@ export function useChartCanvas(params: {
   chartSubtitle: string;
   showChartTitle: boolean;
   showChartSubtitle: boolean;
+  titleFontSize?: number;
+  titleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700' | '800' | '900';
+  titleFontStyle?: 'normal' | 'italic';
+  titleColor?: string;
+  titleAlign?: 'left' | 'center' | 'right';
+  subtitleFontSize?: number;
+  subtitleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700';
+  subtitleFontStyle?: 'normal' | 'italic';
+  subtitleColor?: string;
+  subtitleLineHeight?: number;
+  titleGap?: number;
   subfigureLabelStyle: SubfigureLabelStyle;
+  subfigureLabelFontSize?: number;
+  subfigureLabelFontWeight?: 'normal' | 'bold' | '800';
   panelGutter: number;
   showPanelBorders: boolean;
   aspectRatio?: AspectRatioPreset;
@@ -38,8 +52,11 @@ export function useChartCanvas(params: {
   panY: number;
   tiltAngle: number;
   rotationAngle: number;
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   inspectedSlot?: SlotId | null;
-  generateSlotOption: (slotId: SlotId) => echarts.EChartsOption;
+  generateSlotOption: (slotId: SlotId, overrides?: any) => echarts.EChartsOption;
 }) {
   const {
     isOpen,
@@ -54,7 +71,20 @@ export function useChartCanvas(params: {
     chartSubtitle,
     showChartTitle,
     showChartSubtitle,
+    titleFontSize,
+    titleFontWeight,
+    titleFontStyle,
+    titleColor,
+    titleAlign,
+    subtitleFontSize,
+    subtitleFontWeight,
+    subtitleFontStyle,
+    subtitleColor,
+    subtitleLineHeight,
+    titleGap,
     subfigureLabelStyle,
+    subfigureLabelFontSize,
+    subfigureLabelFontWeight,
     panelGutter,
     showPanelBorders,
     aspectRatio = '16:9',
@@ -67,6 +97,9 @@ export function useChartCanvas(params: {
     panY = 0,
     tiltAngle,
     rotationAngle,
+    fitOffsetX = 0,
+    fitOffsetY = 0,
+    containerPadding = 12,
     inspectedSlot = null,
     generateSlotOption
   } = params;
@@ -86,7 +119,7 @@ export function useChartCanvas(params: {
   });
 
   // Step 4 State: Export Settings
-  const [exportFormat, setExportFormat] = useState<'png' | 'svg'>('png');
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('png');
   const [exportScale, setExportScale] = useState<number>(3);
 
   // Synchronize a specific slot's ECharts instance with its DOM node
@@ -111,7 +144,7 @@ export function useChartCanvas(params: {
 
     if (!instance) {
       instance = echarts.init(dom, undefined, {
-        renderer: exportFormat === 'svg' ? 'svg' : 'canvas'
+        renderer: exportFormat === 'svg' || exportFormat === 'pdf' ? 'svg' : 'canvas'
       });
       chartInstancesRef.current[slotId] = instance;
     }
@@ -129,17 +162,17 @@ export function useChartCanvas(params: {
     const prevEl = slotDomRefs.current[slotId];
     slotDomRefs.current[slotId] = el;
 
-    if (el && el !== prevEl && isOpen && currentStep === 4) {
+    if (el && el !== prevEl && isOpen) {
       // Defer slightly to ensure layout calculation is finished
       requestAnimationFrame(() => {
         syncSlotInstance(slotId);
       });
     }
-  }, [isOpen, currentStep, syncSlotInstance]);
+  }, [isOpen, syncSlotInstance]);
 
   // Initialize and update ECharts instances for all active slots
   useEffect(() => {
-    if (!isOpen || currentStep !== 4) return;
+    if (!isOpen) return;
 
     // 1. Dispose instances for inactive slots to prevent memory leaks
     const allKnownSlots: SlotId[] = ['slot_a', 'slot_b', 'slot_c', 'slot_d'];
@@ -217,7 +250,20 @@ export function useChartCanvas(params: {
       chartSubtitle,
       showChartTitle,
       showChartSubtitle,
+      titleFontSize,
+      titleFontWeight,
+      titleFontStyle,
+      titleColor,
+      titleAlign,
+      subtitleFontSize,
+      subtitleFontWeight,
+      subtitleFontStyle,
+      subtitleColor,
+      subtitleLineHeight,
+      titleGap,
       subfigureLabelStyle,
+      subfigureLabelFontSize,
+      subfigureLabelFontWeight,
       panelGutter,
       showPanelBorders,
       aspectRatio,
@@ -227,6 +273,9 @@ export function useChartCanvas(params: {
       chartScale,
       panX,
       panY,
+      fitOffsetX,
+      fitOffsetY,
+      containerPadding,
       tiltAngle,
       rotationAngle,
       generateSlotOption
@@ -244,7 +293,20 @@ export function useChartCanvas(params: {
     chartSubtitle,
     showChartTitle,
     showChartSubtitle,
+    titleFontSize,
+    titleFontWeight,
+    titleFontStyle,
+    titleColor,
+    titleAlign,
+    subtitleFontSize,
+    subtitleFontWeight,
+    subtitleFontStyle,
+    subtitleColor,
+    subtitleLineHeight,
+    titleGap,
     subfigureLabelStyle,
+    subfigureLabelFontSize,
+    subfigureLabelFontWeight,
     panelGutter,
     showPanelBorders,
     aspectRatio,
@@ -254,6 +316,9 @@ export function useChartCanvas(params: {
     chartScale,
     panX,
     panY,
+    fitOffsetX,
+    fitOffsetY,
+    containerPadding,
     tiltAngle,
     rotationAngle,
     generateSlotOption
@@ -274,11 +339,37 @@ export function useChartCanvas(params: {
       chartScale,
       panX,
       panY,
+      fitOffsetX,
+      fitOffsetY,
+      containerPadding,
       tiltAngle,
       rotationAngle,
       subTitle: cfg.subTitle || activeSlot
     });
-  }, [activeSlot, slotsConfig, exportFormat, exportScale, themePreset, chartScale, panX, panY, tiltAngle, rotationAngle]);
+  }, [activeSlot, slotsConfig, exportFormat, exportScale, themePreset, chartScale, panX, panY, fitOffsetX, fitOffsetY, containerPadding, tiltAngle, rotationAngle]);
+
+  // Reset drill-down view back to root (Treemap / Sunburst)
+  const resetSlotDrillDown = useCallback((targetSlotId?: SlotId) => {
+    const targetSlot = targetSlotId || activeSlot;
+    const instance = chartInstancesRef.current[targetSlot];
+    if (!instance) return;
+    try {
+      instance.dispatchAction({
+        type: 'treemapRootToNode',
+        targetNode: ''
+      });
+      instance.dispatchAction({
+        type: 'sunburstRootToNode',
+        targetNode: ''
+      });
+      const option = generateSlotOption(targetSlot);
+      instance.clear();
+      instance.setOption(option, true);
+      instance.resize();
+    } catch (e) {
+      console.warn('Failed to reset slot drill-down:', e);
+    }
+  }, [activeSlot, generateSlotOption]);
 
   return {
     setSlotDomRef,
@@ -288,6 +379,7 @@ export function useChartCanvas(params: {
     exportScale,
     setExportScale,
     handleExportChart,
-    handleExportActiveSlot
+    handleExportActiveSlot,
+    resetSlotDrillDown
   };
 }

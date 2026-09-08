@@ -267,7 +267,7 @@ export default function FinalCohortPanel() {
           if (rawTokens.length === 0) {
             resolved[k] = '';
           } else {
-            const mapped = rawTokens.map(t => resolveUmbrellanizerValue(t, k)).filter(Boolean);
+            const mapped = Array.from(new Set(rawTokens.map(t => resolveUmbrellanizerValue(t, k)).filter(Boolean)));
             resolved[k] = mapped.length > 1 ? mapped : (mapped[0] || '');
           }
         });

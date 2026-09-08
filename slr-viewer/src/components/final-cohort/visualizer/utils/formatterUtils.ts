@@ -22,6 +22,10 @@ export interface FormatMetricParams {
   useTildeForCoarse?: boolean;
   ratioStyle?: RatioStyle;
   forceCohortDenominator?: boolean;
+  parentName?: string;
+  parentPaperCount?: number;
+  parentTagCount?: number;
+  showParentPrefix?: boolean;
 }
 
 /**
@@ -29,7 +33,7 @@ export interface FormatMetricParams {
  */
 export function formatPercentage(
   rawPct: number | string | undefined,
-  precision: DecimalPrecision = 0,
+  precision: number = 0,
   useTilde: boolean = true
 ): string {
   if (rawPct === undefined || rawPct === null || rawPct === '') return '0%';
@@ -79,7 +83,7 @@ export function formatRatio(
  */
 export function formatMetricDisplay(params: FormatMetricParams): string {
   const {
-    name = '',
+    name: inputName = '',
     count,
     val,
     paperCount,
@@ -94,44 +98,67 @@ export function formatMetricDisplay(params: FormatMetricParams): string {
     decimalPrecision = 0,
     useTildeForCoarse = true,
     ratioStyle = 'n_over_N',
-    forceCohortDenominator = false
+    forceCohortDenominator = false,
+    parentName,
+    showParentPrefix = false
   } = params;
 
-  // 1. Resolve active numerator (n) and denominator (N)
-  const isTagShare = metricMode === 'tag_share';
+  const name = (showParentPrefix && parentName && !inputName.startsWith(`[${parentName}]`) && !inputName.startsWith(`${parentName}:`))
+    ? `[${parentName}] ${inputName}`
+    : inputName;
 
+  // 1. Resolve dedicated Tag Share components
+  const effTagCount = tagCount ?? (typeof count === 'number' ? count : (typeof val === 'number' ? val : 0));
+  const effTotalTags = totalExtractedTags > 0 ? totalExtractedTags : (totalCohortPapers || 1);
+  let rawTagSharePct: number;
+  if (tagSharePct !== undefined) {
+    rawTagSharePct = typeof tagSharePct === 'number' ? tagSharePct : parseFloat(tagSharePct);
+  } else {
+    rawTagSharePct = totalExtractedTags > 0 ? (effTagCount / totalExtractedTags) * 100 : 0;
+  }
+  if (isNaN(rawTagSharePct)) rawTagSharePct = 0;
+  const tagSharePctStr = formatPercentage(rawTagSharePct, decimalPrecision, useTildeForCoarse);
+  const tagShareRatioStr = formatRatio(effTagCount, effTotalTags, ratioStyle);
+  const tagShareCountStr = ratioStyle === 'n_over_N' ? `n = ${effTagCount}` : `${effTagCount}`;
+
+  // 2. Resolve dedicated Paper Prevalence components
+  const effPaperCount = paperCount ?? (typeof count === 'number' ? count : (typeof val === 'number' ? val : 0));
+  const effTotalCohort = totalCohortPapers > 0 ? totalCohortPapers : 1;
+  let rawPrevalencePct: number;
+  if (prevalencePct !== undefined) {
+    rawPrevalencePct = typeof prevalencePct === 'number' ? prevalencePct : parseFloat(prevalencePct);
+  } else {
+    rawPrevalencePct = totalCohortPapers > 0 ? (effPaperCount / totalCohortPapers) * 100 : 0;
+  }
+  if (isNaN(rawPrevalencePct)) rawPrevalencePct = 0;
+  const prevalencePctStr = formatPercentage(rawPrevalencePct, decimalPrecision, useTildeForCoarse);
+  const prevalenceRatioStr = formatRatio(effPaperCount, effTotalCohort, ratioStyle);
+  const prevalenceCountStr = ratioStyle === 'n_over_N' ? `n = ${effPaperCount}` : `${effPaperCount}`;
+
+  // 3. Resolve active metric numerator (n) and denominator (N) for dynamic standard templates
+  const isTagShare = metricMode === 'tag_share';
   let nVal: number;
   let nTotal: number;
 
   if (isTagShare && !forceCohortDenominator) {
-    nVal = tagCount ?? (typeof count === 'number' ? count : (typeof val === 'number' ? val : 0));
-    nTotal = totalExtractedTags;
+    nVal = effTagCount;
+    nTotal = effTotalTags;
   } else {
-    nVal = paperCount ?? (typeof count === 'number' ? count : (typeof val === 'number' ? val : 0));
-    nTotal = totalCohortPapers;
+    nVal = effPaperCount;
+    nTotal = effTotalCohort;
   }
 
-  // 2. Resolve raw numeric percentage
+  // 4. Resolve raw numeric percentage for dynamic standard templates
   let rawPercentageNum: number;
   if (activePct !== undefined) {
     rawPercentageNum = typeof activePct === 'number' ? activePct : parseFloat(activePct);
   } else if (isTagShare) {
-    if (tagSharePct !== undefined) {
-      rawPercentageNum = typeof tagSharePct === 'number' ? tagSharePct : parseFloat(tagSharePct);
-    } else {
-      rawPercentageNum = totalExtractedTags > 0 ? (nVal / totalExtractedTags) * 100 : 0;
-    }
+    rawPercentageNum = rawTagSharePct;
   } else {
-    if (prevalencePct !== undefined) {
-      rawPercentageNum = typeof prevalencePct === 'number' ? prevalencePct : parseFloat(prevalencePct);
-    } else {
-      rawPercentageNum = totalCohortPapers > 0 ? (nVal / totalCohortPapers) * 100 : 0;
-    }
+    rawPercentageNum = rawPrevalencePct;
   }
-
   if (isNaN(rawPercentageNum)) rawPercentageNum = 0;
 
-  // 3. Format components
   const pctStr = formatPercentage(rawPercentageNum, decimalPrecision, useTildeForCoarse);
   const ratioStr = formatRatio(nVal, nTotal, ratioStyle);
   const countOnlyStr = ratioStyle === 'n_over_N' ? `n = ${nVal}` : `${nVal}`;
@@ -141,59 +168,180 @@ export function formatMetricDisplay(params: FormatMetricParams): string {
   const scalarValNum = typeof val === 'number' ? val : (typeof count === 'number' ? count : 0);
   const scalarStr = decimalPrecision === 0 ? Math.round(scalarValNum).toString() : scalarValNum.toFixed(decimalPrecision);
 
-  // 4. Resolve Template
+  // 5. Resolve Template
+  let rawFormatted: string;
   switch (template) {
+    // --- Explicit Tag Share Templates (Independent of metricMode) ---
+    case 'tag_share_ratio_percent':
+      rawFormatted = `${tagShareRatioStr}, ${tagSharePctStr}`;
+      break;
+
+    case 'name_tag_share_ratio_percent':
+      rawFormatted = `${name} (${tagShareRatioStr}, ${tagSharePctStr})`;
+      break;
+
+    case 'tag_share_percent_ratio':
+      rawFormatted = `${tagSharePctStr} (${tagShareRatioStr})`;
+      break;
+
+    case 'tag_share_percent_only':
+      rawFormatted = tagSharePctStr;
+      break;
+
+    case 'tag_share_ratio_only':
+      rawFormatted = tagShareRatioStr;
+      break;
+
+    case 'tag_share_count_percent':
+      rawFormatted = `${tagShareCountStr} (${tagSharePctStr})`;
+      break;
+
+    case 'name_tag_share_percent':
+      rawFormatted = `${name} (${tagSharePctStr})`;
+      break;
+
+    case 'name_tag_share_count_percent':
+      rawFormatted = `${name} (${tagShareCountStr}, ${tagSharePctStr})`;
+      break;
+
+    // --- Explicit Paper Prevalence Templates (Independent of metricMode) ---
+    case 'prevalence_ratio_percent':
+      rawFormatted = `${prevalenceRatioStr}, ${prevalencePctStr}`;
+      break;
+
+    case 'name_prevalence_ratio_percent':
+      rawFormatted = `${name} (${prevalenceRatioStr}, ${prevalencePctStr})`;
+      break;
+
+    case 'prevalence_percent_only':
+      rawFormatted = prevalencePctStr;
+      break;
+
+    case 'prevalence_ratio_only':
+      rawFormatted = prevalenceRatioStr;
+      break;
+
+    case 'count_prevalence_percent':
+      rawFormatted = `${prevalenceCountStr} (${prevalencePctStr})`;
+      break;
+
+    // --- Dual Multi-Metric Template ---
+    case 'dual_prevalence_tag_share':
+      rawFormatted = `${prevalenceRatioStr} (${prevalencePctStr}) | Tags: ${tagShareRatioStr} (${tagSharePctStr})`;
+      break;
+
+    // --- Multi-Line Stacked Templates ---
+    case 'two_line_count_percent':
+      if (isScalarMetric) rawFormatted = `${scalarStr}\n(n = ${paperCount ?? nVal})`;
+      else rawFormatted = `${countOnlyStr}\n(${pctStr})`;
+      break;
+
+    case 'two_line_count_prevalence_percent':
+      rawFormatted = `${prevalenceCountStr}\n(${prevalencePctStr})`;
+      break;
+
+    case 'two_line_percent_count':
+      if (isScalarMetric) rawFormatted = `${scalarStr}\n(n = ${paperCount ?? nVal})`;
+      else rawFormatted = `${pctStr}\n(${countOnlyStr})`;
+      break;
+
+    case 'two_line_ratio_percent':
+      if (isScalarMetric) rawFormatted = `Avg = ${scalarStr}\n(${ratioStr})`;
+      else rawFormatted = `${ratioStr}\n(${pctStr})`;
+      break;
+
+    case 'two_line_percent_ratio':
+      if (isScalarMetric) rawFormatted = `${scalarStr}\n(${ratioStr})`;
+      else rawFormatted = `${pctStr}\n(${ratioStr})`;
+      break;
+
+    case 'two_line_name_count_percent':
+      if (isScalarMetric) rawFormatted = `${name}\nAvg = ${scalarStr} (n = ${paperCount ?? nVal})`;
+      else rawFormatted = `${name}\n${countOnlyStr} (${pctStr})`;
+      break;
+
+    // --- Standard Dynamic Templates (Matched to active chart metricMode) ---
     case 'name_ratio_percent':
-      if (isScalarMetric) return `${name} (Avg = ${scalarStr}, n = ${paperCount ?? nVal})`;
-      return `${name} (${ratioStr}, ${pctStr})`;
+      if (isScalarMetric) rawFormatted = `${name} (Avg = ${scalarStr}, n = ${paperCount ?? nVal})`;
+      else rawFormatted = `${name} (${ratioStr}, ${pctStr})`;
+      break;
 
     case 'ratio_percent':
-      if (isScalarMetric) return `Avg = ${scalarStr} (${ratioStr})`;
-      return `${ratioStr}, ${pctStr}`;
+      if (isScalarMetric) rawFormatted = `Avg = ${scalarStr} (${ratioStr})`;
+      else rawFormatted = `${ratioStr}, ${pctStr}`;
+      break;
 
     case 'percent_ratio':
-      if (isScalarMetric) return `${scalarStr} (${ratioStr})`;
-      return `${pctStr} (${ratioStr})`;
+      if (isScalarMetric) rawFormatted = `${scalarStr} (${ratioStr})`;
+      else rawFormatted = `${pctStr} (${ratioStr})`;
+      break;
+
+    case 'percent_only':
+      rawFormatted = pctStr;
+      break;
+
+    case 'layer_share':
+      rawFormatted = pctStr;
+      break;
 
     case 'ratio_only':
-      return ratioStr;
+      rawFormatted = ratioStr;
+      break;
 
     case 'name_ratio':
-      return `${name} (${ratioStr})`;
+      rawFormatted = `${name} (${ratioStr})`;
+      break;
 
     case 'count_percent':
     case 'value_pct': // Legacy alias
-      if (isScalarMetric) return `${scalarStr} (n = ${paperCount ?? nVal})`;
-      if (metricMode === 'count') return `${ratioStr}, ${pctStr}`;
-      return `${countOnlyStr} (${pctStr})`;
+      if (isScalarMetric) rawFormatted = `${scalarStr} (n = ${paperCount ?? nVal})`;
+      else if (metricMode === 'count') rawFormatted = `${ratioStr}, ${pctStr}`;
+      else rawFormatted = `${countOnlyStr} (${pctStr})`;
+      break;
 
     case 'percent_only':
     case 'pct_only': // Legacy alias
-      if (isScalarMetric) return `${scalarStr}`;
-      return pctStr;
+      if (isScalarMetric) rawFormatted = `${scalarStr}`;
+      else rawFormatted = pctStr;
+      break;
 
     case 'count_only':
     case 'value': // Legacy alias
-      if (isScalarMetric) return scalarStr;
-      return countOnlyStr;
+      if (isScalarMetric) rawFormatted = scalarStr;
+      else rawFormatted = countOnlyStr;
+      break;
 
     case 'name_only':
     case 'name': // Legacy alias
-      return name;
+      rawFormatted = name;
+      break;
 
     case 'name_count':
-      if (isScalarMetric) return `${name} (${scalarStr})`;
-      return `${name} (${countOnlyStr})`;
+      if (isScalarMetric) rawFormatted = `${name} (${scalarStr})`;
+      else rawFormatted = `${name} (${countOnlyStr})`;
+      break;
 
     case 'name_percent':
-      if (isScalarMetric) return `${name} (${scalarStr})`;
-      return `${name} (${pctStr})`;
+      if (isScalarMetric) rawFormatted = `${name} (${scalarStr})`;
+      else rawFormatted = `${name} (${pctStr})`;
+      break;
 
     case 'name_count_percent':
-      if (isScalarMetric) return `${name} (Avg = ${scalarStr}, n = ${paperCount ?? nVal})`;
-      return `${name} (${countOnlyStr}, ${pctStr})`;
+      if (isScalarMetric) rawFormatted = `${name} (Avg = ${scalarStr}, n = ${paperCount ?? nVal})`;
+      else rawFormatted = `${name} (${countOnlyStr}, ${pctStr})`;
+      break;
 
     default:
-      return `${ratioStr}, ${pctStr}`;
+      rawFormatted = `${ratioStr}, ${pctStr}`;
+      break;
   }
+
+  return rawFormatted
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
+    .replace(/\(\s*,/g, '(')
+    .replace(/,\s*\)/g, ')')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\\n/g, '\n')
+    .trim();
 }

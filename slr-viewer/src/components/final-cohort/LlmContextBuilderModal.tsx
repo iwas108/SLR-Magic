@@ -55,6 +55,110 @@ export default function LlmContextBuilderModal({
   const [includeNotStatedMetrics, setIncludeNotStatedMetrics] = useState(true);
   const [includeRawTokenFrequencies, setIncludeRawTokenFrequencies] = useState(false);
 
+  // Reporting decimal precision state (0 to 4 decimal places, default: 2)
+  const [decimalPrecision, setDecimalPrecision] = useState<number>(2);
+
+  // Load saved decimal precision from localStorage
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('slr_llm_context_decimal_precision');
+      if (saved !== null) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 4) {
+          setDecimalPrecision(parsed);
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleDecimalPrecisionChange = (prec: number) => {
+    setDecimalPrecision(prec);
+    try {
+      localStorage.setItem('slr_llm_context_decimal_precision', String(prec));
+    } catch (e) {}
+  };
+
+  // Master toggle handler for Baked Statistics & Directives (auto-disables or restores children)
+  const handleToggleBakedStats = (checked: boolean) => {
+    setIncludeBakedStats(checked);
+    if (checked) {
+      // Auto-enable default child options
+      setIncludeLlmDirectives(true);
+      setIncludeCohortStats(true);
+      setIncludeVariableDistributions(true);
+      setIncludeCategoryPaperMappings(true);
+      setIncludeNotStatedMetrics(true);
+      setIncludeRawTokenFrequencies(false);
+    } else {
+      // Auto-disable all child options
+      setIncludeLlmDirectives(false);
+      setIncludeCohortStats(false);
+      setIncludeVariableDistributions(false);
+      setIncludeCategoryPaperMappings(false);
+      setIncludeNotStatedMetrics(false);
+      setIncludeRawTokenFrequencies(false);
+    }
+  };
+
+  // Child toggle handlers with sub-option cascading
+  const handleChildToggle = (key: string, checked: boolean) => {
+    let nextLlm = includeLlmDirectives;
+    let nextCohort = includeCohortStats;
+    let nextVar = includeVariableDistributions;
+    let nextCatMap = includeCategoryPaperMappings;
+    let nextNotStated = includeNotStatedMetrics;
+    let nextRawTokens = includeRawTokenFrequencies;
+
+    if (key === 'llmDirectives') {
+      nextLlm = checked;
+      setIncludeLlmDirectives(checked);
+    } else if (key === 'cohortStats') {
+      nextCohort = checked;
+      setIncludeCohortStats(checked);
+    } else if (key === 'variableDistributions') {
+      nextVar = checked;
+      setIncludeVariableDistributions(checked);
+      if (!checked) {
+        nextCatMap = false;
+        nextNotStated = false;
+        nextRawTokens = false;
+        setIncludeCategoryPaperMappings(false);
+        setIncludeNotStatedMetrics(false);
+        setIncludeRawTokenFrequencies(false);
+      } else {
+        nextCatMap = true;
+        nextNotStated = true;
+        setIncludeCategoryPaperMappings(true);
+        setIncludeNotStatedMetrics(true);
+      }
+    } else if (key === 'categoryPaperMappings') {
+      nextCatMap = checked;
+      setIncludeCategoryPaperMappings(checked);
+    } else if (key === 'notStatedMetrics') {
+      nextNotStated = checked;
+      setIncludeNotStatedMetrics(checked);
+    } else if (key === 'rawTokenFrequencies') {
+      nextRawTokens = checked;
+      setIncludeRawTokenFrequencies(checked);
+    }
+
+    // Auto-sync parent includeBakedStats state:
+    // If any child is checked, enable parent. If all are unchecked, disable parent.
+    const anyChecked = nextLlm || nextCohort || nextVar || nextCatMap || nextNotStated || nextRawTokens;
+    if (anyChecked && !includeBakedStats) {
+      setIncludeBakedStats(true);
+    } else if (!anyChecked && includeBakedStats) {
+      setIncludeBakedStats(false);
+    }
+  };
+
+  // Helper to format percentages with selected decimal precision
+  const formatPct = useCallback((count: number, total: number, decimals: number = decimalPrecision): number => {
+    if (total <= 0) return 0;
+    const factor = Math.pow(10, Math.max(0, decimals));
+    return Math.round((count / total) * 100 * factor) / factor;
+  }, [decimalPrecision]);
+
   // Search filter for extracted keys
   const [keySearchTerm, setKeySearchTerm] = useState('');
   const [showPreview, setShowPreview] = useState(false);
@@ -286,7 +390,7 @@ export default function LlmContextBuilderModal({
       // Year distribution calculation with Hare-Hamilton quota balancing
       const sortedYears = Array.from(yearMap.entries()).sort((a, b) => b[0].localeCompare(a[0]));
       const yearCounts = sortedYears.map(item => item[1]);
-      const yearPercentages = calculateHareHamiltonPercentages(yearCounts);
+      const yearPercentages = calculateHareHamiltonPercentages(yearCounts, 100.00, decimalPrecision);
       const yearDistribution: Record<string, any> = {};
       sortedYears.forEach(([yr, cnt], idx) => {
         yearDistribution[yr] = {
@@ -302,7 +406,7 @@ export default function LlmContextBuilderModal({
         .map(([author, count]) => ({
           author,
           paper_count: count,
-          paper_prevalence_pct: Math.round((count / targetPapers.length) * 10000) / 100
+          paper_prevalence_pct: formatPct(count, targetPapers.length)
         }));
 
       // Top Publishers (top 10)
@@ -312,7 +416,7 @@ export default function LlmContextBuilderModal({
         .map(([publisher, count]) => ({
           publisher,
           paper_count: count,
-          paper_prevalence_pct: Math.round((count / targetPapers.length) * 10000) / 100
+          paper_prevalence_pct: formatPct(count, targetPapers.length)
         }));
 
       // QA Summary Metrics
@@ -327,7 +431,7 @@ export default function LlmContextBuilderModal({
       Object.entries(qaCriteriaCompliance).forEach(([crit, count]) => {
         criteriaComplianceSummary[crit] = {
           passed_count: count,
-          pass_rate_pct: Math.round((count / targetPapers.length) * 10000) / 100
+          pass_rate_pct: formatPct(count, targetPapers.length)
         };
       });
 
@@ -423,11 +527,11 @@ export default function LlmContextBuilderModal({
         // Sorted Categories
         const sortedCats = Array.from(categoryTagCountMap.entries()).sort((a, b) => b[1] - a[1]);
         const catTagCounts = sortedCats.map(c => c[1]);
-        const catTagPercentages = calculateHareHamiltonPercentages(catTagCounts);
+        const catTagPercentages = calculateHareHamiltonPercentages(catTagCounts, 100.00, decimalPrecision);
 
         const categoryBreakdowns = sortedCats.map(([cat, tagCount], idx) => {
           const paperCount = categoryPaperCountMap.get(cat) || 0;
-          const paperPrevalencePct = Math.round((paperCount / targetPapers.length) * 10000) / 100;
+          const paperPrevalencePct = formatPct(paperCount, targetPapers.length);
           const catItem: Record<string, any> = {
             category: cat,
             tag_count: tagCount,
@@ -450,7 +554,7 @@ export default function LlmContextBuilderModal({
 
         if (includeNotStatedMetrics) {
           varStat.not_stated_count = notStatedCount;
-          varStat.not_stated_pct = Math.round((notStatedCount / targetPapers.length) * 10000) / 100;
+          varStat.not_stated_pct = formatPct(notStatedCount, targetPapers.length);
         }
 
         varStat.categories = categoryBreakdowns;
@@ -477,6 +581,8 @@ export default function LlmContextBuilderModal({
     includeRawTokenFrequencies,
     targetPapers,
     selectedKeys,
+    decimalPrecision,
+    formatPct,
     getExtractedDataStr,
     parseQaAssessment,
     resolveUmbrellanizerValue
@@ -562,9 +668,44 @@ export default function LlmContextBuilderModal({
         } catch (e) {}
       }
 
-      paperItem.extracted_data = extractedMap;
+      if (Object.keys(extractedMap).length > 0) {
+        paperItem.extracted_data = extractedMap;
+      }
       return paperItem;
     });
+
+    // Dynamic Schema Legend: strictly document active schema components
+    const schemaLegend: Record<string, any> = {
+      papers: "Array of individual paper records in the cohort containing bibliographic details, quality appraisal scores, and extracted variables",
+      paper_id: "Unique identifier of the paper in the SLR cohort"
+    };
+
+    if (includeCitationStr || includeTitle || includeAuthors || includeYear || includeDoi) {
+      schemaLegend.citation = "Bibliographic details for inline textual citations and references";
+    }
+
+    if (includeQa) {
+      schemaLegend.quality_assessment = "Methodological rigor appraisal scores and breakdown";
+    }
+
+    const hasExtractedComponents = includeRawValue || includeUmbrellanizedValue || includeTaxonomyJustification || includeMappingReasoning || includeEvidenceQuote;
+    if (selectedKeys.size > 0 && hasExtractedComponents) {
+      const extLegend: Record<string, string> = {};
+      if (includeRawValue) extLegend.raw_value = "Original extracted text/value from the paper";
+      if (includeUmbrellanizedValue) extLegend.umbrellanized_value = "Standardized taxonomy category mapped by Umbrellanizer";
+      if (includeTaxonomyJustification) extLegend.taxonomy_justification = "Reasoning and evidence for taxonomy categorization";
+      if (includeMappingReasoning) extLegend.mapping_reasoning = "Traceability explanation of where/how data was located in paper";
+      if (includeEvidenceQuote) extLegend.evidence_quote = "Direct text quote snippet extracted from paper source text";
+      schemaLegend.extracted_data = extLegend;
+    }
+
+    if (includeBakedStats && bakedStatistics) {
+      schemaLegend.baked_statistics = "Pre-computed, quota-balanced ground-truth distributions, counts, and percentages for authoritative synthesis";
+    }
+
+    if (includeBakedStats && includeLlmDirectives) {
+      schemaLegend.llm_directives = "Authoritative directives and anti-hallucination rules for downstream LLM synthesis";
+    }
 
     const payload: Record<string, any> = {
       system_context: {
@@ -573,24 +714,12 @@ export default function LlmContextBuilderModal({
         export_timestamp: exportTimestamp,
         total_papers_exported: targetPapers.length,
         export_scope: scope === 'filtered' ? 'filtered_cohort' : 'full_cohort',
-        schema_legend: {
-          paper_id: "Unique identifier of the paper in the SLR cohort",
-          citation: "Bibliographic details for inline textual citations and references",
-          quality_assessment: "Methodological rigor appraisal scores and breakdown",
-          extracted_data: {
-            raw_value: "Original extracted text/value from the paper",
-            umbrellanized_value: "Standardized taxonomy category mapped by Umbrellanizer",
-            taxonomy_justification: "Reasoning and evidence for taxonomy categorization",
-            mapping_reasoning: "Traceability explanation of where/how data was located in paper",
-            evidence_quote: "Direct text quote snippet extracted from paper source text"
-          },
-          baked_statistics: "Pre-computed, quota-balanced ground-truth distributions, counts, and percentages for authoritative synthesis"
-        }
+        schema_legend: schemaLegend
       }
     };
 
-    // LLM Directives & Ground-Truth Policy
-    if (includeLlmDirectives) {
+    // LLM Directives & Ground-Truth Policy (Strictly guarded by includeBakedStats)
+    if (includeBakedStats && includeLlmDirectives) {
       payload.llm_directives = {
         ground_truth_policy: "STRICT_GROUND_TRUTH_ENFORCEMENT",
         system_instruction: "You are an expert scientific researcher analyzing a systematic literature review dataset. All statistical numbers, percentages, distributions, and metrics provided in 'baked_statistics' are authoritative, pre-calculated, quota-balanced ground truth.",
@@ -603,7 +732,7 @@ export default function LlmContextBuilderModal({
     }
 
     // Baked Statistics Root Object
-    if (bakedStatistics) {
+    if (includeBakedStats && bakedStatistics) {
       payload.baked_statistics = bakedStatistics;
     }
 
@@ -626,6 +755,7 @@ export default function LlmContextBuilderModal({
     includeTaxonomyJustification,
     includeMappingReasoning,
     includeEvidenceQuote,
+    includeBakedStats,
     includeLlmDirectives,
     bakedStatistics,
     selectedKeys,
@@ -760,10 +890,10 @@ export default function LlmContextBuilderModal({
           </div>
 
           {/* 2. Baked Statistics & LLM Directives Configuration */}
-          <div className="bg-secondary/25 border border-border p-4 rounded-xl space-y-3">
+          <div className={`bg-secondary/25 border border-border p-4 rounded-xl space-y-3 transition-opacity ${!includeBakedStats ? 'border-border/60' : ''}`}>
             <div className="flex items-center justify-between">
               <label className="font-bold text-foreground flex items-center gap-2 text-xs">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <ShieldCheck className={`w-3.5 h-3.5 ${includeBakedStats ? 'text-emerald-500' : 'text-muted-foreground'}`} />
                 Baked Statistics & Ground-Truth Directives
               </label>
 
@@ -771,71 +901,130 @@ export default function LlmContextBuilderModal({
                 <input
                   type="checkbox"
                   checked={includeBakedStats}
-                  onChange={(e) => setIncludeBakedStats(e.target.checked)}
+                  onChange={(e) => handleToggleBakedStats(e.target.checked)}
                   className="rounded border-border text-emerald-500 focus:ring-emerald-500 h-3.5 w-3.5"
                 />
                 <span className="font-bold text-xs text-foreground">Include Baked Statistics</span>
               </label>
             </div>
 
-            {includeBakedStats && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
-                {[
-                  {
-                    label: 'LLM Ground-Truth Directives',
-                    desc: 'Forbid LLM from recalculating numbers',
-                    state: includeLlmDirectives,
-                    setState: setIncludeLlmDirectives
-                  },
-                  {
-                    label: 'Cohort Summary Stats',
-                    desc: 'Year, Author, Publisher & QA stats',
-                    state: includeCohortStats,
-                    setState: setIncludeCohortStats
-                  },
-                  {
-                    label: 'Variable Category Distributions',
-                    desc: 'Pre-balanced counts & tag share %',
-                    state: includeVariableDistributions,
-                    setState: setIncludeVariableDistributions
-                  },
-                  {
-                    label: 'Category Paper Mappings',
-                    desc: 'Include paper_ids lists per category',
-                    state: includeCategoryPaperMappings,
-                    setState: setIncludeCategoryPaperMappings
-                  },
-                  {
-                    label: 'NOT_STATED Frequency Metrics',
-                    desc: 'Missing/not-stated rates per variable',
-                    state: includeNotStatedMetrics,
-                    setState: setIncludeNotStatedMetrics
-                  },
-                  {
-                    label: 'Raw Token Frequencies',
-                    desc: 'Pre-umbrellanization token counts',
-                    state: includeRawTokenFrequencies,
-                    setState: setIncludeRawTokenFrequencies
-                  }
-                ].map((item, idx) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+              {[
+                {
+                  id: 'llmDirectives',
+                  label: 'LLM Ground-Truth Directives',
+                  desc: 'Forbid LLM from recalculating numbers',
+                  state: includeLlmDirectives,
+                  disabled: !includeBakedStats
+                },
+                {
+                  id: 'cohortStats',
+                  label: 'Cohort Summary Stats',
+                  desc: 'Year, Author, Publisher & QA stats',
+                  state: includeCohortStats,
+                  disabled: !includeBakedStats
+                },
+                {
+                  id: 'variableDistributions',
+                  label: 'Variable Category Distributions',
+                  desc: 'Pre-balanced counts & tag share %',
+                  state: includeVariableDistributions,
+                  disabled: !includeBakedStats
+                },
+                {
+                  id: 'categoryPaperMappings',
+                  label: 'Category Paper Mappings',
+                  desc: 'Include paper_ids lists per category',
+                  state: includeCategoryPaperMappings,
+                  disabled: !includeBakedStats || !includeVariableDistributions
+                },
+                {
+                  id: 'notStatedMetrics',
+                  label: 'NOT_STATED Frequency Metrics',
+                  desc: 'Missing/not-stated rates per variable',
+                  state: includeNotStatedMetrics,
+                  disabled: !includeBakedStats || !includeVariableDistributions
+                },
+                {
+                  id: 'rawTokenFrequencies',
+                  label: 'Raw Token Frequencies',
+                  desc: 'Pre-umbrellanization token counts',
+                  state: includeRawTokenFrequencies,
+                  disabled: !includeBakedStats || !includeVariableDistributions
+                }
+              ].map((item) => {
+                const isDisabled = item.disabled;
+                return (
                   <label
-                    key={idx}
-                    className="flex items-start gap-2.5 p-2.5 rounded-lg bg-card border border-border hover:bg-secondary/40 cursor-pointer select-none transition-colors"
+                    key={item.id}
+                    className={`flex items-start gap-2.5 p-2.5 rounded-lg border select-none transition-colors ${
+                      isDisabled
+                        ? 'bg-card/40 border-border/40 opacity-50 cursor-not-allowed text-muted-foreground'
+                        : item.state
+                        ? 'bg-emerald-500/5 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer text-foreground'
+                        : 'bg-card border-border hover:bg-secondary/40 cursor-pointer text-muted-foreground'
+                    }`}
                   >
                     <input
                       type="checkbox"
-                      checked={item.state}
-                      onChange={(e) => item.setState(e.target.checked)}
-                      className="rounded border-border text-emerald-500 focus:ring-emerald-500 h-3.5 w-3.5 mt-0.5 shrink-0"
+                      checked={!isDisabled && item.state}
+                      disabled={isDisabled}
+                      onChange={(e) => handleChildToggle(item.id, e.target.checked)}
+                      className="rounded border-border text-emerald-500 focus:ring-emerald-500 h-3.5 w-3.5 mt-0.5 shrink-0 disabled:opacity-50"
                     />
                     <div className="min-w-0">
-                      <div className="font-semibold text-xs text-foreground leading-tight">{item.label}</div>
+                      <div className={`font-semibold text-xs leading-tight ${isDisabled ? 'text-muted-foreground' : 'text-foreground'}`}>
+                        {item.label}
+                      </div>
                       <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{item.desc}</div>
                     </div>
                   </label>
-                ))}
+                );
+              })}
+            </div>
+
+            {/* Decimal Precision Control */}
+            <div className={`flex flex-wrap items-center justify-between gap-3 pt-3 mt-1 border-t border-border/60 transition-opacity ${!includeBakedStats ? 'opacity-50' : ''}`}>
+              <div className="flex items-center gap-2">
+                <Calculator className={`w-3.5 h-3.5 shrink-0 ${includeBakedStats ? 'text-emerald-500' : 'text-muted-foreground'}`} />
+                <div>
+                  <span className="font-semibold text-xs text-foreground">Reporting Decimal Precision:</span>
+                  <span className="text-[11px] text-muted-foreground ml-1.5 hidden sm:inline">
+                    Adjusts percentage and statistical rate precision
+                  </span>
+                </div>
               </div>
-            )}
+
+              <div className="flex items-center gap-2.5">
+                <div className="inline-flex rounded-lg p-0.5 bg-card border border-border">
+                  {[0, 1, 2, 3, 4].map(prec => (
+                    <button
+                      key={prec}
+                      type="button"
+                      disabled={!includeBakedStats}
+                      onClick={() => handleDecimalPrecisionChange(prec)}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+                        !includeBakedStats
+                          ? 'text-muted-foreground/50 cursor-not-allowed'
+                          : decimalPrecision === prec
+                          ? 'bg-emerald-600 text-white shadow-sm cursor-pointer'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60 cursor-pointer'
+                      }`}
+                      title={`Format statistics to ${prec} decimal place${prec === 1 ? '' : 's'}`}
+                    >
+                      {prec} {prec === 1 ? 'dec' : 'decs'}
+                    </button>
+                  ))}
+                </div>
+                <div className={`px-2.5 py-1 rounded font-mono text-[11px] font-semibold ${
+                  includeBakedStats
+                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-secondary border border-border text-muted-foreground'
+                }`}>
+                  Example: {(45.2536).toFixed(decimalPrecision)}%
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* 3. Paper Metadata & Citation Fields */}
@@ -1009,7 +1198,7 @@ export default function LlmContextBuilderModal({
               Variables: <span className="font-bold text-foreground">{selectedKeys.size}</span>
             </div>
             <div>
-              Baked Stats: <span className="font-bold text-emerald-500">{includeBakedStats ? 'Enabled' : 'Disabled'}</span>
+              Baked Stats: <span className="font-bold text-emerald-500">{includeBakedStats ? `Enabled (${decimalPrecision} dec${decimalPrecision === 1 ? '' : 's'})` : 'Disabled'}</span>
             </div>
             <div>
               Est. Tokens: <span className="font-bold text-emerald-500">~{payloadStats.estimatedTokens.toLocaleString()}</span>

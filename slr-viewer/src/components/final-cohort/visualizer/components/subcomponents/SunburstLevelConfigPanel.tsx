@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Type, Sliders, Palette, ShieldAlert } from 'lucide-react';
 import { useVisualizerContext } from '../../context/VisualizerContext';
 import { THEME_PALETTES } from '../../constants/themePalettes';
 import { CUSTOM_GROUPING_KEY } from '../../constants/defaultConfigs';
@@ -14,6 +14,8 @@ export function SunburstLevelConfigPanel() {
     setSunburstNodeClick,
     sunburstEmphasisFocus,
     setSunburstEmphasisFocus,
+    sunburstColorMode = 'branch_gradient',
+    setSunburstColorMode,
     sunburstLevelConfigs,
     setSunburstLevelConfigs
   } = config;
@@ -24,22 +26,38 @@ export function SunburstLevelConfigPanel() {
   return (
     <div className="space-y-4">
       {/* Quick Preset Layout Shortcuts */}
-      <div className="p-3 bg-card border border-border rounded-xl flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-          <Sparkles className="w-3.5 h-3.5 text-primary" />
-          <span>Layout Presets:</span>
+      <div className="p-3.5 bg-card border border-border rounded-xl space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <span>Academic Layout Presets:</span>
+          </div>
+          <span className="text-[10px] text-muted-foreground font-mono">One-Click Optimization</span>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => {
               setSunburstLevelConfigs({
-                0: { r0: 15, r: 35, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 0, borderWidth: 2, fontSize: 13, overflow: 'none' },
-                1: { r0: 35, r: 70, position: 'inside', rotate: 'radial', align: 'right', minAngle: 0, borderWidth: 1, fontSize: 11, overflow: 'none' },
-                2: { r0: 70, r: 72, position: 'outside', rotate: 'radial', align: 'right', minAngle: 0, borderWidth: 3, fontSize: 10, overflow: 'none' }
+                0: { r0: 15, r: 40, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 0, borderWidth: 2, borderRadius: 0, fontSize: 12, fontWeight: 'bold', fontStyle: 'normal', colorMode: 'auto_contrast', overflow: 'break', maxLabelWidth: 85, labelFormat: 'name', hideOverlap: true },
+                1: { r0: 40, r: 72, position: 'inside', rotate: 'radial', align: 'center', minAngle: 3, borderWidth: 1, borderRadius: 0, fontSize: 10, fontWeight: '600', fontStyle: 'normal', colorMode: 'auto_contrast', overflow: 'truncate', maxLabelWidth: 70, labelFormat: 'name', hideOverlap: true },
+                2: { r0: 72, r: 75, position: 'outside', rotate: 'radial', align: 'right', minAngle: 4, borderWidth: 2, borderRadius: 0, fontSize: 9, fontWeight: 'normal', fontStyle: 'normal', colorMode: 'inherit_theme', overflow: 'truncate', maxLabelWidth: 65, labelFormat: 'name', hideOverlap: true }
               });
             }}
             className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-lg text-xs font-bold transition-all"
+          >
+            Publication Clean (Anti-Collision)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSunburstLevelConfigs({
+                0: { r0: 15, r: 35, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 0, borderWidth: 2, borderRadius: 0, fontSize: 13, fontWeight: 'bold', fontStyle: 'normal', colorMode: 'auto_contrast', overflow: 'break', maxLabelWidth: 80, labelFormat: 'name', hideOverlap: true },
+                1: { r0: 35, r: 70, position: 'inside', rotate: 'radial', align: 'right', minAngle: 2, borderWidth: 1, borderRadius: 0, fontSize: 11, fontWeight: '600', fontStyle: 'normal', colorMode: 'auto_contrast', overflow: 'truncate', maxLabelWidth: 70, labelFormat: 'name', hideOverlap: true },
+                2: { r0: 70, r: 73, position: 'outside', rotate: 'radial', align: 'right', minAngle: 4, borderWidth: 3, borderRadius: 0, fontSize: 10, fontWeight: 'normal', fontStyle: 'normal', colorMode: 'inherit_theme', overflow: 'truncate', maxLabelWidth: 60, labelFormat: 'name', hideOverlap: true }
+              });
+            }}
+            className="px-2.5 py-1 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-lg text-xs font-bold transition-all"
           >
             Coffee Lexicon Style
           </button>
@@ -47,22 +65,22 @@ export function SunburstLevelConfigPanel() {
             type="button"
             onClick={() => {
               setSunburstLevelConfigs({
-                0: { r0: 15, r: 45, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 0, borderWidth: 1, fontSize: 12, overflow: 'none' },
-                1: { r0: 45, r: 75, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 0, borderWidth: 1, fontSize: 11, overflow: 'none' },
-                2: { r0: 75, r: 90, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 0, borderWidth: 1, fontSize: 10, overflow: 'none' }
+                0: { r0: 15, r: 42, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 0, borderWidth: 1, borderRadius: 0, fontSize: 12, fontWeight: 'bold', fontStyle: 'normal', colorMode: 'auto_contrast', overflow: 'break', maxLabelWidth: 80, labelFormat: 'name', hideOverlap: true },
+                1: { r0: 42, r: 72, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 3, borderWidth: 1, borderRadius: 0, fontSize: 11, fontWeight: '600', fontStyle: 'normal', colorMode: 'auto_contrast', overflow: 'truncate', maxLabelWidth: 75, labelFormat: 'name', hideOverlap: true },
+                2: { r0: 72, r: 92, position: 'inside', rotate: 'tangential', align: 'center', minAngle: 5, borderWidth: 1, borderRadius: 0, fontSize: 10, fontWeight: 'normal', fontStyle: 'normal', colorMode: 'auto_contrast', overflow: 'truncate', maxLabelWidth: 65, labelFormat: 'name', hideOverlap: true }
               });
             }}
             className="px-2.5 py-1 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-lg text-xs font-bold transition-all"
           >
-            Standard Concentric Rings
+            Concentric Rings
           </button>
           <button
             type="button"
             onClick={() => {
               setSunburstLevelConfigs({
-                0: { r0: 10, r: 35, position: 'inside', rotate: 'radial', align: 'center', minAngle: 0, borderWidth: 2, fontSize: 12, overflow: 'none' },
-                1: { r0: 35, r: 65, position: 'outside', rotate: 'radial', align: 'right', minAngle: 0, borderWidth: 2, fontSize: 11, overflow: 'none' },
-                2: { r0: 65, r: 85, position: 'outside', rotate: 'radial', align: 'right', minAngle: 0, borderWidth: 2, fontSize: 10, overflow: 'none' }
+                0: { r0: 10, r: 35, position: 'inside', rotate: 'radial', align: 'center', minAngle: 0, borderWidth: 2, borderRadius: 0, fontSize: 12, fontWeight: 'bold', fontStyle: 'normal', colorMode: 'auto_contrast', overflow: 'break', maxLabelWidth: 80, labelFormat: 'name', hideOverlap: true },
+                1: { r0: 35, r: 65, position: 'outside', rotate: 'radial', align: 'right', minAngle: 3, borderWidth: 2, borderRadius: 0, fontSize: 11, fontWeight: '600', fontStyle: 'normal', colorMode: 'inherit_theme', overflow: 'truncate', maxLabelWidth: 70, labelFormat: 'name', hideOverlap: true },
+                2: { r0: 65, r: 85, position: 'outside', rotate: 'radial', align: 'right', minAngle: 5, borderWidth: 2, borderRadius: 0, fontSize: 10, fontWeight: 'normal', fontStyle: 'normal', colorMode: 'inherit_theme', overflow: 'truncate', maxLabelWidth: 60, labelFormat: 'name', hideOverlap: true }
               });
             }}
             className="px-2.5 py-1 bg-secondary hover:bg-secondary/80 text-foreground border border-border rounded-lg text-xs font-bold transition-all"
@@ -72,8 +90,8 @@ export function SunburstLevelConfigPanel() {
         </div>
       </div>
 
-      {/* Global Sunburst Parameters */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+      {/* Global Sunburst Parameters & Smart Palette Shading */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Slice Sorting Order</label>
           <select
@@ -111,6 +129,24 @@ export function SunburstLevelConfigPanel() {
             <option value="none">No Hover Dimming</option>
           </select>
         </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground flex items-center gap-1">
+            <Palette className="w-3 h-3 text-primary" />
+            Smart Coloring Mode
+          </label>
+          <select
+            value={sunburstColorMode}
+            onChange={(e) => setSunburstColorMode(e.target.value as any)}
+            className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold"
+          >
+            <option value="branch_gradient">Harmonious Branch Gradient (Parent Weighted)</option>
+            <option value="parent_flow">Parent-to-Child Flow Gradient (Smooth Blend)</option>
+            <option value="value_weighted_tint">Artful Value-Weighted Tints (Darker Big / Pastel Small)</option>
+            <option value="level_discrete">Level-by-Level Discrete Palette Bands</option>
+            <option value="rainbow_discrete">Direct Palette Sequence</option>
+          </select>
+        </div>
       </div>
 
       {/* Per-Level Ring Config Tabs */}
@@ -118,7 +154,7 @@ export function SunburstLevelConfigPanel() {
         <div className="flex flex-wrap items-center gap-2 border-b border-border/60 pb-2">
           <span className="text-xs font-extrabold text-foreground mr-2">Level Settings:</span>
           {sankeyFields.map((fKey, lIdx) => {
-            const labelText = `Level ${lIdx + 1} (${fKey === CUSTOM_GROUPING_KEY ? 'Custom Grouping' : fKey.startsWith('ext:') ? fKey.substring(4) : fKey})`;
+            const labelText = `Level ${lIdx + 1} (${fKey === CUSTOM_GROUPING_KEY ? 'Custom Grouping' : fKey.startsWith('raw:ext:') ? `${fKey.substring(8)} (Raw)` : fKey.startsWith('ext:') ? fKey.substring(4) : fKey})`;
             const isActive = activeSunburstLevelTab === lIdx;
             return (
               <button
@@ -139,16 +175,24 @@ export function SunburstLevelConfigPanel() {
 
         {/* Active Level Configuration Panel */}
         {(() => {
-          const lIdx = activeSunburstLevelTab;
+          const lIdx = Math.max(0, Math.min(activeSunburstLevelTab, Math.max(0, sankeyFields.length - 1)));
           const curConf = sunburstLevelConfigs[lIdx] || {
             r0: 15 + lIdx * 30,
             r: 40 + lIdx * 30,
             position: lIdx === 0 ? 'inside' : 'outside',
             rotate: lIdx === 0 ? 'tangential' : 'radial',
             align: 'right',
-            minAngle: 0,
+            minAngle: lIdx === 0 ? 0 : 3,
             borderWidth: 2,
-            fontSize: 11
+            borderRadius: 0,
+            fontSize: 11,
+            fontWeight: lIdx === 0 ? 'bold' : 'normal',
+            fontStyle: 'normal',
+            colorMode: 'auto_contrast',
+            overflow: 'truncate',
+            maxLabelWidth: 80,
+            labelFormat: 'name',
+            hideOverlap: true
           };
 
           const updateCurConf = (partial: Partial<typeof curConf>) => {
@@ -161,14 +205,16 @@ export function SunburstLevelConfigPanel() {
           return (
             <div className="p-4 bg-card border border-border rounded-xl space-y-4">
               <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                <span className="text-xs font-extrabold text-primary">
-                  Level {lIdx + 1} Properties & Ring Radius
+                <span className="text-xs font-extrabold text-primary flex items-center gap-1.5">
+                  <Type className="w-3.5 h-3.5" />
+                  Level {lIdx + 1} Typography, Orientation & Readability
                 </span>
                 <span className="text-[11px] font-mono text-muted-foreground">
                   Ring Bounds: r0 = {curConf.r0}%, r = {curConf.r}%
                 </span>
               </div>
 
+              {/* Label Position, Orientation & Alignments */}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-foreground block">Label Position</label>
@@ -192,10 +238,11 @@ export function SunburstLevelConfigPanel() {
                     <option value="tangential">Tangential (Curved arc)</option>
                     <option value="radial">Radial (Pointing outwards)</option>
                     <option value="flat">Flat (Horizontal)</option>
+                    <option value="auto">Auto (Adaptive)</option>
                   </select>
                 </div>
 
-                {curConf.position === 'outside' && (
+                {curConf.position === 'outside' ? (
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-foreground block">Label Alignment</label>
                     <select
@@ -208,17 +255,88 @@ export function SunburstLevelConfigPanel() {
                       <option value="left">Left (Inward Radial)</option>
                     </select>
                   </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-foreground block">Color Shading Mode</label>
+                    <select
+                      value={curConf.colorMode || 'auto_contrast'}
+                      onChange={(e) => updateCurConf({ colorMode: e.target.value as any })}
+                      className="w-full bg-secondary/40 border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                    >
+                      <option value="auto_contrast">Auto-Contrast (Legible Text)</option>
+                      <option value="inherit_theme">Theme Default Text</option>
+                      <option value="custom">Custom Color Picker</option>
+                    </select>
+                  </div>
                 )}
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-foreground block">Level Font Size ({curConf.fontSize}px)</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-foreground">Min Angle ({curConf.minAngle ?? 0}°)</label>
+                    <span className="text-[10px] text-muted-foreground">Threshold</span>
+                  </div>
                   <input
-                    type="number"
+                    type="range"
+                    min={0}
+                    max={25}
+                    step={1}
+                    value={curConf.minAngle ?? 0}
+                    onChange={(e) => updateCurConf({ minAngle: Number(e.target.value) })}
+                    className="w-full accent-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Comprehensive Typography Controls */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-secondary/20 border border-border/50 rounded-xl">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Font Size ({curConf.fontSize}px)</label>
+                  <input
+                    type="range"
                     min={8}
-                    max={20}
+                    max={32}
                     value={curConf.fontSize}
                     onChange={(e) => updateCurConf({ fontSize: Number(e.target.value) })}
-                    className="w-full bg-secondary/40 border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                    className="w-full accent-primary"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Font Weight</label>
+                  <select
+                    value={curConf.fontWeight || (lIdx === 0 ? 'bold' : 'normal')}
+                    onChange={(e) => updateCurConf({ fontWeight: e.target.value as any })}
+                    className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                  >
+                    <option value="normal">Normal (400)</option>
+                    <option value="500">Medium (500)</option>
+                    <option value="600">Semi-Bold (600)</option>
+                    <option value="bold">Bold (700)</option>
+                    <option value="800">Extra-Bold (800)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Font Style</label>
+                  <select
+                    value={curConf.fontStyle || 'normal'}
+                    onChange={(e) => updateCurConf({ fontStyle: e.target.value as any })}
+                    className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-bold text-foreground"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="italic">Italic</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Line Height ({curConf.lineHeight || Math.max(12, curConf.fontSize + 2)}px)</label>
+                  <input
+                    type="range"
+                    min={10}
+                    max={36}
+                    value={curConf.lineHeight || Math.max(12, curConf.fontSize + 2)}
+                    onChange={(e) => updateCurConf({ lineHeight: Number(e.target.value) })}
+                    className="w-full accent-primary"
                   />
                 </div>
               </div>
@@ -263,7 +381,7 @@ export function SunburstLevelConfigPanel() {
                     }}
                     className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-lg text-xs font-bold transition-all whitespace-nowrap"
                   >
-                    Apply to All Levels
+                    Apply Format to All Levels
                   </button>
                 </div>
               </div>
@@ -271,24 +389,24 @@ export function SunburstLevelConfigPanel() {
               {/* Text Color, Line Wrap & Edge Padding Controls */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/40">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-foreground block">Level Text Color</label>
+                  <label className="text-xs font-bold text-foreground block">Custom Text Color</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
                       value={curConf.color || THEME_PALETTES[themePreset]?.text || '#000000'}
-                      onChange={(e) => updateCurConf({ color: e.target.value })}
+                      onChange={(e) => updateCurConf({ color: e.target.value, colorMode: 'custom' })}
                       className="w-8 h-8 rounded border border-border cursor-pointer bg-transparent"
                     />
                     <span className="text-xs font-mono font-bold text-foreground">
-                      {curConf.color || 'Theme Default'}
+                      {curConf.color || (curConf.colorMode === 'auto_contrast' ? 'Auto-Contrast' : 'Theme Default')}
                     </span>
                     {curConf.color && (
                       <button
                         type="button"
-                        onClick={() => updateCurConf({ color: undefined })}
+                        onClick={() => updateCurConf({ color: undefined, colorMode: 'auto_contrast' })}
                         className="text-[10px] font-bold text-muted-foreground hover:text-foreground underline"
                       >
-                        Reset
+                        Auto-Reset
                       </button>
                     )}
                   </div>
@@ -312,7 +430,7 @@ export function SunburstLevelConfigPanel() {
                   <input
                     type="range"
                     min={20}
-                    max={200}
+                    max={250}
                     step={5}
                     value={curConf.maxLabelWidth || 80}
                     onChange={(e) => updateCurConf({ maxLabelWidth: Number(e.target.value) })}
@@ -321,9 +439,10 @@ export function SunburstLevelConfigPanel() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+              {/* Ring Radii, Border Width & Corner Radius */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-border/40">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-foreground block">Inner Ring Radius r0 ({curConf.r0}%)</label>
+                  <label className="text-xs font-bold text-foreground block">Inner Radius r0 ({curConf.r0}%)</label>
                   <input
                     type="range"
                     min={0}
@@ -335,7 +454,7 @@ export function SunburstLevelConfigPanel() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-foreground block">Outer Ring Radius r ({curConf.r}%)</label>
+                  <label className="text-xs font-bold text-foreground block">Outer Radius r ({curConf.r}%)</label>
                   <input
                     type="range"
                     min={10}
@@ -351,12 +470,43 @@ export function SunburstLevelConfigPanel() {
                   <input
                     type="range"
                     min={0}
-                    max={6}
+                    max={8}
                     value={curConf.borderWidth}
                     onChange={(e) => updateCurConf({ borderWidth: Number(e.target.value) })}
                     className="w-full accent-primary"
                   />
                 </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-foreground block">Corner Radius ({curConf.borderRadius ?? 0}px)</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={12}
+                    value={curConf.borderRadius ?? 0}
+                    onChange={(e) => updateCurConf({ borderRadius: Number(e.target.value) })}
+                    className="w-full accent-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Anti-Overlap Protection Info Banner */}
+              <div className="p-2.5 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`hideOverlap_${lIdx}`}
+                    checked={curConf.hideOverlap !== false}
+                    onChange={(e) => updateCurConf({ hideOverlap: e.target.checked })}
+                    className="rounded text-primary focus:ring-primary"
+                  />
+                  <label htmlFor={`hideOverlap_${lIdx}`} className="font-bold text-foreground cursor-pointer">
+                    Enable Automatic Label Overlap Suppression (Anti-Collision Guard)
+                  </label>
+                </div>
+                <span className="text-[10px] text-muted-foreground hidden sm:inline">
+                  Hides clashing labels on narrow sectors
+                </span>
               </div>
             </div>
           );
@@ -365,3 +515,4 @@ export function SunburstLevelConfigPanel() {
     </div>
   );
 }
+

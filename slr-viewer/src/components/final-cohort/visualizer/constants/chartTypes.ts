@@ -31,6 +31,13 @@ export const CHART_TYPES_INFO: Record<ChartType, ChartTypeMeta> = {
     slrUseCase: 'Best for long extraction strings like specific Research Methods or Intervention types.',
     icon: BarChart2
   },
+  horizontal_bar_scatter: {
+    name: 'Horizontal Bar & Scatter Overlay',
+    category: 'Comparative / Dual-Axis Combo',
+    description: 'Combines horizontal category bars (prevalence/tag share) with an overlay scatter series (disclosure/reporting rate) on dual X-axes.',
+    slrUseCase: 'Cross-Domain Provenance vs. Boundary Envelope Disclosure (RQ2 vs RQ1b threshold reporting rate).',
+    icon: BarChart2
+  },
   clustered_bar: {
     name: 'Clustered / Comparative Bar Chart',
     category: 'Comparative / Multi-Series',
@@ -96,9 +103,9 @@ export const CHART_TYPES_INFO: Record<ChartType, ChartTypeMeta> = {
   },
   radar: {
     name: 'Radar / Spider Chart',
-    category: 'Multi-Dimensional QA',
-    description: 'Compares multiple quality assessment criteria scores simultaneously across groups.',
-    slrUseCase: 'Ideal for plotting average scores across QA dimensions (QA1 to QA8) per publisher or year.',
+    category: 'Benchmark Gap & Multi-Variable',
+    description: 'Plots multi-axis variable reporting frequencies against benchmark requirements or QA dimensions.',
+    slrUseCase: 'Ideal for Boundary Reporting Paradox analysis (empirical cohort baseline vs. target requirements) and QA profiling.',
     icon: Target
   },
   funnel: {

@@ -1,15 +1,18 @@
 import type * as echarts from 'echarts';
-import { getNodeColor } from '../utils/colorUtils';
+import { getNodeColor, getContrastingTextColor, generateDistinctPalette } from '../utils/colorUtils';
 import { 
   getMappedFieldValue, 
   computeMetricValue, 
-  limitCategoryMap 
+  limitCategoryMap,
+  formatVariableDisplayName
 } from '../utils/dataExtractor';
+import { CUSTOM_GROUPING_KEY } from '../constants/defaultConfigs';
 import { computeGroupStatistics, getErrorBounds } from '../utils/statisticalUtils';
 import { getSeriesPatternStyle } from '../utils/hatchPatternUtils';
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
+import { buildScientificAxisConfig, calculateNiceScientificCeiling, resolveUniversalGrid } from './axisConfigHelper';
 
 export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
   const {
@@ -18,6 +21,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     font,
     fontSize,
     baseTitle,
+    baseLegend,
     primaryField,
     secondaryField,
     metricMode,
@@ -81,14 +85,29 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
+    levelCustomGroups: ctx.levelCustomGroups,
     levelCustomGroupLinks,
+    levelTargetFields: ctx.levelTargetFields,
+    subFieldKey: ctx.levelTargetFields?.[0],
+    levelIdx: 0,
+    scopeFilter: ctx.primaryScopeFilter,
+    unpackMacroToChildren: true,
     sankeyFields,
     primaryField
   };
 
+  const secMappedOpts = {
+    ...mappedOpts,
+    primaryField: secondaryField,
+    subFieldKey: ctx.levelTargetFields?.[1],
+    levelIdx: 1,
+    scopeFilter: ctx.secondaryScopeFilter,
+    unpackMacroToChildren: false
+  };
+
   papers.forEach(p => {
     const primVals = getMappedFieldValue(p, primaryField, mappedOpts);
-    const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+    const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
 
     primVals.forEach(pv => {
       catSet.add(pv);
@@ -110,36 +129,43 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     primAggregatePapersMap.set(cat, pList);
   });
 
+  const effectiveOtherLabel = ctx.otherCategoryLabel || 'Other';
+  const isOther = (cat: string) => cat === effectiveOtherLabel || cat === 'Other';
+
   // Limit categories if enabled
   const limitedPrimMap = limitCategoryMap(
     primAggregatePapersMap,
     limitCategories,
     maxCategoriesCount,
-    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
+    (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags),
+    effectiveOtherLabel
   );
 
   // Determine sorted category list
   let categories = Array.from(limitedPrimMap.keys());
+  if (excludeEmpty || (ctx as any).excludeUnassigned) {
+    categories = categories.filter(c => c !== 'Unassigned / Other' && c !== 'Unassigned');
+  }
   if (barSorting === 'desc') {
     categories.sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       const valA = computeMetricValue(limitedPrimMap.get(a) || [], metricMode, papers.length, totalExtractedTags);
       const valB = computeMetricValue(limitedPrimMap.get(b) || [], metricMode, papers.length, totalExtractedTags);
       return valB - valA;
     });
   } else if (barSorting === 'asc') {
     categories.sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       const valA = computeMetricValue(limitedPrimMap.get(a) || [], metricMode, papers.length, totalExtractedTags);
       const valB = computeMetricValue(limitedPrimMap.get(b) || [], metricMode, papers.length, totalExtractedTags);
       return valA - valB;
     });
   } else {
     categories.sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       const numA = parseFloat(a);
       const numB = parseFloat(b);
       if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
@@ -147,21 +173,25 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     });
   }
 
-  const seriesList = Array.from(seriesSet).sort();
+  let seriesList = Array.from(seriesSet).sort();
+  if (excludeEmpty || (ctx as any).excludeUnassigned) {
+    seriesList = seriesList.filter(s => s !== 'Unassigned / Other' && s !== 'Unassigned');
+  }
 
   // 2. Build Series Payload
   const effectiveLegendFormat = legendFormat || barLegendFormat || 'name';
   const isPctMetric = metricMode === 'paper_prevalence' || metricMode === 'tag_share';
 
+  const distinctPalette = generateDistinctPalette(palette.colors, seriesList.length);
   const seriesObjects: any[] = seriesList.map((seriesKey, sIdx) => {
-    const baseColor = customSliceColors[seriesKey] || getNodeColor(seriesKey, undefined, sIdx, palette.colors, customSliceColors);
+    const baseColor = customSliceColors[seriesKey] || distinctPalette[sIdx] || getNodeColor(seriesKey, undefined, sIdx, palette.colors, customSliceColors);
     const patternStyle = getSeriesPatternStyle(sIdx, baseColor, enableHatchPatterns);
 
     const seriesData = categories.map(cat => {
       let groupPapers: any[] = [];
-      if (cat === 'Other') {
-        limitedPrimMap.get('Other')?.forEach(p => {
-          const secVals = getMappedFieldValue(p, secondaryField, mappedOpts);
+      if (isOther(cat)) {
+        limitedPrimMap.get(cat)?.forEach(p => {
+          const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
           if (secVals.includes(seriesKey)) {
             groupPapers.push(p);
           }
@@ -234,7 +264,14 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       };
     });
 
-    const seriesTotalCount = seriesData.reduce((acc, d) => acc + d.paperCount, 0);
+    const seriesUniquePapersSet = new Set<string>();
+    papers.forEach(p => {
+      const secVals = getMappedFieldValue(p, secondaryField, secMappedOpts);
+      if (secVals.includes(seriesKey)) {
+        seriesUniquePapersSet.add(p.Paper_ID || p.id || p.title || p.Title || JSON.stringify(p));
+      }
+    });
+    const seriesTotalCount = seriesUniquePapersSet.size;
     const seriesTotalTags = seriesData.reduce((acc, d) => acc + d.tagCount, 0);
     const seriesLegendLabel = formatLegendLabel(seriesKey, {
       paperCount: seriesTotalCount,
@@ -248,6 +285,20 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       forceCohortDenominator: ctx.forceCohortDenominator
     }, effectiveLegendFormat);
 
+    const labelPos = ctx.universalLabelPosition && ctx.universalLabelPosition !== 'auto'
+      ? (isHorizontal ? (ctx.universalLabelPosition === 'outside' ? 'right' : ctx.universalLabelPosition) : (ctx.universalLabelPosition === 'outside' ? 'top' : ctx.universalLabelPosition))
+      : (isHorizontal 
+          ? (barLabelPosition === 'inside' ? 'inside' : barLabelPosition === 'insideLeft' ? 'insideLeft' : barLabelPosition === 'insideRight' ? 'insideRight' : 'right')
+          : (barLabelPosition === 'inside' ? 'inside' : barLabelPosition === 'insideLeft' ? 'insideBottom' : barLabelPosition === 'insideRight' ? 'insideTop' : 'top'));
+    const labelDist = ctx.universalLabelDistance ?? ctx.barLabelDistance ?? 5;
+    const labelRot = ctx.universalLabelRotate ?? ctx.barLabelRotate ?? 0;
+    const labelFSize = ctx.universalLabelFontSize ?? ctx.barLabelFontSize ?? Math.max(9, fontSize - 2);
+    const labelFWeight = (ctx.universalLabelFontWeight || ctx.barLabelFontWeight || 'bold') as any;
+    const labelFStyle = (ctx.universalLabelFontStyle || ctx.barLabelFontStyle || 'normal') as any;
+    const labelLHeight = ctx.universalLabelLineHeight ?? ctx.barLabelLineHeight ?? (labelFSize + 3);
+    const minThresh = ctx.universalLabelMinThreshold ?? ctx.barLabelMinThreshold ?? 0;
+    const showZero = ctx.universalLabelShowZero ?? ctx.barLabelShowZero ?? true;
+
     return {
       name: seriesLegendLabel,
       rawSeriesKey: seriesKey,
@@ -255,14 +306,46 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       barWidth: barThickness,
       barGap: `${barInnerGap}%`,
       barCategoryGap: `${barClusterGap}%`,
+      itemStyle: {
+        color: baseColor
+      },
       data: seriesData,
       label: {
         show: showDataLabels,
-        position: isHorizontal ? (barLabelPosition === 'inside' ? 'inside' : 'right') : (barLabelPosition === 'inside' ? 'inside' : 'top'),
+        position: labelPos as any,
+        distance: labelDist,
+        rotate: labelRot,
         fontFamily: font,
-        fontSize: Math.max(9, fontSize - 2),
-        color: barLabelPosition.startsWith('inside') ? '#ffffff' : palette.text,
-        formatter: (params: any) => params.data?.formattedLabel ?? params.value
+        fontSize: labelFSize,
+        fontWeight: labelFWeight,
+        fontStyle: labelFStyle,
+        lineHeight: labelLHeight,
+        color: (() => {
+          const mode = ctx.barLabelColor ?? '';
+          if (mode === '' || mode === 'match_series') {
+            return barLabelPosition.startsWith('inside') ? getContrastingTextColor(baseColor) : baseColor;
+          }
+          if (mode === 'foreground' || mode === 'theme' || mode === 'theme_contrast') {
+            return palette.text;
+          }
+          if (mode === '#111827' || mode === '#ffffff' || mode.startsWith('#') || mode.startsWith('rgb')) {
+            return mode;
+          }
+          if (ctx.universalLabelColor) {
+            return ctx.universalLabelColor === 'foreground' ? palette.text : ctx.universalLabelColor;
+          }
+          return barLabelPosition.startsWith('inside') ? getContrastingTextColor(baseColor) : baseColor;
+        })(),
+        formatter: (params: any) => {
+          if (!showZero && (params.data?.paperCount === 0 || params.value === 0)) {
+            return '';
+          }
+          if (minThresh > 0) {
+            const rawPct = parseFloat(params.data?.prevalencePct ?? '0');
+            if (!isNaN(rawPct) && rawPct < minThresh) return '';
+          }
+          return params.data?.formattedLabel ?? params.value;
+        }
       }
     };
   });
@@ -295,33 +378,53 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
 
   // 4. Legend Setup
   const legDist = ctx.legendDistance ?? 20;
+  const resolvedPosKey = ctx.legendPosition || barLegendPosition || 'bottom';
+  const isTop = resolvedPosKey === 'top' || resolvedPosKey.startsWith('top');
+  const isBottom = resolvedPosKey === 'bottom' || resolvedPosKey.startsWith('bottom');
+  const isLeft = resolvedPosKey === 'left';
+  const isRight = resolvedPosKey === 'right';
+
   const legendPosMap: Record<string, any> = {
+    'top': { top: (baseTitle?.show ? 55 : 15) + legDist, left: 'center' },
+    'bottom': { bottom: legDist, left: 'center' },
+    'left': { left: legDist, top: 'middle' },
+    'right': { right: legDist, top: 'middle' },
     'top-left': { top: 15, left: legDist },
     'top-center': { top: legDist, left: 'center' },
     'top-right': { top: 15, right: legDist },
-    'left': { left: legDist, top: 'center' },
-    'right': { right: legDist, top: 'center' },
     'bottom-left': { bottom: 15, left: legDist },
-    'bottom-center': { bottom: 15, left: 'center' },
+    'bottom-center': { bottom: legDist, left: 'center' },
     'bottom-right': { bottom: 15, right: legDist }
   };
 
-  const effectiveLegendPos = legendPosMap[barLegendPosition] || { bottom: legDist, left: 'center' };
-  const legendOrient = (barLegendPosition === 'left' || barLegendPosition === 'right') ? 'vertical' : 'horizontal';
+  const effectiveLegendPos = legendPosMap[resolvedPosKey] || { bottom: legDist, left: 'center' };
+  const legendOrient = (isLeft || isRight) ? 'vertical' : 'horizontal';
 
   // 5. Grid Layout Calculations
-  const yWidth = barYAxisWidth || 140;
-  let gridTop = 45;
-  let gridBottom = isHorizontal ? 35 : 45;
-  let gridLeft = isHorizontal ? Math.max(90, Math.min(240, yWidth + 16)) : 60;
-  let gridRight = 65;
+  const isLabelOutside = showDataLabels && (!barLabelPosition || (barLabelPosition as string) === 'right' || (barLabelPosition as string) === 'top' || !barLabelPosition.startsWith('inside'));
+  let maxLabelLength = 0;
+  seriesObjects.forEach(s => {
+    (s.data || []).forEach((d: any) => {
+      const len = String(d?.formattedLabel || '').length;
+      if (len > maxLabelLength) maxLabelLength = len;
+    });
+  });
+  const headroomFactor = isHorizontal 
+    ? (maxLabelLength >= 40 ? 1.60 : maxLabelLength >= 25 ? 1.42 : maxLabelLength >= 14 ? 1.25 : 1.15)
+    : 1.18;
 
-  if (showLegend) {
-    if (barLegendPosition.startsWith('top')) gridTop = 85;
-    else if (barLegendPosition.startsWith('bottom')) gridBottom = 55;
-    else if (barLegendPosition.includes('right')) gridRight = 140;
-    else if (barLegendPosition.includes('left')) gridLeft += 120;
-  }
+  const yWidth = barYAxisWidth || 140;
+  let defGridTop = 45;
+  let defGridBottom = isHorizontal ? 35 : 45;
+  let defGridLeft = isHorizontal ? Math.max(90, Math.min(240, yWidth + 16)) : 60;
+  let defGridRight = (isHorizontal && isLabelOutside) ? Math.max(80, Math.min(160, Math.round(maxLabelLength * 2.6))) : 65;
+
+  const grid = resolveUniversalGrid(ctx, {
+    top: defGridTop,
+    bottom: defGridBottom,
+    left: defGridLeft,
+    right: defGridRight
+  });
 
   // 6. Metric Unit and Axis Titles
   const metricLabel = metricMode === 'paper_prevalence' 
@@ -334,100 +437,43 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     ? 'Average Citation Count'
     : 'Study Count (N)';
 
-  const defaultTitleX = isHorizontal ? metricLabel : primaryField;
-  const defaultTitleY = isHorizontal ? primaryField : metricLabel;
+  const defaultTitleX = isHorizontal ? metricLabel : (customAxisTitleX?.trim() || '');
+  const defaultTitleY = isHorizontal ? (customAxisTitleY?.trim() || '') : metricLabel;
 
   const finalTitleX = customAxisTitleX?.trim() || defaultTitleX;
   const finalTitleY = customAxisTitleY?.trim() || defaultTitleY;
 
   // 7. Axis Configurations
-  const categoryAxisConfig = {
-    type: 'category' as const,
-    data: categories,
-    inverse: isHorizontal,
-    axisLabel: {
-      fontFamily: font,
-      fontSize: isHorizontal ? (barYAxisFontSize ?? Math.max(9, fontSize - 2)) : Math.max(9, fontSize - 1),
-      color: palette.text,
-      rotate: isHorizontal ? 0 : labelRotation,
-      width: isHorizontal ? barYAxisWidth : undefined,
-      overflow: (isHorizontal && barYAxisOverflow !== 'none') ? barYAxisOverflow : undefined,
-      lineHeight: isHorizontal ? (barLineHeight ?? Math.max(12, (barYAxisFontSize ?? (fontSize - 2)) + 3)) : Math.max(12, fontSize + 2),
-      formatter: (val: string) => {
-        if (isHorizontal && barYAxisOverflow === 'break') {
-          const effFont = barYAxisFontSize ?? Math.max(9, fontSize - 2);
-          const charLimit = Math.max(14, Math.floor((barYAxisWidth - 10) / (effFont * 0.55)));
-          if (val.length > charLimit - 2) {
-            const words = val.split(' ');
-            const lines: string[] = [];
-            let cur = '';
-            words.forEach(w => {
-              if ((cur + ' ' + w).trim().length > charLimit) {
-                if (cur) lines.push(cur);
-                cur = w;
-              } else {
-                cur = (cur + ' ' + w).trim();
-              }
-            });
-            if (cur) lines.push(cur);
-            return lines.join('\n');
-          }
-          return val;
-        }
-        return val;
-      }
-    },
-    axisTick: {
-      show: axisTickDirection !== 'none',
-      inside: axisTickDirection === 'inside',
-      alignWithLabel: true
-    },
-    axisLine: {
-      show: showAxisBaseline,
-      lineStyle: { color: palette.text, width: 1.2 }
-    },
-    name: isHorizontal ? finalTitleY : finalTitleX,
-    nameLocation: 'end' as const,
-    nameTextStyle: {
-      fontFamily: font,
-      fontSize: Math.max(9, fontSize - 2),
-      color: palette.subtext,
-      fontStyle: 'italic' as const
-    }
-  };
+  const categoryAxisConfig = buildScientificAxisConfig(isHorizontal ? 'y' : 'x', ctx, {
+    axisKind: 'category',
+    defaultTitle: isHorizontal ? (customAxisTitleY?.trim() || '') : (customAxisTitleX?.trim() || ''),
+    categories: categories,
+    inverse: isHorizontal
+  });
 
-  const valueAxisConfig = {
-    type: axisScaleType === 'log' ? ('log' as const) : ('value' as const),
-    axisLabel: {
-      fontFamily: font,
-      fontSize: Math.max(9, fontSize - 1),
-      color: palette.text,
-      formatter: isPctMetric ? '{value}%' : '{value}'
-    },
-    splitLine: {
-      lineStyle: { color: palette.border, type: 'dashed' as const }
-    },
-    axisTick: {
-      show: axisTickDirection !== 'none',
-      inside: axisTickDirection === 'inside'
-    },
-    axisLine: {
-      show: showAxisBaseline,
-      lineStyle: { color: palette.text, width: 1.2 }
-    },
-    name: isHorizontal ? finalTitleX : finalTitleY,
-    nameLocation: 'end' as const,
-    nameTextStyle: {
-      fontFamily: font,
-      fontSize: Math.max(9, fontSize - 2),
-      color: palette.subtext,
-      fontStyle: 'italic' as const
-    }
-  };
+  const explicitCeiling = typeof ctx.barValueCeiling === 'number' && ctx.barValueCeiling > 0 ? ctx.barValueCeiling : undefined;
+  const explicitInterval = typeof ctx.barValueInterval === 'number' && ctx.barValueInterval > 0 ? ctx.barValueInterval : undefined;
+
+  const valueAxisConfig = buildScientificAxisConfig(isHorizontal ? 'x' : 'y', ctx, {
+    axisKind: 'value',
+    defaultTitle: isHorizontal ? (customAxisTitleX || metricLabel) : metricLabel,
+    max: explicitCeiling !== undefined
+      ? explicitCeiling
+      : (val: any) => {
+          if (!val || val.max === 0) return isPctMetric ? 10 : 5;
+          const ceiling = isLabelOutside ? val.max * headroomFactor : val.max;
+          const neededMax = barBenchmarkLine ? Math.max(ceiling, barBenchmarkValue * 1.15) : ceiling;
+          return calculateNiceScientificCeiling(neededMax, isPctMetric);
+        },
+    interval: explicitInterval,
+    defaultUnitFormatter: (v: any) => isPctMetric ? `${v}%` : `${v}`
+  });
+
+  const seriesColors = seriesObjects.map((s: any) => s.itemStyle?.color).filter(Boolean);
 
   return {
     backgroundColor: palette.bg,
-    color: palette.colors,
+    color: seriesColors.length > 0 ? seriesColors : palette.colors,
     title: baseTitle,
     tooltip: {
       trigger: 'axis',
@@ -458,26 +504,20 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       }
     },
     legend: showLegend ? {
-      show: true,
-      type: 'scroll',
+      ...baseLegend,
       data: seriesObjects.map(s => s.name),
       ...effectiveLegendPos,
       orient: legendOrient,
+      align: ctx.legendAlign || baseLegend.align,
       z: 20,
-      textStyle: { color: palette.text, fontFamily: font, fontSize: Math.max(9, fontSize - 3), fontWeight: 'bold' },
-      itemWidth: 14,
-      itemHeight: 10,
-      itemGap: 10,
-      pageIconColor: palette.text,
-      pageTextStyle: { color: palette.text }
+      itemWidth: ctx.legendItemWidth ?? baseLegend.itemWidth,
+      itemHeight: ctx.legendItemHeight ?? baseLegend.itemHeight,
+      itemGap: ctx.legendItemGap ?? baseLegend.itemGap,
+      textStyle: {
+        ...baseLegend.textStyle
+      }
     } : { show: false },
-    grid: {
-      left: gridLeft,
-      right: gridRight,
-      top: gridTop,
-      bottom: gridBottom,
-      containLabel: false
-    },
+    grid,
     xAxis: isHorizontal ? valueAxisConfig : categoryAxisConfig,
     yAxis: isHorizontal ? categoryAxisConfig : valueAxisConfig,
     series: seriesObjects

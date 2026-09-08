@@ -2,15 +2,20 @@ import { useMemo, useCallback } from 'react';
 import { 
   CUSTOM_GROUPING_KEY, 
   DEFAULT_CUSTOM_GROUPS, 
-  DEFAULT_CUSTOM_GROUP_LINKS 
+  DEFAULT_CUSTOM_GROUP_LINKS,
+  DEFAULT_LEVEL_TARGET_FIELDS
 } from '../constants/defaultConfigs';
 import { 
   safeString, 
   getFieldValue, 
   getMappedFieldValue, 
-  extractDetectedCategories 
+  extractDetectedCategories,
+  stripParentPrefix,
+  resolveUmbrellanizerValue
 } from '../utils/dataExtractor';
+import { filterValuesForParent } from '../generators/hierarchicalGenerators';
 import { balanceQuotasToHundred } from '../utils/quotaBalancer';
+import { discoverCohortVariables, DiscoveredVariable, auditCohortSafety } from '@/lib/services/cohort-data-source';
 import type { 
   SlotId,
   SlotConfig, 
@@ -44,7 +49,8 @@ export function useVisualizerData(params: {
     manualCategoryValues = {},
     customSliceColors = {},
     levelCustomGroups = DEFAULT_CUSTOM_GROUPS,
-    levelCustomGroupLinks = DEFAULT_CUSTOM_GROUP_LINKS
+    levelCustomGroupLinks = DEFAULT_CUSTOM_GROUP_LINKS,
+    levelTargetFields = DEFAULT_LEVEL_TARGET_FIELDS
   } = currentSlotConfig;
 
   // Setters updating active slot with functional update support
@@ -78,8 +84,46 @@ export function useVisualizerData(params: {
     updateActiveSlot({ levelCustomGroupLinks: nextVal });
   }, [levelCustomGroupLinks, updateActiveSlot]);
 
+  const setLevelTargetFields = useCallback((v: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => {
+    const nextVal = typeof v === 'function' ? v(levelTargetFields) : v;
+    updateActiveSlot({ levelTargetFields: nextVal });
+  }, [levelTargetFields, updateActiveSlot]);
+
+  // Discover full variable metadata across active cohort
+  const discoveredResult = useMemo(() => {
+    return discoverCohortVariables(papers, {
+      useUmbrellanizer,
+      umbrellanizerMap,
+      splitMultiValues,
+      excludeEmpty,
+      levelCustomGroupLinks,
+      levelTargetFields,
+      levelCustomGroups,
+      sankeyFields,
+      primaryField
+    });
+  }, [
+    papers,
+    useUmbrellanizer,
+    umbrellanizerMap,
+    splitMultiValues,
+    excludeEmpty,
+    levelCustomGroupLinks,
+    levelTargetFields,
+    levelCustomGroups,
+    sankeyFields,
+    primaryField
+  ]);
+
+  const discoveredVariables = discoveredResult.variables;
+  const discoveredVariablesByKey = discoveredResult.variablesByKey;
+
   // Available data fields
   const availableFields = useMemo(() => {
+    if (discoveredVariables.length > 0) {
+      return discoveredVariables.map((v: DiscoveredVariable) => v.key);
+    }
+
     const fieldsSet = new Set<string>([
       'Paper_ID',
       'Title',
@@ -93,25 +137,8 @@ export function useVisualizerData(params: {
       'Overall_QA'
     ]);
 
-    papers.forEach(p => {
-      if (p.manual_extracted_data || p.ai_extracted_data) {
-        try {
-          const str = (p.manual_stage || 0) >= (p.ai_stage || 0)
-            ? (p.manual_extracted_data || p.ai_extracted_data)
-            : (p.ai_extracted_data || p.manual_extracted_data);
-          const parsed = typeof str === 'string' ? JSON.parse(str) : str;
-          const extObj = parsed.extracted_data || parsed;
-          Object.keys(extObj).forEach(k => {
-            if (!k.startsWith('_') && k !== 'logic_trace' && k !== '_scientist_logic_trace') {
-              fieldsSet.add(`ext:${k}`);
-            }
-          });
-        } catch (e) {}
-      }
-    });
-
-    return [CUSTOM_GROUPING_KEY, ...Array.from(fieldsSet).sort()];
-  }, [papers]);
+    return [CUSTOM_GROUPING_KEY, ...Array.from(fieldsSet)];
+  }, [discoveredVariables]);
 
   const numericalFields = useMemo(() => {
     return ['Overall_QA', 'citation_count', 'Year'];
@@ -126,11 +153,13 @@ export function useVisualizerData(params: {
       splitMultiValues,
       excludeEmpty,
       customCategoryMap,
+      levelCustomGroups,
       levelCustomGroupLinks,
+      levelTargetFields,
       sankeyFields,
       primaryField
     });
-  }, [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField]);
+  }, [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroups, levelCustomGroupLinks, levelTargetFields, sankeyFields, primaryField]);
 
   // Detected unique categories for Step 3 color pickers
   const detectedCategories = useMemo(() => {
@@ -160,14 +189,15 @@ export function useVisualizerData(params: {
 
           rawSubVals.forEach(v2 => {
             const v1 = safeString(linksMap[v2] || 'Unassigned / Other');
+            const cleanChild = stripParentPrefix(v2, v1);
             totalItems++;
             parentTagCounts.set(v1, (parentTagCounts.get(v1) || 0) + 1);
             if (!parentPaperIds.has(v1)) parentPaperIds.set(v1, new Set());
             parentPaperIds.get(v1)!.add(paperId);
 
-            const childKey = `${v1}||${v2}`;
+            const childKey = `${v1}||${cleanChild}`;
             if (!childTagCounts.has(childKey)) {
-              childTagCounts.set(childKey, { count: 0, parentName: v1, childName: v2 });
+              childTagCounts.set(childKey, { count: 0, parentName: v1, childName: cleanChild });
             }
             childTagCounts.get(childKey)!.count += 1;
 
@@ -176,7 +206,7 @@ export function useVisualizerData(params: {
           });
         } else {
           const v1List = getMappedFieldValue(p, f1, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, subFieldKey: f2 || undefined, levelIdx: 0 });
-          const v2List = f2 ? getMappedFieldValue(p, f2, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, levelIdx: 1 }) : [];
+          const rawV2List = f2 ? getMappedFieldValue(p, f2, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, levelIdx: 1 }) : [];
 
           v1List.forEach(rawV1 => {
             const v1 = safeString(rawV1);
@@ -186,12 +216,23 @@ export function useVisualizerData(params: {
             if (!parentPaperIds.has(v1)) parentPaperIds.set(v1, new Set());
             parentPaperIds.get(v1)!.add(paperId);
 
-            v2List.forEach(rawV2 => {
+            const scopedV2List = f2
+              ? filterValuesForParent(rawV2List, f2, {
+                  fieldKey: f1,
+                  levelIdx: 0,
+                  rawName: v1,
+                  displayName: v1,
+                  path: [v1]
+                }, { levelCustomGroupLinks, umbrellanizerMap })
+              : rawV2List;
+
+            scopedV2List.forEach(rawV2 => {
               const v2 = safeString(rawV2);
               if (!v2 || v2 === '[object Object]') return;
-              const childKey = `${v1}||${v2}`;
+              const cleanChild = stripParentPrefix(v2, v1);
+              const childKey = `${v1}||${cleanChild}`;
               if (!childTagCounts.has(childKey)) {
-                childTagCounts.set(childKey, { count: 0, parentName: v1, childName: v2 });
+                childTagCounts.set(childKey, { count: 0, parentName: v1, childName: cleanChild });
               }
               childTagCounts.get(childKey)!.count += 1;
 
@@ -204,7 +245,17 @@ export function useVisualizerData(params: {
     } else {
       papers.forEach(p => {
         const paperId = safeString(p.Paper_ID || p.id || p.Title || p.title || 'unknown');
-        const vals = getMappedFieldValue(p, primaryField, { ...extractOpts, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField, levelIdx: 0 });
+        const vals = getMappedFieldValue(p, primaryField, { 
+          ...extractOpts, 
+          customCategoryMap, 
+          levelCustomGroups,
+          levelCustomGroupLinks, 
+          levelTargetFields,
+          subFieldKey: levelTargetFields?.[0],
+          sankeyFields, 
+          primaryField, 
+          levelIdx: 0 
+        });
         vals.forEach(rawV => {
           const v = safeString(rawV);
           if (!v || v === '[object Object]') return;
@@ -274,7 +325,7 @@ export function useVisualizerData(params: {
     const isMultiLabel = totalItems > totalCohortPapers;
 
     return { rows, totalItems, totalCohortPapers, activeSum, isMultiLabel };
-  }, [papers, chartType, sankeyFields, primaryField, useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroupLinks, manualCategoryValues, enableManualOverrides, currentSlotConfig.metricMode]);
+  }, [papers, chartType, sankeyFields, primaryField, useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroups, levelCustomGroupLinks, levelTargetFields, manualCategoryValues, enableManualOverrides, currentSlotConfig.metricMode]);
 
   // Autofill / Normalize percentages to 100%
   const normalizePercentages = useCallback(() => {
@@ -296,6 +347,40 @@ export function useVisualizerData(params: {
     setEnableManualOverrides(false);
   }, [setManualCategoryValues, setEnableManualOverrides]);
 
+  // Fast Re-grouping: Clear All Custom Groups
+  const clearAllCustomGroups = useCallback((levelIdx?: number) => {
+    if (levelIdx !== undefined) {
+      setLevelCustomGroups((prev: Record<number, string[]>) => ({
+        ...prev,
+        [levelIdx]: []
+      }));
+      setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({
+        ...prev,
+        [levelIdx]: {}
+      }));
+    } else {
+      setLevelCustomGroups({});
+      setLevelCustomGroupLinks({});
+    }
+  }, [setLevelCustomGroups, setLevelCustomGroupLinks]);
+
+  // Fast Re-grouping: Unassign All Items (Preserves Groups)
+  const unassignAllItems = useCallback((levelIdx?: number) => {
+    if (levelIdx !== undefined) {
+      setLevelCustomGroupLinks((prev: Record<number, Record<string, string>>) => ({
+        ...prev,
+        [levelIdx]: {}
+      }));
+    } else {
+      setLevelCustomGroupLinks({});
+    }
+  }, [setLevelCustomGroupLinks]);
+
+  // Cohort Safety Audit Result
+  const safetyAuditResult = useMemo(() => {
+    return auditCohortSafety(papers);
+  }, [papers]);
+
   return {
     customCategoryMap,
     setCustomCategoryMap,
@@ -309,11 +394,18 @@ export function useVisualizerData(params: {
     setLevelCustomGroups,
     levelCustomGroupLinks,
     setLevelCustomGroupLinks,
+    levelTargetFields,
+    setLevelTargetFields,
     availableFields,
+    discoveredVariables,
+    discoveredVariablesByKey,
     numericalFields,
     detectedCategories,
     realDataBreakdown,
     normalizePercentages,
-    revertToRealData
+    revertToRealData,
+    clearAllCustomGroups,
+    unassignAllItems,
+    safetyAuditResult
   };
 }

@@ -20,7 +20,7 @@ export interface VisualizerContextValue {
   workspace: ReturnType<typeof useVisualizerWorkspace>;
   presets: ReturnType<typeof useVisualizerPresets>;
   canvas: ReturnType<typeof useChartCanvas>;
-  generateSlotOption: (slotId: SlotId) => echarts.EChartsOption;
+  generateSlotOption: (slotId: SlotId, overrides?: any) => echarts.EChartsOption;
 }
 
 export const VisualizerContext = createContext<VisualizerContextValue | null>(null);

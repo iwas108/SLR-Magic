@@ -58,6 +58,48 @@ const STAGE_CONFIGS: Record<string, { label: string; border: string; bg: string;
     border: 'border-t-4 border-t-rose-500',
     bg: 'bg-rose-500/10',
     text: 'text-rose-500'
+  },
+  mockup_pool_a: {
+    label: 'Mockup (Pool A)',
+    border: 'border-t-4 border-t-purple-500',
+    bg: 'bg-purple-500/10',
+    text: 'text-purple-500'
+  },
+  mockup_pool_b: {
+    label: 'Mockup (Pool B)',
+    border: 'border-t-4 border-t-fuchsia-500',
+    bg: 'bg-fuchsia-500/10',
+    text: 'text-fuchsia-500'
+  },
+  mockup_pool_c: {
+    label: 'Mockup (Pool C)',
+    border: 'border-t-4 border-t-pink-500',
+    bg: 'bg-pink-500/10',
+    text: 'text-pink-500'
+  },
+  duplicate_review: {
+    label: 'Duplicate Review',
+    border: 'border-t-4 border-t-cyan-500',
+    bg: 'bg-cyan-500/10',
+    text: 'text-cyan-500'
+  },
+  consolidation_audit: {
+    label: 'Stage Audit',
+    border: 'border-t-4 border-t-orange-500',
+    bg: 'bg-orange-500/10',
+    text: 'text-orange-500'
+  },
+  prompt_benchmark: {
+    label: 'Prompt Benchmark',
+    border: 'border-t-4 border-t-teal-500',
+    bg: 'bg-teal-500/10',
+    text: 'text-teal-500'
+  },
+  prompt_optimizer: {
+    label: 'Prompt Optimizer',
+    border: 'border-t-4 border-t-violet-500',
+    bg: 'bg-violet-500/10',
+    text: 'text-violet-500'
   }
 };
 
@@ -102,6 +144,71 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
     }
     fetchData();
   }, [projectId, showToast, accountingData]);
+
+  const availableFilterOptions = useMemo(() => {
+    const defaultOptions = [
+      { value: 'all', label: 'All Tasks' },
+      { value: 'fast_filter', label: 'Fast Filter (Stage 1)' },
+      { value: 'gatekeeper', label: 'Gatekeeper (Stage 2)' },
+      { value: 'scientist', label: 'Scientist (Stage 3)' },
+      { value: 'miner', label: 'Miner (Stage 4)' },
+      { value: 'umbrellanizer', label: 'Umbrellanizer (Taxonomy)' },
+      { value: 'mockup_pool_a', label: 'Mockup (Pool A)' },
+      { value: 'mockup_pool_b', label: 'Mockup (Pool B)' },
+      { value: 'mockup_pool_c', label: 'Mockup (Pool C)' },
+      { value: 'duplicate_review', label: 'Duplicate Review' },
+      { value: 'consolidation_audit', label: 'Stage Audit' },
+      { value: 'prompt_benchmark', label: 'Prompt Benchmark' },
+      { value: 'prompt_optimizer', label: 'Prompt Optimizer' },
+    ];
+
+    const knownValues = new Set(defaultOptions.map(o => o.value));
+    const dynamicOptions: { value: string; label: string }[] = [];
+
+    (data?.expensiveCalls || []).forEach(c => {
+      const t = (c.task_type || '').toLowerCase();
+      if (t && !knownValues.has(t)) {
+        knownValues.add(t);
+        dynamicOptions.push({
+          value: t,
+          label: t.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+        });
+      }
+    });
+
+    return [...defaultOptions, ...dynamicOptions];
+  }, [data?.expensiveCalls]);
+
+  const primaryKeys = useMemo(() => new Set(['fast_filter', 'gatekeeper', 'scientist', 'miner', 'umbrellanizer']), []);
+
+  const auxiliaryTasks = useMemo(() => {
+    const knownAux = [
+      'mockup_pool_a',
+      'mockup_pool_b',
+      'mockup_pool_c',
+      'duplicate_review',
+      'consolidation_audit',
+      'prompt_benchmark',
+      'prompt_optimizer'
+    ];
+    const presentKeys = new Set<string>();
+    (data?.pipelineBreakdown || []).forEach((item) => {
+      const k = (item.task_type || '').toLowerCase();
+      if (!primaryKeys.has(k) && k && (item.total_cost > 0 || item.total_tokens > 0)) {
+        presentKeys.add(k);
+      }
+    });
+
+    const ordered: string[] = [];
+    knownAux.forEach(k => {
+      if (presentKeys.has(k)) {
+        ordered.push(k);
+        presentKeys.delete(k);
+      }
+    });
+    presentKeys.forEach(k => ordered.push(k));
+    return ordered;
+  }, [data?.pipelineBreakdown, primaryKeys]);
 
   const filteredCalls = useMemo(() => {
     const list = data?.expensiveCalls || [];
@@ -251,7 +358,7 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
 
   const renderStageCard = (key: string, itemData: any, extraClass = '') => {
     const config = STAGE_CONFIGS[key] || {
-      label: key.replace('_', ' '),
+      label: key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
       border: 'border-t-4 border-t-primary',
       bg: 'bg-primary/10',
       text: 'text-primary'
@@ -293,57 +400,82 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
   return (
     <div className="space-y-6 font-normal">
       {/* Metric Cards Grid */}
-      <div>
-        <h3 className="text-sm font-normal mb-3 flex items-center gap-2 text-foreground">
-          <TrendingUp className="w-4 h-4 text-primary" />
-          Pipeline Cost Breakdown
-        </h3>
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-sm font-normal mb-3 flex items-center gap-2 text-foreground">
+            <TrendingUp className="w-4 h-4 text-primary" />
+            Core Pipeline Cost Breakdown
+          </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Total Spend - Takes 2 rows in column 1 */}
-          <div className="md:row-span-2 md:col-span-1 bg-card border border-border border-t-4 border-t-emerald-500 p-5 rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-normal text-emerald-500 uppercase tracking-wider">Total Spend</span>
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                  <DollarSign className="w-5 h-5" />
-                </div>
-              </div>
-              <div className="mt-4">
-                <div className="text-3xl font-normal text-foreground tracking-tight">
-                  ${(overallStats?.total_cost || totalCost).toFixed(4)}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1.5 font-normal">
-                  <Hash className="w-3.5 h-3.5" />
-                  <span>{(overallStats?.total_tokens || totalTokens).toLocaleString()} total tokens</span>
-                </div>
-                {overallStats?.total_calls ? (
-                  <div className="text-[11px] text-muted-foreground/80 mt-1 font-mono font-normal">
-                    {overallStats.total_calls.toLocaleString()} API calls logged
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Total Spend */}
+            <div className="bg-card border border-border border-t-4 border-t-emerald-500 p-4 rounded-xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-normal uppercase tracking-wider text-emerald-500">Total Spend</span>
+                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                    <DollarSign className="w-4 h-4" />
                   </div>
-                ) : null}
+                </div>
+                <div className="mt-3 flex items-baseline justify-between">
+                  <span className="text-2xl font-normal text-foreground">
+                    ${(overallStats?.total_cost || totalCost).toFixed(4)}
+                  </span>
+                  <span className="text-xs font-mono text-muted-foreground flex items-center gap-1.5 font-normal">
+                    <span className="flex items-center gap-1">
+                      <Hash className="w-3 h-3" />
+                      {(overallStats?.total_tokens || totalTokens).toLocaleString()}
+                    </span>
+                    {overallStats?.total_calls ? (
+                      <span className="text-[10px] text-muted-foreground/80 font-mono">({overallStats.total_calls} calls)</span>
+                    ) : null}
+                  </span>
+                </div>
               </div>
+
+              {renderStatsSubGrid(
+                getOverallMinCost(),
+                overallStats?.avg_cost,
+                overallStats?.max_cost,
+                getOverallMinTokens(),
+                overallStats?.avg_tokens,
+                overallStats?.max_tokens
+              )}
             </div>
 
-            {renderStatsSubGrid(
-              getOverallMinCost(),
-              overallStats?.avg_cost,
-              overallStats?.max_cost,
-              getOverallMinTokens(),
-              overallStats?.avg_tokens,
-              overallStats?.max_tokens
-            )}
+            {/* Fast Filter (Stage 1) */}
+            {renderStageCard('fast_filter', breakdownMap.get('fast_filter'))}
+
+            {/* Gatekeeper (Stage 2) */}
+            {renderStageCard('gatekeeper', breakdownMap.get('gatekeeper'))}
+
+            {/* Scientist (Stage 3) */}
+            {renderStageCard('scientist', breakdownMap.get('scientist'))}
+
+            {/* Miner (Stage 4) */}
+            {renderStageCard('miner', breakdownMap.get('miner'))}
+
+            {/* Umbrellanizer */}
+            {renderStageCard('umbrellanizer', breakdownMap.get('umbrellanizer'))}
           </div>
-
-          {/* Row 1 Right: Fast Filter, Gatekeeper, Scientist */}
-          {renderStageCard('fast_filter', breakdownMap.get('fast_filter'))}
-          {renderStageCard('gatekeeper', breakdownMap.get('gatekeeper'))}
-          {renderStageCard('scientist', breakdownMap.get('scientist'))}
-
-          {/* Row 2 Right: Miner, Umbrellanizer (Spans 2 columns) */}
-          {renderStageCard('miner', breakdownMap.get('miner'))}
-          {renderStageCard('umbrellanizer', breakdownMap.get('umbrellanizer'), 'md:col-span-2')}
         </div>
+
+        {/* Auxiliary & Calibration Operations */}
+        {auxiliaryTasks.length > 0 && (
+          <div>
+            <h3 className="text-sm font-normal mb-3 flex items-center gap-2 text-foreground">
+              <Zap className="w-4 h-4 text-amber-500" />
+              Auxiliary & Calibration Operations
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {auxiliaryTasks.map((taskKey) => (
+                <React.Fragment key={taskKey}>
+                  {renderStageCard(taskKey, breakdownMap.get(taskKey))}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Top Expensive API Calls Table */}
@@ -364,12 +496,11 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
                 }}
                 className="bg-card border border-border text-foreground text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer font-normal"
               >
-                <option value="all">All Tasks</option>
-                <option value="fast_filter">Fast Filter</option>
-                <option value="gatekeeper">Gatekeeper</option>
-                <option value="scientist">Scientist</option>
-                <option value="miner">Miner</option>
-                <option value="umbrellanizer">Umbrellanizer</option>
+                {availableFilterOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
             <span className="text-xs text-muted-foreground font-mono font-normal">
@@ -450,8 +581,8 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
                 ) : (
                   paginatedCalls.map((call, idx) => (
                     <tr key={call.id || idx} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-1.5 font-medium text-xs text-foreground capitalize">
-                        {call.task_type ? call.task_type.replace('_', ' ') : 'Unknown'}
+                      <td className="px-4 py-1.5 font-medium text-xs text-foreground">
+                        {call.task_type ? (STAGE_CONFIGS[call.task_type]?.label || call.task_type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())) : 'Unknown'}
                       </td>
                       <td className="px-4 py-1.5 font-mono text-xs text-muted-foreground">{call.model_id}</td>
                       <td className="px-4 py-1.5 text-right font-normal text-xs font-mono">{call.total_tokens?.toLocaleString() || 0}</td>

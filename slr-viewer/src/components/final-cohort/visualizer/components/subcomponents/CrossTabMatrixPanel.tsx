@@ -1,12 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { Table, Copy, Download, Layers } from 'lucide-react';
+import { Table, Copy, Download, Layers, Maximize2 } from 'lucide-react';
 import { useVisualizerContext } from '../../context/VisualizerContext';
-import { getMappedFieldValue, computeMetricValue, limitCategoryMap } from '../../utils/dataExtractor';
+import { getMappedFieldValue, computeMetricValue, limitCategoryMap, formatVariableDisplayName, extractCleanTaxonomyKey } from '../../utils/dataExtractor';
+import { extractTokenPaths } from '@/lib/services/cohort-data-source';
+import { filterValuesForParent } from '../../generators/hierarchicalGenerators';
 import { formatPercentage, formatRatio } from '../../utils/formatterUtils';
 import type { CrossTabMatrix, CrossTabCell } from '../../types';
+import { CrossTabMatrixModal } from './CrossTabMatrixModal';
 
 export function CrossTabMatrixPanel() {
-  const { props, config, style } = useVisualizerContext();
+  const { props, config, style, data } = useVisualizerContext();
   const { papers, umbrellanizerMap } = props;
   const {
     primaryField,
@@ -14,16 +17,47 @@ export function CrossTabMatrixPanel() {
     metricMode,
     limitCategories,
     maxCategoriesCount,
+    otherCategoryLabel = 'Other',
     useUmbrellanizer,
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
-    levelCustomGroupLinks,
-    sankeyFields
+    sankeyFields,
+    primaryScopeFilter,
+    secondaryScopeFilter,
+    levelScopeFilters,
+    levelSegmentIndices
   } = config;
+  const {
+    levelCustomGroups,
+    levelCustomGroupLinks,
+    levelTargetFields
+  } = data;
 
   const [activeTab, setActiveTab] = useState<'matrix' | 'flat'>('matrix');
   const [copied, setCopied] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const isOther = (cat: string) => cat === (otherCategoryLabel || 'Other') || cat === 'Other';
+
+  // Support inline bracket scope syntax (e.g. "ext:lv1:rq_algo[Biological Asset]" or "ext:lv1:rq_algo[scope=Biological Asset]")
+  const primBracket = primaryField ? primaryField.match(/^(.*?)\[(?:scope=)?(.*?)\]$/) : null;
+  const secBracket = secondaryField ? secondaryField.match(/^(.*?)\[(?:scope=)?(.*?)\]$/) : null;
+  const cleanPrimField = primBracket ? primBracket[1].trim() : primaryField;
+  const cleanSecField = secBracket ? secBracket[1].trim() : secondaryField;
+
+  const primLabel = primaryField === '__custom_grouping__'
+    ? (levelTargetFields?.[0] ? `Custom: ${formatVariableDisplayName(levelTargetFields[0])}` : 'Row Groups')
+    : formatVariableDisplayName(cleanPrimField);
+
+  const secLabel = secondaryField === '__custom_grouping__'
+    ? (levelTargetFields?.[1] ? `Custom: ${formatVariableDisplayName(levelTargetFields[1])}` : 'Column Groups')
+    : formatVariableDisplayName(cleanSecField);
+
+  const effectivePrimScope = primaryScopeFilter || levelScopeFilters?.[0] || (primBracket ? primBracket[2].trim() : undefined);
+  const effectiveSecScope = secondaryScopeFilter || levelScopeFilters?.[1] || (secBracket ? secBracket[2].trim() : undefined);
+  const primSegIdx = levelSegmentIndices?.[0];
+  const secSegIdx = levelSegmentIndices?.[1];
 
   const mappedOpts = useMemo(() => ({
     useUmbrellanizer,
@@ -31,10 +65,12 @@ export function CrossTabMatrixPanel() {
     splitMultiValues,
     excludeEmpty,
     customCategoryMap,
+    levelCustomGroups,
     levelCustomGroupLinks,
+    levelTargetFields,
     sankeyFields,
-    primaryField
-  }), [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroupLinks, sankeyFields, primaryField]);
+    primaryField: cleanPrimField
+  }), [useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty, customCategoryMap, levelCustomGroups, levelCustomGroupLinks, levelTargetFields, sankeyFields, cleanPrimField]);
 
   // Compute Cross-Tabulation Matrix Data
   const crossTab: CrossTabMatrix = useMemo(() => {
@@ -43,20 +79,97 @@ export function CrossTabMatrixPanel() {
     const rawMap = new Map<string, Map<string, any[]>>();
     let totalExtractedTags = 0;
 
-    papers.forEach(p => {
-      const primVals = getMappedFieldValue(p, primaryField, mappedOpts);
-      const secVals = getMappedFieldValue(p, secondaryField, { ...mappedOpts, primaryField: secondaryField });
+    const getSegIdxFromKey = (key: string, fallback?: number): number => {
+      if (fallback !== undefined && fallback >= 0) return fallback;
+      const matchSeg = key.match(/^ext:segment:(\d+):/i);
+      if (matchSeg) return parseInt(matchSeg[1], 10);
+      const matchLv = key.match(/^ext:lv(\d+):/i);
+      if (matchLv) return parseInt(matchLv[1], 10) - 1;
+      if (key.includes('macro:') || key.includes('lv1:')) return 0;
+      if (key.includes('sub:') || key.includes('lv2:')) return 1;
+      if (key.includes('leaf:') || key.includes('lv3:') || key.includes('tail:')) return 2;
+      return 0;
+    };
 
-      primVals.forEach(pv => {
-        catSet.add(pv);
-        secVals.forEach(sv => {
+    const checkPathMatchesScope = (path: string[], scopeFilter?: string): boolean => {
+      if (!scopeFilter) return true;
+      const scopeItems = scopeFilter.split(',').map(s => s.trim()).filter(Boolean);
+      const posScopes = scopeItems.filter(s => !s.startsWith('!')).map(s => s.toLowerCase());
+      const negScopes = scopeItems.filter(s => s.startsWith('!')).map(s => s.substring(1).toLowerCase());
+      const pathNorms = path.map(s => s.toLowerCase());
+      if (negScopes.length > 0 && negScopes.some(neg => pathNorms.includes(neg))) return false;
+      if (posScopes.length > 0) return posScopes.some(pos => pathNorms.includes(pos));
+      return true;
+    };
+
+    const primBaseKey = extractCleanTaxonomyKey(cleanPrimField);
+    const secBaseKey = extractCleanTaxonomyKey(cleanSecField);
+    const isSharedTaxonomy = Boolean(primBaseKey && secBaseKey && primBaseKey === secBaseKey);
+
+    papers.forEach(p => {
+      if (isSharedTaxonomy) {
+        const paths = extractTokenPaths(p, cleanPrimField, mappedOpts);
+        const effectivePrimIdx = getSegIdxFromKey(cleanPrimField, primSegIdx);
+        const effectiveSecIdx = getSegIdxFromKey(cleanSecField, secSegIdx);
+
+        paths.forEach(path => {
+          if (!checkPathMatchesScope(path, effectivePrimScope)) return;
+          if (!checkPathMatchesScope(path, effectiveSecScope)) return;
+
+          const rawPv = path[effectivePrimIdx < path.length ? effectivePrimIdx : path.length - 1];
+          const rawSv = path[effectiveSecIdx < path.length ? effectiveSecIdx : path.length - 1];
+          if (!rawPv || !rawSv) return;
+
+          const primMapObj = customCategoryMap[cleanPrimField] || (primBaseKey ? customCategoryMap[primBaseKey] : undefined);
+          const secMapObj = customCategoryMap[cleanSecField] || (secBaseKey ? customCategoryMap[secBaseKey] : undefined);
+          const pv = primMapObj?.[rawPv] || rawPv;
+          const sv = secMapObj?.[rawSv] || rawSv;
+
           totalExtractedTags++;
+          catSet.add(pv);
           seriesSet.add(sv);
           if (!rawMap.has(pv)) rawMap.set(pv, new Map());
           if (!rawMap.get(pv)!.has(sv)) rawMap.get(pv)!.set(sv, []);
           rawMap.get(pv)!.get(sv)!.push(p);
         });
-      });
+      } else {
+        const primVals = getMappedFieldValue(p, cleanPrimField, {
+          ...mappedOpts,
+          levelIdx: 0,
+          segmentIdx: primSegIdx,
+          scopeFilter: effectivePrimScope,
+          subFieldKey: levelTargetFields?.[0],
+          unpackMacroToChildren: true
+        });
+        const rawSecVals = getMappedFieldValue(p, cleanSecField, {
+          ...mappedOpts,
+          primaryField: cleanSecField,
+          levelIdx: 1,
+          segmentIdx: secSegIdx,
+          scopeFilter: effectiveSecScope,
+          subFieldKey: levelTargetFields?.[1],
+          unpackMacroToChildren: false
+        });
+
+        primVals.forEach(pv => {
+          catSet.add(pv);
+          const scopedSecVals = filterValuesForParent(rawSecVals, cleanSecField, {
+            fieldKey: cleanPrimField,
+            levelIdx: 0,
+            rawName: pv,
+            displayName: pv,
+            path: [pv]
+          }, { levelCustomGroupLinks, umbrellanizerMap });
+
+          scopedSecVals.forEach(sv => {
+            totalExtractedTags++;
+            seriesSet.add(sv);
+            if (!rawMap.has(pv)) rawMap.set(pv, new Map());
+            if (!rawMap.get(pv)!.has(sv)) rawMap.get(pv)!.set(sv, []);
+            rawMap.get(pv)!.get(sv)!.push(p);
+          });
+        });
+      }
     });
 
     const primAggregatePapersMap = new Map<string, any[]>();
@@ -70,16 +183,22 @@ export function CrossTabMatrixPanel() {
       primAggregatePapersMap,
       limitCategories,
       maxCategoriesCount,
-      (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags)
+      (list) => computeMetricValue(list, metricMode, papers.length, totalExtractedTags),
+      otherCategoryLabel || 'Other'
     );
 
-    const categories = Array.from(limitedPrimMap.keys()).sort((a, b) => {
-      if (a === 'Other') return 1;
-      if (b === 'Other') return -1;
+    let categories = Array.from(limitedPrimMap.keys()).sort((a, b) => {
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       return a.localeCompare(b);
     });
 
-    const seriesList = Array.from(seriesSet).sort();
+    let seriesList = Array.from(seriesSet).sort();
+
+    if (excludeEmpty) {
+      categories = categories.filter(c => c !== 'Unassigned / Other' && c !== 'Unassigned');
+      seriesList = seriesList.filter(s => s !== 'Unassigned / Other' && s !== 'Unassigned');
+    }
 
     const matrix: Record<string, Record<string, CrossTabCell>> = {};
     const rowTotals: Record<string, { count: number; activeMetricVal: number }> = {};
@@ -97,8 +216,8 @@ export function CrossTabMatrixPanel() {
 
       seriesList.forEach(s => {
         let groupPapers: any[] = [];
-        if (cat === 'Other') {
-          limitedPrimMap.get('Other')?.forEach(p => {
+        if (isOther(cat)) {
+          limitedPrimMap.get(cat)?.forEach(p => {
             const secVals = getMappedFieldValue(p, secondaryField, mappedOpts);
             if (secVals.includes(s)) groupPapers.push(p);
           });
@@ -149,7 +268,7 @@ export function CrossTabMatrixPanel() {
   const handleCopyTSV = () => {
     let tsv = '';
     if (activeTab === 'matrix') {
-      tsv = `${primaryField} / ${secondaryField}\t` + crossTab.seriesList.join('\t') + '\tRow Total\n';
+      tsv = `${primLabel} / ${secLabel}\t` + crossTab.seriesList.join('\t') + '\tRow Total\n';
       crossTab.categories.forEach(cat => {
         const rowVals = crossTab.seriesList.map(s => crossTab.matrix[cat]?.[s]?.count ?? 0);
         tsv += `${cat}\t` + rowVals.join('\t') + `\t${crossTab.rowTotals[cat]?.count ?? 0}\n`;
@@ -157,7 +276,7 @@ export function CrossTabMatrixPanel() {
       const colTotals = crossTab.seriesList.map(s => crossTab.colTotals[s]?.count ?? 0);
       tsv += `Column Total\t` + colTotals.join('\t') + `\t${crossTab.grandTotalCount}\n`;
     } else {
-      tsv = `${primaryField}\t${secondaryField}\tCount (N)\tPrevalence (%)\tActive Metric\n`;
+      tsv = `${primLabel}\t${secLabel}\tCount (N)\tPrevalence (%)\tActive Metric\n`;
       crossTab.categories.forEach(cat => {
         crossTab.seriesList.forEach(s => {
           const cell = crossTab.matrix[cat]?.[s];
@@ -176,7 +295,7 @@ export function CrossTabMatrixPanel() {
   const handleDownloadCSV = () => {
     let csv = '';
     if (activeTab === 'matrix') {
-      csv = `"${primaryField} / ${secondaryField}",` + crossTab.seriesList.map(s => `"${s}"`).join(',') + ',"Row Total"\n';
+      csv = `"${primLabel} / ${secLabel}",` + crossTab.seriesList.map(s => `"${s}"`).join(',') + ',"Row Total"\n';
       crossTab.categories.forEach(cat => {
         const rowVals = crossTab.seriesList.map(s => crossTab.matrix[cat]?.[s]?.count ?? 0);
         csv += `"${cat}",` + rowVals.join(',') + `,${crossTab.rowTotals[cat]?.count ?? 0}\n`;
@@ -184,7 +303,7 @@ export function CrossTabMatrixPanel() {
       const colTotals = crossTab.seriesList.map(s => crossTab.colTotals[s]?.count ?? 0);
       csv += `"Column Total",` + colTotals.join(',') + `,${crossTab.grandTotalCount}\n`;
     } else {
-      csv = `"${primaryField}","${secondaryField}","Count (N)","Prevalence (%)","Active Metric"\n`;
+      csv = `"${primLabel}","${secLabel}","Count (N)","Prevalence (%)","Active Metric"\n`;
       crossTab.categories.forEach(cat => {
         crossTab.seriesList.forEach(s => {
           const cell = crossTab.matrix[cat]?.[s];
@@ -234,6 +353,15 @@ export function CrossTabMatrixPanel() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setIsModalOpen(true)}
+            className="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs"
+            title="Open Table in Fullscreen Modal Dialog"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            Modal View
+          </button>
+          <button
+            type="button"
             onClick={handleCopyTSV}
             className="px-2.5 py-1 rounded-lg bg-card border border-border hover:bg-secondary text-xs font-bold text-foreground flex items-center gap-1.5"
           >
@@ -258,10 +386,10 @@ export function CrossTabMatrixPanel() {
             <thead className="bg-secondary/70 text-foreground sticky top-0 z-10 border-b border-border text-[11px] font-bold">
               <tr>
                 <th className="px-3 py-2.5 border-r border-border">
-                  {primaryField} \ {secondaryField}
+                  {primLabel} \ {secLabel}
                 </th>
                 {crossTab.seriesList.map(s => (
-                  <th key={s} className="px-3 py-2.5 text-center border-r border-border min-w-[90px]">
+                  <th key={s} className="px-3 py-2.5 text-center border-r border-border min-w-[90px] whitespace-pre-line leading-tight">
                     {s}
                   </th>
                 ))}
@@ -273,7 +401,7 @@ export function CrossTabMatrixPanel() {
             <tbody className="divide-y divide-border">
               {crossTab.categories.map((cat, idx) => (
                 <tr key={cat} className={idx % 2 === 0 ? 'bg-card' : 'bg-secondary/20'}>
-                  <td className="px-3 py-2 font-bold text-foreground border-r border-border whitespace-nowrap">
+                  <td className="px-3 py-2 font-bold text-foreground border-r border-border whitespace-pre-line leading-tight">
                     {cat}
                   </td>
                   {crossTab.seriesList.map(s => {
@@ -323,8 +451,8 @@ export function CrossTabMatrixPanel() {
           <table className="w-full text-xs text-left border-collapse">
             <thead className="bg-secondary/70 text-foreground sticky top-0 z-10 border-b border-border text-[11px] font-bold">
               <tr>
-                <th className="px-3 py-2.5">{primaryField}</th>
-                <th className="px-3 py-2.5">{secondaryField}</th>
+                <th className="px-3 py-2.5">{primLabel}</th>
+                <th className="px-3 py-2.5">{secLabel}</th>
                 <th className="px-3 py-2.5 text-center">Paper Count (N)</th>
                 <th className="px-3 py-2.5 text-center">Prevalence (%)</th>
                 <th className="px-3 py-2.5 text-right">Active Metric Value</th>
@@ -351,6 +479,19 @@ export function CrossTabMatrixPanel() {
           </table>
         </div>
       )}
+
+      {/* Expanded Modal View */}
+      <CrossTabMatrixModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        crossTab={crossTab}
+        primaryField={primaryField}
+        secondaryField={secondaryField}
+        levelTargetFields={levelTargetFields}
+        metricMode={metricMode}
+        style={style}
+        totalCohortCount={papers.length}
+      />
     </div>
   );
 }

@@ -99,7 +99,7 @@ export function Step1ChartSelector() {
       {/* Quick Choice Grid */}
       <div className="w-full space-y-3">
         <span className="text-xs font-bold text-muted-foreground uppercase block text-center">
-          Or pick visually from all 17 templates:
+          Or pick visually from all {Object.keys(CHART_TYPES_INFO).length} templates:
         </span>
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
           {Object.entries(CHART_TYPES_INFO).map(([id, info]) => {

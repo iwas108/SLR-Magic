@@ -51,6 +51,13 @@ export interface DuplicatePair {
   created_at: string;
 }
 
+export interface SearchQuery {
+  id?: string;
+  source: string;
+  query: string;
+  description?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -62,6 +69,7 @@ export interface Project {
   exclusion_criteria?: string;
   scopus_search_string?: string;
   manual_search_string?: string;
+  search_queries?: string | SearchQuery[];
   pool_a_size?: number;
   pool_b_size?: number;
   pool_c_size?: number;

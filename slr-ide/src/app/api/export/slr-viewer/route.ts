@@ -66,6 +66,57 @@ export async function GET(request: Request) {
       }
     }
 
+    // Parse Systematic Search Queries & Documentation (PRISMA 2020 Items 6 & 7)
+    let parsedSearchQueries: any[] = [];
+    if (project.search_queries) {
+      try {
+        const rawSq = typeof project.search_queries === 'string' ? JSON.parse(project.search_queries) : project.search_queries;
+        if (Array.isArray(rawSq)) {
+          parsedSearchQueries = rawSq;
+        }
+      } catch (e) {}
+    }
+
+    if (parsedSearchQueries.length === 0) {
+      if (project.scopus_search_string && String(project.scopus_search_string).trim()) {
+        parsedSearchQueries.push({
+          id: 'legacy-scopus-query',
+          source: 'Scopus',
+          query: String(project.scopus_search_string).trim(),
+          description: 'Primary Scopus search string documented in project settings'
+        });
+      }
+      if (project.manual_search_string && String(project.manual_search_string).trim()) {
+        parsedSearchQueries.push({
+          id: 'legacy-manual-query',
+          source: 'Google Scholar / Manual',
+          query: String(project.manual_search_string).trim(),
+          description: 'Manual / Google Scholar search string documented in project settings'
+        });
+      }
+    }
+
+    const formattedSearchQueries = parsedSearchQueries.map((sq, idx) => ({
+      index: idx + 1,
+      source: sq.source || 'Unspecified Database',
+      query: sq.query || '',
+      notes_and_filters: sq.description || ''
+    }));
+
+    const systematicSearchStrategies = {
+      total_databases_documented: formattedSearchQueries.length,
+      databases: Array.from(new Set(formattedSearchQueries.map(q => q.source))),
+      search_queries: formattedSearchQueries,
+      legacy_strings: {
+        scopus_search_string: project.scopus_search_string || '',
+        manual_search_string: project.manual_search_string || ''
+      },
+      prisma_item_6_7_compliance: {
+        item_6_information_sources: 'Specify all databases, registers, websites, organisations, reference lists and other sources searched or consulted. Specify the date when each source was last searched or consulted.',
+        item_7_search_strategy: 'Present the full search strategies for all databases, registers and websites, including any filters used.'
+      }
+    };
+
     const allPapers = db
       .prepare(
         `SELECT Import_Source, Source, is_duplicate, manual_stage, ai_stage, manual_decision, ai_decision, manual_exclusion_code, ai_exclusion_code, Local_PDF_Status 
@@ -339,6 +390,7 @@ export async function GET(request: Request) {
         { gate: 'Cumulative Gate', count: otherStage3Cumulative }
       ],
       otherStudiesIncluded: totalIncludedStudies,
+      systematic_search_strategies: systematicSearchStrategies,
       ecLabels
     };
 
@@ -1461,7 +1513,7 @@ export async function GET(request: Request) {
     }
 
     const exportPayload = {
-      schema_version: '1.1.0',
+      schema_version: '1.2.0',
       type: 'slr-viewer-export',
       export_date: new Date().toISOString(),
       project: {
@@ -1502,6 +1554,11 @@ export async function GET(request: Request) {
         blinded_adjudication_stats: blindedAdjudicationStats,
         stage_comparisons: stageComparisons,
         rolling_batch_qc: rollingBatchQC,
+        systematic_search_strategies: systematicSearchStrategies,
+        prisma_flow_data: prismaData,
+        pre_calibration_data: poolMetrics,
+        gold_standard_stage_comparison: stageComparisons,
+        rolling_batch_validation: rollingBatchQC,
       },
       final_cohort: {
         papers: processedPapers,

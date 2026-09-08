@@ -145,7 +145,7 @@ export function exportFinalCohortCsv(sessionData: any, filteredPapers: any[] | n
               extMappedItems[k] = '';
               extJustifications[k] = '';
             } else {
-              const mapped = rawTokens.map(t => resolveUmbrellanizerValue(t, k, true, rawUmbMap)).filter(Boolean);
+              const mapped = Array.from(new Set(rawTokens.map(t => resolveUmbrellanizerValue(t, k, true, rawUmbMap)).filter(Boolean)));
               extMappedItems[k] = mapped.join(', ');
               extJustifications[k] = getUmbrellanizerJustification(mapped, k, paper, rawUmbMap);
             }

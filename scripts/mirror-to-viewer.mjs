@@ -56,7 +56,7 @@ function copyDir(srcDir, destDir) {
   }
 }
 
-// 1. Mirror Pure Services & Calculation Libraries
+// 1. Mirror Pure Services & Domain Calculators
 console.log('\n[1/5] Mirroring Pure Services & Domain Calculators...');
 copyFile(
   path.join(ideDir, 'src/lib/services/cohort-metrics.ts'),
@@ -69,6 +69,18 @@ copyFile(
 copyFile(
   path.join(ideDir, 'src/lib/services/trace-normalizer.ts'),
   path.join(viewerDir, 'src/lib/services/trace-normalizer.ts')
+);
+copyFile(
+  path.join(ideDir, 'src/lib/services/cohort-data-source.ts'),
+  path.join(viewerDir, 'src/lib/services/cohort-data-source.ts')
+);
+copyFile(
+  path.join(ideDir, 'src/lib/services/prisma-svg-generator.ts'),
+  path.join(viewerDir, 'src/lib/services/prisma-svg-generator.ts')
+);
+copyFile(
+  path.join(ideDir, 'src/lib/services/pdf-export-service.ts'),
+  path.join(viewerDir, 'src/lib/services/pdf-export-service.ts')
 );
 
 // 2. Mirror Types
@@ -102,6 +114,14 @@ copyFile(
 copyFile(
   path.join(ideDir, 'src/components/features/modals/PrismaConfigModal.tsx'),
   path.join(viewerDir, 'src/components/scientific-rigor/PrismaConfigModal.tsx')
+);
+copyFile(
+  path.join(ideDir, 'src/components/features/modals/ScientificRigorLlmModal.tsx'),
+  path.join(viewerDir, 'src/components/features/modals/ScientificRigorLlmModal.tsx')
+);
+copyFile(
+  path.join(ideDir, 'src/components/features/modals/ScientificRigorLlmModal.tsx'),
+  path.join(viewerDir, 'src/components/scientific-rigor/ScientificRigorLlmModal.tsx')
 );
 
 // 5. Mirror Presentation Panels

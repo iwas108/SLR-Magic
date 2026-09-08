@@ -7,9 +7,15 @@ import type {
   FontFamily, 
   MetricMode, 
   SunburstLevelConfig,
+  TreemapLevelConfig,
   DecimalPrecision,
   RatioStyle,
-  DisplayFormatTemplate
+  DisplayFormatTemplate,
+  AxisLocation,
+  AxisLabelFormat,
+  AxisGridLineStyle,
+  AxisFontWeight,
+  AxisFontStyle
 } from '../types';
 import type { ChartGeneratorContext } from './types';
 import { formatPercentage, formatRatio } from '../utils/formatterUtils';
@@ -17,6 +23,7 @@ import { formatPercentage, formatRatio } from '../utils/formatterUtils';
 import {
   generateVerticalBarOption,
   generateHorizontalBarOption,
+  generateHorizontalBarScatterOption,
   generateStackedBarOption
 } from './categoricalBarGenerators';
 import { generateClusteredBarOption } from './clusteredBarGenerators';
@@ -44,6 +51,7 @@ import {
 } from './kpiNetworkGenerators';
 
 export * from './types';
+export * from './axisConfigHelper';
 export * from './categoricalBarGenerators';
 export * from './clusteredBarGenerators';
 export * from './trendLineGenerators';
@@ -62,6 +70,7 @@ export interface BuildChartOptionParams {
   sankeyFields: string[];
   sankeyLabelPositions: Record<number, 'left' | 'right'>;
   sankeyMaxNodes: Record<number, number>;
+  tailLabelStyle?: 'comma_list' | 'other_count' | 'other_items' | 'plain_other';
   limitCategories: boolean;
   maxCategoriesCount: number;
   numFieldX: string;
@@ -87,6 +96,38 @@ export interface BuildChartOptionParams {
   sankeyNodeGap: number;
   sankeyLeftPadding: number;
   sankeyRightPadding: number;
+  sankeyTopPadding?: number;
+  sankeyBottomPadding?: number;
+  sankeyOrient?: 'horizontal' | 'vertical';
+  sankeyNodeAlign?: 'justify' | 'left' | 'right';
+  sankeyCurveness?: number;
+  sankeyLinkColorMode?: 'gradient' | 'source' | 'target';
+  sankeyLinkOpacity?: number;
+  sankeyNodeBorderRadius?: number;
+  sankeyNodeBorderWidth?: number;
+  sankeyLayoutIterations?: number;
+  sankeyDraggable?: boolean;
+  sankeyLabelPosition?: 'auto' | 'left' | 'right' | 'inside' | 'top' | 'bottom';
+  sankeyLabelDistance?: number;
+  sankeyLabelOverflow?: 'break' | 'truncate' | 'none';
+  sankeyMaxLabelWidth?: number;
+  sankeyLabelFontSize?: number;
+  sankeyLabelRotate?: number;
+  sankeyEmphasisFocus?: 'adjacency' | 'trajectory' | 'series' | 'none';
+  sankeyLevelLabelFormats?: Record<number, DisplayFormatTemplate>;
+  sankeyLevelNodeGaps?: Record<number, number>;
+  sankeyLevelLabelDistances?: Record<number, number>;
+  sankeyLevelNodeWidths?: Record<number, number>;
+  sankeyLevelPathFilters?: Record<number, string>;
+  sankeySort?: 'desc' | 'asc' | 'alpha' | 'barycenter' | 'none';
+  sankeyPinUnstatedToBottom?: boolean;
+  sankeyFlowConservation?: boolean;
+  sankeyLevelNodeOrders?: Record<number, string[]>;
+  levelSegmentIndices?: Record<number, number>;
+  levelScopeFilters?: Record<number, string>;
+  sankeyLabelLineHeight?: number;
+  sankeyLabelFontWeight?: 'normal' | 'bold' | '500' | '600' | '700' | '800';
+  sankeyLabelColor?: string;
   bubbleScale: number;
   gaugeMaxScale: number;
   sunburstLevelConfigs: Record<number, SunburstLevelConfig>;
@@ -108,6 +149,51 @@ export interface BuildChartOptionParams {
   showAxisBaseline?: boolean;
   customAxisTitleX?: string;
   customAxisTitleY?: string;
+  showAxisTitleX?: boolean;
+  showAxisTitleY?: boolean;
+  axisTitleFontSizeX?: number;
+  axisTitleFontSizeY?: number;
+  axisTitleFontWeightX?: AxisFontWeight;
+  axisTitleFontWeightY?: AxisFontWeight;
+  axisTitleFontStyleX?: AxisFontStyle;
+  axisTitleFontStyleY?: AxisFontStyle;
+  axisTitleColorX?: string;
+  axisTitleColorY?: string;
+  axisTitleLocationX?: AxisLocation;
+  axisTitleLocationY?: AxisLocation;
+  axisTitleGapX?: number;
+  axisTitleGapY?: number;
+  showAxisLabelX?: boolean;
+  showAxisLabelY?: boolean;
+  axisLabelFontSizeX?: number;
+  axisLabelFontSizeY?: number;
+  axisLabelFontWeightX?: AxisFontWeight;
+  axisLabelFontWeightY?: AxisFontWeight;
+  axisLabelColorX?: string;
+  axisLabelColorY?: string;
+  axisLabelRotateX?: number;
+  axisLabelRotateY?: number;
+  axisLabelMarginX?: number;
+  axisLabelMarginY?: number;
+  axisLabelOverflowX?: 'none' | 'truncate' | 'break';
+  axisLabelOverflowY?: 'none' | 'truncate' | 'break';
+  axisLabelWidthX?: number;
+  axisLabelWidthY?: number;
+  axisLabelLineHeightX?: number;
+  axisLabelLineHeightY?: number;
+  axisLabelFormatX?: AxisLabelFormat;
+  axisLabelFormatY?: AxisLabelFormat;
+  axisLabelPrefixX?: string;
+  axisLabelSuffixX?: string;
+  axisLabelPrefixY?: string;
+  axisLabelSuffixY?: string;
+  axisLabelIntervalX?: 'auto' | number;
+  axisLabelIntervalY?: 'auto' | number;
+  showGridLinesX?: boolean;
+  showGridLinesY?: boolean;
+  gridLineStyle?: AxisGridLineStyle;
+  gridLineColor?: string;
+  gridLineOpacity?: number;
   labelFormat?: DisplayFormatTemplate;
   barLabelPosition: 'right' | 'inside' | 'insideLeft' | 'insideRight';
   barLabelFormat: DisplayFormatTemplate;
@@ -123,6 +209,12 @@ export interface BuildChartOptionParams {
   legendFormat?: DisplayFormatTemplate;
   barLegendFormat: DisplayFormatTemplate;
   barLegendPosition: 'top-left' | 'top-center' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+  legendContextScope?: 'global_cohort' | 'parent_layer' | 'surviving_flow' | 'in_chart_flow';
+  syncLegendAndBarMetrics?: boolean;
+  barLabelContextScope?: 'auto' | 'layer_share' | 'cohort_prevalence' | 'global_cohort';
+  legendShowParentPrefix?: boolean;
+  legendParentPrefixStyle?: 'abbreviated' | 'full' | 'colliding_only' | 'none';
+  legendGroupByParent?: boolean;
   decimalPrecision?: DecimalPrecision;
   useTildeForCoarse?: boolean;
   ratioStyle?: RatioStyle;
@@ -137,6 +229,9 @@ export interface BuildChartOptionParams {
   sunburstLegendPosition: 'top-left' | 'top-center' | 'top-right' | 'left' | 'right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
   levelCustomGroups: Record<number, string[]>;
   levelCustomGroupLinks: Record<number, Record<string, string>>;
+  levelTargetFields?: Record<number, string>;
+  primaryScopeFilter?: string;
+  secondaryScopeFilter?: string;
   customCategoryMap: Record<string, Record<string, string>>;
   enableManualOverrides: boolean;
   manualCategoryValues: Record<string, number>;
@@ -147,10 +242,321 @@ export interface BuildChartOptionParams {
   pieLeaderLineLength?: number;
   pieLeaderLineLength2?: number;
   pieLabelDistance?: number;
+  pieLabelLineHeight?: number;
   pieLineHeight?: number;
   barLabelDistance?: number;
+  barLabelFontSize?: number;
+  barLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  barLabelFontStyle?: 'normal' | 'italic';
+  barLabelColor?: string;
+  barLabelRotate?: number;
+  barLabelShowZero?: boolean;
+  barLabelMinThreshold?: number;
+  barLabelLineHeight?: number;
+  barValueCeiling?: number | 'auto';
+  barValueInterval?: number | 'auto';
   legendDistance?: number;
+  legendWidth?: number;
+  legendWrapWidth?: number;
+  legendLineHeight?: number;
+  legendItemGap?: number;
+  legendFontSize?: number;
+  legendFontFamily?: string;
+  legendFontStyle?: 'normal' | 'italic';
+  legendLetterSpacing?: number;
+  legendOverflow?: 'break' | 'truncate' | 'none';
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   umbrellanizerMap?: Record<string, Record<string, string>>;
+  lineMode?: 'cohort_trend' | 'epistemic_simulation';
+  lineTimeSteps?: number;
+  lineTimeStepIntervalName?: string;
+  lineYAxisTitle?: string;
+  lineYMin?: number;
+  lineYMax?: number;
+  lineBaselineA?: number;
+  lineBaselineB?: number;
+  lineBaselineName?: string;
+  lineBaselineColor?: string;
+  lineBaselineStyle?: 'solid' | 'dashed' | 'dotted';
+  lineEstimatorInitial?: number;
+  lineEstimatorDrift?: number;
+  lineEstimatorModulation?: number;
+  lineEstimatorName?: string;
+  lineEstimatorColor?: string;
+  lineEstimatorStyle?: 'solid' | 'dashed' | 'dotted';
+  lineThresholdValue?: number;
+  lineThresholdName?: string;
+  lineThresholdLabel?: string;
+  lineThresholdColor?: string;
+  lineThresholdStyle?: 'dotted' | 'dashed' | 'solid';
+  lineThresholdPosition?: 'insideEndTop' | 'insideStartTop' | 'insideMiddleTop' | 'end' | 'start';
+  lineThresholdLineWidth?: number;
+  lineAxisPointerType?: 'cross' | 'line' | 'shadow';
+  lineMarkerSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none' | 'emptyCircle';
+  lineXAxisInterval?: number | 'auto';
+  lineShowGridLines?: boolean;
+  lineGridLeft?: number;
+  lineGridRight?: number;
+  lineGridTop?: number;
+  lineGridBottom?: number;
+  lineWidth?: number;
+  showLineMarkers?: boolean;
+  lineMarkerSize?: number;
+  lineAreaOpacity?: number;
+  lineBaselineAreaOpacity?: number;
+  lineEstimatorAreaOpacity?: number;
+  lineBaselineFillMode?: 'none' | 'subtle_gradient' | 'solid';
+  lineEstimatorFillMode?: 'none' | 'subtle_gradient' | 'solid';
+  lineShowTxEvents?: boolean;
+  lineTxEventSymbol?: 'triangle' | 'pin' | 'diamond' | 'circle' | 'arrow';
+  lineTxEventColor?: string;
+  lineTxEventSize?: number;
+  lineShowTxLabels?: boolean;
+  lineTxEventLabel?: string;
+  lineTxEventSeriesName?: string;
+  lineStepMode?: 'none' | 'start' | 'middle' | 'end';
+  roseType?: 'none' | 'radius' | 'area';
+  piePadAngle?: number;
+  pieCornerRadius?: number;
+  treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
+  treemapSquareRatio?: number;
+  treemapVisibleDepth?: number;
+  treemapGapWidth?: number;
+  treemapBorderWidth?: number;
+  treemapBorderRadius?: number;
+  treemapBorderColorMode?: 'auto_bg' | 'contrast' | 'custom' | 'transparent';
+  treemapBorderColor?: string;
+  treemapNodeClick?: 'zoomToNode' | 'link' | 'none';
+  treemapRoam?: boolean | 'scale' | 'move';
+  treemapDrillDownIcon?: string;
+  treemapShowBreadcrumb?: boolean;
+  treemapBreadcrumbPosition?: 'bottom' | 'top';
+  treemapBreadcrumbHeight?: number;
+  treemapColorMode?: 'branch_gradient' | 'depth_fade' | 'value_weighted' | 'level_discrete' | 'rainbow_discrete';
+  treemapColorMappingBy?: 'index' | 'value' | 'id';
+  treemapColorAlphaMin?: number;
+  treemapColorAlphaMax?: number;
+  treemapColorSaturationMin?: number;
+  treemapColorSaturationMax?: number;
+  treemapShowLabels?: boolean;
+  treemapLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapLabelFormat?: DisplayFormatTemplate;
+  treemapLabelFontSize?: number;
+  treemapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapLabelFontStyle?: 'normal' | 'italic';
+  treemapLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapLabelColor?: string;
+  treemapLabelOverflow?: 'break' | 'truncate' | 'none';
+  treemapShowUpperLabel?: boolean;
+  treemapUpperLabelHeight?: number;
+  treemapUpperLabelPosition?: 'inside' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' | 'center';
+  treemapUpperLabelFormat?: DisplayFormatTemplate;
+  treemapUpperLabelFontSize?: number;
+  treemapUpperLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  treemapUpperLabelColorMode?: 'auto_contrast' | 'inherit_theme' | 'custom';
+  treemapUpperLabelColor?: string;
+  treemapUpperLabelBgColor?: string;
+  treemapVisibleMin?: number;
+  treemapChildrenVisibleMin?: number;
+  treemapLevelConfigs?: Record<number, TreemapLevelConfig>;
+  heatmapCellRadius?: number;
+  heatmapColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
+  radarShape?: 'polygon' | 'circle';
+  radarStartAngle?: number;
+  radarAreaOpacity?: number;
+  radarLineWidth?: number;
+  radarSplitNumber?: number;
+  radarRadius?: number;
+  radarAxisLine?: boolean;
+  radarSplitLine?: boolean;
+  radarSplitArea?: boolean;
+  radarSplitAreaTheme?: 'stepped' | 'subtle' | 'none';
+  radarAxisNameMargin?: number;
+  radarAxisNameWidth?: number;
+  radarAxisNameOverflow?: 'break' | 'truncate' | 'none';
+  radarAxisNameLineHeight?: number;
+  radarShowDataLabels?: boolean;
+  radarDataLabelPosition?: 'top' | 'bottom' | 'inside' | 'outside' | 'auto';
+  radarBaselineLineStyle?: 'solid' | 'dashed' | 'dotted';
+  radarBaselineSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarBaselineSymbolSize?: number;
+  radarMode?: 'multi_variable' | 'qa_breakdown' | 'prevalence_vs_tag_share';
+  radarVariables?: string[];
+  radarVariableAliases?: Record<string, string>;
+  radarVariableTargets?: Record<string, number>;
+  radarIndicatorFormat?: 'two_line' | 'single_line' | 'ratio_percent' | 'asymmetry_two_line' | 'name_only';
+  radarShowTarget?: boolean;
+  radarTargetName?: string;
+  radarTargetValue?: number;
+  radarTargetLineStyle?: 'dashed' | 'solid' | 'dotted';
+  radarTargetLineWidth?: number;
+  radarTargetColor?: string;
+  radarTargetAreaOpacity?: number;
+  radarTargetSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarTargetSymbolSize?: number;
+  radarBaselineName?: string;
+  radarBaselineColor?: string;
+  radarTagShareName?: string;
+  radarTagShareColor?: string;
+  radarTagShareLineStyle?: 'dashed' | 'solid' | 'dotted';
+  radarTagShareLineWidth?: number;
+  radarTagShareAreaOpacity?: number;
+  radarTagShareSymbol?: 'circle' | 'rect' | 'triangle' | 'diamond' | 'none';
+  radarTagShareSymbolSize?: number;
+  funnelAlign?: 'center' | 'left' | 'right';
+  funnelGap?: number;
+  funnelNeckWidth?: number;
+  funnelNeckHeight?: number;
+  boxplotBoxWidth?: number;
+  boxplotShowScatter?: boolean;
+  boxplotOrientation?: 'vertical' | 'horizontal';
+  scatterPointSize?: number;
+  scatterPointOpacity?: number;
+  scatterShowRegression?: boolean;
+  scatterRegressionType?: 'linear' | 'mean';
+  bubbleMode?: 'categorical_matrix' | 'numerical_3d';
+  bubbleMinRadius?: number;
+  bubbleMaxRadius?: number;
+  bubbleOpacity?: number;
+  bubbleBorderWidth?: number;
+  bubbleBorderColor?: string;
+  bubbleShowLabels?: boolean;
+  bubbleLabelFormat?: 'count_n' | 'count_only' | 'percent' | 'label';
+  bubbleLabelFontSize?: number;
+  bubbleLabelColor?: string;
+  bubbleColorMode?: 'color_by_x' | 'color_by_y' | 'color_by_metric' | 'custom_compliance';
+  bubbleShowGridLines?: boolean;
+  bubbleComplianceRules?: Record<string, { label?: string; compliance?: string; color?: string }>;
+  bubbleXAxisName?: string;
+  bubbleYAxisName?: string;
+  bubbleXAxisNameGap?: number;
+  bubbleYAxisNameGap?: number;
+  bubbleXAxisNameLocation?: 'middle' | 'start' | 'end';
+  bubbleYAxisNameLocation?: 'middle' | 'start' | 'end';
+  bubbleAxisTitleFontSize?: number;
+  bubbleAxisTitleFontWeight?: 'bold' | 'normal' | 'bolder';
+  bubbleAxisTitleColor?: string;
+  bubbleGridLeft?: number;
+  bubbleGridBottom?: number;
+  bubbleGridTop?: number;
+  bubbleGridRight?: number;
+  bubbleSeriesName?: string;
+  bubbleLegendMode?: 'category_series' | 'single_series' | 'none';
+  graphRepulsion?: number;
+  graphEdgeLength?: number;
+  graphGravity?: number;
+  graphCurveness?: number;
+  graphShowLinkWeights?: boolean;
+  gaugeStartAngle?: number;
+  gaugeEndAngle?: number;
+  gaugePointerWidth?: number;
+  gaugeDialWidth?: number;
+  calendarCellSize?: number;
+  calendarYear?: string;
+  stackedNormalized?: boolean;
+  stackedReverseOrder?: boolean;
+  stackedPerBarSorting?: 'none' | 'desc' | 'asc';
+  stackedShowTotalLabel?: boolean;
+  stackedTotalLabelPosition?: 'top' | 'insideTop' | 'right';
+  stackedTotalLabelFormat?: string;
+  stackedTotalFontSize?: number;
+  stackedTotalFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  stackedTotalColor?: string;
+  stackedTotalLabelDistance?: number;
+  legendType?: 'plain' | 'scroll';
+  legendAlign?: 'auto' | 'left' | 'right';
+  legendIcon?: 'inherit' | 'circle' | 'rect' | 'roundRect' | 'triangle' | 'diamond' | 'pin' | 'arrow' | 'none' | 'line';
+  legendItemWidth?: number;
+  legendItemHeight?: number;
+  legendFontWeight?: 'normal' | 'bold' | 'bolder' | 'lighter' | number | string;
+  legendTextColor?: string;
+  legendBackgroundColor?: string;
+  legendBorderColor?: string;
+  legendBorderWidth?: number;
+  legendBorderRadius?: number;
+  legendPadding?: number;
+  // Dual-Axis & Horizontal Bar + Scatter Combo Parameters
+  scatterAxisTitle?: string;
+  scatterAxisMin?: number;
+  scatterAxisMax?: number;
+  scatterAxisInterval?: number;
+  scatterAxisNameGap?: number;
+  scatterSeriesName?: string;
+  barSeriesName?: string;
+  scatterSymbol?: 'diamond' | 'circle' | 'rect' | 'triangle' | 'pin' | 'roundRect';
+  scatterSymbolSize?: number;
+  scatterColor?: string;
+  scatterBorderColor?: string;
+  scatterBorderWidth?: number;
+  scatterValues?: Record<string, number>;
+  barYAxisFontWeight?: AxisFontWeight;
+  barYAxisFontStyle?: AxisFontStyle;
+  barYAxisColor?: string;
+  scatterShowDataLabels?: boolean;
+  scatterLabelPosition?: 'top' | 'bottom' | 'right' | 'left' | 'inside';
+  scatterLabelFontSize?: number;
+  scatterLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  scatterLabelFontStyle?: 'normal' | 'italic';
+  scatterLabelColor?: string;
+  scatterLabelDistance?: number;
+  scatterLabelLineHeight?: number;
+  lineLabelFontSize?: number;
+  lineLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  lineLabelFontStyle?: 'normal' | 'italic';
+  lineLabelColor?: string;
+  pieLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  pieLabelFontStyle?: 'normal' | 'italic';
+  pieLabelColor?: string;
+  radarLabelFontSize?: number;
+  radarLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  radarLabelFontStyle?: 'normal' | 'italic';
+  radarLabelColor?: string;
+  heatmapLabelFontSize?: number;
+  heatmapLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  heatmapLabelFontStyle?: 'normal' | 'italic';
+  heatmapLabelColor?: string;
+  funnelLabelFontSize?: number;
+  funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  funnelLabelFontStyle?: 'normal' | 'italic';
+  funnelLabelColor?: string;
+  boxplotLabelFontSize?: number;
+  boxplotLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  boxplotLabelFontStyle?: 'normal' | 'italic';
+  boxplotLabelColor?: string;
+  bubbleLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  bubbleLabelFontStyle?: 'normal' | 'italic';
+  barColorCustom?: string;
+  barGridTop?: number;
+  barGridBottom?: number;
+  barGridLeft?: number;
+  barGridRight?: number;
+  scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
+  otherCategoryLabel?: string;
+  // Universal Layout Margins & Canvas Padding
+  gridMarginAuto?: boolean;
+  gridMarginTop?: number;
+  gridMarginBottom?: number;
+  gridMarginLeft?: number;
+  gridMarginRight?: number;
+  // Universal Data Label Styling
+  universalLabelPosition?: 'auto' | 'top' | 'bottom' | 'left' | 'right' | 'inside' | 'insideLeft' | 'insideRight' | 'outside';
+  universalLabelDistance?: number;
+  universalLabelOverflow?: 'break' | 'truncate' | 'none';
+  universalMaxLabelWidth?: number;
+  universalLabelLineHeight?: number;
+  universalLabelFontSize?: number;
+  universalLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
+  universalLabelFontStyle?: 'normal' | 'italic';
+  universalLabelColor?: string;
+  universalLabelColorMode?: 'auto_contrast' | 'theme' | 'custom';
+  universalLabelRotate?: number;
+  universalLabelMinThreshold?: number;
+  universalLabelShowZero?: boolean;
+  // Smart Color Modes & Interactive Propagation
+  smartColorMode?: 'branch_gradient' | 'parent_flow' | 'value_weighted_tint' | 'level_discrete' | 'rainbow_discrete';
+  smartColorPropagation?: 'auto_children' | 'discrete_only';
 }
 
 export function buildChartOption(params: BuildChartOptionParams): echarts.EChartsOption {
@@ -167,6 +573,11 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
     showLegend,
     legendPosition,
     legendDistance = 20,
+    legendWidth,
+    legendLineHeight,
+    legendItemGap,
+    legendFontSize,
+    legendOverflow = 'break',
     metricMode
   } = params;
 
@@ -183,15 +594,42 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
     subtextStyle: { fontFamily: font, fontSize: Math.max(10, fontSize - 2), color: palette.subtext }
   };
 
+  const effectiveLegendFontSize = legendFontSize !== undefined ? legendFontSize : Math.max(9, fontSize - 1);
+  const effectiveLegendLineHeight = legendLineHeight !== undefined ? legendLineHeight : 15;
+  const effectiveLegendItemGap = legendItemGap !== undefined ? legendItemGap : 12;
+  const effectiveLegendWidth = (legendWidth !== undefined && legendWidth > 0) ? legendWidth : undefined;
+  const hasVisibleTitle = Boolean(baseTitle && (baseTitle as any).show !== false);
+
   const baseLegend = {
     show: showLegend,
-    type: 'scroll' as const,
-    left: legendPosition === 'left' ? legendDistance : legendPosition === 'right' ? undefined : 'center',
-    right: legendPosition === 'right' ? legendDistance : undefined,
-    top: legendPosition === 'top' ? 65 : legendPosition === 'bottom' ? undefined : 'center',
-    bottom: legendPosition === 'bottom' ? legendDistance : undefined,
+    type: params.legendType || 'plain',
+    left: legendPosition === 'left' ? (legendDistance ?? 15) : legendPosition === 'right' ? undefined : (params.legendAlign === 'left' ? 20 : params.legendAlign === 'right' ? undefined : 'center'),
+    right: legendPosition === 'right' ? (legendDistance ?? 15) : (params.legendAlign === 'right' ? 20 : undefined),
+    top: legendPosition === 'top' ? (hasVisibleTitle ? 55 : 15) + (legendDistance ?? 0) : legendPosition === 'bottom' ? undefined : 'center',
+    bottom: legendPosition === 'bottom' ? (legendDistance ?? 10) : undefined,
     orient: (legendPosition === 'left' || legendPosition === 'right') ? 'vertical' as const : 'horizontal' as const,
-    textStyle: { fontFamily: font, fontSize: fontSize - 1, color: palette.text }
+    align: params.legendAlign || 'auto',
+    icon: params.legendIcon && params.legendIcon !== 'inherit' ? params.legendIcon : undefined,
+    itemWidth: params.legendItemWidth ?? 25,
+    itemHeight: params.legendItemHeight ?? 14,
+    itemGap: effectiveLegendItemGap,
+    backgroundColor: params.legendBackgroundColor || 'transparent',
+    borderColor: params.legendBorderColor || 'transparent',
+    borderWidth: params.legendBorderWidth ?? 0,
+    borderRadius: params.legendBorderRadius ?? 4,
+    padding: params.legendPadding !== undefined ? params.legendPadding : 5,
+    pageIconColor: palette.text,
+    pageTextStyle: { color: palette.text },
+    textStyle: {
+      fontFamily: params.legendFontFamily && params.legendFontFamily !== 'inherit' ? resolveFontFamilyCss(params.legendFontFamily as any) : font,
+      fontSize: effectiveLegendFontSize,
+      fontWeight: (params.legendFontWeight as any) || 'normal',
+      fontStyle: (params.legendFontStyle as any) || 'normal',
+      color: params.legendTextColor || palette.text,
+      width: params.legendWrapWidth !== undefined ? params.legendWrapWidth : effectiveLegendWidth,
+      overflow: legendOverflow,
+      lineHeight: effectiveLegendLineHeight
+    }
   };
 
   const baseTooltip = {
@@ -247,6 +685,8 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
       return generateVerticalBarOption(ctx);
     case 'bar_horizontal':
       return generateHorizontalBarOption(ctx);
+    case 'horizontal_bar_scatter':
+      return generateHorizontalBarScatterOption(ctx);
     case 'clustered_bar':
       return generateClusteredBarOption(ctx);
     case 'stacked_bar':

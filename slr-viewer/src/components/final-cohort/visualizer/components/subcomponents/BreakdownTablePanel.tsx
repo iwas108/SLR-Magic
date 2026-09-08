@@ -24,7 +24,7 @@ export function BreakdownTablePanel() {
     revertToRealData
   } = data;
 
-  if (['clustered_bar', 'stacked_bar'].includes(chartType)) {
+  if (['clustered_bar', 'stacked_bar', 'heatmap'].includes(chartType)) {
     return (
       <div className="p-4 bg-secondary/20 border border-border/80 rounded-xl space-y-3">
         <CrossTabMatrixPanel />

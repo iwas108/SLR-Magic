@@ -2,6 +2,7 @@ import * as echarts from 'echarts';
 import { THEME_PALETTES } from '../constants/themePalettes';
 import { resolveFontFamilyCss } from '../constants/fontFamilies';
 import { formatSubfigureLabel } from '../constants/layoutPresets';
+import { exportSvgToPdf, exportImageToPdf } from '@/lib/services/pdf-export-service';
 import type { 
   ChartType, 
   ThemePreset, 
@@ -11,18 +12,134 @@ import type {
   SlotConfig, 
   SubfigureLabelStyle,
   AspectRatioPreset,
-  DimensionUnit
+  DimensionUnit,
+  ExportFormat
 } from '../types';
+
+/**
+ * Deep clones an object tree while strictly preserving all JavaScript functions,
+ * RegExp instances, arrays, and nested objects.
+ */
+function deepClonePreservingFunctions<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') {
+    return obj;
+  }
+  if (typeof obj === 'function') {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepClonePreservingFunctions(item)) as unknown as T;
+  }
+  const copy: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    copy[key] = deepClonePreservingFunctions((obj as any)[key]);
+  }
+  return copy as T;
+}
+
+/**
+ * Proportionally scale all font-related sizes and geometry in an ECharts option tree
+ * while preserving all function formatters (symbolSize, label.formatter, axisLabel.formatter, tooltip).
+ * Ensures export output visually matches the preview when the off-screen
+ * export canvas is larger than the live preview container.
+ *
+ * Scales: fontSize, lineHeight, text-wrap width, grid margins, legend layout dimensions, and series symbol/bar geometry.
+ */
+function scaleOptionFonts(option: echarts.EChartsOption, scale: number): echarts.EChartsOption {
+  if (!option || Math.abs(scale - 1) < 0.05) return option;
+
+  const cloned: any = deepClonePreservingFunctions(option);
+
+  // 1. Recursively scale fontSize, lineHeight, and text-wrap width
+  (function walk(obj: any) {
+    if (!obj || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) { obj.forEach(walk); return; }
+    for (const k of Object.keys(obj)) {
+      const v = obj[k];
+      if (typeof v === 'number') {
+        if (k === 'fontSize' || k === 'lineHeight') {
+          obj[k] = Math.round(v * scale);
+        } else if (k === 'width' && typeof obj.overflow === 'string') {
+          // Text-wrap width inside textStyle / rich blocks
+          obj[k] = Math.round(v * scale);
+        }
+      } else if (typeof v === 'object' && v !== null) {
+        walk(v);
+      }
+    }
+  })(cloned);
+
+  // 2. Scale grid margins (absolute px values only)
+  const scaleGridProps = (g: any) => {
+    for (const k of ['left', 'right', 'top', 'bottom'] as const) {
+      if (typeof g[k] === 'number') g[k] = Math.round(g[k] * scale);
+    }
+  };
+  if (cloned.grid) {
+    if (Array.isArray(cloned.grid)) cloned.grid.forEach(scaleGridProps);
+    else scaleGridProps(cloned.grid);
+  }
+
+  // 3. Scale legend layout dimensions
+  const scaleLegendProps = (l: any) => {
+    for (const k of ['itemWidth', 'itemHeight', 'itemGap'] as const) {
+      if (typeof l[k] === 'number') l[k] = Math.round(l[k] * scale);
+    }
+    if (typeof l.padding === 'number') {
+      l.padding = Math.round(l.padding * scale);
+    } else if (Array.isArray(l.padding)) {
+      l.padding = l.padding.map((p: number) => Math.round(p * scale));
+    }
+  };
+  if (cloned.legend) {
+    if (Array.isArray(cloned.legend)) cloned.legend.forEach(scaleLegendProps);
+    else scaleLegendProps(cloned.legend);
+  }
+
+  // 4. Scale series geometry (symbolSize functions/numbers, bar widths, box widths)
+  if (cloned.series) {
+    const scaleSeriesGeometry = (s: any) => {
+      if (!s || typeof s !== 'object') return;
+      if (typeof s.symbolSize === 'number') {
+        s.symbolSize = Math.round(s.symbolSize * scale);
+      } else if (typeof s.symbolSize === 'function') {
+        const origSymbolFn = s.symbolSize;
+        s.symbolSize = (val: any, params: any) => {
+          const res = origSymbolFn(val, params);
+          return typeof res === 'number' ? Math.round(res * scale) : res;
+        };
+      }
+      if (typeof s.barWidth === 'number') {
+        s.barWidth = Math.round(s.barWidth * scale);
+      }
+      if (typeof s.barMaxWidth === 'number') {
+        s.barMaxWidth = Math.round(s.barMaxWidth * scale);
+      }
+      if (Array.isArray(s.boxWidth)) {
+        s.boxWidth = s.boxWidth.map((bw: any) => typeof bw === 'number' ? Math.round(bw * scale) : bw);
+      } else if (typeof s.boxWidth === 'number') {
+        s.boxWidth = Math.round(s.boxWidth * scale);
+      }
+    };
+    if (Array.isArray(cloned.series)) cloned.series.forEach(scaleSeriesGeometry);
+    else scaleSeriesGeometry(cloned.series);
+  }
+
+  return cloned as echarts.EChartsOption;
+}
 
 export interface ExportChartOptions {
   chartInstance: echarts.ECharts | null;
   chartType: ChartType;
-  exportFormat: 'png' | 'svg';
+  exportFormat: ExportFormat;
   exportScale: number;
   themePreset: ThemePreset;
   chartScale?: number;
   panX?: number;
   panY?: number;
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   tiltAngle: number;
   rotationAngle: number;
   subTitle?: string;
@@ -33,7 +150,7 @@ export interface ExportMultiPanelOptions {
   activeSlotsList: SlotId[];
   chartInstances: Record<SlotId, echarts.ECharts | null>;
   slotsConfig: Record<SlotId, SlotConfig>;
-  exportFormat: 'png' | 'svg';
+  exportFormat: ExportFormat;
   exportScale: number;
   themePreset: ThemePreset;
   fontFamily: FontFamily;
@@ -42,7 +159,20 @@ export interface ExportMultiPanelOptions {
   chartSubtitle: string;
   showChartTitle: boolean;
   showChartSubtitle: boolean;
+  titleFontSize?: number;
+  titleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700' | '800' | '900';
+  titleFontStyle?: 'normal' | 'italic';
+  titleColor?: string;
+  titleAlign?: 'left' | 'center' | 'right';
+  subtitleFontSize?: number;
+  subtitleFontWeight?: 'normal' | '500' | '600' | 'bold' | '700';
+  subtitleFontStyle?: 'normal' | 'italic';
+  subtitleColor?: string;
+  subtitleLineHeight?: number;
+  titleGap?: number;
   subfigureLabelStyle: SubfigureLabelStyle;
+  subfigureLabelFontSize?: number;
+  subfigureLabelFontWeight?: 'normal' | 'bold' | '800';
   panelGutter: number;
   showPanelBorders: boolean;
   aspectRatio?: AspectRatioPreset;
@@ -52,6 +182,9 @@ export interface ExportMultiPanelOptions {
   chartScale?: number;
   panX?: number;
   panY?: number;
+  fitOffsetX?: number;
+  fitOffsetY?: number;
+  containerPadding?: number;
   tiltAngle: number;
   rotationAngle: number;
   generateSlotOption?: (slotId: SlotId) => echarts.EChartsOption;
@@ -115,7 +248,7 @@ export function resolveTargetDimensions(
 }
 
 // Single Subfigure Export
-export function exportFigure(options: ExportChartOptions): void {
+export async function exportFigure(options: ExportChartOptions): Promise<void> {
   const {
     chartInstance,
     chartType,
@@ -135,46 +268,97 @@ export function exportFigure(options: ExportChartOptions): void {
   const bg = THEME_PALETTES[themePreset]?.bg || '#ffffff';
   const normScale = chartScale > 10 ? chartScale / 100 : (chartScale || 1.0);
   const hasTransform = normScale !== 1.0 || panX !== 0 || panY !== 0 || tiltAngle !== 0 || rotationAngle !== 0;
+  const cleanTitle = (subTitle || chartType).replace(/[^a-zA-Z0-9_-]/g, '_');
 
   if (exportFormat === 'svg') {
-    const svgData = chartInstance.renderToSVGString();
+    let svgData = '';
+    if (typeof chartInstance.renderToSVGString === 'function') {
+      svgData = chartInstance.renderToSVGString();
+    }
+
+    if (!svgData || svgData.trim() === '') {
+      const offDiv = document.createElement('div');
+      const w = chartInstance.getWidth() || 1000;
+      const h = chartInstance.getHeight() || 700;
+      offDiv.style.width = `${w}px`;
+      offDiv.style.height = `${h}px`;
+      offDiv.style.position = 'fixed';
+      offDiv.style.left = '-9999px';
+      offDiv.style.visibility = 'hidden';
+      document.body.appendChild(offDiv);
+      try {
+        const offSvgInstance = echarts.init(offDiv, undefined, { renderer: 'svg' });
+        const opt = chartInstance.getOption();
+        if (opt) {
+          offSvgInstance.setOption({ ...opt, animation: false });
+          svgData = offSvgInstance.renderToSVGString();
+        }
+        offSvgInstance.dispose();
+      } finally {
+        if (document.body.contains(offDiv)) document.body.removeChild(offDiv);
+      }
+    }
+
     let finalSvg = svgData;
+    if (!finalSvg.includes('<defs>')) {
+      const defsBlock = `  <defs>\n    <style type="text/css">\n      @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800&amp;family=STIX+Two+Text:ital,wght@0,400..700;1,400..700&amp;family=Roboto:ital,wght@0,300..700;1,300..700&amp;family=Carlito:ital,wght@0,400..700;1,400..700&amp;display=swap');\n    </style>\n  </defs>\n`;
+      finalSvg = finalSvg.replace(/<svg([^>]*)>/, `<svg$1>\n${defsBlock}`);
+    }
+
     if (hasTransform) {
       const radX = (tiltAngle * Math.PI) / 180;
       const scaleY = (normScale * Math.cos(radX)).toFixed(3);
       const scaleX = normScale.toFixed(3);
       const transformStr = `rotate(${rotationAngle}) scale(${scaleX}, ${scaleY})`;
-      finalSvg = svgData.replace(/<g>/, `<g transform="${transformStr}">`);
+      finalSvg = finalSvg.replace(/<g>/, `<g transform="${transformStr}">`);
     }
+
     const blob = new Blob([finalSvg], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const cleanTitle = (subTitle || chartType).replace(/[^a-zA-Z0-9_-]/g, '_');
     a.download = `slr_figure_${cleanTitle}_${Date.now()}.svg`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    return;
+  }
+
+  // PNG or PDF Export
+  const rawDataUrl = chartInstance.getDataURL({
+    type: 'png',
+    pixelRatio: Math.max(2, exportScale),
+    backgroundColor: bg
+  });
+
+  if (!hasTransform) {
+    if (exportFormat === 'pdf') {
+      const chartW = chartInstance.getWidth() || 1200;
+      const chartH = chartInstance.getHeight() || 700;
+      const targetWidthMm = 190;
+      const targetHeightMm = Math.max(40, Math.round((chartH / chartW) * targetWidthMm));
+      await exportImageToPdf({
+        filename: `slr_figure_${cleanTitle}_${Date.now()}.pdf`,
+        dataUrl: rawDataUrl,
+        widthPx: chartW * exportScale,
+        heightPx: chartH * exportScale,
+        targetWidthMm,
+        targetHeightMm
+      });
+      return;
+    }
+
+    const a = document.createElement('a');
+    a.href = rawDataUrl;
+    a.download = `slr_figure_${cleanTitle}_${exportScale}x_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   } else {
-    const rawDataUrl = chartInstance.getDataURL({
-      type: 'png',
-      pixelRatio: exportScale,
-      backgroundColor: bg
-    });
-
-    const cleanTitle = (subTitle || chartType).replace(/[^a-zA-Z0-9_-]/g, '_');
-
-    if (!hasTransform) {
-      const a = document.createElement('a');
-      a.href = rawDataUrl;
-      a.download = `slr_figure_${cleanTitle}_${exportScale}x_${Date.now()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } else {
+    await new Promise<void>((resolve) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
@@ -198,16 +382,33 @@ export function exportFigure(options: ExportChartOptions): void {
           ctx.restore();
 
           const transformedDataUrl = canvas.toDataURL('image/png');
+
+          if (exportFormat === 'pdf') {
+            const targetWidthMm = 190;
+            const targetHeightMm = Math.max(40, Math.round((canvas.height / canvas.width) * targetWidthMm));
+            await exportImageToPdf({
+              filename: `slr_figure_${cleanTitle}_3D_${Date.now()}.pdf`,
+              dataUrl: transformedDataUrl,
+              widthPx: canvas.width,
+              heightPx: canvas.height,
+              targetWidthMm,
+              targetHeightMm
+            });
+            resolve();
+            return;
+          }
+
           const a = document.createElement('a');
           a.href = transformedDataUrl;
           a.download = `slr_figure_${cleanTitle}_${exportScale}x_3D_${Date.now()}.png`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
+          resolve();
         }
       };
       img.src = rawDataUrl;
-    }
+    });
   }
 }
 
@@ -272,7 +473,20 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
     chartSubtitle,
     showChartTitle,
     showChartSubtitle,
+    titleFontSize,
+    titleFontWeight = 'bold',
+    titleFontStyle = 'normal',
+    titleColor,
+    titleAlign = 'center',
+    subtitleFontSize,
+    subtitleFontWeight = 'normal',
+    subtitleFontStyle = 'normal',
+    subtitleColor,
+    subtitleLineHeight = 16,
+    titleGap = 4,
     subfigureLabelStyle,
+    subfigureLabelFontSize,
+    subfigureLabelFontWeight = 'bold',
     panelGutter,
     showPanelBorders,
     aspectRatio = '16:9',
@@ -300,9 +514,14 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
     1200
   );
 
+  const effectiveTitleSize = titleFontSize || (fontSize + 5);
+  const effectiveSubtitleSize = subtitleFontSize || fontSize;
+
   const hasMainHeader = (showChartTitle && chartTitle) || (showChartSubtitle && chartSubtitle);
-  const headerHeight = hasMainHeader ? 70 : 0;
-  const outerPadding = 20;
+  const headerHeight = hasMainHeader 
+    ? Math.max(50, ((showChartTitle && chartTitle ? effectiveTitleSize + 12 : 0) + (showChartSubtitle && chartSubtitle ? effectiveSubtitleSize + subtitleLineHeight + titleGap : 0)))
+    : 0;
+  const outerPadding = typeof options.containerPadding === 'number' ? options.containerPadding : 20;
 
   const stageWidth = baseWidth - outerPadding * 2;
   const stageHeight = baseHeight - outerPadding * 2 - headerHeight;
@@ -312,8 +531,8 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
   const normScale = chartScale > 10 ? chartScale / 100 : (chartScale || 1.0);
   const hasTransform = normScale !== 1.0 || panX !== 0 || panY !== 0 || tiltAngle !== 0 || rotationAngle !== 0;
 
-  if (exportFormat === 'png') {
-    const scale = exportScale;
+  if (exportFormat === 'png' || exportFormat === 'pdf') {
+    const scale = Math.max(2, exportScale);
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(baseWidth * scale);
     canvas.height = Math.round(baseHeight * scale);
@@ -329,19 +548,23 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
 
     // Render Global Figure Title & Subtitle Header
     if (hasMainHeader) {
-      ctx.fillStyle = palette.text;
-      ctx.textAlign = 'center';
+      const alignX = titleAlign === 'left' ? outerPadding : titleAlign === 'right' ? baseWidth - outerPadding : baseWidth / 2;
+      ctx.textAlign = titleAlign as CanvasTextAlign;
       ctx.textBaseline = 'top';
 
+      let currentHeaderY = outerPadding;
+
       if (showChartTitle && chartTitle) {
-        ctx.font = `bold ${fontSize + 5}px ${font}`;
-        ctx.fillText(chartTitle, baseWidth / 2, outerPadding);
+        ctx.fillStyle = titleColor || palette.text;
+        ctx.font = `${titleFontStyle} ${titleFontWeight} ${effectiveTitleSize}px ${font}`;
+        ctx.fillText(chartTitle, alignX, currentHeaderY);
+        currentHeaderY += effectiveTitleSize + titleGap;
       }
 
       if (showChartSubtitle && chartSubtitle) {
-        ctx.fillStyle = palette.subtext || '#64748b';
-        ctx.font = `${fontSize}px ${font}`;
-        ctx.fillText(chartSubtitle, baseWidth / 2, outerPadding + (showChartTitle ? fontSize + 9 : 0));
+        ctx.fillStyle = subtitleColor || palette.subtext || '#64748b';
+        ctx.font = `${subtitleFontStyle} ${subtitleFontWeight} ${effectiveSubtitleSize}px ${font}`;
+        ctx.fillText(chartSubtitle, alignX, currentHeaderY);
       }
     }
 
@@ -353,28 +576,29 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
 
       const drawX = outerPadding + rect.x;
       const drawY = outerPadding + headerHeight + rect.y;
+      const isSingleLayout = layoutMode === 'single' || activeSlotsList.length <= 1;
 
       // Panel Background & Border
-      if (showPanelBorders) {
+      if (showPanelBorders && !isSingleLayout) {
         ctx.strokeStyle = palette.border || '#cbd5e1';
         ctx.lineWidth = 1.2;
         ctx.strokeRect(drawX, drawY, rect.width, rect.height);
       }
 
       // Subfigure Label Badge (e.g. "(a) RQ1 Computational Topologies")
-      const subLabel = formatSubfigureLabel(index, subfigureLabelStyle);
+      const subLabel = formatSubfigureLabel(index, subfigureLabelStyle, isSingleLayout);
       const cfg = slotsConfig[slotId];
       const panelTitle = cfg?.subTitle ? `${subLabel ? `${subLabel} ` : ''}${cfg.subTitle}` : subLabel;
 
-      if (panelTitle && layoutMode !== 'single') {
+      if (panelTitle && !isSingleLayout) {
         ctx.fillStyle = palette.text;
-        ctx.font = `bold ${fontSize + 1}px ${font}`;
+        ctx.font = `${subfigureLabelFontWeight} ${subfigureLabelFontSize || (fontSize + 1)}px ${font}`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(panelTitle, drawX + 8, drawY + 8);
       }
 
-      const chartOffsetY = (panelTitle && layoutMode !== 'single') ? 26 : 4;
+      const chartOffsetY = (panelTitle && !isSingleLayout) ? 26 : 4;
       const chartW = Math.round(rect.width - 8);
       const chartH = Math.round(rect.height - chartOffsetY - 4);
 
@@ -397,9 +621,16 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
           height: chartH
         });
 
-        const option = generateSlotOption
+        const rawOption = generateSlotOption
           ? generateSlotOption(slotId)
           : (chartInstances[slotId]?.getOption() as echarts.EChartsOption);
+
+        // Scale font sizes proportionally so the export matches the preview appearance.
+        // The preview renders in a small fitted container; the export renders at full
+        // target dimensions. Without scaling, fonts appear proportionally smaller.
+        const previewW = chartInstances[slotId]?.getWidth();
+        const fontScale = previewW && previewW > 0 ? chartW / previewW : 1;
+        const option = scaleOptionFonts(rawOption, fontScale);
 
         if (option) {
           offInstance.setOption({
@@ -482,10 +713,35 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
       }
     }
 
-    // Trigger Download
+    const cleanTitle = (chartTitle || 'composite_figure').replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    if (exportFormat === 'pdf') {
+      let targetWidthMm = 190;
+      let targetHeightMm = Math.max(40, Math.round((baseHeight / baseWidth) * 190));
+      if (aspectRatio === 'custom') {
+        if (dimensionUnit === 'mm') {
+          targetWidthMm = customWidth;
+          targetHeightMm = customHeight;
+        } else if (dimensionUnit === 'in') {
+          targetWidthMm = customWidth * 25.4;
+          targetHeightMm = customHeight * 25.4;
+        }
+      }
+
+      await exportImageToPdf({
+        filename: `slr_figure_${cleanTitle}_${aspectRatio}_${Date.now()}.pdf`,
+        dataUrl: finalDataUrl,
+        widthPx: canvas.width,
+        heightPx: canvas.height,
+        targetWidthMm,
+        targetHeightMm
+      });
+      return;
+    }
+
+    // Trigger PNG Download
     const a = document.createElement('a');
     a.href = finalDataUrl;
-    const cleanTitle = (chartTitle || 'composite_figure').replace(/[^a-zA-Z0-9_-]/g, '_');
     a.download = `slr_figure_${cleanTitle}_${aspectRatio}_${exportScale}x_${Date.now()}.png`;
     document.body.appendChild(a);
     a.click();
@@ -496,11 +752,18 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
     svgContent += `  <rect width="100%" height="100%" fill="${bg}" />\n`;
 
     if (hasMainHeader) {
+      const alignX = titleAlign === 'left' ? outerPadding : titleAlign === 'right' ? baseWidth - outerPadding : baseWidth / 2;
+      const textAnchor = titleAlign === 'left' ? 'start' : titleAlign === 'right' ? 'end' : 'middle';
+      let currentHeaderY = outerPadding;
+
       if (showChartTitle && chartTitle) {
-        svgContent += `  <text x="${baseWidth / 2}" y="${outerPadding + fontSize + 4}" text-anchor="middle" font-family="${font}" font-size="${fontSize + 5}" font-weight="bold" fill="${palette.text}">${chartTitle}</text>\n`;
+        currentHeaderY += effectiveTitleSize;
+        svgContent += `  <text x="${alignX}" y="${currentHeaderY}" text-anchor="${textAnchor}" font-family="${font}" font-size="${effectiveTitleSize}" font-weight="${titleFontWeight}" font-style="${titleFontStyle}" fill="${titleColor || palette.text}">${chartTitle}</text>\n`;
+        currentHeaderY += titleGap;
       }
       if (showChartSubtitle && chartSubtitle) {
-        svgContent += `  <text x="${baseWidth / 2}" y="${outerPadding + (showChartTitle ? fontSize + 22 : fontSize + 4)}" text-anchor="middle" font-family="${font}" font-size="${fontSize}" fill="${palette.subtext || '#64748b'}">${chartSubtitle}</text>\n`;
+        currentHeaderY += effectiveSubtitleSize;
+        svgContent += `  <text x="${alignX}" y="${currentHeaderY}" text-anchor="${textAnchor}" font-family="${font}" font-size="${effectiveSubtitleSize}" font-weight="${subtitleFontWeight}" font-style="${subtitleFontStyle}" fill="${subtitleColor || palette.subtext || '#64748b'}">${chartSubtitle}</text>\n`;
       }
     }
 
@@ -511,20 +774,21 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
 
       const drawX = outerPadding + rect.x;
       const drawY = outerPadding + headerHeight + rect.y;
+      const isSingleLayout = layoutMode === 'single' || activeSlotsList.length <= 1;
 
-      if (showPanelBorders) {
+      if (showPanelBorders && !isSingleLayout) {
         svgContent += `  <rect x="${drawX}" y="${drawY}" width="${rect.width}" height="${rect.height}" fill="none" stroke="${palette.border || '#cbd5e1'}" stroke-width="1.2" />\n`;
       }
 
-      const subLabel = formatSubfigureLabel(index, subfigureLabelStyle);
+      const subLabel = formatSubfigureLabel(index, subfigureLabelStyle, isSingleLayout);
       const cfg = slotsConfig[slotId];
       const panelTitle = cfg?.subTitle ? `${subLabel ? `${subLabel} ` : ''}${cfg.subTitle}` : subLabel;
 
-      if (panelTitle && layoutMode !== 'single') {
-        svgContent += `  <text x="${drawX + 8}" y="${drawY + fontSize + 6}" font-family="${font}" font-size="${fontSize + 1}" font-weight="bold" fill="${palette.text}">${panelTitle}</text>\n`;
+      if (panelTitle && !isSingleLayout) {
+        svgContent += `  <text x="${drawX + 8}" y="${drawY + (subfigureLabelFontSize || fontSize + 1) + 4}" font-family="${font}" font-size="${subfigureLabelFontSize || (fontSize + 1)}" font-weight="${subfigureLabelFontWeight}" fill="${palette.text}">${panelTitle}</text>\n`;
       }
 
-      const chartOffsetY = (panelTitle && layoutMode !== 'single') ? 26 : 4;
+      const chartOffsetY = (panelTitle && !isSingleLayout) ? 26 : 4;
       const chartW = Math.round(rect.width - 8);
       const chartH = Math.round(rect.height - chartOffsetY - 4);
 
@@ -543,9 +807,14 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
           height: chartH
         });
 
-        const option = generateSlotOption
+        const rawOption = generateSlotOption
           ? generateSlotOption(slotId)
           : (chartInstances[slotId]?.getOption() as echarts.EChartsOption);
+
+        // Scale fonts for SVG export (same rationale as PNG path)
+        const previewW = chartInstances[slotId]?.getWidth();
+        const fontScale = previewW && previewW > 0 ? chartW / previewW : 1;
+        const option = scaleOptionFonts(rawOption, fontScale);
 
         if (option) {
           offInstance.setOption({
@@ -555,7 +824,11 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
             animationDurationUpdate: 0
           }, true);
           const rawSvg = offInstance.renderToSVGString();
-          svgContent += `  <g transform="translate(${drawX + 4}, ${drawY + chartOffsetY})">\n    ${rawSvg}\n  </g>\n`;
+          // Strip outer <svg ...> wrapper so that it can be cleanly nested inside <g>
+          const innerSvg = rawSvg
+            .replace(/^<svg[^>]*>/i, '')
+            .replace(/<\/svg>$/i, '');
+          svgContent += `  <g transform="translate(${drawX + 4}, ${drawY + chartOffsetY})">\n    ${innerSvg}\n  </g>\n`;
         }
 
         offInstance.dispose();
@@ -581,11 +854,11 @@ export async function exportMultiPanelFigure(options: ExportMultiPanelOptions): 
       svgContent += `</svg>`;
     }
 
+    const cleanTitle = (chartTitle || 'composite_figure').replace(/[^a-zA-Z0-9_-]/g, '_');
     const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const cleanTitle = (chartTitle || 'composite_figure').replace(/[^a-zA-Z0-9_-]/g, '_');
     a.download = `slr_figure_${cleanTitle}_${aspectRatio}_${Date.now()}.svg`;
     document.body.appendChild(a);
     a.click();

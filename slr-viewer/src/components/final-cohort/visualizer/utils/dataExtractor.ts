@@ -3,18 +3,50 @@ import type { ChartType, MetricMode, DetectedCategory } from '../types';
 import {
   safeString,
   resolveUmbrellanizerValue,
+  extractColonPrefixPaths,
   extractPaperFieldValues,
+  ColonPathHierarchyResult,
+  stripParentPrefix,
   TaxonomyOptions
 } from '@/lib/services/taxonomy-resolver';
+import {
+  resolveCohortFieldValue,
+  discoverCohortVariables,
+  validateCohortDataIntegrity,
+  formatVariableDisplayName,
+  extractTokenPaths,
+  discoverColonDepth,
+  discoverColonSegmentsByLevel,
+  parseColonTaxonomySegments,
+  extractCleanTaxonomyKey,
+  DiscoveredVariable,
+  DataIntegrityReport
+} from '@/lib/services/cohort-data-source';
 
-export { safeString, resolveUmbrellanizerValue };
+export { 
+  safeString, 
+  resolveUmbrellanizerValue, 
+  stripParentPrefix, 
+  extractColonPrefixPaths,
+  extractPaperFieldValues,
+  resolveCohortFieldValue,
+  discoverCohortVariables,
+  validateCohortDataIntegrity,
+  formatVariableDisplayName,
+  extractTokenPaths,
+  discoverColonDepth,
+  discoverColonSegmentsByLevel,
+  parseColonTaxonomySegments,
+  extractCleanTaxonomyKey
+};
+export type { ColonPathHierarchyResult, DiscoveredVariable, DataIntegrityReport };
 
 export function getFieldValue(
   paper: any, 
   fieldKey: string, 
-  options: TaxonomyOptions = {}
+  options: TaxonomyOptions & { segmentIdx?: number; scopeFilter?: string } = {}
 ): string[] {
-  return extractPaperFieldValues(paper, fieldKey, options);
+  return resolveCohortFieldValue(paper, fieldKey, options);
 }
 
 export function getMappedFieldValue(
@@ -23,44 +55,23 @@ export function getMappedFieldValue(
   options: {
     subFieldKey?: string;
     levelIdx?: number;
+    parentName?: string;
     useUmbrellanizer?: boolean;
     umbrellanizerMap?: Record<string, Record<string, string>>;
     splitMultiValues?: boolean;
     excludeEmpty?: boolean;
     customCategoryMap?: Record<string, Record<string, string>>;
+    levelCustomGroups?: Record<number, string[]>;
     levelCustomGroupLinks?: Record<number, Record<string, string>>;
+    levelTargetFields?: Record<number, string>;
+    segmentIdx?: number;
+    scopeFilter?: string;
     sankeyFields?: string[];
     primaryField?: string;
+    unpackMacroToChildren?: boolean;
   } = {}
 ): string[] {
-  const {
-    subFieldKey,
-    levelIdx = 0,
-    useUmbrellanizer = true,
-    umbrellanizerMap = {},
-    splitMultiValues = true,
-    excludeEmpty = true,
-    customCategoryMap = {},
-    levelCustomGroupLinks = {},
-    sankeyFields = ['Year', 'Import_Source', 'Local_PDF_Status'],
-    primaryField = 'Year'
-  } = options;
-
-  const extractOpts = { useUmbrellanizer, umbrellanizerMap, splitMultiValues, excludeEmpty };
-
-  if (fieldKey === CUSTOM_GROUPING_KEY) {
-    const targetSubKey = subFieldKey || (sankeyFields.find((f, idx) => f !== CUSTOM_GROUPING_KEY && idx >= levelIdx) || sankeyFields.find(f => f !== CUSTOM_GROUPING_KEY) || primaryField);
-    const subVals = getFieldValue(paper, targetSubKey, extractOpts).map(safeString).filter(v => Boolean(v) && v !== '[object Object]' && v !== 'Unspecified');
-    if (subVals.length === 0) return excludeEmpty ? [] : ['Unassigned / Other'];
-    const linksMap = levelCustomGroupLinks[levelIdx] || levelCustomGroupLinks[0] || {};
-    const mapped = subVals.map(v => safeString(linksMap[v] || 'Unassigned / Other'));
-    return Array.from(new Set(mapped));
-  }
-
-  const rawVals = getFieldValue(paper, fieldKey, extractOpts).map(safeString).filter(v => Boolean(v) && v !== '[object Object]');
-  const mapObj = customCategoryMap[fieldKey];
-  if (!mapObj || Object.keys(mapObj).length === 0) return rawVals;
-  return rawVals.map(v => safeString(mapObj[v] || v));
+  return resolveCohortFieldValue(paper, fieldKey, options);
 }
 
 export function extractNumericalValue(paper: any, numKey: string): number {
@@ -156,7 +167,8 @@ export function limitCategoryMap(
   countsMap: Map<string, any[]>, 
   limitCategories: boolean, 
   maxCategoriesCount: number, 
-  computeMetricVal: (list: any[]) => number
+  computeMetricVal: (list: any[]) => number,
+  otherLabel: string = 'Other'
 ): Map<string, any[]> {
   if (!limitCategories || countsMap.size <= maxCategoriesCount || maxCategoriesCount < 2) {
     return countsMap;
@@ -179,7 +191,7 @@ export function limitCategoryMap(
   const otherList: any[] = [];
   tailEntries.forEach(e => otherList.push(...e.list));
   if (otherList.length > 0) {
-    result.set('Other', otherList);
+    result.set(otherLabel || 'Other', otherList);
   }
 
   return result;

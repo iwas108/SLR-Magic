@@ -1,3 +1,104 @@
+## #546 - Reference Syncer: One-Click Synchronized LaTeX Text Viewer & Instant Clipboard Copy (2026-09-08)
+- **Goal**: Add publication-grade viewing and instant clipboard copying options for synchronized `.tex` files in Reference Syncer (`slr-ide`), allowing researchers to inspect full synchronized LaTeX manuscripts with line numbers and copy code directly into Overleaf, VS Code, or TeXstudio without downloading files to disk.
+- **Architectural Implementation & Enhancements**:
+  1. **Standalone Full-Text Viewer Modal (`SyncedTextViewerModal.tsx`)**:
+     - Built a standalone dark glassmorphic modal displaying full synchronized LaTeX text with line numbers (`font-mono text-xs leading-relaxed`).
+     - Added multi-file horizontal tab switcher allowing instant navigation between multiple synchronized sections (`05_conclusion.synced.tex`, `06 appendix.synced.tex`, `07 supplementary_material.synced.tex`) without leaving the modal.
+     - Implemented line-wrap toggle (`Wrap` / `No Wrap`), real-time in-file text search with matching line count, header metadata badges (size, replacement count, line total), 1-click "Copy Text" button, and "Download" trigger.
+     - Added `Escape` key handling to cleanly dismiss the modal.
+  2. **Dedicated Card Actions Suite (`ExecutionSummaryPanel.tsx`)**:
+     - Upgraded file cards in the "Synchronized Files Ready for Download" section with a 3-button ergonomics suite:
+       - `View`: Opens `SyncedTextViewerModal` to inspect the full synchronized text.
+       - `Copy`: Copies the file's synchronized LaTeX content to clipboard immediately with a 2-second emerald `Check` "Copied!" visual animation and toast notification.
+       - `Download`: Downloads the individual `.tex` file to disk.
+  3. **Global Multi-File Copy All Action (`ExecutionSummaryPanel.tsx`)**:
+     - Added "Copy All Files" button next to "Download All Files Sequentially" in the header, aggregating all synchronized sections with clear LaTeX comment headers (`%%% === FILE: <name> === %%%`) for bulk workflow pasting.
+  4. **Robust Clipboard Fallback**:
+     - Implemented dual-path clipboard handling using `navigator.clipboard.writeText` with automated fallback to `document.execCommand('copy')` for restricted iframe or browser security contexts.
+- **Files Modified/Created**: `slr-ide/src/components/features/reference-syncer/SyncedTextViewerModal.tsx`, `slr-ide/src/components/features/reference-syncer/ExecutionSummaryPanel.tsx`, `slr-ide/src/components/features/ReferenceSyncerView.tsx`, `slr-ide/files.md`, `slr-ide/improvements-log.md`, `improvements.md`.
+- **Verification**: `node scripts/test-reference-syncer.mjs` passed (8/8 tests), `npx tsc --noEmit` passed (0 errors), `npm run build` passed cleanly.
+
+## #545 - Reference Syncer: Auto-Reloading db/references.bib on Disk Replacement & Status Telemetry (2026-09-08)
+- **Goal**: Implement publication-grade, real-time auto-reloading of `slr-ide/db/references.bib` to seamlessly handle external file replacements (e.g. from Mendeley, Zotero, JabRef exports, CLI scripts, or manual file replacement on disk) with instant UI telemetry, zero stale cache reads, multi-tab broadcast synchronization, and direct `.bib` file uploads.
+- **Architectural Implementation & Enhancements**:
+  1. **Multi-Attribute Cache Validation (`reference-syncer-service.ts`)**:
+     - Upgraded `BibCache` with file metadata tracking: `mtimeMs`, `sizeBytes`, `loadedAt`, and `totalEntries`.
+     - In `loadBibDatabase(force = false)`: implemented dual-attribute cache invalidation checking both `stat.mtimeMs` AND `stat.size !== cachedBib.sizeBytes`. This prevents false cache hits when external tools replace files with preserved timestamps (e.g. `cp -p` or sync tools).
+  2. **Robust File System Directory Watcher (`reference-syncer-service.ts`)**:
+     - Implemented `ensureBibWatcher()`: watches the parent `db/` directory rather than the file descriptor itself, resolving Windows atomic file replacement traps (e.g. write-to-temp-then-rename or delete-then-recreate which invalidates direct file watchers).
+     - Added a 300ms debounce timer to coalesce burst write events, auto-reloading cache and broadcasting `BIB_DATABASE_UPDATED` via `globalEventManager` and `broadcastSync('SYNC_REFERENCES_BIB')`.
+  3. **REST API & Direct Replacement Endpoint (`api/reference-syncer/bib/route.ts`)**:
+     - `GET /api/reference-syncer/bib`: Returns real-time database status (`exists`, `filePath`, `totalEntries`, `mtimeMs`, `mtimeIso`, `sizeBytes`, `sizeFormatted`, `loadedAtIso`). Supports `?reload=true` for forced cache reload.
+     - `POST /api/reference-syncer/bib`: Supports direct `.bib` replacement via JSON payload (`{ content }`) or `multipart/form-data` file upload with safety backup (`db/references.bib.bak`), syntax preflight validation, cache refresh, and global sync broadcast.
+  4. **Custom Hook Reactivity & Focus Sync (`useReferenceSyncer.ts`)**:
+     - Added `bibStatus`, `isReloadingBib`, and `hasBibChangedSinceScan` state flags.
+     - Implemented window `focus` event listener: automatically polls `checkBibStatus(silent)` whenever the user switches back to the SLR-Magic tab from external tools like Zotero or File Explorer.
+     - Wired multi-tab `subscribeSyncChannel` for `'SYNC_REFERENCES_BIB'` and Server-Sent Events (`/api/events`) for `BIB_DATABASE_UPDATED` push notifications using the mutable ref pattern (`useRef`) to prevent stale closures.
+     - Flagged `hasBibChangedSinceScan = true` when mtime or size shifts after an active scan, with auto-reset on re-scan.
+  5. **Frontend View Header Chip & Change Warning Banner (`ReferenceSyncerView.tsx`)**:
+     - Added an interactive BibTeX source status pill in the header displaying entry count, formatted size, spinning `RefreshCw` reload button, and direct `Upload` button with hidden `.bib` file input.
+     - Rendered a high-visibility amber warning banner when `hasBibChangedSinceScan` is detected, prompting the user with a 1-click `Re-Scan With Updated .bib` action.
+  6. **Automated Unit Testing (`scripts/test-reference-syncer.mjs`)**:
+     - Added Test 8 verifying multi-attribute cache invalidation, syntax preflight validation, and REST API wiring.
+- **Files Modified/Created**: `slr-ide/src/lib/services/reference-syncer-types.ts`, `slr-ide/src/lib/sync-utils.ts`, `slr-ide/src/lib/services/reference-syncer-service.ts`, `slr-ide/src/app/api/reference-syncer/bib/route.ts`, `slr-ide/src/hooks/useReferenceSyncer.ts`, `slr-ide/src/components/features/ReferenceSyncerView.tsx`, `slr-ide/scripts/test-reference-syncer.mjs`, `slr-ide/files.md`, `slr-ide/improvements-log.md`, `improvements.md`.
+- **Verification**: Executed `scripts/test-reference-syncer.mjs` (8/8 tests passed), `npx tsc --noEmit` (0 errors), and `npm run build` (all 64 routes compiled cleanly).
+
+## #544 - Reference Syncer: Custom Override Key Workflow Audit & Hardening (2026-09-08)
+- **Goal**: Audit and harden the custom override key workflow in Reference Syncer (`slr-ide`), addressing edge-case defects discovered in state synchronization, candidate dropdown value matching, multi-row simultaneous editing, override resetting, and LaTeX diff inspection.
+- **Architectural Implementation & Enhancements**:
+  1. **Clean Override Reset & Removal (`useReferenceSyncer.ts`)**:
+     - Upgraded `handleSetOverride(fileName, originalKey, newTargetKey: string | null)` to delete the override entry from `manualOverrides[fileName]` whenever `newTargetKey` is null or empty.
+     - Exported `handleResetOverride(fileName, originalKey)` allowing 1-click reverting back to algorithmic suggestions, cleanly removing the purple `Override` badge and reset button.
+     - Guarded `getFileSyncedContent` and `prepareExport` against self-replacements (`fileOverrides[originalKey] !== originalKey`), ensuring exact replacement counts.
+  2. **Candidate Select Dropdown Synchronization for Custom Overrides (`CitationInspectionTable.tsx`)**:
+     - Resolved dropdown value mismatch when a user types a free-text custom key for an ambiguous citation with candidates: rendered `<option value={c.userOverride}>★ Custom Override: {c.userOverride}</option>` at the top of the `<select>`.
+     - Added a custom override pill banner displaying the custom key and a "Revert to Candidates" action button.
+  3. **Multi-Row Simultaneous Editing Fix (`CitationInspectionTable.tsx`)**:
+     - Replaced `editingKey: string | null` (keyed by `originalKey`) with `editingCitationId: string | null` (keyed by unique occurrence `c.id`), ensuring clicking "Edit" on a repeated citation only opens an input on the clicked row, while saving propagates the override across the entire file.
+     - Added `Escape` key handling to cancel editing cleanly, and provided an inline Reset button in the edit toolbar.
+     - Added a dedicated Reset button (`RotateCcw`) next to any single-key `Override` badge in the table for instant one-click reverting.
+  4. **Genuine Original Content in LaTeX Diff Modal (`TexDiffModal.tsx`, `ReferenceSyncerView.tsx`)**:
+     - Added `originalContent` prop to `TexDiffModal` sourced from `uploadedFiles`, ensuring the left pane displays the genuine un-replaced LaTeX file text rather than already auto-resolved content.
+  5. **Automated Unit Testing (`scripts/test-reference-syncer.mjs`)**:
+     - Added Test 7 verifying custom override precedence, ambiguous candidate override, free-text custom override, missing study resolution, bracketed LaTeX macro replacement preservation, and clean override resetting.
+- **Files Modified**: `slr-ide/src/hooks/useReferenceSyncer.ts`, `slr-ide/src/components/features/reference-syncer/CitationInspectionTable.tsx`, `slr-ide/src/components/features/reference-syncer/TexDiffModal.tsx`, `slr-ide/src/components/features/ReferenceSyncerView.tsx`, `slr-ide/scripts/test-reference-syncer.mjs`, `slr-ide/files.md`, `slr-ide/improvements-log.md`.
+- **Verification**: Executed `scripts/test-reference-syncer.mjs` (7/7 tests passed), `scripts/test-reference-syncer-e2e.mjs` (5/5 tests passed), `npx tsc --noEmit` (0 errors), and `npm run build` (all 64 routes compiled cleanly).
+
+## #543 - Reference Syncer: LaTeX Citation Scanner & Replacement Studio (2026-09-07)
+- **Goal**: Implement publication-grade Reference Syncer in `slr-ide` allowing researchers to upload LaTeX (`.tex`) files, scan them for broken or non-standard citations, resolve them against `slr-ide/db/references.bib` as the authoritative source of truth (bridged through `slr.db`), inspect replacements, flag suspicious in-text citations, and export synchronized `.tex` files with individual download links and an execution summary matrix.
+- **Architectural Implementation & Enhancements**:
+  1. **Core Backend & In-Memory Indexing Engine (`src/lib/services/reference-syncer-service.ts`)**:
+     - Built high-speed in-memory BibTeX parser and indexer caching 1,684+ entries from `db/references.bib` across four indexed maps: `byKey`, `byDoi`, `byNormalizedTitle`, and `byAuthorYear`.
+     - Engineered 5-tier resolution pipeline:
+       - *Tier 1 (Exact BibTeX Key)*: Direct match preservation (`EXACT_MATCH`).
+       - *Tier 2 (SLR Magic Paper_ID)*: Bridges `Author_Year_TitleSlug_Hash1_Hash2` to SQLite `slr.db` paper records, resolving through canonical DOIs (0.99 confidence) and normalized/fuzzy titles (0.85+ confidence).
+       - *Tier 3 (AuthorYear Key)*: Resolves `[Author][Year]` (e.g. `Aghaabbasi2026`) to unique keys (`aghaabbasi_prospects_2026`) or flags multiple matches as `AMBIGUOUS` with candidate selectors.
+       - *Tier 4 (Paper Title Format)*: Normalizes raw title keys to canonical `.bib` entries.
+       - *Tier 5 (In-Text Suspicious & Broken Scanner)*: Audits plain-text parenthetical/bracketed citations outside LaTeX macros (e.g. `(Author, Year)`), empty macros (`\cite{}`), and missing keys.
+     - Supported full LaTeX optional bracket arguments (`\citep[prenote][postnote]{keys}` such as `\citep[e.g.,][]{...}`) across scanning, replacement, inspection display, and export generation without mangling or dropping prenote/postnote text.
+     - Enriched resolution pipeline with `CitationCandidate` and `ResolutionResult` returning full metadata (`key`, `title`, `author`, `year`, `doi`, `journal`) for both `targetMetadata` and `candidateDetails`, cleaning BibTeX bracket notation (`cleanBibText`) and formatting short author lists (`formatAuthorEtAl`).
+     - Implemented non-destructive LaTeX key replacement preserving comments, formatting, and surrounding macro arguments.
+  2. **Backend REST API Endpoints (`api/reference-syncer/scan`, `api/reference-syncer/export`)**:
+     - `POST /api/reference-syncer/scan`: Multi-file batch scanning returning detailed citation occurrences, context snippets, resolution logic, and global summary.
+     - `GET /api/reference-syncer/scan?sample=true`: 1-click sample loader scanning all 7 `.tex` files in `tmp/` for instant testing.
+     - `POST /api/reference-syncer/export`: Compiles overrides and returns synchronized files with Markdown execution summary report.
+  3. **Custom Hook State Management (`useReferenceSyncer.ts`)**:
+     - Encapsulates multi-file state, drag-and-drop, filter modes, search query, manual overrides, ignore toggles, diff inspector, and single/batch downloads.
+  4. **Modular Presentation Suite (`components/features/reference-syncer/`)**:
+     - `ReferenceSyncerView.tsx`: Main view container with drag-and-drop ingestion zone, 1-click sample loader, and mode switcher.
+     - `SyncerStatsHud.tsx`: 6 interactive KPI cards (Total Scanned, Auto-Resolved, Valid in .bib, Ambiguous, Missing, Suspicious).
+     - `CitationInspectionTable.tsx`: Detailed tabular view with line numbers, status badges, format tags, expandable context snippets with highlighting, candidate dropdowns displaying author and title on each option, active candidate metadata preview cards, full expandable candidate paper review cards with 1-click selectors, custom override inputs, and ignore toggles.
+     - `SuspiciousFindingsPanel.tsx`: Dedicated auditor for plain-text citations and malformed keys with actionable recommendations.
+     - `TexDiffModal.tsx`: Side-by-side and unified diff inspector comparing original vs synchronized `.tex`.
+     - `ExecutionSummaryPanel.tsx`: Multi-file summary matrix and dedicated individual download cards prompting the user to download each file one by one.
+  5. **Navigation Integration (`Sidebar.tsx`, `page.tsx`)**:
+     - Added `Reference Syncer` top-level menu item with `BookOpenCheck` icon directly below `Insight & Export`.
+     - Wired dynamic view routing in `page.tsx`.
+  6. **Automated Unit & End-to-End Test Suites (`scripts/test-reference-syncer.mjs`, `scripts/test-reference-syncer-e2e.mjs`)**:
+     - 10 automated unit tests verifying BibTeX parsing, regex extraction, replacement symmetry, suspicious pattern detection, AuthorYear mapping, DOI lookup, and routing.
+- **Files Modified/Created**: `slr-ide/src/lib/services/reference-syncer-service.ts`, `slr-ide/src/app/api/reference-syncer/scan/route.ts`, `slr-ide/src/app/api/reference-syncer/export/route.ts`, `slr-ide/src/hooks/useReferenceSyncer.ts`, `slr-ide/src/components/features/ReferenceSyncerView.tsx`, `slr-ide/src/components/features/reference-syncer/SyncerStatsHud.tsx`, `slr-ide/src/components/features/reference-syncer/CitationInspectionTable.tsx`, `slr-ide/src/components/features/reference-syncer/SuspiciousFindingsPanel.tsx`, `slr-ide/src/components/features/reference-syncer/TexDiffModal.tsx`, `slr-ide/src/components/features/reference-syncer/ExecutionSummaryPanel.tsx`, `slr-ide/src/components/Sidebar.tsx`, `slr-ide/src/app/page.tsx`, `slr-ide/scripts/test-reference-syncer.mjs`, `slr-ide/scripts/test-reference-syncer-e2e.mjs`, `slr-ide/files.md`, `slr-ide/improvements-log.md`, `improvements.md`.
+- **Verification**: Executed `scripts/test-reference-syncer.mjs` (6/6 tests passed), `scripts/test-reference-syncer-e2e.mjs` (4/4 tests passed), and `npx tsc --noEmit` (0 TypeScript errors).
+
 ## #542 - Post-Pipeline Token Umbrellanizer Raw-to-Umbrella Mapping & Justification Export (2026-09-07)
 - **Goal**: Implement publication-grade export functionality in the Post-Pipeline Token Umbrellanizer (`slr-ide`) enabling researchers to export comprehensive taxonomy mappings linking raw extracted manuscript terms to standardized umbrella categories, along with their model-generated justifications, occurrence frequencies, and paper citations in both CSV and JSON formats.
 - **Architectural Implementation & Enhancements**:

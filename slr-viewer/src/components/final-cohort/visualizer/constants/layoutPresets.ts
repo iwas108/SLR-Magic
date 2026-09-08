@@ -64,7 +64,8 @@ export const SLOT_METADATA: Record<SlotId, { name: string; letter: string; defau
   slot_d: { name: 'Slot D', letter: 'D', defaultSubTitle: 'Panel D' }
 };
 
-export function formatSubfigureLabel(slotIndex: number, style: SubfigureLabelStyle): string {
+export function formatSubfigureLabel(slotIndex: number, style: SubfigureLabelStyle, isSingle?: boolean): string {
+  if (isSingle) return '';
   const lettersUpper = ['A', 'B', 'C', 'D'];
   const lettersLower = ['a', 'b', 'c', 'd'];
   const idx = Math.max(0, Math.min(3, slotIndex));

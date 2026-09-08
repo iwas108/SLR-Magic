@@ -26,6 +26,7 @@ pdf_library/
 *.sqlite
 *.sqlite3
 .db.sqlite
+*.bib
 app.db
 slr.db
 /slr-ide/db/*.db
@@ -63,3 +64,7 @@ scratch/
 
 # Prompt Library
 docs/prompts/**
+
+# tmp dir
+tmp
+tmp/**

@@ -4,7 +4,32 @@ All notable changes, refactoring milestones, and feature additions to `slr-viewe
 
 ---
 
-## [2026-08-16] - Blinded Review & Adjudication Results Panel Parity and Snapshot Schema Support
+## [#005] [2026-09-08] - Full Feature & Service Parity with SLR IDE (PDF/SVG Vector Engine, Systematic Search Strategy, Scientific Rigor LLM Context Builder, Taxonomy Mappings Export & Study Prevalence Deduplication)
+
+### Added
+- **Client-Side PDF & SVG Vector Export Engine**:
+  - Integrated `jspdf` and `svg2pdf.js` into `slr-viewer/package.json`.
+  - Mirrored `pdf-export-service.ts`, `prisma-svg-generator.ts`, and `cohort-data-source.ts` via `scripts/mirror-to-viewer.mjs`.
+  - Enables 1-click vector SVG and high-resolution PDF exports directly in the standalone viewer for PRISMA 2020 flow diagrams.
+- **Systematic Search Strategy & Queries Disclosure (PRISMA 2020 Items 6 & 7)**:
+  - Updated snapshot export route (`/api/export/slr-viewer`) to extract structured `systematic_search_strategies` from `project.search_queries` (with legacy fallback).
+  - Hardened `schemaValidator.ts` in `slr-viewer` to validate and preserve `systematic_search_strategies` across `scientific_rigor` and `prisma_flow_data`.
+- **Scientific Rigor LLM Context Builder Modal & Top Action Bar**:
+  - Mirrored `ScientificRigorLlmModal.tsx` into `slr-viewer` supporting offline standalone execution with `initialData`.
+  - Added "PRISMA 2020 Validated" badge, 1-click "Download Rigor JSON" action, and "Extract LLM Context" launcher in `ScientificRigorPanel.tsx`.
+- **Post-Pipeline Taxonomy Mappings Export in FAIR Data Hub**:
+  - Implemented 3rd export card in `FairDataExportPanel.tsx`: "Umbrellanizer Taxonomy Mappings Export".
+  - Generates RFC 4180 CSV (with UTF-8 BOM `\uFEFF`) and structured JSON client-side, compiling raw-to-umbrella mappings, justification notes, occurrence frequencies, and paper citations.
+- **Unique Study Prevalence Deduplication**:
+  - Applied `Array.from(new Set(...))` deduplication per study across `FinalCohortPanel.tsx` and `csv-export.ts`, guaranteeing multi-token categories report unique study prevalence accurately without duplicate counts.
+
+### Changed
+- Extended automated mirroring pipeline (`scripts/mirror-to-viewer.mjs`) to synchronize all newly required pure services and modals.
+- Clean build verification with 0 TypeScript compiler errors (`tsc --noEmit`) and successful production bundling (`vite build`).
+
+---
+
+## [#004] [2026-08-16] - Blinded Review & Adjudication Results Panel Parity and Snapshot Schema Support
 
 ### Added
 - **Blinded Review & Adjudication Results (`BlindedAdjudicationPanel.tsx`)**:
@@ -15,7 +40,9 @@ All notable changes, refactoring milestones, and feature additions to `slr-viewe
   - Updated `slr-viewer/src/utils/schemaValidator.ts` to recognize and preserve `scientific_rigor.blinded_adjudication_stats`.
   - Added support for `.slr-viewer` exported bundles containing pre-computed blinded review statistics and adjudication resolutions.
 
-## [2026-08-15] - Granular & Bulk Copy Functionality for Project Governance (1.1) and Frozen Prompts (2.4)
+---
+
+## [#003] [2026-08-15] - Granular & Bulk Copy Functionality for Project Governance (1.1) and Frozen Prompts (2.4)
 
 ### Added
 - **1.1 Project Metadata & Governance Copy Actions**:
@@ -31,7 +58,9 @@ All notable changes, refactoring milestones, and feature additions to `slr-viewe
   - Centralized `handleCopy` helper with dynamic key-based 2-second auto-resetting checkmark indicator pill (`isCopied` state transition).
   - Synchronized global toast notification alerts using `ViewerContext.showToast`.
 
-## [2026-08-15] - Fix Multi-Project Snapshot Export Scoping & Ingestion Hydration
+---
+
+## [#002] [2026-08-15] - Fix Multi-Project Snapshot Export Scoping & Ingestion Hydration
 
 ### Fixed
 - **Project Selection & Scoping**:
@@ -42,7 +71,9 @@ All notable changes, refactoring milestones, and feature additions to `slr-viewe
   - Resolved `PoolMetricsPanel.tsx` property lookups to support `activeProj.pool_a_count` / `activeProj.pool_a_size` directly.
   - Cleaned duplicate toolbar header controls from `FinalCohortPanel.tsx`.
 
-## [2026-08-15] - SLR Viewer TypeScript Upgrade, Dual-Mode Compression & Code Mirroring Pipeline
+---
+
+## [#001] [2026-08-15] - SLR Viewer TypeScript Upgrade, Dual-Mode Compression & Code Mirroring Pipeline
 
 ### Added
 - **TypeScript Infrastructure**:

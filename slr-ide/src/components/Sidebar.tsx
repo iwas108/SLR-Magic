@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { LayoutDashboard, Database, ShieldAlert, Play, BadgeCheck, FileOutput, Sun, Moon, Laptop, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Database, ShieldAlert, Play, BadgeCheck, FileOutput, Sun, Moon, Laptop, Settings, ChevronLeft, ChevronRight, BookOpenCheck } from 'lucide-react';
 
 interface SidebarProps {
   activeProject?: any;
@@ -104,6 +104,12 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOp
         { id: 'insight-export-gold-mine', label: 'Cloud Gold Mine' }
       ]
     },
+    {
+      id: 'reference-syncer',
+      label: 'Reference Syncer',
+      icon: BookOpenCheck,
+      disabled: false
+    }
   ];
 
   const handleItemClick = (item: MenuItem) => {

@@ -1,8 +1,9 @@
 export * from './VisualizerHeader';
+export * from './VisualizerStudio';
 export * from './Step1ChartSelector';
 export * from './Step2DataMapping';
-export * from './Step3StyleCustomization';
 export * from './Step4PreviewStage';
+export * from './subcomponents/UniversalFineTunePanel';
 export * from './subcomponents/LayoutTemplateSelector';
 export * from './subcomponents/SlotSwitcherBar';
 export * from './subcomponents/LiveSplitPreview';
@@ -10,8 +11,16 @@ export * from './subcomponents/CustomGroupingManager';
 export * from './subcomponents/BreakdownTablePanel';
 export * from './subcomponents/SunburstLevelConfigPanel';
 export * from './subcomponents/HorizontalBarConfigPanel';
+export * from './subcomponents/HorizontalBarScatterConfigPanel';
 export * from './subcomponents/ClusteredBarConfigPanel';
 export * from './subcomponents/ScientificAxisConfigPanel';
 export * from './subcomponents/CrossTabMatrixPanel';
+export * from './subcomponents/CrossTabMatrixModal';
 export * from './subcomponents/CameraControlsOverlay';
 export * from './subcomponents/ExportPanel';
+export * from './subcomponents/SankeyConfigPanel';
+export * from './subcomponents/ChartConfigPanels';
+export * from './subcomponents/TreemapConfigPanel';
+export * from './subcomponents/UniversalPaletteFontPanel';
+
+

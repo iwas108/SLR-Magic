@@ -17,6 +17,7 @@ const PaperDatabaseView = dynamic(() => import('../components/features/PaperData
 const PipelineExecutionView = dynamic(() => import('../components/features/PipelineExecutionView'), { ssr: false });
 const PostValidationView = dynamic(() => import('../components/features/PostValidationView'), { ssr: false });
 const InsightExportView = dynamic(() => import('../components/features/InsightExportView'), { ssr: false });
+const ReferenceSyncerView = dynamic(() => import('../components/features/ReferenceSyncerView'), { ssr: false });
 const FullscreenAssignModal = dynamic(() => import('../components/features/modals/FullscreenAssignModal'), { ssr: false });
 const FullscreenInterRaterModal = dynamic(() => import('../components/features/modals/FullscreenInterRaterModal'), { ssr: false });
 const GlobalModals = dynamic(() => import('../components/features/GlobalModals'), { ssr: false });
@@ -328,7 +329,11 @@ export default function DashboardPage() {
             <h2 className="font-bold text-sm tracking-tight capitalize">
               {projects.find(p => String(p.id) === String(activeProjectId))?.name || 'Default Project'} • {activeTab.replace('-', ' ')}
             </h2>
-            <p className="text-[10px] text-muted-foreground font-medium">Stage 1: Reference Ingestion & matching workflows</p>
+            <p className="text-[10px] text-muted-foreground font-medium">
+              {activeTab === 'reference-syncer'
+                ? 'Automated LaTeX citation scanning, BibTeX key resolution & multi-file export'
+                : 'Stage 1: Reference Ingestion & matching workflows'}
+            </p>
           </div>
 
           {activeTab === 'insight-export-cohort' && (
@@ -461,6 +466,11 @@ export default function DashboardPage() {
               setIsVisualizerOpen={setIsCohortVisualizerOpen}
               isLlmContextBuilderOpen={isCohortLlmContextBuilderOpen}
               setIsLlmContextBuilderOpen={setIsCohortLlmContextBuilderOpen}
+            />
+          ) : activeTab === 'reference-syncer' ? (
+            <ReferenceSyncerView
+              showToast={showToast}
+              activeProjectId={activeProjectId}
             />
           ) : activeTab === 'paper-database-ingestion' ? (
             <IngestionHubView

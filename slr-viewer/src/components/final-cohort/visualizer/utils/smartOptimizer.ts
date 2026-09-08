@@ -57,19 +57,6 @@ export function optimizeSlotConfig(
   const highestCount = sortedEntries[0]?.[1] || 0;
   const dominanceRatio = totalExtractedTags > 0 ? highestCount / totalExtractedTags : 0;
 
-  // Small Sample Cohort Thresholding (Reviewer Compliance Rule)
-  // If cohort size N <= 30, use coarse rounding (0 decimals, ~ prefix, n/N ratio display)
-  if (papers.length <= 30) {
-    config.decimalPrecision = 0;
-    config.useTildeForCoarse = true;
-    config.ratioStyle = 'n_over_N';
-    config.labelFormat = 'ratio_percent';
-  } else {
-    config.decimalPrecision = 1;
-    config.useTildeForCoarse = false;
-    config.ratioStyle = 'fraction';
-  }
-
   // 2. Chart-Specific Intelligent Tuning
   switch (chartType) {
     case 'pie_donut': {
@@ -79,6 +66,24 @@ export function optimizeSlotConfig(
       config.pieLeaderLineLength2 = 14;
       config.pieLabelDistance = 6;
       config.pieLineHeight = 15;
+
+      // Intelligent Legend Typography & Width
+      if (maxLabelLength > 25) {
+        config.legendWidth = 220;
+        config.legendLineHeight = 15;
+        config.legendItemGap = 12;
+        config.legendOverflow = 'break';
+      } else if (maxLabelLength > 15) {
+        config.legendWidth = 180;
+        config.legendLineHeight = 14;
+        config.legendItemGap = 10;
+        config.legendOverflow = 'break';
+      } else {
+        config.legendWidth = 150;
+        config.legendLineHeight = 14;
+        config.legendItemGap = 10;
+        config.legendOverflow = 'break';
+      }
 
       if (uniqueCategoryCount <= 5) {
         config.legendPosition = 'right';
@@ -153,6 +158,51 @@ export function optimizeSlotConfig(
       break;
     }
 
+    case 'horizontal_bar_scatter': {
+      config.barSorting = 'desc';
+      config.showDataLabels = false;
+      config.barBorderRadius = 4;
+      config.barThickness = 24;
+      config.barGap = 20;
+      config.showLegend = true;
+      config.legendPosition = 'bottom';
+      config.scatterSymbol = 'diamond';
+      config.scatterSymbolSize = 14;
+      config.scatterColor = config.scatterColor || '#d9534f';
+      config.scatterBorderColor = config.scatterBorderColor || '#900';
+      config.scatterBorderWidth = 1.5;
+      config.scatterAxisTitle = config.scatterAxisTitle || 'Boundary Disclosure (%)';
+      config.scatterAxisMin = 0;
+      config.scatterAxisMax = 100;
+      config.scatterAxisInterval = 25;
+      config.barValueCeiling = config.barValueCeiling === 'auto' ? 40 : config.barValueCeiling;
+      config.barValueInterval = config.barValueInterval === 'auto' ? 10 : config.barValueInterval;
+      config.barSeriesName = config.barSeriesName || 'Cohort Prevalence (%)';
+      config.scatterSeriesName = config.scatterSeriesName || 'Boundary Disclosure Rate (%)';
+
+      if (maxLabelLength > 30) {
+        config.barYAxisWidth = 180;
+        config.barYAxisOverflow = 'break';
+        config.barLineHeight = 13;
+        config.barYAxisFontSize = 10;
+      } else if (maxLabelLength > 18) {
+        config.barYAxisWidth = 150;
+        config.barYAxisOverflow = 'break';
+        config.barLineHeight = 14;
+        config.barYAxisFontSize = 11;
+      } else {
+        config.barYAxisWidth = 130;
+        config.barYAxisOverflow = 'none';
+        config.barYAxisFontSize = 11;
+      }
+
+      if (uniqueCategoryCount > 15 && !config.limitCategories) {
+        config.limitCategories = true;
+        config.maxCategoriesCount = 12;
+      }
+      break;
+    }
+
     case 'bar_vertical': {
       config.barSorting = 'desc';
       config.showDataLabels = true;
@@ -208,10 +258,40 @@ export function optimizeSlotConfig(
     }
 
     case 'sankey': {
-      config.sankeyNodeWidth = 18;
-      config.sankeyNodeGap = 16;
-      config.sankeyLeftPadding = 6;
-      config.sankeyRightPadding = 18;
+      const numLevels = sankeyFields.length || 3;
+      if (numLevels >= 4) {
+        config.sankeyNodeWidth = 14;
+        config.sankeyNodeGap = 12;
+        config.sankeyCurveness = 0.45;
+      } else if (numLevels <= 2) {
+        config.sankeyNodeWidth = 24;
+        config.sankeyNodeGap = 20;
+        config.sankeyCurveness = 0.55;
+      } else {
+        config.sankeyNodeWidth = 18;
+        config.sankeyNodeGap = 16;
+        config.sankeyCurveness = 0.5;
+      }
+
+      if (maxLabelLength > 20) {
+        config.sankeyRightPadding = 24;
+        config.sankeyLeftPadding = 10;
+        config.sankeyMaxLabelWidth = 140;
+        config.sankeyLabelOverflow = 'break';
+      } else {
+        config.sankeyRightPadding = 18;
+        config.sankeyLeftPadding = 8;
+        config.sankeyMaxLabelWidth = 120;
+      }
+
+      config.sankeyLinkColorMode = 'gradient';
+      config.sankeyLinkOpacity = 45;
+      config.sankeyNodeBorderRadius = 2;
+      config.sankeyNodeBorderWidth = 1;
+      config.sankeyEmphasisFocus = 'adjacency';
+      config.sankeySort = 'desc';
+      config.sankeyLabelLineHeight = 14;
+      config.sankeyLabelFontWeight = '600';
       break;
     }
 
@@ -221,11 +301,95 @@ export function optimizeSlotConfig(
       config.sunburstLegendFormat = 'name_count_percent';
       config.sunburstLegendPosition = 'bottom-center';
       config.sunburstSort = 'desc';
+      config.sunburstColorMode = 'branch_gradient';
+
+      const numLevels = sankeyFields.length || 3;
+      const currentLevelConfigs = { ...(config.sunburstLevelConfigs || {}) };
+
+      for (let l = 0; l < numLevels; l++) {
+        if (!currentLevelConfigs[l]) {
+          currentLevelConfigs[l] = {
+            r0: l === 0 ? 15 : (l === 1 ? 40 : 72),
+            r: l === 0 ? 40 : (l === 1 ? 72 : 75),
+            position: l === 0 ? 'inside' : (l === 1 ? 'inside' : 'outside'),
+            rotate: l === 0 ? 'tangential' : 'radial',
+            align: 'right',
+            minAngle: l === 0 ? 0 : (l === 1 ? 3 : 4),
+            borderWidth: l === 0 ? 2 : 1,
+            borderRadius: 0,
+            fontSize: l === 0 ? 12 : (l === 1 ? 10 : 9),
+            fontWeight: l === 0 ? 'bold' : (l === 1 ? '600' : 'normal'),
+            fontStyle: 'normal',
+            colorMode: l <= 1 ? 'auto_contrast' : 'inherit_theme',
+            overflow: 'truncate',
+            maxLabelWidth: l === 0 ? 85 : (l === 1 ? 70 : 60),
+            labelFormat: 'name',
+            hideOverlap: true
+          };
+        } else {
+          currentLevelConfigs[l] = {
+            ...currentLevelConfigs[l],
+            minAngle: currentLevelConfigs[l].minAngle ?? (l === 0 ? 0 : (l === 1 ? 3 : 4)),
+            hideOverlap: currentLevelConfigs[l].hideOverlap !== false,
+            colorMode: currentLevelConfigs[l].colorMode || (currentLevelConfigs[l].position === 'inside' ? 'auto_contrast' : 'inherit_theme')
+          };
+        }
+      }
+      config.sunburstLevelConfigs = currentLevelConfigs;
       break;
     }
 
     case 'treemap': {
       config.showLegend = false;
+      config.treemapAlgorithm = config.treemapAlgorithm || 'squarified';
+      config.treemapSquareRatio = 0.618;
+      config.treemapRoam = true;
+      config.treemapNodeClick = 'zoomToNode';
+      config.treemapShowBreadcrumb = true;
+      config.treemapGapWidth = 3;
+      config.treemapBorderWidth = 1;
+      config.treemapBorderColorMode = 'auto_bg';
+      config.treemapColorMappingBy = 'index';
+      config.treemapColorAlphaMin = 0.5;
+      config.treemapColorAlphaMax = 1;
+
+      const numLevels = sankeyFields?.length || 2;
+      if (numLevels >= 2) {
+        config.treemapVisibleDepth = Math.min(numLevels, 2);
+        config.treemapShowUpperLabel = true;
+        config.treemapUpperLabelHeight = 22;
+        config.treemapUpperLabelFontSize = 11;
+        config.treemapUpperLabelColorMode = 'auto_contrast';
+        config.treemapUpperLabelBgColor = 'rgba(0, 0, 0, 0.45)';
+        config.treemapUpperLabelFormat = 'name_count';
+      } else {
+        config.treemapVisibleDepth = 1;
+        config.treemapShowUpperLabel = false;
+        config.treemapShowLabels = true;
+        config.treemapLabelFormat = 'name_count_percent';
+      }
+
+      const currentTreemapLevelConfigs = { ...(config.treemapLevelConfigs || {}) };
+      for (let l = 0; l <= Math.max(numLevels, 2); l++) {
+        if (!currentTreemapLevelConfigs[l]) {
+          currentTreemapLevelConfigs[l] = {
+            gapWidth: l === 0 ? 0 : (l === 1 ? 4 : 2),
+            borderWidth: l === 0 ? 0 : (l === 1 ? 2 : 1),
+            borderRadius: l === 1 ? 3 : 1,
+            colorAlpha: l <= 1 ? [0.7, 1] : [0.4, 1],
+            showUpperLabel: l === 1,
+            upperLabelHeight: 22,
+            upperLabelFontSize: 11,
+            upperLabelColorMode: 'auto_contrast',
+            showLabel: l >= 1,
+            fontSize: l === 1 ? 12 : 10,
+            fontWeight: l === 1 ? 'bold' : '600',
+            colorMode: 'auto_contrast',
+            labelFormat: l === 1 ? 'name_count' : 'name_count_percent'
+          };
+        }
+      }
+      config.treemapLevelConfigs = currentTreemapLevelConfigs;
       break;
     }
 
@@ -245,6 +409,72 @@ export function optimizeSlotConfig(
       } else {
         config.bubbleScale = 1.2;
       }
+      break;
+    }
+
+    case 'radar': {
+      config.radarShape = 'polygon';
+      config.radarStartAngle = 90;
+      config.radarSplitNumber = 5;
+      config.radarSplitAreaTheme = 'stepped';
+      config.radarRadius = 62;
+      config.radarLineWidth = 2.5;
+      config.radarAreaOpacity = 28;
+      config.radarIndicatorFormat = config.radarIndicatorFormat || 'two_line';
+      config.radarAxisNameLineHeight = config.radarAxisNameLineHeight || 14;
+      config.radarAxisNameFontWeight = config.radarAxisNameFontWeight || 'bold';
+      config.radarAxisNameFontStyle = config.radarAxisNameFontStyle || 'normal';
+      config.showLegend = true;
+      config.legendPosition = 'bottom';
+
+      if (config.radarMode === 'prevalence_vs_tag_share') {
+        config.radarBaselineColor = config.radarBaselineColor || '#1b5e20';
+        config.radarTagShareColor = config.radarTagShareColor || '#c62828';
+        config.radarTagShareLineStyle = 'dashed';
+        config.radarTagShareLineWidth = 2;
+        config.radarTagShareAreaOpacity = 12;
+        config.radarTagShareSymbol = 'rect';
+        config.radarTagShareSymbolSize = 5;
+      } else {
+        config.radarTargetLineStyle = 'dashed';
+        config.radarTargetLineWidth = 2;
+        config.radarTargetAreaOpacity = 8;
+        config.radarTargetColor = config.radarTargetColor || '#d9534f';
+        config.radarBaselineColor = config.radarBaselineColor || '#0275d8';
+      }
+      break;
+    }
+
+    case 'funnel': {
+      config.funnelAlign = 'center';
+      config.funnelGap = 2;
+      config.showDataLabels = true;
+      break;
+    }
+
+    case 'gauge': {
+      config.gaugeDialWidth = config.gaugeDialWidth || 14;
+      config.gaugePointerWidth = config.gaugePointerWidth || 6;
+      break;
+    }
+
+    case 'graph': {
+      config.graphRepulsion = config.graphRepulsion || 120;
+      config.graphEdgeLength = config.graphEdgeLength || 90;
+      config.graphCurveness = config.graphCurveness || 0.2;
+      config.showDataLabels = true;
+      break;
+    }
+
+    case 'calendar': {
+      config.calendarCellSize = config.calendarCellSize || 14;
+      config.showLegend = true;
+      break;
+    }
+
+    case 'boxplot': {
+      config.boxplotBoxWidth = config.boxplotBoxWidth || 24;
+      config.boxplotShowScatter = true;
       break;
     }
 
