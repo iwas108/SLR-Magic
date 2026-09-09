@@ -119,6 +119,10 @@ export function validateViewerSnapshot(rawPayload: any): any {
   const scientificRigor = rawPayload.scientific_rigor || {};
   const prisma = scientificRigor.prisma || {};
   const finalCohort = rawPayload.final_cohort || {};
+  const screenedCorpus = rawPayload.screened_corpus || rawPayload.all_papers || {};
+  const screenedPapers = Array.isArray(screenedCorpus.papers)
+    ? screenedCorpus.papers
+    : (Array.isArray(screenedCorpus) ? screenedCorpus : []);
   const accounting = rawPayload.accounting || {};
   const promptTemplates = rawPayload.prompt_templates || project.prompt_templates || [];
 
@@ -156,6 +160,11 @@ export function validateViewerSnapshot(rawPayload: any): any {
       rolling_batch_validation: scientificRigor.rolling_batch_validation || scientificRigor.rolling_batch_qc || null,
       llm_narrative_guidelines: scientificRigor.llm_narrative_guidelines || rawPayload.llm_narrative_guidelines || null,
       ai_screening_technical_specifications: scientificRigor.ai_screening_technical_specifications || rawPayload.ai_screening_technical_specifications || null,
+    },
+    screened_corpus: {
+      ...screenedCorpus,
+      papers: screenedPapers,
+      total_count: screenedCorpus.total_count !== undefined ? screenedCorpus.total_count : screenedPapers.length,
     },
     final_cohort: {
       ...finalCohort,

@@ -36,7 +36,9 @@ import {
   Copy,
   Download,
   HelpCircle,
-  Printer
+  Printer,
+  ExternalLink,
+  ArrowUpRight
 } from 'lucide-react';
 import { TaxonomyTrendsPrintDocument } from './TaxonomyTrendsPrintDocument';
 import { useViewerData } from '@/context/ViewerContext';
@@ -156,15 +158,64 @@ const DEFAULT_MINER_EXTRACTION = [
   { json_key: 'rq9_deployment_barriers', name: 'Deployment Barriers', field_type: 'array', description: 'Systemic engineering or operational bottlenecks' }
 ];
 
+const getDatabaseSourceStyle = (source: string) => {
+  const s = (source || '').toLowerCase();
+  if (s.includes('ieee')) {
+    return {
+      badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
+      iconColor: 'text-blue-500',
+      textColor: 'text-blue-600 dark:text-blue-400'
+    };
+  }
+  if (s.includes('scopus')) {
+    return {
+      badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
+      iconColor: 'text-amber-500',
+      textColor: 'text-primary'
+    };
+  }
+  if (s.includes('scholar') || s.includes('manual') || s.includes('snowball')) {
+    return {
+      badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
+      iconColor: 'text-emerald-500',
+      textColor: 'text-emerald-600 dark:text-emerald-400'
+    };
+  }
+  if (s.includes('science') || s.includes('wos')) {
+    return {
+      badge: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30',
+      iconColor: 'text-purple-500',
+      textColor: 'text-purple-600 dark:text-purple-400'
+    };
+  }
+  if (s.includes('pubmed') || s.includes('medline')) {
+    return {
+      badge: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30',
+      iconColor: 'text-sky-500',
+      textColor: 'text-sky-600 dark:text-sky-400'
+    };
+  }
+  if (s.includes('acm')) {
+    return {
+      badge: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30',
+      iconColor: 'text-cyan-500',
+      textColor: 'text-cyan-600 dark:text-cyan-400'
+    };
+  }
+  return {
+    badge: 'bg-primary/10 text-primary border-primary/20',
+    iconColor: 'text-primary',
+    textColor: 'text-foreground'
+  };
+};
+
 export default function ResearchWorkflowPanel() {
-  const { activeSession, showToast } = useViewerData();
+  const { activeSession, showToast, setActiveTab } = useViewerData();
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [activeGroupIndex, setActiveGroupIndex] = useState(0);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [copiedSearchQuery, setCopiedSearchQuery] = useState(false);
-  const [copiedManualSearchQuery, setCopiedManualSearchQuery] = useState(false);
   const [expandedTaxonomyKey, setExpandedTaxonomyKey] = useState(null);
   const [activeJustificationKey, setActiveJustificationKey] = useState(null);
   const [isPrintingTaxonomy, setIsPrintingTaxonomy] = useState(false);
@@ -284,6 +335,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Governance',
           liveMetric: `${(project.name || activeSession?.projectName) ? (project.name || activeSession?.projectName).slice(0, 22) : 'Project Configured'}`,
           status: 'CONFIGURED',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'Open Protocol in Scientific Rigor',
+            description: 'Inspect full research manifesto, RQs, exclusion rules, and methodology guidelines.'
+          },
           dataDetails: {
             manifesto: project.research_manifesto || 'No Research Manifesto declared.',
             objective: project.research_objective || 'No Research Objective declared.',
@@ -300,12 +357,21 @@ export default function ResearchWorkflowPanel() {
           badge: 'Search Corpus',
           liveMetric: `${rawIdentifiedCount || cohort.total_count || 0} Raw Papers Ingested`,
           status: 'INGESTED',
+          navigation: {
+            tab: 'insight-export-screening-ledger',
+            label: 'Screening Ledger',
+            actionLabel: 'Open Screening Ledger',
+            description: 'Inspect all 1,803 ingested paper records across all database repositories.'
+          },
           dataDetails: {
             sources: prisma.databaseSources || [],
             totalIdentified: rawIdentifiedCount || 0,
             totalScreened: prisma.dbRecordsScreened || cohort.total_count || 0,
             scopusSearchString: project.scopus_search_string || project.search_string || '',
-            manualSearchString: project.manual_search_string || ''
+            manualSearchString: project.manual_search_string || '',
+            searchQueries: (project.search_queries && Array.isArray(project.search_queries) && project.search_queries.length > 0)
+              ? project.search_queries
+              : (rigor.systematic_search_strategies?.search_queries || prisma.systematic_search_strategies?.search_queries || rawData.systematic_search_strategies?.search_queries || [])
           }
         },
         {
@@ -316,6 +382,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'FAIR Keying',
           liveMetric: `${prisma.dbDuplicatesRemoved || 0} Duplicates Purged`,
           status: 'CLEANED',
+          navigation: {
+            tab: 'insight-export-screening-ledger',
+            label: 'Screening Ledger',
+            actionLabel: 'View Deduplicated Corpus',
+            description: 'View the deduplicated corpus and inspect purged duplicate records in Screening Ledger.'
+          },
           dataDetails: {
             duplicatesPurged: prisma.dbDuplicatesRemoved || 0,
             screenedAfterPurge: prisma.dbRecordsScreened || cohort.total_count || 0
@@ -329,6 +401,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'n=100 Pools',
           liveMetric: `Pool A: ${poolMetrics.pool_a_count || 50}/50 • B: ${poolMetrics.pool_b_count || 30}/30 • C: ${poolMetrics.pool_c_count || 20}/20`,
           status: 'READY',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'View Pre-Calibration Pools',
+            description: 'Inspect sample quotas and calibration distribution across Pools A, B, and C in Scientific Rigor.'
+          },
           dataDetails: {
             poolA: `Pool A (Fast Filter): ${poolMetrics.pool_a_count || 50} / 50 papers allocated`,
             poolB: `Pool B (Gatekeeper): ${poolMetrics.pool_b_count || 30} / 30 papers allocated`,
@@ -354,6 +432,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'n=100 Distributed',
           liveMetric: '3 Pool Review Packages (.slr)',
           status: 'DISTRIBUTED',
+          navigation: {
+            tab: 'insight-export-fair-data',
+            label: 'FAIR Data Export',
+            actionLabel: 'View Review Packages',
+            description: 'Explore blinded .slr review package exports and FAIR archival dataset assets.'
+          },
           dataDetails: {
             summary: 'Pools A, B, and C exported as double-blind .slr review files and assigned to Reviewers 1, 2, and 3.'
           }
@@ -366,6 +450,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Inter-Rater SPA',
           liveMetric: '100 Gold Standard Papers Locked',
           status: 'LOCKED',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'Open Adjudication Hub',
+            description: 'Inspect double-blind reviewer consensus and cryptographically signed commit ledger in Section 1.5.'
+          },
           dataDetails: {
             summary: 'Double-blind evaluation conducted in inter-rater SPA. PI adjudication applied to resolve conflicts and establish final Gold Standard.'
           }
@@ -378,6 +468,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Difference Engine',
           liveMetric: `Stage 1 Recall: ${(stage1Comp.recall !== undefined ? stage1Comp.recall * 100 : 100).toFixed(0)}% • F1: ${(stage1Comp.f1 !== undefined ? stage1Comp.f1 * 100 : 92).toFixed(0)}%`,
           status: (stage1Comp.passes && stage2Comp.passes) ? 'PASSED' : 'OPTIMIZED',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'View Agreement Metrics',
+            description: 'Inspect Stage 1–4 inter-rater reliability, Cohen Kappa, and threshold targets in Section 2.'
+          },
           dataDetails: {
             stage1: stage1Comp,
             stage2: stage2Comp,
@@ -393,6 +489,12 @@ export default function ResearchWorkflowPanel() {
           badge: '5 CoT Schemas',
           liveMetric: 'Fast Filter, Gatekeeper, Scientist, Miner Mounted',
           status: 'MOUNTED',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'View Prompt Specifications',
+            description: 'Inspect frozen prompt templates, CoT guidelines, and extraction schemas in Scientific Rigor.'
+          },
           dataDetails: {
             ecRulesCount: (project.ec_rules ? JSON.parse(project.ec_rules || '[]').length : 7),
             qaRulesCount: (project.pool_c_qa_rules ? JSON.parse(project.pool_c_qa_rules || '[]').length : 8),
@@ -418,6 +520,12 @@ export default function ResearchWorkflowPanel() {
           badge: '100% Target Recall',
           liveMetric: `${prisma.dbStage1Excluded || 0} Excluded (EC-1..3)`,
           status: stage1Comp.passes ? 'PASSED' : 'EXECUTED',
+          navigation: {
+            tab: 'insight-export-screening-ledger',
+            label: 'Screening Ledger',
+            actionLabel: 'View Fast Filter Decisions',
+            description: 'Inspect fail-fast title/abstract exclusions, EC criteria matches, and rationales in Screening Ledger.'
+          },
           dataDetails: {
             excludedByEC: prisma.dbStage1ExcludedByEC || [],
             stage1Metrics: stage1Comp
@@ -431,6 +539,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'pdf_scraper.py',
           liveMetric: `${prisma.dbReportsSought || 0} Sought • ${prisma.dbReportsNotRetrieved || 0} Unretrieved`,
           status: 'RETRIEVED',
+          navigation: {
+            tab: 'insight-export-screening-ledger',
+            label: 'Screening Ledger',
+            actionLabel: 'Inspect Retrieval Gate',
+            description: 'Inspect PRISMA Phase 2b retrieval status and 36 unretrieved/inaccessible PDFs in Screening Ledger.'
+          },
           dataDetails: {
             sought: prisma.dbReportsSought || 0,
             notRetrieved: prisma.dbReportsNotRetrieved || 0,
@@ -445,6 +559,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Precision ≥ 85%',
           liveMetric: `${prisma.dbReportsExcludedStage2 ? prisma.dbReportsExcludedStage2.reduce((s, x) => s + x.count, 0) : 0} Structural Failures`,
           status: stage2Comp.passes ? 'PASSED' : 'EXECUTED',
+          navigation: {
+            tab: 'insight-export-screening-ledger',
+            label: 'Screening Ledger',
+            actionLabel: 'View Gatekeeper Records',
+            description: 'Inspect Stage 2 structural exclusion records, EC-4..7 triggers, and defect criteria in Screening Ledger.'
+          },
           dataDetails: {
             excludedByEC: prisma.dbReportsExcludedStage2 || [],
             stage2Metrics: stage2Comp
@@ -458,6 +578,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'QA Sum ≥ 4.5/8',
           liveMetric: `Fatal Flaws: ${prisma.dbReportsExcludedStage3?.[0]?.count || 0} • Cumulative: ${prisma.dbReportsExcludedStage3?.[1]?.count || 0}`,
           status: stage3Comp.passes ? 'PASSED' : 'EXECUTED',
+          navigation: {
+            tab: 'insight-export-screening-ledger',
+            label: 'Screening Ledger',
+            actionLabel: 'View Scientist QA Ledger',
+            description: 'Inspect dual-gate QA1–QA8 scores, fatal flaw triggers, and appraisal audit records in Screening Ledger.'
+          },
           dataDetails: {
             excludedByGate: prisma.dbReportsExcludedStage3 || [],
             stage3Metrics: stage3Comp
@@ -471,6 +597,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Schema Exactness',
           liveMetric: `${cohort.total_count || 0} Extracted Cohort Papers`,
           status: stage4Comp.passes ? 'PASSED' : 'EXTRACTED',
+          navigation: {
+            tab: 'insight-export-cohort',
+            label: 'Final Cohort',
+            actionLabel: 'View Mined Cohort Grid',
+            description: 'Explore deterministic JSON entity extractions and evidence quotes across included papers in Final Cohort.'
+          },
           dataDetails: {
             totalExtracted: cohort.total_count || 0,
             stage4Metrics: stage4Comp
@@ -495,6 +627,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Sequential Sampling',
           liveMetric: `${rollingBatchQC.batches ? rollingBatchQC.batches.length : 2} Micro-Batches Evaluated`,
           status: 'COMPLETED',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'View Rolling Batch QC',
+            description: 'Inspect sequential micro-batch audit logs, sampling batches, and QC metrics in Scientific Rigor.'
+          },
           dataDetails: {
             batchCount: rollingBatchQC.batches ? rollingBatchQC.batches.length : 2,
             overallStatus: rollingBatchQC.overall_status || 'PASSED'
@@ -508,6 +646,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Adjudicated Consensus',
           liveMetric: 'Human Consensus Ground Truth Locked',
           status: 'LOCKED',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'View Batch Adjudication',
+            description: 'Inspect rolling batch dual-review consensus, discrepancies, and signed commit ledger in Section 3.'
+          },
           dataDetails: {
             summary: 'Two independent reviewers evaluated rolling batches in inter-rater SPA. Adjudication locked human consensus for statistical comparison.'
           }
@@ -520,6 +664,12 @@ export default function ResearchWorkflowPanel() {
           badge: '95% CI Lower ≥ 0.65',
           liveMetric: `Stage 3 CI: ${(rollingBatchQC.cumulative_stats?.s3?.CI_lower || 0.85).toFixed(2)} • Critical Miss Rate: 0%`,
           status: rollingBatchQC.audit_passed ? 'VALIDATED' : 'PASSED',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'View Statistical Audit',
+            description: 'Inspect Wald SPRT stopping criteria and Fleiss-Cohen standard error confidence intervals in Section 3.'
+          },
           dataDetails: {
             cumulativeStats: rollingBatchQC.cumulative_stats || {},
             auditPassed: rollingBatchQC.audit_passed || true
@@ -533,6 +683,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Umbrella Taxonomy',
           liveMetric: `${Object.keys(cohort.umbrellanizer_mappings || {}).length || 9} Extracted RQs Mapped`,
           status: 'MAPPED',
+          navigation: {
+            tab: 'insight-export-cohort',
+            label: 'Final Cohort',
+            actionLabel: 'Open Visualizer Studio',
+            description: 'Explore normalized taxonomy distributions, interactive charts, and RQ mappings in Final Cohort.'
+          },
           dataDetails: {
             mappingsCount: Object.keys(cohort.umbrellanizer_mappings || {}).length || 9,
             mappings: cohort.umbrellanizer_mappings || {}
@@ -557,6 +713,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'Spend Audit',
           liveMetric: `$${(accountingSummary.total_cost_usd || 0).toFixed(4)} USD • ${(accountingSummary.total_tokens || 0).toLocaleString()} Tokens`,
           status: 'AUDITED',
+          navigation: {
+            tab: 'insight-export-accounting',
+            label: 'Accounting',
+            actionLabel: 'Open Accounting Panel',
+            description: 'Inspect API expenditure telemetry, token usage, and cost distributions per pipeline stage.'
+          },
           dataDetails: {
             summary: accountingSummary,
             breakdown: pipelineBreakdown
@@ -570,6 +732,12 @@ export default function ResearchWorkflowPanel() {
           badge: 'PRISMA 2020',
           liveMetric: `${prisma.dbStudiesIncluded || cohort.total_count || 0} Included Studies`,
           status: 'VERIFIED',
+          navigation: {
+            tab: 'insight-export-rigor',
+            label: 'Scientific Rigor',
+            actionLabel: 'View PRISMA Flow',
+            description: 'Inspect PRISMA 2020 flow diagram, vector SVG/PDF downloads, and rigor validation.'
+          },
           dataDetails: {
             prismaSummary: prisma,
             comparisons: stageComparisons
@@ -583,6 +751,12 @@ export default function ResearchWorkflowPanel() {
           badge: '.slr-viewer & FAIR CSV',
           liveMetric: `${cohort.total_count || 0} Final Cohort Papers Exported`,
           status: 'EXPORTED',
+          navigation: {
+            tab: 'insight-export-fair-data',
+            label: 'FAIR Data Export',
+            actionLabel: 'Open FAIR Export Hub',
+            description: 'Download publication datasets, RFC 4180 CSV tables, and Umbrellanizer taxonomy matrices.'
+          },
           dataDetails: {
             totalCohort: cohort.total_count || 0,
             exportDate: activeSession?.exportDate || activeSession?.importedAt || new Date().toISOString()
@@ -754,6 +928,27 @@ export default function ResearchWorkflowPanel() {
                           {node.status}
                         </span>
                       </div>
+
+                      {/* Direct Page Navigation Quick Link */}
+                      {node.navigation && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (setActiveTab) {
+                              setActiveTab(node.navigation.tab);
+                            }
+                            if (showToast) {
+                              showToast(`Navigated to ${node.navigation.label}`, 'info');
+                            }
+                          }}
+                          className="mt-2 w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-secondary/60 hover:bg-primary text-muted-foreground hover:text-primary-foreground text-[10px] font-bold border border-border/60 hover:border-primary transition-all cursor-pointer group/nav shadow-2xs"
+                          title={node.navigation.description}
+                        >
+                          <span className="truncate">View in {node.navigation.label}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0 transition-transform group-hover/nav:translate-x-0.5 group-hover/nav:-translate-y-0.5" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -815,6 +1010,38 @@ export default function ResearchWorkflowPanel() {
                 <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Live Project Telemetry Metric</span>
                 <div className="text-base font-mono font-extrabold text-foreground">{activeSelectedNode.liveMetric}</div>
               </div>
+
+              {/* Quick Navigation Callout Banner */}
+              {activeSelectedNode.navigation && (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono font-black uppercase tracking-wider text-primary">Related Section</span>
+                      <span className="text-[10px] text-muted-foreground">•</span>
+                      <span className="text-xs font-bold text-foreground truncate">{activeSelectedNode.navigation.label}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      {activeSelectedNode.navigation.description}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedNodeId(null);
+                      if (setActiveTab) {
+                        setActiveTab(activeSelectedNode.navigation.tab);
+                      }
+                      if (showToast) {
+                        showToast(`Navigated to ${activeSelectedNode.navigation.label}`, 'info');
+                      }
+                    }}
+                    className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-xs transition-all cursor-pointer group/navbtn"
+                  >
+                    <span>{activeSelectedNode.navigation.actionLabel}</span>
+                    <ExternalLink className="w-3.5 h-3.5 transition-transform group-hover/navbtn:translate-x-0.5 group-hover/navbtn:-translate-y-0.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Node Specific Text Inspectors */}
               {activeSelectedNode.id === 'node-1-1' && (() => {
@@ -1114,109 +1341,126 @@ export default function ResearchWorkflowPanel() {
                 );
               })()}
 
-              {activeSelectedNode.id === 'node-1-2' && (
-                <div className="space-y-4">
-                  {/* Scopus Search String Card */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Search className="w-3.5 h-3.5 text-primary" />
-                        Scopus Search Query String
-                      </h4>
-                      {activeSelectedNode.dataDetails.scopusSearchString && (
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(activeSelectedNode.dataDetails.scopusSearchString);
-                            setCopiedSearchQuery(true);
-                            setTimeout(() => setCopiedSearchQuery(false), 2000);
-                          }}
-                          className="px-2 py-1 rounded bg-secondary hover:bg-secondary/80 text-foreground text-[11px] font-semibold border border-border flex items-center gap-1 transition-colors"
-                          title="Copy search query to clipboard"
-                        >
-                          {copiedSearchQuery ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-500" />
-                              <span className="text-emerald-500">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3 text-muted-foreground" />
-                              <span>Copy Query</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    <div className="p-3 bg-secondary/30 rounded-xl border border-border text-xs text-foreground">
-                      {activeSelectedNode.dataDetails.scopusSearchString ? (
-                        <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-primary bg-background/60 p-2.5 rounded-lg border border-border/50 max-h-48 overflow-y-auto">
-                          {activeSelectedNode.dataDetails.scopusSearchString}
-                        </pre>
-                      ) : (
-                        <span className="italic text-muted-foreground font-sans">No Scopus search query string specified in project metadata.</span>
-                      )}
-                    </div>
-                  </div>
+              {activeSelectedNode.id === 'node-1-2' && (() => {
+                const rawQueries = (activeSelectedNode.dataDetails.searchQueries && Array.isArray(activeSelectedNode.dataDetails.searchQueries) && activeSelectedNode.dataDetails.searchQueries.length > 0)
+                  ? activeSelectedNode.dataDetails.searchQueries
+                  : [];
 
-                  {/* Manual / Google Scholar Search String Card */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Search className="w-3.5 h-3.5 text-emerald-500" />
-                        Manual / Google Scholar Search Query String
-                      </h4>
-                      {activeSelectedNode.dataDetails.manualSearchString && (
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(activeSelectedNode.dataDetails.manualSearchString);
-                            setCopiedManualSearchQuery(true);
-                            setTimeout(() => setCopiedManualSearchQuery(false), 2000);
-                          }}
-                          className="px-2 py-1 rounded bg-secondary hover:bg-secondary/80 text-foreground text-[11px] font-semibold border border-border flex items-center gap-1 transition-colors"
-                          title="Copy manual search query to clipboard"
-                        >
-                          {copiedManualSearchQuery ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-500" />
-                              <span className="text-emerald-500">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3 text-muted-foreground" />
-                              <span>Copy Query</span>
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    <div className="p-3 bg-secondary/30 rounded-xl border border-border text-xs text-foreground">
-                      {activeSelectedNode.dataDetails.manualSearchString ? (
-                        <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap break-all text-emerald-600 dark:text-emerald-400 bg-background/60 p-2.5 rounded-lg border border-border/50 max-h-48 overflow-y-auto">
-                          {activeSelectedNode.dataDetails.manualSearchString}
-                        </pre>
-                      ) : (
-                        <span className="italic text-muted-foreground font-sans">No manual or Google Scholar search query string specified in project metadata.</span>
-                      )}
-                    </div>
-                  </div>
+                const displayQueries: Array<{ id: string; source: string; query: string; notes: string }> = rawQueries.length > 0
+                  ? rawQueries.map((q: any, idx: number) => ({
+                      id: q.id || `sq-${idx + 1}`,
+                      source: q.source || `Database ${idx + 1}`,
+                      query: q.query || '',
+                      notes: q.notes_and_filters || q.description || ''
+                    }))
+                  : [
+                      ...(activeSelectedNode.dataDetails.scopusSearchString ? [{
+                        id: 'legacy-scopus',
+                        source: 'Scopus',
+                        query: activeSelectedNode.dataDetails.scopusSearchString,
+                        notes: 'Primary Scopus search string documented in project metadata'
+                      }] : []),
+                      ...(activeSelectedNode.dataDetails.manualSearchString ? [{
+                        id: 'legacy-manual',
+                        source: 'Manual / Google Scholar',
+                        query: activeSelectedNode.dataDetails.manualSearchString,
+                        notes: 'Targeted keyword search string for manual discovery and grey literature'
+                      }] : [])
+                    ];
 
-                  <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Database Sources Ingestion Breakdown
-                  </h4>
-                  <div className="space-y-2">
-                    {activeSelectedNode.dataDetails.sources && activeSelectedNode.dataDetails.sources.length > 0 ? (
-                      activeSelectedNode.dataDetails.sources.map((src, idx) => (
-                        <div key={idx} className="p-3 bg-secondary/30 rounded-xl border border-border flex items-center justify-between text-xs">
-                          <span className="font-bold text-foreground">{src.source}</span>
-                          <span className="font-mono font-bold text-primary">{src.count} papers</span>
-                        </div>
-                      ))
+                const allQueriesText = displayQueries
+                  .map((q, i) => `=== [${i + 1}] ${q.source} ===\n${q.notes ? `Filters/Notes: ${q.notes}\n` : ''}${q.query}`)
+                  .join('\n\n');
+
+                return (
+                  <div className="space-y-5">
+                    {/* Header with Title, Count Badge and Copy All */}
+                    <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5">
+                      <div>
+                        <h4 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Search className="w-3.5 h-3.5 text-primary" />
+                          Documented Systematic Search Strategies
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          PRISMA 2020 Item 7: Full search queries and syntax for all consulted repositories
+                        </p>
+                      </div>
+                      {displayQueries.length > 1 && allQueriesText && (
+                        renderCopyBtn('copy-all-queries', allQueriesText, 'All Search Strategies', 'Copy All')
+                      )}
+                    </div>
+
+                    {/* Query Cards */}
+                    {displayQueries.length > 0 ? (
+                      <div className="space-y-3.5">
+                        {displayQueries.map((q, idx) => {
+                          const style = getDatabaseSourceStyle(q.source);
+                          return (
+                            <div
+                              key={q.id || idx}
+                              className="p-3.5 bg-secondary/30 rounded-xl border border-border space-y-2 hover:border-primary/30 transition-all shadow-sm"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider border shrink-0 ${style.badge}`}>
+                                    {q.source}
+                                  </span>
+                                  <span className="text-xs font-bold text-foreground truncate">
+                                    {q.source} Search Query String
+                                  </span>
+                                </div>
+                                {q.query && renderCopyBtn(`query-${q.id || idx}`, q.query, `${q.source} Query`, 'Copy Query')}
+                              </div>
+
+                              {q.notes && (
+                                <div className="text-[11px] text-muted-foreground italic px-0.5 flex items-start gap-1">
+                                  <Info className="w-3 h-3 text-muted-foreground/70 shrink-0 mt-0.5" />
+                                  <span>{q.notes}</span>
+                                </div>
+                              )}
+
+                              <div className="p-2.5 bg-background/70 rounded-lg border border-border/60">
+                                {q.query ? (
+                                  <pre className={`font-mono text-xs leading-relaxed whitespace-pre-wrap break-all ${style.textColor} max-h-52 overflow-y-auto select-all`}>
+                                    {q.query}
+                                  </pre>
+                                ) : (
+                                  <span className="italic text-muted-foreground font-sans text-xs">
+                                    No search syntax query specified for this repository.
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     ) : (
-                      <div className="p-4 text-center text-xs text-muted-foreground">No source database breakdown found.</div>
+                      <div className="p-4 rounded-xl bg-secondary/30 border border-border text-center text-xs text-muted-foreground italic">
+                        No systematic search query strings specified in project metadata.
+                      </div>
                     )}
+
+                    {/* Ingestion Breakdown */}
+                    <div className="pt-2">
+                      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                        Database Sources Ingestion Breakdown
+                      </h4>
+                      <div className="space-y-2">
+                        {activeSelectedNode.dataDetails.sources && activeSelectedNode.dataDetails.sources.length > 0 ? (
+                          activeSelectedNode.dataDetails.sources.map((src: any, idx: number) => (
+                            <div key={idx} className="p-3 bg-secondary/30 rounded-xl border border-border flex items-center justify-between text-xs">
+                              <span className="font-bold text-foreground">{src.source}</span>
+                              <span className="font-mono font-bold text-primary">{src.count} papers</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-4 text-center text-xs text-muted-foreground">No source database breakdown found.</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {activeSelectedNode.id === 'node-2-3' && (
                 <div className="space-y-4">
@@ -2230,7 +2474,27 @@ export default function ResearchWorkflowPanel() {
             </div>
 
             {/* Drawer Footer */}
-            <div className="p-4 border-t border-border bg-card/50 flex justify-end shrink-0 print:hidden">
+            <div className="p-4 border-t border-border bg-card/50 flex items-center justify-between shrink-0 print:hidden">
+              {activeSelectedNode.navigation ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedNodeId(null);
+                    if (setActiveTab) {
+                      setActiveTab(activeSelectedNode.navigation.tab);
+                    }
+                    if (showToast) {
+                      showToast(`Navigated to ${activeSelectedNode.navigation.label}`, 'info');
+                    }
+                  }}
+                  className="px-3.5 py-2 bg-secondary hover:bg-secondary/80 text-foreground font-semibold text-xs rounded-xl border border-border flex items-center gap-1.5 transition-colors cursor-pointer group/footnav"
+                >
+                  <span>Go to {activeSelectedNode.navigation.label}</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-primary transition-transform group-hover/footnav:translate-x-0.5 group-hover/footnav:-translate-y-0.5" />
+                </button>
+              ) : (
+                <div />
+              )}
               <button
                 onClick={() => setSelectedNodeId(null)}
                 className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-xl shadow-sm transition-colors cursor-pointer"

@@ -10,8 +10,8 @@ interface ScreeningSummaryPanelProps {
   decision: string | null;
   exclusionCode?: string | null;
   rationale: string | null;
-  qualityAssessment: string | null; // JSON string
-  extractedData: string | null; // JSON string
+  qualityAssessment: string | Record<string, any> | null; // JSON string or parsed object
+  extractedData: string | Record<string, any> | null; // JSON string or parsed object
 }
 
 export default function ScreeningSummaryPanel({

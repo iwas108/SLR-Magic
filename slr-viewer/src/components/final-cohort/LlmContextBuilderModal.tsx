@@ -5,7 +5,8 @@ import { Sparkles, X, Copy, Download, Check, Search, Filter, FileText, BarChart2
 import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
 import {
   resolveUmbrellanizerValue as centralResolveUmbrellanizerValue,
-  getUmbrellanizerJustification as centralGetUmbrellanizerJustification
+  getUmbrellanizerJustification as centralGetUmbrellanizerJustification,
+  getStageDominantExtractedDataStr
 } from '@/lib/services/taxonomy-resolver';
 import { calculateHareHamiltonPercentages } from '@/lib/services/cohort-metrics';
 
@@ -171,15 +172,7 @@ export default function LlmContextBuilderModal({
 
   // Helper to extract stage-dominant extracted_data string
   const getExtractedDataStr = useCallback((paper: any): string => {
-    const isNonEmpty = (str: any) => typeof str === 'string' && str.trim() !== '' && str.trim() !== '{}' && str.trim() !== '[]' && str.trim() !== 'null';
-    const hasManual = isNonEmpty(paper.manual_extracted_data);
-    const hasAi = isNonEmpty(paper.ai_extracted_data);
-    if (hasManual && hasAi) {
-      return (paper.manual_stage || 0) >= (paper.ai_stage || 0) ? paper.manual_extracted_data : paper.ai_extracted_data;
-    }
-    if (hasManual) return paper.manual_extracted_data;
-    if (hasAi) return paper.ai_extracted_data;
-    return '';
+    return getStageDominantExtractedDataStr(paper);
   }, []);
 
   // Discover all unique extracted data keys across all target papers

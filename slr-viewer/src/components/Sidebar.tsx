@@ -10,7 +10,8 @@ import {
   Table,
   DollarSign,
   Database,
-  GitFork
+  GitFork,
+  Layers
 } from 'lucide-react';
 import { useViewerData } from '@/context/ViewerContext';
 
@@ -115,6 +116,7 @@ export default function Sidebar({ theme, setTheme, onOpenImportModal }: SidebarP
               {[
                 { id: 'insight-export-workflow', label: 'Research Workflow', icon: GitFork },
                 { id: 'insight-export-rigor', label: 'Scientific Rigor', icon: Target },
+                { id: 'insight-export-screening-ledger', label: 'Screening Ledger', icon: Layers },
                 { id: 'insight-export-cohort', label: 'Final Cohort', icon: Table },
                 { id: 'insight-export-accounting', label: 'Accounting', icon: DollarSign },
                 { id: 'insight-export-fair-data', label: 'FAIR Data Export', icon: Database }

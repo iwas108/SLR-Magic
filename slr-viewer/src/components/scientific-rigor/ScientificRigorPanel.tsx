@@ -177,7 +177,7 @@ export default function ScientificRigorPanel() {
       {/* 1.5 Blinded Review & Adjudication Results */}
       <div>
         <h3 className="text-sm font-semibold mb-3 text-foreground">Blinded Review &amp; Adjudication Results</h3>
-        <BlindedAdjudicationPanel stats={blindedAdjudicationStats} loading={false} />
+        <BlindedAdjudicationPanel stats={blindedAdjudicationStats} loading={false} projectConfig={projectConfig} />
       </div>
 
       {/* 2. Stage Comparison */}
@@ -190,7 +190,7 @@ export default function ScientificRigorPanel() {
       <div>
         <h3 className="text-sm font-semibold mb-3 text-foreground">Rolling Batch Validation (Sequential QC)</h3>
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-          <RollingBatchPanel rollingBatchQC={rollingBatchQC} />
+          <RollingBatchPanel rollingBatchQC={rollingBatchQC} projectConfig={projectConfig} />
         </div>
       </div>
 

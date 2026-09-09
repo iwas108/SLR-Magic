@@ -28,6 +28,69 @@ export interface AccountingPanelProps {
   } | null;
 }
 
+/**
+ * Cross-browser resilient timestamp to milliseconds converter.
+ * Handles ISO-8601 strings, SQLite 'YYYY-MM-DD HH:MM:SS' strings, epoch numbers/strings.
+ */
+function parseTimestampToMs(dateVal: any): number {
+  if (!dateVal) return 0;
+  if (typeof dateVal === 'number') {
+    return dateVal > 1e11 ? dateVal : dateVal * 1000;
+  }
+  let str = String(dateVal).trim();
+  if (!str || str === 'undefined' || str === 'null') return 0;
+  if (/^\d+$/.test(str)) {
+    const num = Number(str);
+    return num > 1e11 ? num : num * 1000;
+  }
+  if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(str)) {
+    str = str.replace(' ', 'T');
+    if (!str.endsWith('Z') && !str.includes('+') && !str.includes('-', 10)) {
+      str += 'Z';
+    }
+  }
+  const ms = new Date(str).getTime();
+  return isNaN(ms) ? 0 : ms;
+}
+
+/**
+ * Cross-browser resilient timestamp formatter.
+ * Guarantees zero "Invalid Date" displays by gracefully falling back.
+ */
+function formatTimestampSafe(dateVal: any): string {
+  if (!dateVal) return '—';
+  let str = String(dateVal).trim();
+  if (!str || str === 'undefined' || str === 'null') return '—';
+
+  // Handle epoch numbers/numeric strings
+  if (typeof dateVal === 'number' || /^\d+$/.test(str)) {
+    const num = Number(str);
+    const d = new Date(num > 1e11 ? num : num * 1000);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleString();
+  }
+
+  // Handle SQLite datetime 'YYYY-MM-DD HH:MM:SS' (convert space to T for cross-browser parsing)
+  if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(str)) {
+    str = str.replace(' ', 'T');
+    if (!str.endsWith('Z') && !str.includes('+') && !str.includes('-', 10)) {
+      str += 'Z';
+    }
+  }
+
+  const d = new Date(str);
+  if (isNaN(d.getTime())) {
+    // Try parsing without Z (local time fallback)
+    const dFallback = new Date(str.replace('Z', ''));
+    if (!isNaN(dFallback.getTime())) {
+      return dFallback.toLocaleString();
+    }
+    // Return clean string rather than 'Invalid Date'
+    return str.replace('T', ' ').replace('.000Z', '');
+  }
+
+  return d.toLocaleString();
+}
+
 const STAGE_CONFIGS: Record<string, { label: string; border: string; bg: string; text: string }> = {
   fast_filter: {
     label: 'Fast Filter',
@@ -116,10 +179,14 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
 
   useEffect(() => {
     if (accountingData) {
+      const rawCalls = accountingData.expensiveCalls || accountingData.top_expensive_calls || [];
       setData({
         overallStats: accountingData.overallStats || accountingData.summary || {},
         pipelineBreakdown: accountingData.pipelineBreakdown || accountingData.pipeline_breakdown || [],
-        expensiveCalls: accountingData.expensiveCalls || accountingData.top_expensive_calls || []
+        expensiveCalls: rawCalls.map((c: any) => ({
+          ...c,
+          created_at: c.created_at || c.timestamp || c.time || c.date || ''
+        }))
       });
       setLoading(false);
       return;
@@ -135,7 +202,15 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
         const res = await fetch(`/api/insight/accounting?projectId=${projectId}`);
         if (!res.ok) throw new Error('Failed to fetch');
         const json = await res.json();
-        setData(json);
+        const rawCalls = json.expensiveCalls || [];
+        setData({
+          overallStats: json.overallStats,
+          pipelineBreakdown: json.pipelineBreakdown,
+          expensiveCalls: rawCalls.map((c: any) => ({
+            ...c,
+            created_at: c.created_at || c.timestamp || c.time || c.date || ''
+          }))
+        });
       } catch (err) {
         if (showToast) showToast('Error loading accounting data', 'error');
       } finally {
@@ -231,8 +306,10 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
         aVal = (aVal || '').toString().toLowerCase();
         bVal = (bVal || '').toString().toLowerCase();
       } else if (sortField === 'created_at') {
-        aVal = new Date(aVal || 0).getTime();
-        bVal = new Date(bVal || 0).getTime();
+        const rawA = a.created_at || a.timestamp || 0;
+        const rawB = b.created_at || b.timestamp || 0;
+        aVal = parseTimestampToMs(rawA);
+        bVal = parseTimestampToMs(rawB);
       } else {
         aVal = Number(aVal || 0);
         bVal = Number(bVal || 0);
@@ -588,7 +665,7 @@ export default function AccountingPanel({ projectId, showToast, accountingData }
                       <td className="px-4 py-1.5 text-right font-normal text-xs font-mono">{call.total_tokens?.toLocaleString() || 0}</td>
                       <td className="px-4 py-1.5 text-right font-semibold text-xs font-mono text-destructive">${(call.cost_usd || 0).toFixed(4)}</td>
                       <td className="px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(call.created_at).toLocaleString()}
+                        {formatTimestampSafe(call.created_at || call.timestamp)}
                       </td>
                     </tr>
                   ))

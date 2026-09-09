@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import ImportWorkflow from './components/ImportWorkflow';
 import ScientificRigorPanel from './components/scientific-rigor/ScientificRigorPanel';
+import ScreeningLedgerPanel from './components/screening-ledger/ScreeningLedgerPanel';
 import FinalCohortPanel from './components/final-cohort/FinalCohortPanel';
 import AccountingPanel from './components/accounting/AccountingPanel';
 import FairDataExportPanel from './components/insight-export/FairDataExportPanel';
@@ -71,7 +72,7 @@ export default function App() {
               <h2 className="font-bold text-sm tracking-tight capitalize flex items-center gap-2">
                 <span>{activeProjectName}</span>
                 <span className="text-[10px] text-muted-foreground font-normal">
-                  • {activeTab.replace('insight-export-', '').replace('-', ' ')}
+                  • {activeTab.replace('insight-export-', '').replace(/-/g, ' ')}
                 </span>
               </h2>
               <p className="text-[10px] text-muted-foreground font-medium">
@@ -141,12 +142,14 @@ export default function App() {
         </header>
 
         {/* Dynamic View Panels Container */}
-        <div className={`flex-1 overflow-auto bg-background/50 ${activeTab === 'insight-export-cohort' ? 'p-0 flex flex-col h-full' : 'p-4 md:p-6'}`}>
+        <div className={`flex-1 overflow-auto bg-background/50 ${activeTab === 'insight-export-cohort' || activeTab === 'insight-export-screening-ledger' ? 'p-0 flex flex-col h-full' : 'p-4 md:p-6'}`}>
           {activeTab === 'dashboard' && <Dashboard onImportClick={() => setIsImportModalOpen(true)} />}
 
           {activeTab === 'insight-export-workflow' && <ResearchWorkflowPanel />}
 
           {activeTab === 'insight-export-rigor' && <ScientificRigorPanel />}
+
+          {activeTab === 'insight-export-screening-ledger' && <ScreeningLedgerPanel />}
 
           {activeTab === 'insight-export-cohort' && <FinalCohortPanel />}
 

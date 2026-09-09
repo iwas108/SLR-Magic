@@ -9,6 +9,7 @@ export interface SessionRecord {
   importedAt: string;
   lastViewed: string;
   paperCount: number;
+  totalCorpusCount?: number;
   schemaVersion: string;
   rawData?: any;
   isSchemaValid?: boolean;
@@ -70,6 +71,7 @@ export const StorageService = {
       const projectName = validatedData.project?.name || filename.replace('.slr-viewer', '');
       const exportDate = validatedData.export_date || new Date().toISOString();
       const paperCount = validatedData.final_cohort?.total_count || validatedData.final_cohort?.papers?.length || 0;
+      const totalCorpusCount = validatedData.screened_corpus?.total_count || validatedData.screened_corpus?.papers?.length || paperCount;
       const schemaVersion = validatedData.schema_version || '1.1.0';
 
       const newSession: SessionRecord = {
@@ -79,6 +81,7 @@ export const StorageService = {
         importedAt: new Date().toISOString(),
         lastViewed: new Date().toISOString(),
         paperCount,
+        totalCorpusCount,
         schemaVersion,
         rawData: validatedData,
         isSchemaValid: true,
@@ -98,6 +101,7 @@ export const StorageService = {
       const validatedData = validateViewerSnapshot(parsedData);
       const numId = Number(id);
       const paperCount = validatedData.final_cohort?.total_count || validatedData.final_cohort?.papers?.length || 0;
+      const totalCorpusCount = validatedData.screened_corpus?.total_count || validatedData.screened_corpus?.papers?.length || paperCount;
       const exportDate = validatedData.export_date || new Date().toISOString();
       const schemaVersion = validatedData.schema_version || '1.1.0';
 
@@ -105,6 +109,7 @@ export const StorageService = {
         exportDate,
         importedAt: new Date().toISOString(),
         paperCount,
+        totalCorpusCount,
         schemaVersion,
         rawData: validatedData,
         isSchemaValid: true,

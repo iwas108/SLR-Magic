@@ -11,6 +11,7 @@ import {
   resolveUmbrellanizerValue,
   normalizeExtractedTokens,
   getStageDominantExtractedDataStr,
+  getStageDominantQualityAssessmentStr,
   stripParentPrefix,
   TaxonomyOptions
 } from './taxonomy-resolver';
@@ -412,10 +413,7 @@ export function discoverCohortVariables(
     }
 
     // QA Data Scan
-    const isManualDominant = (p.manual_stage || 0) >= (p.ai_stage || 0);
-    const qaStr = isManualDominant
-      ? (p.manual_quality_assessment || p.ai_quality_assessment || '')
-      : (p.ai_quality_assessment || p.manual_quality_assessment || '');
+    const qaStr = getStageDominantQualityAssessmentStr(p);
     if (qaStr) {
       try {
         const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
@@ -762,10 +760,7 @@ export function resolveCohortFieldValue(
 
   // 3. QA Criteria Extraction
   if (isQaPrefix || fieldKey.toLowerCase().startsWith('qa') || fieldKey === 'Overall_QA') {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const qaStr = isManualDominant 
-      ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '') 
-      : (paper.ai_quality_assessment || paper.manual_quality_assessment || '');
+    const qaStr = getStageDominantQualityAssessmentStr(paper);
 
     if (fieldKey === 'Overall_QA') {
       if (!qaStr) return excludeEmpty ? [] : ['Unspecified'];
@@ -1031,8 +1026,21 @@ export function auditCohortSafety(
       if (ms > 0 && as > ms) {
         // AI stage strictly higher than manual stage
         const dominantStr = getStageDominantExtractedDataStr(p);
-        if (dominantStr !== p.ai_extracted_data && p.ai_extracted_data) {
-          stageDominanceViolations++;
+        const aiExtStr = typeof p.ai_extracted_data === 'object' && p.ai_extracted_data !== null
+          ? JSON.stringify(p.ai_extracted_data)
+          : String(p.ai_extracted_data || '');
+        if (aiExtStr) {
+          try {
+            const parsedDom = JSON.parse(dominantStr);
+            const parsedAi = JSON.parse(aiExtStr);
+            if (JSON.stringify(parsedDom) !== JSON.stringify(parsedAi)) {
+              stageDominanceViolations++;
+            }
+          } catch {
+            if (dominantStr !== aiExtStr) {
+              stageDominanceViolations++;
+            }
+          }
         }
       }
 

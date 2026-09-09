@@ -17,7 +17,9 @@ import LlmContextBuilderModal from './LlmContextBuilderModal';
 import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
 import {
   resolveUmbrellanizerValue as centralResolveUmbrellanizerValue,
-  getUmbrellanizerJustification as centralGetUmbrellanizerJustification
+  getUmbrellanizerJustification as centralGetUmbrellanizerJustification,
+  getStageDominantExtractedDataStr,
+  getStageDominantQualityAssessmentStr
 } from '@/lib/services/taxonomy-resolver';
 import { useViewerData } from '@/context/ViewerContext';
 
@@ -144,10 +146,7 @@ export default function FinalCohortPanel() {
 
   // Parse QA Assessment helpers with stage dominance
   const parseQaAssessment = useCallback((paper: any) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const qaStr = isManualDominant 
-      ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '') 
-      : (paper.ai_quality_assessment || paper.manual_quality_assessment || '');
+    const qaStr = getStageDominantQualityAssessmentStr(paper);
 
     if (!qaStr) return { score: 0, items: {} as Record<string, string>, traces: {} as Record<string, any> };
     try {
@@ -227,10 +226,7 @@ export default function FinalCohortPanel() {
 
   // Parse Extracted Data helpers with stage dominance
   const parseExtractedData = useCallback((paper: any) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const extStr = isManualDominant 
-      ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+    const extStr = getStageDominantExtractedDataStr(paper);
 
     if (!extStr) return {};
     try {
@@ -279,10 +275,7 @@ export default function FinalCohortPanel() {
 
   // Helper to fetch original raw extracted data before umbrellanizer category mapping
   const getOriginalExtractedVal = useCallback((paper: any, key: string) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const extStr = isManualDominant 
-      ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+    const extStr = getStageDominantExtractedDataStr(paper);
 
     if (!extStr) return null;
     try {
@@ -301,10 +294,7 @@ export default function FinalCohortPanel() {
 
   // Parse Extracted Data logic traces & quotes dynamically
   const parseExtractedTraces = useCallback((paper: any) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const extStr = isManualDominant 
-      ? (paper.manual_extracted_data || paper.ai_extracted_data || '') 
-      : (paper.ai_extracted_data || paper.manual_extracted_data || '');
+    const extStr = getStageDominantExtractedDataStr(paper);
 
     if (!extStr) return { mapping: {} as Record<string, string>, evidence: {} as Record<string, string> };
     try {

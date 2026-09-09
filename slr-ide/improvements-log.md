@@ -1,3 +1,191 @@
+## #555 - Codebase Cleanup, Tree Shaking & Temporary File Purge for GitHub Release (2026-09-09)
+- **Goal**: Clean up the codebase by removing ad-hoc scratch scripts, deleting obsolete test harnesses, purging dead code and unused imports, and restoring clean configuration files in preparation for a production-ready GitHub release.
+- **Architectural Implementation & Enhancements**:
+  1. **Purge of Ad-hoc Test Scripts & Scratch Files**:
+     - Removed 31 one-off CLI test scripts in `slr-ide/scripts/` (`test-adjudication-discrepancies.mjs`, `test-archive-service.mjs`, `test-cohort-data-source.mjs`, `test-visualizer-*.mjs`, etc.) while retaining core server/build scripts (`dev.mjs`, `start.mjs`, `bump-version.js`).
+     - Removed ad-hoc untracked test scripts and font fetcher in `scripts/` (`test-adjudication-transparency.mjs`, `test-data-sourcing-parity.mjs`, `test-date-parsing.mjs`, `test-full-adjudication-export-fidelity.mjs`, `test-literature-ingestion-hub.mjs`, `test-offline-fonts.mjs`, `test-screening-ledger.mjs`, `verify-real-export-payload.mjs`, `fetch-offline-fonts.mjs`).
+     - Removed tracked legacy scratch test `scripts/test-compression.mjs`.
+  2. **Monorepo & Module `package.json` Reversion**:
+     - Reverted temporary `"test:*"` and `"test"` script commands in root `package.json`, preserving canonical build and lifecycle commands (`setup`, `mirror:viewer`, `dev:*`, `start:*`, `build:*`, `typecheck`).
+     - Removed `"test:visualizer"` script line from `slr-ide/package.json`.
+  3. **Documentation & File Registry Harmonization (`files.md`)**:
+     - Updated Section 4 of `slr-ide/files.md` to remove all deleted scratch test script entries, aligning documentation with actual disk state per `AGENTS.md` §2.4.
+     - Confirmed `slr-viewer/files.md` properly catalogs all new production components (`AdjudicationInspectionModal.tsx`, `ScreeningLedgerPanel.tsx`, `PaperInspectionModal.tsx`).
+  4. **Production Build & Verification**:
+     - Synchronized shared assets and components via `npm run mirror:viewer`.
+     - Built Next.js desktop engine cleanly with 0 errors via `npm run build:ide`.
+     - Built Vite SPA client cleanly with 0 errors via `npm run build:viewer`.
+     - Confirmed 0 TypeScript type errors with `npm run typecheck`.
+- **Files Modified**: `package.json`, `slr-ide/package.json`, `slr-ide/files.md`, `scripts/*`, `slr-ide/scripts/*`.
+- **Verification**: `npm run mirror:viewer` (complete), `npm run build:ide` (0 errors), `npm run build:viewer` (0 errors), `npm run typecheck` (0 errors).
+
+## #554 - Interactive Pre-Calibration & Post-Validation Adjudication Transparency Hub (2026-09-09)
+- **Goal**: Extend empirical research transparency in `slr-viewer` and `slr-ide` by developing new features to inspect how double-blind human pre-calibration pools (Pool A, Pool B, Pool C) and sequential post-validation rolling batches were arbitrated and adjudicated.
+- **Root Cause & Architectural Scope**:
+  1. Previously, `slr-viewer` presented summary reliability coefficients (Cohen's Kappa, Weighted Kappa, Precision) and sequential stopping charts, but lacked paper-level and criteria-level visibility into how human reviewer discrepancies were arbitrated into the ground truth consensus.
+  2. The SQLite database contained complete records in `reviewer_decisions`, `calibration_commit_ledger`, `rolling_batch_reviewer_decisions`, and `rolling_batch_commit_ledger`, but this fine-grained adjudication trail was not exposed in the client viewer interface.
+- **Architectural Implementation & Enhancements**:
+  1. **Exporter & Calculation Route Upgrades (`export/slr-viewer/route.ts` & `adjudicate/stats/route.ts`)**:
+     - Updated `computePoolABStats` and `computePoolCStats` to return `resolved_decision`, `resolved_ec`, `resolved_rationale`, `resolved_qa_scores`, and `resolved_extracted_data` on discrepancies, plus an `all_papers` array.
+     - Scoped and attached full `calibration_commit_ledger` strictly filtered by `(project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))` to each pool and the top-level stats object.
+     - Enhanced `rolling_batch_qc` in export payload to bundle complete `rolling_batch_papers`, `rolling_batch_reviewer_decisions`, and `rolling_batch_commit_ledger` with paired reviewer models.
+  2. **Interactive Pre-Calibration Adjudication Hub (`BlindedAdjudicationPanel.tsx`)**:
+     - Upgraded the Blinded Review panel with an interactive Adjudication Explorer with pool tabs (Pool A, Pool B, Pool C).
+     - Sub-tab switching between **Cohort & Discrepancies** and the **Cryptographically Signed Calibration Ledger**.
+     - Dual-mode filtering ("Conflicts Only" vs "All Paired Papers") and instant text search by Paper ID, Title, DOI, and Authors.
+     - Color-coded decision badges and rationales for Reviewer Alpha vs Reviewer Beta vs Adjudicated Consensus.
+  3. **Interactive Rolling Batch Adjudication Explorer (`RollingBatchPanel.tsx`)**:
+     - Added micro-batch exploration underneath Wald/Fleiss-Cohen sequential estimation metrics.
+     - Batch selector pills with live paper and decision pairing for all 20 sampled papers per batch.
+     - Sub-tab switching between **Sampled Papers & Discrepancies** and **Batch Ledger**.
+  4. **Deep Side-by-Side Adjudication Inspection Modal (`AdjudicationInspectionModal.tsx`)**:
+     - Shared dual-pane modal supporting Pool A, Pool B, Pool C, and Rolling Batches.
+     - Left pane: Bibliographic metadata, publication year, authors, DOI/PDF links, full abstract, and signed commit stamp.
+     - Right pane: Side-by-side Alpha vs Beta vs Consensus evaluation; criteria breakdown with evidence quotes for QA1–QA8 (Scientist) and entity extraction with evidence quotes for RQ1–RQ9 (Miner).
+     - Keyboard navigation (Left/Right arrows for item cycling, Escape to close) and signed consensus commit footer.
+  5. **Pure Calculator & Mirror Pipeline (`scripts/mirror-to-viewer.mjs` & `adjudication-calculations.ts`)**:
+     - Registered `adjudication-calculations.ts` and `AdjudicationInspectionModal.tsx` in `scripts/mirror-to-viewer.mjs`.
+     - Upgraded `renderPoolCReviewerSummary` to accept both raw serialized JSON strings and parsed object payloads.
+- **Files Modified**: `slr-ide/src/app/api/adjudicate/stats/route.ts`, `slr-ide/src/app/api/export/slr-viewer/route.ts`, `slr-ide/src/components/features/pre-calibration/BlindedAdjudicationPanel.tsx`, `slr-ide/src/components/features/pre-calibration/AdjudicationInspectionModal.tsx`, `slr-ide/src/lib/inter-rater/adjudication-calculations.ts`, `slr-ide/src/types/index.ts`, `slr-viewer/src/components/scientific-rigor/BlindedAdjudicationPanel.tsx`, `slr-viewer/src/components/scientific-rigor/RollingBatchPanel.tsx`, `slr-viewer/src/components/scientific-rigor/ScientificRigorPanel.tsx`, `slr-viewer/src/components/scientific-rigor/AdjudicationInspectionModal.tsx`, `scripts/mirror-to-viewer.mjs`.
+- **Verification**: `npm test` (all 4 test suites passed), `tsc -p slr-ide/tsconfig.json --noEmit` (0 errors), `npm --prefix slr-viewer run typecheck` (0 errors), `npm --prefix slr-viewer run build` (successful build, v1.1.22).
+
+## #553 - Tailwind CSS v4 Class-Based Dark Mode Fix & Maximum Contrast Overhaul (2026-09-09)
+- **Goal**: Fix root cause of broken font colors where dark-mode pastel text colors (`dark:text-amber-100`, `dark:text-emerald-200`, `dark:text-amber-400`) were rendered on top of white/light card backgrounds in `slr-viewer`, causing light yellow and light green text on white backgrounds.
+- **Root Cause**:
+  1. In Tailwind CSS v4, the `dark:` variant defaults to `@media (prefers-color-scheme: dark)`. If an application toggles dark mode via a CSS class (`.dark`) on the root document element, Tailwind v4 requires the explicit declaration `@custom-variant dark (&:where(.dark, .dark *));`.
+  2. Because this directive was absent in `slr-viewer/src/index.css`, whenever a user or developer has Dark Mode enabled in their operating system (e.g., Windows 10/11 Dark theme), the browser matches `@media (prefers-color-scheme: dark)`. All `dark:*` text classes were applied directly onto light-theme white cards, making text virtually unreadable.
+- **Architectural Implementation & Enhancements**:
+  1. **Tailwind CSS v4 Custom Variant Isolation (`slr-viewer/src/index.css`)**:
+     - Added `@custom-variant dark (&:where(.dark, .dark *));` directly after `@import "tailwindcss";`.
+     - Verified compiled CSS: all `dark:*` selectors now compile to `:where(.dark, .dark *)` and only trigger when `.dark` is actually present on `<html>`.
+  2. **100% Opaque High-Contrast Color Palette (`PaperInspectionModal.tsx` & `ScreeningLedgerPanel.tsx`)**:
+     - Replaced semi-transparent opacity slashes (`text-emerald-800/80`, `text-amber-800/80`) with 100% opaque, deep colors: `text-emerald-950 dark:text-emerald-200` (Passed), `text-amber-950 dark:text-amber-200` (Inaccessible), and `text-rose-950 dark:text-rose-200` (Excluded).
+     - Upgraded PRISMA Phase 2b Callout banner to bold high-contrast text (`text-amber-900 dark:text-amber-300` header, `text-amber-950 dark:text-amber-100` body).
+     - Upgraded Decision Badges and Local PDF Status badges to deep opaque tokens (`text-amber-900 dark:text-amber-300`, `text-emerald-900 dark:text-emerald-300`, `text-rose-800 dark:text-rose-300`).
+- **Files Modified**: `slr-viewer/src/index.css`, `slr-viewer/src/components/screening-ledger/PaperInspectionModal.tsx`, `slr-viewer/src/components/screening-ledger/ScreeningLedgerPanel.tsx`, `slr-viewer/improvements-log.md`, `improvements.md`, `slr-ide/improvements-log.md`.
+- **Verification**: Built CSS verified, all 5 test suites passed (`npm test`), production bundle compiled cleanly (`vite build`, v1.1.21).
+
+## #552 - High-Contrast Theme-Adaptive Typography & UI Coloring (Light & Dark Theme Parity) (2026-09-09)
+- **Goal**: Eliminate low-contrast, washed-out typography and unreadable UI elements in light and dark themes across `slr-viewer`, specifically addressing washed-out pink text reported in the Triggered Exclusion Criterion card and trajectory stepper, ensuring WCAG AA compliant contrast ratios across both modes.
+- **Root Cause**:
+  1. Tailwind 200/300-level text colors (`text-rose-200`, `text-rose-300`, `text-amber-200`) were authored for dark themes and exhibited severely deficient contrast ratios (< 1.5:1) against light theme backgrounds (`#ffffff` and `#f8fafc`).
+  2. Skipped/unreached trajectory steps used `opacity-60`, generating a washed-out, fuzzy visual presentation.
+- **Architectural Implementation & Enhancements**:
+  1. **Theme-Adaptive High-Contrast Paired Palettes (`PaperInspectionModal.tsx`)**:
+     - Upgraded Triggered Exclusion Criterion card to `text-rose-950 dark:text-rose-100 font-semibold` (10.5:1 light mode, 11:1 dark mode) on `bg-rose-500/10 dark:bg-rose-500/15` with `border-2 border-rose-500/30 dark:border-rose-500/40`.
+     - Upgraded Exclusion Code Badge to `text-rose-800 dark:text-rose-200 bg-rose-500/20 font-black`.
+     - Overhauled 5-step Trajectory Stepper with theme-paired text, titles, descriptions, and status tags (`rose-950/rose-100` Excluded, `emerald-950/emerald-100` Passed, `amber-950/amber-100` Inaccessible). Removed `opacity-60` haze from skipped cards.
+     - Upgraded PRISMA Phase 2b and Phase 1 warning banners (`amber-950/amber-100` and `orange-950/orange-100`) with bold headers and high-contrast bodies.
+     - Upgraded decision badges, AI rationales, manual human evaluation cards, and audit history logs with high-contrast font hierarchies and selectable text.
+  2. **Screening Ledger KPI Cards & Table Polish (`ScreeningLedgerPanel.tsx`)**:
+     - Upgraded KPI summary buttons with dual-theme paired tokens (`text-*-700 dark:text-*-400`).
+     - Fixed legacy snapshot banner to `text-amber-900 dark:text-amber-300`.
+     - Formatted table cells with monospace IDs, bold titles, medium authors, and bold monospace years.
+  3. **Verification**:
+     - Executed all 5 automated test suites (`test:fonts`, `test:date`, `test:parity`, `test:ledger`, `test:visualizer`) - all 22/22 ledger and 42/42 visualizer tests passing.
+     - Verified clean production build (`vite build` in `slr-viewer`).
+- **Files Modified**: `slr-viewer/src/components/screening-ledger/PaperInspectionModal.tsx`, `slr-viewer/src/components/screening-ledger/ScreeningLedgerPanel.tsx`, `slr-viewer/improvements-log.md`, `improvements.md`, `slr-ide/improvements-log.md`.
+- **Verification**: `npm test` passed, `npm --prefix slr-viewer run build` passed cleanly.
+
+## #551 - Strict PRISMA 2020 Stage Parity & Full-Text Retrieval Gate Audit (2026-09-08)
+- **Goal**: Resolve discrepancy between SQLite raw `ai_decision = 'INCLUDE'` counts (82 papers) and PRISMA Flow Diagram Final Included Cohort (46 papers), ensuring the exported `.slr-viewer` dataset and Screening Ledger display exact stage-grouped figures reflecting the PRISMA 2020 methodology.
+- **Root Cause & Mathematical Model**:
+  1. 82 papers in the database possessed `ai_decision = 'INCLUDE'`. However, 36 of those papers passed Stage 1 Fast Filter but failed full-text PDF acquisition (`Local_PDF_Status === 'INACCESSIBLE'`). In PRISMA 2020, these correspond to Phase 2b (*Reports Not Retrieved*). They were never screened in Stage 2 Gatekeeper and must not be counted in the Final Included Cohort.
+  2. 1 duplicate record in the project also had `ai_stage = 1, ai_decision = 'EXCLUDE'`. Counting it as a Stage 1 exclusion caused Stage 1 exclusions to show 938 instead of 937. Deduplication in PRISMA 2020 is strictly a pre-screening operation, so all 8 duplicates are partitioned before screening begins.
+  3. The exact mathematical partition across all 1,803 ingested papers is:
+     $$\text{Total Ingested } (1,803) = \text{Duplicates } (8) + \text{S1 Excluded } (937) + \text{Inaccessible PDF } (36) + \text{S2 Excluded } (774) + \text{S3 Excluded } (2) + \text{Final Included } (46)$$
+     $$\text{Total Excluded Papers } (937 + 774 + 2) = 1,713$$
+- **Architectural Implementation & Enhancements**:
+  1. **Deterministic PRISMA Phase Resolution (`/api/export/slr-viewer/route.ts`)**:
+     - Added computed `prisma_phase` attribute to every exported paper in `screened_corpus.papers` with mutually exclusive values: `DUPLICATE_REMOVED`, `STAGE_1_EXCLUDED`, `RETRIEVAL_INACCESSIBLE`, `STAGE_2_EXCLUDED`, `STAGE_3_EXCLUDED`, `FINAL_INCLUDED`, `UNSCREENED`.
+     - Added top-level `prisma_summary` object inside `screened_corpus` containing counts for each phase to allow instant integrity verification.
+  2. **TypeScript Interface Synchronization (`slr-ide/src/types/index.ts`, `slr-viewer/src/types/index.ts`)**:
+     - Added `prisma_phase?: string` to `ScreenedCorpusPaper`.
+     - Added `prisma_summary?: Record<string, number>` to `ScreenedCorpus`.
+  3. **Automated Verification Suite (`scripts/test-screening-ledger.mjs`)**:
+     - Expanded test suite with 8 PRISMA assertions verifying exact Stage 1 exclusions (937), Inaccessible PDF reports (36), Stage 2 exclusions (774), Stage 3 exclusions (2), Final Cohort (46), Duplicates (8), total non-duplicate exclusions (1,713), and exact 1,803 sum parity.
+- **Files Modified**: `slr-ide/src/app/api/export/slr-viewer/route.ts`, `slr-ide/src/types/index.ts`, `scripts/test-screening-ledger.mjs`, `slr-ide/improvements-log.md`.
+- **Verification**: `npm run test:ledger` passed (22/22 tests passed), `npm test` passed (all 5 suites passed), `npx tsc -p slr-ide/tsconfig.json --noEmit` passed (0 errors).
+
+## #550 - Full Screened Corpus Transparency Export & Screening Ledger Suite (2026-09-08)
+- **Goal**: Enable extensive transparency in exported `.slr-viewer` snapshot bundles by exporting all input papers (the complete screened literature corpus, e.g. 1,803 papers) with their stage-dominant screening decisions, exclusion triggers, multi-stage LLM screening histories, and reviewer rationales, providing researchers, auditors, and readers with full auditing capabilities.
+- **Architectural Implementation & Enhancements**:
+  1. **Full Screened Corpus Query & Schema v1.3.0 (`/api/export/slr-viewer`)**:
+     - Upgraded export route to query all project papers using type-agnostic project scoping `(p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))`. Used `p.*` with correlated `Parent_Paper_Title` resolution, resolving `SqliteError: no such column: p.created_at` on the `papers` table by mapping `created_at: paper.created_at || paper.Import_Date || null`.
+     - Queried and grouped all records from `llm_screening_records` to construct multi-stage audit histories (`screening_history`) with stage number, task type, decision, exclusion code, rationale, tokens, latency, cost, and model ID.
+     - Resolved effective stage and decision per paper strictly adhering to `AGENTS.md` §3.6 stage-dominance (`MAX(manual_stage, ai_stage)`) and human tie-breaking rules.
+     - Packaged new top-level object `screened_corpus: { papers: allScreenedPapers, total_count: allScreenedPapers.length }` and bumped schema version to `1.3.0`.
+  2. **Type System Synchronization**:
+     - Defined `ScreeningHistoryRecord`, `ScreenedCorpusPaper`, and `ScreenedCorpus` interfaces in `slr-ide/src/types/index.ts`.
+     - Synchronized interfaces to `slr-viewer/src/types/index.ts` via automated mirroring pipeline (`scripts/mirror-to-viewer.mjs`).
+  3. **Automated Verification Suite (`scripts/test-screening-ledger.mjs`)**:
+     - Created comprehensive test suite verifying database extraction of all 1,803 project papers (938 Stage 1 Fast Filter exclusions, 774 Stage 2 Gatekeeper exclusions, 2 Stage 3 Scientist exclusions, 46 Final Included, and 8 duplicates), 2,712 screening audit records, exact `rawAllPapers` query execution without SQLite column errors, and backwards-compatible schema parsing.
+     - Wired `test:ledger` into root `package.json` (`npm test`).
+- **Files Modified/Created**: `slr-ide/src/app/api/export/slr-viewer/route.ts`, `slr-ide/src/types/index.ts`, `scripts/test-screening-ledger.mjs`, `package.json`, `slr-ide/files.md`, `slr-ide/improvements-log.md`, `slr-viewer/improvements-log.md`, `improvements.md`.
+- **Verification**: Executed `npm run test:ledger` (18/18 tests passed), `npm test` (all 5 test suites passed), `npx tsc --noEmit` in `slr-ide` (0 errors), and `npm --prefix slr-viewer run build` (clean Vite bundle).
+
+## #549 - Fix Accounting Top Expensive API Calls "Invalid Date" Timestamp Parsing (2026-09-08)
+- **Goal**: Fix critical display bug in the Accounting panel ("Top Expensive API Calls" table) where the `TIMESTAMP` column rendered `"Invalid Date"` across all rows in `slr-viewer`.
+- **Root Cause**:
+  1. In snapshot exports (`/api/export/slr-viewer`), `expensiveCalls` records aliased the date column as `created_at AS timestamp`, omitting the `created_at` key from the outer SQL SELECT.
+  2. In `AccountingPanel.tsx`, table rows evaluated `{new Date(call.created_at).toLocaleString()}`, which resolved to `new Date(undefined)` and rendered `"Invalid Date"`.
+  3. Furthermore, SQLite timestamps from `umbrellanizer_results` exist in `'YYYY-MM-DD HH:MM:SS'` format (space instead of 'T'), which causes inconsistent or invalid parsing across diverse browser runtimes.
+- **Architectural Implementation & Enhancements**:
+  1. **Resilient Timestamp Helper Suite (`AccountingPanel.tsx`)**:
+     - Implemented `parseTimestampToMs(dateVal)`: safely parses ISO-8601 strings, SQLite space-delimited datetime strings (converts space to `'T'` and appends timezone `'Z'`), and numeric/epoch timestamps to milliseconds.
+     - Implemented `formatTimestampSafe(dateVal)`: formats dates gracefully with cross-browser compatibility, falling back to clean string representations rather than ever displaying `"Invalid Date"`.
+  2. **Isomorphic Attribute Resolution**:
+     - Normalized call objects upon state ingestion in `useEffect` and `fetchData()`: `created_at: c.created_at || c.timestamp || c.time || c.date || ''`.
+     - Updated table cell rendering to evaluate `{formatTimestampSafe(call.created_at || call.timestamp)}`.
+     - Updated sort logic to compare `parseTimestampToMs(a.created_at || a.timestamp)` against `parseTimestampToMs(b.created_at || b.timestamp)`.
+  3. **SQL Query Export Parity (`/api/export/slr-viewer`)**:
+     - Updated SQL SELECT in `route.ts` to project both `created_at` AND `created_at AS timestamp`, guaranteeing full backwards and forwards compatibility.
+  4. **Automated Verification**:
+     - Created standalone test suite `scripts/test-date-parsing.mjs` verifying parsing, sorting, snapshot call formatting, and code inspection.
+     - Wired `test:date` into root `package.json` (`npm test`).
+- **Files Modified**: `slr-ide/src/components/features/insight-export/AccountingPanel.tsx`, `slr-viewer/src/components/accounting/AccountingPanel.tsx`, `slr-ide/src/app/api/export/slr-viewer/route.ts`, `slr-viewer/src/components/scientific-rigor/RollingBatchPanel.tsx`, `scripts/test-date-parsing.mjs`, `package.json`, `slr-ide/improvements-log.md`, `slr-viewer/improvements-log.md`, `improvements.md`.
+- **Verification**: `npm run test:date` passed (100% valid formatted dates, 0 "Invalid Date"), `npm test` passed (all 4 suites passed), `npm run build:all` passed cleanly (Next.js + Vite).
+
+## #548 - Self-Hosted 100% Offline Publication Font Suite & Zero CDN Network Leakage (2026-09-08)
+- **Goal**: Implement a 100% self-hosted, offline-first publication font suite across `slr-ide` and `slr-viewer`, eliminating external Google Fonts CDN network calls (`@import url('https://fonts.googleapis.com/...')`), fulfilling FAIR data principles and airgapped deployment guarantees, and ensuring pixel-perfect academic typography parity for Overleaf/LaTeX, Elsevier, IEEE, ACM, Springer, and Nature across Canvas, SVG, and PDF exports.
+- **Architectural Implementation & Enhancements**:
+  1. **Self-Hosted WOFF2 Publication Assets (`public/fonts/`)**:
+     - Bundled 20 production-optimized `.woff2` font files under `slr-ide/public/fonts/`:
+       - `Computer Modern` / `CMU Serif` (400, 500, 700 roman & italic) — Standard for LaTeX & IEEE Transactions.
+       - `STIX Two Text` (400, 700 normal & italic) — Official scientific publishing typeface for AIP, APS, IEEE, and Springer Nature.
+       - `Carlito` (400, 700 normal & italic) — Google's metric-compatible drop-in replacement for Microsoft Calibri (Elsevier).
+       - `EB Garamond` (400, 700 normal & italic) — Classical academic monograph serif for reviews & humanities.
+       - `Roboto` (400, 500, 700 normal & 400 italic) — Technical sans-serif for biomedical & Nature publishing.
+  2. **Automated Monorepo Mirroring Pipeline (`scripts/mirror-to-viewer.mjs`)**:
+     - Added Step 6 to `scripts/mirror-to-viewer.mjs` automatically synchronizing `slr-ide/public/fonts` to `slr-viewer/public/fonts` during `predev` and `prebuild` hooks.
+  3. **Zero CDN Network Leakage & Local `@font-face` Declarations**:
+     - Removed external `@import url('https://fonts.googleapis.com/css2?...')` from `slr-ide/src/app/globals.css`.
+     - Wired comprehensive local `@font-face` blocks with `font-display: swap` in both `slr-ide/src/app/globals.css` and `slr-viewer/src/index.css`.
+  4. **Automated Quality & Airgap Verification (`scripts/test-offline-fonts.mjs`)**:
+     - Built test suite verifying asset existence, file integrity (>1KB), 100% zero HTTP/HTTPS CDN URL leakage in CSS, `@font-face` coverage, and disk path resolution.
+     - Wired `test:fonts` into root `package.json` scripts (`npm test`).
+- **Files Modified/Created**: `slr-ide/public/fonts/*.woff2`, `slr-ide/src/app/globals.css`, `slr-viewer/src/index.css`, `scripts/mirror-to-viewer.mjs`, `scripts/test-offline-fonts.mjs`, `package.json`, `slr-ide/files.md`, `slr-viewer/files.md`, `slr-ide/improvements-log.md`, `slr-viewer/improvements-log.md`, `improvements.md`.
+- **Verification**: `node scripts/test-offline-fonts.mjs` passed (all 20 assets verified, 0 CDN leakage), `npm test` passed (all test suites passing), `npm run build:all` passed cleanly (Next.js + Vite).
+
+## #547 - Fix Visualizer Studio Data Sourcing & Isomorphic Taxonomy Resolution Across Bundled Datasets (2026-09-08)
+- **Goal**: Fix critical data sourcing defect where Visualizer Studio charts (Sankey Flow Diagram, Sunburst, Treemap, Clustered Bar, Radar, Cross-Tab Matrix) collapsed all 46 papers into `Unspecified (~100%)` when loading exported `.slr-viewer` snapshot bundles.
+- **Root Cause**: In `.slr-viewer` snapshot bundles exported by `/api/export/slr-viewer`, `ai_extracted_data` and `ai_quality_assessment` are serialized as parsed JavaScript objects rather than raw SQLite JSON strings. The string-only type guard in `getStageDominantExtractedDataStr` (`typeof str === 'string'`) rejected objects, returning empty string `""` and bypassing field extraction.
+- **Architectural Implementation & Enhancements**:
+  1. **Isomorphic Multi-Type Inspector (`taxonomy-resolver.ts`)**:
+     - Built `isNonEmptyPayload(val, innerKey)` in `taxonomy-resolver.ts` to inspect both raw JSON strings and parsed JavaScript objects with deep content validation (`Object.keys().length > 0`, non-empty inner `extracted_data` or `qa_scores`).
+     - Upgraded `getStageDominantExtractedDataStr(paper)` to safely resolve either format and serialize objects via `JSON.stringify(chosen)`, guaranteeing a 100% valid JSON string output for all downstream consumers.
+     - Added `getStageDominantQualityAssessmentStr(paper)` providing symmetrical, stage-dominant QA score resolution for both string and object formats.
+  2. **Stage Dominance & Centralized Protocol Alignment (`AGENTS.md` §3.6 & §3.10)**:
+     - Replaced duplicate islanded local parsing fallbacks in `LlmContextBuilderModal.tsx` and `FinalCohortPanel.tsx` by importing and calling centralized `getStageDominantExtractedDataStr` and `getStageDominantQualityAssessmentStr`.
+     - Preserved strict stage-aware dominance (`MAX(manual_stage, ai_stage)`) and tie-breaking (`manual_stage >= ai_stage`).
+  3. **Safety Audit False-Positive Prevention (`cohort-data-source.ts`)**:
+     - Normalized object and string representations in `validateCohortDataIntegrity` before equality assertions, eliminating false-positive stage dominance violation flags on bundled datasets.
+  4. **Automated Verification**:
+     - Created standalone parity test suite `scripts/test-data-sourcing-parity.mjs` verifying string/object parity, stage dominance overrides, variable discovery, field resolution, and 0% "Unspecified" guarantee in Sankey flows (13/13 tests passing).
+     - Executed all 42 visualizer anti-regression unit tests (`node slr-ide/scripts/test-visualizer-anti-regression.mjs`) with 0 errors.
+- **Files Modified/Created**: `slr-ide/src/types/index.ts`, `slr-ide/src/lib/services/taxonomy-resolver.ts`, `slr-ide/src/lib/services/cohort-data-source.ts`, `slr-ide/src/components/features/modals/LlmContextBuilderModal.tsx`, `slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx`, `slr-ide/src/components/features/modals/paper-details/ScreeningSummaryPanel.tsx`, `slr-viewer/src/components/final-cohort/FinalCohortPanel.tsx`, `scripts/test-data-sourcing-parity.mjs`, `scripts/mirror-to-viewer.mjs`, `slr-ide/files.md`, `slr-viewer/files.md`, `slr-ide/improvements-log.md`, `slr-viewer/improvements-log.md`, `improvements.md`.
+- **Verification**: Standalone parity test suite passed (13/13 tests), anti-regression suite passed (42/42 tests), `npx tsc --noEmit` passed (0 errors), `npm --prefix slr-viewer run build` passed.
+
 ## #546 - Reference Syncer: One-Click Synchronized LaTeX Text Viewer & Instant Clipboard Copy (2026-09-08)
 - **Goal**: Add publication-grade viewing and instant clipboard copying options for synchronized `.tex` files in Reference Syncer (`slr-ide`), allowing researchers to inspect full synchronized LaTeX manuscripts with line numbers and copy code directly into Overleaf, VS Code, or TeXstudio without downloading files to disk.
 - **Architectural Implementation & Enhancements**:

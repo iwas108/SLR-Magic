@@ -199,7 +199,7 @@ export function getUmbrellanizerJustification(
     const extStr = getStageDominantExtractedDataStr(paper);
     if (extStr) {
       try {
-        const parsed = JSON.parse(extStr);
+        const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
         const extObj = parsed.extracted_data || parsed;
         rawVal = extObj[realKey];
         if (rawVal && typeof rawVal === 'object' && 'value' in rawVal) {
@@ -248,22 +248,92 @@ export function getUmbrellanizerJustification(
 }
 
 /**
+ * Checks whether an extracted data or quality assessment payload (either JSON string or parsed object) is non-empty.
+ */
+function isNonEmptyPayload(val: any, innerKey?: string): boolean {
+  if (val === null || val === undefined) return false;
+  if (typeof val === 'number') return !isNaN(val);
+  if (typeof val === 'boolean') return true;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed || trimmed === '{}' || trimmed === '[]' || trimmed === 'null' || trimmed === 'undefined') {
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'object' && parsed !== null) {
+        if (Array.isArray(parsed)) return parsed.length > 0;
+        if (innerKey && parsed[innerKey]) {
+          const inner = parsed[innerKey];
+          return typeof inner === 'object' && inner !== null ? Object.keys(inner).length > 0 : Boolean(inner);
+        }
+        return Object.keys(parsed).length > 0;
+      }
+      if (typeof parsed === 'number') return !isNaN(parsed);
+      return Boolean(parsed);
+    } catch {
+      return true;
+    }
+  }
+  if (typeof val === 'object') {
+    if (Array.isArray(val)) return val.length > 0;
+    if (innerKey && val[innerKey]) {
+      const inner = val[innerKey];
+      return typeof inner === 'object' && inner !== null ? Object.keys(inner).length > 0 : Boolean(inner);
+    }
+    return Object.keys(val).length > 0;
+  }
+  return false;
+}
+
+/**
  * Resolves the stage-dominant extracted_data JSON string from a paper record.
+ * Handles both raw JSON strings (from SQLite) and parsed JavaScript objects (from exported bundles).
+ * Strictly enforces stage dominance (MAX(manual_stage, ai_stage)) and tie-breaking per AGENTS.md §3.6.
  */
 export function getStageDominantExtractedDataStr(paper: any): string {
   if (!paper) return '';
-  const isNonEmpty = (str: any) => typeof str === 'string' && str.trim() !== '' && str.trim() !== '{}' && str.trim() !== '[]' && str.trim() !== 'null';
-  const hasManual = isNonEmpty(paper.manual_extracted_data);
-  const hasAi = isNonEmpty(paper.ai_extracted_data);
+  const hasManual = isNonEmptyPayload(paper.manual_extracted_data, 'extracted_data');
+  const hasAi = isNonEmptyPayload(paper.ai_extracted_data, 'extracted_data');
 
+  let chosen: any = null;
   if (hasManual && hasAi) {
     const ms = Number(paper.manual_stage || 0);
     const as = Number(paper.ai_stage || 0);
-    return ms >= as ? paper.manual_extracted_data : paper.ai_extracted_data;
+    chosen = ms >= as ? paper.manual_extracted_data : paper.ai_extracted_data;
+  } else if (hasManual) {
+    chosen = paper.manual_extracted_data;
+  } else if (hasAi) {
+    chosen = paper.ai_extracted_data;
   }
-  if (hasManual) return paper.manual_extracted_data;
-  if (hasAi) return paper.ai_extracted_data;
-  return '';
+
+  if (!chosen) return '';
+  return typeof chosen === 'object' ? JSON.stringify(chosen) : String(chosen);
+}
+
+/**
+ * Resolves the stage-dominant quality_assessment JSON string from a paper record.
+ * Handles both raw JSON strings (from SQLite) and parsed JavaScript objects (from exported bundles).
+ * Strictly enforces stage dominance (MAX(manual_stage, ai_stage)) and tie-breaking per AGENTS.md §3.6.
+ */
+export function getStageDominantQualityAssessmentStr(paper: any): string {
+  if (!paper) return '';
+  const hasManual = isNonEmptyPayload(paper.manual_quality_assessment, 'qa_scores');
+  const hasAi = isNonEmptyPayload(paper.ai_quality_assessment, 'qa_scores');
+
+  let chosen: any = null;
+  if (hasManual && hasAi) {
+    const ms = Number(paper.manual_stage || 0);
+    const as = Number(paper.ai_stage || 0);
+    chosen = ms >= as ? paper.manual_quality_assessment : paper.ai_quality_assessment;
+  } else if (hasManual) {
+    chosen = paper.manual_quality_assessment;
+  } else if (hasAi) {
+    chosen = paper.ai_quality_assessment;
+  }
+
+  if (!chosen) return '';
+  return typeof chosen === 'object' ? JSON.stringify(chosen) : String(chosen);
 }
 
 /**
@@ -390,10 +460,7 @@ export function extractPaperFieldValues(
     const pub = safeString(paper.Publisher || paper.Original_Publisher || '');
     return pub ? [pub] : (excludeEmpty ? [] : ['Unspecified']);
   } else if (fieldKey === 'Overall_QA') {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const qaStr = isManualDominant 
-      ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '') 
-      : (paper.ai_quality_assessment || paper.manual_quality_assessment || '');
+    const qaStr = getStageDominantQualityAssessmentStr(paper);
     if (!qaStr) return excludeEmpty ? [] : ['Unspecified'];
     try {
       const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;

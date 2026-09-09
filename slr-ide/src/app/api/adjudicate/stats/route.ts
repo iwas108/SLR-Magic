@@ -66,6 +66,9 @@ export function computePoolABStats(activeProjectId: string, pool: 'pool_a' | 'po
            p.Source as source,
            p.PDF_Link as pdf_link,
            p.Publisher as publisher,
+           p.manual_decision as resolved_decision,
+           p.manual_exclusion_code as resolved_ec,
+           p.manual_rationale as resolved_rationale,
            MAX(CASE WHEN rd.reviewer_name = ? THEN rd.decision END) as r1_decision,
            MAX(CASE WHEN rd.reviewer_name = ? THEN rd.decision END) as r2_decision,
            MAX(CASE WHEN rd.reviewer_name = ? THEN rd.rationale END) as r1_rationale,
@@ -140,10 +143,37 @@ export function computePoolABStats(activeProjectId: string, pool: 'pool_a' | 'po
         r2_rationale: row.r2_rationale,
         r1_ec: row.r1_ec,
         r2_ec: row.r2_ec,
+        resolved_decision: row.resolved_decision || null,
+        resolved_ec: row.resolved_ec || null,
+        resolved_rationale: row.resolved_rationale || null,
         is_resolved: resolvedPaperIds.has(row.paper_id)
       });
     }
   }
+
+  // Map all paired papers in this pool for full auditing transparency
+  const all_papers = pairedDecisions.map(row => ({
+    paper_id: row.paper_id,
+    title: row.title,
+    abstract: row.abstract,
+    local_pdf_path: row.local_pdf_path,
+    authors: row.authors,
+    year: row.year,
+    doi: row.doi,
+    source: row.source,
+    pdf_link: row.pdf_link,
+    publisher: row.publisher,
+    r1_decision: row.r1_decision,
+    r2_decision: row.r2_decision,
+    r1_rationale: row.r1_rationale,
+    r2_rationale: row.r2_rationale,
+    r1_ec: row.r1_ec,
+    r2_ec: row.r2_ec,
+    resolved_decision: row.resolved_decision || null,
+    resolved_ec: row.resolved_ec || null,
+    resolved_rationale: row.resolved_rationale || null,
+    is_resolved: resolvedPaperIds.has(row.paper_id)
+  }));
 
   // Cohen's Kappa
   const kappaMetrics = calculateCohensKappa(total_intersection, agree_include, agree_exclude, r1_inc_r2_exc, r1_exc_r2_inc);
@@ -193,7 +223,8 @@ export function computePoolABStats(activeProjectId: string, pool: 'pool_a' | 'po
     pending_discrepancies,
     resolution_pct,
     passes,
-    discrepancies
+    discrepancies,
+    all_papers
   };
 }
 
@@ -268,6 +299,11 @@ export function computePoolCStats(activeProjectId: string) {
            p.Source as source,
            p.PDF_Link as pdf_link,
            p.Publisher as publisher,
+           p.manual_decision as resolved_decision,
+           p.manual_exclusion_code as resolved_ec,
+           p.manual_rationale as resolved_rationale,
+           p.manual_quality_assessment as resolved_qa_scores,
+           p.manual_extracted_data as resolved_extracted_data,
            MAX(CASE WHEN rd.reviewer_name = ? THEN rd.qa_scores END) as r1_qa_scores,
            MAX(CASE WHEN rd.reviewer_name = ? THEN rd.qa_scores END) as r2_qa_scores,
            MAX(CASE WHEN rd.reviewer_name = ? THEN rd.extracted_data END) as r1_extracted_data,
@@ -422,10 +458,39 @@ export function computePoolCStats(activeProjectId: string) {
         r2_qa_scores: row.r2_qa_scores,
         r1_extracted_data: row.r1_extracted_data,
         r2_extracted_data: row.r2_extracted_data,
+        resolved_decision: row.resolved_decision || null,
+        resolved_ec: row.resolved_ec || null,
+        resolved_rationale: row.resolved_rationale || null,
+        resolved_qa_scores: row.resolved_qa_scores || null,
+        resolved_extracted_data: row.resolved_extracted_data || null,
         is_resolved: resolvedPaperIds.has(row.paper_id)
       });
     }
   }
+
+  // Map all paired papers in Pool C for complete auditing transparency
+  const all_papers = pairedDecisions.map(row => ({
+    paper_id: row.paper_id,
+    title: row.title,
+    abstract: row.abstract,
+    local_pdf_path: row.local_pdf_path,
+    authors: row.authors,
+    year: row.year,
+    doi: row.doi,
+    source: row.source,
+    pdf_link: row.pdf_link,
+    publisher: row.publisher,
+    r1_qa_scores: row.r1_qa_scores,
+    r2_qa_scores: row.r2_qa_scores,
+    r1_extracted_data: row.r1_extracted_data,
+    r2_extracted_data: row.r2_extracted_data,
+    resolved_decision: row.resolved_decision || null,
+    resolved_ec: row.resolved_ec || null,
+    resolved_rationale: row.resolved_rationale || null,
+    resolved_qa_scores: row.resolved_qa_scores || null,
+    resolved_extracted_data: row.resolved_extracted_data || null,
+    is_resolved: resolvedPaperIds.has(row.paper_id)
+  }));
 
   const kappaMetrics = calculateWeightedKappa(O, totalRatings);
   const schemaMetrics = calculateSchemaExactness(total_intersection, extractionRules.length, missingKeysCount, typeMatchesCount);
@@ -461,7 +526,8 @@ export function computePoolCStats(activeProjectId: string) {
     pending_discrepancies,
     resolution_pct,
     passes,
-    discrepancies
+    discrepancies,
+    all_papers
   };
 }
 

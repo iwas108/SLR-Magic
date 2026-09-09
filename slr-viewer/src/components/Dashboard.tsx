@@ -286,7 +286,14 @@ export default function Dashboard({ onSelectSession, onImportClick }: DashboardP
 
                   <div className="flex items-center gap-2">
                     <BarChart2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                    <span><strong>{session.paperCount}</strong> Final Cohort Papers</span>
+                    <span>
+                      <strong>{session.paperCount}</strong> Final Cohort
+                      {session.totalCorpusCount && session.totalCorpusCount > session.paperCount ? (
+                        <span className="text-muted-foreground font-normal"> ({session.totalCorpusCount.toLocaleString()} Screened)</span>
+                      ) : (
+                        <span> Papers</span>
+                      )}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">

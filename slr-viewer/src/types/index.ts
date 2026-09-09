@@ -28,14 +28,59 @@ export interface Paper {
   ai_decision?: string | null;
   ai_exclusion_code?: string | null;
   ai_rationale?: string | null;
-  ai_quality_assessment?: string | null;
-  ai_extracted_data?: string | null;
+  ai_quality_assessment?: string | Record<string, any> | null;
+  ai_extracted_data?: string | Record<string, any> | null;
   manual_stage?: number;
   manual_decision?: string | null;
   manual_exclusion_code?: string | null;
   manual_rationale?: string | null;
-  manual_quality_assessment?: string | null;
-  manual_extracted_data?: string | null;
+  manual_quality_assessment?: string | Record<string, any> | null;
+  manual_extracted_data?: string | Record<string, any> | null;
+  effective_stage?: number;
+  effective_decision?: string | null;
+  effective_exclusion_code?: string | null;
+  effective_rationale?: string | null;
+  is_manual_override?: boolean;
+  screening_history?: ScreeningHistoryRecord[];
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ScreeningHistoryRecord {
+  stage: number;
+  task_type?: string;
+  decision: string;
+  exclusion_code?: string | null;
+  rationale?: string | null;
+  logic_trace?: any;
+  quality_assessment?: any;
+  extracted_data?: any;
+  cost_usd?: number | null;
+  total_tokens?: number | null;
+  latency_ms?: number | null;
+  model_id?: string | null;
+  created_at?: string | null;
+}
+
+export interface ScreenedCorpusPaper extends Paper {
+  prisma_phase?: string;
+}
+
+export interface ScreenedCorpus {
+  papers: ScreenedCorpusPaper[];
+  total_count: number;
+  prisma_summary?: {
+    total_ingested: number;
+    duplicates_removed: number;
+    records_screened: number;
+    stage1_excluded: number;
+    reports_sought: number;
+    reports_not_retrieved: number;
+    reports_assessed_stage2: number;
+    stage2_excluded: number;
+    stage3_excluded: number;
+    final_included: number;
+  };
 }
 
 export interface DuplicatePair {
@@ -216,3 +261,65 @@ export interface AgreementMetricSummary {
   disagreementsCount: number;
   kappaInterpretation: 'Slight' | 'Fair' | 'Moderate' | 'Substantial' | 'Almost Perfect';
 }
+
+export interface CalibrationDiscrepancy {
+  paper_id: string;
+  title: string;
+  abstract?: string;
+  local_pdf_path?: string | null;
+  authors?: string;
+  year?: number | null;
+  doi?: string | null;
+  source?: string;
+  pdf_link?: string;
+  publisher?: string;
+  r1_name?: string;
+  r2_name?: string;
+  r1_decision?: string;
+  r2_decision?: string;
+  r1_rationale?: string;
+  r2_rationale?: string;
+  r1_ec?: string | null;
+  r2_ec?: string | null;
+  r1_qa_scores?: string | Record<string, any>;
+  r2_qa_scores?: string | Record<string, any>;
+  r1_extracted_data?: string | Record<string, any>;
+  r2_extracted_data?: string | Record<string, any>;
+  resolved_decision?: string | null;
+  resolved_ec?: string | null;
+  resolved_rationale?: string | null;
+  resolved_qa_scores?: string | Record<string, any> | null;
+  resolved_extracted_data?: string | Record<string, any> | null;
+  is_resolved?: boolean;
+}
+
+export interface CalibrationLedgerEntry {
+  id: number;
+  commit_hash: string;
+  project_id: string;
+  paper_id: string;
+  pool: string;
+  adjudicator: string;
+  previous_state: string;
+  resolved_decision?: string;
+  resolved_ec?: string | null;
+  resolved_rationale?: string;
+  resolved_qa_scores?: string;
+  resolved_extracted_data?: string;
+  commit_message: string;
+  timestamp: string;
+}
+
+export interface RollingBatchDetail {
+  id: string;
+  batch_number: number;
+  status: string;
+  created_at: string;
+  finalized_at?: string | null;
+  reviewers?: Array<{ reviewer_name: string; count?: number; papers_reviewed?: number }>;
+  papers: any[];
+  decisions: any[];
+  discrepancies: any[];
+  ledger: CalibrationLedgerEntry[];
+}
+

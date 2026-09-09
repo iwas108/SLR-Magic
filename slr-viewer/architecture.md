@@ -82,6 +82,17 @@ schemaValidator.ts (Strict Schema Validation >= 1.1.0)
 ### D. Cohort Metrics & Statistical Balancing
 - `cohort-metrics.ts` computes statistical distributions using the Hare-Hamilton largest remainder quota balancing method to ensure all normalized percentages sum precisely to 100.0%.
 
+### E. Pre-Calibration & Post-Validation Adjudication Transparency (`agents.md` §3.5 & §3.7)
+- **Pre-Calibration Adjudication Explorer (`BlindedAdjudicationPanel.tsx`)**:
+  - Provides full auditing transparency into double-blind human calibration (Pool A, Pool B, Pool C).
+  - Reviewer Alpha vs Beta vs Adjudicated Consensus side-by-side comparison tables.
+  - Cryptographically signed calibration commit ledger showing 7-character short hashes, timestamps, adjudicator identities, and resolution messages.
+- **Rolling Batch Post-Validation Explorer (`RollingBatchPanel.tsx`)**:
+  - Extends sequential micro-batch validation (Wald/Fleiss-Cohen estimation) with interactive paper inspection.
+  - Allows reviewing all 20 sampled papers per batch with reviewer scorecards, extraction comparisons, and batch commit ledgers.
+- **Deep Inspection Modal (`AdjudicationInspectionModal.tsx`)**:
+  - Dual-pane layout: Left pane for bibliographic metadata, abstract, DOI, and commit stamp; Right pane for blinded evaluations, QA scorecards with evidence quotes, and miner entities.
+
 ---
 
 ## 4. GitHub Pages Deployment Configuration

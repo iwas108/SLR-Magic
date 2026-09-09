@@ -17,6 +17,7 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `files.md` | Governance / Index | Comprehensive directory index documenting all files, layers, and purposes conforming to AGENTS.md §2.4. |
 | `improvements-log.md` | Documentation | Chronological improvements log tracking feature additions, parity migrations, and bug fixes with sequential IDs. |
 | `README.md` | Documentation | General developer documentation and usage guide for the standalone SLR Viewer SPA. |
+| `public/fonts/` | Offline Assets / Typography | Mirrored static publication font assets (Computer Modern, STIX Two Text, Carlito, EB Garamond, Roboto) enabling 100% offline typography parity in standalone builds. |
 
 ---
 
@@ -48,10 +49,11 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `src/types/index.ts` | Domain Types | Unified TypeScript interfaces for papers, projects, LLM extraction schemas, calibration metrics, and PRISMA flows. |
 | `src/lib/services/cohort-metrics.ts` | Domain Calculation | Pure mathematical engine calculating Unique Paper Prevalence ($N$) and Hare-Hamilton quota-balanced Tag Share distributions ($100.00\%$). |
 | `src/lib/services/cohort-data-source.ts` | Data Aggregation | Universal data adapter resolving cohort field values, study prevalence deduplication, and cross-tabulation metrics. |
-| `src/lib/services/taxonomy-resolver.ts` | Canonicalization Engine | Post-pipeline canonicalization resolver mapping raw terms to Umbrellanizer taxonomy categories using strict equality matching. |
+| `src/lib/services/taxonomy-resolver.ts` | Canonicalization Engine | Post-pipeline canonicalization resolver mapping raw terms to Umbrellanizer taxonomy categories using strict equality matching, with isomorphic stage-dominant resolution supporting both SQLite strings and parsed objects. |
 | `src/lib/services/trace-normalizer.ts` | Normalization Engine | AI logic trace mapping and reasoning quote extractor providing single source of truth for evidence quotes. |
 | `src/lib/services/prisma-svg-generator.ts` | Vector Graphics Engine | Standalone PRISMA 2020 SVG diagram generator producing publication-ready vector markup with customizable themes. |
 | `src/lib/services/pdf-export-service.ts` | Document Exporter | Client-side PDF export service converting vector SVGs and canvas diagrams into high-resolution vector PDF documents via jsPDF + svg2pdf.js. |
+| `src/lib/inter-rater/adjudication-calculations.ts` | Reliability Engine | Pure TypeScript calculation engine for Cohen's Kappa, Linear Weighted Kappa, Precision, Miner Schema Exactness, and Pool C QA review summaries. |
 | `src/lib/csv-export.ts` | Export Utility | RFC 4180-compliant tabular CSV export utility with UTF-8 BOM (`\uFEFF`) and study prevalence deduplication. |
 
 ---
@@ -73,14 +75,17 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `src/components/scientific-rigor/PrismaConfigModal.tsx` | Diagram Configuration | Configuration modal for adjusting PRISMA counts, box text labels, layout dimensions, and node visibility. |
 | `src/components/scientific-rigor/ScientificRigorLlmModal.tsx` | LLM Context Builder | Scientific Rigor context extraction modal synthesizing PRISMA flow, pre-calibration pools, blinded agreement, stage comparisons, and rolling audits across 8 dimensions. |
 | `src/components/scientific-rigor/PoolMetricsPanel.tsx` | Quality Assessment | Pre-calibration pool filling progress and consensus scorecard displaying Pool A, Pool B, and Pool C metrics. |
-| `src/components/scientific-rigor/BlindedAdjudicationPanel.tsx` | Quality Assessment | Blinded review agreement panel displaying Cohen's Kappa, Observed Agreement, Expected Chance Agreement, and Discrepancy Adjudication progress. |
+| `src/components/scientific-rigor/BlindedAdjudicationPanel.tsx` | Quality Assessment | Interactive pre-calibration adjudication hub with pool selector, discrepancy vs all papers filter, search, audit ledger table, and inspection modal launch. |
+| `src/components/scientific-rigor/AdjudicationInspectionModal.tsx` | Adjudication Inspection | Deep side-by-side adjudication modal comparing Reviewer Alpha vs Beta vs Consensus (decision, EC, rationale, QA rubric criteria with quotes, and miner extraction). |
 | `src/components/scientific-rigor/StageComparisonPanel.tsx` | Quality Assessment | Gold Standard vs AI stage screening comparison panel auditing Fast Filter and Gatekeeper agreement and transition accuracy. |
-| `src/components/scientific-rigor/RollingBatchPanel.tsx` | Quality Assessment | Sequential Quality Control rolling batch validation panel displaying batch metrics and audit progression. |
+| `src/components/scientific-rigor/RollingBatchPanel.tsx` | Quality Assessment | Sequential Quality Control panel featuring Wald/Fleiss-Cohen metrics, batch history, interactive batch adjudication explorer, and batch audit ledger. |
 | `src/components/scientific-rigor/BatchStatisticsCards.tsx` | Quality Assessment | High-level sequential audit metrics cards summarizing rolling batch screening accuracy. |
 | `src/components/accounting/AccountingPanel.tsx` | Financial Audit | Token expenditure and cost audit panel tracking input/output tokens and financial costs per screening stage. |
-| `src/components/research-workflow/ResearchWorkflowPanel.tsx` | Methodology View | 5-stage interactive pipeline architecture flow detailing the SLR review methodology from ingestion to final cohort. |
+| `src/components/research-workflow/ResearchWorkflowPanel.tsx` | Methodology View | 5-stage interactive pipeline architecture flow detailing the SLR review methodology from multi-source systematic search queries (IEEE Xplore, Scopus, etc. under PRISMA Item 7) to final cohort, featuring direct 1-click cross-panel navigation across all 20 flowchart nodes and slide-over telemetry inspection drawers. |
 | `src/components/research-workflow/TaxonomyTrendsPrintDocument.tsx` | Report Generator | Printable taxonomy report document rendering formatted distribution tables and methodological summaries. |
 | `src/components/insight-export/FairDataExportPanel.tsx` | FAIR Data Hub | FAIR-compliant data export hub providing 1-click downloads for `.slr-viewer` snapshots, tabular cohort `.csv`, and Umbrellanizer Taxonomy Mappings (`.csv` and `.json`). |
+| `src/components/screening-ledger/ScreeningLedgerPanel.tsx` | Screening Ledger | Full-corpus transparency data grid displaying all 1,800+ input papers with stage-dominant decisions, multi-field search, multi-attribute filter drawer, sortable/resizable columns, and RFC 4180 CSV export. |
+| `src/components/screening-ledger/PaperInspectionModal.tsx` | Paper Inspection | Comprehensive audit modal featuring 4-stage visual stepper, exclusion rule explanation, AI vs human rationale comparison, multi-stage screening history, full abstract, and prev/next keyboard navigation. |
 
 ---
 

@@ -82,6 +82,10 @@ copyFile(
   path.join(ideDir, 'src/lib/services/pdf-export-service.ts'),
   path.join(viewerDir, 'src/lib/services/pdf-export-service.ts')
 );
+copyFile(
+  path.join(ideDir, 'src/lib/inter-rater/adjudication-calculations.ts'),
+  path.join(viewerDir, 'src/lib/inter-rater/adjudication-calculations.ts')
+);
 
 // 2. Mirror Types
 console.log('\n[2/5] Mirroring Types...');
@@ -123,9 +127,13 @@ copyFile(
   path.join(ideDir, 'src/components/features/modals/ScientificRigorLlmModal.tsx'),
   path.join(viewerDir, 'src/components/scientific-rigor/ScientificRigorLlmModal.tsx')
 );
+copyFile(
+  path.join(ideDir, 'src/components/features/pre-calibration/AdjudicationInspectionModal.tsx'),
+  path.join(viewerDir, 'src/components/scientific-rigor/AdjudicationInspectionModal.tsx')
+);
 
 // 5. Mirror Presentation Panels
-console.log('\n[5/5] Mirroring Feature Panels...');
+console.log('\n[5/6] Mirroring Feature Panels...');
 copyFile(
   path.join(ideDir, 'src/components/features/insight-export/PrismaFlowDiagram.tsx'),
   path.join(viewerDir, 'src/components/scientific-rigor/PrismaFlowDiagram.tsx')
@@ -147,4 +155,12 @@ copyFile(
   path.join(viewerDir, 'src/components/scientific-rigor/BlindedAdjudicationPanel.tsx')
 );
 
-console.log('\n✨ Code Mirroring Complete! All shared components and services are synchronized.\n');
+// 6. Mirror Public Static Assets (Fonts)
+console.log('\n[6/6] Mirroring Public Static Fonts (Zero CDN Offline Assets)...');
+copyDir(
+  path.join(ideDir, 'public/fonts'),
+  path.join(viewerDir, 'public/fonts')
+);
+
+console.log('\n✨ Code Mirroring Complete! All shared components, services, and offline assets are synchronized.\n');
+

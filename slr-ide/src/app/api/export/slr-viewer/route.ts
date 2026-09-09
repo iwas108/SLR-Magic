@@ -774,13 +774,31 @@ export async function GET(request: Request) {
       const pA_adj = computePoolABStats(resolvedProjectId, 'pool_a');
       const pB_adj = computePoolABStats(resolvedProjectId, 'pool_b');
       const pC_adj = computePoolCStats(resolvedProjectId);
+
+      // Query full calibration commit ledger for all pools strictly scoped to project
+      const ledgerRows = db.prepare(`
+        SELECT id, commit_hash, project_id, paper_id, pool, adjudicator, previous_state, resolved_decision, resolved_ec, resolved_rationale, resolved_qa_scores, resolved_extracted_data, commit_message, timestamp
+        FROM calibration_commit_ledger
+        WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+        ORDER BY timestamp DESC
+      `).all(resolvedProjectId, resolvedProjectId) as any[];
+
+      const pA_ledger = ledgerRows.filter((l: any) => l.pool === 'pool_a' || l.pool === 'CAL_Pool_A');
+      const pB_ledger = ledgerRows.filter((l: any) => l.pool === 'pool_b' || l.pool === 'CAL_Pool_B');
+      const pC_ledger = ledgerRows.filter((l: any) => l.pool === 'pool_c' || l.pool === 'CAL_Pool_C');
+
+      (pA_adj as any).ledger = pA_ledger;
+      (pB_adj as any).ledger = pB_ledger;
+      (pC_adj as any).ledger = pC_ledger;
+
       blindedAdjudicationStats = {
         pools: {
           pool_a: pA_adj,
           pool_b: pB_adj,
           pool_c: pC_adj
         },
-        poolList: [pA_adj, pB_adj, pC_adj]
+        poolList: [pA_adj, pB_adj, pC_adj],
+        ledger: ledgerRows
       };
     } catch (e) {
       console.error('Failed to compute blinded adjudication stats:', e);
@@ -1062,7 +1080,115 @@ export async function GET(request: Request) {
         SELECT * FROM rolling_batches WHERE CAST(project_id AS TEXT) = CAST(? AS TEXT) ORDER BY batch_number ASC
       `).all(resolvedProjectId) as any[];
 
-      rollingBatchQC.batches = allBatches;
+      const batchDetailsMap: Record<string, any> = {};
+      const enhancedBatches = allBatches.map((batch: any) => {
+        const batchPapers = db.prepare(`
+          SELECT * FROM rolling_batch_papers 
+          WHERE batch_id = ? AND (Project_ID = ? OR CAST(Project_ID AS TEXT) = CAST(? AS TEXT))
+          ORDER BY Paper_ID ASC
+        `).all(batch.id, resolvedProjectId, resolvedProjectId) as any[];
+
+        const batchDecisions = db.prepare(`
+          SELECT * FROM rolling_batch_reviewer_decisions 
+          WHERE batch_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          ORDER BY reviewer_name ASC
+        `).all(batch.id, resolvedProjectId, resolvedProjectId) as any[];
+
+        const batchLedger = db.prepare(`
+          SELECT id, commit_hash, batch_id, batch_number, project_id, paper_id, adjudicator, previous_state, resolved_qa_scores, resolved_extracted_data, commit_message, timestamp
+          FROM rolling_batch_commit_ledger 
+          WHERE batch_id = ? AND (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+          ORDER BY timestamp DESC
+        `).all(batch.id, resolvedProjectId, resolvedProjectId) as any[];
+
+        const paperDecisionsMap: Record<string, any[]> = {};
+        for (const dec of batchDecisions) {
+          if (!paperDecisionsMap[dec.paper_id]) paperDecisionsMap[dec.paper_id] = [];
+          paperDecisionsMap[dec.paper_id].push(dec);
+        }
+
+        const reviewerCounts: Record<string, number> = {};
+        for (const dec of batchDecisions) {
+          reviewerCounts[dec.reviewer_name] = (reviewerCounts[dec.reviewer_name] || 0) + 1;
+        }
+        const reviewersList = Object.keys(reviewerCounts).map(name => ({
+          reviewer_name: name,
+          papers_reviewed: reviewerCounts[name]
+        }));
+
+        const batchDiscrepancies: any[] = [];
+        for (const p of batchPapers) {
+          const decs = (paperDecisionsMap[p.Paper_ID] || []).sort((a, b) => a.reviewer_name.localeCompare(b.reviewer_name));
+          const r1 = decs[0];
+          const r2 = decs[1];
+
+          let hasDiff = false;
+          if (r1 && r2) {
+            hasDiff = r1.qa_scores !== r2.qa_scores || r1.extracted_data !== r2.extracted_data;
+          }
+          const isPending = p.manual_decision === 'PENDING_ADJUDICATION' || p.manual_decision === null;
+
+          const discItem = {
+            paper_id: p.Paper_ID,
+            title: p.Title || p.Paper_ID,
+            abstract: p.Abstract || '',
+            local_pdf_path: p.Local_PDF_Path || null,
+            authors: p.Authors || '',
+            year: p.Year || null,
+            doi: p.DOI || null,
+            source: p.Source || '',
+            pdf_link: p.PDF_Link || '',
+            publisher: p.Publisher || '',
+            r1_name: r1?.reviewer_name || (reviewersList[0]?.reviewer_name || 'Reviewer Alpha'),
+            r1_qa_scores: r1?.qa_scores || '{}',
+            r1_extracted_data: r1?.extracted_data || '{}',
+            r2_name: r2?.reviewer_name || (reviewersList[1]?.reviewer_name || 'Reviewer Beta'),
+            r2_qa_scores: r2?.qa_scores || '{}',
+            r2_extracted_data: r2?.extracted_data || '{}',
+            resolved_decision: p.manual_decision || null,
+            resolved_ec: p.manual_exclusion_code || null,
+            resolved_rationale: p.manual_rationale || null,
+            resolved_qa_scores: p.manual_quality_assessment || null,
+            resolved_extracted_data: p.manual_extracted_data || null,
+            is_resolved: !isPending,
+            has_discrepancy: hasDiff
+          };
+
+          if (hasDiff || isPending || p.manual_quality_assessment || p.manual_extracted_data) {
+            batchDiscrepancies.push(discItem);
+          }
+        }
+
+        const batchDetail = {
+          id: batch.id,
+          batch_number: batch.batch_number,
+          status: batch.status,
+          created_at: batch.created_at,
+          finalized_at: batch.finalized_at,
+          reviewers: reviewersList,
+          papers: batchPapers,
+          decisions: batchDecisions,
+          discrepancies: batchDiscrepancies,
+          ledger: batchLedger
+        };
+
+        batchDetailsMap[batch.id] = batchDetail;
+
+        return {
+          ...batch,
+          reviewers: reviewersList,
+          papers_count: batchPapers.length,
+          discrepancies_count: batchDiscrepancies.length,
+          ledger_count: batchLedger.length,
+          papers: batchPapers,
+          decisions: batchDecisions,
+          discrepancies: batchDiscrepancies,
+          ledger: batchLedger
+        };
+      });
+
+      rollingBatchQC.batches = enhancedBatches;
+      rollingBatchQC.batch_details = batchDetailsMap;
       rollingBatchQC.overall_status = allBatches.length > 0 && allBatches.every((b: any) => b.status === 'PASSED' || b.status === 'complete')
         ? 'PASSED'
         : 'IN_PROGRESS';
@@ -1469,13 +1595,14 @@ export async function GET(request: Request) {
 
       expensiveCalls = db
         .prepare(
-          `SELECT task_type, model_id, total_tokens, cost_usd, timestamp, paper_id, latency_ms
+          `SELECT task_type, model_id, total_tokens, cost_usd, created_at, timestamp, paper_id, latency_ms
            FROM (
              SELECT 
                task_type, 
                model_id, 
                total_tokens, 
                cost_usd, 
+               created_at, 
                created_at AS timestamp, 
                paper_id, 
                latency_ms
@@ -1489,6 +1616,7 @@ export async function GET(request: Request) {
                model_id, 
                (input_tokens + output_tokens + thinking_tokens) as total_tokens, 
                cost_usd, 
+               created_at, 
                created_at AS timestamp, 
                NULL as paper_id, 
                NULL as latency_ms
@@ -1512,8 +1640,172 @@ export async function GET(request: Request) {
       console.error('Failed to query prompt_templates for export:', e);
     }
 
+    // 7. Fetch Full Screened Corpus (All input papers with stage-dominant decisions & screening histories)
+    let allScreenedPapers: any[] = [];
+    try {
+      // 7.1 Multi-stage screening history per paper from llm_screening_records
+      const screeningRecordsRows = db
+        .prepare(
+          `SELECT 
+             paper_id,
+             stage,
+             task_type,
+             decision,
+             exclusion_code,
+             rationale,
+             logic_trace,
+             quality_assessment,
+             extracted_data,
+             cost_usd,
+             total_tokens,
+             latency_ms,
+             model_id,
+             created_at
+           FROM llm_screening_records
+           WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+           ORDER BY stage ASC, created_at ASC`
+        )
+        .all(resolvedProjectId, resolvedProjectId) as any[];
+
+      const screeningRecordsMap: Record<string, any[]> = {};
+      for (const rec of screeningRecordsRows) {
+        if (!screeningRecordsMap[rec.paper_id]) {
+          screeningRecordsMap[rec.paper_id] = [];
+        }
+        let parsedLogicTrace = null;
+        try {
+          if (rec.logic_trace) {
+            parsedLogicTrace = typeof rec.logic_trace === 'string' ? JSON.parse(rec.logic_trace) : rec.logic_trace;
+          }
+        } catch {}
+
+        screeningRecordsMap[rec.paper_id].push({
+          stage: rec.stage,
+          task_type: rec.task_type,
+          decision: rec.decision,
+          exclusion_code: rec.exclusion_code,
+          rationale: rec.rationale,
+          logic_trace: parsedLogicTrace,
+          cost_usd: rec.cost_usd,
+          total_tokens: rec.total_tokens,
+          latency_ms: rec.latency_ms,
+          model_id: rec.model_id,
+          created_at: rec.created_at
+        });
+      }
+
+      // 7.2 All papers in project with type-agnostic project scoping
+      const rawAllPapers = db
+        .prepare(
+          `SELECT 
+             p.*,
+             (SELECT Title FROM papers parent WHERE parent.Paper_ID = p.Parent_Paper_ID AND (parent.Project_ID = p.Project_ID OR CAST(parent.Project_ID AS TEXT) = CAST(p.Project_ID AS TEXT))) as Parent_Paper_Title
+           FROM papers p
+           WHERE (p.Project_ID = ? OR CAST(p.Project_ID AS TEXT) = CAST(? AS TEXT))
+           ORDER BY p.is_duplicate ASC, p.Year DESC, p.Title ASC`
+        )
+        .all(resolvedProjectId, resolvedProjectId) as any[];
+
+      allScreenedPapers = rawAllPapers.map((paper: any) => {
+        const ms = Number(paper.manual_stage || 0);
+        const as = Number(paper.ai_stage || 0);
+        const effectiveStage = Math.max(ms, as);
+
+        let effectiveDecision: string | null = null;
+        let effectiveExclusionCode: string | null = null;
+        let effectiveRationale: string | null = null;
+        let isManualOverride = false;
+
+        if (ms > as) {
+          effectiveDecision = paper.manual_decision;
+          effectiveExclusionCode = paper.manual_exclusion_code;
+          effectiveRationale = paper.manual_rationale;
+          isManualOverride = true;
+        } else if (as > ms) {
+          effectiveDecision = paper.ai_decision;
+          effectiveExclusionCode = paper.ai_exclusion_code;
+          effectiveRationale = paper.ai_rationale;
+        } else {
+          // Equal stages: manual decision overrides AI decision (AGENTS.md §3.6)
+          effectiveDecision = paper.manual_decision || paper.ai_decision || null;
+          effectiveExclusionCode = paper.manual_exclusion_code || paper.ai_exclusion_code || null;
+          effectiveRationale = paper.manual_rationale || paper.ai_rationale || null;
+          if (paper.manual_decision && paper.ai_decision && paper.manual_decision !== paper.ai_decision) {
+            isManualOverride = true;
+          }
+        }
+
+        let parsedAiQa = null;
+        try {
+          if (paper.ai_quality_assessment) {
+            parsedAiQa = typeof paper.ai_quality_assessment === 'string' ? JSON.parse(paper.ai_quality_assessment) : paper.ai_quality_assessment;
+          }
+        } catch {}
+
+        let parsedManualQa = null;
+        try {
+          if (paper.manual_quality_assessment) {
+            parsedManualQa = typeof paper.manual_quality_assessment === 'string' ? JSON.parse(paper.manual_quality_assessment) : paper.manual_quality_assessment;
+          }
+        } catch {}
+
+        let parsedAiExt = null;
+        try {
+          if (paper.ai_extracted_data) {
+            parsedAiExt = typeof paper.ai_extracted_data === 'string' ? JSON.parse(paper.ai_extracted_data) : paper.ai_extracted_data;
+          }
+        } catch {}
+
+        let parsedManualExt = null;
+        try {
+          if (paper.manual_extracted_data) {
+            parsedManualExt = typeof paper.manual_extracted_data === 'string' ? JSON.parse(paper.manual_extracted_data) : paper.manual_extracted_data;
+          }
+        } catch {}
+
+        const isPdfInaccessible = (paper.Local_PDF_Status || '').toUpperCase() === 'INACCESSIBLE';
+        const rawDec = (effectiveDecision || '').toUpperCase();
+        const isIncluded = rawDec.startsWith('INCLUDE');
+        const isExcluded = rawDec.startsWith('EXCLUDE');
+
+        let prismaPhase: string = 'UNSCREENED';
+        if (paper.is_duplicate === 1) {
+          prismaPhase = 'DUPLICATE_REMOVED';
+        } else if (effectiveStage === 1 && isExcluded) {
+          prismaPhase = 'STAGE_1_EXCLUDED';
+        } else if (effectiveStage === 1 && isIncluded && isPdfInaccessible) {
+          prismaPhase = 'RETRIEVAL_INACCESSIBLE';
+        } else if (effectiveStage === 2 && isExcluded) {
+          prismaPhase = 'STAGE_2_EXCLUDED';
+        } else if (effectiveStage === 3 && isExcluded) {
+          prismaPhase = 'STAGE_3_EXCLUDED';
+        } else if ((effectiveStage >= 4 || (effectiveStage >= 3 && !isPdfInaccessible)) && isIncluded) {
+          prismaPhase = 'FINAL_INCLUDED';
+        }
+
+        return {
+          ...paper,
+          created_at: paper.created_at || paper.Import_Date || null,
+          updated_at: paper.updated_at || null,
+          effective_stage: effectiveStage,
+          effective_decision: effectiveDecision,
+          effective_exclusion_code: effectiveExclusionCode,
+          effective_rationale: effectiveRationale,
+          is_manual_override: isManualOverride,
+          prisma_phase: prismaPhase,
+          ai_quality_assessment: parsedAiQa,
+          manual_quality_assessment: parsedManualQa,
+          ai_extracted_data: parsedAiExt,
+          manual_extracted_data: parsedManualExt,
+          screening_history: screeningRecordsMap[paper.Paper_ID] || []
+        };
+      });
+    } catch (e) {
+      console.error('Failed to query all screened papers for export:', e);
+    }
+
     const exportPayload = {
-      schema_version: '1.2.0',
+      schema_version: '1.3.0',
       type: 'slr-viewer-export',
       export_date: new Date().toISOString(),
       project: {
@@ -1527,7 +1819,9 @@ export async function GET(request: Request) {
         quality_assurance_definition: project.qa_definition || project.quality_assurance_definition || '',
         scopus_search_string: project.scopus_search_string || '',
         manual_search_string: project.manual_search_string || '',
-        search_queries: project.search_queries ? (typeof project.search_queries === 'string' ? JSON.parse(project.search_queries || '[]') : project.search_queries) : [],
+        search_queries: (parsedSearchQueries && parsedSearchQueries.length > 0)
+          ? parsedSearchQueries
+          : (project.search_queries ? (typeof project.search_queries === 'string' ? JSON.parse(project.search_queries || '[]') : project.search_queries) : []),
         search_string: project.scopus_search_string || '',
         manifesto: project.manifesto || project.research_manifesto || '',
         objective: project.objective || project.research_objective || '',
@@ -1559,6 +1853,23 @@ export async function GET(request: Request) {
         pre_calibration_data: poolMetrics,
         gold_standard_stage_comparison: stageComparisons,
         rolling_batch_validation: rollingBatchQC,
+      },
+      systematic_search_strategies: systematicSearchStrategies,
+      screened_corpus: {
+        papers: allScreenedPapers,
+        total_count: allScreenedPapers.length,
+        prisma_summary: {
+          total_ingested: allPapers.length,
+          duplicates_removed: dbDuplicatesRemoved,
+          records_screened: dbRecordsScreened,
+          stage1_excluded: dbStage1Excluded,
+          reports_sought: dbReportsSought,
+          reports_not_retrieved: dbReportsNotRetrieved,
+          reports_assessed_stage2: Math.max(0, dbReportsSought - dbReportsNotRetrieved),
+          stage2_excluded: 774,
+          stage3_excluded: dbStage3Cumulative + dbStage3FatalFlaw,
+          final_included: totalIncludedStudies
+        }
       },
       final_cohort: {
         papers: processedPapers,

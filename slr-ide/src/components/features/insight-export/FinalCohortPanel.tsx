@@ -7,7 +7,8 @@ import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/tr
 import {
   resolveUmbrellanizerValue as centralResolveUmbrellanizerValue,
   getUmbrellanizerJustification as centralGetUmbrellanizerJustification,
-  getStageDominantExtractedDataStr
+  getStageDominantExtractedDataStr,
+  getStageDominantQualityAssessmentStr
 } from '@/lib/services/taxonomy-resolver';
 import VisualizerModal from '../modals/VisualizerModal';
 import LlmContextBuilderModal from '../modals/LlmContextBuilderModal';
@@ -425,10 +426,7 @@ export default function FinalCohortPanel({
 
   // Parse QA Assessment helpers with stage dominance, float score calculation, and trace mappings extraction
   const parseQaAssessment = useCallback((paper: any) => {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const qaStr = isManualDominant 
-      ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '') 
-      : (paper.ai_quality_assessment || paper.manual_quality_assessment || '');
+    const qaStr = getStageDominantQualityAssessmentStr(paper);
 
     if (!qaStr) return { score: 0, items: {}, traces: {} };
     try {
