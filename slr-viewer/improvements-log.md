@@ -2,6 +2,20 @@
 
 All notable changes, refactoring milestones, and feature additions to `slr-viewer/` are documented in this log.
 
+## [#017] [2026-09-09] - Raw Extracted Value Parity in Final Cohort Cell Value Popover
+
+### Added & Enhanced
+- **Raw Extracted Value Display in Value Popover (`ClickableCell.tsx`)**:
+  - Brought `ClickableCell` in `slr-viewer` into 100% parity with `slr-ide` by rendering the unmapped `originalValue` inside the "Copy Cell Value" popover whenever it is present and differs from `valueToCopy`.
+  - Added dedicated "Original Value" sub-header, pre-wrapped scrollable content box, and 1-click copy button with animated confirmation state (`copiedType === 'original'`).
+  - Restored full transparency for researchers to inspect and copy both post-Umbrellanizer canonical terms and original raw LLM extractions directly from final cohort tables.
+- **Verification**:
+  - Confirmed 0 TypeScript type errors (`tsc --noEmit`).
+  - Generated clean production bundle in `dist/` with updated asset fingerprints (`npm run build:viewer`).
+  - Updated `slr-viewer/files.md`.
+
+---
+
 ## [#016] [2026-09-09] - Codebase Cleanup, Tree Shaking & Production Build Audit for GitHub Release
 
 ### Cleanup & Verification

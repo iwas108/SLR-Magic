@@ -67,7 +67,7 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `src/components/ImportWorkflow.tsx` | File Ingestion | Drag-and-drop file ingestion area supporting both `.slr-viewer` (Gzip binary) and `.json` uncompressed snapshot bundles. |
 | `src/components/common/FullscreenErrorModal.tsx` | Error Handling | Interceptor modal displaying actionable error messages when snapshot validation fails or file corruptions occur. |
 | `src/components/final-cohort/FinalCohortPanel.tsx` | Data Grid / Table | Comprehensive final cohort data grid with column filters, search, inline trace popovers, and launch actions for Visualizer and LLM Context Builder. |
-| `src/components/final-cohort/ClickableCell.tsx` | Grid Cell Renderer | Interactive table cell renderer displaying extracted values with popover trace justification and quotes. |
+| `src/components/final-cohort/ClickableCell.tsx` | Grid Cell Renderer | Interactive table cell renderer displaying umbrellanized and raw original extracted values with popover trace justification and quotes. |
 | `src/components/final-cohort/VisualizerModal.tsx` | Data Visualization | Full-featured Visualizer Studio modal housing the 18-chart generation studio and publication export tools. |
 | `src/components/final-cohort/LlmContextBuilderModal.tsx` | LLM Context Builder | Synthesis modal extracting structured Markdown context from final cohort papers across customizable research dimensions. |
 | `src/components/scientific-rigor/ScientificRigorPanel.tsx` | Quality Assessment | Top-level scientific rigor dashboard featuring PRISMA 2020 validation status, 1-click Rigor JSON export, and LLM Context Extraction. |

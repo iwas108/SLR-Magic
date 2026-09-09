@@ -118,6 +118,23 @@ export default function ClickableCell({
           <div className="max-h-40 overflow-y-auto font-mono text-[10px] break-words bg-secondary/50 p-2 rounded border border-border/50 select-text whitespace-pre-wrap">
             {valueToCopy}
           </div>
+          {originalValue && originalValue !== valueToCopy && (
+            <div className="flex flex-col gap-1 border-t border-border/60 pt-1.5 mt-0.5">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-[10px] uppercase text-muted-foreground">Original Value</span>
+                <button
+                  onClick={() => handleCopy(originalValue, 'original')}
+                  className="p-1 hover:bg-secondary rounded border border-border flex items-center gap-1 text-[9px] font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  {copiedType === 'original' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  {copiedType === 'original' ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <div className="max-h-40 overflow-y-auto font-mono text-[10px] break-words bg-secondary/50 p-2 rounded border border-border/50 select-text whitespace-pre-wrap">
+                {originalValue}
+              </div>
+            </div>
+          )}
           {pdfLink && (
             <div className="pt-1 border-t border-border flex justify-end">
               <a
